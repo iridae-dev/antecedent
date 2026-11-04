@@ -45,7 +45,7 @@ repo = Path(_argv[2]).resolve()
 table = _argv[3] if len(_argv) > 3 else "capabilities"
 gate = _argv[4] if len(_argv) > 4 else "gate_composition"
 simulation_rows = (registered_calibration_simulations(root)
-                   if (root / "parity/v3_test_registry.toml").exists() else [])
+                   if (root / "parity/test_registry.toml").exists() else [])
 simulations = {(r["evidence_test"], r["evidence_assertion"]) for r in simulation_rows}
 run_simulations = os.environ.get("ANTECEDENT_RUN_CALIBRATION_SIMULATIONS") == "1"
 
@@ -241,7 +241,7 @@ if rust_cited:
             except ValueError as problem:
                 failures.extend(labels)
                 print(f"FAIL: {', '.join(labels)}: {problem}")
-    for t, a, labels, found in groups:
+    for _t, _a, labels, found in groups:
         for r in found:
             target_args = ["--lib"] if r["cargo_target"] == "lib" else ["--test", r["cargo_target"]]
             required = cargo_target_feature_args(root / "crates" / r["crate"] / "Cargo.toml", target_args)

@@ -170,7 +170,7 @@ impl NativeResponseContext {
             return Err(refusal(
                 antecedent_core::reason_code!("invalid_argument"),
                 "bind",
-                "native_claims.invalid_context",
+                antecedent_core::reason_details::native_claims::INVALID_CONTEXT,
                 None,
                 None,
                 "name the data snapshot and the RNG identity of the native response",
@@ -192,7 +192,7 @@ fn mean_curve(
         return Err(refusal(
             antecedent_core::reason_code!("route_not_supported"),
             "bind",
-            "native_claims.unsupported_estimand",
+            antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
             Some("mean_curve".to_owned()),
             None,
             "only a mean response curve carries one coordinate per dose",
@@ -200,7 +200,7 @@ fn mean_curve(
     };
     let doses = treatment.grid.values().map_err(|_| {
         bind_refusal(
-            "native_claims.grid_mismatch",
+            antecedent_core::reason_details::native_claims::GRID_MISMATCH,
             "a valid dose grid".to_owned(),
             "invalid".into(),
         )
@@ -220,7 +220,7 @@ fn point_surface<'a>(
         return Err(refusal(
             antecedent_core::reason_code!("effect_not_identified"),
             "bind",
-            "native_claims.response_not_point_identified",
+            antecedent_core::reason_details::native_claims::RESPONSE_NOT_POINT_IDENTIFIED,
             Some("point_identified".to_owned()),
             Some(response.identification_status.as_str().to_owned()),
             "an envelope, graph-dependent or unidentified response supplies no point mean",
@@ -230,7 +230,7 @@ fn point_surface<'a>(
         return Err(refusal(
             antecedent_core::reason_code!("route_not_supported"),
             "bind",
-            "native_claims.unsupported_estimand",
+            antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
             Some("surface".to_owned()),
             None,
             "only a mean response curve carries one coordinate per dose",
@@ -244,7 +244,7 @@ fn point_surface<'a>(
         || mean.iter().any(|m| !m.is_finite())
     {
         return Err(bind_refusal(
-            "native_claims.grid_mismatch",
+            antecedent_core::reason_details::native_claims::GRID_MISMATCH,
             format!("{} finite means on the estimand grid", doses.len()),
             format!("{} means on a {}-point grid", mean.len(), grid.len()),
         ));
@@ -264,7 +264,7 @@ fn variable_name(
         refusal(
             antecedent_core::reason_code!("unknown_variable"),
             "bind",
-            "native_claims.unknown_variable",
+            antecedent_core::reason_details::native_claims::UNKNOWN_VARIABLE,
             None,
             Some(id.raw().to_string()),
             "derive coordinates with the schema the response was estimated on",
@@ -302,7 +302,7 @@ pub fn native_response_coordinates(
     if let Some(unit) = &outcome.unit {
         if &**unit != program.outcome_units.as_str() {
             return Err(bind_refusal(
-                "native_claims.units_conflict",
+                antecedent_core::reason_details::native_claims::UNITS_CONFLICT,
                 program.outcome_units.clone(),
                 unit.to_string(),
             ));
@@ -366,7 +366,7 @@ impl NativeResponseClaim {
             return Err(refusal(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 "support",
-                "native_claims.point_support_missing",
+                antecedent_core::reason_details::native_claims::POINT_SUPPORT_MISSING,
                 Some(format!("{} coordinate labels", coordinates.len())),
                 None,
                 "a decision input carries a support label for every coordinate",
@@ -485,7 +485,7 @@ impl NativeResponseClaim {
             DecisionContractError::MissingSource { needed } => refusal(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
                 "evaluate",
-                "native_claims.source_not_supplied",
+                antecedent_core::reason_details::native_claims::SOURCE_NOT_SUPPLIED,
                 Some(names(&needed)),
                 Some(names(&available)),
                 "a point or mean response is not an outcome law; supply aligned joint draws",
@@ -507,7 +507,7 @@ impl NativeResponseClaim {
             return Err(refusal(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 "evaluate",
-                "native_claims.no_supported_coordinate",
+                antecedent_core::reason_details::native_claims::NO_SUPPORTED_COORDINATE,
                 Some("at least one supported coordinate".to_owned()),
                 Some(self.summary_status.as_str().to_owned()),
                 "no coordinate of this response may feed a decision",
@@ -567,7 +567,7 @@ impl NativeResponseClaim {
             refusal(
                 antecedent_core::reason_code!("invalid_argument"),
                 "evaluate",
-                "native_claims.joint_law_invalid",
+                antecedent_core::reason_details::native_claims::JOINT_LAW_INVALID,
                 None,
                 Some(why),
                 "retain finite, aligned credible draws of every coordinate",

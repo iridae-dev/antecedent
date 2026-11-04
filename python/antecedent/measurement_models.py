@@ -42,7 +42,7 @@ What is supported, and what is not:
   *uncalibrated* delta-method estimate that includes the uncertainty of the estimated measurement
   parameters where the record says it was propagated. :meth:`MeasurementEstimate.interval` returns
   the Wald interval as a :class:`MeasurementInterval` whose calibration slot is ``not_measured``
-  until a coverage record measures the whole measurement-plus-estimation method.
+  while no coverage record measures the whole measurement-plus-estimation method.
 * **Refresh** keeps the model and recomputes the numbers on new outcome-only data of the same
   question; it never changes validation parameters. :meth:`PreparedMeasurementModel
   .with_validation_parameters` is the only way the numbers a model was established with change, and
@@ -94,6 +94,8 @@ from dataclasses import dataclass, field
 from typing import Any, NoReturn
 
 import numpy as np
+
+from antecedent import _reason_details
 
 from . import _native
 from ._artifact_protocol import (
@@ -1676,7 +1678,7 @@ def consume_measurement_model_artifact(
             {
                 "code": "invalid_argument",
                 "stage": "consume",
-                "detail": "measurement_model.artifact_invalid",
+                "detail": _reason_details.measurement_model.ARTIFACT_INVALID,
                 "message": "the artifact carries a model but no result to consume",
             }
         )

@@ -240,7 +240,7 @@ impl StatisticStore {
     ) -> Result<(), SelectiveDiscoveryError> {
         if receipts.len() > max_receipts {
             return Err(statistics_invalid(
-                "selective_discovery.receipt_limit",
+                antecedent_core::reason_details::selective_discovery::RECEIPT_LIMIT,
                 format!("a portable state carries at most {max_receipts} receipts"),
             ));
         }
@@ -248,14 +248,14 @@ impl StatisticStore {
         for receipt in receipts {
             if !receipt.is_valid() {
                 return Err(statistics_invalid(
-                    "selective_discovery.receipt_invalid",
+                    antecedent_core::reason_details::selective_discovery::RECEIPT_INVALID,
                     "a retained statistic is not finite or its p-value is outside [0, 1]; \
                      recompute it from the raw data",
                 ));
             }
             if inner.entries.insert(receipt.coordinate, receipt.to_result()).is_some() {
                 return Err(statistics_invalid(
-                    "selective_discovery.receipt_repeated",
+                    antecedent_core::reason_details::selective_discovery::RECEIPT_REPEATED,
                     "one input coordinate carries two receipts; the state is not a record of \
                      one run",
                 ));

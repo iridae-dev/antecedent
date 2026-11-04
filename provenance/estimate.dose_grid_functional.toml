@@ -52,12 +52,14 @@ record_sha256 = "0bd2f9944ea4e106f0364aa641ae1a45dd3007009a7b484c6dc3c44843f9e96
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
-sha256 = "f19376dd096f3b311e9b007630307dd25e1f88a42d67d439cd780693c3833b72"
+items = ["const MINIMUM_ESS_FLOOR", "const Z_95", "enum DoseDesign", "enum DoseFunctional", "enum IntervalCalibration", "enum RowDependence", "fn band_units", "fn build_report", "fn contrast_row", "fn count_clusters", "fn declaration_refusal", "fn declared_rows", "fn dose_support_report", "fn estimate_dose_grid_bias_aware", "fn estimate_dose_grid_bias_aware_declared", "fn estimate_dose_grid_functional", "fn estimate_dose_grid_functional_declared", "fn estimate_dose_grid_functional_with_context", "fn evaluate_prepared", "fn evaluation_points", "fn fit_at", "fn grid_rows", "fn interval", "fn interval_quantile", "fn is_plain", "fn kernel_ess", "fn label_points", "fn observed_range", "fn prepare_rows", "fn refuse", "fn refuse_unsupported", "fn score_standard_error", "fn smoother_at", "fn validate_claims", "fn validate_inputs", "struct BiasAwareDoseGrid", "struct ClaimSet", "struct DeclaredRows", "struct DoseContrast", "struct DoseDerivative", "struct DoseGridRequest", "struct DoseGridRow", "struct DoseLevel", "struct NumericalReport", "struct PointwiseInterval", "struct PreparedRows", "struct RowDeclaration", "struct SimultaneousBand", "type BiasAwareColumns"]
+sha256 = "d73d39ecee248dbf4a920dbb6cf15ea3879d72edc606ee132724601c53f5ef00"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dose_grid_local_quadratic_reference.rs"
-sha256 = "1aba17a731089447dbd75fd465cded814fb432ccc703fea5db726733f9cc4239"
+items = ["const Z975", "fn a_window_with_enough_kish_size_but_weight_sum_below_three_is_labelled_supported_and_refused_at_the_fit", "fn bias_aware_bounds_critical_values_and_band_match", "fn close", "fn contrast_estimate_and_covariance_aware_standard_error_match", "fn f", "fn floats", "fn level_derivative_standard_errors_and_support_match_the_multiprecision_fit", "fn new", "fn reference", "fn request", "struct Case"]
+sha256 = "550140252a444e6ac056a41ed393035be9fed8adff8b8a33c21403f7e1aac21e"
 
 [[method_review.artifacts]]
 role = "reference"

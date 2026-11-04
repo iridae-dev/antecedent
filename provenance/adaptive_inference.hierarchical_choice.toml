@@ -35,12 +35,14 @@ record_sha256 = "1ca98d9108c9a0d679cc90086c7e2084dad50f9262c80aa2b84ea07f52660a8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/hierarchical_choice.rs"
-sha256 = "7a9ab56aa751187a6b171170cf02e3865cff3243ad462f66bb9da05fa6f007ac"
+items = ["const CANCEL_STRIDE", "const MAX_DISTINCT_HISTOGRAMS", "const MAX_HIERARCHICAL_CHOICES", "const MAX_HIERARCHICAL_OPTIONS", "const PANEL_SCHEDULE", "const QUADRATURE_ERROR_LIMIT", "const V_LIMIT", "const ZOOM_CUT", "const ZOOM_GRID", "const ZOOM_ITERATIONS", "const ZOOM_SHRINK", "fn attempt", "fn cdf", "fn integrate", "fn interpolate", "fn log_target", "fn new", "fn place", "fn quantile", "fn regions", "fn respondents", "fn scratch", "fn share_interval", "fn summary", "fn zoom", "struct Cube", "struct HierarchicalChoicePosterior", "struct HierarchicalChoicePrior", "struct HierarchicalSummary", "struct Marginal", "struct Region", "struct Scratch"]
+sha256 = "a5c4a669685ebcf22ee8cdfcf408954f41e64b4b4bbd9e4456e68277bc6542bb"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/hierarchical_choice_reference.rs"
-sha256 = "e2cfd12d40928b6919cd17986186b3285ab42d3176409e4f3ed48fbb15cc1983"
+items = ["fn a_nearly_homogeneous_population_recovers_the_pooled_posterior", "fn close", "fn counts", "fn heterogeneity_widens_the_population_interval_over_the_pooled_one", "fn intervals_match_the_references", "fn never", "fn number", "fn numbers", "fn prior", "fn reference", "fn summaries_match_the_references", "fn the_domain_and_bounds_are_refused"]
+sha256 = "5fb4c9f6dd6f947e0dc4a8a48dee5f72de9283dd4a3bf597cc0113457608b9b3"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -39,17 +39,20 @@ record_sha256 = "ad2fac59ba73f0fd1850330aedbf2f997328bd20069f7bd510670626f4f2889
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"
-sha256 = "b618e24b62b38f8fdf42fc86519f99fe244db2e6ae6c228941b52749c1098c9a"
+items = ["const CONTRAST_SEED_STRIDE", "fn balanced_panel", "fn change_score", "fn fit_bayesian_event_study", "struct BayesianEventTimeEffect", "type Panel"]
+sha256 = "8b83dee2a1ddd7179637a0533a569f36b2387c59ce1d9ae2cf7c56dec381b447"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_panel_did.rs"
-sha256 = "f408cf86927cbf5a8a151a44e9b91d97ac8a851fd48fd4c1ef35e2c58f1daec8"
+items = ["fn fit_nig", "fn new", "fn summarize", "fn validate", "struct DidPrior"]
+sha256 = "60eb9a3b6848b96d05bed5536e709a08f37eeebddb14ed82e9d6a61af58d2643"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_event_study_reference.rs"
-sha256 = "c6d0332312a72c4ae4173ae98e98f6c7605ed74f7777940c9027ee456cfcf4d9"
+items = ["const DRAWS", "fn every_cohort_period_contrast_matches_the_exact_posterior"]
+sha256 = "fea7f3e7661ea3b469e95551b01e550200a42b40879f9daaf203c608a67b93aa"
 
 [[method_review.artifacts]]
 role = "reference"

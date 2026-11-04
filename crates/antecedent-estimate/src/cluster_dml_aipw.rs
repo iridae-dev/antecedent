@@ -117,7 +117,7 @@ impl ClusterDml {
         if min_components_per_fold < MIN_COMPONENTS_PER_FOLD_FLOOR {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "cluster_dml.invalid_min_components",
+                antecedent_core::reason_details::cluster_dml::INVALID_MIN_COMPONENTS,
                 &format!(
                     "the declared minimum components per fold {min_components_per_fold} is \
                      below the floor {MIN_COMPONENTS_PER_FOLD_FLOOR}"
@@ -164,7 +164,7 @@ impl ClusterDml {
         if found < self.min_clusters {
             return Err(refuse_counted(
                 antecedent_core::reason_code!("too_few_clusters"),
-                "cluster_dml.too_few_clusters",
+                antecedent_core::reason_details::cluster_dml::TOO_FEW_CLUSTERS,
                 &format!(
                     "{found} {dimension} are below the declared minimum {}; a sandwich over \
                      cluster sums needs many independent clusters and no interval or \
@@ -202,7 +202,7 @@ impl ClusterDml {
         let Some(ids) = first else {
             return Err(refuse(
                 antecedent_core::reason_code!("required_option_missing"),
-                "cluster_dml.cluster_ids_missing",
+                antecedent_core::reason_details::cluster_dml::CLUSTER_IDS_MISSING,
                 "cluster-DML AIPW needs the cluster label of every complete-case row \
                  (estimator cluster_ids)",
             ));
@@ -216,7 +216,7 @@ impl ClusterDml {
         match (self.unit, second) {
             (IndependenceUnit::Cluster, Some(_)) => Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "cluster_dml.second_ids_unexpected",
+                antecedent_core::reason_details::cluster_dml::SECOND_IDS_UNEXPECTED,
                 "a cluster unit takes one label per row; second-endpoint labels belong to a \
                  dyadic declaration",
             )),
@@ -226,7 +226,7 @@ impl ClusterDml {
             }
             (IndependenceUnit::Dyad, None) => Err(refuse(
                 antecedent_core::reason_code!("required_option_missing"),
-                "cluster_dml.second_ids_missing",
+                antecedent_core::reason_details::cluster_dml::SECOND_IDS_MISSING,
                 "a dyadic cluster-DML declaration needs the second-endpoint label of every \
                  complete-case row (estimator cluster_ids_second)",
             )),
@@ -257,7 +257,7 @@ impl ClusterDml {
         if largest * folds > units.len() {
             return Err(refuse_counted(
                 antecedent_core::reason_code!("dyadic_dependence_not_supported"),
-                "cluster_dml.dyadic_giant_component",
+                antecedent_core::reason_details::cluster_dml::DYADIC_GIANT_COMPONENT,
                 &format!(
                     "the largest connected component of the endpoint graph holds {largest} of \
                      {} rows, more than one of the {folds} folds' share; whole-component folds \
@@ -278,7 +278,7 @@ impl ClusterDml {
         if per_fold < self.min_components_per_fold {
             return Err(refuse_counted(
                 antecedent_core::reason_code!("too_few_clusters"),
-                "cluster_dml.too_few_components",
+                antecedent_core::reason_details::cluster_dml::TOO_FEW_COMPONENTS,
                 &format!(
                     "{} connected components give the smallest of {folds} folds {per_fold}, \
                      below the declared minimum {} components per fold",
@@ -344,7 +344,7 @@ impl ClusterDml {
             _ => {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "cluster_dml.second_ids_unexpected",
+                    antecedent_core::reason_details::cluster_dml::SECOND_IDS_UNEXPECTED,
                     "the labels do not match the declared independence unit",
                 ));
             }
@@ -479,14 +479,14 @@ impl ClusterDml {
             (IndependenceUnit::Cluster, Some(_)) => {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "cluster_dml.second_ids_unexpected",
+                    antecedent_core::reason_details::cluster_dml::SECOND_IDS_UNEXPECTED,
                     "a cluster unit takes one label per row",
                 ));
             }
             (IndependenceUnit::Dyad, None) => {
                 return Err(refuse(
                     antecedent_core::reason_code!("required_option_missing"),
-                    "cluster_dml.second_ids_missing",
+                    antecedent_core::reason_details::cluster_dml::SECOND_IDS_MISSING,
                     "a dyadic receipt needs the second-endpoint label of every row",
                 ));
             }
@@ -586,7 +586,7 @@ pub(crate) fn require_scope(
     {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cluster_dml.scope",
+            antecedent_core::reason_details::cluster_dml::SCOPE,
             "cluster-DML AIPW is supported only for the untrimmed AllObserved mean ATE: other \
              functionals and populations, and trimmed fits, refit full-sample nuisances that \
              have no whole-cluster cross-fit",
@@ -600,7 +600,7 @@ pub(crate) fn require_scope(
 pub(crate) fn cancelled() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "cluster_dml.cancelled",
+        antecedent_core::reason_details::cluster_dml::CANCELLED,
         "the cluster-DML cross-fit was cancelled before every fold was fit; no estimate is \
          reported and the stop is not a verdict on the data",
     )
@@ -612,7 +612,7 @@ pub(crate) fn require_unpenalized(penalized: bool) -> Result<(), EstimationError
     if penalized {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cluster_dml.penalized_propensity",
+            antecedent_core::reason_details::cluster_dml::PENALIZED_PROPENSITY,
             "a penalized propensity publishes a point only and is not combined with the \
              cluster-DML declaration",
         ));
@@ -663,7 +663,7 @@ pub(crate) fn refuse_interval_request(
     if bootstrap_replicates != 0 || !matches!(se_kind, AnalyticSeKind::Homoskedastic) {
         return Err(refuse(
             antecedent_core::reason_code!("cluster_interval_not_supported"),
-            "cluster_dml.no_interval_method",
+            antecedent_core::reason_details::cluster_dml::NO_INTERVAL_METHOD,
             "cluster-DML AIPW reports its own cluster-sandwich standard error (a row \
              bootstrap would split clusters and another se_kind is ambiguous); set \
              bootstrap_replicates to 0 and keep the default se_kind to receive the point \
@@ -696,7 +696,7 @@ fn check_min_clusters(min_clusters: usize) -> Result<(), EstimationError> {
     if min_clusters < MIN_CLUSTERS_FLOOR {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "cluster_dml.invalid_min_clusters",
+            antecedent_core::reason_details::cluster_dml::INVALID_MIN_CLUSTERS,
             &format!(
                 "the declared minimum cluster count {min_clusters} is below the floor \
                  {MIN_CLUSTERS_FLOOR}"
@@ -750,7 +750,7 @@ fn dyad_units(first: &[u32], second: &[u32]) -> Result<Vec<u32>, EstimationError
     if let Some(shared) = second.iter().find(|label| first_labels.contains(label)) {
         return Err(refuse(
             antecedent_core::reason_code!("dyadic_dependence_not_supported"),
-            "cluster_dml.dyadic_shared_namespace",
+            antecedent_core::reason_details::cluster_dml::DYADIC_SHARED_NAMESPACE,
             &format!(
                 "label {shared} is both a first and a second endpoint: an entity in both roles \
                  is dependent across the two dimensions, which the two-way construction does \
@@ -963,7 +963,7 @@ impl DeclaredUnits {
 pub fn flexible_learner_dependence_refusal(estimator_id: &str, option: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "cluster_dml.flexible_learner_not_supported",
+        antecedent_core::reason_details::cluster_dml::FLEXIBLE_LEARNER_NOT_SUPPORTED,
         &format!(
             "estimator {estimator_id:?} does not support the dependence option {option:?}: \
              its cross-fitting and inference are not justified under clustered or dyadic \

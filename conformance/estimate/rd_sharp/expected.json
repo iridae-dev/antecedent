@@ -173,7 +173,13 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/estimate_conformance.rs",
-          "sha256": "4eeca1546ae3ed197b3b82844f910bd61f44675dacf4d8f631d0142e5ccdc0d3"
+          "items": [
+            "fn estimate_rd_sharp_analytic_se_matches_reference",
+            "fn fixture_dir",
+            "fn rd_dag",
+            "fn tabular_data"
+          ],
+          "sha256": "501d5f26fdb0fad42458dbf4c33890d8182f77722f05dfad55599a33dae6404f"
         }
       ],
       "fixture_payload_sha256": "7382d37635568da68b0b4851a17f6428230b05318c2237ffdf992b1a2df96287"

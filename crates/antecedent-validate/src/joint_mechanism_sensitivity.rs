@@ -96,9 +96,11 @@ pub(crate) const JOINT_SENSITIVITY_SAMPLING_METHOD: &str =
 pub(crate) const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage of psi(delta0) at least nominal for any fixed true deviation delta0 inside the box; exactly the percentile bootstrap at the zero box";
 /// Detail of a budget stop, before the range (a refusal) or during bracketing
 /// (the frontier's unresolved reason).
-pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str = "joint_sensitivity.budget";
+pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str =
+    antecedent_core::reason_details::joint_sensitivity::BUDGET;
 /// Detail of the withheld sampling interval.
-pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.no_interval_method";
+pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str =
+    antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD;
 
 /// A mechanism factor a caller may ask to perturb.
 ///
@@ -540,14 +542,14 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     if spec.total_budget.is_some() {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.budget_coupling",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET_COUPLING,
             "a total budget coupling the fractions needs a polynomial optimizer; only box-independent fractions are supported",
         ));
     }
     if spec.factors.is_empty() || spec.factors.len() > JOINT_SENSITIVITY_MAX_FACTORS {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.factor_count",
+            antecedent_core::reason_details::joint_sensitivity::FACTOR_COUNT,
             format!("{} factors declared; one or two are admitted", spec.factors.len()),
         ));
     }
@@ -557,28 +559,28 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
             JointFactor::TreatmentMechanism => {
                 return Err(refuse(
                     reason_code!("invalid_argument"),
-                    "joint_sensitivity.treatment_factor",
+                    antecedent_core::reason_details::joint_sensitivity::TREATMENT_FACTOR,
                     "the treatment is set by intervention; its mechanism is not in the target response",
                 ));
             }
             JointFactor::FixedGraphParentMechanism => {
                 return Err(refuse(
                     reason_code!("route_not_supported"),
-                    "joint_sensitivity.fixed_graph_parent",
+                    antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_PARENT,
                     "a fixed-graph parent-mechanism perturbation contradicts the supplied target parent law",
                 ));
             }
             JointFactor::FixedGraphConditionalMechanism => {
                 return Err(refuse(
                     reason_code!("route_not_supported"),
-                    "joint_sensitivity.fixed_graph_conditional",
+                    antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_CONDITIONAL,
                     "the fixed-graph conditional-mechanism joint problem is not supported",
                 ));
             }
             JointFactor::SourceTargetDiscrepancy => {
                 return Err(refuse(
                     reason_code!("route_not_supported"),
-                    "joint_sensitivity.source_target_discrepancy",
+                    antecedent_core::reason_details::joint_sensitivity::SOURCE_TARGET_DISCREPANCY,
                     "source-target discrepancy diagnostics are not part of this route",
                 ));
             }
@@ -592,14 +594,14 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
         if slot.is_some() {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "joint_sensitivity.duplicate_factor",
+                antecedent_core::reason_details::joint_sensitivity::DUPLICATE_FACTOR,
                 format!("factor {} is declared twice", bound.factor.name()),
             ));
         }
         if !bound.max_fraction.is_finite() || !(0.0..=1.0).contains(&bound.max_fraction) {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "joint_sensitivity.invalid_fraction",
+                antecedent_core::reason_details::joint_sensitivity::INVALID_FRACTION,
                 format!(
                     "fraction bound {} of {} is outside [0, 1]",
                     bound.max_fraction,
@@ -612,7 +614,7 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     if spec.decision_threshold.is_some_and(|t| !t.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "joint_sensitivity.invalid_threshold",
+            antecedent_core::reason_details::joint_sensitivity::INVALID_THRESHOLD,
             "the decision threshold must be finite",
         ));
     }
@@ -622,7 +624,7 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "joint_sensitivity.invalid_tolerance",
+            antecedent_core::reason_details::joint_sensitivity::INVALID_TOLERANCE,
             format!("tolerance {} is outside [1e-12, 1e-2]", spec.tolerance),
         ));
     }
@@ -634,7 +636,7 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
             format!(
                 "frontier grid {} (1-{JOINT_SENSITIVITY_MAX_FRONTIER_POINTS}), operations {} (<= 100000), depth {} (<= 64) or memory cap {} (<= 512 MiB) is outside the declared bounds",
                 spec.frontier_points,
@@ -655,7 +657,7 @@ fn check_shape(levels: usize, categories: usize) -> Result<(), JointSensitivityE
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
             format!(
                 "{levels} parent levels (<= {JOINT_SENSITIVITY_MAX_PARENT_LEVELS}) or {categories} outcome categories (<= {JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES})"
             ),
@@ -725,12 +727,12 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
         ZTransportSensitivityError::InvalidProof
         | ZTransportSensitivityError::IncompatibleFormula => refuse(
             reason_code!("transport_not_certified"),
-            "joint_sensitivity.formula_incompatible",
+            antecedent_core::reason_details::joint_sensitivity::FORMULA_INCOMPATIBLE,
             error.to_string(),
         ),
         ZTransportSensitivityError::ProviderMismatch => refuse(
             reason_code!("transport_missing_provider"),
-            "joint_sensitivity.provider_mismatch",
+            antecedent_core::reason_details::joint_sensitivity::PROVIDER_MISMATCH,
             error.to_string(),
         ),
         ZTransportSensitivityError::UnsupportedDomain
@@ -738,25 +740,25 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
             DiscreteKernelSensitivityError::InvalidContrast,
         ) => refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.unsupported_domain",
+            antecedent_core::reason_details::joint_sensitivity::UNSUPPORTED_DOMAIN,
             error.to_string(),
         ),
         ZTransportSensitivityError::InvalidSensitivity(
             DiscreteKernelSensitivityError::InvalidFraction,
         ) => refuse(
             reason_code!("invalid_argument"),
-            "joint_sensitivity.invalid_fraction",
+            antecedent_core::reason_details::joint_sensitivity::INVALID_FRACTION,
             error.to_string(),
         ),
         ZTransportSensitivityError::Cancelled => refuse(
             reason_code!("transport_budget_cancel"),
-            "joint_sensitivity.cancelled",
+            antecedent_core::reason_details::joint_sensitivity::CANCELLED,
             error.to_string(),
         ),
         ZTransportSensitivityError::IncompleteKernel
         | ZTransportSensitivityError::InvalidSensitivity(_) => refuse(
             reason_code!("transport_support_failure"),
-            "joint_sensitivity.incomplete_kernel",
+            antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
             error.to_string(),
         ),
     }
@@ -784,7 +786,7 @@ impl JointFactors {
         if kernels.outcome_values.iter().any(|y| !y.is_finite()) {
             return Err(refuse(
                 reason_code!("route_not_supported"),
-                "joint_sensitivity.unsupported_domain",
+                antecedent_core::reason_details::joint_sensitivity::UNSUPPORTED_DOMAIN,
                 "outcome values must be finite numbers",
             ));
         }
@@ -806,7 +808,7 @@ impl JointFactors {
         if !(total.is_finite() && (total - 1.0).abs() <= JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE) {
             return Err(refuse(
                 reason_code!("transport_support_failure"),
-                "joint_sensitivity.incomplete_kernel",
+                antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
                 format!(
                     "the shared parent marginal has mass {total}, not 1 within {JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE:e}"
                 ),
@@ -1101,7 +1103,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
                 let (status, bracket) = outcomes.next().ok_or_else(|| {
                     refuse(
                         reason_code!("invalid_argument"),
-                        "joint_sensitivity.stage_accounting",
+                        antecedent_core::reason_details::joint_sensitivity::STAGE_ACCOUNTING,
                         "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
                     )
                 })?;
@@ -1119,7 +1121,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
             let (status, bracket) = outcomes.next().ok_or_else(|| {
                 refuse(
                     reason_code!("invalid_argument"),
-                    "joint_sensitivity.stage_accounting",
+                    antecedent_core::reason_details::joint_sensitivity::STAGE_ACCOUNTING,
                     "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
                 )
             })?;
@@ -1267,7 +1269,7 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
             format!("{replicates} replicates (2-2000) or level {level} (strictly inside (0, 1))"),
         ));
     }
@@ -1278,13 +1280,13 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
                 if ctx.cancellation.is_cancelled() {
                     refuse(
                         reason_code!("transport_budget_cancel"),
-                        "joint_sensitivity.budget",
+                        antecedent_core::reason_details::joint_sensitivity::BUDGET,
                         error.to_string(),
                     )
                 } else {
                     refuse(
                         reason_code!("transport_support_failure"),
-                        "joint_sensitivity.incomplete_kernel",
+                        antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
                         error.to_string(),
                     )
                 }
@@ -1299,7 +1301,7 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
         if ctx.cancellation.is_cancelled() {
             return Err(refuse(
                 reason_code!("transport_budget_cancel"),
-                "joint_sensitivity.budget",
+                antecedent_core::reason_details::joint_sensitivity::BUDGET,
                 "endpoint bootstrap cancelled",
             ));
         }
@@ -1354,8 +1356,11 @@ mod kernel_error_tests {
     #[test]
     fn no_budget_cancellation_is_its_own_detail() {
         let error = kernel_error(&ZTransportSensitivityError::Cancelled);
-        assert_eq!(error.detail(), "joint_sensitivity.cancelled");
+        assert_eq!(error.detail(), antecedent_core::reason_details::joint_sensitivity::CANCELLED);
         assert_eq!(error.reason_code(), "transport_budget_cancel");
-        assert_ne!(error.detail(), "joint_sensitivity.incomplete_kernel");
+        assert_ne!(
+            error.detail(),
+            antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL
+        );
     }
 }

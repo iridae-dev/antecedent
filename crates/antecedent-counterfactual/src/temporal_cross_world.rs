@@ -467,15 +467,22 @@ fn sorted_edges(graph: &TemporalGraph) -> Vec<(usize, usize)> {
 fn validate_graph(graph: &TemporalGraph) -> Result<(), TemporalCounterfactualError> {
     if graph.horizon > MAX_HORIZON {
         return Err(invalid(
-            "temporal_counterfactual.horizon_exceeded",
+            antecedent_core::reason_details::temporal_counterfactual::HORIZON_EXCEEDED,
             Some(graph.horizon.to_string()),
         ));
     }
     if graph.horizon != MAX_HORIZON {
-        return Err(invalid("temporal_counterfactual.invalid_graph", Some("horizon".to_owned())));
+        return Err(invalid(
+            antecedent_core::reason_details::temporal_counterfactual::INVALID_GRAPH,
+            Some("horizon".to_owned()),
+        ));
     }
     if graph.latent_confounding {
-        return Err(unsupported("temporal_counterfactual.latent_confounding", None, None));
+        return Err(unsupported(
+            antecedent_core::reason_details::temporal_counterfactual::LATENT_CONFOUNDING,
+            None,
+            None,
+        ));
     }
     let edges = sorted_edges(graph);
     for (index, (parent, child)) in edges.iter().enumerate() {
@@ -484,7 +491,7 @@ fn validate_graph(graph: &TemporalGraph) -> Result<(), TemporalCounterfactualErr
             || (index > 0 && edges[index - 1] == (*parent, *child));
         if bad {
             return Err(invalid(
-                "temporal_counterfactual.invalid_graph",
+                antecedent_core::reason_details::temporal_counterfactual::INVALID_GRAPH,
                 Some(format!(
                     "{} -> {}",
                     TemporalNode::ALL[*parent].name(),
@@ -502,8 +509,12 @@ fn compile_fit<'a>(
     graph: &TemporalGraph,
     fit: &'a TemporalMechanismFit,
 ) -> Result<[&'a NodeMechanism; 3], TemporalCounterfactualError> {
-    let mismatch =
-        |what: &str| invalid("temporal_counterfactual.fit_mismatch", Some(what.to_owned()));
+    let mismatch = |what: &str| {
+        invalid(
+            antecedent_core::reason_details::temporal_counterfactual::FIT_MISMATCH,
+            Some(what.to_owned()),
+        )
+    };
     let find = |node: TemporalNode| -> Result<&'a NodeMechanism, TemporalCounterfactualError> {
         let mut hits = fit.mechanisms.iter().filter(|m| m.node == node);
         match (hits.next(), hits.next()) {
@@ -560,7 +571,7 @@ fn unpaired(
     history: Option<&HistoryId>,
 ) -> TemporalCounterfactualError {
     unsupported(
-        "temporal_counterfactual.unpaired_histories",
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES,
         Some(unit.as_str().to_owned()),
         Some(RefusingWitness {
             unit: Some(unit.clone()),
@@ -594,7 +605,7 @@ fn check_pairing(
         for world in [&spec.plus, &spec.minus] {
             if unit.times != world.times {
                 return Err(unsupported(
-                    "temporal_counterfactual.time_misaligned",
+                    antecedent_core::reason_details::temporal_counterfactual::TIME_MISALIGNED,
                     Some(unit.unit.as_str().to_owned()),
                     Some(RefusingWitness {
                         unit: Some(unit.unit.clone()),
@@ -614,11 +625,15 @@ fn check_inputs(
     factual: &[&FactualUnitHistory],
 ) -> Result<(), TemporalCounterfactualError> {
     if factual.is_empty() {
-        return Err(unsupported("temporal_counterfactual.shared_history_missing", None, None));
+        return Err(unsupported(
+            antecedent_core::reason_details::temporal_counterfactual::SHARED_HISTORY_MISSING,
+            None,
+            None,
+        ));
     }
     if factual.len() > MAX_UNITS {
         return Err(invalid(
-            "temporal_counterfactual.too_many_units",
+            antecedent_core::reason_details::temporal_counterfactual::TOO_MANY_UNITS,
             Some(factual.len().to_string()),
         ));
     }
@@ -626,12 +641,15 @@ fn check_inputs(
         && !spec.minus.name.trim().is_empty()
         && spec.plus.name != spec.minus.name;
     if !names_ok {
-        return Err(invalid("temporal_counterfactual.history_name_invalid", None));
+        return Err(invalid(
+            antecedent_core::reason_details::temporal_counterfactual::HISTORY_NAME_INVALID,
+            None,
+        ));
     }
     for world in [&spec.plus, &spec.minus] {
         if !world.actions.iter().all(|a| a.is_finite()) {
             return Err(invalid(
-                "temporal_counterfactual.non_finite_history",
+                antecedent_core::reason_details::temporal_counterfactual::NON_FINITE_HISTORY,
                 Some(world.name.clone()),
             ));
         }
@@ -639,7 +657,7 @@ fn check_inputs(
     check_pairing(spec, factual)?;
     if let Some(bad) = factual.iter().find(|f| !f.values.iter().all(|v| v.is_finite())) {
         return Err(invalid(
-            "temporal_counterfactual.non_finite_history",
+            antecedent_core::reason_details::temporal_counterfactual::NON_FINITE_HISTORY,
             Some(bad.unit.as_str().to_owned()),
         ));
     }
@@ -737,7 +755,7 @@ fn abduce_unit(
             !residual.is_finite() || mech.noise_halfwidth.is_some_and(|h| residual.abs() > h);
         if refuted {
             return Err(unsupported(
-                "temporal_counterfactual.refuting_history",
+                antecedent_core::reason_details::temporal_counterfactual::REFUTING_HISTORY,
                 Some(unit.unit.as_str().to_owned()),
                 Some(RefusingWitness {
                     unit: Some(unit.unit.clone()),

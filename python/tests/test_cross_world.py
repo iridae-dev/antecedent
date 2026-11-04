@@ -11,6 +11,7 @@ not tested from data, so no test here claims to detect its violation.
 import numpy as np
 import pytest
 from antecedent import Admg, Cpdag, Dag, Pag
+from antecedent import _reason_details as reason_details
 from antecedent.accepted_graph import AcceptedGraph
 from antecedent.cross_world import (
     EdgeIntervention,
@@ -135,7 +136,7 @@ def test_recanting_witness_refuses_with_cross_world_not_identified():
     with pytest.raises(CausalUnsupportedError) as raised:
         path_specific_effect(dag, data, query)
     assert raised.value.reason_code == "cross_world_not_identified"
-    assert "cross_world.recanting_witness" in str(raised.value)
+    assert reason_details.cross_world.RECANTING_WITNESS in str(raised.value)
     # Every edge intervened has no witness.
     path_specific_effect(dag, data, EdgeIntervention("x", "y", 0.0, 1.0, tuple(edges)))
 
@@ -153,12 +154,12 @@ def test_structures_and_inference_outside_the_cell_are_refused():
         with pytest.raises(CausalUnsupportedError) as raised:
             path_specific_effect(graph, data, query)
         assert raised.value.reason_code == "route_not_supported"
-        assert "cross_world.graph_outside_contract" in str(raised.value)
+        assert reason_details.cross_world.GRAPH_OUTSIDE_CONTRACT in str(raised.value)
     for uncertainty in ("interval", "bayesian"):
         with pytest.raises(CausalUnsupportedError) as raised:
             path_specific_effect(mediation_dag(), data, query, uncertainty=uncertainty)
         assert raised.value.reason_code == "estimator_inference_mismatch"
-        assert "cross_world.interval_requested" in str(raised.value)
+        assert reason_details.cross_world.INTERVAL_REQUESTED in str(raised.value)
     with pytest.raises(CausalValueError, match="treatment and outcome must be distinct"):
         EdgeIntervention("x", "x", 0.0, 1.0, ())
     with pytest.raises(CausalValueError, match="treatment levels must be finite and distinct"):
@@ -246,7 +247,7 @@ def test_unknown_names_raise_the_invalid_query_detail():
         with pytest.raises(CausalValueError) as raised:
             path_specific_effect(mediation_dag(), data, query)
         assert raised.value.reason_code == "invalid_argument"
-        assert "cross_world.invalid_query" in str(raised.value)
+        assert reason_details.cross_world.INVALID_QUERY in str(raised.value)
     # A graph naming a variable the table lacks is the same malformed query.
     with pytest.raises(CausalValueError) as raised:
         path_specific_effect(
@@ -254,7 +255,7 @@ def test_unknown_names_raise_the_invalid_query_detail():
             data,
             EdgeIntervention.natural_direct("x", "m", "y"),
         )
-    assert "cross_world.invalid_query" in str(raised.value)
+    assert reason_details.cross_world.INVALID_QUERY in str(raised.value)
 
 
 def test_the_artifact_binds_its_data_and_reports_the_closed_form_cross_check():

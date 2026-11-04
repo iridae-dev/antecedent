@@ -226,7 +226,8 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
             edit(&mut meta.identity);
             ExternalClaimArtifact::new(meta, v.to_vec()).map(|a| a.to_bytes("claim").unwrap())
         };
-        let invalid_lineage = "composition_provenance.unresolved_parent";
+        let invalid_lineage =
+            antecedent_core::reason_details::composition_provenance::UNRESOLVED_PARENT;
         let edits: [(&dyn Fn(&mut ExternalClaimIdentity), Option<&str>); 10] = [
             (&|i| i.lineage[1].id = "evidence:other".into(), Some(invalid_lineage)),
             (&|i| i.lineage.truncate(3), Some("incomplete lineage")),

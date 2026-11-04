@@ -44,12 +44,14 @@ record_sha256 = "4b8fa18a2ad48fa267564109bf27e4cc45663add40535fd6bd64d1caaa7b52c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/rd.rs"
-sha256 = "9496eba74fde5623ada757a3f8ce1b073014a223633206106dcabe1bdd697cf9"
+items = ["const RD_NCOLS", "const RD_TREATMENT_COL", "fn analytic_se", "fn analytic_se_treatment", "fn bootstrap_se", "fn build_rd_matrix", "fn fit", "fn new", "fn prepare", "fn problem", "fn require_read_inference", "fn verify_sharp_assignment", "struct PreparedRdProblem", "struct RdWorkspace", "struct SharpRegressionDiscontinuity"]
+sha256 = "5eea452dfcf9820e8d2cdf4d24db2657f4c3f8bd4a303d457561ff507ea7069b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/rd_reference.rs"
-sha256 = "8f4a8b24c3b01bbdd75e05775facf4a34ec6b41d1b881ad83f10005efb55a73c"
+items = ["fn a_side_with_one_row_cannot_support_a_line_and_is_not_estimated", "fn cases", "fn close", "fn data_for", "fn fit", "fn floats", "fn jump_and_every_variance_match_the_exact_references", "fn rows_outside_the_window_do_not_move_the_fit_and_rows_on_the_edges_do"]
+sha256 = "16199837b2385fd8b9662f75b8350d4b44cf05613ebddd3b84994dfec5baf5e6"
 
 [[method_review.artifacts]]
 role = "reference"

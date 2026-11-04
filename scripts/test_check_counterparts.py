@@ -164,7 +164,7 @@ class GeneratorChecks(unittest.TestCase):
                     "estimator": "e2",
                     "inference": "frequentist",
                     "uncertainty": "analytic",
-                    "uncertainty_basis": "measured_record|y",
+                    "uncertainty_basis": "construction_fixture|y",
                     "status": "supported",
                 },
                 {
@@ -180,7 +180,7 @@ class GeneratorChecks(unittest.TestCase):
             ]
         }
         evidenced = gen.Evidenced(manifest, [], Evidence(gen.ROOT))
-        self.assertEqual(evidenced.route_kind("r", "frequentist"), ("analytic", "measured_record"))
+        self.assertEqual(evidenced.route_kind("r", "frequentist"), ("analytic", "construction_fixture"))
         self.assertEqual(evidenced.route_kind("r", "bayesian"), ("posterior", "asserted_in_test"))
         self.assertEqual(evidenced.route_kind("missing", "bayesian"), ("none", "no_method_record"))
 
@@ -192,7 +192,7 @@ class GeneratorChecks(unittest.TestCase):
     def test_an_executing_row_needs_a_target_a_design_a_fixture_and_a_consumer(self) -> None:
         ev = Evidence(gen.ROOT)
         row = rows_for()[0] | {
-            "uncertainty_basis": "measured_record",
+            "uncertainty_basis": "construction_fixture",
             "target": "AverageEffect",
             "sampling_design": "independent rows",
             "execution": "scripts/check_counterparts.py",

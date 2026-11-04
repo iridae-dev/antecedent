@@ -563,48 +563,53 @@ impl DesignRankingArtifactError {
             Self::Io(_) => return None,
             Self::UnsupportedVersion(version) => at(
                 antecedent_core::reason_code!("route_not_supported"),
-                "design_ranking.unsupported_version",
+                antecedent_core::reason_details::design_ranking::UNSUPPORTED_VERSION,
             )
             .supplied(version.to_string())
             .expected(DESIGN_RANKING_ARTIFACT_VERSION.to_string())
             .build(),
             Self::Bounds(what) => at(
                 antecedent_core::reason_code!("route_not_supported"),
-                "design_ranking.bounds_exceeded",
+                antecedent_core::reason_details::design_ranking::BOUNDS_EXCEEDED,
             )
             .offending(*what)
             .build(),
             Self::InvalidWire(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "design_ranking.invalid_artifact",
+                antecedent_core::reason_details::design_ranking::INVALID_ARTIFACT,
             )
             .offending(*what)
             .build(),
-            Self::DigestMismatch => at(signal, "design_ranking.digest_mismatch").build(),
+            Self::DigestMismatch => {
+                at(signal, antecedent_core::reason_details::design_ranking::DIGEST_MISMATCH).build()
+            }
             Self::ExpectedIdentityMismatch => {
-                at(signal, "design_ranking.identity_mismatch").build()
+                at(signal, antecedent_core::reason_details::design_ranking::IDENTITY_MISMATCH)
+                    .build()
             }
             Self::Ranking(error) => error.to_refusal(),
             Self::SignalInconsistent { candidate, slot } => {
-                at(signal, "design_ranking.signal_inconsistent")
+                at(signal, antecedent_core::reason_details::design_ranking::SIGNAL_INCONSISTENT)
                     .offending(candidate.clone())
                     .expected(*slot)
                     .build()
             }
             Self::ReplayMismatch { candidate, quantity } => {
-                at(signal, "design_ranking.replay_mismatch")
+                at(signal, antecedent_core::reason_details::design_ranking::REPLAY_MISMATCH)
                     .offending(candidate.clone())
                     .expected(*quantity)
                     .build()
             }
-            Self::SourceOverlap { candidate, ids } => at(signal, "design_ranking.source_overlap")
-                .offending(candidate.clone())
-                .expected(ids.join(","))
-                .remedy("use only data not already summarized by the prior")
-                .build(),
+            Self::SourceOverlap { candidate, ids } => {
+                at(signal, antecedent_core::reason_details::design_ranking::SOURCE_OVERLAP)
+                    .offending(candidate.clone())
+                    .expected(ids.join(","))
+                    .remedy("use only data not already summarized by the prior")
+                    .build()
+            }
             Self::SourceOverlapUnknown { candidate, reason } => at(
                 antecedent_core::reason_code!("evidence_overlap_unknown"),
-                "design_ranking.source_overlap_unknown",
+                antecedent_core::reason_details::design_ranking::SOURCE_OVERLAP_UNKNOWN,
             )
             .offending(candidate.clone())
             .expected(reason.clone())
@@ -612,18 +617,22 @@ impl DesignRankingArtifactError {
             .build(),
             Self::CostUnitsMismatch(what) => at(
                 antecedent_core::reason_code!("design_cost_units_mismatch"),
-                "design_ranking.cost_units_mismatch",
+                antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH,
             )
             .offending(what.clone())
             .build(),
             Self::RankMismatch(what) => {
-                at(signal, "design_ranking.rank_mismatch").offending(*what).build()
+                at(signal, antecedent_core::reason_details::design_ranking::RANK_MISMATCH)
+                    .offending(*what)
+                    .build()
             }
             Self::Signal(error) => error.to_refusal(),
-            Self::Design(error) => at(signal, "design_ranking.design_error")
-                .offending("decision")
-                .expected(error.to_string())
-                .build(),
+            Self::Design(error) => {
+                at(signal, antecedent_core::reason_details::design_ranking::DESIGN_ERROR)
+                    .offending("decision")
+                    .expected(error.to_string())
+                    .build()
+            }
         })
     }
 }

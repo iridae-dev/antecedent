@@ -177,7 +177,7 @@ impl LearnedContinuousUncertainty {
             (
                 CONTINUOUS_WITHHELD,
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
-                Some("learned_transport.bootstrap_below_floor"),
+                Some(antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR),
             )
         } else {
             (CONTINUOUS_BOOTSTRAP_INTERVAL, "joint_outer_bootstrap", None)
@@ -259,7 +259,7 @@ pub fn parse_learned_continuous_sampling(name: &str) -> Result<TrialSampling, Es
         "independent_samples" => Ok(TrialSampling::IndependentSamples),
         other => Err(refuse(
             antecedent_core::reason_code!("sampling_dependence_unknown"),
-            "learned_transport.non_iid_design",
+            antecedent_core::reason_details::learned_transport::NON_IID_DESIGN,
             &format!(
                 "sampling '{other}' is not a declared IID design; only nested_cohort and \
                  independent_samples are supported"
@@ -280,7 +280,7 @@ pub fn parse_learned_continuous_target(name: &str) -> Result<(), EstimationError
     }
     Err(refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "learned_transport.cate_requested",
+        antecedent_core::reason_details::learned_transport::CATE_REQUESTED,
         &format!(
             "target '{name}' is not the population mean contrast; conditional, heterogeneous \
              and simultaneous targets are not supported"
@@ -313,7 +313,7 @@ pub fn validate_learned_continuous(
             && (*p < bound || *p > 1.0 - bound)
         {
             return Err(support_refusal(
-                "learned_transport.treatment_overlap",
+                antecedent_core::reason_details::learned_transport::TREATMENT_OVERLAP,
                 &format!("randomization probability {p} leaves [{bound}, {}]", 1.0 - bound),
             ));
         }
@@ -337,7 +337,7 @@ pub fn check_membership_overlap(
     let lowest = membership.iter().copied().fold(f64::INFINITY, f64::min);
     if lowest < floor || membership.iter().any(|p| !p.is_finite()) {
         return Err(support_refusal(
-            "learned_transport.membership_overlap",
+            antecedent_core::reason_details::learned_transport::MEMBERSHIP_OVERLAP,
             &format!("out-of-fold membership probability {lowest} is below the declared {floor}"),
         ));
     }
@@ -398,7 +398,7 @@ pub fn learned_continuous_interval_internal(
     if options.bootstrap < LEARNED_CONTINUOUS_MIN_BOOTSTRAP {
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "learned_transport.bootstrap_below_floor",
+            antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR,
             &format!(
                 "{} replicates is below the floor of {LEARNED_CONTINUOUS_MIN_BOOTSTRAP}",
                 options.bootstrap
@@ -425,7 +425,7 @@ pub fn estimate_learned_continuous_analytic_interval(
     if options.bootstrap != 0 {
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "learned_transport.bootstrap_not_supported",
+            antecedent_core::reason_details::learned_transport::BOOTSTRAP_NOT_SUPPORTED,
             "this route forms the analytic interval and takes bootstrap=0; the percentile \
              bootstrap interval is formed by the bootstrap interval route",
         ));
@@ -526,7 +526,10 @@ mod tests {
         );
         let low = LearnedContinuousUncertainty::for_request(1);
         assert_eq!(low.reason, "estimator_inference_mismatch");
-        assert_eq!(low.detail.as_deref(), Some("learned_transport.bootstrap_below_floor"));
+        assert_eq!(
+            low.detail.as_deref(),
+            Some(antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR)
+        );
         let requested = LearnedContinuousUncertainty::for_request(199);
         assert_eq!(
             (requested.status.as_str(), requested.reason.as_str()),

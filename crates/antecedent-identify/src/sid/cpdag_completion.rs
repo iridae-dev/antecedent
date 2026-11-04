@@ -56,7 +56,8 @@ use super::{
 pub const CPDAG_MAX_NODES: usize = 6;
 
 /// Selection or latent structure was supplied.
-pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str = "cpdag_scenarios.selection_or_latent";
+pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::SELECTION_OR_LATENT;
 
 /// Dense indexes of a CPDAG whose node count already fits `usize` graph ids.
 #[allow(
@@ -73,11 +74,14 @@ fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
 #[deprecated(note = "no longer emitted: the node count is not bounded")]
 pub const CPDAG_BOUNDS_EXCEEDED_DETAIL: &str = concat!("cpdag_scenarios", ".bounds_exceeded");
 /// The input is not a valid CPDAG.
-pub const CPDAG_NOT_A_CPDAG_DETAIL: &str = "cpdag_scenarios.not_a_cpdag";
+pub const CPDAG_NOT_A_CPDAG_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::NOT_A_CPDAG;
 /// An evidence binding names a completion identity that does not match.
-pub const CPDAG_EVIDENCE_MISMATCH_DETAIL: &str = "cpdag_scenarios.evidence_identity_mismatch";
+pub const CPDAG_EVIDENCE_MISMATCH_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::EVIDENCE_IDENTITY_MISMATCH;
 /// Detail of a completion with no evidence bound to it.
-pub const CPDAG_NO_EVIDENCE_DETAIL: &str = "cpdag_scenarios.no_evidence_binding";
+pub const CPDAG_NO_EVIDENCE_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::NO_EVIDENCE_BINDING;
 
 /// A refusal or failure of the completion route.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

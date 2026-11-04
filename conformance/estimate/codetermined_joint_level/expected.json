@@ -110,7 +110,17 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/codetermined_bayesian_response_truth.rs",
-          "sha256": "f6abe09ea57d918174de2776ac01a5f21c7f7ecd7390970360b12811cc8e6d02"
+          "items": [
+            "const FIXTURE",
+            "fn build",
+            "fn codetermined_bayesian_joint_level_matches_the_closed_form_additive_law",
+            "fn data",
+            "fn fixture",
+            "fn query",
+            "fn value",
+            "struct Fixture"
+          ],
+          "sha256": "bdddfc3b638e4c5601fe739b9e81c8fa466121c4b47dbcffe829bf56ea5a6e13"
         }
       ],
       "fixture_payload_sha256": "a12d3983c5261ff408fa27d4dc5444f78e3d9b3511ee26e2ed8695ea2bdb750a"

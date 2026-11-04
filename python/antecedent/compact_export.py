@@ -45,6 +45,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -104,7 +106,7 @@ _real = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        CompactExportRefusal, stage="build", detail="compact_export.non_finite_value"
+        CompactExportRefusal, stage="build", detail=_reason_details.compact_export.NON_FINITE_VALUE
     ),
 )
 
@@ -373,7 +375,7 @@ class CompactExport(ScientificResult):
                 {
                     "code": "invalid_argument",
                     "stage": "build",
-                    "detail": "compact_export.non_finite_value",
+                    "detail": _reason_details.compact_export.NON_FINITE_VALUE,
                     "offending": "coefficients_or_covariance",
                     "message": "coefficients and covariance must be finite",
                 }

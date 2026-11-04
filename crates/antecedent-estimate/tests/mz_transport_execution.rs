@@ -139,7 +139,10 @@ fn multi_source_posterior_refuses_a_mapped_prior() {
     let antecedent_estimate::EstimationError::Refused { message, .. } = error else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("multi_source_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::multi_source_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

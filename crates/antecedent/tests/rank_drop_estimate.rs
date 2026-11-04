@@ -334,7 +334,11 @@ fn a_separating_propensity_refuses_the_cross_fitted_route_only() {
     let refusal = estimate_with_rank_drop(&input, &order, EstimatorId::Aipw, &ctx).unwrap_err();
     assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
     let reason = refusal.refusal_fields().unwrap().reason.clone().unwrap();
-    assert!(reason.starts_with("rank_drop_estimate.propensity_separates"), "{reason}");
+    assert!(
+        reason
+            .starts_with(antecedent_core::reason_details::rank_drop_estimate::PROPENSITY_SEPARATES),
+        "{reason}"
+    );
     let linear =
         estimate_with_rank_drop(&input, &order, EstimatorId::LinearAdjustmentAte, &ctx).unwrap();
     // The least-squares route estimates the reduced design, equal to the normal-equations oracle.

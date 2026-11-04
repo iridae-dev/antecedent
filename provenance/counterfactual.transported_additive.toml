@@ -51,12 +51,14 @@ record_sha256 = "1d2bca85b79d82c2b143dcbc3600c1dc1d4f427f32dbb1bca0d41e48017dbaf
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/transported_path_specific.rs"
-sha256 = "17f92ba8345d900ec25af9c7a6000f14718b1725883fa3bf46cc868030213676"
+items = ["const POINT_TOLERANCE", "const SENSITIVITY_TOLERANCE", "const WEIGHT_TOLERANCE", "fn at", "fn check_assumptions", "fn check_diagram", "fn check_factors", "fn check_overlap", "fn check_slopes", "fn constant", "fn describe", "fn evaluate_transported_path_specific", "fn invalid", "fn law_contrast", "fn perturbed", "fn points_match", "fn refuse_with", "fn topological_order", "fn treated_on", "fn unit_contrast", "fn validate_law", "fn validate_model", "fn validate_query", "fn witness_for", "fn world_outcome", "struct AdditiveLinearScm", "struct Affine", "struct CovariateLaw", "struct DeclaredAssumptions", "struct EdgeAssignment", "struct LinearMechanism", "struct NonRecoverableWitness", "struct PathSpecificQuery", "struct PathSpecificSelectionDiagram", "struct SelectionNode", "struct TransportedDerivation", "struct TransportedPathSpecificInput", "struct TransportedPathSpecificRefusal", "struct TransportedPathSpecificResult", "struct UnitContrast"]
+sha256 = "4032d2b68128ab23eebf19b536cf55391d84a85faa200e57e9ef2fa6ab5872b2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/transported_additive_reference.rs"
-sha256 = "84ec3a3f53212426deadf1fe4ba8979ea035d4d13d78b8b456c00b34d2461329"
+items = ["const DECLARED", "fn affine", "fn cases", "fn diagram", "fn evidence", "fn f", "fn law", "fn model", "fn product_matches_the_noise_summing_structural_reference", "fn query", "fn selection_on_a_mediator_returns_the_reference_witness_or_no_witness", "fn target_and_source_laws_are_not_interchangeable", "fn tol"]
+sha256 = "b25a874490f19f73b26af4f19047c8dc48c4c0c66a451dbdde2d28e2ffc3e0f2"
 
 [[method_review.artifacts]]
 role = "reference"

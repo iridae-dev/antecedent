@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision
 from antecedent import inverse_query as iq
 from antecedent.errors import CausalError, CausalTypeError, CausalUnsupportedError
@@ -206,7 +207,7 @@ def test_a_mean_never_answers_a_probability_or_quantile():
             require_success(query.evaluate(means))
         assert isinstance(refused.value, CausalUnsupportedError)
         assert refused.value.reason_code == "decision_contract_unsatisfied"
-        assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+        assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
 
 
 def test_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_marginals():
@@ -237,7 +238,7 @@ def test_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_margin
     with pytest.raises(iq.InverseQueryRefusal) as marginals:
         require_success(query.evaluate(_joint(columns, alignment="independent_marginals")))
     assert marginals.value.reason_code == "joint_law_required"
-    assert marginals.value.detail == "decision_evaluation.joint_law_required"
+    assert marginals.value.detail == reason_details.decision_evaluation.JOINT_LAW_REQUIRED
     assert marginals.value.supplied == "independent_marginals"
     assert marginals.value.expected == "joint"
 
@@ -424,7 +425,7 @@ def test_result_is_exported_replayed_and_refuses_a_resealed_mutation():
     with pytest.raises(iq.InverseQueryRefusal) as changed:
         require_success(iq.consume(resealed, expected_identity=result.identity))
     assert changed.value.reason_code == "inverse_functional_unsupported"
-    assert changed.value.detail == "functional_inverse_query.wrong_contract"
+    assert changed.value.detail == reason_details.functional_inverse_query.WRONG_CONTRACT
     assert "retained identity" in str(changed.value)
     assert other.identity["data_digest"] == result.identity["data_digest"]
     assert other.identity["premises_digest"] != result.identity["premises_digest"]

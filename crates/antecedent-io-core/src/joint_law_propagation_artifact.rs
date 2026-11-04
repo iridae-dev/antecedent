@@ -192,12 +192,12 @@ impl JointLawPropagationArtifactError {
             Self::Refused { refusals } => refusals.clone(),
             Self::IdentityMismatch | Self::ResultMismatch => make(
                 invalid,
-                "joint_law_propagation.artifact_refused",
+                antecedent_core::reason_details::joint_law_propagation::ARTIFACT_REFUSED,
                 "supply the artifact whose identity equals the retained one and whose result recomputes from its stored inputs and rule",
             ),
             Self::Cancelled => make(
                 cancelled,
-                "joint_law_propagation.cancelled",
+                antecedent_core::reason_details::joint_law_propagation::CANCELLED,
                 "rerun without cancellation; the cancellation is not a verdict on the composition",
             ),
             Self::Decode(_)
@@ -207,7 +207,7 @@ impl JointLawPropagationArtifactError {
             | Self::Encode(_)
             | Self::Malformed(_) => make(
                 invalid,
-                "joint_law_propagation.artifact_invalid",
+                antecedent_core::reason_details::joint_law_propagation::ARTIFACT_INVALID,
                 "supply an intact joint_law_propagation_v1 artifact of the supported layout",
             ),
         }
@@ -236,7 +236,7 @@ fn invalid_request(offending: &str, remedy: &'static str) -> Error {
             ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 JOINT_LAW_STAGE,
-                "joint_law_propagation.invalid_request",
+                antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST,
             )
             .with_offending(offending.to_owned())
             .with_remedy(remedy),
@@ -247,12 +247,12 @@ fn invalid_request(offending: &str, remedy: &'static str) -> Error {
 fn math_error(error: JointLawError) -> Error {
     match error {
         JointLawError::StructureNotVerified { structure } => route_refusal(
-            "joint_law_propagation.structure_not_verified",
+            antecedent_core::reason_details::joint_law_propagation::STRUCTURE_NOT_VERIFIED,
             structure,
             "the value function must have a verified mixed-difference sign on the marginals' support for its coupling extremes to be bounds; use one of the closed functionals on a support where it holds, or supply the aligned joint law",
         ),
         JointLawError::BudgetExceeded(what) => route_refusal(
-            "joint_law_propagation.bounds_exceeded",
+            antecedent_core::reason_details::joint_law_propagation::BOUNDS_EXCEEDED,
             what,
             "coarsen the marginals or the draw set to within the declared bounds",
         ),

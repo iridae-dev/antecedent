@@ -187,9 +187,17 @@ fn joint_draw_round_trips_and_refuses_marginals_and_wrong_meaning() {
     assert_close(manual, 0.5, TOLERANCE);
     assert!(!within(manual, 1.0, TOLERANCE), "pairing changes the nonlinear value");
     let covariance = paired.covariance(0, 1).unwrap_err().to_string();
-    assert!(covariance.contains("aligned_joint_draws.marginals_not_joint"), "{covariance}");
+    assert!(
+        covariance
+            .contains(antecedent_core::reason_details::aligned_joint_draws::MARGINALS_NOT_JOINT),
+        "{covariance}"
+    );
     let nonlinear = paired.joint_expectation(0, 1, |x, y| x * y).unwrap_err().to_string();
-    assert!(nonlinear.contains("aligned_joint_draws.marginals_not_joint"), "{nonlinear}");
+    assert!(
+        nonlinear
+            .contains(antecedent_core::reason_details::aligned_joint_draws::MARGINALS_NOT_JOINT),
+        "{nonlinear}"
+    );
 
     // Wrong distribution meaning, changed quantity identity and changed bytes refuse.
     for changed in [
@@ -207,7 +215,12 @@ fn joint_draw_round_trips_and_refuses_marginals_and_wrong_meaning() {
     ] {
         for bytes in [&python_bytes, &rust_bytes] {
             let error = DistributionArtifact::from_bytes(bytes, &changed).unwrap_err();
-            assert!(error.to_string().contains("aligned_joint_draws.identity_expected"), "{error}");
+            assert!(
+                error.to_string().contains(
+                    antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED
+                ),
+                "{error}"
+            );
         }
     }
     for bytes in [&python_bytes, &rust_bytes] {
@@ -717,11 +730,18 @@ fn gaussian_line_rows_keep_their_alignment_through_the_artifact() {
     let marginals = line_identity(DrawAlignment::IndependentMarginals);
     let paired = law_with(marginals, draws);
     let error = paired.covariance(0, 1).unwrap_err().to_string();
-    assert!(error.contains("aligned_joint_draws.marginals_not_joint"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::aligned_joint_draws::MARGINALS_NOT_JOINT),
+        "{error}"
+    );
 
     let wrong = joint_identity(DistributionMeaningWire::Bootstrap, DrawAlignment::Joint, "y");
     let e = DistributionArtifact::from_bytes(&bytes, &wrong).unwrap_err();
-    assert!(e.to_string().contains("aligned_joint_draws.identity_expected"), "{e}");
+    assert!(
+        e.to_string()
+            .contains(antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED),
+        "{e}"
+    );
     let e = DistributionArtifact::from_bytes(&flip_last_byte(&bytes), &identity).unwrap_err();
     assert!(e.to_string().contains("checksum mismatch"), "{e}");
 }

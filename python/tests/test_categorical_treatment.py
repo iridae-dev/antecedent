@@ -15,6 +15,7 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import categorical_treatment
 from antecedent.categorical_treatment import (
     CategoricalTreatmentRefusal,
@@ -177,32 +178,34 @@ def test_categorical_sparse_absent_and_undeclared_levels_refuse() -> None:
         abc(categories=["a", "b", "c", "d"])
     assert isinstance(absent.value, CausalUnsupportedError)
     assert absent.value.reason_code == "arm_not_populated"
-    assert absent.value.detail == "categorical_treatment.absent_level"
+    assert absent.value.detail == reason_details.categorical_treatment.ABSENT_LEVEL
     assert "`d`" in str(absent.value)
     assert_registered_refusal(absent.value)
 
     with pytest.raises(CategoricalTreatmentRefusal) as sparse:
         abc(min_level_rows=3)
-    assert sparse.value.detail == "categorical_treatment.sparse_level"
+    assert sparse.value.detail == reason_details.categorical_treatment.SPARSE_LEVEL
     assert "`a`" in str(sparse.value)
 
     with pytest.raises(CategoricalTreatmentRefusal) as undeclared:
         abc(categories=["a", "b"], reference="a")
     assert undeclared.value.reason_code == "invalid_argument"
-    assert undeclared.value.detail == "categorical_treatment.undeclared_level"
+    assert undeclared.value.detail == reason_details.categorical_treatment.UNDECLARED_LEVEL
 
     with pytest.raises(CategoricalTreatmentRefusal) as reference:
         abc(reference="q")
-    assert reference.value.detail == "categorical_treatment.unknown_reference"
+    assert reference.value.detail == reason_details.categorical_treatment.UNKNOWN_REFERENCE
 
     with pytest.raises(CategoricalTreatmentRefusal) as unordered:
         abc(monotonicity="non_decreasing")
     assert unordered.value.reason_code == "route_not_supported"
-    assert unordered.value.detail == "categorical_treatment.monotonicity_requires_ordered"
+    assert (
+        unordered.value.detail == reason_details.categorical_treatment.MONOTONICITY_REQUIRES_ORDERED
+    )
 
     with pytest.raises(CategoricalTreatmentRefusal) as pair:
         abc(pairs=[("a", "zzz")])
-    assert pair.value.detail == "categorical_treatment.unknown_level"
+    assert pair.value.detail == reason_details.categorical_treatment.UNKNOWN_LEVEL
 
 
 def test_categorical_input_validation_is_typed() -> None:
@@ -298,7 +301,7 @@ def test_categorical_consume_respects_the_memory_limit() -> None:
             bytes(result.export()),
             execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
         )
-    assert refused.value.detail == "categorical_treatment.memory_budget_exceeded"
+    assert refused.value.detail == reason_details.categorical_treatment.MEMORY_BUDGET_EXCEEDED
 
 
 def test_categorical_resealed_change_is_refused_against_the_retained_identity() -> None:
@@ -315,7 +318,7 @@ def test_categorical_resealed_change_is_refused_against_the_retained_identity() 
                 bytes(changed.export()), expected_identity=original.identity
             )
         assert refused.value.reason_code == "route_not_supported"
-        assert refused.value.detail == "categorical_treatment.wrong_contract"
+        assert refused.value.detail == reason_details.categorical_treatment.WRONG_CONTRACT
         assert refused.value.offending == offending
         assert_registered_refusal(refused.value)
 

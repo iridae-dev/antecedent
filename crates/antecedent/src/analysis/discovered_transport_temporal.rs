@@ -269,7 +269,8 @@ pub fn transport_discovered_temporal_structure_with_context(
         _ => {
             return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
                 code: antecedent_core::reason_code!("discovered_structure_unresolved"),
-                detail: "discovered_transport.temporal_query_invalid",
+                detail:
+                    antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_INVALID,
                 unresolved: Vec::new(),
                 exhausted_search_bounds: exhausted,
                 unknown_selection_targets: Vec::new(),
@@ -357,7 +358,7 @@ pub fn transport_temporal_class_with_context(
 fn invalid(message: &str) -> DiscoveredTransportError {
     DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "discovered_transport.evidence_invalid",
+        detail: antecedent_core::reason_details::discovered_transport::EVIDENCE_INVALID,
         unresolved: Vec::new(),
         exhausted_search_bounds: 0,
         unknown_selection_targets: Vec::new(),

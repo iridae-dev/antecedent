@@ -17,6 +17,7 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.scenario_invariance import (
@@ -236,11 +237,11 @@ def test_invariance_requires_an_estimated_scenario_stage():
     stage = prepare(scenarios(("direct", [])))
     with pytest.raises(ScenarioInvarianceRefusal) as raised:
         invariance_report(stage)
-    assert raised.value.detail == "scenario_invariance.not_estimated"
+    assert raised.value.detail == reason_details.scenario_invariance.NOT_ESTIMATED
     assert raised.value.reason_code == "not_executed"
     assert isinstance(raised.value, CausalUnsupportedError)
     assert_registered_refusal(raised.value)
     with pytest.raises(ScenarioInvarianceRefusal) as wrong:
         invariance_report(object())
-    assert wrong.value.detail == "scenario_invariance.wrong_result_type"
+    assert wrong.value.detail == reason_details.scenario_invariance.WRONG_RESULT_TYPE
     assert_registered_refusal(wrong.value)

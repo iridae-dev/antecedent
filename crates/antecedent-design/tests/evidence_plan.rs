@@ -414,7 +414,10 @@ fn an_instrument_is_not_certified_by_a_study_and_the_assumptions_remain() {
     assert_eq!(plan.outcome, PlanOutcome::NoneCertified);
     assert_eq!(
         plan.status(),
-        Some(("transport_missing_evidence", "evidence_obligations.wrong_contract"))
+        Some((
+            "transport_missing_evidence",
+            antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT
+        ))
     );
 }
 
@@ -426,14 +429,23 @@ fn budget_exhaustion_is_reported_as_a_budget_and_never_as_impossibility() {
     let full = run(&family, &candidates, limits(1000, 2));
     let none = plan_of(&[full], &candidates, None);
     assert_eq!(none.outcome, PlanOutcome::NoneCertified);
-    assert_eq!(none.status(), Some(("transport_not_certified", "evidence_plan.none_certified")));
+    assert_eq!(
+        none.status(),
+        Some((
+            "transport_not_certified",
+            antecedent_core::reason_details::evidence_plan::NONE_CERTIFIED
+        ))
+    );
 
     // One operation stops the same search; the plan says the budget stopped it.
     let stopped = run(&family, &candidates, limits(1, 2));
     assert!(stopped.receipt.stop.is_some());
     let plan = plan_of(&[stopped], &candidates, None);
     assert_eq!(plan.outcome, PlanOutcome::BudgetExhausted);
-    assert_eq!(plan.status(), Some(("transport_budget_cancel", "evidence_plan.budget")));
+    assert_eq!(
+        plan.status(),
+        Some(("transport_budget_cancel", antecedent_core::reason_details::evidence_plan::BUDGET))
+    );
     assert!(plan.routes[0].budget.unevaluated_total > 0);
     assert!(plan.options.iter().any(|o| o.gate == RepairClassification::Unevaluated));
     assert!(plan.options.iter().all(|o| o.gate != RepairClassification::VerifiedSufficient));
@@ -459,7 +471,7 @@ fn costs_are_compared_only_in_one_unit() {
     )
     .unwrap_err();
     assert_eq!(refused.code, "design_cost_units_mismatch");
-    assert_eq!(refused.detail, "evidence_plan.cost_units_mismatch");
+    assert_eq!(refused.detail, antecedent_core::reason_details::evidence_plan::COST_UNITS_MISMATCH);
 
     // A cost map from another unit than the studies' is refused too.
     let one = observation("one", &[T, Y, Z], 2, 1);
@@ -475,7 +487,7 @@ fn costs_are_compared_only_in_one_unit() {
         Vec::new(),
     )
     .unwrap_err();
-    assert_eq!(refused.detail, "evidence_plan.cost_units_mismatch");
+    assert_eq!(refused.detail, antecedent_core::reason_details::evidence_plan::COST_UNITS_MISMATCH);
 }
 
 #[test]

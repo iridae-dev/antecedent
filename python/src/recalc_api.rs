@@ -45,13 +45,17 @@ pub(crate) fn invalid(detail: &str, text: impl AsRef<str>) -> PyErr {
 }
 
 pub(crate) fn artifact_invalid(error: &RecalcReceiptArtifactError) -> PyErr {
-    invalid("recalc.invalid_declaration", error.to_string())
+    invalid(antecedent_core::reason_details::recalc::INVALID_DECLARATION, error.to_string())
 }
 
 pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
     check_declared_size(text, MAX_JSON_BYTES, &format!("recalc {what}"))?;
-    serde_json::from_str(text)
-        .map_err(|e| invalid("recalc.invalid_declaration", format!("{what}: {e}")))
+    serde_json::from_str(text).map_err(|e| {
+        invalid(
+            antecedent_core::reason_details::recalc::INVALID_DECLARATION,
+            format!("{what}: {e}"),
+        )
+    })
 }
 
 fn refusal_body(
@@ -107,7 +111,7 @@ pub(crate) fn plan_refusal_json_with(plan: &RecalcPlan, data_remedy: &str) -> St
         return refusal_json(
             antecedent_core::reason_code!("not_executed"),
             "",
-            "recalc.refused",
+            antecedent_core::reason_details::recalc::REFUSED,
             None,
             None,
             "recalculation refused",
@@ -204,7 +208,7 @@ fn consume_recalc_receipt(
                 Some(json) => Ok((None, Some(json))),
                 None => Err(match error {
                     RecalcReceiptArtifactError::LimitsExceeded(what) => {
-                        invalid("recalc.limits_exceeded", what)
+                        invalid(antecedent_core::reason_details::recalc::LIMITS_EXCEEDED, what)
                     }
                     other => crate::serialization_err(other.to_string()),
                 }),
@@ -266,20 +270,25 @@ fn build_request(
     crate::recalc_bounds::check_columns(columns, ctx)?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid(
-            "recalc.invalid_data",
+            antecedent_core::reason_details::recalc::INVALID_DATA,
             "one named numeric column per name is required",
         ));
     }
     let position = |name: &str| -> PyResult<u32> {
         let at = names.iter().position(|n| n == name).ok_or_else(|| {
-            invalid("recalc.unknown_variable", format!("no column named `{name}`"))
+            invalid(
+                antecedent_core::reason_details::recalc::UNKNOWN_VARIABLE,
+                format!("no column named `{name}`"),
+            )
         })?;
-        u32::try_from(at).map_err(|_| invalid("recalc.invalid_data", "too many columns"))
+        u32::try_from(at).map_err(|_| {
+            invalid(antecedent_core::reason_details::recalc::INVALID_DATA, "too many columns")
+        })
     };
     for (i, name) in names.iter().enumerate() {
         if name.trim().is_empty() || names[..i].contains(name) {
             return Err(invalid(
-                "recalc.invalid_data",
+                antecedent_core::reason_details::recalc::INVALID_DATA,
                 "column names must be unique and non-empty",
             ));
         }
@@ -289,12 +298,18 @@ fn build_request(
     let rows = columns[0].1.len();
     if rows == 0 || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
     {
-        return Err(invalid("recalc.invalid_data", "columns must be finite and equally long"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_DATA,
+            "columns must be finite and equally long",
+        ));
     }
     let treatment = position(treatment)?;
     let outcome = position(outcome)?;
     if treatment == outcome {
-        return Err(invalid("recalc.invalid_request", "treatment and outcome must differ"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            "treatment and outcome must differ",
+        ));
     }
     let edges = edges
         .iter()
@@ -304,7 +319,7 @@ fn build_request(
         None => {
             if !target_depends_on.is_empty() {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -314,7 +329,7 @@ fn build_request(
             let weights = column_vec(weights);
             if weights.len() != rows || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
                     "target weights must be finite, non-negative and one per row",
                 ));
             }
@@ -326,7 +341,10 @@ fn build_request(
         }
     };
     if !benefit_per_unit.is_finite() || !cost.is_finite() {
-        return Err(invalid("recalc.invalid_request", "utility must be finite"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            "utility must be finite",
+        ));
     }
     Ok(RecalcRequest {
         columns: columns.into(),
@@ -615,7 +633,7 @@ impl PyRecalcSession {
                 Some(refusal_json(
                     antecedent_core::reason_code!("score_table_unavailable"),
                     &stage.label(),
-                    "recalc.no_live_state",
+                    antecedent_core::reason_details::recalc::NO_LIVE_STATE,
                     Some(&stage.label()),
                     Some(
                         "run the stage in this process, or resume with supplied data so it is \
@@ -632,7 +650,7 @@ impl PyRecalcSession {
                 Some(refusal_json(
                     antecedent_core::reason_code!("cancelled_no_claim"),
                     "score_artifact",
-                    "recalc.cancelled",
+                    antecedent_core::reason_details::recalc::CANCELLED,
                     None,
                     Some(
                         "run again without cancelling; the session kept its previous state"

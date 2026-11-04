@@ -50,6 +50,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -204,7 +206,7 @@ _finite_estimate = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        TemporalRefusal, stage="test", detail="effect_constancy.non_finite_estimate"
+        TemporalRefusal, stage="test", detail=_reason_details.effect_constancy.NON_FINITE_ESTIMATE
     ),
 )
 
@@ -422,7 +424,7 @@ def _covariance(covariance: Any) -> list[float]:
             {
                 "code": "invalid_argument",
                 "stage": "test",
-                "detail": "effect_constancy.invalid_covariance",
+                "detail": _reason_details.effect_constancy.INVALID_COVARIANCE,
                 "message": "the covariance has a non-finite entry",
             }
         )
@@ -507,7 +509,7 @@ def effect_constancy(
             "alpha",
             finite=True,
             non_finite=non_finite_refusal(
-                TemporalRefusal, stage="test", detail="effect_constancy.invalid_alpha"
+                TemporalRefusal, stage="test", detail=_reason_details.effect_constancy.INVALID_ALPHA
             ),
         ),
     }

@@ -85,7 +85,7 @@ impl CrossWorldRefusal {
     fn outside_contract(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "cross_world.query_outside_contract",
+            detail: antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT,
             message: message.into(),
         }
     }
@@ -93,7 +93,7 @@ impl CrossWorldRefusal {
     fn recanting(variable: u32, message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("cross_world_not_identified"),
-            detail: "cross_world.recanting_witness",
+            detail: antecedent_core::reason_details::cross_world::RECANTING_WITNESS,
             message: format!("variable {variable} {}", message.into()),
         }
     }
@@ -101,7 +101,7 @@ impl CrossWorldRefusal {
     fn graph(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "cross_world.graph_outside_contract",
+            detail: antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT,
             message: message.into(),
         }
     }
@@ -109,7 +109,7 @@ impl CrossWorldRefusal {
     fn invalid(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "cross_world.invalid_query",
+            detail: antecedent_core::reason_details::cross_world::INVALID_QUERY,
             message: message.into(),
         }
     }
@@ -419,7 +419,7 @@ mod tests {
         .unwrap();
         let refusal = check_cross_world_edges(4, &edges, &query).unwrap_err();
         assert_eq!(refusal.code, "cross_world_not_identified");
-        assert_eq!(refusal.detail, "cross_world.recanting_witness");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::cross_world::RECANTING_WITNESS);
     }
 
     #[test]
@@ -438,7 +438,10 @@ mod tests {
         .unwrap();
         let refusal = check_cross_world_edges(3, &MEDIATION, &query).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "cross_world.query_outside_contract");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT
+        );
         // The latent coupling (marginalized, not abducted) is outside
         // this fixed-DAG contract too: refused as a shape, never as a verdict.
         let direct = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
@@ -451,7 +454,10 @@ mod tests {
         .unwrap();
         let refusal = check_cross_world_edges(3, &MEDIATION, &latent).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "cross_world.query_outside_contract");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT
+        );
     }
 
     /// A contrast that reads different outcomes per world is another shape, not
@@ -471,7 +477,10 @@ mod tests {
         let refusal = check_cross_world_edges(3, &MEDIATION, &mixed).unwrap_err();
         assert_eq!(
             (refusal.code, refusal.detail),
-            ("route_not_supported", "cross_world.query_outside_contract")
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT
+            )
         );
 
         let direct = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
@@ -489,7 +498,10 @@ mod tests {
     fn a_two_cycle_is_not_ordered_and_the_acyclic_chain_still_is() {
         let query = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
         let refusal = check_cross_world_edges(2, &[(0, 1), (1, 0)], &query).unwrap_err();
-        assert_eq!(refusal.detail, "cross_world.graph_outside_contract");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT
+        );
         assert!(
             refusal.message.contains("cross_world has no cyclic support"),
             "{}",

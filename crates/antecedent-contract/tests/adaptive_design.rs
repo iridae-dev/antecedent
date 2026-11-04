@@ -350,11 +350,9 @@ fn a_choice_outcome_has_no_assignment_among_arms() {
     d.stopping_rule.as_mut().unwrap().spec = StoppingSpec::NoStopping;
     let error =
         AdaptiveDesignContract::new(d).expect_err("an arm contract is not a choice contract");
-    assert!(
-        details(&error)
-            .iter()
-            .any(|d| d == "adaptive_inference.choice_outcome_needs_choice_contract")
-    );
+    assert!(details(&error).iter().any(|d| {
+        d == antecedent_core::reason_details::adaptive_inference::CHOICE_OUTCOME_NEEDS_CHOICE_CONTRACT
+    }));
 }
 
 // -- the futility rule ----------------------------------------------------------------------
@@ -381,7 +379,10 @@ fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_ide
     {
         let error = AdaptiveDesignContract::new(futility_declaration(margin, threshold))
             .expect_err("out of range");
-        assert_eq!(details(&error), ["adaptive_inference.rule_mismatch"]);
+        assert_eq!(
+            details(&error),
+            [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
+        );
     }
     for spec in [
         StoppingSpec::NoStopping,
@@ -398,7 +399,7 @@ fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_ide
         d.stopping_rule.as_mut().unwrap().spec = spec;
         assert_eq!(
             details(&AdaptiveDesignContract::new(d).unwrap_err()),
-            ["adaptive_inference.rule_mismatch"]
+            [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
         );
     }
     for (margin, threshold) in [(f64::INFINITY, 0.1), (0.05, f64::NAN), (0.05, f64::INFINITY)] {
@@ -406,12 +407,15 @@ fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_ide
             details(
                 &AdaptiveDesignContract::new(futility_declaration(margin, threshold)).unwrap_err()
             ),
-            ["adaptive_inference.rule_mismatch"]
+            [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
         );
     }
     // Futility boundaries (error rates) stay carried forward with their owner.
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.cell_not_delivered");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED
+    );
 }
 
 // -- completeness ---------------------------------------------------------------------------
@@ -429,14 +433,27 @@ fn a_complete_declaration_is_accepted() {
 fn every_missing_element_is_its_own_typed_refusal() {
     type Strip = fn(&mut AdaptiveDesignDeclaration);
     let cases: [(&str, Strip); 6] = [
-        ("adaptive_inference.policy_history_missing", |d| d.policy_history = None),
-        ("adaptive_inference.assignment_probabilities_missing", |d| {
-            d.assignment_probabilities = None;
+        (antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING, |d| {
+            d.policy_history = None
         }),
-        ("adaptive_inference.exposure_history_missing", |d| d.exposure = None),
-        ("adaptive_inference.outcome_availability_missing", |d| d.availability = None),
-        ("adaptive_inference.interim_analyses_missing", |d| d.interim_analyses = None),
-        ("adaptive_inference.stopping_rule_missing", |d| d.stopping_rule = None),
+        (
+            antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_PROBABILITIES_MISSING,
+            |d| {
+                d.assignment_probabilities = None;
+            },
+        ),
+        (antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING, |d| {
+            d.exposure = None
+        }),
+        (antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING, |d| {
+            d.availability = None
+        }),
+        (antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING, |d| {
+            d.interim_analyses = None
+        }),
+        (antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING, |d| {
+            d.stopping_rule = None
+        }),
     ];
     for (detail, strip) in &cases {
         let mut declaration = thompson();
@@ -465,47 +482,50 @@ fn inconsistent_records_are_refused_with_distinct_details() {
     };
     assert_eq!(
         mutate(|d| d.assignment_probabilities.as_mut().unwrap()[0] = vec![0.5, 0.6]),
-        ["adaptive_inference.probabilities_invalid"]
+        [antecedent_core::reason_details::adaptive_inference::PROBABILITIES_INVALID]
     );
     assert_eq!(
         mutate(|d| d.assignment_probabilities.as_mut().unwrap()[0] = vec![0.0, 1.0]),
-        ["adaptive_inference.assigned_probability_zero"]
+        [antecedent_core::reason_details::adaptive_inference::ASSIGNED_PROBABILITY_ZERO]
     );
-    assert_eq!(mutate(|d| d.assigned_arm[2] = 7), ["adaptive_inference.arm_out_of_range"]);
+    assert_eq!(
+        mutate(|d| d.assigned_arm[2] = 7),
+        [antecedent_core::reason_details::adaptive_inference::ARM_OUT_OF_RANGE]
+    );
     assert_eq!(
         mutate(|d| d.interim_analyses.as_mut().unwrap()[1].units_enrolled = 7),
-        ["adaptive_inference.looks_not_ordered"]
+        [antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED]
     );
     assert_eq!(
         mutate(|d| d.interim_analyses.as_mut().unwrap()[0].information_fraction = 1.0),
-        ["adaptive_inference.looks_not_ordered"]
+        [antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED]
     );
     assert_eq!(
         mutate(|d| d.availability.as_mut().unwrap().available_at_look[5] = Some(0)),
-        ["adaptive_inference.shape_mismatch"],
+        [antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH],
         "an outcome cannot be available before its unit is enrolled"
     );
     assert_eq!(
         mutate(|d| d.availability.as_mut().unwrap().available_at_look[0] = None),
-        ["adaptive_inference.shape_mismatch"],
+        [antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH],
         "availability and observed outcomes must agree"
     );
     assert_eq!(
         mutate(|d| d.stopping_rule.as_mut().unwrap().kind = StoppingRuleKind::Resource),
-        ["adaptive_inference.rule_mismatch"]
+        [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
     );
     assert_eq!(
         mutate(|d| d.outcomes[1] = vec![0.5]),
-        ["adaptive_inference.outcome_invalid"],
+        [antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID],
         "Beta-Bernoulli is defined for {{0, 1}}"
     );
     assert_eq!(
         mutate(|d| d.policy_history.as_mut().unwrap()[0].first_unit = 1),
-        ["adaptive_inference.policy_history_invalid"]
+        [antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_INVALID]
     );
     assert_eq!(
         mutate(|d| d.probability_floor = 0.0),
-        ["adaptive_inference.probability_floor_invalid"]
+        [antecedent_core::reason_details::adaptive_inference::PROBABILITY_FLOOR_INVALID]
     );
     // A fixed-randomization declaration whose probabilities vary is not one.
     let mut fixed = declaration(cell(
@@ -516,7 +536,10 @@ fn inconsistent_records_are_refused_with_distinct_details() {
     ));
     fixed.assignment_probabilities.as_mut().unwrap()[3] = vec![0.4, 0.6];
     let error = AdaptiveDesignContract::new(fixed).expect_err("probabilities vary");
-    assert_eq!(details(&error), ["adaptive_inference.rule_mismatch"]);
+    assert_eq!(
+        details(&error),
+        [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
+    );
     // The refusals use only registered codes.
     for refusal in &error.refusals {
         assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code));
@@ -563,7 +586,10 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
     let contract = AdaptiveDesignContract::new(thompson()).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::FrequentistFixedSample).unwrap_err();
     assert_eq!(refusal.code, "adaptive_design_ignored");
-    assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
+    );
     // Adaptive in any one axis suffices: a fixed assignment with interim looks.
     let looked_at = declaration(cell(
         AssignmentFamily::FixedRandomization,
@@ -573,7 +599,10 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
     ));
     let contract = AdaptiveDesignContract::new(looked_at).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::FrequentistFixedSample).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
+    );
     // A design fixed in advance is the one case the paradigm is authorized.
     let fixed = declaration(cell(
         AssignmentFamily::FixedRandomization,
@@ -595,10 +624,16 @@ fn a_paradigm_never_transfers_to_a_cell_it_is_not_supported_for() {
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistAdaptiveWeighting).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistGroupSequential).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
 }
 
 #[test]
@@ -613,18 +648,24 @@ fn incoherent_undelivered_and_unpaired_cells_are_refused_with_their_own_details(
     };
     let carried =
         refused(cell(A::UpperConfidenceBound, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy));
-    assert_eq!(carried.detail, "adaptive_inference.cell_not_delivered");
+    assert_eq!(
+        carried.detail,
+        antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED
+    );
     assert_eq!(carried.offending.as_deref(), Some("adaptive_inference/upper_confidence_bound"));
     let paired =
         refused(cell(A::ThompsonBetaBernoulli, O::SingleOutcome, M::GroupSequential, S::Efficacy));
-    assert_eq!(paired.detail, "adaptive_inference.pairing_not_supported");
+    assert_eq!(
+        paired.detail,
+        antecedent_core::reason_details::adaptive_inference::PAIRING_NOT_SUPPORTED
+    );
     let closed = refused(cell(
         A::ThompsonBetaBernoulli,
         O::SingleOutcome,
         M::FinalAnalysisOnly,
         S::Efficacy,
     ));
-    assert_eq!(closed.detail, "adaptive_inference.cell_incoherent");
+    assert_eq!(closed.detail, antecedent_core::reason_details::adaptive_inference::CELL_INCOHERENT);
     for refusal in [&carried, &paired, &closed] {
         assert_eq!(refusal.code, "route_not_supported");
     }
@@ -637,13 +678,19 @@ fn noncompliance_and_outcome_dependent_delay_are_refused_before_any_number() {
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.exposure_differs_from_assignment");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::EXPOSURE_DIFFERS_FROM_ASSIGNMENT
+    );
 
     let mut declaration = thompson();
     declaration.availability.as_mut().unwrap().delay = DelayMechanism::OutcomeDependent;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.delay_not_ignorable");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::DELAY_NOT_IGNORABLE
+    );
 
     let mut declaration = thompson();
     declaration.availability.as_mut().unwrap().delay = DelayMechanism::IgnorableAdministrative;
@@ -673,7 +720,10 @@ fn delayed_outcomes_enter_the_analysis_only_when_observed() {
     for look in [contract.looks(), usize::MAX] {
         let refusal = contract.analysis_units(look).unwrap_err();
         assert_eq!(refusal.code, "invalid_argument");
-        assert_eq!(refusal.detail, "adaptive_inference.look_out_of_range");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::LOOK_OUT_OF_RANGE
+        );
         assert_eq!(refusal.offending.as_deref(), Some(format!("look {look}").as_str()));
     }
 }
@@ -697,7 +747,10 @@ fn the_looks_are_never_pooled_as_independent_evidence() {
     let evidence = contract.interim_evidence().unwrap();
     let refusal = contract.refuse_independent_pooling_of_looks(&evidence).unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "adaptive_inference.looks_share_observations");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::LOOKS_SHARE_OBSERVATIONS
+    );
     // With only a final analysis there is no earlier look to double count.
     let single = declaration(cell(
         AssignmentFamily::FixedRandomization,
@@ -749,6 +802,9 @@ fn observation_identities_are_stable_per_contract_and_unit() {
     for unit in [a.units(), usize::MAX] {
         let refusal = a.observation_id(unit).unwrap_err();
         assert_eq!(refusal.code, antecedent_core::reason_code!("invalid_argument"));
-        assert_eq!(refusal.detail, "adaptive_inference.unit_out_of_range");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::UNIT_OUT_OF_RANGE
+        );
     }
 }

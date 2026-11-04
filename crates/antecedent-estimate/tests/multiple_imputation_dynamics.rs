@@ -164,17 +164,23 @@ fn dynamic_imputation_refuses_what_it_cannot_identify() {
     let units = || multiple_imputation::bind_series_units(None, n, 7).unwrap();
     let chained = ImputationSpec::new();
     let zero = imputer(&x, &noise, chained, units()).with_dynamics(0).unwrap_err();
-    assert_eq!(zero.detail(), "multiple_imputation.dynamics_lags");
+    assert_eq!(zero.detail(), antecedent_core::reason_details::multiple_imputation::DYNAMICS_LAGS);
     let joint = ImputationSpec::new().with_model(ImputationModel::JointNormal);
     let refused = imputer(&x, &noise, joint, units()).with_dynamics(1).unwrap_err();
-    assert_eq!(refused.detail(), "multiple_imputation.dynamics_joint_normal");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::multiple_imputation::DYNAMICS_JOINT_NORMAL
+    );
     assert_eq!(refused.next_attempt().map(|next| next.name()), Some("chained_equations"));
 
     // Twenty steps cannot identify a model that reads four neighbours on each side.
     let (short_x, short_noise) = autoregressive(20, 0.2, 6);
     let short_units = multiple_imputation::bind_series_units(None, 20, 5).unwrap();
     let short = imputer(&short_x, &short_noise, chained, short_units).with_dynamics(4);
-    assert_eq!(short.unwrap_err().detail(), "multiple_imputation.not_identified");
+    assert_eq!(
+        short.unwrap_err().detail(),
+        antecedent_core::reason_details::multiple_imputation::NOT_IDENTIFIED
+    );
 }
 
 #[test]
@@ -196,6 +202,10 @@ fn a_series_binds_contiguous_blocks_under_the_dependent_time_series_design_only(
         DeclaredSamplingDesign::IndependentSubjectTrajectories,
     ] {
         let error = multiple_imputation::bind_series_units(Some(design), 10, 4).unwrap_err();
-        assert_eq!(error.detail(), "multiple_imputation.sampling_design", "{design:?}");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::multiple_imputation::SAMPLING_DESIGN,
+            "{design:?}"
+        );
     }
 }

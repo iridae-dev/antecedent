@@ -37,12 +37,14 @@ record_sha256 = "013eb1b82f1e4f50e31b78400b3079b180407613f4464e3cabc31fb1c8f506d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/synthesis.rs"
-sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+items = ["const MAX_JACOBI_SWEEPS", "const MAX_STUDIES", "const MAX_TAU_SUPPORT", "const PRIOR_SUM_TOLERANCE", "const PSD_RELATIVE_TOLERANCE", "const REML_BISECTIONS", "const REML_BRACKET_DOUBLINGS", "const SYMMETRY_RELATIVE_TOLERANCE", "enum BetweenStudyMethod", "enum MeanPrior", "enum SynthesisError", "fn check_covariance", "fn check_equicorrelated_inputs", "fn check_summaries", "fn conditional_on_tau", "fn denominator", "fn equicorrelated_gls", "fn estimate", "fn finite_extremes", "fn fixed_effect_gls", "fn fixed_effect_inverse_variance", "fn hierarchical_normal_borrowing", "fn new", "fn pooled_dependence_envelope", "fn random_effects_at", "fn random_effects_dersimonian_laird", "fn random_effects_reml", "fn reml_score", "fn scaled_eigenvalue_extremes", "fn symmetric_eigenvalues", "fn validate", "fn variance", "fn variance_stationary_points", "struct ConditionalPosterior", "struct CovarianceCheck", "struct DependenceEnvelope", "struct EquicorrelationTerms", "struct HierarchicalPosterior", "struct PooledEstimate", "struct RandomEffectsEstimate", "struct TauPrior", "type EnvelopeExtremes"]
+sha256 = "bd03cfb87ee2e77ddafcbdbd46f9ec6fe7844ae7a66915f762d51e9fe5c5d2a9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/evidence_synthesis_reference.rs"
-sha256 = "07865a9bac9e7d176a9cf9ef1eaac68bd3338df7bf845e7390d5a2c3b777b3af"
+items = ["fn close", "fn close_all", "fn equicorrelated_pooling_matches_the_explicit_covariance_solve", "fn gls_pooling_matches_the_explicit_covariance_solve", "fn hierarchical_borrowing_matches_direct_integration_over_the_common_mean", "fn number", "fn numbers", "fn random_effects_match_the_moment_and_likelihood_references", "fn reference", "fn singularity_is_judged_on_correlations_not_on_the_variance_ratio", "fn the_dependence_envelope_attains_the_extremes_of_the_reference"]
+sha256 = "a39641511e1098904ff3a66e29e3ac7350157a6ae3b3e87c43b3a8dfa2b38d24"
 
 [[method_review.artifacts]]
 role = "reference"

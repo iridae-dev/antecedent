@@ -354,7 +354,12 @@ fn an_undirected_edge_at_the_treatment_is_refused_and_named_not_completed() {
     .unwrap_err();
     let text = error.to_string();
     assert!(text.contains("discovered_structure_unresolved"), "{text}");
-    assert!(text.contains("parent_set_effect.treatment_parents_ambiguous"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::parent_set_effect::TREATMENT_PARENTS_AMBIGUOUS
+        ),
+        "{text}"
+    );
     assert!(text.contains("h - n0"), "{text}");
     assert!(text.contains("no completion is chosen"), "{text}");
 }
@@ -381,7 +386,12 @@ fn log_linear_inputs_must_be_positive_and_the_refusal_names_the_column() {
     .unwrap_err();
     let text = error.to_string();
     assert!(text.contains("invalid_argument"), "{text}");
-    assert!(text.contains("parent_set_effect.log_linear_input_not_positive"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::parent_set_effect::LOG_LINEAR_INPUT_NOT_POSITIVE
+        ),
+        "{text}"
+    );
     assert!(text.contains("column `m` has 5 non-positive value(s)"), "{text}");
     // Positivity is a log-linear requirement only: the margin-checked linear fixture with the
     // same sign flips is a valid linear study (the log-normal columns above are not linear data).
@@ -409,7 +419,12 @@ fn the_transformation_must_be_declared_before_the_data_are_touched() {
         let error = Transformation::parse(name).unwrap_err();
         let text = error.to_string();
         assert!(text.contains("invalid_argument"), "{text}");
-        assert!(text.contains("parent_set_effect.transformation_undeclared"), "{text}");
+        assert!(
+            text.contains(
+                antecedent_core::reason_details::parent_set_effect::TRANSFORMATION_UNDECLARED
+            ),
+            "{text}"
+        );
         assert!(text.contains("before any data are read"), "{text}");
     }
     assert_eq!(Transformation::parse("linear").unwrap(), Transformation::Linear);
@@ -436,7 +451,12 @@ fn a_log_linear_study_declares_its_shift_and_a_linear_study_declares_none() {
     ] {
         let error =
             estimate_parent_set_effect(&study.data, x, y, options, SPLIT_SEED, &ctx()).unwrap_err();
-        assert!(error.to_string().contains("parent_set_effect.source_invalid"), "{options:?}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID),
+            "{options:?}"
+        );
     }
 }
 
@@ -464,7 +484,10 @@ fn a_maximum_degree_above_four_is_refused_with_both_degrees_named() {
         &ctx(),
     )
     .unwrap_err();
-    assert!(zero.to_string().contains("parent_set_effect.source_invalid"));
+    assert!(
+        zero.to_string()
+            .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID)
+    );
 }
 
 #[test]
@@ -629,7 +652,11 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
         &ctx(),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("parent_set_effect.source_invalid"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID)
+    );
 
     let mut same_role = source;
     same_role.outcome = same_role.treatment;
@@ -638,7 +665,11 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
         &ctx(),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("parent_set_effect.source_invalid"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID)
+    );
 
     let mut padded = result.source_artifact().to_vec();
     padded.push(0);
@@ -789,5 +820,8 @@ fn knowledge_naming_a_column_that_is_not_searched_is_refused() {
     .unwrap_err();
     let text = error.to_string();
     assert!(text.contains("invalid_argument"), "{text}");
-    assert!(text.contains("parent_set_effect.knowledge_invalid"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::parent_set_effect::KNOWLEDGE_INVALID),
+        "{text}"
+    );
 }

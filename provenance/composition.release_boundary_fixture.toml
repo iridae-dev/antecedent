@@ -38,9 +38,11 @@ record_sha256 = "0f4a1d5bd9059a2a7622274c050cc97aa13044de05871b498b47c2c1d7aebea
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/tests/composition_release_fixture/scenario.rs"
-sha256 = "e1db742d54f5748aa5587522a11fd4ad5879ce72298820b034a9a6b0f8621d0c"
+items = ["const CONSTRUCT", "const INDICATOR", "fn bits", "fn build", "fn bundle", "fn check_interfaces", "fn claim_graph", "fn compose", "fn consume", "fn ctx", "fn decide", "fn decision_contract", "fn downstream_of", "fn excess_quantity", "fn excess_risk", "fn export_interventional", "fn fixture", "fn from_fixture", "fn gate", "fn graph_inputs", "fn ident", "fn interface_components", "fn interface_pair_details", "fn mean_source", "fn measure", "fn measurement_binding", "fn measurement_model", "fn mechanism_quantity", "fn num", "fn observations", "fn of", "fn oracle", "fn outcome_risk", "fn pool", "fn prevalence_quantity", "fn revise", "fn revised_study_declarations", "fn rows_of", "fn scalar", "fn selected", "fn study_declarations", "fn study_source", "fn table_input", "fn text", "fn value_of", "fn verify", "struct Bundle", "struct ConsumerReport", "struct DecisionDeclaration", "struct GraphInputs", "struct InterfaceOptions", "struct Measured", "struct Oracle", "struct Pooled", "struct Refused", "struct RevisionStep", "struct StudyDeclaration", "struct World"]
+sha256 = "b6108495a917f00f89355e6f00c8d70875595982f1ed3c843ec7f3f603b41801"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/composition_release_fixture.rs"
-sha256 = "373730e9bca14ed310d65dc0bf26a099a8e8db4d275189c9ff9da644f4263040"
+items = ["fn a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end", "fn a_fresh_consumer_recomputes_the_decision_and_every_mutation_is_refused_as_expected", "fn a_measured_exposure_enters_the_causal_model_through_the_declared_confusion_model", "fn an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end", "fn assert_refused", "fn close", "fn draws_artifact", "fn duplicated_evidence_cannot_be_counted_twice", "fn every_stage_is_point_only_and_no_interval_or_posterior_decision_ships", "fn exact", "fn loose", "fn new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated", "fn quantity", "fn shared_evidence_is_counted_once_and_dependence_is_declared_or_refused", "fn the_decision_reads_the_supported_mean_and_matches_the_hand_computed_utilities", "fn unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is", "fn unsupported_semantic_conversions_fail_closed"]
+sha256 = "7f2eac43261c5808a8a76bad4c3553c2c3eab70fdc4952681a4f913910f247ea"

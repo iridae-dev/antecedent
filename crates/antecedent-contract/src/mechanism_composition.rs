@@ -325,7 +325,7 @@ fn check_realization(q: &ScientificQuantity, subject: &str, c: &mut Collector) {
     if q.validate().is_err() {
         c.push(
             "quantity",
-            "mechanism_composition.quantity_invalid_coordinate",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_INVALID_COORDINATE,
             subject,
             "give every semantic coordinate a non-blank identity and canonical conditioning",
         );
@@ -334,7 +334,7 @@ fn check_realization(q: &ScientificQuantity, subject: &str, c: &mut Collector) {
     if q.functional_id != MECHANISM_VALUE_FUNCTIONAL {
         c.compare(
             "quantity",
-            "mechanism_composition.quantity_not_a_realization",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_NOT_A_REALIZATION,
             subject,
             MECHANISM_VALUE_FUNCTIONAL,
             &q.functional_id,
@@ -344,7 +344,7 @@ fn check_realization(q: &ScientificQuantity, subject: &str, c: &mut Collector) {
     if !q.conditioning.is_empty() {
         c.push(
             "quantity",
-            "mechanism_composition.quantity_conditioned_event",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_CONDITIONED_EVENT,
             subject,
             "a structural mechanism is not conditioned on observed events; use a conditional query downstream",
         );
@@ -383,7 +383,7 @@ fn check_context(
             match &a.basis {
                 AdmissionBasis::DeclaredInvariance { assumption_id } => {
                     if blank(assumption_id) {
-                        reason = Some("mechanism_composition.population_invariance_unstated");
+                        reason = Some(antecedent_core::reason_details::mechanism_composition::POPULATION_INVARIANCE_UNSTATED);
                     } else {
                         admitted = true;
                     }
@@ -392,12 +392,12 @@ fn check_context(
                     if targets.iter().any(|t| t == v) {
                         arrow_into_variable = true;
                         reason =
-                            Some("mechanism_composition.population_selection_arrow_into_mechanism");
+                            Some(antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM);
                     } else if m.latent_causes.is_empty() {
                         admitted = true;
                     } else {
                         reason = Some(
-                            "mechanism_composition.population_latent_blocks_selection_admissibility",
+                            antecedent_core::reason_details::mechanism_composition::POPULATION_LATENT_BLOCKS_SELECTION_ADMISSIBILITY,
                         );
                     }
                 }
@@ -408,9 +408,9 @@ fn check_context(
         }
         if !admitted {
             let detail = if candidates.is_empty() {
-                "mechanism_composition.population_undeclared_transport"
+                antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT
             } else {
-                reason.unwrap_or("mechanism_composition.population_undeclared_transport")
+                reason.unwrap_or(antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT)
             };
             c.compare(
                 "population",
@@ -433,9 +433,9 @@ fn check_context(
         });
         if !admitted {
             let detail = if candidates.is_empty() {
-                "mechanism_composition.regime_undeclared_invariance"
+                antecedent_core::reason_details::mechanism_composition::REGIME_UNDECLARED_INVARIANCE
             } else {
-                "mechanism_composition.regime_selection_diagram_not_applicable"
+                antecedent_core::reason_details::mechanism_composition::REGIME_SELECTION_DIAGRAM_NOT_APPLICABLE
             };
             c.compare(
                 "regime",
@@ -458,7 +458,7 @@ fn check_graph(
         if !by_var.contains_key(p.as_str()) || !by_var.contains_key(ch.as_str()) {
             c.push(
                 "variable_identity",
-                "mechanism_composition.identity_edge_unknown_variable",
+                antecedent_core::reason_details::mechanism_composition::IDENTITY_EDGE_UNKNOWN_VARIABLE,
                 &format!("{p}->{ch}"),
                 "declare edges only between variables that have a mechanism",
             );
@@ -472,7 +472,7 @@ fn check_graph(
         if supplied != declared {
             c.compare(
                 "causal_parents",
-                "mechanism_composition.parents_declared_graph_mismatch",
+                antecedent_core::reason_details::mechanism_composition::PARENTS_DECLARED_GRAPH_MISMATCH,
                 v,
                 &set_text(&declared),
                 &set_text(&supplied),
@@ -484,7 +484,7 @@ fn check_graph(
         if conditioning.difference(&supplied).next().is_some() {
             c.compare(
                 "conditioning_set",
-                "mechanism_composition.conditioning_extra_conditioner",
+                antecedent_core::reason_details::mechanism_composition::CONDITIONING_EXTRA_CONDITIONER,
                 v,
                 &set_text(&supplied),
                 &set_text(&conditioning),
@@ -494,7 +494,7 @@ fn check_graph(
         if supplied.difference(&conditioning).next().is_some() {
             c.compare(
                 "conditioning_set",
-                "mechanism_composition.conditioning_parent_not_conditioned",
+                antecedent_core::reason_details::mechanism_composition::CONDITIONING_PARENT_NOT_CONDITIONED,
                 v,
                 &set_text(&supplied),
                 &set_text(&conditioning),
@@ -542,7 +542,7 @@ fn check_graph(
             indegree.iter().filter(|(_, n)| **n > 0).map(|(v, _)| *v).collect();
         c.push(
             "cycle",
-            "mechanism_composition.cycle_directed_cycle",
+            antecedent_core::reason_details::mechanism_composition::CYCLE_DIRECTED_CYCLE,
             &set_text(&stuck),
             "only acyclic compositions are executed; a feedback system needs its own equilibrium model",
         );
@@ -557,7 +557,7 @@ fn check_latents(by_var: &BTreeMap<&str, &MechanismDeclaration>, c: &mut Collect
                 match by_var.get(other.as_str()) {
                     None => c.push(
                         "shared_latent",
-                        "mechanism_composition.latent_shared_with_absent_mechanism",
+                        antecedent_core::reason_details::mechanism_composition::LATENT_SHARED_WITH_ABSENT_MECHANISM,
                         &subject,
                         "the latent is shared with a mechanism that is not in the composition; add it, or the dropped latent would be treated as independent",
                     ),
@@ -565,7 +565,7 @@ fn check_latents(by_var: &BTreeMap<&str, &MechanismDeclaration>, c: &mut Collect
                         if !peer.latent_causes.iter().any(|x| x.latent_id == l.latent_id) {
                             c.push(
                                 "shared_latent",
-                                "mechanism_composition.latent_sharing_not_reciprocal",
+                                antecedent_core::reason_details::mechanism_composition::LATENT_SHARING_NOT_RECIPROCAL,
                                 &subject,
                                 "both mechanisms must declare the shared latent",
                             );
@@ -678,7 +678,7 @@ fn check_shape(decl: &MechanismCompositionDeclaration, c: &mut Collector) -> boo
     if decl.mechanisms.is_empty() {
         c.push(
             "shape",
-            "mechanism_composition.shape_mechanism_count",
+            antecedent_core::reason_details::mechanism_composition::SHAPE_MECHANISM_COUNT,
             "composition",
             "declare at least one mechanism",
         );
@@ -687,7 +687,7 @@ fn check_shape(decl: &MechanismCompositionDeclaration, c: &mut Collector) -> boo
     if blank(&decl.target_population_id) || blank(&decl.target_regime_id) {
         c.push(
             "shape",
-            "mechanism_composition.shape_blank_coordinate",
+            antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_COORDINATE,
             "target",
             "name the target population and regime",
         );
@@ -712,7 +712,7 @@ fn index_mechanisms<'a>(
         if by_var.insert(v, m).is_some() {
             c.push(
                 "variable_identity",
-                "mechanism_composition.identity_duplicate_mechanism",
+                antecedent_core::reason_details::mechanism_composition::IDENTITY_DUPLICATE_MECHANISM,
                 v,
                 "keep one fitted mechanism per variable, or compose the alternatives separately",
             );
@@ -720,7 +720,7 @@ fn index_mechanisms<'a>(
         if blank(&m.artifact_id) {
             c.push(
                 "provenance",
-                "mechanism_composition.provenance_missing_artifact",
+                antecedent_core::reason_details::mechanism_composition::PROVENANCE_MISSING_ARTIFACT,
                 v,
                 "bind the mechanism to the identity of the fit or external binding that produced it",
             );
@@ -728,7 +728,7 @@ fn index_mechanisms<'a>(
         if blank(&m.evidence_id) {
             c.push(
                 "provenance",
-                "mechanism_composition.provenance_missing_evidence",
+                antecedent_core::reason_details::mechanism_composition::PROVENANCE_MISSING_EVIDENCE,
                 v,
                 "name the evidence the mechanism was estimated from so dependence can be judged",
             );
@@ -736,7 +736,7 @@ fn index_mechanisms<'a>(
         if m.origin == MechanismOriginKind::Declared && !decl.admit_declared_mechanisms {
             c.push(
                 "provenance",
-                "mechanism_composition.provenance_declared_mechanism_unacknowledged",
+                antecedent_core::reason_details::mechanism_composition::PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED,
                 v,
                 "a declared (not estimated) mechanism is admitted only when the composition acknowledges it",
             );
@@ -760,7 +760,7 @@ fn check_parent(
     if p.population_id != m.output.population_id {
         c.compare(
             "population",
-            "mechanism_composition.population_parent_context_differs_from_fit",
+            antecedent_core::reason_details::mechanism_composition::POPULATION_PARENT_CONTEXT_DIFFERS_FROM_FIT,
             &subject,
             &m.output.population_id,
             &p.population_id,
@@ -770,7 +770,7 @@ fn check_parent(
     if p.regime_id != m.output.regime_id {
         c.compare(
             "regime",
-            "mechanism_composition.regime_parent_context_differs_from_fit",
+            antecedent_core::reason_details::mechanism_composition::REGIME_PARENT_CONTEXT_DIFFERS_FROM_FIT,
             &subject,
             &m.output.regime_id,
             &p.regime_id,
@@ -780,7 +780,7 @@ fn check_parent(
     let Some(producer) = by_var.get(p.variable_id.as_str()) else {
         c.push(
             "variable_identity",
-            "mechanism_composition.identity_parent_without_mechanism",
+            antecedent_core::reason_details::mechanism_composition::IDENTITY_PARENT_WITHOUT_MECHANISM,
             &subject,
             "supply a mechanism for the parent (a root needs its own marginal mechanism)",
         );
@@ -798,7 +798,7 @@ fn check_parent(
         Ok(()) => {}
         Err(QuantityMismatch::Units) => c.compare(
             "units",
-            "mechanism_composition.units_mismatch",
+            antecedent_core::reason_details::mechanism_composition::UNITS_MISMATCH,
             &subject,
             &p.units,
             &producer.output.units,
@@ -806,7 +806,7 @@ fn check_parent(
         ),
         Err(QuantityMismatch::Transform) => c.compare(
             "transform",
-            "mechanism_composition.transform_mismatch",
+            antecedent_core::reason_details::mechanism_composition::TRANSFORM_MISMATCH,
             &subject,
             &p.transform_id,
             &producer.output.transform_id,
@@ -814,25 +814,25 @@ fn check_parent(
         ),
         Err(QuantityMismatch::Variable) => c.push(
             "quantity",
-            "mechanism_composition.quantity_role_mismatch",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_ROLE_MISMATCH,
             &subject,
             "the parent and the producer must name the same variable in the same causal role",
         ),
         Err(QuantityMismatch::Horizon) => c.push(
             "quantity",
-            "mechanism_composition.quantity_horizon_mismatch",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_HORIZON_MISMATCH,
             &subject,
             "the parent and the producer must refer to the same time horizon",
         ),
         Err(QuantityMismatch::Functional) => c.push(
             "quantity",
-            "mechanism_composition.quantity_functional_mismatch",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_FUNCTIONAL_MISMATCH,
             &subject,
             "the parent and the producer must be the same functional of the variable",
         ),
         Err(QuantityMismatch::Conditioning) => c.push(
             "quantity",
-            "mechanism_composition.quantity_conditioning_mismatch",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_CONDITIONING_MISMATCH,
             &subject,
             "the parent and the producer must be conditioned on the same events",
         ),
@@ -842,7 +842,7 @@ fn check_parent(
             | QuantityMismatch::Regime,
         ) => c.push(
             "quantity",
-            "mechanism_composition.quantity_invalid_coordinate",
+            antecedent_core::reason_details::mechanism_composition::QUANTITY_INVALID_COORDINATE,
             &subject,
             "give every semantic coordinate a non-blank identity",
         ),
@@ -858,7 +858,7 @@ fn check_declared_independence(decl: &MechanismCompositionDeclaration, c: &mut C
     if blank(justification) {
         c.push(
             "posterior_dependence",
-            "mechanism_composition.posterior_dependence_independence_unjustified",
+            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_INDEPENDENCE_UNJUSTIFIED,
             "composition",
             "state why the estimates are independent (disjoint, independently generated evidence)",
         );
@@ -870,7 +870,7 @@ fn check_declared_independence(decl: &MechanismCompositionDeclaration, c: &mut C
         {
             c.compare(
                 "posterior_dependence",
-                "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
+                antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT,
                 &format!("{first}|{}", m.output.variable_id),
                 "distinct evidence identities",
                 &m.evidence_id,
@@ -1065,7 +1065,7 @@ pub fn check_declared_independence_against_ledger(
                 Some(Overlap::Independent) => {}
                 Some(Overlap::SharedObservations { .. }) => refusals.push(composition_refusal(
                     "posterior_dependence",
-                    "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
+                    antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT,
                     &subject,
                     Some("evidence with no shared observation"),
                     Some(&second.evidence_id),
@@ -1073,7 +1073,7 @@ pub fn check_declared_independence_against_ledger(
                 )),
                 Some(Overlap::Unknown { .. }) | None => refusals.push(composition_refusal(
                     "posterior_dependence",
-                    "mechanism_composition.posterior_dependence_evidence_overlap_unknown",
+                    antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_EVIDENCE_OVERLAP_UNKNOWN,
                     &subject,
                     Some("evidence registered in the ledger with computable observations"),
                     Some(&second.evidence_id),
@@ -1098,7 +1098,7 @@ impl MechanismCompositionPlan {
         match &self.dependence {
             DependenceDeclaration::Unknown => UncertaintyRoute::Closed(composition_refusal(
                 "posterior_dependence",
-                "mechanism_composition.posterior_dependence_unknown",
+                antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN,
                 "composition",
                 Some("an aligned joint parameter law or explicit cross-mechanism covariance"),
                 Some("independently fitted marginals with undeclared dependence"),
@@ -1460,25 +1460,25 @@ mod tests {
         d.mechanisms[2].parents[1].units = "lb".into();
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.units_mismatch"]
+            [antecedent_core::reason_details::mechanism_composition::UNITS_MISMATCH]
         );
         let mut d = decl();
         d.mechanisms[2].parents[1].transform_id = "log".into();
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.transform_mismatch"]
+            [antecedent_core::reason_details::mechanism_composition::TRANSFORM_MISMATCH]
         );
         let mut d = decl();
         d.mechanisms[2].parents[1].role = QuantityRole::Covariate;
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.quantity_role_mismatch"]
+            [antecedent_core::reason_details::mechanism_composition::QUANTITY_ROLE_MISMATCH]
         );
         let mut d = decl();
         d.mechanisms[2].parents[1].functional_id = "mean".into();
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.quantity_not_a_realization"]
+            [antecedent_core::reason_details::mechanism_composition::QUANTITY_NOT_A_REALIZATION]
         );
     }
 
@@ -1492,7 +1492,7 @@ mod tests {
         // y consumes m as seen in the target.
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.population_undeclared_transport"]
+            [antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT]
         );
 
         let mut selection = d.clone();
@@ -1508,7 +1508,7 @@ mod tests {
             AdmissionBasis::SelectionDiagram { targets: vec!["m".into()] };
         assert_eq!(
             details(check_mechanism_composition(&selection)),
-            ["mechanism_composition.population_selection_arrow_into_mechanism"]
+            [antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM]
         );
         selection.admissions[0].basis =
             AdmissionBasis::DeclaredInvariance { assumption_id: "assumption:m".into() };
@@ -1518,7 +1518,7 @@ mod tests {
         regime.mechanisms[0].output.regime_id = "do(z=1)".into();
         assert_eq!(
             details(check_mechanism_composition(&regime)),
-            ["mechanism_composition.regime_undeclared_invariance"]
+            [antecedent_core::reason_details::mechanism_composition::REGIME_UNDECLARED_INVARIANCE]
         );
     }
 
@@ -1528,13 +1528,13 @@ mod tests {
         d.edges.pop();
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.parents_declared_graph_mismatch"]
+            [antecedent_core::reason_details::mechanism_composition::PARENTS_DECLARED_GRAPH_MISMATCH]
         );
         let mut d = decl();
         d.mechanisms[2].conditioning_variable_ids.push("w".into());
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.conditioning_extra_conditioner"]
+            [antecedent_core::reason_details::mechanism_composition::CONDITIONING_EXTRA_CONDITIONER]
         );
         let cyc = MechanismCompositionDeclaration {
             mechanisms: vec![
@@ -1546,7 +1546,7 @@ mod tests {
         };
         assert_eq!(
             details(check_mechanism_composition(&cyc)),
-            ["mechanism_composition.cycle_directed_cycle"]
+            [antecedent_core::reason_details::mechanism_composition::CYCLE_DIRECTED_CYCLE]
         );
 
         let mut d = decl();
@@ -1556,20 +1556,20 @@ mod tests {
         }];
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.latent_shared_with_absent_mechanism"]
+            [antecedent_core::reason_details::mechanism_composition::LATENT_SHARED_WITH_ABSENT_MECHANISM]
         );
 
         let mut d = decl();
         d.mechanisms[1].artifact_id = String::new();
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.provenance_missing_artifact"]
+            [antecedent_core::reason_details::mechanism_composition::PROVENANCE_MISSING_ARTIFACT]
         );
         let mut d = decl();
         d.mechanisms[1].origin = MechanismOriginKind::Declared;
         assert_eq!(
             details(check_mechanism_composition(&d)),
-            ["mechanism_composition.provenance_declared_mechanism_unacknowledged"]
+            [antecedent_core::reason_details::mechanism_composition::PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED]
         );
     }
 
@@ -1579,7 +1579,10 @@ mod tests {
         match plan.uncertainty_route() {
             UncertaintyRoute::Closed(refusal) => {
                 assert_eq!(refusal.code, "joint_law_required");
-                assert_eq!(refusal.detail, "mechanism_composition.posterior_dependence_unknown");
+                assert_eq!(
+                    refusal.detail,
+                    antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN
+                );
                 refusal.validate().unwrap();
                 assert!(refusal.remedy.is_some());
             }
@@ -1597,7 +1600,7 @@ mod tests {
         independent.mechanisms[1].evidence_id = "data:x".into();
         assert_eq!(
             details(check_mechanism_composition(&independent)),
-            ["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]
+            [antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT]
         );
     }
 
@@ -1616,13 +1619,17 @@ mod tests {
             };
             declaration.mechanisms[0].evidence_id = left;
             declaration.mechanisms[1].evidence_id = right;
-            assert!(details(check_mechanism_composition(&declaration)).iter().any(|detail|
-                detail == "mechanism_composition.posterior_dependence_shared_evidence_declared_independent"
-            ));
+            assert!(details(check_mechanism_composition(&declaration)).iter().any(|detail| {
+                detail
+                    == antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT
+            }));
             let errors =
                 check_declared_independence_against_ledger(&declaration, &EvidenceLedger::new())
                     .unwrap_err();
-            assert!(errors.iter().any(|error| error.detail == "mechanism_composition.posterior_dependence_shared_evidence_declared_independent"));
+            assert!(errors.iter().any(|error| {
+                error.detail
+                    == antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT
+            }));
         }
         for (left, right) in [("Site", "site"), ("site x", "site  x")] {
             let mut declaration = decl();
@@ -1661,7 +1668,10 @@ mod tests {
         assert!(plan.is_multilinear_in_parameters("y", &["x"]));
         let refusal = plan.check_contrast_uncertainty("y", &through_mediator).unwrap_err();
         assert_eq!(refusal.code, "joint_law_required");
-        assert_eq!(refusal.detail, "joint_law_propagation.nonlinear_needs_aligned_joint_law");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::joint_law_propagation::NONLINEAR_NEEDS_ALIGNED_JOINT_LAW
+        );
         refusal.validate().unwrap();
         // Cutting the mediator leaves a contrast that is linear in the parameters.
         assert!(!plan.is_multilinear_in_parameters("y", &["x", "m"]));

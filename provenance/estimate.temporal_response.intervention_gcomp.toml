@@ -45,22 +45,26 @@ record_sha256 = "1201e9f24a26d829f6fc6700436113c2aafcd226743a5aad0778dce43b17c69
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/mod.rs"
-sha256 = "c7713f367c9713aaeca44cd3e418e5e068d158c83cdee01342fb5816d1caae88"
+items = ["fn default", "fn estimate", "fn estimate_intervention_curve", "fn estimate_mean_curve", "fn fit_horizon", "fn fit_surface", "fn new", "struct SurfaceProblem", "struct TemporalResponseEstimator"]
+sha256 = "92d8494c65a9f110d7b0b9f237f935b49231c6c211747150e90fd5d80ad1c591"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/surface.rs"
-sha256 = "e00849a5dc07a75025f3e1816cdf949272082bc4efb4299765e66af0e40ba02f"
+items = ["const TREATMENT_COL", "enum CellEval", "fn level_at"]
+sha256 = "baccbce77e649ac79b5e78dc306dc8186c6f0d8bb3db3d86e4f486a4b665119e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_adjustment.rs"
-sha256 = "01b8c637f08280034e8396319468d56a36b42d56635d938e932880b5bdc35656"
+items = ["fn default", "fn history", "fn horizon", "fn new"]
+sha256 = "e969440e045938966dc3748366e76a9bcb2666839adc2136234afe8f64382131"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_response_gcomp_reference.rs"
-sha256 = "adc0367a216ab3e2979f020cc8dbe8cc2678c916fc7db99e6ce3e2a8b5d71ac0"
+items = ["const X", "const Y", "const Z", "fn adjustment_lags", "fn floats", "fn graph", "fn identify", "fn series", "fn surface", "fn the_surface_and_policy_levels_match_the_exact_rational_reference"]
+sha256 = "327f6e3dbfa0466d84594ea609d9fcbde68f450dd0c42042c7d922b66f154ee1"
 
 [[method_review.artifacts]]
 role = "reference"

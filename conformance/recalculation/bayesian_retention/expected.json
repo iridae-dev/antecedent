@@ -39,12 +39,31 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_bayesian.rs",
-          "sha256": "9df16b4b13946f35c2152912b68be07180a91e5b2510ad6f6991f0790d83fdbd"
+          "items": [
+            "fn assert_corrupted_source_refused",
+            "fn checked_gaussian_matches_analytic_posterior_and_retains_issued_rows",
+            "fn checked_gaussian_matches_analytic_posterior_and_retains_issued_rows_body",
+            "fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional",
+            "fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional_body",
+            "fn independent_inverse",
+            "fn independently_bound_prior_transfer_body",
+            "fn independently_bound_prior_transfer_replays_source_and_refuses_known_double_use",
+            "fn oracle",
+            "fn quadratic_basis_matches_independent_nig_contrast_and_refuses_external_prior",
+            "fn quadratic_basis_matches_independent_nig_contrast_body",
+            "fn request",
+            "fn run_on_large_stack"
+          ],
+          "sha256": "15bdc1d06893556b96a904923e5fb8fdac53cfbe567a2a17170ca10a8cd99603"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_joint_bayesian.rs",
-          "sha256": "61d6db3faacea86c761ccdd008a733723d62d167620bf486113cfd9ada4e41bd"
+          "items": [
+            "fn actual_checked_joint_posterior_retention_and_independent_replay",
+            "fn request"
+          ],
+          "sha256": "301c70c5418ea1e59fafb722e7707e2de3d30438935db118c56304b8f52cb2ce"
         }
       ],
       "fixture_payload_sha256": "5e230779ba6f90b9f5eec6eb9c0bdfa26fe1cf62e5031ccc9bb94f399d86e38c"

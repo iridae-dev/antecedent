@@ -41,9 +41,11 @@ record_sha256 = "d692acc5e51c58017b14c2c723e1df78390da0d2af1717118fcc8f1ad246927
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/pcmci_plus.rs"
-sha256 = "0f12591616700720b610a60e10d74ce67d85432e9dc477aadb110d26141be78a"
+items = ["fn contemp_mci_phase_inner", "fn declared_mci_family", "fn default", "fn is_contemp_node", "fn lagged_pc1_parents", "fn majority_is_collider", "fn majority_sep_counts", "fn new", "fn node_var_lag", "fn orient_fixed_directions", "fn orient_majority_colliders", "fn orient_majority_leg", "fn run", "fn run_on_frame", "struct MajorityVote", "struct PcmciPlus", "type AdjMap", "type ScoreMap"]
+sha256 = "0d5e5959efb8ee0ea3470aac2aa649659c81ce084d7ff7556ef0ce104a1065d7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/pcmci_oracle_tests.rs"
-sha256 = "1b4facb8f9b8e13342510913d7df3f7fb8987bcf0d13ba41e7889d089217624c"
+items = ["const MAX_LAG", "const NOW", "const STEPS", "fn ancestors_or_self", "fn chance", "fn constraints", "fn d_separated", "fn key_of", "fn next", "fn node", "fn pcmci_plus_under_a_dsep_oracle_recovers_adjacencies_and_sound_orientations", "fn pcmci_under_a_dsep_oracle_returns_exactly_the_lagged_parents", "fn random_case", "fn series", "struct Lcg", "struct TemporalDsepOracle", "struct Unrolled", "type Case"]
+sha256 = "60981e4471cc5f39f3bf26ed53634ba2f6c4af9650dce2d425dc7708db291a83"

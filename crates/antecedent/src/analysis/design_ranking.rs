@@ -368,7 +368,7 @@ impl DesignRankingError {
             Self::InvalidRequest(message) => Some(ExternalRefusal {
                 code: antecedent_core::reason_code!("invalid_argument"),
                 stage: "declare",
-                detail: "design_ranking.invalid_request".to_owned(),
+                detail: antecedent_core::reason_details::design_ranking::INVALID_REQUEST.to_owned(),
                 offending: Some(message.clone()),
                 expected: None,
                 supplied: None,

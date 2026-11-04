@@ -286,7 +286,7 @@ impl TargetUtility {
         if provenance.source.trim().is_empty() || provenance.source.len() > MAX_LABEL_BYTES {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("transport_missing_evidence"),
-                "transported_policy.target_utility_provenance_missing",
+                antecedent_core::reason_details::transported_policy::TARGET_UTILITY_PROVENANCE_MISSING,
                 "the target utility names no source for the valuation",
                 "declare where the target's utility comes from: a source label and the content digest of that source",
             ));
@@ -296,7 +296,7 @@ impl TargetUtility {
         if !hex {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
-                "transported_policy.target_utility_digest",
+                antecedent_core::reason_details::transported_policy::TARGET_UTILITY_DIGEST,
                 "the target utility digest must be 64 lowercase hexadecimal characters",
                 "declare the content digest of the target-side valuation source",
             ));
@@ -314,7 +314,7 @@ impl TargetUtility {
         if !shaped {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
-                "transported_policy.target_utility_support",
+                antecedent_core::reason_details::transported_policy::TARGET_UTILITY_SUPPORT,
                 format!(
                     "the target utility must give one entry per source action ({}) with one value per source state ({states}) and a delayed outcome exactly where the source has one",
                     model.actions.len()
@@ -332,7 +332,7 @@ impl TargetUtility {
         if !values_ok {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
-                "transported_policy.target_utility_value",
+                antecedent_core::reason_details::transported_policy::TARGET_UTILITY_VALUE,
                 "every target utility value must be finite and every action cost non-negative",
                 "declare finite utilities and non-negative costs",
             ));
@@ -430,8 +430,8 @@ pub(crate) fn declared_shifts(
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
                 axis.detail(
-                    "transported_policy.mechanism_unknown",
-                    "temporal_policy_transport.mechanism_unknown",
+                    antecedent_core::reason_details::transported_policy::MECHANISM_UNKNOWN,
+                    antecedent_core::reason_details::temporal_policy_transport::MECHANISM_UNKNOWN,
                 ),
                 format!(
                     "the declaration names `{}`, which the model does not have",
@@ -444,8 +444,8 @@ pub(crate) fn declared_shifts(
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
                 axis.detail(
-                    "transported_policy.mechanism_declared_twice",
-                    "temporal_policy_transport.mechanism_declared_twice",
+                    antecedent_core::reason_details::transported_policy::MECHANISM_DECLARED_TWICE,
+                    antecedent_core::reason_details::temporal_policy_transport::MECHANISM_DECLARED_TWICE,
                 ),
                 format!("the declaration gives `{}` a status twice", mechanism.name()),
                 "declare each mechanism once",
@@ -457,8 +457,8 @@ pub(crate) fn declared_shifts(
             return Err(transport_refusal(
                 antecedent_core::reason_code!("transport_missing_evidence"),
                 axis.detail(
-                    "transported_policy.mechanism_status_missing",
-                    "temporal_policy_transport.mechanism_status_missing",
+                    antecedent_core::reason_details::transported_policy::MECHANISM_STATUS_MISSING,
+                    antecedent_core::reason_details::temporal_policy_transport::MECHANISM_STATUS_MISSING,
                 ),
                 format!(
                     "the declaration does not say whether `{}` is invariant or shifted",
@@ -477,11 +477,11 @@ pub(crate) fn declared_shifts(
         if *status == MechanismStatus::Shifted && !allowed {
             let (detail, remedy) = match axis {
                 Axis::Population => (
-                    "transported_policy.mechanism_not_invariant",
+                    antecedent_core::reason_details::transported_policy::MECHANISM_NOT_INVARIANT,
                     "the source cannot supply a transition or observation mechanism that differs in the target: establish it for the target population (a target experiment, or a model native to the target), or restrict the shift to the initial-state law and a supplied target utility",
                 ),
                 Axis::Period => (
-                    "temporal_policy_transport.mechanism_time_varying",
+                    antecedent_core::reason_details::temporal_policy_transport::MECHANISM_TIME_VARYING,
                     "a mechanism that varies with the period is not carried across periods by the source: establish it for the target period, or declare it time-invariant if that is the scientific premise",
                 ),
             };
@@ -521,8 +521,8 @@ pub(crate) fn check_target_initial(
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
             axis.detail(
-                "transported_policy.target_initial_law",
-                "temporal_policy_transport.target_initial_law",
+                antecedent_core::reason_details::transported_policy::TARGET_INITIAL_LAW,
+                antecedent_core::reason_details::temporal_policy_transport::TARGET_INITIAL_LAW,
             ),
             format!(
                 "the target initial law must be one probability per state ({states}) summing to one"
@@ -535,8 +535,8 @@ pub(crate) fn check_target_initial(
             return Err(transport_refusal(
                 antecedent_core::reason_code!("transport_support_failure"),
                 axis.detail(
-                    "transported_policy.target_support_outside_source",
-                    "temporal_policy_transport.target_support_outside_source",
+                    antecedent_core::reason_details::transported_policy::TARGET_SUPPORT_OUTSIDE_SOURCE,
+                    antecedent_core::reason_details::temporal_policy_transport::TARGET_SUPPORT_OUTSIDE_SOURCE,
                 ),
                 format!(
                     "state `{}` has target mass {mass} but source mass zero, so no source evidence covers the mechanisms used there",
@@ -552,8 +552,8 @@ pub(crate) fn check_target_initial(
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
             axis.detail(
-                "transported_policy.initial_law_declared_invariant",
-                "temporal_policy_transport.initial_law_declared_invariant",
+                antecedent_core::reason_details::transported_policy::INITIAL_LAW_DECLARED_INVARIANT,
+                antecedent_core::reason_details::temporal_policy_transport::INITIAL_LAW_DECLARED_INVARIANT,
             ),
             "the target initial law differs from the source's, but the declaration marks the initial-state law invariant",
             "mark the initial-state law shifted, or supply the source's initial law as the target's",
@@ -697,7 +697,7 @@ pub fn evaluate_transported_policy(
     let Some(diagram) = request.diagram else {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "transported_policy.selection_diagram_missing",
+            antecedent_core::reason_details::transported_policy::SELECTION_DIAGRAM_MISSING,
             format!(
                 "the policy was requested for population `{}` but no selection diagram relates it to the model's `{}`",
                 request.target_population, model.population
@@ -708,7 +708,7 @@ pub fn evaluate_transported_policy(
     let Some(target_initial) = request.target_initial else {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "transported_policy.target_initial_law_missing",
+            antecedent_core::reason_details::transported_policy::TARGET_INITIAL_LAW_MISSING,
             format!(
                 "no initial-state law was supplied for target population `{}`",
                 request.target_population
@@ -719,7 +719,7 @@ pub fn evaluate_transported_policy(
     if request.target_population.trim().is_empty() {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "transported_policy.target_population",
+            antecedent_core::reason_details::transported_policy::TARGET_POPULATION,
             "the target population needs a non-blank label",
             "name the population the policy is evaluated in",
         ));
@@ -727,7 +727,7 @@ pub fn evaluate_transported_policy(
     if request.target_population == model.population {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "transported_policy.target_is_source",
+            antecedent_core::reason_details::transported_policy::TARGET_IS_SOURCE,
             format!("the target population `{}` is the model's own", model.population),
             "evaluate the policy in the model's own population with the sequential g-formula; there is nothing to transport",
         ));
@@ -737,7 +737,7 @@ pub fn evaluate_transported_policy(
     {
         return Err(transport_refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "transported_policy.diagram_binding_mismatch",
+            antecedent_core::reason_details::transported_policy::DIAGRAM_BINDING_MISMATCH,
             format!(
                 "the diagram relates `{}` to `{}`; the request is `{}` to `{}`",
                 diagram.source_population,
@@ -796,7 +796,7 @@ fn check_target_utility_declaration(
         (true, None) => {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("transport_missing_evidence"),
-                "transported_policy.target_utility_missing",
+                antecedent_core::reason_details::transported_policy::TARGET_UTILITY_MISSING,
                 format!(
                     "the utility is declared shifted for population `{}` but no target utility was supplied",
                     request.target_population
@@ -807,7 +807,7 @@ fn check_target_utility_declaration(
         (false, Some(_)) => {
             return Err(transport_refusal(
                 antecedent_core::reason_code!("invalid_argument"),
-                "transported_policy.utility_declared_invariant",
+                antecedent_core::reason_details::transported_policy::UTILITY_DECLARED_INVARIANT,
                 "a target utility was supplied, but the declaration marks the utility invariant",
                 "mark the utility shifted, or drop the target utility",
             ));
@@ -837,7 +837,7 @@ pub fn verify_transported_policy(
     {
         return Err(transport_refusal(
             antecedent_core::reason_code!("invalid_argument"),
-            "transported_policy.value_mismatch",
+            antecedent_core::reason_details::transported_policy::VALUE_MISMATCH,
             "a stored transported policy value does not replay from its model, policy, diagram and target law",
             "regenerate the evaluation from the request",
         ));

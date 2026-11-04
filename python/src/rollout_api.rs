@@ -45,7 +45,7 @@ fn export_rollout(
         bytes.len() > antecedent_design::source_evidence::MAX_SOURCE_EVIDENCE_BYTES
     }) {
         return Err(with_reason_code(
-            value_err("rollout.source_evidence_mismatch"),
+            value_err(antecedent_core::reason_details::rollout::SOURCE_EVIDENCE_MISMATCH),
             antecedent_core::reason_code!("invalid_argument"),
         ));
     }

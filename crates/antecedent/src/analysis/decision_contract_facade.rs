@@ -252,11 +252,14 @@ impl BoundDecisionContract {
 
 const TAG_BOUND_TRANSPORTED: &str = "antecedent.decision_contract.bound_transported";
 /// Detail: the contract requires an uncertainty representation a point cannot supply.
-pub const DETAIL_UNCERTAINTY_REQUIREMENT: &str = "transported_decision.uncertainty_requirement";
+pub const DETAIL_UNCERTAINTY_REQUIREMENT: &str =
+    antecedent_core::reason_details::transported_decision::UNCERTAINTY_REQUIREMENT;
 /// Detail: declared exclusions leave fewer than two actions to compare.
-pub const DETAIL_EXCLUSIONS: &str = "transported_decision.exclusions_leave_no_comparison";
+pub const DETAIL_EXCLUSIONS: &str =
+    antecedent_core::reason_details::transported_decision::EXCLUSIONS_LEAVE_NO_COMPARISON;
 /// Detail: a support rule of the contract is stronger than the transported label.
-pub const DETAIL_SUPPORT_RULE: &str = "transported_decision.support_rule_unmet";
+pub const DETAIL_SUPPORT_RULE: &str =
+    antecedent_core::reason_details::transported_decision::SUPPORT_RULE_UNMET;
 
 fn support_rule_refusal(
     action: &str,

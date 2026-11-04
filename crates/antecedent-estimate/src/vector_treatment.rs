@@ -281,7 +281,7 @@ impl VectorTreatmentFit {
         if contrasts.is_empty() {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "vector_treatment.empty_contrast",
+                antecedent_core::reason_details::vector_treatment::EMPTY_CONTRAST,
                 "a Wald test needs at least one contrast",
             ));
         }
@@ -330,21 +330,21 @@ fn check_row_structure(
         if weights.len() != n {
             return Err(refuse(
                 invalid,
-                "vector_treatment.row_count_mismatch",
+                antecedent_core::reason_details::vector_treatment::ROW_COUNT_MISMATCH,
                 "the sampling weights do not have one value per row",
             ));
         }
         if weights.iter().any(|w| !w.is_finite() || *w <= 0.0) {
             return Err(refuse(
                 reason_code!("sampling_weights_invalid"),
-                "sampling_weights.invalid",
+                antecedent_core::reason_details::sampling_weights::INVALID,
                 "the analysed rows must all have a finite positive sampling weight",
             ));
         }
         if kind == VectorCovariance::ModelBased {
             return Err(refuse(
                 reason_code!("option_not_applicable"),
-                "vector_treatment.weights_need_robust_covariance",
+                antecedent_core::reason_details::vector_treatment::WEIGHTS_NEED_ROBUST_COVARIANCE,
                 "sampling weights need a sandwich covariance: a model-based variance treats \
                  them as precision weights and would understate the variability of unequal \
                  weights. Next attempt: a robust covariance (hc0 to hc3, cluster_robust or \
@@ -357,7 +357,7 @@ fn check_row_structure(
             if groups.len() != n {
                 return Err(refuse(
                     invalid,
-                    "vector_treatment.row_count_mismatch",
+                    antecedent_core::reason_details::vector_treatment::ROW_COUNT_MISMATCH,
                     "the cluster ids do not have one value per row",
                 ));
             }
@@ -367,7 +367,7 @@ fn check_row_structure(
             if ids.len() < 2 {
                 return Err(refuse(
                     invalid,
-                    "vector_treatment.too_few_clusters",
+                    antecedent_core::reason_details::vector_treatment::TOO_FEW_CLUSTERS,
                     "a cluster-robust covariance needs at least two clusters",
                 ));
             }
@@ -375,14 +375,14 @@ fn check_row_structure(
         (VectorCovariance::Cluster, None) => {
             return Err(refuse(
                 invalid,
-                "vector_treatment.cluster_ids_required",
+                antecedent_core::reason_details::vector_treatment::CLUSTER_IDS_REQUIRED,
                 "the cluster-robust covariance needs a declared cluster id per row",
             ));
         }
         (_, Some(_)) => {
             return Err(refuse(
                 invalid,
-                "vector_treatment.cluster_unread",
+                antecedent_core::reason_details::vector_treatment::CLUSTER_UNREAD,
                 "clusters were declared but the covariance kind is not cluster_robust; a \
                  declaration the covariance does not read is refused, never dropped",
             ));
@@ -394,7 +394,7 @@ fn check_row_structure(
             if lag == 0 || lag >= n {
                 return Err(refuse(
                     invalid,
-                    "vector_treatment.invalid_lag",
+                    antecedent_core::reason_details::vector_treatment::INVALID_LAG,
                     "the Newey-West lag must be at least one and below the number of rows; it \
                      is never silently capped",
                 ));
@@ -403,14 +403,14 @@ fn check_row_structure(
         (VectorCovariance::NeweyWest, None) => {
             return Err(refuse(
                 invalid,
-                "vector_treatment.lag_required",
+                antecedent_core::reason_details::vector_treatment::LAG_REQUIRED,
                 "the Newey-West covariance needs a declared lag",
             ));
         }
         (_, Some(_)) => {
             return Err(refuse(
                 invalid,
-                "vector_treatment.lag_unread",
+                antecedent_core::reason_details::vector_treatment::LAG_UNREAD,
                 "a serial lag was declared but the covariance kind is not newey_west; a \
                  declaration the covariance does not read is refused, never dropped",
             ));
@@ -465,19 +465,23 @@ pub(crate) fn validate_input(
     let n = input.outcome.len();
     let k = input.treatments.len();
     if n == 0 {
-        return Err(refuse(invalid, "vector_treatment.too_few_rows", "the outcome has no rows"));
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::vector_treatment::TOO_FEW_ROWS,
+            "the outcome has no rows",
+        ));
     }
     if k < min_treatments {
         return Err(refuse(
             invalid,
-            "vector_treatment.too_few_treatments",
+            antecedent_core::reason_details::vector_treatment::TOO_FEW_TREATMENTS,
             "a vector treatment needs at least two treatments",
         ));
     }
     if !joint_gram_addressable(k) {
         return Err(refuse(
             invalid,
-            "vector_treatment.too_many_treatments",
+            antecedent_core::reason_details::vector_treatment::TOO_MANY_TREATMENTS,
             "the joint design is too wide to address",
         ));
     }
@@ -488,7 +492,7 @@ pub(crate) fn validate_input(
         if name.is_empty() || name == VECTOR_TREATMENT_INTERCEPT || !seen.insert(name) {
             return Err(refuse(
                 invalid,
-                "vector_treatment.duplicate_name",
+                antecedent_core::reason_details::vector_treatment::DUPLICATE_NAME,
                 "column names must be non-empty, unique and not the reserved intercept name",
             ));
         }
@@ -508,7 +512,7 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
         if theirs != declared {
             return Err(refuse(
                 incompatible,
-                "vector_treatment.adjustment_set_mismatch",
+                antecedent_core::reason_details::vector_treatment::ADJUSTMENT_SET_MISMATCH,
                 &format!(
                     "treatment `{}` was declared against a different adjustment set than the \
                      shared one",
@@ -519,14 +523,14 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
         if treatment.row_snapshot != input.row_snapshot {
             return Err(refuse(
                 incompatible,
-                "vector_treatment.row_snapshot_mismatch",
+                antecedent_core::reason_details::vector_treatment::ROW_SNAPSHOT_MISMATCH,
                 &format!("treatment `{}` comes from a different row snapshot", treatment.name),
             ));
         }
         if treatment.values.len() != n {
             return Err(refuse(
                 incompatible,
-                "vector_treatment.row_count_mismatch",
+                antecedent_core::reason_details::vector_treatment::ROW_COUNT_MISMATCH,
                 &format!("treatment `{}` does not have one value per outcome row", treatment.name),
             ));
         }
@@ -535,7 +539,7 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
         if column.values.len() != n {
             return Err(refuse(
                 incompatible,
-                "vector_treatment.row_count_mismatch",
+                antecedent_core::reason_details::vector_treatment::ROW_COUNT_MISMATCH,
                 &format!("adjustment column `{}` does not have one value per row", column.name),
             ));
         }
@@ -547,7 +551,7 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
     if !all_finite {
         return Err(refuse(
             invalid,
-            "vector_treatment.non_finite_value",
+            antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE,
             "outcome, adjustment and treatment values must be finite",
         ));
     }
@@ -555,7 +559,7 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
     if n <= p {
         return Err(refuse(
             invalid,
-            "vector_treatment.too_few_rows",
+            antecedent_core::reason_details::vector_treatment::TOO_FEW_ROWS,
             "the joint fit needs more rows than coefficients",
         ));
     }
@@ -596,7 +600,7 @@ fn check_design(design: &Design, input: &VectorTreatmentInput) -> Result<(), Est
         if hi - lo <= 0.0 {
             return Err(refuse(
                 rank,
-                "vector_treatment.treatment_without_variation",
+                antecedent_core::reason_details::vector_treatment::TREATMENT_WITHOUT_VARIATION,
                 &format!("treatment `{}` is constant over the snapshot", treatment.name),
             ));
         }
@@ -606,7 +610,7 @@ fn check_design(design: &Design, input: &VectorTreatmentInput) -> Result<(), Est
         if j >= design.first_treatment {
             return Err(refuse(
                 rank,
-                "vector_treatment.collinear_treatments",
+                antecedent_core::reason_details::vector_treatment::COLLINEAR_TREATMENTS,
                 &format!(
                     "treatment `{name}` is a linear combination of the intercept, the adjustment \
                      columns and the earlier treatments"
@@ -615,7 +619,7 @@ fn check_design(design: &Design, input: &VectorTreatmentInput) -> Result<(), Est
         }
         return Err(refuse(
             rank,
-            "vector_treatment.rank_deficient_adjustment",
+            antecedent_core::reason_details::vector_treatment::RANK_DEFICIENT_ADJUSTMENT,
             &format!("column `{name}` is linearly dependent on the earlier design columns"),
         ));
     }
@@ -661,7 +665,7 @@ fn fit_ols(design: &Design, y: &[f64]) -> Result<Ols, EstimationError> {
             let Some(ginv) = antecedent_stats::invert_square(&gram, p) else {
                 return Err(refuse(
                     reason_code!("design_rank_deficient"),
-                    "vector_treatment.rank_deficient_adjustment",
+                    antecedent_core::reason_details::vector_treatment::RANK_DEFICIENT_ADJUSTMENT,
                     "the normal-equation matrix is singular",
                 ));
             };
@@ -672,7 +676,7 @@ fn fit_ols(design: &Design, y: &[f64]) -> Result<Ols, EstimationError> {
             if beta.iter().chain(&residuals).any(|v| !v.is_finite()) {
                 return Err(refuse(
                     reason_code!("invalid_argument"),
-                    "vector_treatment.non_finite_value",
+                    antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE,
                     "the fit overflowed finite precision",
                 ));
             }
@@ -737,7 +741,7 @@ fn robust_meat(
                 if slack <= LEVERAGE_TOLERANCE {
                     return Err(refuse(
                         reason_code!("invalid_argument"),
-                        "vector_treatment.leverage_one",
+                        antecedent_core::reason_details::vector_treatment::LEVERAGE_ONE,
                         "an observation has leverage one, so HC2/HC3 are undefined",
                     ));
                 }
@@ -846,7 +850,11 @@ fn quadratic_form(lower: &[f64], n: usize, x: &[f64]) -> f64 {
 }
 
 fn degenerate(message: &str) -> EstimationError {
-    refuse(reason_code!("invalid_argument"), "vector_treatment.degenerate_covariance", message)
+    refuse(
+        reason_code!("invalid_argument"),
+        antecedent_core::reason_details::vector_treatment::DEGENERATE_COVARIANCE,
+        message,
+    )
 }
 
 /// Wald statistic of the restrictions `rows * beta = 0` under `covariance` (`k x k`).
@@ -889,7 +897,7 @@ pub(crate) fn weight_vector(
     if contrast.weights.is_empty() {
         return Err(refuse(
             invalid,
-            "vector_treatment.empty_contrast",
+            antecedent_core::reason_details::vector_treatment::EMPTY_CONTRAST,
             &format!("contrast `{}` lists no coefficients", contrast.name),
         ));
     }
@@ -899,21 +907,21 @@ pub(crate) fn weight_vector(
         let Some(index) = names.iter().position(|candidate| candidate == name) else {
             return Err(refuse(
                 invalid,
-                "vector_treatment.unknown_contrast_coefficient",
+                antecedent_core::reason_details::vector_treatment::UNKNOWN_CONTRAST_COEFFICIENT,
                 &format!("contrast `{}` names the unknown coefficient `{name}`", contrast.name),
             ));
         };
         if used[index] {
             return Err(refuse(
                 invalid,
-                "vector_treatment.duplicate_contrast_coefficient",
+                antecedent_core::reason_details::vector_treatment::DUPLICATE_CONTRAST_COEFFICIENT,
                 &format!("contrast `{}` lists coefficient `{name}` twice", contrast.name),
             ));
         }
         if !weight.is_finite() {
             return Err(refuse(
                 invalid,
-                "vector_treatment.non_finite_value",
+                antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE,
                 &format!("contrast `{}` has a non-finite weight", contrast.name),
             ));
         }
@@ -936,7 +944,7 @@ fn evaluate_contrasts(
         if contrast.name.is_empty() || !seen.insert(contrast.name.as_str()) {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "vector_treatment.duplicate_name",
+                antecedent_core::reason_details::vector_treatment::DUPLICATE_NAME,
                 "contrast names must be non-empty and unique",
             ));
         }
@@ -1229,7 +1237,7 @@ pub(crate) fn summarize_joint_robust_declared(
     if kind == VectorCovariance::ModelBased {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "vector_treatment.summary_inconsistent",
+            antecedent_core::reason_details::vector_treatment::SUMMARY_INCONSISTENT,
             "a robust summary needs a heteroskedasticity-robust covariance kind",
         ));
     }
@@ -1314,7 +1322,7 @@ pub fn full_coefficient_posterior_mean(
     if !consistent {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "vector_treatment.summary_inconsistent",
+            antecedent_core::reason_details::vector_treatment::SUMMARY_INCONSISTENT,
             "a posterior mean needs a finite full-rank design summary and a positive prior scale",
         ));
     }
@@ -1327,7 +1335,7 @@ pub fn full_coefficient_posterior_mean(
     let Some(ginv) = antecedent_stats::invert_square(&gram, p) else {
         return Err(refuse(
             reason_code!("design_rank_deficient"),
-            "vector_treatment.rank_deficient_adjustment",
+            antecedent_core::reason_details::vector_treatment::RANK_DEFICIENT_ADJUSTMENT,
             "the penalized normal equations are singular",
         ));
     };
@@ -1335,7 +1343,7 @@ pub fn full_coefficient_posterior_mean(
     if beta.iter().any(|v| !v.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "vector_treatment.non_finite_value",
+            antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE,
             "the posterior mean overflowed finite precision",
         ));
     }
@@ -1367,7 +1375,7 @@ pub(crate) fn fit_joint_from_summary(
     if options.covariance != VectorCovariance::ModelBased {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "vector_treatment.summary_model_based_only",
+            antecedent_core::reason_details::vector_treatment::SUMMARY_MODEL_BASED_ONLY,
             "a robust covariance needs its meat; a plain summary replays the model-based \
              covariance only",
         ));
@@ -1399,7 +1407,7 @@ pub(crate) fn fit_joint_from_robust_summary(
     if options.covariance == VectorCovariance::ModelBased {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "vector_treatment.summary_inconsistent",
+            antecedent_core::reason_details::vector_treatment::SUMMARY_INCONSISTENT,
             "a robust summary replays a heteroskedasticity-robust covariance, not the \
              model-based one",
         ));
@@ -1417,20 +1425,25 @@ fn fit_joint_from_statistics(
     min_treatments: usize,
 ) -> Result<VectorTreatmentFit, EstimationError> {
     let invalid = reason_code!("invalid_argument");
-    let inconsistent =
-        |message: &str| refuse(invalid, "vector_treatment.summary_inconsistent", message);
+    let inconsistent = |message: &str| {
+        refuse(
+            invalid,
+            antecedent_core::reason_details::vector_treatment::SUMMARY_INCONSISTENT,
+            message,
+        )
+    };
     let k = names.len();
     if k < min_treatments {
         return Err(refuse(
             invalid,
-            "vector_treatment.too_few_treatments",
+            antecedent_core::reason_details::vector_treatment::TOO_FEW_TREATMENTS,
             "a vector treatment needs at least two treatments",
         ));
     }
     if !joint_gram_addressable(k) {
         return Err(refuse(
             invalid,
-            "vector_treatment.too_many_treatments",
+            antecedent_core::reason_details::vector_treatment::TOO_MANY_TREATMENTS,
             "the joint design is too wide to address",
         ));
     }
@@ -1438,7 +1451,7 @@ fn fit_joint_from_statistics(
     if names.iter().any(|n| n.is_empty() || n == VECTOR_TREATMENT_INTERCEPT || !seen.insert(n)) {
         return Err(refuse(
             invalid,
-            "vector_treatment.duplicate_name",
+            antecedent_core::reason_details::vector_treatment::DUPLICATE_NAME,
             "column names must be non-empty, unique and not the reserved intercept name",
         ));
     }
@@ -1451,7 +1464,7 @@ fn fit_joint_from_statistics(
     if n <= p {
         return Err(refuse(
             invalid,
-            "vector_treatment.too_few_rows",
+            antecedent_core::reason_details::vector_treatment::TOO_FEW_ROWS,
             "the joint fit needs more rows than coefficients",
         ));
     }
@@ -1469,14 +1482,14 @@ fn fit_joint_from_statistics(
     if !finite {
         return Err(refuse(
             invalid,
-            "vector_treatment.non_finite_value",
+            antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE,
             "the summary must be finite with a non-negative residual sum of squares",
         ));
     }
     let Some(ginv) = antecedent_stats::invert_square(&summary.gram, p) else {
         return Err(refuse(
             reason_code!("design_rank_deficient"),
-            "vector_treatment.rank_deficient_adjustment",
+            antecedent_core::reason_details::vector_treatment::RANK_DEFICIENT_ADJUSTMENT,
             "the normal-equation matrix is singular",
         ));
     };
@@ -1489,7 +1502,7 @@ fn fit_joint_from_statistics(
     if beta.iter().chain(&full).any(|v| !v.is_finite()) {
         return Err(refuse(
             invalid,
-            "vector_treatment.non_finite_value",
+            antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE,
             "the fit overflowed finite precision",
         ));
     }

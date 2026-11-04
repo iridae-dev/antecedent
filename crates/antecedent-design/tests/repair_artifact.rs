@@ -298,7 +298,7 @@ fn replay_recomputes_the_verdict_from_the_stored_delta() {
         .unwrap();
     emptied.report.outcomes[at].delta = Some(Vec::new());
     let emptied = emptied.sealed().unwrap();
-    assert_eq!(detail(&emptied), "repair_artifact.replay_mismatch");
+    assert_eq!(detail(&emptied), antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH);
 
     // Claim the insufficient observation was sufficient, keeping its delta.
     let mut forged = artifact.clone();
@@ -307,7 +307,7 @@ fn replay_recomputes_the_verdict_from_the_stored_delta() {
     forged.report.outcomes[obs].classification = "verified_sufficient".to_owned();
     let forged = forged.sealed().unwrap();
     let error = consume(&forged).unwrap_err();
-    assert_eq!(error.detail, "repair_artifact.replay_mismatch");
+    assert_eq!(error.detail, antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH);
     assert!(error.message.starts_with("classification:"), "{}", error.message);
 }
 
@@ -324,13 +324,16 @@ fn resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refuse
         .position(|o| o.classification == "verified_sufficient")
         .unwrap();
     classification.report.outcomes[at].classification = "insufficient".to_owned();
-    assert_eq!(detail(&classification.sealed().unwrap()), "repair_artifact.replay_mismatch");
+    assert_eq!(
+        detail(&classification.sealed().unwrap()),
+        antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH
+    );
 
     // A changed receipt, resealed.
     let mut receipt = artifact.clone();
     receipt.report.receipt.dominated_skipped += 1;
     let error = consume(&receipt.sealed().unwrap()).unwrap_err();
-    assert_eq!(error.detail, "repair_artifact.replay_mismatch");
+    assert_eq!(error.detail, antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH);
     assert!(error.message.starts_with("receipt:"), "{}", error.message);
 
     // A changed obligation (its content no longer matches its id), resealed.
@@ -338,14 +341,14 @@ fn resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refuse
     obligation.report.obligations[0].reason = "back-door adjustment needs nothing".to_owned();
     // The content no longer replays from the contract.
     let refused = detail(&obligation.sealed().unwrap());
-    assert_eq!(refused, "repair_artifact.replay_mismatch");
+    assert_eq!(refused, antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH);
 
     // A changed obligation re-derived with a fresh id still differs from the
     // obligation the contract owes.
     let mut swapped = artifact.clone();
     swapped.report.obligations[0].kind = "measure".to_owned();
     let e = consume(&swapped.sealed().unwrap()).unwrap_err();
-    assert_eq!(e.detail, "repair_artifact.invalid_artifact");
+    assert_eq!(e.detail, antecedent_core::reason_details::repair_artifact::INVALID_ARTIFACT);
     assert!(e.message.contains("obligation id"), "{}", e.message);
 
     // A changed candidate with an honestly recomputed semantic id: the stored
@@ -354,12 +357,18 @@ fn resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refuse
     let mut changed = candidate.candidates().unwrap()[0].clone();
     changed.cost.units += 100;
     candidate.premises.candidates[0] = DurableStudyCandidateWire::from_candidate(&changed);
-    assert_eq!(detail(&candidate.sealed().unwrap()), "repair_artifact.replay_mismatch");
+    assert_eq!(
+        detail(&candidate.sealed().unwrap()),
+        antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH
+    );
 
     // Any edit left unsealed fails the digest.
     let mut unsealed = artifact;
     unsealed.report.outcome = "repaired-ish".to_owned();
-    assert_eq!(detail(&unsealed), "repair_artifact.invalid_artifact");
+    assert_eq!(
+        detail(&unsealed),
+        antecedent_core::reason_details::repair_artifact::INVALID_ARTIFACT
+    );
 }
 
 #[test]
@@ -368,11 +377,14 @@ fn unknown_version_and_kind_are_refused_and_stored_limits_are_bounded() {
     let mut future = artifact.clone();
     future.version = 2;
     let future = future.sealed().unwrap();
-    assert_eq!(detail(&future), "repair_artifact.unsupported_version");
+    assert_eq!(
+        detail(&future),
+        antecedent_core::reason_details::repair_artifact::UNSUPPORTED_VERSION
+    );
     let bytes = future.to_bytes("repair-v2").unwrap();
     assert_eq!(
         RepairReportArtifact::from_bytes(&bytes).unwrap_err().detail,
-        "repair_artifact.unsupported_version"
+        antecedent_core::reason_details::repair_artifact::UNSUPPORTED_VERSION
     );
 
     // Stored limits above the consumer's maxima refuse before any work.
@@ -381,12 +393,12 @@ fn unknown_version_and_kind_are_refused_and_stored_limits_are_bounded() {
         ..RepairConsumeLimits::default()
     };
     let error = artifact.consume(small, &ctx()).unwrap_err();
-    assert_eq!(error.detail, "repair_artifact.bounds_exceeded");
+    assert_eq!(error.detail, antecedent_core::reason_details::repair_artifact::BOUNDS_EXCEEDED);
 
     // A corrupt container is refused by the bounded reader.
     let good = artifact.to_bytes("repair-ok").unwrap();
     let e = RepairReportArtifact::from_bytes(&good[..good.len() / 2]).unwrap_err();
-    assert_eq!(e.detail, "repair_artifact.invalid_artifact");
+    assert_eq!(e.detail, antecedent_core::reason_details::repair_artifact::INVALID_ARTIFACT);
 }
 
 // ------------------------------------------------------- truncated search
@@ -422,7 +434,7 @@ fn truncated_search_is_retained_as_unevaluated_never_as_impossible() {
     assert_eq!(decoded.report.outcome, "exhausted");
     assert_eq!(
         decoded.report.status.as_ref().map(|(_, d)| d.as_str()),
-        Some("identification_repair.budget")
+        Some(antecedent_core::reason_details::identification_repair::BUDGET)
     );
     assert!(
         decoded
@@ -448,7 +460,7 @@ fn truncated_search_is_retained_as_unevaluated_never_as_impossible() {
     let at = lied.report.outcomes.iter().position(|o| o.classification == "unevaluated").unwrap();
     lied.report.outcomes[at].classification = "insufficient".to_owned();
     let e = consume(&lied.sealed().unwrap()).unwrap_err();
-    assert_eq!(e.detail, "repair_artifact.replay_mismatch");
+    assert_eq!(e.detail, antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH);
     assert!(e.message.starts_with("classification:"), "{}", e.message);
 }
 
@@ -477,5 +489,5 @@ fn a_report_for_another_contract_cannot_be_exported_under_this_family() {
     let error =
         RepairReportArtifact::build(RepairFamilyRef::Transport(&other), &candidates, &report)
             .unwrap_err();
-    assert_eq!(error.detail, "repair_artifact.invalid_artifact");
+    assert_eq!(error.detail, antecedent_core::reason_details::repair_artifact::INVALID_ARTIFACT);
 }

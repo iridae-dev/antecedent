@@ -52,14 +52,17 @@ record_sha256 = "2cb45c6498cebbc7f73797b6839ac98e28f3b3c58a1ecf59add0e93abd1dc43
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/class_transport.rs"
-sha256 = "1ad3a83e1e1b42435f051ae10e93555fb565afac94d3bf186a33209807948d4c"
+items = ["module"]
+sha256 = "2490490f16768804dab549abe48b127c157ecab31685a035bba031b7e5095088"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/discovered_transport.rs"
-sha256 = "4ce47178a446a3fe998ac5a5e6ef08b6534ac41dd600c00f495955229d8e7a89"
+items = ["const DISCOVERED_TRANSPORT_REASON", "enum DiscoveredTransportError", "enum DiscoveredTransportOperationalKind", "enum EnvelopeStatus", "enum MemberVerdict", "fn check_request", "fn check_transport_context", "fn enumeration_complete", "fn formulas_agree", "fn formulas_agree_over", "fn kind", "fn mag_member", "fn member_bound", "fn member_of", "fn members", "fn pag_unresolved_pairs", "fn refusal", "fn sort_members", "fn static_variable", "fn static_variables", "fn status", "fn status_of", "fn transport_across_class", "fn transport_across_class_with_context", "fn transport_across_pag", "fn transport_across_pag_with_context", "fn unresolved", "fn unresolved_pairs", "fn variable_of", "fn variables", "fn verdict_with_context", "struct DiscoveredTransportOperational", "struct DiscoveredTransportRefusal", "struct DiscoveredTransportRequest", "struct EnvelopeMember", "struct MagMember", "struct PagTransportRequest", "struct RequestFacts", "struct StructuralTransportEnvelope", "struct UnresolvedPair"]
+sha256 = "5f4f2954d430de10c8e7ea81da34f7908008ca0dac3994d4a7a6bb4fe4628eee"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/discovered_transport.rs"
-sha256 = "1cac329ec4f2a45817136ba41ecd556ac515110eb264bfe65f1ba8c3b6ecfc1a"
+items = ["fn a_fully_directed_class_is_one_member_and_still_labelled_an_envelope", "fn a_fully_oriented_pag_without_latent_structure_matches_its_dag", "fn a_lag_one_effect_with_autoregressive_history_is_identified_at_horizon_one", "fn a_pag_member_bound_or_walk_budget_leaves_the_envelope_partial", "fn a_temporal_cpdag_orients_contemporaneous_edges_both_ways_and_keeps_lagged_edges_forward", "fn autoregressive_template", "fn chain", "fn chain_class_yields_its_three_members_with_the_verdicts_fixed_for_each_dag", "fn d", "fn effect_query", "fn exhausted_search_bound_refuses_and_names_the_unresolved_pairs", "fn identified_pag_class_transports_through_every_circle_completion", "fn kind", "fn lagged", "fn member_bound_stops_the_enumeration_and_no_every_member_statement_is_made", "fn orientation_conflict_unknown_target_and_zero_bound_are_refused", "fn pag_members_disagree_when_a_selected_cause_may_share_a_latent_cause_with_the_outcome", "fn pag_request", "fn pag_search_bound_target_and_bound_refusals_name_the_unresolved_marks", "fn query", "fn refusal", "fn request", "fn static_class_transport_preserves_context_and_typed_completion_stops", "fn temporal_class_transport_threads_the_callers_context", "fn temporal_maximum_variable_id_is_refused_before_unfolding", "fn temporal_pag_members_disagree_when_a_selected_lagged_cause_may_be_confounded", "fn temporal_request", "fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treatment", "fn the_effect_horizon_decides_whether_a_selected_history_matters", "fn v"]
+sha256 = "b7c92cf8086634e22805b8a35339d00c8b2b2db1e48a98638a6e0e0fa81e9d2a"

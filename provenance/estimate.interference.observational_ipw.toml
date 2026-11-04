@@ -36,14 +36,17 @@ record_sha256 = "7416887a6d7e0b7223435698d151f52f5675e6b570f3a1f5573f353eec973db
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference_observational.rs"
-sha256 = "65117a46a35a4b745ef1630c75f9740844fdbbdac3ccc0094b423dd9259ba6d9"
+items = ["fn estimate_observational_exposure", "struct ObservationalExposureEstimate", "struct ObservationalExposureInterval", "struct ObservationalExposureSpec"]
+sha256 = "c6bb431ea5f00f401e9b2f1ae0181c2690547ed9bf2e71211d098df5dac792c6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/observational_interference_route.rs"
-sha256 = "1324318f6a07f54c40ae5123858d7dc8e177b963ec362671a5bd0d79f13d088f"
+items = ["fn fixture", "fn known_probabilities_retain_pointwise_interval_and_artifact", "fn observational_network_contrast_retains_truth_assumptions_and_artifact", "fn observational_network_refuses_missing_assumption_and_cross_cluster_edge"]
+sha256 = "d8d2ecadd119906505fe1dc56266a96cae430cdb9d184dd8a9096483ca5d3b82"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/interference_interval_route.rs"
-sha256 = "68cc6f0b32eb664fc36fee835230efb08e48739b82b7a5e30ced25044eb2d537"
+items = ["const K", "const TREATED", "fn assert_support_round_trips_and_refuses_forgery", "fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spread", "fn cluster_bayesian_bootstrap_refuses_a_thin_arm_at_prepare", "fn cluster_fixture", "fn externally_estimated_observational_stays_point_only", "fn group_mean_contrast", "fn run", "fn supported_cluster_total_interval_round_trips_and_refuses_forgery", "fn supported_observational_known_interval_round_trips_and_refuses_forgery", "fn supported_saturation_interval_round_trips_and_refuses_forgery", "fn thin_cluster_total_cannot_forge_a_support"]
+sha256 = "ddf7fa47e8902614cbf952d989f9b226ea4bdb78f5d44f2ff85ebed0f2be23c4"

@@ -312,7 +312,10 @@ fn original_provider_failure_and_post_callback_cancellation_preserve_exact_attem
     assert!(ctx.cancellation.is_cancelled());
     assert!(matches!(
         cancelled.result,
-        Err(ExternalCallbackError::Attempt { detail: "recalc.cancelled", .. })
+        Err(ExternalCallbackError::Attempt {
+            detail: antecedent_core::reason_details::recalc::CANCELLED,
+            ..
+        })
     ));
     let work = cancelled.report.counts(Operation::ProviderInvocation);
     assert_eq!(
@@ -492,7 +495,11 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
     robust.estimator.inference.se_kind = AnalyticSeKind::Hc3;
     let warm_error = execute_with_receipt(&mut session, &robust, &ctx).unwrap_err();
     let fresh_error = execute_with_receipt(&mut RecalcSession::new(), &robust, &ctx).unwrap_err();
-    assert!(warm_error.to_string().contains("recalc.unsupported_aipw_score_configuration"));
+    assert!(
+        warm_error.to_string().contains(
+            antecedent_core::reason_details::recalc::UNSUPPORTED_AIPW_SCORE_CONFIGURATION
+        )
+    );
     assert_eq!(warm_error.to_string(), fresh_error.to_string());
 
     let mut explicit_overlap = request.clone();
@@ -500,7 +507,11 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
     let warm_error = execute_with_receipt(&mut session, &explicit_overlap, &ctx).unwrap_err();
     let fresh_error =
         execute_with_receipt(&mut RecalcSession::new(), &explicit_overlap, &ctx).unwrap_err();
-    assert!(warm_error.to_string().contains("recalc.aipw_requires_overlap_diagnostics"));
+    assert!(
+        warm_error
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::AIPW_REQUIRES_OVERLAP_DIAGNOSTICS)
+    );
     assert_eq!(warm_error.to_string(), fresh_error.to_string());
 
     let mut trimmed = request.clone();
@@ -508,13 +519,21 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
         OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.1) };
     let warm_error = execute_with_receipt(&mut session, &trimmed, &ctx).unwrap_err();
     let fresh_error = execute_with_receipt(&mut RecalcSession::new(), &trimmed, &ctx).unwrap_err();
-    assert!(warm_error.to_string().contains("recalc.unsupported_aipw_score_configuration"));
+    assert!(
+        warm_error.to_string().contains(
+            antecedent_core::reason_details::recalc::UNSUPPORTED_AIPW_SCORE_CONFIGURATION
+        )
+    );
     assert_eq!(warm_error.to_string(), fresh_error.to_string());
 
     let mut bootstrapped = request.clone();
     bootstrapped.estimator.inference.bootstrap_replicates = 10;
     let bootstrap_error = execute_with_receipt(&mut session, &bootstrapped, &ctx).unwrap_err();
-    assert!(bootstrap_error.to_string().contains("recalc.bootstrap_replicates_unsupported"));
+    assert!(
+        bootstrap_error
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::BOOTSTRAP_REPLICATES_UNSUPPORTED)
+    );
 
     let mut invalid = request.clone();
     invalid.estimator.glm_options.max_iter = 0;

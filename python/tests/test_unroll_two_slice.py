@@ -8,6 +8,7 @@ exactly the edges listed below by hand. The outcome of step 1 is an ordinary cov
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.graph import TemporalDag
 from antecedent.transport import advanced as transport
@@ -61,9 +62,9 @@ def test_the_unrolling_builds_a_spec_once_every_coordinate_is_declared() -> None
 
 
 def test_roles_outside_the_template_and_other_types_are_refused() -> None:
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_spec"):
+    with pytest.raises(CausalValueError, match=reason_details.temporal_transport.INVALID_SPEC):
         transport.unroll_two_slice(TEMPLATE, covariates=["l", "z"], action="a", outcome="y")
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_spec"):
+    with pytest.raises(CausalValueError, match=reason_details.temporal_transport.INVALID_SPEC):
         transport.unroll_two_slice(
             TEMPLATE,
             covariates=["l"],

@@ -162,7 +162,7 @@ fn mnar_sensitivity_run(
                         None,
                         Some(refusal_json(
                             reason_code!("route_not_supported"),
-                            "mnar_sensitivity.unsupported_mechanism",
+                            antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_MECHANISM,
                             &format!(
                                 "`{name}` is not a supported departure model; the supported models are {:?}",
                                 MnarModel::ALL.map(MnarModel::name)

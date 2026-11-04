@@ -94,9 +94,12 @@ const REPLAY_SUMMARY: &str = "summary";
 const REPLAY_ROBUST_SUMMARY: &str = "robust_summary";
 const REPLAY_ROWS: &str = "rows";
 const BUDGET: BudgetDetails = BudgetDetails {
-    cancelled: (antecedent_core::reason_code!("cancelled_no_claim"), "vector_treatment.cancelled"),
-    memory: "vector_treatment.memory_budget_exceeded",
-    export: "vector_treatment.export_budget_exceeded",
+    cancelled: (
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::vector_treatment::CANCELLED,
+    ),
+    memory: antecedent_core::reason_details::vector_treatment::MEMORY_BUDGET_EXCEEDED,
+    export: antecedent_core::reason_details::vector_treatment::EXPORT_BUDGET_EXCEEDED,
 };
 
 crate::sectioned_artifact_error!(
@@ -115,7 +118,7 @@ fn budget_refusal((code, detail, explanation): BudgetRefusal) -> VectorTreatment
 fn invalid_request(message: &str) -> VectorTreatmentArtifactError {
     VectorTreatmentArtifactError::refused(
         antecedent_core::reason_code!("invalid_argument"),
-        "vector_treatment.invalid_request",
+        antecedent_core::reason_details::vector_treatment::INVALID_REQUEST,
         message,
     )
 }
@@ -1029,7 +1032,7 @@ impl VectorTreatmentArtifact {
             Some(_) => Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" }),
             None => Err(VectorTreatmentArtifactError::refused(
                 antecedent_core::reason_code!("route_not_supported"),
-                "vector_treatment.data_not_bound",
+                antecedent_core::reason_details::vector_treatment::DATA_NOT_BOUND,
                 "this artifact embeds its rows and records no data digest",
             )),
         }
@@ -1242,7 +1245,10 @@ mod number_section_tests {
             assert_eq!(legacy.fit(), summary.fit(), "{covariance}");
             // Embedded rows need no digest; asking to verify against one says so.
             let error = legacy.verify_data(&request).unwrap_err();
-            assert_eq!(error.refusal().unwrap().1, "vector_treatment.data_not_bound");
+            assert_eq!(
+                error.refusal().unwrap().1,
+                antecedent_core::reason_details::vector_treatment::DATA_NOT_BOUND
+            );
         }
     }
 

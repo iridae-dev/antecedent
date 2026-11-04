@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Decision exit gate (SCAFFOLD): complete only when each registered decision story's end-to-end
+# Decision exit gate: complete only when each registered decision story's end-to-end
 # user story passes from clean preparation through independent artifact consumption.
 #
 #   bash scripts/gate_decision_exit.sh                          # run registered stories, print the table
@@ -21,6 +21,8 @@
 # status is nonzero on any FAIL; PENDING_IMPLEMENTATION exits 0 unless --require-implemented. The Python
 # stories run against the extension already built into python/.venv
 # (`cd python && uv run maturin develop --release`, or set DECISION_EXIT_BUILD_PYTHON=1).
+# The stories are ordinary engineering tests that tier 2 of scripts/gate_release.sh already runs and
+# fails on; this script only prints their per-story table on demand.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

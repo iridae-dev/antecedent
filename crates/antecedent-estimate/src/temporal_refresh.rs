@@ -151,7 +151,7 @@ impl TemporalWindowIdentity {
         let invalid = |message: &str| {
             refuse(
                 reason_code!("invalid_argument"),
-                "temporal_refresh.invalid_replacement",
+                antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT,
                 message,
             )
         };
@@ -193,11 +193,21 @@ impl RefreshInvalidation {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::HorizonChanged => "temporal_refresh.horizon_changed",
-            Self::LagAlignmentChanged => "temporal_refresh.lag_alignment_changed",
-            Self::InterventionHistoryChanged => "temporal_refresh.intervention_history_changed",
-            Self::PremisesChanged => "temporal_refresh.premises_changed",
-            Self::StaleSnapshot => "temporal_refresh.stale_snapshot",
+            Self::HorizonChanged => {
+                antecedent_core::reason_details::temporal_refresh::HORIZON_CHANGED
+            }
+            Self::LagAlignmentChanged => {
+                antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED
+            }
+            Self::InterventionHistoryChanged => {
+                antecedent_core::reason_details::temporal_refresh::INTERVENTION_HISTORY_CHANGED
+            }
+            Self::PremisesChanged => {
+                antecedent_core::reason_details::temporal_refresh::PREMISES_CHANGED
+            }
+            Self::StaleSnapshot => {
+                antecedent_core::reason_details::temporal_refresh::STALE_SNAPSHOT
+            }
         }
     }
 
@@ -346,7 +356,7 @@ impl RefreshReceipt {
         } else {
             Err(refuse(
                 reason_code!("route_not_supported"),
-                "temporal_refresh.receipt_digest_mismatch",
+                antecedent_core::reason_details::temporal_refresh::RECEIPT_DIGEST_MISMATCH,
                 "the receipt's seal does not match its fields",
             ))
         }
@@ -411,7 +421,11 @@ pub fn accept_refresh<T>(
     refreshed.identity.validate()?;
     receipt.verify()?;
     let mismatch = |message: &str| {
-        refuse(reason_code!("route_not_supported"), "temporal_refresh.receipt_mismatch", message)
+        refuse(
+            reason_code!("route_not_supported"),
+            antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH,
+            message,
+        )
     };
     if receipt.old_identity_digest != held.identity.digest()
         || receipt.old_period != held.identity.period
@@ -440,7 +454,7 @@ pub fn accept_refresh<T>(
     if refreshed.interval_present {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "temporal_refresh.stale_interval",
+            antecedent_core::reason_details::temporal_refresh::STALE_INTERVAL,
             "a refreshed result may not carry an interval from the old window",
         ));
     }
@@ -552,7 +566,7 @@ impl WindowFactors {
         if !initial_law.is_empty() && initial_law.trim() != initial_law {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "temporal_refresh.invalid_initial_law",
+                antecedent_core::reason_details::temporal_refresh::INVALID_INITIAL_LAW,
                 "the initial law id is blank or padded",
             ));
         }
@@ -748,7 +762,7 @@ fn agree(window: &TemporalWindowIdentity, factors: &WindowFactors) -> Result<(),
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "temporal_refresh.factor_window_mismatch",
+            antecedent_core::reason_details::temporal_refresh::FACTOR_WINDOW_MISMATCH,
             "the factors' period, population or horizon is not the window's",
         ));
     }
@@ -1125,7 +1139,11 @@ mod tests {
             panic!("coded refusal");
         };
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("temporal_refresh.invalid_initial_law"), "{message}");
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::temporal_refresh::INVALID_INITIAL_LAW),
+            "{message}"
+        );
     }
 
     #[test]
@@ -1143,6 +1161,11 @@ mod tests {
         let crate::error::EstimationError::Refused { message, .. } = error else {
             panic!("coded refusal");
         };
-        assert!(message.contains("temporal_refresh.factor_window_mismatch"), "{message}");
+        assert!(
+            message.contains(
+                antecedent_core::reason_details::temporal_refresh::FACTOR_WINDOW_MISMATCH
+            ),
+            "{message}"
+        );
     }
 }

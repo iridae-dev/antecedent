@@ -10,7 +10,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
-  "The interval is the delta-method Wald interval of the open record, clamped to [0, 1]. It is reported only as a measured scalar bound to a currently attesting coverage record of the whole method (identification replay, table estimation, delta standard error); outside the measured construction it refuses not_supported.",
+  "The interval is the delta-method Wald interval of the open record, clamped to [0, 1]. It is reported whenever the point and the delta standard error exist, at any level in (0, 1); its calibration status is an annotation resolved from a basis that names the level, the dependence design, smoothing, low conditioning mass and unequal totals, so a design no coverage record measured is annotated not measured or outside the measured scope and is not withheld. An envelope has no single point and yields no interval.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -20,29 +20,32 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "The delta-method standard error of the sampled counterfactual transport plug-in for one independent-units multinomial table (inference.rs: the central-difference gradient of the homogeneous extension of the identified functional, the variance (1/N)[sum p g^2 - (sum p g)^2] and its square root) and the Wald interval estimate +/- z se clamped to [0, 1] at the measured 0.95 level (interval.rs, with its level and scope refusals), exercised on the unconfounded chain functional P(y = 1 | do(x = 1)). Not a review of identification or transport derivations, of the stratified-design branch (several strata per table), of grouped overlapping datasets or several tables, of the envelope or smoothed paths, or of any coverage claim, which is measured elsewhere by a whole-method coverage record and is not asserted here."
+scope = "The delta-method standard error of the sampled counterfactual transport plug-in for one independent-units multinomial table (inference.rs: the central-difference gradient of the homogeneous extension of the identified functional, the variance (1/N)[sum p g^2 - (sum p g)^2] and its square root) and the Wald interval estimate +/- z se clamped to [0, 1] at any level in (0, 1) with the standard normal quantile z = Phi^-1(0.5 + level/2), the measured level being 0.95 (interval.rs, with its level refusal outside (0, 1), its no-point and no-standard-error refusals and the calibration basis it builds, whose annotation is not reviewed), exercised on the unconfounded chain functional P(y = 1 | do(x = 1)). Not a review of identification or transport derivations, of the stratified-design branch (several strata per table), of grouped overlapping datasets or several tables, of the envelope or smoothed paths, or of any coverage claim, which is measured elsewhere by a whole-method coverage record and is not asserted here."
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied."
 redistribution = "No work is redistributed; the multinomial delta method is textbook (the open record cites it). The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
-limitations = "Five count tables of the chain design (20000, 400 and 64 units sampled at seed, plus two hand-built tables (37 and 59 units) that bind the lower and the upper clamp) are compared: the plug-in to 1e-12, the standard error to 1e-6 relative and the interval ends to 1e-6 of the standard error. One estimand, one table, independent units only: the stratified variance branch, several datasets, shared-unit overlap and non-unit weights are not covered, and small-sample behaviour of the delta interval (its poor coverage near 0 or 1) is a property the interval inherits and the coverage record, not this review, addresses. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file."
+limitations = "Five count tables of the chain design (20000, 400 and 64 units sampled at seed, plus two hand-built tables (37 and 59 units) that bind the lower and the upper clamp) are compared: the plug-in to 1e-12, the standard error to 1e-6 relative and the interval ends to 1e-6 of the standard error. One estimand, one table, independent units only: the stratified variance branch, several datasets, shared-unit overlap and non-unit weights are not covered, and small-sample behaviour of the delta interval (its poor coverage near 0 or 1) is a property the interval inherits and the coverage record, not this review, addresses. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file. The interval is now also computed for smoothed tables, low conditioning mass and unequal totals, annotated not measured; the delta approximation there is not checked by this review (the smoothed point and standard error convention is reviewed under counterfactual.transport_sampled)."
 assumptions = ["Each table is a multinomial sample of independent units with fixed N; the variance is conditional on the identified functional being smooth at the observed shares and every cell used being observed.", "The gradient step is a relative 1e-5 central difference, so the product's standard error carries an O(h^2) discretization error relative to the exact gradient; the review bounds it empirically.", "The reference differentiates the closed-form functional of this one design; agreement shows the variance formula and the differencing, not that the same formula is right for other estimands."]
 sources = ["https://en.wikipedia.org/wiki/Delta_method", "https://mpmath.org/doc/1.3.0/"]
-findings_resolved = ["The delta standard error equals the 50-digit reference (analytic gradient by numerical differentiation of the closed form, multinomial variance with the single-stratum correction term) to 1e-6 relative on all five tables, so the central-difference step and the (sum p g)^2 term are right for independent units.", "The Wald interval equals the clamped reference at the lower and the upper boundary, both clamps bind in the fixtures, any level other than 0.95 is refused with level_not_measured, and the interval stays inside [0, 1].", "No product defect was found in this record."]
-record_sha256 = "48987efb2b2458bad177ee058d67da391e2a5c8aca47a998f25d0711a618e461"
+findings_resolved = ["The delta standard error equals the 50-digit reference (analytic gradient by numerical differentiation of the closed form, multinomial variance with the single-stratum correction term) to 1e-6 relative on all five tables, so the central-difference step and the (sum p g)^2 term are right for independent units.", "The Wald interval equals the clamped reference at the lower and the upper boundary, both clamps bind in the fixtures, a level outside (0, 1) is refused, a second level (0.90) equals the reference point and standard error with the independently stated normal quantile 1.6448536269514722 clamped to [0, 1] to 1e-6 of the standard error, calibration scope refusals (another level, smoothing, low mass, unequal totals) are now annotations of the basis rather than refusals, and the interval stays inside [0, 1].", "No product defect was found in this record."]
+record_sha256 = "7e62412ea9cef057bab345f79282d111662aca8d5c2a7f70dae5b0acdf57835c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/inference.rs"
-sha256 = "b95c778af4ea985dd495cb16e2a516a908a6e4b25bc9cd6bb427f0b21635af32"
+items = ["module"]
+sha256 = "39f13021fdd6981a8d70655a221ce2d8a6c614800f6ee1b19756b2ea9ebb4876"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/interval.rs"
-sha256 = "161291957e9c0cda16e32ab41909fb9619731f1d70e77a682d6703cb83d124c0"
+items = ["const SAMPLED_TRANSPORT_ESTIMATOR", "const SAMPLED_TRANSPORT_INTERVAL_METHOD", "const SAMPLED_TRANSPORT_MIN_CONDITIONING_MASS", "const SAMPLED_TRANSPORT_SE_KIND", "fn design_dependence", "fn sampled_transport_interval", "struct SampledTransportInterval"]
+sha256 = "d31eaadb69e359b6e545f930d89d3900136993bfbb9e883074537dff8a6d949c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs"
-sha256 = "2eab1c5651405aecd5e35ff17c484c2248b6f5b754693dce43d01f9d6873c1f1"
+items = ["fn chain_case", "fn cited_only", "fn controllable_for", "fn delta_standard_error_and_clamped_wald_interval_equal_the_multiprecision_reference", "fn derive", "fn estimate", "fn identify", "fn laws_of", "fn point", "fn request", "fn table_of"]
+sha256 = "ecd6b3c2e66bfc5fa592224ecdd95e29f0ba0ed75b0728583b18fff5704b322c"
 
 [[method_review.artifacts]]
 role = "reference"

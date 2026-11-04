@@ -50,12 +50,14 @@ record_sha256 = "d6d8a6a36804f8ac525075f39e000d49216baa0e3fa8471a2de4e1dec9dbd3d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/external_mechanism.rs"
-sha256 = "d8a138f04c3dde6943ead1fadcd20299a8ffbea14447d7fd66e3e0751d44fac1"
+items = ["const MAX_EXTERNAL_ARITY", "const MAX_EXTERNAL_DEPENDENCIES", "const MAX_TEXT", "enum DerivativeDeclaration", "enum DifferenceScheme", "enum ExternalFitParameter", "enum ExternalRefusalKind", "enum MechanismTrust", "enum ResolvedKind", "enum SystemEquation", "fn block_bound_matrix", "fn blocks", "fn bounds", "fn check_row", "fn contraction_bound", "fn data_term_score", "fn declaration", "fn determinant_term_score", "fn digest_ok", "fn equation", "fn evaluate", "fn evidence", "fn evidence_of", "fn external_value", "fn for_content", "fn from", "fn id", "fn identity", "fn input_gradient", "fn input_gradient_parameter_derivative", "fn invalid", "fn is_empty", "fn len", "fn likelihood_terms", "fn log_abs_determinant", "fn name", "fn new", "fn order", "fn parameter_gradient", "fn parameter_values", "fn reads", "fn reads_of", "fn register", "fn residual", "fn resolve", "fn row_terms", "fn solve", "fn sparse_jacobian", "fn system", "fn text_ok", "fn total", "fn trust", "fn trust_of", "fn validate", "fn value", "struct ExternalDependency", "struct ExternalFeedbackSystem", "struct ExternalMechanismEvidence", "struct ExternalMechanismRefusal", "struct ExternalMechanismSpec", "struct LikelihoodTerms", "struct MechanismRegistry", "struct ResolvedEquation", "struct ResolvedFeedbackSystem", "struct RowTerms", "trait ExternalMechanismImplementation", "type Implementations"]
+sha256 = "f5843aa8574adf4a2a564b4a06708172495873b4acd98d61471ae92acac4d668"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/external_mechanism_reference.rs"
-sha256 = "53e879c2b74c936798aab6309b051040db815e071626a4119a6f9cd673e101e3"
+items = ["fn a_declared_finite_difference_gives_the_same_likelihood", "fn close", "fn content", "fn floats", "fn likelihood_terms_and_scores_match_the_fifty_digit_reference", "fn reference", "fn registry", "fn rows", "fn sine_impl", "fn spec", "fn system", "fn tanh_impl", "fn targets", "fn the_contraction_bound_is_the_largest_block_row_sum_of_the_declared_bounds", "fn the_forward_scheme_is_first_order_and_the_central_scheme_second_order", "fn the_solve_matches_the_fifty_digit_equilibrium_and_certifies_uniqueness", "fn theta", "fn value", "struct Sine", "struct Tanh"]
+sha256 = "0e8d1349fafee5794c4c2577ee44d0f4bdb0449504d2843f096a74fe72050b7b"
 
 [[method_review.artifacts]]
 role = "reference"

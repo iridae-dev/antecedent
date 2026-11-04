@@ -40,12 +40,14 @@ record_sha256 = "23fef7d9f2943cefd46fc60ae6c7f6c687a1f506c0c59a44b43ee2493ca8ba8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-sha256 = "d8a7bfc6b04d7fc4e30754aed03b368ad30842bb0d8213f5a2cf46d5bc53da20"
+items = ["const MAX_MEASUREMENT_COVARIATES", "const MAX_MEASUREMENT_ROWS", "enum MeasurementErrorError", "fn accumulate", "fn combine_imputations_linear", "fn finite_all", "fn from_external_replicates", "fn from_main_sample_replicates", "fn from_validation", "fn group_statistics", "fn implied_reliability", "fn known", "fn linear_functional", "fn matmul", "fn matvec", "fn posterior_means", "fn replicate_variance_components", "fn rubin_combine", "fn solve", "fn standard_error", "fn transpose", "fn youden", "struct CombinedImputations", "struct CorrectedLinear", "struct ErrorVariance", "struct LinearErrorData", "struct LinearMoments", "struct ValidationSummary", "struct VarianceComponents"]
+sha256 = "392c2b71a1f410d9d867e2628b51f3ea163af34fe86ca9f23dae2316ec2788a0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/measurement_continuous_reference.rs"
-sha256 = "ee23e27dc13246efbad2cb9cf3a1fd871e6afa90ce51d9f5346028ebcd28d1c3"
+items = ["fn a_reliability_at_or_below_zero_is_refused", "fn all_close", "fn close", "fn counts_of", "fn reference", "fn regression_calibration_matches_the_corrected_normal_equations_and_sandwich", "fn rubin_rules_combine_per_draw_fits_and_the_posterior_mean_is_the_draw_average", "fn solve_case", "fn unbalanced_replicates_give_the_one_way_random_effects_components", "fn validation_error_variance_and_its_nonparametric_variance", "fn vec_of"]
+sha256 = "6443d68594786abe8352763a77b5253ea8ac7caeedbd922434d1a24b95be835f"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -45,9 +45,11 @@ record_sha256 = "84f5abd2ce190055d99a0125d7a9dd5c063d40adf23dd8433578cf99519b9b7
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_obligation.rs"
-sha256 = "303162f68aecca8e7d5286854172d2433c43e60bf6d9bed9607765e6fef93fc4"
+items = ["enum EvidenceObligationKind", "fn addressed_by", "fn canonical", "fn canonical_content", "fn derive_id", "fn distinct", "fn from_unmet_factor", "fn from_unresolved_record", "fn id_list", "fn invalid", "fn observational", "fn same_set", "fn satisfiable_by_study", "fn scope_label", "fn sorted_ids", "fn try_new", "fn unresolved_assumption_obligations", "fn validate_spec", "fn with_quantities", "fn wrong_contract", "struct EvidenceObligation", "struct EvidenceObligationError", "struct EvidenceObligationSpec", "struct EvidenceOffer", "struct ObligationProvenance", "struct ObligationRegime"]
+sha256 = "681ad4b33a16cc40c97c1cafcbf59ab826c5f139cae2af5deaa5343cbdbe439e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/evidence_obligation.rs"
-sha256 = "e57f163def4196785bf623d1ec28e7ce74034bbae0e991def307b8e47ded9acb"
+items = ["const X", "const Y", "const Z", "fn catalog", "fn environment", "fn establish_assumption_is_never_addressed_by_a_study", "fn every_kind_constructs_with_its_stable_name", "fn identity_is_order_independent_and_provenance_sensitive", "fn increase_sample_is_addressed_only_by_enough_rows", "fn malformed_obligations_are_refused_with_registered_codes", "fn obligation_of", "fn offer", "fn provenance", "fn regime", "fn scientific_coordinates", "fn scientific_obligation_screen_refuses_missing_or_incompatible_measurement_semantics", "fn scientific_obligations_bind_every_semantic_dimension_and_ignore_display_labels", "fn separate_studies_never_address_one_joint_regime_factor", "fn spec", "fn unmet_factors_become_kind_specific_obligations", "fn unresolved_assumption_records_become_assumption_obligations", "fn v", "fn vars"]
+sha256 = "6f709c3ea6e49d6b5ddba43860450709f6180741e355c1fb2a94a7c3080fd0dd"

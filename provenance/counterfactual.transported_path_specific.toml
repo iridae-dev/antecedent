@@ -34,9 +34,11 @@ record_sha256 = "3105ee6ca76400ece586729b401f6d9e6780b50e3131c6efd8f7ebc286ca229
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/transported_gate.rs"
-sha256 = "1e255a1f4e03bc7c136e9d9bfd5dc1133cbcc35f45df5d69c6e47a2a0403fd57"
+items = ["enum PopulationRole", "fn label", "struct RegimeFactorKey"]
+sha256 = "8b32bd330eef0af1fd3b153b799e2fb1631b04d84a6115b8bc48370c5b2ff199"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs"
-sha256 = "ce8dbc01912ff2d036aa384640858868af965e22e961f282a9add70754f84248"
+items = ["const TOL", "fn absent_regime_factor_is_factor_missing", "fn aff", "fn close", "fn declared", "fn enumeration_over_the_noise_space_matches_and_noise_cancels", "fn evidence", "fn factor", "fn hand_values_nde_nie_total", "fn law", "fn malformed_inputs_are_invalid_arguments", "fn model", "fn nde", "fn nie", "fn query", "fn refusal_of", "fn run", "fn run_full", "fn selection", "fn selection_on_covariate_or_treatment_is_allowed", "fn selection_on_mediator_is_witnessed_only_when_the_contrast_depends_on_it", "fn selection_on_outcome_mechanism_refuses_with_a_two_model_witness", "fn source", "fn source_only_answer_differs_from_the_target_answer", "fn target", "fn target_law_change_moves_the_answer_by_exactly_the_hand_amount", "fn target_outside_source_support_is_an_overlap_failure", "fn total", "fn undeclared_premises_refuse_each_with_its_own_detail", "fn variable_order_does_not_change_the_answer", "type Outcome"]
+sha256 = "4d7788d591321f32057ba5a680b1a9c99aaad469041f959917696c146a6a0234"

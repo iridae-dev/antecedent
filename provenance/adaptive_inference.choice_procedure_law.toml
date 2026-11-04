@@ -37,12 +37,14 @@ record_sha256 = "4cd6af35d32d175fba2586d93db2daad6634191da4b187ff53e2fcccd088b92
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/choice_procedure.rs"
-sha256 = "b29386a9d5fb22c6f2676a803d2662eac9524dc5f73240336e5b50258c6d1d42"
+items = ["const MAX_CHOICE_PROCEDURE_LOOKS", "const MAX_CHOICE_PROCEDURE_OPTIONS", "const MAX_CHOICE_PROCEDURE_UNITS", "enum ChoiceKernel", "fn assess", "fn enumerate_choice_law", "fn expected_enrolled", "fn is_valid", "fn rule_stop_probabilities", "fn selection_probabilities", "fn validate", "struct ChoiceLaw", "struct ChoiceProcedureSpec", "struct ChoiceStoppingRule", "struct ChoiceTerminalAtom", "struct Rules", "type StateMap"]
+sha256 = "df00a4e353074e9bf6f308e20b511bd788ce9d93978dcec38213ff7bff91464d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/choice_procedure_reference.rs"
-sha256 = "37347c937637bda66a9cff0186869e3f205e5be446a248dc474650ae4528e83d"
+items = ["fn never", "fn number", "fn spec", "fn the_law_matches_the_reference"]
+sha256 = "3a516dd781c6e0fdadbf36d6618e5d40c858b2642aba0691759e97b1760b742b"
 
 [[method_review.artifacts]]
 role = "reference"

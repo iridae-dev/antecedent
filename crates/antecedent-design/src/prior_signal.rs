@@ -239,63 +239,81 @@ impl PriorSignalError {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
         let at = |code, detail: &str| RefusalBuilder::new(code, "declare", detail);
         match self {
-            Self::CoefficientPriorNotSignal => {
-                at(signal, "prior_signal.coefficient_prior_not_signal")
+            Self::CoefficientPriorNotSignal => at(
+                signal,
+                antecedent_core::reason_details::prior_signal::COEFFICIENT_PRIOR_NOT_SIGNAL,
+            )
+            .remedy("supply a future-signal likelihood or provider for the candidate")
+            .build(),
+            Self::UnlockListNotSignal(count) => {
+                at(signal, antecedent_core::reason_details::prior_signal::UNLOCK_LIST_NOT_SIGNAL)
+                    .offending(count.to_string())
                     .remedy("supply a future-signal likelihood or provider for the candidate")
                     .build()
             }
-            Self::UnlockListNotSignal(count) => at(signal, "prior_signal.unlock_list_not_signal")
-                .offending(count.to_string())
-                .remedy("supply a future-signal likelihood or provider for the candidate")
-                .build(),
-            Self::NoSources => at(signal, "prior_signal.no_sources").build(),
+            Self::NoSources => {
+                at(signal, antecedent_core::reason_details::prior_signal::NO_SOURCES).build()
+            }
             Self::DuplicateSource(id) => {
-                at(signal, "prior_signal.duplicate_source").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::prior_signal::DUPLICATE_SOURCE)
+                    .offending(id.clone())
+                    .build()
             }
             Self::ArtifactNotInCatalog(id) => {
-                at(signal, "prior_signal.artifact_not_in_catalog").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::prior_signal::ARTIFACT_NOT_IN_CATALOG)
+                    .offending(id.clone())
+                    .build()
             }
             Self::IncompatibleArtifact { artifact_id, reason } => {
-                at(signal, "prior_signal.incompatible_artifact")
+                at(signal, antecedent_core::reason_details::prior_signal::INCOMPATIBLE_ARTIFACT)
                     .offending(artifact_id.clone())
                     .supplied(reason.clone())
                     .build()
             }
             Self::InvalidParameter(name) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "prior_signal.invalid_parameter",
+                antecedent_core::reason_details::prior_signal::INVALID_PARAMETER,
             )
             .offending(*name)
             .build(),
             Self::LineageMissing(id) => {
-                at(signal, "prior_signal.lineage_missing").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::prior_signal::LINEAGE_MISSING)
+                    .offending(id.clone())
+                    .build()
             }
-            Self::ObservationLineageMissing(id) => {
-                at(signal, "prior_signal.observation_lineage_missing").offending(id.clone()).build()
-            }
-            Self::TransportPolicyRequired(id) => at(
-                antecedent_core::reason_code!("transport_policy_required"),
-                "prior_signal.transport_policy_required",
+            Self::ObservationLineageMissing(id) => at(
+                signal,
+                antecedent_core::reason_details::prior_signal::OBSERVATION_LINEAGE_MISSING,
             )
             .offending(id.clone())
             .build(),
-            Self::ObservationReuse(ids) => at(signal, "prior_signal.observation_reuse")
-                .offending(ids.join(","))
-                .remedy("use only data not already summarized by the prior")
-                .build(),
+            Self::TransportPolicyRequired(id) => at(
+                antecedent_core::reason_code!("transport_policy_required"),
+                antecedent_core::reason_details::prior_signal::TRANSPORT_POLICY_REQUIRED,
+            )
+            .offending(id.clone())
+            .build(),
+            Self::ObservationReuse(ids) => {
+                at(signal, antecedent_core::reason_details::prior_signal::OBSERVATION_REUSE)
+                    .offending(ids.join(","))
+                    .remedy("use only data not already summarized by the prior")
+                    .build()
+            }
             Self::PriorSourcesOverlap(ids) => {
-                at(signal, "prior_signal.prior_sources_overlap").offending(ids.join(",")).build()
+                at(signal, antecedent_core::reason_details::prior_signal::PRIOR_SOURCES_OVERLAP)
+                    .offending(ids.join(","))
+                    .build()
             }
             Self::ObservationOverlapUnknown(reason) => at(
                 antecedent_core::reason_code!("evidence_overlap_unknown"),
-                "prior_signal.observation_overlap_unknown",
+                antecedent_core::reason_details::prior_signal::OBSERVATION_OVERLAP_UNKNOWN,
             )
             .expected(reason.clone())
             .remedy("declare each source's and the study's observations in the evidence ledger")
             .build(),
             Self::ResolutionInvalid => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "prior_signal.resolution_invalid",
+                antecedent_core::reason_details::prior_signal::RESOLUTION_INVALID,
             )
             .build(),
         }

@@ -298,7 +298,7 @@ def counterpart_row(row: dict, ix: Index) -> dict:
         status, "unsupported"
     )
     out["scientific_claim"] = claim
-    cal: list[str] = []
+    uncertainties: list[str] = []
     if status == "supported":
         if split and not supported:
             conflicts.append(
@@ -309,9 +309,9 @@ def counterpart_row(row: dict, ix: Index) -> dict:
                 str(ob["identification_evidence"]).split("|")[:3]
             ):
                 conflicts.append(f"obligation {ob['id']} has no explicit identification evidence")
-            cal.append(ob["uncertainty"])
+            uncertainties.append(ob["uncertainty"])
         if not split and row["uncertainty_basis"] not in (
-            "measured_record",
+            "construction_fixture",
             "estimator_records",
             "point_only_cell",
         ):
@@ -326,7 +326,7 @@ def counterpart_row(row: dict, ix: Index) -> dict:
         if status == "not_supported" and split and not execution and not supported:
             reasons.append("executes with no route obligation recording what it owes")
     out["uncertainty_support"] = (
-        sorted(set(cal)) if cal else ("unmeasured" if claim == "unsupported" else "none")
+        sorted(set(uncertainties)) if uncertainties else ("unmeasured" if claim == "unsupported" else "none")
     )
 
     # Closure kind against the residual limitation.

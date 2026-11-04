@@ -38,7 +38,19 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/path.rs",
-          "sha256": "d0b347582482c0a7f9a6b46ac66533623240ac4ceec80bb92b4c41fd5bcbb444"
+          "items": [
+            "fn chain_model",
+            "fn disjoint_multi_source_succeeds",
+            "fn edge_strength_map",
+            "fn nested_multi_source_errors",
+            "fn path_decompose",
+            "fn path_product_pins_and_sums_to_total_change",
+            "fn path_share_on_chain",
+            "fn path_shares",
+            "struct Case",
+            "struct Fixture"
+          ],
+          "sha256": "cadd3c79a0978fc9e694f46d183afc0bb6e90d979e42c128fae2febdff75094e"
         }
       ],
       "fixture_payload_sha256": "d44f9313835a2098b8e39a716942c8c42670bbb83b9e7636c8f2daccdf90d14d"

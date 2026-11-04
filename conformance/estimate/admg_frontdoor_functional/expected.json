@@ -130,12 +130,62 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/admg_posterior_response.rs",
-          "sha256": "bf546f8b0e6c0ca809a9d8301f7f9cb0c383d1f14c163d95d910c2660efde944"
+          "items": [
+            "fn admg_explicit_and_accepted_intervention_response_cheap_and_full_run",
+            "fn admg_from_pin",
+            "fn admg_frontdoor_mask_is_not_a_dag_for_response",
+            "fn admg_graph_posterior_intervention_response_cheap_and_full_run",
+            "fn admg_graph_posterior_intervention_response_matches_identified_atom",
+            "fn admg_graph_posterior_response_curve_matches_identified_atom",
+            "fn admg_graph_posterior_response_inspect_and_execute_agree",
+            "fn admg_graph_posterior_response_retains_unidentified_mass",
+            "fn admg_posterior",
+            "fn assert_plugin_level_ir",
+            "fn claims_03_admg_posterior_response_equals_frontdoor_formula_on_the_table",
+            "fn cyclic_mask",
+            "fn expand_contingency",
+            "fn frontdoor_interventional_mean",
+            "fn has_policy",
+            "fn intervention_response",
+            "fn node",
+            "fn pin",
+            "fn response_curve",
+            "fn response_values",
+            "fn run_explicit_admg_response"
+          ],
+          "sha256": "a4089fb65f53832b09bd7b91905a8824a2bdab3792115d525c71b6b7f3363fbe"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/pag_admg_numeric_pins.rs",
-          "sha256": "f9cd6fb32b37e7ac07e20f5a3435bcfd27bc1c6ce1eaf3a448ae92b5342d0423"
+          "items": [
+            "fn admg_from_pin",
+            "fn admg_frontdoor_functional_effect_numeric_pin",
+            "fn admg_frontdoor_response_pins_against_distribution",
+            "fn admg_pin",
+            "fn assert_prepared_reuse",
+            "fn assert_validation_presence",
+            "fn cached_count",
+            "fn endpoint",
+            "fn expand_contingency",
+            "fn free_variable_diagnostic",
+            "fn identify_computations",
+            "fn invisible_pag_pin_is_not_identified_by_adjustment",
+            "fn napkin_admg",
+            "fn napkin_effect_with_a_free_variable_is_the_enumerated_effect",
+            "fn napkin_population",
+            "fn node",
+            "fn pag_from_pin",
+            "fn pag_pin",
+            "fn query_from_pin",
+            "fn rebind_estimate",
+            "fn recording_ctx",
+            "fn response_mean",
+            "fn run_prepared",
+            "fn surface_means",
+            "struct RecordingProgress"
+          ],
+          "sha256": "02539ff43e9c5ab04a5c67178714f4ab3f90a3babb53efd6bc537407fd5fbe85"
         }
       ],
       "fixture_payload_sha256": "e14574359dfdba5a1f95e35a62a00caaa6775397f443bbdb440a5b20394b3a33"

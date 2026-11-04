@@ -230,7 +230,10 @@ fn matching_names_units_and_support_but_another_population_is_refused() {
         callback().interface_contract(),
     ];
     let refusals = check_composition(&components, &feed_forward()).expect_err("population differs");
-    assert_eq!(details(&refusals), vec!["interface_contract.population_mismatch"]);
+    assert_eq!(
+        details(&refusals),
+        vec![antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH]
+    );
     assert_eq!(refusals[0].expected.as_deref(), Some("adults"));
     assert_eq!(refusals[0].supplied.as_deref(), Some("children"));
 }
@@ -248,7 +251,10 @@ fn a_bridge_consuming_a_mean_is_not_fed_by_a_law() {
     let components =
         [producer, bridge_contract("adults", evidence), callback().interface_contract()];
     let refusals = check_composition(&components, &feed_forward()).expect_err("law is not a mean");
-    assert_eq!(details(&refusals), vec!["interface_contract.operation_unavailable"]);
+    assert_eq!(
+        details(&refusals),
+        vec![antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE]
+    );
     assert_eq!(refusals[0].offending.as_deref(), Some("mean"));
 }
 
@@ -265,7 +271,10 @@ fn a_measurement_assumption_mismatch_is_refused_between_a_mechanism_and_a_bridge
         [producer, bridge_contract("adults", evidence), callback().interface_contract()];
     let refusals =
         check_composition(&components, &feed_forward()).expect_err("measured under another model");
-    assert_eq!(details(&refusals), vec!["interface_contract.measurement_assumption_mismatch"]);
+    assert_eq!(
+        details(&refusals),
+        vec![antecedent_core::reason_details::interface_contract::MEASUREMENT_ASSUMPTION_MISMATCH]
+    );
     assert_eq!(refusals[0].supplied.as_deref(), Some(MODEL_B));
 }
 
@@ -287,7 +296,10 @@ fn a_cycle_through_a_mechanism_a_bridge_and_a_callback_is_refused_with_its_path(
         "schema:w",
     ));
     let refusals = check_composition(&components, &connections).expect_err("feedback is refused");
-    assert_eq!(details(&refusals), vec!["interface_contract.cyclic_composition"]);
+    assert_eq!(
+        details(&refusals),
+        vec![antecedent_core::reason_details::interface_contract::CYCLIC_COMPOSITION]
+    );
     assert_eq!(
         refusals[0].offending.as_deref(),
         Some("bridge:y_to_z -> outcome_model -> mechanism:schema:y -> bridge:y_to_z")
@@ -394,7 +406,10 @@ fn a_measurement_model_is_produced_under_its_identity_and_consumers_state_the_mo
     };
     connect(consumer(&identity)).expect("relies on exactly this model");
     let refusals = connect(consumer(MODEL_B)).expect_err("relies on another model");
-    assert_eq!(details(&refusals), vec!["interface_contract.measurement_assumption_mismatch"]);
+    assert_eq!(
+        details(&refusals),
+        vec![antecedent_core::reason_details::interface_contract::MEASUREMENT_ASSUMPTION_MISMATCH]
+    );
 }
 
 #[test]
@@ -409,7 +424,10 @@ fn a_measurement_model_refuses_quantities_it_does_not_bind() {
         &basis,
     )
     .expect_err("population is not the binding");
-    assert_eq!(other_population.detail, "measurement_model.population_mismatch");
+    assert_eq!(
+        other_population.detail,
+        antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
+    );
     let proxy = measurement_interface_contract(
         "screening_correction",
         &model,
@@ -418,7 +436,10 @@ fn a_measurement_model_refuses_quantities_it_does_not_bind() {
         &basis,
     )
     .expect_err("the indicator is not the construct");
-    assert_eq!(proxy.detail, "measurement_model.construct_mismatch");
+    assert_eq!(
+        proxy.detail,
+        antecedent_core::reason_details::measurement_model::CONSTRUCT_MISMATCH
+    );
 }
 
 // -- evidence ledger overlap ----------------------------------------------------------------------
@@ -476,10 +497,16 @@ fn distinct_sources_that_share_rows_are_not_disjoint_and_unknown_overlap_is_not_
     // Distinct source identities alone cannot prove disjoint observations.
     let (components, connections) = two_consumers_requiring_disjoint(first, overlapping);
     let unknown = check_composition(&components, &connections).unwrap_err();
-    assert_eq!(details(&unknown), vec!["interface_contract.dependence_unknown"]);
+    assert_eq!(
+        details(&unknown),
+        vec![antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN]
+    );
     let shared = check_composition_with_ledger(&components, &connections, &ledger)
         .expect_err("they share observation 3");
-    assert_eq!(details(&shared), vec!["interface_contract.shared_evidence"]);
+    assert_eq!(
+        details(&shared),
+        vec![antecedent_core::reason_details::interface_contract::SHARED_EVIDENCE]
+    );
     assert_eq!(shared[0].supplied.as_deref(), Some("1 shared source(s)"));
 
     let (components, connections) = two_consumers_requiring_disjoint(first, disjoint);
@@ -488,11 +515,17 @@ fn distinct_sources_that_share_rows_are_not_disjoint_and_unknown_overlap_is_not_
     let (components, connections) = two_consumers_requiring_disjoint(first, opaque);
     let unknown = check_composition_with_ledger(&components, &connections, &ledger)
         .expect_err("undeclared observations are unknown, never disjoint");
-    assert_eq!(details(&unknown), vec!["interface_contract.dependence_unknown"]);
+    assert_eq!(
+        details(&unknown),
+        vec![antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN]
+    );
 
     // Without a ledger the requirement is reported as unchecked, not skipped.
     let unchecked = disjoint_requirements_without_ledger(&components);
-    assert_eq!(details(&unchecked), vec!["interface_contract.dependence_unknown"; 2]);
+    assert_eq!(
+        details(&unchecked),
+        vec![antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN; 2]
+    );
     assert_eq!(unchecked[0].offending.as_deref(), Some("pooled.a"));
 }
 
@@ -533,13 +566,17 @@ fn mechanisms_declared_independent_are_checked_against_the_ledger_rows() {
         .expect_err("row 3 is in both");
     assert_eq!(
         details(&shared),
-        vec!["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        ]
     );
     let unknown = check_declared_independence_against_ledger(&declaration(opaque), &ledger)
         .expect_err("undeclared rows");
     assert_eq!(
         details(&unknown),
-        vec!["mechanism_composition.posterior_dependence_evidence_overlap_unknown"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_EVIDENCE_OVERLAP_UNKNOWN
+        ]
     );
     // An evidence id that is not a ledger source is unknown, not independent.
     let mut not_a_source = declaration(disjoint);
@@ -548,7 +585,9 @@ fn mechanisms_declared_independent_are_checked_against_the_ledger_rows() {
         .expect_err("not a ledger identity");
     assert_eq!(
         details(&unknown),
-        vec!["mechanism_composition.posterior_dependence_evidence_overlap_unknown"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_EVIDENCE_OVERLAP_UNKNOWN
+        ]
     );
 }
 
@@ -579,7 +618,10 @@ fn a_declared_independence_is_decided_from_ledger_rows_not_evidence_strings() {
     check_propagation(&request(subset)).expect("string-distinct passes the string rule");
     let shared = check_propagation_with_ledger(&request(subset), &ledger)
         .expect_err("a subset shares its rows");
-    assert_eq!(shared.detail, "joint_law_propagation.shared_evidence_declared_independent");
+    assert_eq!(
+        shared.detail,
+        antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+    );
     assert_eq!(shared.code, "evidence_double_counted");
 
     let plan = check_propagation_with_ledger(&request(disjoint), &ledger).expect("disjoint rows");
@@ -587,7 +629,10 @@ fn a_declared_independence_is_decided_from_ledger_rows_not_evidence_strings() {
 
     let unknown = check_propagation_with_ledger(&request(opaque), &ledger)
         .expect_err("undeclared rows are unknown");
-    assert_eq!(unknown.detail, "joint_law_propagation.evidence_overlap_unknown");
+    assert_eq!(
+        unknown.detail,
+        antecedent_core::reason_details::joint_law_propagation::EVIDENCE_OVERLAP_UNKNOWN
+    );
     assert_eq!(unknown.code, "sampling_dependence_unknown");
 
     // The forwarded duplicate (the same source twice) shares by identity.
@@ -596,7 +641,10 @@ fn a_declared_independence_is_decided_from_ledger_rows_not_evidence_strings() {
         ..request(first)
     };
     let shared = check_propagation_with_ledger(&twice, &ledger).expect_err("same source twice");
-    assert_eq!(shared.detail, "joint_law_propagation.shared_evidence_declared_independent");
+    assert_eq!(
+        shared.detail,
+        antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+    );
 }
 
 #[test]
@@ -606,9 +654,15 @@ fn row_pairing_across_inputs_compares_their_real_alignment_identities() {
     check_rows_pairable_across(&[("x", &a), ("y", &b)]).expect("one alignment identity");
     let mismatch = check_rows_pairable_across(&[("x", &a), ("y", &c)])
         .expect_err("two joint artifacts with different identities are not paired");
-    assert_eq!(mismatch.detail, "joint_law_propagation.alignment_mismatch");
+    assert_eq!(
+        mismatch.detail,
+        antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+    );
     let marginals = InputAlignment::IndependentMarginals;
     let unpaired = check_rows_pairable_across(&[("x", &a), ("y", &marginals)])
         .expect_err("independent marginals are never paired by index");
-    assert_eq!(unpaired.detail, "joint_law_propagation.index_pairing_refused");
+    assert_eq!(
+        unpaired.detail,
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+    );
 }

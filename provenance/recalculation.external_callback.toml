@@ -19,9 +19,11 @@ record_sha256 = "0a8558654d0337d14d98ee0ab5c852882c9f7a50a0904ed9a51d60be60fd486
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_external.rs"
-sha256 = "40f45dfb3649a90eea99b560873ae0270c80fb0bee8ffb6d016d01a854bdb3e1"
+items = ["const DEFAULT_ATTEMPT_LIMIT", "enum CallbackPolicy", "enum ExternalCallbackError", "fn admit_attempt", "fn bind_attested_output", "fn default", "fn digest", "fn execute", "fn export_output", "fn fmt", "fn identities", "fn invoke_attested_provider", "fn issued_claim", "fn label", "fn metadata_guard", "fn new", "fn plan", "fn plan_inputs", "fn plan_with_provider", "fn quantity_bounded", "fn response_bounded", "fn resume", "fn resume_with_limits", "fn text_identity", "fn validate", "fn with_metadata_limits", "struct CallbackContext", "struct CallbackFailure", "struct ExternalCallbackOutcome", "struct ExternalCallbackRequest", "struct ExternalCallbackSession", "struct ExternalMetadataLimits", "struct InvocationAttempt", "struct LiveOutput", "struct ProviderDescriptor", "trait ExternalMeanProvider"]
+sha256 = "3571571ff3fdc0a46340fbfa7a659536b574e487db13e7a88779ebae2fa4d20e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_external.rs"
-sha256 = "cd82f963cf57cf3b89af595efe10c3f32ebd25f7b8dcf25c6c7e4434932ad18c"
+items = ["fn actual_attested_mean_grid_and_branch_one_receipt_reuse", "fn callback_request_identity_changes_when_planner_branch_changes", "fn execute", "fn failures_preserve_success_and_keep_actual_attempt_evidence", "fn idempotency_key_is_bound_to_actual_first_attempt_payload", "fn portable_output_is_a_container_and_an_original_frame_still_resumes", "fn pure_invalid_planning_and_cooperative_budget_and_cancel_refusals", "fn seeded_callback_rng_mutations_and_actual_fresh_replay", "fn side_effect_retry_key_cannot_cross_planner_branches", "fn stateful_recomputes_and_side_effect_failure_never_silently_retries"]
+sha256 = "100e90105129429ed2c07e65fe37b59843edd5760f9163ba57630ae336d7c3a7"

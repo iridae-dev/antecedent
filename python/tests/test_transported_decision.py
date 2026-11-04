@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision, decision_robust
 from antecedent import transported_response as tr
 from antecedent.composition import SupportPolicy
@@ -139,7 +140,7 @@ def test_declared_exclusions_remove_actions_and_are_part_of_the_bound_decision(p
         )
     )
     assert refusal.reason_code == "decision_contract_unsatisfied"
-    assert refusal.detail == "transported_decision.exclusions_leave_no_comparison"
+    assert refusal.detail == reason_details.transported_decision.EXCLUSIONS_LEAVE_NO_COMPARISON
 
 
 def test_a_support_rule_stronger_than_the_transported_label_refuses(prepared) -> None:
@@ -150,7 +151,7 @@ def test_a_support_rule_stronger_than_the_transported_label_refuses(prepared) ->
         )
     )
     assert refusal.reason_code == "transport_support_failure"
-    assert refusal.detail == "transported_decision.support_rule_unmet"
+    assert refusal.detail == reason_details.transported_decision.SUPPORT_RULE_UNMET
     assert refusal.supplied == "extrapolative"
     assert refusal.remedy
 
@@ -165,7 +166,7 @@ def test_an_uncertainty_requirement_a_point_cannot_meet_refuses(prepared) -> Non
             )
         )
         assert refusal.reason_code == "decision_contract_unsatisfied"
-        assert refusal.detail == "transported_decision.uncertainty_requirement"
+        assert refusal.detail == reason_details.transported_decision.UNCERTAINTY_REQUIREMENT
     # A point requirement is met by a transported point.
     met = require_success(
         admissible(uncertainty="point_only").evaluate_transported(
@@ -187,7 +188,7 @@ def test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_l
         )
     )
     assert law.reason_code == "decision_contract_unsatisfied"
-    assert law.detail == "transported_decision.law_not_supplied"
+    assert law.detail == reason_details.transported_decision.LAW_NOT_SUPPLIED
     assert law.remedy
 
     interval = refusal_of(
@@ -205,7 +206,7 @@ def test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_l
         lambda: require_success(contract().evaluate_transported(response, analysis=prepared))
     )
     assert default.reason_code == "decision_contract_unsatisfied"
-    assert default.detail == "transported_decision.transported_not_accepted"
+    assert default.detail == reason_details.transported_decision.TRANSPORTED_NOT_ACCEPTED
 
     with pytest.raises(tr.TransportedResponseRefusal) as closed:
         response.interval()
@@ -218,7 +219,7 @@ def test_a_response_is_declared_with_a_complete_transport_identity() -> None:
             [effect("trial")], [2.0], transport_declaration("trial", source="trial")
         )
     assert_registered_refusal(same.value)
-    assert same.value.detail == "transported_decision.transport_identity_incomplete"
+    assert same.value.detail == reason_details.transported_decision.TRANSPORT_IDENTITY_INCOMPLETE
 
     # A support label stronger than extrapolative is refused at the declaration.
     with pytest.raises(tr.TransportedResponseRefusal) as inflated:
@@ -238,21 +239,21 @@ def test_a_response_is_declared_with_a_complete_transport_identity() -> None:
                 support="supported",
             ),
         )
-    assert inflated.value.detail == "transported_decision.support_label_inflated"
+    assert inflated.value.detail == reason_details.transported_decision.SUPPORT_LABEL_INFLATED
 
     # A coordinate must be stated in the target population.
     with pytest.raises(tr.TransportedResponseRefusal) as outside:
         tr.TransportedResponse.declared_point(
             [effect("elsewhere")], [2.0], transport_declaration("clinic_b")
         )
-    assert outside.value.detail == "transported_decision.coordinate_not_in_target"
+    assert outside.value.detail == reason_details.transported_decision.COORDINATE_NOT_IN_TARGET
 
     # A route with a typed producer cannot be declared by hand.
     with pytest.raises(tr.TransportedResponseRefusal) as typed:
         tr.TransportedResponse.declared_point(
             [effect()], [2.0], transport_declaration("clinic_b", route="policy")
         )
-    assert typed.value.detail == "transported_decision.route_needs_typed_source"
+    assert typed.value.detail == reason_details.transported_decision.ROUTE_NEEDS_TYPED_SOURCE
 
 
 def test_a_law_carries_its_receipt_and_a_native_label_is_refused() -> None:
@@ -279,7 +280,7 @@ def test_a_law_carries_its_receipt_and_a_native_label_is_refused() -> None:
     )
     with pytest.raises(tr.TransportedResponseRefusal) as inflated:
         tr.TransportedResponse.declared_law(exact, transport_declaration("clinic_b"))
-    assert inflated.value.detail == "transported_decision.calibration_label_inflated"
+    assert inflated.value.detail == reason_details.transported_decision.CALIBRATION_LABEL_INFLATED
 
 
 def test_only_a_transported_response_is_a_decision_source_of_this_route(prepared) -> None:

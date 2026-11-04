@@ -96,19 +96,19 @@ pub(crate) const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
 pub const STUDY_PLAN_RANKING: &str = "study_plan_ranking.v1";
 
 /// Candidates, regimes, subset size or limits beyond a declared bound.
-const BOUNDS_EXCEEDED: &str = "study_plan.bounds_exceeded";
+const BOUNDS_EXCEEDED: &str = antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED;
 /// A candidate declaration the route cannot accept.
-const INVALID_CANDIDATE: &str = "study_plan.invalid_candidate";
+const INVALID_CANDIDATE: &str = antecedent_core::reason_details::study_plan::INVALID_CANDIDATE;
 /// The route refuses the base query or catalog.
-const INVALID_QUERY: &str = "study_plan.invalid_query";
+const INVALID_QUERY: &str = antecedent_core::reason_details::study_plan::INVALID_QUERY;
 /// The base decision already identifies.
-const NO_FAILURE: &str = "study_plan.no_failure_to_repair";
+const NO_FAILURE: &str = antecedent_core::reason_details::study_plan::NO_FAILURE_TO_REPAIR;
 /// A replayed mz-transport obstruction over the declared controllable sets.
-const THEOREM_LIMITED: &str = "study_plan.theorem_limited";
+const THEOREM_LIMITED: &str = antecedent_core::reason_details::study_plan::THEOREM_LIMITED;
 /// No subset of the universe is sufficient; not an impossibility claim.
-const NONE_CERTIFIED: &str = "study_plan.none_certified";
+const NONE_CERTIFIED: &str = antecedent_core::reason_details::study_plan::NONE_CERTIFIED;
 /// A plan budget stop.
-const BUDGET: &str = "study_plan.budget";
+const BUDGET: &str = antecedent_core::reason_details::study_plan::BUDGET;
 
 /// A refused plan: a registered top-level reason code, a `study_plan.*` detail
 /// and, for a budget stop before any subset was decided, the receipt.
@@ -1090,7 +1090,9 @@ fn recheck_mz_citations(bound: &[RegimeId], cited: &[RegimeId]) -> Result<(), Id
     if bound == cited {
         Ok(())
     } else {
-        Err(IdentificationError::invalid_derivation("mz_transport.invalid_derivation"))
+        Err(IdentificationError::invalid_derivation(
+            antecedent_core::reason_details::mz_transport::INVALID_DERIVATION,
+        ))
     }
 }
 
@@ -1352,7 +1354,8 @@ fn decide_preview(
                         }
                         None => Ok(Preview::NotIdentified {
                             code: reason_code!("transport_not_certified"),
-                            detail: "mixed_search.invalid_derivation",
+                            detail:
+                                antecedent_core::reason_details::mixed_search::INVALID_DERIVATION,
                         }),
                     }
                 }
@@ -2009,7 +2012,13 @@ mod tests {
         // Cap zero everywhere: every decided subset is over the cap, never sufficient.
         let zero = fig1_plan(PlanCaps { decision_cap: |_, _| 0, ..PUBLIC });
         assert!(zero.proposals.is_empty() && !zero.minimal);
-        assert_eq!(zero.status(), Some(("transport_not_certified", "study_plan.none_certified")));
+        assert_eq!(
+            zero.status(),
+            Some((
+                "transport_not_certified",
+                antecedent_core::reason_details::study_plan::NONE_CERTIFIED
+            ))
+        );
         assert!(zero.subsets.iter().all(|s| matches!(
             s.outcome,
             StudySubsetOutcome::OverDecisionCap { operations } if operations > 0

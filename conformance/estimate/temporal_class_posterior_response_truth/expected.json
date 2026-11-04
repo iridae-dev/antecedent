@@ -44,12 +44,41 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_posterior.rs",
-          "sha256": "310126fd6f77a99475704379283084252c3c86f925d865a9c9906e3c19e1866e"
+          "items": [
+            "fn class_posterior",
+            "fn data",
+            "fn identified_lag_mask",
+            "fn lag_bit",
+            "fn pulse",
+            "fn queries_for",
+            "fn run",
+            "fn run_on",
+            "fn series",
+            "fn series_lagged_coefficient",
+            "fn supported_pulse",
+            "fn sustained",
+            "fn temporal_class_graph_posterior_pulse_and_sustained_run",
+            "fn temporal_pag_graph_posterior_supported_pulse_runs",
+            "fn visible_pag_contemp"
+          ],
+          "sha256": "37ba1696661f3b96693312cced33303781fa107f636b66cadf4fac672d3d94d4"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs",
-          "sha256": "7b32e9adfe9d5bfc5bb674f7f60492370dd7a256c7eb6cdf705098cff3f99ae6"
+          "items": [
+            "fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs",
+            "fn assert_atoms_match_level",
+            "fn closed_form_level",
+            "fn cpdag",
+            "fn intervention_response",
+            "fn lag_bit",
+            "fn mean_curve",
+            "fn pag",
+            "fn series",
+            "fn spec"
+          ],
+          "sha256": "bb60719c8e3d12fb4734999e454fb73c170929ce4a627b8b9379b817b348687c"
         }
       ],
       "fixture_payload_sha256": "19a839c1604c4b1ec90aac0ab56f18fcd1d198c70be1c71810b6f2c576755b8b"

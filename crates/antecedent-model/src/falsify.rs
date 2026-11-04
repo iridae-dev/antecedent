@@ -116,7 +116,7 @@ impl GraphFalsificationConfig {
         if !open_unit(self.alpha) || !open_unit(self.significance) {
             return Err(refuse(
                 invalid,
-                "graph_falsification.invalid_level",
+                antecedent_core::reason_details::graph_falsification::INVALID_LEVEL,
                 "alpha and significance must lie in (0, 1)",
             ));
         }
@@ -124,7 +124,7 @@ impl GraphFalsificationConfig {
             if !(share.is_finite() && share > 0.0 && share <= 1.0) {
                 return Err(refuse(
                     invalid,
-                    "graph_falsification.invalid_level",
+                    antecedent_core::reason_details::graph_falsification::INVALID_LEVEL,
                     "max_equivalent_share must lie in (0, 1]",
                 ));
             }
@@ -135,7 +135,7 @@ impl GraphFalsificationConfig {
         {
             return Err(refuse(
                 invalid,
-                "graph_falsification.invalid_permutations",
+                antecedent_core::reason_details::graph_falsification::INVALID_PERMUTATIONS,
                 "n_permutations and min_permutations must be positive, with min_permutations at \
                  most n_permutations",
             ));
@@ -143,7 +143,7 @@ impl GraphFalsificationConfig {
         if self.ci_replicates == 0 {
             return Err(refuse(
                 invalid,
-                "graph_falsification.invalid_permutations",
+                antecedent_core::reason_details::graph_falsification::INVALID_PERMUTATIONS,
                 "ci_replicates must be positive",
             ));
         }
@@ -517,7 +517,7 @@ impl CiSession<'_> {
         if out.results.len() != queries.len() {
             return Err(refuse(
                 antecedent_core::reason_code!("diagnostic_not_available"),
-                "graph_falsification.ci_result_count",
+                antecedent_core::reason_details::graph_falsification::CI_RESULT_COUNT,
                 "the CI test returned a different number of results than queries",
             ));
         }
@@ -525,7 +525,7 @@ impl CiSession<'_> {
             if result.p_value.is_nan() {
                 return Err(refuse(
                     antecedent_core::reason_code!("diagnostic_not_available"),
-                    "graph_falsification.ci_p_value_missing",
+                    antecedent_core::reason_details::graph_falsification::CI_P_VALUE_MISSING,
                     "a local Markov implication produced a NaN p-value",
                 ));
             }
@@ -616,14 +616,14 @@ pub fn falsify_graph(
     if n < 2 {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "graph_falsification.too_few_nodes",
+            antecedent_core::reason_details::graph_falsification::TOO_FEW_NODES,
             "graph falsification needs a graph with at least two nodes",
         ));
     }
     if data.row_count() == 0 {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "graph_falsification.empty_data",
+            antecedent_core::reason_details::graph_falsification::EMPTY_DATA,
             "graph falsification needs at least one row",
         ));
     }
@@ -632,14 +632,14 @@ pub fn falsify_graph(
         let NodeRef::Static(variable) = node else {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "graph_falsification.node_not_static",
+                antecedent_core::reason_details::graph_falsification::NODE_NOT_STATIC,
                 "only static variable nodes are supported",
             ));
         };
         if variables.contains(variable) {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "graph_falsification.duplicate_variable",
+                antecedent_core::reason_details::graph_falsification::DUPLICATE_VARIABLE,
                 "distinct nodes must carry distinct variables",
             ));
         }
@@ -653,7 +653,7 @@ pub fn falsify_graph(
     if storage.iter().any(|col| col.iter().any(|v| !v.is_finite())) {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "graph_falsification.data_not_observed",
+            antecedent_core::reason_details::graph_falsification::DATA_NOT_OBSERVED,
             "graph columns must be fully observed and finite; rows are not dropped",
         ));
     }
@@ -663,7 +663,7 @@ pub fn falsify_graph(
     if !test.p_value_is_frequentist() {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "graph_falsification.ci_test_not_frequentist",
+            antecedent_core::reason_details::graph_falsification::CI_TEST_NOT_FREQUENTIST,
             "the test's p-value is a posterior probability, not a frequentist p-value",
         ));
     }
@@ -1185,7 +1185,10 @@ mod tests {
         let huge = config(1_000_000_000);
         let error = falsify_graph(&graph(12, &chain), &data, &huge, &ctx).unwrap_err();
         let ModelError::Unsupported { message } = error else { panic!("{error:?}") };
-        assert!(message.contains("graph_falsification.work_limit"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::graph_falsification::WORK_LIMIT),
+            "{message}"
+        );
         assert!(message.contains("execution_resource_limit"), "{message}");
         // The default request is far below the limit.
         let data = linear_pairs(500, 5);

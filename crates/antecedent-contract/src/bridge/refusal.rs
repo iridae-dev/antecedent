@@ -71,7 +71,7 @@ fn not_supported(
 
 pub(super) fn blank_field(field: &str) -> BridgeRefusal {
     invalid(
-        "scientific_bridge.blank_field",
+        antecedent_core::reason_details::scientific_bridge::BLANK_FIELD,
         "name every identity and statement, in at most the declared number of bytes",
     )
     .with_offending(field)
@@ -79,7 +79,7 @@ pub(super) fn blank_field(field: &str) -> BridgeRefusal {
 
 pub(super) fn invalid_quantity(which: &str) -> BridgeRefusal {
     invalid(
-        "scientific_bridge.invalid_quantity",
+        antecedent_core::reason_details::scientific_bridge::INVALID_QUANTITY,
         "name the variable, units, population, regime, functional and transform of each quantity, with canonical conditioning",
     )
     .with_offending(which)
@@ -87,7 +87,7 @@ pub(super) fn invalid_quantity(which: &str) -> BridgeRefusal {
 
 pub(super) fn duplicate_assumption(id: &str) -> BridgeRefusal {
     invalid(
-        "scientific_bridge.duplicate_assumption",
+        antecedent_core::reason_details::scientific_bridge::DUPLICATE_ASSUMPTION,
         "give every declared assumption its own identity",
     )
     .with_offending(id)
@@ -98,14 +98,17 @@ pub(super) fn endpoint_classes(
     source: QuantityClass,
     target: QuantityClass,
 ) -> BridgeRefusal {
-    invalid("scientific_bridge.endpoint_classes", "connect the class pair the bridge kind relates")
-        .with_offending(kind)
-        .with_supplied(format!("{}->{}", source.as_str(), target.as_str()))
+    invalid(
+        antecedent_core::reason_details::scientific_bridge::ENDPOINT_CLASSES,
+        "connect the class pair the bridge kind relates",
+    )
+    .with_offending(kind)
+    .with_supplied(format!("{}->{}", source.as_str(), target.as_str()))
 }
 
 pub(super) fn mapping_not_allowed(mapping: &str, kind: &str) -> BridgeRefusal {
     invalid(
-        "scientific_bridge.mapping_not_allowed",
+        antecedent_core::reason_details::scientific_bridge::MAPPING_NOT_ALLOWED,
         "carry the value by a mapping the bridge kind allows",
     )
     .with_offending(mapping)
@@ -113,47 +116,60 @@ pub(super) fn mapping_not_allowed(mapping: &str, kind: &str) -> BridgeRefusal {
 }
 
 pub(super) fn malformed_mapping(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.malformed_mapping", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::MALFORMED_MAPPING, remedy)
+        .with_offending(field)
 }
 
 pub(super) fn non_finite_value(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.non_finite_value", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::NON_FINITE_VALUE, remedy)
+        .with_offending(field)
 }
 
 pub(super) fn provenance_failed() -> BridgeRefusal {
-    invalid("scientific_bridge.provenance", "derive a claim whose identity differs from its source")
+    invalid(
+        antecedent_core::reason_details::scientific_bridge::PROVENANCE,
+        "derive a claim whose identity differs from its source",
+    )
 }
 
 pub(super) fn mapping_uncertainty_invalid(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.mapping_uncertainty_invalid", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID, remedy)
+        .with_offending(field)
 }
 
 pub(super) fn source_dependence_invalid(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.source_dependence_invalid", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_INVALID, remedy)
+        .with_offending(field)
 }
 
 /// A source moment (mean) that is not a finite number.
 pub(super) fn source_moment_not_finite(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.source_moment_not_finite", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::SOURCE_MOMENT_NOT_FINITE, remedy)
+        .with_offending(field)
 }
 
 /// A propagated value or map image that overflowed the finite range.
 pub(super) fn propagation_overflow(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.propagation_overflow", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::PROPAGATION_OVERFLOW, remedy)
+        .with_offending(field)
 }
 
 /// A bridge whose dose or spend units disagree between its sides.
 pub(super) fn estimand_units_mismatch(expected: String, supplied: String) -> BridgeRefusal {
-    mismatch("scientific_bridge.estimand_units_mismatch", expected, supplied)
-        .with_offending("estimand_bridge")
-        .with_remedy(
-            "state the experiment dose, the target dose and the spend difference in one unit identity",
-        )
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::ESTIMAND_UNITS_MISMATCH,
+        expected,
+        supplied,
+    )
+    .with_offending("estimand_bridge")
+    .with_remedy(
+        "state the experiment dose, the target dose and the spend difference in one unit identity",
+    )
 }
 
 /// A spend difference that is not the target dose minus the experiment dose.
 pub(super) fn estimand_spend_inconsistent(expected: String, supplied: String) -> BridgeRefusal {
-    mismatch("scientific_bridge.estimand_spend_inconsistent", expected, supplied)
+    mismatch(antecedent_core::reason_details::scientific_bridge::ESTIMAND_SPEND_INCONSISTENT, expected, supplied)
         .with_offending("spend_delta")
         .with_remedy(
             "state a spend difference equal to the target dose minus the experiment dose, or correct the doses",
@@ -161,7 +177,8 @@ pub(super) fn estimand_spend_inconsistent(expected: String, supplied: String) ->
 }
 
 pub(super) fn estimand_bridge_incomplete(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.estimand_bridge_incomplete", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::ESTIMAND_BRIDGE_INCOMPLETE, remedy)
+        .with_offending(field)
 }
 
 // -- named substitutions (bridge_substitution_refused, proxy_offered_as_construct) ---------------------
@@ -179,13 +196,13 @@ pub(super) fn missing_principal(
     match (source, target) {
         (C::MeasuredOutcome, C::LatentConstruct) => proxy_as_construct(),
         (C::StatedPreference, C::RealizedBehavior) => substitution(
-            "scientific_bridge.stated_preference_as_realized_behavior",
+            antecedent_core::reason_details::scientific_bridge::STATED_PREFERENCE_AS_REALIZED_BEHAVIOR,
             source,
             "declare the behavioral linkage by which the stated preference determines the realized choice (no hypothetical bias, or a declared calibration of it) and name its evidence",
         )
         .with_expected(target.as_str()),
         (C::PredictiveQuantity | C::AssociationalQuantity, C::CausalQuantity) => substitution(
-            "scientific_bridge.association_as_intervention",
+            antecedent_core::reason_details::scientific_bridge::ASSOCIATION_AS_INTERVENTION,
             source,
             "declare and name the identification (adjustment set, exchangeability, positivity, consistency) under which the predictive quantity equals the causal quantity, or identify the causal quantity from the data",
         )
@@ -201,7 +218,7 @@ pub(super) fn proxy_as_construct() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("proxy_offered_as_construct"),
         STAGE_BIND,
-        "scientific_bridge.proxy_as_construct",
+        antecedent_core::reason_details::scientific_bridge::PROXY_AS_CONSTRUCT,
     )
     .with_supplied(QuantityClass::MeasuredOutcome.as_str())
     .with_expected(QuantityClass::LatentConstruct.as_str())
@@ -213,7 +230,7 @@ pub(super) fn proxy_as_construct() -> BridgeRefusal {
 /// A scientific endpoint offered as a utility without a utility mapping.
 pub(super) fn scientific_endpoint_as_utility() -> BridgeRefusal {
     substitution(
-        "scientific_bridge.scientific_endpoint_as_utility",
+        antecedent_core::reason_details::scientific_bridge::SCIENTIFIC_ENDPOINT_AS_UTILITY,
         QuantityClass::ScientificEndpoint,
         "declare the utility function that maps the endpoint to decision utility (its identity and form) and bridge through it; an effect on its natural scale is not a utility",
     )
@@ -224,7 +241,7 @@ pub(super) fn scientific_endpoint_as_utility() -> BridgeRefusal {
 /// turns the importance of a feature in a predictive model into an effect.
 pub(super) fn predictive_importance_as_causal_effect() -> BridgeRefusal {
     substitution(
-        "scientific_bridge.predictive_importance_as_causal_effect",
+        antecedent_core::reason_details::scientific_bridge::PREDICTIVE_IMPORTANCE_AS_CAUSAL_EFFECT,
         QuantityClass::PredictiveImportance,
         "ask the causal question directly: identify the effect of the feature under a declared graph and estimate it; the importance of a feature in a predictive model is a property of the predictor, not of the mechanism",
     )
@@ -234,7 +251,7 @@ pub(super) fn predictive_importance_as_causal_effect() -> BridgeRefusal {
 /// A model score offered as a probability. Not supported..
 pub(super) fn model_score_as_probability() -> BridgeRefusal {
     substitution(
-        "scientific_bridge.model_score_as_probability",
+        antecedent_core::reason_details::scientific_bridge::MODEL_SCORE_AS_PROBABILITY,
         QuantityClass::ModelScore,
         "a calibrated predictive probability needs a held-out calibration of the score; no calibration bridge is supported for a score, so use the model's calibrated predictive law where it supplies one",
     )
@@ -247,7 +264,7 @@ pub fn wrong_value_kind(requested: ValueKind, held: ValueKind) -> BridgeRefusal 
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_substitution_refused"),
         STAGE_BIND,
-        "scientific_bridge.value_kind_substitution",
+        antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION,
     )
     .with_supplied(held.as_str())
     .with_expected(requested.as_str())
@@ -263,7 +280,7 @@ pub(super) fn mapping_uncertainty_missing() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_assumption_missing"),
         STAGE_BIND,
-        "scientific_bridge.mapping_uncertainty_missing",
+        antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_MISSING,
     )
     .with_offending("mapping_uncertainty")
     .with_remedy(
@@ -276,7 +293,7 @@ pub(super) fn source_dependence_missing() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("sampling_dependence_unknown"),
         STAGE_BIND,
-        "scientific_bridge.source_dependence_missing",
+        antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING,
     )
     .with_offending("source_dependence")
     .with_remedy(
@@ -289,7 +306,7 @@ pub(super) fn source_variance_invalid(supplied: String) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("scientific_bridge_invalid"),
         STAGE_DECLARE,
-        "scientific_bridge.source_variance_invalid",
+        antecedent_core::reason_details::scientific_bridge::SOURCE_VARIANCE_INVALID,
     )
     .with_offending("source_variance")
     .with_supplied(supplied)
@@ -301,7 +318,7 @@ pub(super) fn experimental_prior_without_estimand_bridge() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_assumption_missing"),
         STAGE_BIND,
-        "scientific_bridge.experimental_prior_without_estimand_bridge",
+        antecedent_core::reason_details::scientific_bridge::EXPERIMENTAL_PRIOR_WITHOUT_ESTIMAND_BRIDGE,
     )
     .with_offending("estimand_bridge")
     .with_remedy(
@@ -314,7 +331,7 @@ pub(super) fn assumption_missing(kind: AssumptionKind) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_assumption_missing"),
         STAGE_BIND,
-        "scientific_bridge.assumption_missing",
+        antecedent_core::reason_details::scientific_bridge::ASSUMPTION_MISSING,
     )
     .with_offending(kind.as_str())
     .with_remedy(
@@ -327,7 +344,7 @@ pub(super) fn assumption_evidence_missing(id: &str, kind: AssumptionKind) -> Bri
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_assumption_missing"),
         STAGE_BIND,
-        "scientific_bridge.assumption_evidence_missing",
+        antecedent_core::reason_details::scientific_bridge::ASSUMPTION_EVIDENCE_MISSING,
     )
     .with_offending(id)
     .with_expected(kind.as_str())
@@ -342,7 +359,7 @@ pub(super) fn transport_premise_missing(premise: String) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_assumption_missing"),
         STAGE_BIND,
-        "scientific_bridge.transport_premise_missing",
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_MISSING,
     )
     .with_offending("transportability_premise")
     .with_expected(premise)
@@ -354,12 +371,16 @@ pub(super) fn transport_premise_missing(premise: String) -> BridgeRefusal {
 // -- binding mismatches (bridge_binding_mismatch) ---------------------------------------------------------
 
 pub(super) fn transport_premise_mismatch(expected: String) -> BridgeRefusal {
-    mismatch("scientific_bridge.transport_premise_mismatch", expected, "another transport")
-        .with_offending("transportability_premise")
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_MISMATCH,
+        expected,
+        "another transport",
+    )
+    .with_offending("transportability_premise")
 }
 
 pub(super) fn estimand_bridge_mismatch(expected: String, supplied: String) -> BridgeRefusal {
-    mismatch("scientific_bridge.estimand_bridge_mismatch", expected, supplied)
+    mismatch(antecedent_core::reason_details::scientific_bridge::ESTIMAND_BRIDGE_MISMATCH, expected, supplied)
         .with_offending("estimand_bridge")
         .with_remedy(
             "name the experiment and the target with the same population and exposure regime as the contract's evidence scope and target quantity; time window, dose, duration, recency and spend stay on the bridge",
@@ -368,7 +389,7 @@ pub(super) fn estimand_bridge_mismatch(expected: String, supplied: String) -> Br
 
 pub(super) fn transport_premise_unused() -> BridgeRefusal {
     mismatch(
-        "scientific_bridge.transport_premise_unused",
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_UNUSED,
         "no transportability premise: the claim is about the scope the bridge was established for",
         "a transportability premise",
     )
@@ -380,50 +401,78 @@ pub(super) fn measurement_model_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.measurement_model_mismatch", expected, supplied)
-        .with_offending(which)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::MEASUREMENT_MODEL_MISMATCH,
+        expected,
+        supplied,
+    )
+    .with_offending(which)
 }
 
 pub(super) fn model_identity_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.model_identity_mismatch", expected, supplied)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::MODEL_IDENTITY_MISMATCH,
+        expected,
+        supplied,
+    )
 }
 
 pub(super) fn mapping_scope_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.mapping_scope_mismatch", expected, supplied)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::MAPPING_SCOPE_MISMATCH,
+        expected,
+        supplied,
+    )
 }
 
 pub(super) fn population_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.population_mismatch", expected, supplied)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::POPULATION_MISMATCH,
+        expected,
+        supplied,
+    )
 }
 
 pub(super) fn regime_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.regime_mismatch", expected, supplied)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::REGIME_MISMATCH,
+        expected,
+        supplied,
+    )
 }
 
 pub(super) fn horizon_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.horizon_mismatch", expected, supplied)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::HORIZON_MISMATCH,
+        expected,
+        supplied,
+    )
 }
 
 pub(super) fn conditioning_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.conditioning_mismatch", expected, supplied)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::CONDITIONING_MISMATCH,
+        expected,
+        supplied,
+    )
 }
 
 pub(super) fn quantity_mismatch(
@@ -431,14 +480,19 @@ pub(super) fn quantity_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.quantity_mismatch", expected, supplied).with_offending(dimension)
+    mismatch(
+        antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH,
+        expected,
+        supplied,
+    )
+    .with_offending(dimension)
 }
 
 pub(super) fn units_mismatch(
     expected: impl Into<String>,
     supplied: impl Into<String>,
 ) -> BridgeRefusal {
-    mismatch("scientific_bridge.units_mismatch", expected, supplied)
+    mismatch(antecedent_core::reason_details::scientific_bridge::UNITS_MISMATCH, expected, supplied)
 }
 
 // -- values outside what the mapping supports (bridge_mapping_not_supported) ------------
@@ -449,7 +503,7 @@ pub(super) fn value_kind_not_carried(kind: ValueKind) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
-        "scientific_bridge.value_kind_not_carried",
+        antecedent_core::reason_details::scientific_bridge::VALUE_KIND_NOT_CARRIED,
     )
     .with_supplied(kind.as_str())
     .with_expected(ValueKind::Mean.as_str())
@@ -463,7 +517,7 @@ pub(super) fn source_not_point(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
-        "scientific_bridge.source_not_point",
+        antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_POINT,
     )
     .with_supplied(supplied)
     .with_expected("point")
@@ -478,7 +532,7 @@ pub fn interval_not_supported() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("route_not_supported"),
         STAGE_BIND,
-        "scientific_bridge.interval_not_supported",
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED,
     )
     .with_remedy(
         "a bridged claim carries one mean and the contract layer states no uncertainty; name a level and ask for the interval of the bridged value, which needs the source claim's declared standard error and is published only inside a measured design. A posterior and a joint law have no executed bridge",
@@ -487,7 +541,7 @@ pub fn interval_not_supported() -> BridgeRefusal {
 
 pub(super) fn validation_trials_too_few(declared: u32, supplied: usize) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.validation_trials_too_few",
+        antecedent_core::reason_details::scientific_bridge::VALIDATION_TRIALS_TOO_FEW,
         declared.to_string(),
         supplied.to_string(),
         "validate the surrogate in at least the declared number of trials, or declare the number of trials the evidence supports",
@@ -499,12 +553,17 @@ pub(super) fn degenerate_validation(
     supplied: &str,
     remedy: &'static str,
 ) -> BridgeRefusal {
-    not_supported("scientific_bridge.degenerate_validation", expected, supplied, remedy)
+    not_supported(
+        antecedent_core::reason_details::scientific_bridge::DEGENERATE_VALIDATION,
+        expected,
+        supplied,
+        remedy,
+    )
 }
 
 pub(super) fn validation_r_squared_too_low(declared: f64, supplied: f64) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.validation_r_squared_too_low",
+        antecedent_core::reason_details::scientific_bridge::VALIDATION_R_SQUARED_TOO_LOW,
         declared.to_string(),
         supplied.to_string(),
         "the surrogate does not explain enough of the trial-level terminal effect; validate a better surrogate, or declare the coefficient of determination the evidence supports",
@@ -513,7 +572,7 @@ pub(super) fn validation_r_squared_too_low(declared: f64, supplied: f64) -> Brid
 
 pub(super) fn outside_validated_range(low: f64, high: f64, value: f64) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.outside_validated_range",
+        antecedent_core::reason_details::scientific_bridge::OUTSIDE_VALIDATED_RANGE,
         format!("[{low}, {high}]"),
         value.to_string(),
         "the relationship is applied only within the surrogate effects the validation trials covered; extrapolation is not supported, so validate trials that cover this effect",
@@ -522,7 +581,7 @@ pub(super) fn outside_validated_range(low: f64, high: f64, value: f64) -> Bridge
 
 pub(super) fn measurement_route_not_supported(expected: &str, supplied: &str) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.measurement_route_not_supported",
+        antecedent_core::reason_details::scientific_bridge::MEASUREMENT_ROUTE_NOT_SUPPORTED,
         expected,
         supplied,
         "only the binary-misclassification correction of a prevalence or risk is bridged; another measurement route has its own corrected-functional record",
@@ -535,7 +594,7 @@ pub(super) fn outside_attainable_range(
     remedy: &'static str,
 ) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.outside_attainable_range",
+        antecedent_core::reason_details::scientific_bridge::OUTSIDE_ATTAINABLE_RANGE,
         expected,
         supplied.to_string(),
         remedy,
@@ -544,7 +603,7 @@ pub(super) fn outside_attainable_range(
 
 pub(super) fn nonlinear_mean_not_expectation(map: &str) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.nonlinear_mean_not_expectation",
+        antecedent_core::reason_details::scientific_bridge::NONLINEAR_MEAN_NOT_EXPECTATION,
         "E[g(X)]",
         format!("g(E[X]) via {map}"),
         "the mean of a nonlinear map is not the map of the mean; supply a second moment for a square, or a normal law for an exponential, and read the expectation of the map",
@@ -554,7 +613,7 @@ pub(super) fn nonlinear_mean_not_expectation(map: &str) -> BridgeRefusal {
 
 pub(super) fn nonlinear_law_insufficient(supplied: &str) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.nonlinear_law_insufficient",
+        antecedent_core::reason_details::scientific_bridge::NONLINEAR_LAW_INSUFFICIENT,
         "normal",
         supplied,
         "an exponential expectation is supported for a normal law; a mean and a variance do not determine it",
@@ -564,7 +623,7 @@ pub(super) fn nonlinear_law_insufficient(supplied: &str) -> BridgeRefusal {
 
 pub(super) fn uncertain_mapping_not_affine(supplied: &str) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.uncertain_mapping_not_affine",
+        antecedent_core::reason_details::scientific_bridge::UNCERTAIN_MAPPING_NOT_AFFINE,
         "identity or affine",
         supplied,
         "this propagator is the delta method of a declared affine map; a trial-level line or a measurement correction keeps its own measured interval",
@@ -573,7 +632,7 @@ pub(super) fn uncertain_mapping_not_affine(supplied: &str) -> BridgeRefusal {
 
 pub(super) fn dependence_not_a_covariance(supplied: String) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.dependence_not_a_covariance",
+        antecedent_core::reason_details::scientific_bridge::DEPENDENCE_NOT_A_COVARIANCE,
         "covariance within the slope and source variances",
         supplied,
         "state a covariance whose square is at most the product of the slope variance and the source variance",
@@ -582,7 +641,7 @@ pub(super) fn dependence_not_a_covariance(supplied: String) -> BridgeRefusal {
 
 pub(super) fn functional_not_supported(supplied: String) -> BridgeRefusal {
     not_supported(
-        "scientific_bridge.functional_not_supported",
+        antecedent_core::reason_details::scientific_bridge::FUNCTIONAL_NOT_SUPPORTED,
         "prevalence or risk on the identity scale",
         supplied,
         "the binary-misclassification correction inverts a prevalence or risk on the probability scale; state the quantity as one",
@@ -595,7 +654,7 @@ pub(super) fn differential_error() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("differential_error_not_pooled"),
         STAGE_BIND,
-        "scientific_bridge.differential_error",
+        antecedent_core::reason_details::scientific_bridge::DIFFERENTIAL_ERROR,
     )
     .with_remedy(
         "a bridge through differential error needs the arm or population of the claim; bridge through a non-differential model, or analyse the arms with their own rates",
@@ -607,7 +666,7 @@ pub(super) fn youden_too_small(youden: f64, min_youden: f64) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("measurement_not_identified"),
         STAGE_BIND,
-        "scientific_bridge.youden_too_small",
+        antecedent_core::reason_details::scientific_bridge::YOUDEN_TOO_SMALL,
     )
     .with_supplied(youden.to_string())
     .with_expected(min_youden.to_string())
@@ -624,7 +683,7 @@ pub(super) fn source_not_draws(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
-        "scientific_bridge.source_not_draws",
+        antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_DRAWS,
     )
     .with_supplied(supplied)
     .with_expected("posterior or predictive draws")
@@ -638,7 +697,7 @@ pub(super) fn draws_meaning_mismatch(expected: ValueKind, supplied: &str) -> Bri
     ExternalRefusal::new(
         antecedent_core::reason_code!("distribution_meaning_mismatch"),
         STAGE_BIND,
-        "scientific_bridge.draws_meaning_mismatch",
+        antecedent_core::reason_details::scientific_bridge::DRAWS_MEANING_MISMATCH,
     )
     .with_expected(expected.as_str())
     .with_supplied(supplied)
@@ -652,7 +711,7 @@ pub(super) fn draws_not_aligned() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("joint_law_required"),
         STAGE_BIND,
-        "scientific_bridge.draws_not_aligned",
+        antecedent_core::reason_details::scientific_bridge::DRAWS_NOT_ALIGNED,
     )
     .with_remedy(
         "supply the draws as columns of one aligned joint draw table; independently sampled marginals have no row pairing, so the bridged draws could not keep one",
@@ -663,7 +722,8 @@ pub(super) fn draws_not_aligned() -> BridgeRefusal {
 /// declared covariance needs.
 #[must_use]
 pub fn draws_unusable(field: &str, remedy: &'static str) -> BridgeRefusal {
-    invalid("scientific_bridge.draws_unusable", remedy).with_offending(field)
+    invalid(antecedent_core::reason_details::scientific_bridge::DRAWS_UNUSABLE, remedy)
+        .with_offending(field)
 }
 
 /// A draw outside the range the mapping is supported for. The first offending
@@ -673,7 +733,7 @@ pub fn draws_outside_domain(count: usize, total: usize, first: f64) -> BridgeRef
     ExternalRefusal::new(
         antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
-        "scientific_bridge.draws_outside_domain",
+        antecedent_core::reason_details::scientific_bridge::DRAWS_OUTSIDE_DOMAIN,
     )
     .with_offending(format!("{count} of {total} draws; first {first}"))
     .with_remedy(
@@ -687,7 +747,7 @@ pub fn chain_stage_not_affine(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("route_not_supported"),
         STAGE_BIND,
-        "scientific_bridge.chain_stage_not_affine",
+        antecedent_core::reason_details::scientific_bridge::CHAIN_STAGE_NOT_AFFINE,
     )
     .with_expected("identity, affine or trial-level mapping of a posterior")
     .with_supplied(supplied)

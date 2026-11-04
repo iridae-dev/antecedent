@@ -108,7 +108,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq)]
     TemporalCounterfactualArtifactError {
         noun: "temporal counterfactual",
-        identity: "temporal_counterfactual.artifact_changed",
+        identity: antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED,
         variants {
             /// A stored outcome, mean or receipt differs from the recomputed one.
             ResultMismatch(&'static str),
@@ -138,7 +138,8 @@ impl TemporalCounterfactualArtifactError {
             Self::IdentityMismatch { field } => Some(TemporalCounterfactualRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
-                detail: "temporal_counterfactual.artifact_changed".to_owned(),
+                detail: antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED
+                    .to_owned(),
                 offending: Some((*field).to_owned()),
                 remedy: Some(
                     "consume the artifact the producer exported, or retain the identity of the \
@@ -475,11 +476,9 @@ pub struct TemporalCounterfactualReportWire {
 }
 
 fn node_of(name: &str) -> Result<TemporalNode, TemporalCounterfactualArtifactError> {
-    TemporalNode::ALL
-        .iter()
-        .copied()
-        .find(|node| node.name() == name)
-        .ok_or_else(|| invalid("temporal_counterfactual.invalid_graph", name))
+    TemporalNode::ALL.iter().copied().find(|node| node.name() == name).ok_or_else(|| {
+        invalid(antecedent_core::reason_details::temporal_counterfactual::INVALID_GRAPH, name)
+    })
 }
 
 fn spec_of(

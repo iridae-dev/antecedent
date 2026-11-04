@@ -368,7 +368,10 @@ fn xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
         &SuppliedSources::default(),
     );
     let refusal = wrong.unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.expected_identity_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
+    );
 
     let mut flipped = bytes;
     let middle = flipped.len() / 2;

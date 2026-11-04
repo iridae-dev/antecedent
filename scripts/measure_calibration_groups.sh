@@ -1690,11 +1690,8 @@ run_ps practitioner_temporal_bayesian_pulse_interval
 run_ps practitioner_temporal_mediation_interval
 run_ps practitioner_temporal_bayesian_mediation_interval
 
-echo "== response/observation/transport/interference =="
-check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh
-
 if [ -n "$RECHECKED" ]; then
-  echo "gate_calibration: group(s) rechecked at ${RECHECK_NSIM} replicates:"
+  echo "measure_calibration_groups: group(s) rechecked at ${RECHECK_NSIM} replicates:"
   printf '%s' "$RECHECKED"
 fi
 # Retained adjusted source-fit and fixed-target variance diagnostics.
@@ -1741,12 +1738,12 @@ run_graph_imputation_candidate graph_imputation_prior_predictive_four_variable_c
 run_graph_imputation_candidate graph_imputation_prior_predictive_four_variable_confounded_candidate
 
 if [ "$FAILED_COUNT" -gt 0 ]; then
-  echo "gate_calibration: ${FAILED_COUNT} group(s) failed:"
+  echo "measure_calibration_groups: ${FAILED_COUNT} group(s) failed:"
   printf '%s' "$FAILED"
   exit 1
 fi
 if [ -n "$SHARD_N" ]; then
-  echo "gate_calibration: shard ${SHARD_K}/${SHARD_N} ok (${GROUP_INDEX} groups in script order)"
+  echo "measure_calibration_groups: shard ${SHARD_K}/${SHARD_N} ok (${GROUP_INDEX} groups in script order)"
 else
-  echo "gate_calibration: ok"
+  echo "measure_calibration_groups: ok"
 fi

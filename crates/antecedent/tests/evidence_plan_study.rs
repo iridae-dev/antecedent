@@ -472,7 +472,10 @@ fn an_identified_study_owes_no_evidence() {
         ));
         let refused = identified.evidence_plan(&declared, &ctx(11)).unwrap_err();
         assert!(matches!(refused, EvidencePlanFacadeError::NoFailure), "{refused}");
-        assert_eq!(refused.detail(), "evidence_plan.no_failure_to_plan");
+        assert_eq!(
+            refused.detail(),
+            antecedent_core::reason_details::evidence_plan::NO_FAILURE_TO_PLAN
+        );
         assert_eq!(refused.code(), "invalid_argument");
     }
 }

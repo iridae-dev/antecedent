@@ -66,7 +66,10 @@ fn a_probability_scale_predictor_is_not_a_treatment_contrast() {
     let c = cohort(vec![0.5], vec![1.0], vec![1.0]);
     assert!(run(&model(false), &c).is_ok());
     let refusal = run(&model(true), &c).unwrap_err();
-    assert_eq!(refusal.detail, "transported_effect.link_not_identity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_effect::LINK_NOT_IDENTITY
+    );
 }
 
 #[test]
@@ -74,12 +77,12 @@ fn cohort_weights_must_be_nonnegative_and_normalized() {
     let unnormalized = cohort(vec![0.5, 0.6], vec![1.0, 1.0], vec![0.5, 0.6]);
     assert_eq!(
         run(&model(false), &unnormalized).unwrap_err().detail,
-        "transported_effect.weights_not_normalized"
+        antecedent_core::reason_details::transported_effect::WEIGHTS_NOT_NORMALIZED
     );
     let negative = cohort(vec![0.5, 0.6], vec![1.0, 1.0], vec![1.5, -0.5]);
     assert_eq!(
         run(&model(false), &negative).unwrap_err().detail,
-        "transported_effect.weights_invalid"
+        antecedent_core::reason_details::transported_effect::WEIGHTS_INVALID
     );
 }
 
@@ -104,7 +107,7 @@ fn the_fitted_support_box_is_closed_and_a_zero_weight_row_outside_it_still_refus
     let outside = cohort(vec![0.5, 1.5], vec![1.0, 1.0], vec![1.0, 0.0]);
     assert_eq!(
         run(&model(false), &outside).unwrap_err().detail,
-        "transported_effect.out_of_support"
+        antecedent_core::reason_details::transported_effect::OUT_OF_SUPPORT
     );
 }
 
@@ -115,6 +118,6 @@ fn a_cohort_column_with_another_name_is_a_schema_mismatch() {
     c.features[1] = "zz".into();
     assert_eq!(
         run(&model(false), &c).unwrap_err().detail,
-        "transported_effect.feature_schema_mismatch"
+        antecedent_core::reason_details::transported_effect::FEATURE_SCHEMA_MISMATCH
     );
 }

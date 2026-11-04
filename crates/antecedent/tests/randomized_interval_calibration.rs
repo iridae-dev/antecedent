@@ -15,7 +15,7 @@
 //!   complete randomization and for the ANCOVA. Its construction is read from the runtime's own
 //!   calibration key, so its record is keyed apart from the normal intervals above.
 //!
-//! The designs are `#[ignore]`d measurement designs registered in `scripts/gate_calibration.sh`
+//! The designs are `#[ignore]`d measurement designs registered in `scripts/measure_calibration_groups.sh`
 //! (`run_ri`). The fixed-seed checks of the same routes are
 //! `crates/antecedent/tests/randomized_precision_intervals.rs` and
 //! `crates/antecedent/tests/randomized_trial_route.rs`.

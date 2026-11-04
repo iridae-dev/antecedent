@@ -129,13 +129,18 @@ pub struct CounterfactualTransportPoint {
     pub cells_read: u64,
 }
 
-const DETAIL_SUPPORT: &str = "counterfactual_transport.support_failure";
-const DETAIL_ZERO_MASS: &str = "counterfactual_transport.zero_conditioning_mass";
-const DETAIL_MISSING: &str = "counterfactual_transport.missing_law";
-const DETAIL_INCOMPATIBLE: &str = "counterfactual_transport.evidence_incompatible";
-const DETAIL_INVALID: &str = "counterfactual_transport.invalid_evidence";
-const DETAIL_COUNTED: &str = "counterfactual_transport.no_sampled_inference";
-const DETAIL_BUDGET: &str = "counterfactual_transport.budget";
+const DETAIL_SUPPORT: &str =
+    antecedent_core::reason_details::counterfactual_transport::SUPPORT_FAILURE;
+const DETAIL_ZERO_MASS: &str =
+    antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS;
+const DETAIL_MISSING: &str = antecedent_core::reason_details::counterfactual_transport::MISSING_LAW;
+const DETAIL_INCOMPATIBLE: &str =
+    antecedent_core::reason_details::counterfactual_transport::EVIDENCE_INCOMPATIBLE;
+const DETAIL_INVALID: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_EVIDENCE;
+const DETAIL_COUNTED: &str =
+    antecedent_core::reason_details::counterfactual_transport::NO_SAMPLED_INFERENCE;
+const DETAIL_BUDGET: &str = antecedent_core::reason_details::counterfactual_transport::BUDGET;
 
 fn refused(code: &'static str, detail: &str, message: impl AsRef<str>) -> EstimationError {
     EstimationError::refused_detail(code, detail, message)

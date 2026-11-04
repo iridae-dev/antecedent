@@ -491,19 +491,19 @@ fn recalc_off_grid_and_unsupported_requests_refuse_or_name_a_supported_route() {
         (
             RequestSupport::OffGrid { supported_route: None },
             "refused(recalc.off_grid_request)",
-            "recalc.off_grid_request",
+            antecedent_core::reason_details::recalc::OFF_GRID_REQUEST,
             "route_not_supported",
         ),
         (
             RequestSupport::OffGrid { supported_route: Some("dose.smoothed_response".into()) },
             "refused(recalc.off_grid_request[dose.smoothed_response])",
-            "recalc.off_grid_request",
+            antecedent_core::reason_details::recalc::OFF_GRID_REQUEST,
             "route_not_supported",
         ),
         (
             RequestSupport::Unsupported { supported_route: None },
             "refused(recalc.unsupported_request)",
-            "recalc.unsupported_request",
+            antecedent_core::reason_details::recalc::UNSUPPORTED_REQUEST,
             "route_not_supported",
         ),
     ];

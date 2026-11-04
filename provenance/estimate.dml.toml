@@ -40,17 +40,20 @@ record_sha256 = "d548aec85fa2313d57098355bf08b82d26142ac5d8779bdad67af532dd39294
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dml.rs"
-sha256 = "848bd2ab896b12c5ae668d2c6fdb2ba2cc8150756d9b59c950149d8fc6ae4a91"
+items = ["const AIPW_SCORE_BUILDS", "enum DmlScore", "fn aipw_marginal_from_nuisance", "fn aipw_score_table_clipped", "fn attach_crossfit_aipw_table", "fn default", "fn finish_dml", "fn fit", "fn fit_aipw", "fn fit_plr", "fn new", "fn prepare", "fn require_binary_treatment", "fn scores_retargetable", "fn with_sampling_weights", "struct AipwMarginal", "struct CrossfitAipwTableContext", "struct DmlAte"]
+sha256 = "9ba88c6c436f313342134b66e4a7de75271cf3c2919d192c44c1b04636ba6354"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/learn_nuisance.rs"
-sha256 = "ec947845edbdd76d8cc005ea41671fb153e1fd2290f5bd7ac91ddfff067ae854"
+items = ["fn iid_se"]
+sha256 = "91b0ad077a73b3d326f586a07c9cb866a118c7d722324074c3fa355034561c4a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dml_reference.rs"
-sha256 = "16bce499234062f65e065d64b5a0db769a989fb4231cbe4639fd492d2512630f"
+items = ["fn cases", "fn close", "fn floats", "fn orthogonal_scores_and_standard_errors_match_the_fixed_fold_references"]
+sha256 = "4817fed67ea4242cdbe1293c3d253b156f88b750450284e653da9096b7b57aef"
 
 [[method_review.artifacts]]
 role = "reference"

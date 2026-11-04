@@ -69,6 +69,7 @@ pub mod physical_operator;
 pub mod provider_capability;
 pub mod query;
 pub mod reason_code;
+pub mod reason_details;
 pub mod recalc;
 pub mod refusal;
 pub mod response;

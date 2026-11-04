@@ -9,6 +9,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility
@@ -186,7 +187,7 @@ def test_static_response_refusals_preserve_native_state():
             session.execute(replace(request, actions=[0, 2]), execution=Execution(seed=3))
         ),
         "route_not_supported",
-        "recalc.static_action_out_of_support",
+        reason_details.recalc.STATIC_ACTION_OUT_OF_SUPPORT,
         "treatment_grid",
     )
     bad_graph = ac.Admg.from_edges(["t", "m", "y"], [("t", "y")], [("t", "y")])
@@ -195,7 +196,7 @@ def test_static_response_refusals_preserve_native_state():
             session.execute(replace(request, graph=bad_graph), execution=Execution(seed=3))
         ),
         "effect_not_identified",
-        "recalc.static_not_identified",
+        reason_details.recalc.STATIC_NOT_IDENTIFIED,
         "identification",
     )
     refused(
@@ -203,7 +204,7 @@ def test_static_response_refusals_preserve_native_state():
             session.execute(replace(request, support=[1, 0]), execution=Execution(seed=3))
         ),
         "invalid_argument",
-        "recalc.static_invalid_query",
+        reason_details.recalc.STATIC_INVALID_QUERY,
         "query",
     )
     refused(
@@ -213,7 +214,7 @@ def test_static_response_refusals_preserve_native_state():
             )
         ),
         "invalid_argument",
-        "recalc.static_invalid_query",
+        reason_details.recalc.STATIC_INVALID_QUERY,
         "query",
     )
     dag = ac.Admg.from_edges(["t", "m", "y"], [("t", "m"), ("m", "y")], [])
@@ -222,7 +223,7 @@ def test_static_response_refusals_preserve_native_state():
             session.execute(replace(request, graph=dag), execution=Execution(seed=3))
         ),
         "route_not_supported",
-        "recalc.static_graph_unsupported",
+        reason_details.recalc.STATIC_GRAPH_UNSUPPORTED,
         "graph",
     )
     assert session.identities == identities and session.is_live
@@ -304,7 +305,7 @@ def test_multi_source_exact_missing_provider_support_refusals():
             session.execute(replace(request, laws=request.laws[:-1]), execution=Execution(seed=3))
         ),
         "transport_missing_provider",
-        "recalc.static_transport_missing_provider",
+        reason_details.recalc.STATIC_TRANSPORT_MISSING_PROVIDER,
         "score_artifact",
     )
     refused(
@@ -314,14 +315,14 @@ def test_multi_source_exact_missing_provider_support_refusals():
             )
         ),
         "route_not_supported",
-        "recalc.off_grid_request",
+        reason_details.recalc.OFF_GRID_REQUEST,
         "treatment_grid",
     )
     missing = replace(request, catalog=catalog(omit=("b_z1_0",)), laws=laws(omit=("b_z1_0",)))
     refused(
         lambda: require_success(session.execute(missing, execution=Execution(seed=3))),
         "transport_missing_evidence",
-        "recalc.static_transport_missing_evidence",
+        reason_details.recalc.STATIC_TRANSPORT_MISSING_EVIDENCE,
         "identification",
     )
     assert session.identities == identities
@@ -368,7 +369,7 @@ def test_static_receipt_only_fresh_refit_boundary(kind, tmp_path):
     refused(
         lambda: require_success(empty.execute(request, execution=Execution(seed=3))),
         "score_table_unavailable",
-        "recalc.unavailable_data",
+        reason_details.recalc.UNAVAILABLE_DATA,
         "data_snapshot",
     )
     restored = require_success(cls.resume(receipt, ResumeContext(supplied_data=True)))
@@ -387,7 +388,7 @@ def test_static_receipt_only_fresh_refit_boundary(kind, tmp_path):
     observed = json.loads(child.stdout)
     assert observed["refusal"] == [
         "score_table_unavailable",
-        "recalc.unavailable_data",
+        reason_details.recalc.UNAVAILABLE_DATA,
         "data_snapshot",
     ]
     assert observed["means"] == pytest.approx(result.means, abs=1e-11)
@@ -412,7 +413,7 @@ def test_static_binding_resource_guards():
             )
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.memory_budget_exceeded" in str(caught.value)
+    assert reason_details.recalc.MEMORY_BUDGET_EXCEEDED in str(caught.value)
     mz = mz_request()
 
     class IndexedOnly(list):
@@ -433,7 +434,7 @@ def test_static_binding_resource_guards():
             )
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.limits_exceeded" in str(caught.value)
+    assert reason_details.recalc.LIMITS_EXCEEDED in str(caught.value)
 
 
 def test_static_capabilities_require_actual_native_programs():
@@ -474,7 +475,7 @@ def test_static_factor_domain_budget_refuses_before_cartesian_allocation():
     refused(
         lambda: require_success(session.execute(request, execution=Execution(seed=3))),
         "invalid_argument",
-        "recalc.static_invalid_factor",
+        reason_details.recalc.STATIC_INVALID_FACTOR,
         "score_artifact",
     )
     assert not session.is_live
@@ -535,7 +536,7 @@ def test_static_retained_response_snapshot_substitution_and_stale_projection_ref
         program_claims.native_claim(swapped, program)
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
-        "native_claims.projection_mismatch",
+        reason_details.native_claims.PROJECTION_MISMATCH,
         "bind",
     )
     assert (

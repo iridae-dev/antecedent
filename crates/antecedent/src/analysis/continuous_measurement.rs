@@ -74,11 +74,11 @@ pub struct ContinuousMeasurementEstimate {
 
 fn refusal_of(error: &MeasurementError) -> MeasurementModelRefusal {
     let remedy = match error.detail {
-        "measurement_model.error_variance_not_identified"
-        | "measurement_model.insufficient_replicates" => {
+        antecedent_core::reason_details::measurement_model::ERROR_VARIANCE_NOT_IDENTIFIED
+        | antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES => {
             Some(SUPPLY_REPLICATES_OR_VALIDATION.sentence().to_owned())
         }
-        "measurement_model.binary_outcome_continuous_error" => {
+        antecedent_core::reason_details::measurement_model::BINARY_OUTCOME_CONTINUOUS_ERROR => {
             Some(USE_BINARY_MISCLASSIFICATION.sentence().to_owned())
         }
         _ => None,
@@ -122,7 +122,7 @@ impl PreparedMeasurementModel {
         if ctx.cancellation.is_cancelled() {
             return Err(refusal_of(&MeasurementError {
                 code: antecedent_core::reason_code!("cancelled_no_claim"),
-                detail: "measurement_model.cancelled",
+                detail: antecedent_core::reason_details::measurement_model::CANCELLED,
                 message: "cancelled before a corrected functional was formed; this is not a verdict on the data"
                     .to_owned(),
             }));
@@ -235,7 +235,8 @@ impl ContinuousMeasurementEstimate {
     pub fn export(&self, _artifact_id: &str) -> Result<Vec<u8>, MeasurementModelRefusal> {
         Err(MeasurementModelRefusal {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "measurement_model.continuous_export".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::CONTINUOUS_EXPORT
+                .to_owned(),
             message: "a continuous measurement-error correction has no artifact layout: its \
                       bootstrap and SIMEX results carry no sufficient inputs an independent \
                       consumer could recompute"

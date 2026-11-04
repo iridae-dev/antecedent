@@ -338,12 +338,16 @@ impl GeneralTemporalExecutor {
         poll(ctx)?;
         if spec.horizon == 0 {
             return Err(invalid(
-                "temporal_counterfactual.invalid_graph",
+                antecedent_core::reason_details::temporal_counterfactual::INVALID_GRAPH,
                 Some("horizon".to_owned()),
             ));
         }
         if spec.latent_confounding {
-            return Err(unsupported("temporal_counterfactual.latent_confounding", None, None));
+            return Err(unsupported(
+                antecedent_core::reason_details::temporal_counterfactual::LATENT_CONFOUNDING,
+                None,
+                None,
+            ));
         }
         let mechs = check_fit(spec.horizon, &spec.fit)?;
         let mut factual: Vec<&GeneralFactualHistory> = spec.factual.iter().collect();

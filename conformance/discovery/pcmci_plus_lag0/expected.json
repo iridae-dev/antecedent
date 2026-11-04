@@ -103,7 +103,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/discovery_pcmci_plus_lag0.rs",
-          "sha256": "577db32a4ef49f050d058a3c8c16c84a4afa2b972aace4b4aeed04f439d07c91"
+          "items": [
+            "fn discovery_pcmci_plus_lag0_edge_equality",
+            "fn fixture_dir",
+            "fn link_key",
+            "fn load_series",
+            "fn name_to_id"
+          ],
+          "sha256": "67ec78cfb3947c87d4ee7e591f2cfe3b2e15000b65132472db3a95b71c36e84f"
         },
         {
           "role": "input_fixture",

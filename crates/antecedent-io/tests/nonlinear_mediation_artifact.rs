@@ -224,7 +224,10 @@ fn mediation_artifact_refuses_changed_data_even_when_resealed() {
     let error = NonlinearMediationArtifact::from_bytes(&resealed_bytes, Some(artifact.identity()))
         .unwrap_err();
     assert!(matches!(error, NonlinearMediationArtifactError::IdentityMismatch { .. }), "{error:?}");
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.wrong_contract");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::WRONG_CONTRACT
+    );
 }
 
 #[test]
@@ -235,7 +238,10 @@ fn mediation_artifact_refuses_a_changed_stored_result() {
     let tampered = encode_parts(&meta, &numbers, "tampered").unwrap();
     let error = NonlinearMediationArtifact::from_bytes(&tampered, None).unwrap_err();
     assert!(matches!(error, NonlinearMediationArtifactError::ResultMismatch(_)), "{error:?}");
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.report_replay_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::REPORT_REPLAY_MISMATCH
+    );
 }
 
 #[test]
@@ -245,7 +251,10 @@ fn mediation_artifact_refuses_changed_premises_and_config() {
     meta.premises.unmeasured_mediator_outcome_confounding = true;
     let tampered = encode_parts(&meta, &numbers, "tampered").unwrap();
     let error = NonlinearMediationArtifact::from_bytes(&tampered, None).unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.confounding");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::CONFOUNDING
+    );
 
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.config.seed = 99;
@@ -267,17 +276,26 @@ fn mediation_artifact_seal_refuses_confounding_and_interventional_estimands() {
             _ => r.premises.unmeasured_mediator_outcome_confounding = true,
         }
         let error = NonlinearMediationArtifact::seal(&r).unwrap_err();
-        assert_eq!(refusal_detail(&error), "nonlinear_mediation.confounding");
+        assert_eq!(
+            refusal_detail(&error),
+            antecedent_core::reason_details::nonlinear_mediation::CONFOUNDING
+        );
         assert_eq!(error.refusal().unwrap().0, "effect_not_identified");
     }
     let mut induced = request(0);
     induced.premises.treatment_induced_mediator_outcome_confounders = vec!["L".into()];
     let error = NonlinearMediationArtifact::seal(&induced).unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.treatment_induced_confounding");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::TREATMENT_INDUCED_CONFOUNDING
+    );
     let mut interventional = request(0);
     interventional.config.estimand = "interventional_effects".into();
     let error = NonlinearMediationArtifact::seal(&interventional).unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.interventional_effects_not_supported");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::INTERVENTIONAL_EFFECTS_NOT_SUPPORTED
+    );
 }
 
 #[test]
@@ -383,11 +401,17 @@ fn exercise_export_and_replay(
     let (code, detail, text) = error.refusal().expect("a registered refusal");
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "nonlinear_mediation.export_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::nonlinear_mediation::EXPORT_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains(&format!("{} bytes", embedded.len())), "{text}");
     let error = artifact.to_bytes_within("scaled", 1_000).unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.export_budget_exceeded");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::EXPORT_BUDGET_EXCEEDED
+    );
     // The refusal costs the caller nothing: the estimate is still complete in memory.
     recovered(artifact);
 
@@ -399,7 +423,10 @@ fn exercise_export_and_replay(
     let identity = artifact.identity();
     let error = NonlinearMediationArtifact::from_bytes_with(&bound, Some(identity), None, &ctx)
         .unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.data_required");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::DATA_REQUIRED
+    );
     let replay = NonlinearMediationArtifact::from_bytes_with(
         &bound,
         Some(identity),
@@ -517,7 +544,10 @@ fn exercise_population(rows: usize, seed: u64, runtime_seconds: u64) {
     // separate bounds on the same estimate.
     let error =
         NonlinearMediationArtifact::seal_with(&request, &context_with_memory(1_000)).unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.memory_budget_exceeded");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::MEMORY_BUDGET_EXCEEDED
+    );
     exercise_export_and_replay(&request, &artifact, &|artifact| {
         assert_population_closed_form(artifact, rows);
     });
@@ -552,7 +582,10 @@ fn mediation_computation_budget_refuses_before_work_and_honours_cancellation() {
         NonlinearMediationArtifact::seal_with(&request, &context_with_memory(1_000)).unwrap_err();
     assert_eq!(
         error.refusal().map(|(code, detail, _)| (code, detail)),
-        Some(("route_not_supported", "nonlinear_mediation.memory_budget_exceeded".into()))
+        Some((
+            "route_not_supported",
+            antecedent_core::reason_details::nonlinear_mediation::MEMORY_BUDGET_EXCEEDED.into()
+        ))
     );
     assert!(
         NonlinearMediationArtifact::seal_with(&request, &context_with_memory(1_000_000)).is_ok()
@@ -565,13 +598,19 @@ fn mediation_computation_budget_refuses_before_work_and_honours_cancellation() {
         &context_with_memory(1_000),
     )
     .unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.memory_budget_exceeded");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::nonlinear_mediation::MEMORY_BUDGET_EXCEEDED
+    );
 
     let cancelled = ExecutionContext::production(0, 1);
     cancelled.cancellation.cancel();
     let error = NonlinearMediationArtifact::seal_with(&request, &cancelled).unwrap_err();
     assert_eq!(
         error.refusal().map(|(code, detail, _)| (code, detail)),
-        Some(("cancelled_no_claim", "nonlinear_mediation.cancelled".into()))
+        Some((
+            "cancelled_no_claim",
+            antecedent_core::reason_details::nonlinear_mediation::CANCELLED.into()
+        ))
     );
 }

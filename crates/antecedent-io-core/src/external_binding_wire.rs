@@ -230,8 +230,12 @@ fn malformed(detail: &'static str, message: &str) -> ExternalBindingRefusalWire 
 fn quantities(wire: &[ScientificQuantityWire]) -> Result<Vec<ScientificQuantity>, RefusalWire> {
     wire.iter()
         .map(|q| {
-            ScientificQuantity::try_from(q.clone())
-                .map_err(|error| malformed("external_response_binding.malformed_quantity", error))
+            ScientificQuantity::try_from(q.clone()).map_err(|error| {
+                malformed(
+                    antecedent_core::reason_details::external_response_binding::MALFORMED_QUANTITY,
+                    error,
+                )
+            })
         })
         .collect()
 }
@@ -243,7 +247,7 @@ pub fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, Refus
     Ok(CheckedCausalContract {
         graph_id: wire.graph_id.clone(),
         identification: IdentificationStatus::from_name(&wire.identification).ok_or_else(|| {
-            malformed("external_response_binding.malformed_identification", &wire.identification)
+            malformed(antecedent_core::reason_details::external_response_binding::MALFORMED_IDENTIFICATION, &wire.identification)
         })?,
         estimand: quantities(&wire.estimand)?,
         accepted_meanings: wire.accepted_meanings.iter().copied().map(Into::into).collect(),
@@ -263,7 +267,7 @@ pub fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, Refus
                     },
                     _ => {
                         return Err(malformed(
-                            "external_response_binding.malformed_equivalence",
+                            antecedent_core::reason_details::external_response_binding::MALFORMED_EQUIVALENCE,
                             "give exactly one of interventional_regime_id or conditioned_treatment",
                         ));
                     }
@@ -316,8 +320,12 @@ pub fn response_from_wire(response: &ResponseWire) -> Result<ExternalResponse, R
 }
 
 fn support_status(label: &str) -> Result<SupportStatus, RefusalWire> {
-    SupportStatus::from_name(label)
-        .ok_or_else(|| malformed("external_response_binding.malformed_support", label))
+    SupportStatus::from_name(label).ok_or_else(|| {
+        malformed(
+            antecedent_core::reason_details::external_response_binding::MALFORMED_SUPPORT,
+            label,
+        )
+    })
 }
 
 /// The declarations every external result shares, borrowed from its wire.
@@ -346,7 +354,7 @@ fn declare(
         .iter()
         .map(|name| {
             capability_from_name(name)
-                .ok_or_else(|| malformed("external_response_binding.malformed_capability", name))
+                .ok_or_else(|| malformed(antecedent_core::reason_details::external_response_binding::MALFORMED_CAPABILITY, name))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let object = ExternalScientificObject::Law(LawProviderContract {
@@ -369,7 +377,7 @@ fn declare(
                 .map(|p| {
                     Ok(VerificationProbe {
                         kind: probe_from_name(&p.kind).ok_or_else(|| {
-                            malformed("external_response_binding.malformed_probe", &p.kind)
+                            malformed(antecedent_core::reason_details::external_response_binding::MALFORMED_PROBE, &p.kind)
                         })?,
                         observed: p.observed,
                         expected: p.expected,
@@ -385,7 +393,7 @@ fn declare(
             .map_err(|e| RefusalWire::from(e.to_refusal()))?,
         (None, None) => {
             return Err(malformed(
-                "external_response_binding.malformed_trust",
+                antecedent_core::reason_details::external_response_binding::MALFORMED_TRUST,
                 "attestor or probes required",
             ));
         }
@@ -459,7 +467,10 @@ pub fn bind_column(
             RefusalWire::from(e.to_refusal(&contract_core, &result))
         })?;
     ExternalColumnClaimArtifact::from_bound_claim(&claim, causal_contract_id).map_err(|error| {
-        malformed("external_response_binding.malformed_artifact", &error.to_string())
+        malformed(
+            antecedent_core::reason_details::external_response_binding::MALFORMED_ARTIFACT,
+            &error.to_string(),
+        )
     })
 }
 
@@ -468,7 +479,10 @@ fn artifact_of(
     causal_contract_id: &str,
 ) -> Result<ExternalClaimArtifact, RefusalWire> {
     ExternalClaimArtifact::from_bound_claim(claim, causal_contract_id).map_err(|error| {
-        malformed("external_response_binding.malformed_artifact", &error.to_string())
+        malformed(
+            antecedent_core::reason_details::external_response_binding::MALFORMED_ARTIFACT,
+            &error.to_string(),
+        )
     })
 }
 
@@ -539,13 +553,24 @@ pub fn native_contract_identity(
     ]);
     let wire: serde_json::Value = if let Some(text) = premises {
         if text.len() > 1_000_000 {
-            return Err(malformed("native_claims.contract_mismatch", "premises exceed bound"));
+            return Err(malformed(
+                antecedent_core::reason_details::native_claims::CONTRACT_MISMATCH,
+                "premises exceed bound",
+            ));
         }
-        serde_json::from_str(text)
-            .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?
+        serde_json::from_str(text).map_err(|error| {
+            malformed(
+                antecedent_core::reason_details::native_claims::CONTRACT_MISMATCH,
+                &error.to_string(),
+            )
+        })?
     } else {
-        serde_json::to_value(default)
-            .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?
+        serde_json::to_value(default).map_err(|error| {
+            malformed(
+                antecedent_core::reason_details::native_claims::CONTRACT_MISMATCH,
+                &error.to_string(),
+            )
+        })?
     };
     if wire.get("graph_id").and_then(serde_json::Value::as_str) != Some(graph)
         || wire.get("identification").and_then(serde_json::Value::as_str) != Some(status)
@@ -554,13 +579,22 @@ pub fn native_contract_identity(
     }
     let mut typed = wire.clone();
     typed["estimand"] = serde_json::json!([]);
-    let _: ContractWire = serde_json::from_value(typed)
-        .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?;
+    let _: ContractWire = serde_json::from_value(typed).map_err(|error| {
+        malformed(
+            antecedent_core::reason_details::native_claims::CONTRACT_MISMATCH,
+            &error.to_string(),
+        )
+    })?;
     if wire.as_object().is_none_or(|object| object.len() != 6) {
         return Ok("invalid:premise_fields".into());
     }
     let digest =
         crate::canonical_json::canonical_json_value_digest(CONTRACT_PREMISES_DOMAIN, &wire)
-            .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?;
+            .map_err(|error| {
+                malformed(
+                    antecedent_core::reason_details::native_claims::CONTRACT_MISMATCH,
+                    &error.to_string(),
+                )
+            })?;
     Ok(format!("contract:{digest}"))
 }

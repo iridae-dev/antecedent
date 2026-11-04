@@ -151,13 +151,21 @@ fn facade_selection_on_the_outcome_refuses_with_a_witness_and_maps_to_a_causal_e
     let error = TransportedCounterfactual::evaluate(&request).unwrap_err();
     let refusal = error.refusal().expect("a structured refusal");
     assert_eq!(refusal.code, "transport_proven_non_transportable");
-    assert_eq!(refusal.detail, "transported_counterfactual.selection_on_mechanism");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+    );
     let witness = refusal.witness.expect("two-model witness");
     close(witness.target_contrast_b - witness.target_contrast_a, 1.5);
     let causal = CausalError::from(error);
     let text = causal.to_string();
     assert!(text.contains("transport_proven_non_transportable"), "{text}");
-    assert!(text.contains("transported_counterfactual.selection_on_mechanism"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+        ),
+        "{text}"
+    );
 }
 
 #[test]
@@ -167,7 +175,10 @@ fn facade_undeclared_premises_refuse_and_default_to_undeclared() {
     let refusal =
         TransportedCounterfactual::evaluate(&request).unwrap_err().refusal().expect("refusal");
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "transported_counterfactual.nonadditive_mechanism");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM
+    );
     assert_eq!(refusal.offending.as_deref(), Some("additive_noise"));
 }
 
@@ -181,7 +192,10 @@ fn facade_the_general_transported_route_has_no_method() {
         &std::collections::BTreeMap::new(),
     )
     .unwrap_err();
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::PREREQUISITE_MISSING
+    );
     assert_eq!(refusal.refusal.code, "transport_missing_evidence");
     assert_eq!(refusal.missing_gates.len(), 3);
 
@@ -196,6 +210,9 @@ fn facade_the_general_transported_route_has_no_method() {
         &std::collections::BTreeMap::new(),
     )
     .unwrap_err();
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.joint_theorem_not_derived");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::JOINT_THEOREM_NOT_DERIVED
+    );
     assert_eq!(refusal.refusal.code, "route_not_supported");
 }

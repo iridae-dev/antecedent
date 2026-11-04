@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError, CausalValueError
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
@@ -173,7 +174,7 @@ def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_unsuppo
         Candidate.load(b"", expected=identity())
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
         "route_not_supported",
-        "temporal_interval.consumer_unavailable",
+        reason_details.temporal_interval.CONSUMER_UNAVAILABLE,
         "inference",
     )
 
@@ -338,7 +339,7 @@ def test_live_original_source_without_optional_hook_keeps_the_protocol_refusal(m
         session.interval_candidate(config=Config(method="studentized"))
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
         "route_not_supported",
-        "temporal_interval.interval_not_supported",
+        reason_details.temporal_interval.INTERVAL_NOT_SUPPORTED,
         "inference",
     )
     assert session.identities == identities

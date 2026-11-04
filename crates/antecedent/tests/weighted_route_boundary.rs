@@ -39,7 +39,10 @@ fn refusal_of(study: Study, data: &TabularData) -> String {
 
 fn assert_weights_refused(error: &str, design: &str) {
     assert!(error.starts_with("reason=option_not_applicable"), "{design}: {error}");
-    assert!(error.contains("sampling_weights.route_unsupported"), "{design}: {error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{design}: {error}"
+    );
 }
 
 fn weighted(data: &TabularData, weights: Vec<f64>) -> TabularData {

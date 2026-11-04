@@ -209,7 +209,7 @@ fn evaluate(
 fn cancelled() -> Refusal {
     Refusal::Refused {
         code: antecedent_core::reason_code!("transport_budget_cancel"),
-        detail: "smoothed_dose_posterior.cancelled".into(),
+        detail: antecedent_core::reason_details::smoothed_dose_posterior::CANCELLED.into(),
         message: "posterior artifact execution cancelled".into(),
     }
 }
@@ -237,7 +237,8 @@ fn exhausted(error: Option<AdmissionError>) -> Refusal {
         Some(AdmissionError::Cancelled) => cancelled(),
         other => Refusal::Refused {
             code: antecedent_core::reason_code!("transport_budget_cancel"),
-            detail: "smoothed_dose_posterior.resource_limit".to_owned(),
+            detail: antecedent_core::reason_details::smoothed_dose_posterior::RESOURCE_LIMIT
+                .to_owned(),
             message: format!(
                 "the retained posterior artifact is not funded by the admission pool{}. Next \
                  attempt: fewer rows or grid doses, or a larger memory limit",
@@ -263,8 +264,13 @@ impl SmoothedDosePosteriorArtifactWire {
         retention: Option<Arc<AdmissionLease>>,
     ) -> Result<Self, Refusal> {
         let undecodable = |e: IoError| Refusal::Undecodable(e.to_string());
-        let certificate = CertificateRecord::from_identification(input.identification)
-            .map_err(|message| invalid("smoothed_dose_posterior.not_certified", message))?;
+        let certificate =
+            CertificateRecord::from_identification(input.identification).map_err(|message| {
+                invalid(
+                    antecedent_core::reason_details::smoothed_dose_posterior::NOT_CERTIFIED,
+                    message,
+                )
+            })?;
         let result = evaluate(input.identification, input.query, input.input, &input.model)?;
         let mut wire = Self {
             version: SMOOTHED_DOSE_POSTERIOR_ARTIFACT_VERSION,
@@ -420,23 +426,38 @@ impl SmoothedDosePosteriorArtifactWire {
             graph,
             self.selections.iter().map(|v| VariableId::from_raw(*v)).collect::<Vec<_>>(),
         )
-        .map_err(|e| invalid("smoothed_dose_posterior.invalid_graph", e.to_string()))?;
+        .map_err(|e| {
+            invalid(
+                antecedent_core::reason_details::smoothed_dose_posterior::INVALID_GRAPH,
+                e.to_string(),
+            )
+        })?;
         let query = self
             .query
             .to_query()
             .map_err(|error| from_estimation(error, "smoothed_dose_posterior"))?;
-        let id = TransportIdentifier::new()
-            .identify(&diagram, &query.transport_query())
-            .map_err(|e| invalid("smoothed_dose_posterior.not_certified", e.to_string()))?;
+        let id = TransportIdentifier::new().identify(&diagram, &query.transport_query()).map_err(
+            |e| {
+                invalid(
+                    antecedent_core::reason_details::smoothed_dose_posterior::NOT_CERTIFIED,
+                    e.to_string(),
+                )
+            },
+        )?;
         match CertificateRecord::from_identification(&id) {
             Ok(record) if record == self.certificate => {}
             Ok(_) => {
                 return Err(invalid(
-                    "smoothed_dose_posterior.certificate_mismatch",
+                    antecedent_core::reason_details::smoothed_dose_posterior::CERTIFICATE_MISMATCH,
                     "the stored certificate differs from the one the graph and query derive",
                 ));
             }
-            Err(message) => return Err(invalid("smoothed_dose_posterior.not_certified", message)),
+            Err(message) => {
+                return Err(invalid(
+                    antecedent_core::reason_details::smoothed_dose_posterior::NOT_CERTIFIED,
+                    message,
+                ));
+            }
         }
         let result = evaluate(&id, &query, &self.input, &self.model)?;
         Ok((result, id))

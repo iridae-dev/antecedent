@@ -20,7 +20,7 @@
 //! not records here: they are properties of the declared model that would sit
 //! on the same key as the gated designs.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

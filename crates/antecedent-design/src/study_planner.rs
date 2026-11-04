@@ -107,7 +107,7 @@ impl StudyPlanError {
     pub(crate) fn arrival_mismatch(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("invalid_argument"),
-            detail: "study_plan.arrival_mismatch",
+            detail: antecedent_core::reason_details::study_plan::ARRIVAL_MISMATCH,
             message: message.into(),
             receipt: None,
         }
@@ -116,7 +116,7 @@ impl StudyPlanError {
     fn arrival_not_identified(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("transport_not_certified"),
-            detail: "study_plan.arrival_not_identified",
+            detail: antecedent_core::reason_details::study_plan::ARRIVAL_NOT_IDENTIFIED,
             message: message.into(),
             receipt: None,
         }
@@ -127,7 +127,7 @@ impl StudyPlanError {
     pub(crate) fn budget(message: impl Into<String>, receipt: Option<SearchReceipt>) -> Self {
         Self {
             code: reason_code!("transport_budget_cancel"),
-            detail: "study_plan.budget",
+            detail: antecedent_core::reason_details::study_plan::BUDGET,
             message: message.into(),
             receipt: receipt.map(Box::new),
         }
@@ -535,13 +535,16 @@ mod tests {
             let mapped = arrival_stop("mz", &error);
             assert_eq!(
                 (mapped.code, mapped.detail),
-                ("transport_budget_cancel", "study_plan.budget")
+                ("transport_budget_cancel", antecedent_core::reason_details::study_plan::BUDGET)
             );
         }
         let mapped = arrival_stop("mixed", &IdentificationError::invalid_input("bad"));
         assert_eq!(
             (mapped.code, mapped.detail),
-            ("transport_not_certified", "study_plan.arrival_not_identified")
+            (
+                "transport_not_certified",
+                antecedent_core::reason_details::study_plan::ARRIVAL_NOT_IDENTIFIED
+            )
         );
     }
 }

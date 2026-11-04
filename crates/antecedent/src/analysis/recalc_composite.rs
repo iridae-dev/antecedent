@@ -67,12 +67,12 @@ impl CompositeError {
     #[must_use]
     pub fn request_reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Request("composite_recalc.request_unsupported") => {
-                Some(antecedent_core::reason_code!("route_not_supported"))
-            }
-            Self::Request("composite_recalc.native_state_mismatch") => {
-                Some(antecedent_core::reason_code!("invalid_argument"))
-            }
+            Self::Request(
+                antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED,
+            ) => Some(antecedent_core::reason_code!("route_not_supported")),
+            Self::Request(
+                antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+            ) => Some(antecedent_core::reason_code!("invalid_argument")),
             Self::Request(detail) => Some(ExternalCallbackError::Request(detail).refusal_code()),
             _ => None,
         }
@@ -125,7 +125,9 @@ impl CompositeSession {
                 .iter()
                 .any(|entry| !matches!(entry.status, StageStatus::Reused { .. }))
         {
-            return Err(CompositeError::Request("composite_recalc.native_state_mismatch"));
+            return Err(CompositeError::Request(
+                antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+            ));
         }
         Ok(Self {
             native,
@@ -158,13 +160,17 @@ impl CompositeSession {
         request: &CompositeRequest,
     ) -> Result<(StageIdentities, RecalcCapabilities), CompositeError> {
         if !decision_bounded(&request.decision_contract) {
-            return Err(CompositeError::Request("composite_recalc.request_unsupported"));
+            return Err(CompositeError::Request(
+                antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED,
+            ));
         }
         request.native_program.validate().map_err(|e| CompositeError::Binding(Box::new(e)))?;
         if request.externals.len() != 2
             || request.externals[0].branch == request.externals[1].branch
         {
-            return Err(CompositeError::Request("composite_recalc.request_unsupported"));
+            return Err(CompositeError::Request(
+                antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED,
+            ));
         }
         let expected_inputs: std::collections::BTreeSet<_> = std::iter::once("native".to_owned())
             .chain(request.externals.iter().map(|e| format!("external.{}", e.branch.index())))
@@ -174,7 +180,9 @@ impl CompositeSession {
             || request.input_order.iter().cloned().collect::<std::collections::BTreeSet<_>>()
                 != expected_inputs
         {
-            return Err(CompositeError::Request("composite_recalc.request_unsupported"));
+            return Err(CompositeError::Request(
+                antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED,
+            ));
         }
         let identity = request
             .decision_contract
@@ -184,14 +192,17 @@ impl CompositeSession {
             .decision_contract
             .source_requirement()
             .map_err(|e| CompositeError::Binding(Box::new(e.to_refusal())))?
-            .ok_or(CompositeError::Request("external_recalc.quantity_unsupported"))?;
+            .ok_or(CompositeError::Request(
+                antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED,
+            ))?;
         if requirement.check(&[SourceRepresentation::Mean]).is_err() {
-            return Err(CompositeError::Request("external_recalc.quantity_unsupported"));
+            return Err(CompositeError::Request(
+                antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED,
+            ));
         }
-        let native_ctx = self
-            .native
-            .producing_context()
-            .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?;
+        let native_ctx = self.native.producing_context().ok_or(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+        ))?;
         let native_plan = self.native.plan(&request.native, native_ctx);
         if matches!(native_plan.status(Stage::Identification), Some(StageStatus::Reused { .. })) {
             checked_native(&self.native, &request.native_program)?;
@@ -202,7 +213,9 @@ impl CompositeSession {
                 .validate(&ExternalMetadataLimits::default())
                 .map_err(|cause| CompositeError::External { branch: external.branch, cause })?;
             if external.program != request.native_program {
-                return Err(CompositeError::Request("external_recalc.contract_mismatch"));
+                return Err(CompositeError::Request(
+                    antecedent_core::reason_details::external_recalc::CONTRACT_MISMATCH,
+                ));
             }
             let empty = ExternalCallbackSession::new();
             let session = self.callbacks.get(&external.branch).unwrap_or(&empty);
@@ -316,11 +329,9 @@ impl CompositeSession {
                     recorder.record(Counter::Decision, 1);
                     Arc::new(decision)
                 } else {
-                    Arc::clone(
-                        self.decision
-                            .as_ref()
-                            .ok_or(CompositeError::Request("external_recalc.output_unavailable"))?,
-                    )
+                    Arc::clone(self.decision.as_ref().ok_or(CompositeError::Request(
+                        antecedent_core::reason_details::external_recalc::OUTPUT_UNAVAILABLE,
+                    ))?)
                 };
             let receipt =
                 recorder.finish(&plan).map_err(|e| CompositeError::Receipt(e.to_string()))?;
@@ -361,27 +372,30 @@ fn checked_native(
     session: &StaticResponseSession,
     program: &ProgramBinding,
 ) -> Result<NativeResponseClaim, CompositeError> {
-    let result = session
-        .result()
-        .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?;
-    let contract = result
-        .executed_contract
-        .as_ref()
-        .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?;
+    let result = session.result().ok_or(CompositeError::Request(
+        antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+    ))?;
+    let contract = result.executed_contract.as_ref().ok_or(CompositeError::Request(
+        antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+    ))?;
     if program.graph_id != format!("graph:{}", contract.identities.identification)
         || program.contract_id
             != antecedent_io::external_binding_wire::native_contract_identity(
                 &program.graph_id,
                 result
                     .response()
-                    .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?
+                    .ok_or(CompositeError::Request(
+                        antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+                    ))?
                     .identification_status
                     .as_str(),
                 None,
             )
             .map_err(|e| CompositeError::Receipt(format!("{e:?}")))?
     {
-        return Err(CompositeError::Request("composite_recalc.native_state_mismatch"));
+        return Err(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+        ));
     }
     let context = NativeResponseContext {
         program: program.clone(),
@@ -390,19 +404,21 @@ fn checked_native(
             "native:seed:{}",
             session
                 .producing_context()
-                .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?
+                .ok_or(CompositeError::Request(
+                    antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH
+                ))?
                 .rng
                 .master_seed()
         ),
         calibration: DistributionCalibration::PointOnly,
     };
     NativeResponseClaim::from_response(
-        result
-            .response()
-            .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?,
-        session
-            .schema()
-            .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?,
+        result.response().ok_or(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+        ))?,
+        session.schema().ok_or(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+        ))?,
         &context,
     )
     .map_err(|e| CompositeError::Binding(Box::new(e)))
@@ -417,16 +433,22 @@ fn decision_inputs(
         .decision_contract
         .source_requirement()
         .map_err(|e| CompositeError::Binding(Box::new(e.to_refusal())))?
-        .ok_or(CompositeError::Request("external_recalc.quantity_unsupported"))?;
+        .ok_or(CompositeError::Request(
+            antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED,
+        ))?;
     let native_input =
         claim.decision_source(&requirement).map_err(|e| CompositeError::Binding(Box::new(e)))?;
     let NativeDecisionSource::Mean(source) = native_input.source else {
-        return Err(CompositeError::Request("external_recalc.quantity_unsupported"));
+        return Err(CompositeError::Request(
+            antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED,
+        ));
     };
     let proof = TrustEvidence::NativeExecution(NativeExecutionRecord {
         execution_id: native
             .producing_receipt()
-            .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?
+            .ok_or(CompositeError::Request(
+                antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+            ))?
             .identity()
             .to_hex(),
         provider_id: source.provider_id.clone(),
@@ -443,14 +465,16 @@ fn decision_inputs(
         .map_err(|e| CompositeError::Binding(Box::new(e.to_refusal())))?,
     ];
     for external in &request.externals {
-        let issued = callbacks[&external.branch]
-            .issued_claim()
-            .ok_or(CompositeError::Request("external_recalc.output_unavailable"))?;
+        let issued = callbacks[&external.branch].issued_claim().ok_or(CompositeError::Request(
+            antecedent_core::reason_details::external_recalc::OUTPUT_UNAVAILABLE,
+        ))?;
         let source = MeanSource {
             coordinates: issued.quantities().to_vec(),
             means: issued
                 .values()
-                .ok_or(CompositeError::Request("external_recalc.invalid_output"))?
+                .ok_or(CompositeError::Request(
+                    antecedent_core::reason_details::external_recalc::INVALID_OUTPUT,
+                ))?
                 .to_vec(),
             provider_id: external.descriptor.identity.provider_id.clone(),
             snapshot_id: external.descriptor.identity.snapshot_id.clone(),
@@ -465,9 +489,9 @@ fn decision_inputs(
             DecisionInput::from_mean_source(
                 &format!("external.{}", external.branch.index()),
                 source,
-                issued
-                    .point_status()
-                    .ok_or(CompositeError::Request("external_recalc.invalid_output"))?,
+                issued.point_status().ok_or(CompositeError::Request(
+                    antecedent_core::reason_details::external_recalc::INVALID_OUTPUT,
+                ))?,
                 &evidence,
                 TrustRequirement::Unrestricted,
             )

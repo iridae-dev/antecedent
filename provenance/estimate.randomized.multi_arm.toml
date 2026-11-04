@@ -36,12 +36,14 @@ record_sha256 = "acbae1ac32d7baf70c1c65b34a33dea9115b908a5b2f87f1495d61420d1ce74
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/multi_arm.rs"
-sha256 = "4d50f206ecf14efce7e27b6b876f42fe635d7ee26756bc482660cd1f854dc979"
+items = ["fn estimate_multi_arm", "struct ArmMean"]
+sha256 = "07bf794b29d1639bb6d7a3abbf2ed1e0301e0220f7494dcdc91adb76365cc77c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs"
-sha256 = "9bb3d9de86777d43221fe3a712fca5e34c9a5ea7dd5bac2392915f74bf40c549"
+items = ["fn close", "fn floats", "fn history_means_and_covariance_match_every_realization", "fn independent_score_contrast_matches_every_realization", "fn multi_arm_matches_every_realization_of_the_assignment", "fn reference", "fn switchback_itt_matches_every_realization_including_unequal_sequences"]
+sha256 = "56bfe01289928809ae72ed7172c81d7683d4038460d411c42f711afbf7c2776d"
 
 [[method_review.artifacts]]
 role = "reference"

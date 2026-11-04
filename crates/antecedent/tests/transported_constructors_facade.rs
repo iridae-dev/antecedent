@@ -374,7 +374,10 @@ fn a_policy_route_refusal_is_the_routes_own_and_a_wrong_coordinate_is_refused() 
     )
     .unwrap_err();
     assert_eq!(refused.code, "transport_missing_evidence");
-    assert_eq!(refused.detail, "transported_policy.selection_diagram_missing");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::transported_policy::SELECTION_DIAGRAM_MISSING
+    );
     assert!(refused.remedy.is_some());
 
     // The value is a plant_b value; stating it for the source plant is refused.
@@ -485,7 +488,10 @@ fn a_time_varying_mechanism_is_refused_by_the_period_route() {
         temporal_policy_response(&request, quantity("value", "plant_a@2027"), PROVIDER, &ctx())
             .unwrap_err();
     assert_eq!(refused.code, "transport_missing_evidence");
-    assert_eq!(refused.detail, "temporal_policy_transport.mechanism_time_varying");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::temporal_policy_transport::MECHANISM_TIME_VARYING
+    );
     assert!(refused.remedy.is_some());
 }
 
@@ -636,7 +642,10 @@ fn adaptive_refusals_are_the_routes_and_a_source_population_coordinate_is_refuse
     )
     .unwrap_err();
     assert_eq!(refused.code, "adaptive_contract_incomplete");
-    assert_eq!(refused.detail, "adaptive_transport.assignment_monitoring_contract_missing");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::adaptive_transport::ASSIGNMENT_MONITORING_CONTRACT_MISSING
+    );
 
     let mut shifted = trial_diagram();
     shifted.mechanisms[1].1 = MechanismStatus::Shifted;
@@ -647,7 +656,10 @@ fn adaptive_refusals_are_the_routes_and_a_source_population_coordinate_is_refuse
         PROVIDER,
     )
     .unwrap_err();
-    assert_eq!(refused.detail, "adaptive_transport.outcome_mechanism_not_invariant");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::adaptive_transport::OUTCOME_MECHANISM_NOT_INVARIANT
+    );
 
     let refused = adaptive_trial_response(
         &base,
@@ -791,7 +803,10 @@ fn a_refused_synthesis_response_leaves_the_ledger_untouched() {
     )
     .unwrap_err();
     assert_eq!(refused.code, "transport_missing_evidence");
-    assert_eq!(refused.detail, "transported_synthesis.transport_variance_undeclared");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::transported_synthesis::TRANSPORT_VARIANCE_UNDECLARED
+    );
     assert!(refused.remedy.is_some());
     assert_eq!(ledger.state_digest(), before);
 
@@ -806,7 +821,10 @@ fn a_refused_synthesis_response_leaves_the_ledger_untouched() {
         PROVIDER,
     )
     .unwrap_err();
-    assert_eq!(refused.detail, "transported_synthesis.target_population_mismatch");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::transported_synthesis::TARGET_POPULATION_MISMATCH
+    );
     assert_eq!(ledger.state_digest(), before);
 }
 
@@ -916,7 +934,7 @@ fn bridge_refusals_are_the_bridges_and_a_native_bridge_is_not_transported() {
     assert_eq!(refused.code, "bridge_assumption_missing");
     assert_eq!(
         refused.detail,
-        "scientific_bridge.transport_premise_contradicted_by_selection_diagram"
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_CONTRADICTED_BY_SELECTION_DIAGRAM
     );
     assert!(refused.remedy.is_some());
 

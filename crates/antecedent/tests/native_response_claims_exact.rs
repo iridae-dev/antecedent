@@ -126,7 +126,10 @@ fn response(with_draws: bool) -> CausalResponse {
         uncertainty,
         support: SupportReport {
             status: SupportStatus::OutsideEmpiricalSupport,
-            query_region: SupportRegion { minima: Arc::from(vec![1.0]), maxima: Arc::from(vec![3.0]) },
+            query_region: SupportRegion {
+                minima: Arc::from(vec![1.0]),
+                maxima: Arc::from(vec![3.0]),
+            },
             diagnostics: vec![],
             warnings: vec![],
             point_status: Some(Arc::from(vec![
@@ -150,8 +153,16 @@ fn contract(with_far: bool) -> DecisionContract {
         utility,
     };
     let mut actions = vec![
-        action("pair", &["1", "2"], UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1))),
-        action("sure", &["1"], UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(4.0))),
+        action(
+            "pair",
+            &["1", "2"],
+            UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        ),
+        action(
+            "sure",
+            &["1"],
+            UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(4.0)),
+        ),
     ];
     if with_far {
         actions.push(action("far", &["3"], UtilityExpr::Input(0)));
@@ -187,7 +198,10 @@ fn retained_draws_give_the_hand_derived_aligned_expected_utilities_and_probabili
         panic!("a nonlinear utility needs the joint law");
     };
     assert_eq!(artifact.shape(), [4, 3]);
-    assert_eq!(artifact.draws(), &[2.0, 8.0, 10.0, 4.0, 2.0, 0.0, 6.0, 6.0, 10.0, 8.0, 4.0, 0.0][..]);
+    assert_eq!(
+        artifact.draws(),
+        &[2.0, 8.0, 10.0, 4.0, 2.0, 0.0, 6.0, 6.0, 10.0, 8.0, 4.0, 0.0][..]
+    );
 
     let result = evaluate_contract(&two, artifact).unwrap();
     assert!(near(result.actions[0].expected_utility, 23.0));
@@ -206,11 +220,12 @@ fn retained_draws_give_the_hand_derived_aligned_expected_utilities_and_probabili
 
 #[test]
 fn a_mean_only_claim_cannot_answer_the_nonlinear_utility() {
-    let claim = NativeResponseClaim::from_response(&response(false), &schema(), &context()).unwrap();
+    let claim =
+        NativeResponseClaim::from_response(&response(false), &schema(), &context()).unwrap();
     assert!(!claim.has_joint_law());
     let requirement = contract(false).source_requirement().unwrap().unwrap();
     let refusal = claim.decision_source(&requirement).unwrap_err();
-    assert_eq!(refusal.detail, "native_claims.source_not_supplied");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::native_claims::SOURCE_NOT_SUPPLIED);
     assert_eq!(refusal.supplied.as_deref(), Some("mean"));
 }
 
@@ -230,9 +245,13 @@ fn the_claims_support_labels_decide_which_action_the_composed_decision_scores() 
         provider_id: "native:antecedent".into(),
         snapshot_id: "snap-1".into(),
     });
-    let composed =
-        DecisionInput::from_distribution_artifact("native", &artifact, &evidence, TrustRequirement::Native)
-            .unwrap();
+    let composed = DecisionInput::from_distribution_artifact(
+        "native",
+        &artifact,
+        &evidence,
+        TrustRequirement::Native,
+    )
+    .unwrap();
     let decision =
         evaluate_with_support(&three, &[composed], &SupportPolicy::compare_supported()).unwrap();
     let scored: Vec<(&str, f64)> =

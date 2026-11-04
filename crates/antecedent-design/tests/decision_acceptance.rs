@@ -698,7 +698,10 @@ fn negative_mean_only_source_cannot_answer_quantile_or_threshold_probability() {
         let refusal = error.to_refusal();
         assert_eq!(refusal.code, "decision_contract_unsatisfied");
         assert_eq!(refusal.stage, "evaluate");
-        assert_eq!(refusal.detail, "decision_evaluation.mean_source_insufficient");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT
+        );
         assert_eq!(refusal.supplied.as_deref(), Some("mean"));
         assert!(refusal.remedy.is_some());
     }
@@ -743,7 +746,10 @@ fn negative_independent_marginals_cannot_answer_a_nonlinear_joint_utility() {
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "joint_law_required");
     assert_eq!(refusal.stage, "evaluate");
-    assert_eq!(refusal.detail, "decision_evaluation.joint_law_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED
+    );
     assert_eq!(refusal.offending.as_deref(), Some("Y1Y2"));
     assert_eq!(refusal.expected.as_deref(), Some("joint"));
     assert_eq!(refusal.supplied.as_deref(), Some("independent_marginals"));
@@ -920,7 +926,10 @@ fn negative_bayes_over_structures_refuses_without_atom_probabilities() {
     assert_eq!(error.reason_code(), "decision_contract_unsatisfied");
     let refusal = error.to_refusal();
     assert_eq!(refusal.stage, "structural");
-    assert_eq!(refusal.detail, "decision_structural.probabilities_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_structural::PROBABILITIES_REQUIRED
+    );
     assert!(refusal.remedy.is_some());
 
     // Probabilities for some atoms only are not genuine probabilities either.

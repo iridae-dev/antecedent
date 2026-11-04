@@ -689,7 +689,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/binary_iv_lp_oracle.rs",
-          "sha256": "17e76feee1a8f9f09105eb4701aea3abd8ff43ec95d12b56228003272e8e9e4e"
+          "items": [
+            "fn law_of",
+            "fn matches_independent_linear_program_cases"
+          ],
+          "sha256": "542092fe52bb8883c9a228e5e816050035d7490ce9f63550c21308ad312c46b6"
         }
       ],
       "fixture_payload_sha256": "9be09fec84e3861b13fe04be3dd207ef4c394173e7ec4efb155aa834d1e19477"

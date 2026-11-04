@@ -36,7 +36,10 @@ fn refusal_of(error: &antecedent_io::IoError) -> ObservationQueryRefusal {
     };
     let (detail, text) = match message.split_once(": ") {
         Some((d, t)) if d.contains('.') && !d.contains(' ') => (d.to_owned(), t.to_owned()),
-        _ => ("observation_query.count_fitted_refused".to_owned(), message),
+        _ => (
+            antecedent_core::reason_details::observation_query::COUNT_FITTED_REFUSED.to_owned(),
+            message,
+        ),
     };
     ObservationQueryRefusal {
         refusals: vec![ExternalRefusal::new(code, "observe", detail).with_offending(text)],

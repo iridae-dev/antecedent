@@ -14,6 +14,7 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.inverse import (
     Action,
@@ -274,7 +275,7 @@ def test_action_and_forward_row_order_and_cost_ties_never_change_a_result():
 def test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constraint():
     _refused(
         "inverse_functional_unsupported",
-        "inverse.probability_target",
+        reason_details.inverse.PROBABILITY_TARGET,
         lambda: inverse_outcome(_forward(), query=ChanceConstraint(3.0, 0.9), actions=_actions()),
     )
 
@@ -282,7 +283,7 @@ def test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constrai
 def test_a_quantile_target_is_refused_until_the_interventional_distribution_cell():
     _refused(
         "inverse_functional_unsupported",
-        "inverse.quantile_target",
+        reason_details.inverse.QUANTILE_TARGET,
         lambda: inverse_outcome(_forward(), query=TargetQuantile(0.9, 3.0), actions=_actions()),
     )
 
@@ -290,7 +291,7 @@ def test_a_quantile_target_is_refused_until_the_interventional_distribution_cell
 def test_observational_scenarios_are_refused_not_turned_into_an_action():
     _refused(
         "inverse_functional_unsupported",
-        "inverse.observational_scenarios",
+        reason_details.inverse.OBSERVATIONAL_SCENARIOS,
         lambda: inverse_outcome(_forward(), query=ObservationalScenarios(), actions=_actions()),
     )
 
@@ -298,7 +299,7 @@ def test_observational_scenarios_are_refused_not_turned_into_an_action():
 def test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused():
     _refused(
         "route_not_supported",
-        "inverse.forward_not_point_identified",
+        reason_details.inverse.FORWARD_NOT_POINT_IDENTIFIED,
         lambda: inverse_outcome(
             _forward(status="PartiallyIdentified"), query=TargetMean(3.0), actions=_actions()
         ),
@@ -306,7 +307,7 @@ def test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused():
     derivative = _forward(estimand=AverageDerivative("t", "y"))
     _refused(
         "route_not_supported",
-        "inverse.forward_not_mean_response",
+        reason_details.inverse.FORWARD_NOT_MEAN_RESPONSE,
         lambda: inverse_outcome(derivative, query=TargetMean(3.0), actions=_actions()),
     )
     with pytest.raises(CausalTypeError):
@@ -417,7 +418,7 @@ def test_forward_claim_and_snapshot_identity_are_bound_and_unsupported_input_ref
     )
     _refused(
         "not_supported",
-        "inverse.forward_not_supported",
+        reason_details.inverse.FORWARD_NOT_SUPPORTED,
         lambda: inverse_outcome(
             forward.model_copy(update={"evidence_status": "not_supported"}),
             query=TargetMean(3.0),
@@ -576,7 +577,7 @@ def test_verify_recomputes_the_report_and_detects_an_edited_one():
     cancel.cancel()
     _refused(
         "transport_budget_cancel",
-        "inverse.cancelled",
+        reason_details.inverse.CANCELLED,
         lambda: inverse_outcome(
             _forward(),
             query=TargetMean(3.0),

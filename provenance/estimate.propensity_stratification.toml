@@ -40,12 +40,14 @@ record_sha256 = "441744184bce0d31eb0d406b4981921a74bae1fa262a41cfffcbc19c2849fa2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/stratification.rs"
-sha256 = "00d92f0432726d49588606182866ed14b6db9adca7dd05e76c2062866f4409e2"
+items = ["fn assign_strata", "fn attach_bootstrap", "fn bootstrap_se", "fn checked_strata", "fn clusters", "fn default", "fn fit", "fn fit_point", "fn new", "fn prepare", "fn regression_stratified_ate", "fn replicate_ate", "fn stratified_ate", "fn variance_of_mean", "fn with_n_strata", "fn with_overlap", "fn with_sampling_weights", "struct ArmCell", "struct PropensityStratification", "struct StratificationReplicate", "struct StratifiedResult"]
+sha256 = "79408bced661041a21941870ff5b7ab2a31ffe1d43587b7352e5cb450b0ed2b4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/stratification_reference.rs"
-sha256 = "a999b76bd6532b0fe69ee84045d0eac96ddab8a281899b37ace36b6b2cfa3306"
+items = ["fn cases", "fn close", "fn floats", "fn pooled_effect_and_standard_error_match_the_reference"]
+sha256 = "8d696d5fbaec9cf7df2ec8063ac08a0cbe6d9db72e3dbd265f725797992a8e1c"
 
 [[method_review.artifacts]]
 role = "reference"

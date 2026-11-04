@@ -188,6 +188,96 @@ class RecordTests(Fixture):
         self.assertEqual(sr.locate(self.root, row)["selector"], "tests/test_a.py::test_a")
 
 
+class ExecutionCaptureTests(Fixture):
+    def fake_export(self, *rels, covered=1):
+        return {
+            "data": [
+                {
+                    "files": [
+                        {"filename": str(self.root / r), "summary": {"lines": {"covered": covered}}}
+                        for r in rels
+                    ]
+                }
+            ]
+        }
+
+    def test_export_keeps_covered_crate_sources_only(self):
+        export = self.fake_export("crates/top/src/lib.rs", "crates/top/tests/t.rs", "crates/leaf/src/lib.rs")
+        export["data"][0]["files"].append(
+            {"filename": "/home/u/.cargo/registry/serde/src/lib.rs", "summary": {"lines": {"covered": 9}}}
+        )
+        export["data"][0]["files"].append(
+            {"filename": str(self.root / "crates/mid/src/lib.rs"), "summary": {"lines": {"covered": 0}}}
+        )
+        self.assertEqual(sr.executed_files(export, self.root), ["crates/leaf/src/lib.rs", "crates/top/src/lib.rs"])
+
+    def test_capture_command_names_one_exact_libtest_case(self):
+        info = sr.locate(self.root, self.row("top"))
+        cmd = sr.capture_command(self.root, info, Path("out.json"))
+        self.assertEqual(cmd[:2], ["cargo", "llvm-cov"])
+        self.assertIn("--test", cmd)
+        self.assertEqual(cmd[cmd.index("--exact") + 1], "check_top")
+
+    def run_capture(self, rels, passed=True):
+        import json
+        import subprocess
+
+        def fake(cmd, **kwargs):
+            out = Path(cmd[cmd.index("--output-path") + 1])
+            if passed:
+                out.write_text(json.dumps(self.fake_export(*rels)), encoding="utf-8")
+            text = "test result: ok. 1 passed; 0 failed" if passed else "test result: FAILED"
+            return subprocess.CompletedProcess(cmd, 0 if passed else 101, text, "")
+
+        return sr.capture_one(self.root, sr.locate(self.root, self.row("top")), fake)
+
+    def test_a_failing_test_is_not_captured(self):
+        self.assertIsNone(self.run_capture(["crates/top/src/lib.rs"], passed=False))
+
+    def captured_item(self, fp, row):
+        executed = self.run_capture(["crates/top/src/lib.rs"])
+        info = sr.locate(self.root, row)
+        return {
+            **row,
+            "selector": info["selector"],
+            "executed": executed,
+            "capture_test": fp.test_digest(row),
+            "fingerprint": fp.fingerprint(row, executed),
+        }
+
+    def test_a_captured_row_ignores_crates_it_never_ran_and_follows_the_ones_it_did(self):
+        fp = sr.Fingerprinter(self.root, self.metadata, "")
+        row = self.row("top")
+        sr.write_records(self.root, {})
+        item = self.captured_item(fp, row)
+        sr.record_passes(self.root, [item])
+        owed, current = sr.classify(self.root, [row], fp)
+        self.assertEqual((len(owed), len(current)), (0, 1))
+        self.write("crates/leaf/src/lib.rs", "pub fn leaf() -> u8 { 9 }\n")  # in the closure, never executed
+        owed, current = sr.classify(self.root, [row], sr.Fingerprinter(self.root, self.metadata, ""))
+        self.assertEqual(len(current), 1)
+        self.write("crates/top/src/lib.rs", "pub fn top() -> u8 { 9 }\n")  # executed
+        owed, current = sr.classify(self.root, [row], sr.Fingerprinter(self.root, self.metadata, ""))
+        self.assertEqual(len(owed), 1)
+
+    def test_a_test_edit_voids_the_capture_and_falls_back_to_the_closure(self):
+        fp = sr.Fingerprinter(self.root, self.metadata, "")
+        row = self.row("top")
+        sr.record_passes(self.root, [self.captured_item(fp, row)])
+        self.write("crates/top/tests/t.rs", "#[test]\nfn check_top() { let _ = 1; }\n")
+        fp2 = sr.Fingerprinter(self.root, self.metadata, "")
+        self.assertIsNone(sr.valid_capture(sr.load_records(self.root)[sr.locate(self.root, row)["selector"]], fp2, row))
+        owed, _ = sr.classify(self.root, [row], fp2)
+        self.assertEqual(owed[0]["fingerprint"], fp2.fingerprint(row))
+
+    def test_a_row_without_a_capture_keeps_the_closure_fingerprint(self):
+        fp = sr.Fingerprinter(self.root, self.metadata, "")
+        row = self.row("top")
+        owed, _ = sr.classify(self.root, [row], fp)
+        self.assertEqual(owed[0]["fingerprint"], fp.fingerprint(row))
+        self.assertNotEqual(fp.fingerprint(row), fp.fingerprint(row, ["crates/top/src/lib.rs"]))
+
+
 class OneScientificEntryPoint(unittest.TestCase):
     """Scientific assertions run in one place; the lanes and gates do not duplicate it."""
 

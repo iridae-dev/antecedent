@@ -689,7 +689,7 @@ pub fn bridge_draws(
     let Some((column, quantity)) = column else {
         return Err(refusal_from_text(
             antecedent_core::reason_code!("bridge_binding_mismatch"),
-            "scientific_bridge.quantity_mismatch",
+            antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH,
             contract.source.quantity.canonical_identity(),
             identity
                 .quantities

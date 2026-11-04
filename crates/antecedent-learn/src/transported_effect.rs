@@ -171,7 +171,7 @@ impl TransportedRequest {
         match self {
             Self::Interval => TransportRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
-                "transported_effect.interval_not_supported",
+                antecedent_core::reason_details::transported_effect::INTERVAL_NOT_SUPPORTED,
                 "interval",
                 "none available: the transported value is point-only under a declared premise; \
                  an interval needs a variance that includes the transport step and the support \
@@ -179,7 +179,7 @@ impl TransportedRequest {
             ),
             Self::Law => TransportRefusal::new(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                "transported_effect.law_not_supplied",
+                antecedent_core::reason_details::transported_effect::LAW_NOT_SUPPLIED,
                 "law",
                 "a transported mean of conditional contrasts is one expectation; supply aligned \
                  outcome draws under a declared transport model for a probability, quantile or \
@@ -277,36 +277,60 @@ impl TargetCohort {
             "declare a target cohort with named finite feature rows and normalized weights";
         let rows = self.weights.len();
         if self.population_id.trim().is_empty() {
-            return Err(invalid("transported_effect.cohort_invalid", "population", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::transported_effect::COHORT_INVALID,
+                "population",
+                remedy,
+            ));
         }
         if rows == 0 {
-            return Err(invalid("transported_effect.cohort_invalid", "rows", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::transported_effect::COHORT_INVALID,
+                "rows",
+                remedy,
+            ));
         }
         if self.features.is_empty()
             || self.features.iter().any(|f| f.trim().is_empty())
             || self.features.iter().collect::<BTreeSet<_>>().len() != self.features.len()
             || self.columns.len() != self.features.len()
         {
-            return Err(invalid("transported_effect.cohort_invalid", "features", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::transported_effect::COHORT_INVALID,
+                "features",
+                remedy,
+            ));
         }
         if self.row_ids.len() != rows
             || self.row_ids.iter().any(|id| id.trim().is_empty())
             || self.row_ids.iter().collect::<BTreeSet<_>>().len() != rows
         {
-            return Err(invalid("transported_effect.cohort_invalid", "row_ids", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::transported_effect::COHORT_INVALID,
+                "row_ids",
+                remedy,
+            ));
         }
         for (name, column) in self.features.iter().zip(&self.columns) {
             if column.len() != rows || column.iter().any(|v| !v.is_finite()) {
-                return Err(invalid("transported_effect.cohort_invalid", name.clone(), remedy));
+                return Err(invalid(
+                    antecedent_core::reason_details::transported_effect::COHORT_INVALID,
+                    name.clone(),
+                    remedy,
+                ));
             }
         }
         if self.weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
-            return Err(invalid("transported_effect.weights_invalid", "weights", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::transported_effect::WEIGHTS_INVALID,
+                "weights",
+                remedy,
+            ));
         }
         let total = Self::total(self.weights.iter().copied());
         if (total - 1.0).abs() > TRANSPORT_WEIGHT_SUM_TOLERANCE {
             return Err(invalid(
-                "transported_effect.weights_not_normalized",
+                antecedent_core::reason_details::transported_effect::WEIGHTS_NOT_NORMALIZED,
                 format!("sum={total}"),
                 "normalize the weights to sum to one",
             ));
@@ -396,7 +420,7 @@ pub fn assess_overlap(
         || columns.iter().any(|c| c.len() != rows)
     {
         return Err(schema_mismatch(
-            "transported_effect.feature_schema_mismatch",
+            antecedent_core::reason_details::transported_effect::FEATURE_SCHEMA_MISMATCH,
             "support",
             "supply exactly the model's named features, one finite column each",
         ));
@@ -522,7 +546,7 @@ fn check_declaration(
     if model_population == cohort_population {
         return Err(TransportRefusal::new(
             antecedent_core::reason_code!("quantity_semantics_mismatch"),
-            "transported_effect.population_not_different",
+            antecedent_core::reason_details::transported_effect::POPULATION_NOT_DIFFERENT,
             cohort_population.to_owned(),
             "the cohort is declared to be the model's population: decide it as a \
              within-population cohort, with no shift declaration",
@@ -531,7 +555,7 @@ fn check_declaration(
     let Some(declared) = shift else {
         return Err(TransportRefusal::new(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "transported_effect.shift_declaration_required",
+            antecedent_core::reason_details::transported_effect::SHIFT_DECLARATION_REQUIRED,
             format!("model={model_population} cohort={cohort_population}"),
             "declare the selection shift: source and target population, the selection node, \
              the variables it points into and the effect modifiers (the model's features) \
@@ -544,7 +568,7 @@ fn check_declaration(
         || declared.selection_children.is_empty()
     {
         return Err(invalid(
-            "transported_effect.declaration_invalid",
+            antecedent_core::reason_details::transported_effect::DECLARATION_INVALID,
             "selection_node_or_children",
             "name the populations, the selection node and the variables it points into",
         ));
@@ -553,7 +577,7 @@ fn check_declaration(
         || declared.target_population != cohort_population
     {
         return Err(not_certified(
-            "transported_effect.shift_declaration_mismatch",
+            antecedent_core::reason_details::transported_effect::SHIFT_DECLARATION_MISMATCH,
             format!("model={model_population} cohort={cohort_population}"),
             "the declaration must name the model's population as source and the cohort's \
              population as target",
@@ -562,7 +586,7 @@ fn check_declaration(
     let modifiers: BTreeSet<&String> = declared.effect_modifiers.iter().collect();
     if let Some(escaping) = declared.selection_children.iter().find(|c| !modifiers.contains(c)) {
         return Err(not_certified(
-            "transported_effect.selection_enters_mechanism",
+            antecedent_core::reason_details::transported_effect::SELECTION_ENTERS_MECHANISM,
             escaping.clone(),
             "the selection node may point only into declared effect modifiers; a selection \
              arrow into the outcome or any other mechanism breaks the invariance premise",
@@ -573,7 +597,7 @@ fn check_declaration(
     features.dedup();
     if declared.effect_modifiers != features {
         return Err(not_certified(
-            "transported_effect.modifier_set_mismatch",
+            antecedent_core::reason_details::transported_effect::MODIFIER_SET_MISMATCH,
             format!(
                 "declared={} model={}",
                 declared.effect_modifiers.join(","),
@@ -595,14 +619,14 @@ fn check_model(
 ) -> Result<(), TransportRefusal> {
     if model_identity.trim().is_empty() || model_population.trim().is_empty() {
         return Err(invalid(
-            "transported_effect.model_invalid",
+            antecedent_core::reason_details::transported_effect::MODEL_INVALID,
             "identity_or_population",
             "name the retained model and the population it was fitted for",
         ));
     }
     effect.validate().map_err(|_| {
         invalid(
-            "transported_effect.model_invalid",
+            antecedent_core::reason_details::transported_effect::MODEL_INVALID,
             "fitted_effect",
             "refit; the retained payload does not validate",
         )
@@ -611,7 +635,7 @@ fn check_model(
         || feature_names.iter().any(|f| f.trim().is_empty())
     {
         return Err(invalid(
-            "transported_effect.model_invalid",
+            antecedent_core::reason_details::transported_effect::MODEL_INVALID,
             "feature_names",
             "name every retained feature",
         ));
@@ -620,7 +644,7 @@ fn check_model(
         let distinct: BTreeSet<&String> = feature_names.iter().collect();
         if distinct.len() != feature_names.len() {
             return Err(invalid(
-                "transported_effect.model_invalid",
+                antecedent_core::reason_details::transported_effect::MODEL_INVALID,
                 "duplicate_feature_names",
                 "name each retained feature once; a repeated name would feed one cohort column to two model features",
             ));
@@ -633,7 +657,7 @@ fn check_model(
     if !identity_link {
         return Err(TransportRefusal::new(
             antecedent_core::reason_code!("quantity_semantics_mismatch"),
-            "transported_effect.link_not_identity",
+            antecedent_core::reason_details::transported_effect::LINK_NOT_IDENTITY,
             "predictor",
             "a probability-scale predictor is not a treatment contrast; the cohort mean needs \
              the identity-scale CATE map",
@@ -665,7 +689,7 @@ pub fn transport_cohort_effect(
     check_model(effect, feature_names, model_identity, model_population)?;
     let Some(support) = &effect.support else {
         return Err(invalid_input(
-            "transported_effect.support_contract_absent",
+            antecedent_core::reason_details::transported_effect::SUPPORT_CONTRACT_ABSENT,
             "fitted_effect.support",
             "refit with a producer that retains the fitted-row support contract; overlap \
              cannot be checked without it",
@@ -677,7 +701,7 @@ pub fn transport_cohort_effect(
         let difference: Vec<String> =
             expected.symmetric_difference(&supplied).map(|s| (*s).clone()).collect();
         return Err(schema_mismatch(
-            "transported_effect.feature_schema_mismatch",
+            antecedent_core::reason_details::transported_effect::FEATURE_SCHEMA_MISMATCH,
             difference.join(","),
             "supply exactly the model's named features: none missing and none extra",
         ));
@@ -694,7 +718,7 @@ pub fn transport_cohort_effect(
     let overlap = assess_overlap(support, feature_names, &ordered, &cohort.weights)?;
     if let Some(feature) = overlap.features.iter().find(|f| f.disjoint) {
         return Err(support_failure(
-            "transported_effect.no_overlap",
+            antecedent_core::reason_details::transported_effect::NO_OVERLAP,
             format!(
                 "feature={} target=[{},{}] fitted=[{},{}]",
                 feature.feature,
@@ -709,7 +733,7 @@ pub fn transport_cohort_effect(
     }
     if let (Some(row), Some(feature)) = (overlap.first_row, overlap.first_feature) {
         return Err(support_failure(
-            "transported_effect.out_of_support",
+            antecedent_core::reason_details::transported_effect::OUT_OF_SUPPORT,
             format!(
                 "row={} feature={} rows_outside={}",
                 cohort.row_ids[row], feature_names[feature], overlap.rows_outside
@@ -723,7 +747,7 @@ pub fn transport_cohort_effect(
     let row_contrasts =
         effect.predict(&ids, &ordered, cohort.weights.len(), ctx).map_err(|error| {
             invalid_input(
-                "transported_effect.prediction_refused",
+                antecedent_core::reason_details::transported_effect::PREDICTION_REFUSED,
                 error.to_string(),
                 "the retained model could not predict at these rows; check the cohort features",
             )
@@ -732,7 +756,7 @@ pub fn transport_cohort_effect(
         TargetCohort::total(row_contrasts.iter().zip(&cohort.weights).map(|(v, w)| v * w));
     if !mean_contrast.is_finite() {
         return Err(invalid_input(
-            "transported_effect.non_finite_result",
+            antecedent_core::reason_details::transported_effect::NON_FINITE_RESULT,
             "mean_contrast",
             "the cohort mean is not finite; check the model and the cohort",
         ));
@@ -838,7 +862,10 @@ mod tests {
         let c = cohort(vec![0.5], vec![1.0]);
         let refusal = run(&model(true), &c, None).unwrap_err();
         assert_eq!(refusal.code, "transport_missing_evidence");
-        assert_eq!(refusal.detail, "transported_effect.shift_declaration_required");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::SHIFT_DECLARATION_REQUIRED
+        );
     }
 
     #[test]
@@ -848,7 +875,10 @@ mod tests {
             SelectionShiftDeclaration::new("clinic_a", "clinic_b", "S", &["z", "y"], &["z", "w"]);
         let refusal = run(&model(true), &c, Some(&bad)).unwrap_err();
         assert_eq!(refusal.code, "transport_not_certified");
-        assert_eq!(refusal.detail, "transported_effect.selection_enters_mechanism");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::SELECTION_ENTERS_MECHANISM
+        );
         assert_eq!(refusal.subject, "y");
     }
 
@@ -857,7 +887,10 @@ mod tests {
         let c = cohort(vec![0.5], vec![1.0]);
         let bad = SelectionShiftDeclaration::new("clinic_a", "clinic_b", "S", &["z"], &["z"]);
         let refusal = run(&model(true), &c, Some(&bad)).unwrap_err();
-        assert_eq!(refusal.detail, "transported_effect.modifier_set_mismatch");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::MODIFIER_SET_MISMATCH
+        );
     }
 
     #[test]
@@ -865,7 +898,10 @@ mod tests {
         let c = cohort(vec![0.5], vec![1.0]);
         let bad = SelectionShiftDeclaration::new("clinic_a", "clinic_c", "S", &["z"], &["z", "w"]);
         let refusal = run(&model(true), &c, Some(&bad)).unwrap_err();
-        assert_eq!(refusal.detail, "transported_effect.shift_declaration_mismatch");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::SHIFT_DECLARATION_MISMATCH
+        );
     }
 
     #[test]
@@ -873,7 +909,10 @@ mod tests {
         let mut c = cohort(vec![0.5], vec![1.0]);
         c.population_id = "clinic_a".into();
         let refusal = run(&model(true), &c, Some(&declaration())).unwrap_err();
-        assert_eq!(refusal.detail, "transported_effect.population_not_different");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::POPULATION_NOT_DIFFERENT
+        );
     }
 
     #[test]
@@ -881,7 +920,7 @@ mod tests {
         let c = cohort(vec![2.0, 3.0], vec![1.0, 1.0]);
         let refusal = run(&model(true), &c, Some(&declaration())).unwrap_err();
         assert_eq!(refusal.code, "transport_support_failure");
-        assert_eq!(refusal.detail, "transported_effect.no_overlap");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::transported_effect::NO_OVERLAP);
         assert!(refusal.subject.starts_with("feature=z"));
     }
 
@@ -889,7 +928,10 @@ mod tests {
     fn partial_overlap_names_the_first_row_outside() {
         let c = cohort(vec![0.5, 1.5], vec![1.0, 1.0]);
         let refusal = run(&model(true), &c, Some(&declaration())).unwrap_err();
-        assert_eq!(refusal.detail, "transported_effect.out_of_support");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::OUT_OF_SUPPORT
+        );
         assert_eq!(refusal.subject, "row=r1 feature=z rows_outside=1");
     }
 
@@ -932,7 +974,10 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(refusal.code, "invalid_argument");
-        assert_eq!(refusal.detail, "transported_effect.model_invalid");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::MODEL_INVALID
+        );
         assert_eq!(refusal.subject, "duplicate_feature_names");
     }
 
@@ -940,7 +985,10 @@ mod tests {
     fn absent_support_contract_refuses() {
         let c = cohort(vec![0.5], vec![1.0]);
         let refusal = run(&model(false), &c, Some(&declaration())).unwrap_err();
-        assert_eq!(refusal.detail, "transported_effect.support_contract_absent");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::SUPPORT_CONTRACT_ABSENT
+        );
     }
 
     #[test]
@@ -948,7 +996,10 @@ mod tests {
         let c = cohort(vec![0.5], vec![1.0]);
         let value = run(&model(true), &c, Some(&declaration())).unwrap();
         assert_eq!(value.interval_refusal().code, "route_not_supported");
-        assert_eq!(value.interval_refusal().detail, "transported_effect.interval_not_supported");
+        assert_eq!(
+            value.interval_refusal().detail,
+            antecedent_core::reason_details::transported_effect::INTERVAL_NOT_SUPPORTED
+        );
         assert_eq!(value.law_refusal().code, "decision_contract_unsatisfied");
     }
 

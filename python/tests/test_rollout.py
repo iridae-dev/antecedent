@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
 from antecedent import decision
 from antecedent import design as dr
@@ -157,7 +158,11 @@ def test_rollout_unsupported_state_meaning_support_weighting_and_missing_source_
     with pytest.raises(CausalValueError, match="state_interpretation_mismatch"):
         require_success(terminal().derive_rollout(source, quantity(), ranked))
     for source, error, code in [
-        (law(weights=(0.5, 0.5)), CausalValueError, "rollout.unweighted_joint_state_required"),
+        (
+            law(weights=(0.5, 0.5)),
+            CausalValueError,
+            reason_details.rollout.UNWEIGHTED_JOINT_STATE_REQUIRED,
+        ),
         (
             law(supported=(False, True)),
             CausalSerializationError,

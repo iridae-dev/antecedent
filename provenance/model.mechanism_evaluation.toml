@@ -36,9 +36,11 @@ record_sha256 = "2858d34510c9ec1bd52e79ea64a6778afdd8956fe3253dba9465fce81f6f47d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/evaluate.rs"
-sha256 = "c562f4943a57442bcb65eef2f8d43398238e7f4b3f71447aff1a1ec3cc2b5466"
+items = ["fn add", "fn ci_pvalues", "fn default", "fn evaluate", "fn falsified_bonferroni", "fn local_markov_others", "fn local_markov_tests", "fn mean", "fn mean_loglik", "fn node_loglik", "fn node_terms", "fn parent_matrix", "fn permutation_baseline", "fn residual_independence_tests", "fn residual_summary", "struct ModelEvaluationReport", "struct ModelEvaluator", "struct NodeLoglik", "type ResidualByNode"]
+sha256 = "c15d94b486744b98fecbdf7d9a0c3c136429bd25bfda9138a10aad2867ae52d8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/linear_gaussian_evaluation_reference.rs"
-sha256 = "78d1d8240f7eff9a91bbf75171117cf961075aa8a2f196ad8f003c09f4eb63b4"
+items = ["const COL0", "const COL1", "const COL2", "const COL3", "const COL4", "const EDGES", "const INTERCEPT", "const LOCAL_MARKOV_P", "const MEAN_ABS_RESIDUAL", "const MEAN_LOGLIK", "const N", "const RESIDUAL_P", "const SIGMA", "fn a_permutation_baseline_is_a_mean_over_shuffles_of_the_last_node_only", "fn assert_close", "fn data", "fn id", "fn is_descendant", "fn is_parent", "fn model", "fn sorted", "fn the_report_matches_the_high_precision_evaluation", "fn too_few_rows_for_the_conditioning_set_is_an_error_not_a_verdict"]
+sha256 = "6737a38f32be4339382f895dd38020b2b49c90948c410d2d291673475db228d7"

@@ -258,7 +258,10 @@ fn designs_without_a_weighted_contrast_refuse_the_weights() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
     let error = prepared.estimate(&data, &ctx()).unwrap_err().to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
     assert!(error.starts_with("reason=option_not_applicable"), "{error}");
 }
 
@@ -516,7 +519,10 @@ fn repeated_cross_sections_and_staggered_designs_refuse_weights() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx()).unwrap();
     let error = prepared.estimate(&data, &ctx()).unwrap_err().to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -832,7 +838,10 @@ fn temporal_weights_refuse_constructions_without_a_weighted_fit() {
         .run(&ctx())
         .unwrap_err()
         .to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }
 
 /// `t@1 -> m`, `t@1 -> y`, `m -> y`.
@@ -887,7 +896,10 @@ fn temporal_mediation_refuses_series_weights_it_cannot_read() {
         .map_err(|e| e.to_string())
         .and_then(|study| study.run(&ctx()).map_err(|e| e.to_string()))
         .unwrap_err();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -924,7 +936,10 @@ fn weighted_regime_series(n: usize) -> TimeSeriesData {
 /// A weighted series a route cannot read is refused with the typed code and a next attempt.
 fn assert_refused_with_next_attempt(outcome: Result<antecedent::StudyResult, String>, route: &str) {
     let error = outcome.err().unwrap_or_else(|| panic!("{route} fit a weighted series"));
-    assert!(error.contains("sampling_weights.route_unsupported"), "{route}: {error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{route}: {error}"
+    );
     assert!(error.contains("Next attempt"), "{route}: {error}");
 }
 

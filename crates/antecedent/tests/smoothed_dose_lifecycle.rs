@@ -527,7 +527,10 @@ fn weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate() {
             .unwrap_err();
         let (code, message) = estimation_refusal(&error);
         assert_eq!(code, "transport_support_failure");
-        assert!(message.starts_with("dose_response.membership_overlap"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::dose_response::MEMBERSHIP_OVERLAP),
+            "{message}"
+        );
     }
     let base = draw(Design::IndependentSamples, Scenario::Good, 1500, 1000, 4);
     let q = query(&GRID, H);
@@ -544,7 +547,10 @@ fn weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate() {
     floored.dose_density[0] = 1e-4;
     assert_eq!(
         check(&floored, &options()),
-        ("transport_support_failure", "dose_response.dose_density_floor".into())
+        (
+            "transport_support_failure",
+            antecedent_core::reason_details::dose_response::DOSE_DENSITY_FLOOR.into()
+        )
     );
     for edit in [
         |i: &mut SmoothedDoseInput| i.dose_density[1] = 0.0,
@@ -555,7 +561,10 @@ fn weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate() {
         edit(&mut invalid);
         assert_eq!(
             check(&invalid, &options()),
-            ("transport_support_failure", "dose_response.dose_density_invalid".into())
+            (
+                "transport_support_failure",
+                antecedent_core::reason_details::dose_response::DOSE_DENSITY_INVALID.into()
+            )
         );
     }
     // Thin local support: move all but eight source doses out of the window at a = 2.
@@ -573,7 +582,10 @@ fn weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate() {
     let loose = SmoothedDoseOptions { min_distinct_doses: 2, ..options() };
     assert_eq!(
         check(&thin, &loose),
-        ("transport_support_failure", "dose_response.local_dose_ess".into())
+        (
+            "transport_support_failure",
+            antecedent_core::reason_details::dose_response::LOCAL_DOSE_ESS.into()
+        )
     );
     // A too-discrete dose: rounded to integers, one dose value carries all weight at 2.
     let mut discrete = base;
@@ -584,7 +596,10 @@ fn weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate() {
     }
     assert_eq!(
         check(&discrete, &options()),
-        ("treatment_support_too_discrete", "dose_response.dose_too_discrete".into())
+        (
+            "treatment_support_too_discrete",
+            antecedent_core::reason_details::dose_response::DOSE_TOO_DISCRETE.into()
+        )
     );
 }
 
@@ -599,18 +614,24 @@ fn requests_outside_the_cell_refuse_with_their_details() {
     // An extrapolative grid window (no boundary kernels).
     assert_eq!(
         detail(prepare(query(&[3.8], H), base.clone(), options(), 1).unwrap_err()),
-        ("transport_support_failure", "dose_response.grid_outside_dose_support".into())
+        (
+            "transport_support_failure",
+            antecedent_core::reason_details::dose_response::GRID_OUTSIDE_DOSE_SUPPORT.into()
+        )
     );
     assert_eq!(
         detail(prepare(query(&[0.4], H), base.clone(), options(), 1).unwrap_err()).1,
-        "dose_response.grid_outside_dose_support"
+        antecedent_core::reason_details::dose_response::GRID_OUTSIDE_DOSE_SUPPORT
     );
     // An estimated density.
     let mut estimated = query(&GRID, H);
     estimated.density_provenance = "estimated".into();
     assert_eq!(
         detail(prepare(estimated, base.clone(), options(), 1).unwrap_err()),
-        ("route_not_supported", "dose_response.estimated_dose_density".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::dose_response::ESTIMATED_DOSE_DENSITY.into()
+        )
     );
     // A non-portable learner.
     let neural = SmoothedDoseOptions {
@@ -619,7 +640,10 @@ fn requests_outside_the_cell_refuse_with_their_details() {
     };
     assert_eq!(
         detail(prepare(query(&GRID, H), base.clone(), neural, 1).unwrap_err()),
-        ("route_not_supported", "dose_response.learner_not_portable".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::dose_response::LEARNER_NOT_PORTABLE.into()
+        )
     );
     // Named targets, sampling designs and kernels.
     let parse = |r: Result<(), EstimationError>| {
@@ -630,13 +654,19 @@ fn requests_outside_the_cell_refuse_with_their_details() {
     for target in ["point_curve", "stochastic", "coarsened", "incremental", "derivative"] {
         assert_eq!(
             parse(antecedent_estimate::smoothed_dose::parse_smoothed_dose_target(target)),
-            ("route_not_supported", "dose_response.target_not_smoothed".into())
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::dose_response::TARGET_NOT_SMOOTHED.into()
+            )
         );
     }
     for target in ["cate", "simultaneous_band"] {
         assert_eq!(
             parse(antecedent_estimate::smoothed_dose::parse_smoothed_dose_target(target)),
-            ("route_not_supported", "dose_response.cate_or_simultaneous".into())
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::dose_response::CATE_OR_SIMULTANEOUS.into()
+            )
         );
     }
     assert!(
@@ -648,11 +678,17 @@ fn requests_outside_the_cell_refuse_with_their_details() {
             antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling("clustered")
                 .map(|_| ())
         ),
-        ("sampling_dependence_unknown", "dose_response.non_iid_design".into())
+        (
+            "sampling_dependence_unknown",
+            antecedent_core::reason_details::dose_response::NON_IID_DESIGN.into()
+        )
     );
     assert_eq!(
         parse(antecedent_estimate::smoothed_dose::parse_smoothing_kernel("gaussian").map(|_| ())),
-        ("route_not_supported", "dose_response.kernel_not_supported".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::dose_response::KERNEL_NOT_SUPPORTED.into()
+        )
     );
     // The size bounds are recorded reference points, not ceilings: a request past each one still
     // validates (the workspace estimate bounds it), while the node set and the degree floor refuse.
@@ -664,7 +700,7 @@ fn requests_outside_the_cell_refuse_with_their_details() {
         };
     let bounds_refused = |r: Result<(), EstimationError>| {
         matches!(&r, Err(EstimationError::Refused { code: "route_not_supported", message })
-            if message.starts_with("dose_response.bounds_exceeded"))
+            if message.starts_with(antecedent_core::reason_details::dose_response::BOUNDS_EXCEEDED))
     };
     let grid16: Vec<f64> = (0..16).map(|i| 0.5 + 3.0 * f64::from(i) / 15.0).collect();
     let grid17: Vec<f64> = (0..17).map(|i| 0.5 + 3.0 * f64::from(i) / 16.0).collect();
@@ -765,7 +801,10 @@ fn requests_outside_the_cell_refuse_with_their_details() {
         .unwrap();
     let uncertainty = &result.estimate().uncertainty;
     assert_eq!(uncertainty.reason, "estimator_inference_mismatch");
-    assert_eq!(uncertainty.detail.as_deref(), Some("dose_response.bootstrap_below_floor"));
+    assert_eq!(
+        uncertainty.detail.as_deref(),
+        Some(antecedent_core::reason_details::dose_response::BOOTSTRAP_BELOW_FLOOR)
+    );
     let error =
         smoothed_dose_interval_internal(&id, &q, &base, &below, &ExecutionContext::for_tests(2))
             .unwrap_err();
@@ -877,7 +916,11 @@ fn a_kinked_fitted_curve_surfaces_its_quadrature_error_and_refuses_at_a_tight_to
         let error = evaluate(tolerance).unwrap_err();
         let (code, message) = estimation_refusal(&error);
         assert_eq!(code, "transport_numerical_failure");
-        assert!(message.starts_with("dose_response.quadrature_tolerance"), "{message}");
+        assert!(
+            message
+                .starts_with(antecedent_core::reason_details::dose_response::QUADRATURE_TOLERANCE),
+            "{message}"
+        );
     }
     assert!(evaluate(record.max_row_error).is_ok());
 }
@@ -1141,7 +1184,9 @@ fn refresh_replaces_rows_and_refuses_a_changed_schema() {
     floored.dose_density[row] = 1e-5;
     let (code, message) = refused_code(prepared.refresh(floored, &ctx).unwrap_err());
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("dose_response.dose_density_floor"));
+    assert!(
+        message.starts_with(antecedent_core::reason_details::dose_response::DOSE_DENSITY_FLOOR)
+    );
     // A cancelled refresh refuses before reading the rows.
     let cancelled = ExecutionContext::for_tests(15);
     cancelled.cancellation.cancel();
@@ -1417,15 +1462,15 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     );
     assert!(matches!(
         refused(&mutate(&original, |w| w.query.kernel = "gaussian".into(), true)),
-        Refusal::ReplayRefused { code: "route_not_supported", ref message } if message.starts_with("dose_response.kernel_not_supported")
+        Refusal::ReplayRefused { code: "route_not_supported", ref message } if message.starts_with(antecedent_core::reason_details::dose_response::KERNEL_NOT_SUPPORTED)
     ));
     assert!(matches!(
         refused(&mutate(&original, |w| w.query.density_provenance = "estimated".into(), true)),
-        Refusal::ReplayRefused { code: "route_not_supported", ref message } if message.starts_with("dose_response.estimated_dose_density")
+        Refusal::ReplayRefused { code: "route_not_supported", ref message } if message.starts_with(antecedent_core::reason_details::dose_response::ESTIMATED_DOSE_DENSITY)
     ));
     assert!(matches!(
         refused(&mutate(&original, |w| w.query.grid[2] = 3.9, true)),
-        Refusal::ReplayRefused { code: "transport_support_failure", ref message } if message.starts_with("dose_response.grid_outside_dose_support")
+        Refusal::ReplayRefused { code: "transport_support_failure", ref message } if message.starts_with(antecedent_core::reason_details::dose_response::GRID_OUTSIDE_DOSE_SUPPORT)
     ));
     // A polynomial curve integrates identically up to rounding under 32/64 nodes: the
     // replay differs in the recorded node counts, or in the point's last bits.
@@ -1435,7 +1480,7 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     ));
     assert!(matches!(
         refused(&mutate(&original, |w| w.options.min_membership_probability = 0.45, true)),
-        Refusal::ReplayRefused { code: "transport_support_failure", ref message } if message.starts_with("dose_response.membership_overlap")
+        Refusal::ReplayRefused { code: "transport_support_failure", ref message } if message.starts_with(antecedent_core::reason_details::dose_response::MEMBERSHIP_OVERLAP)
     ));
     assert_eq!(
         refused(&mutate(&original, |w| w.options.folds = 4, true)),
@@ -1477,7 +1522,7 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     );
     assert!(matches!(
         refused(&mutate(&original, |w| w.input.dose_density[row] = 0.0, true)),
-        Refusal::ReplayRefused { code: "transport_support_failure", ref message } if message.starts_with("dose_response.dose_density_invalid")
+        Refusal::ReplayRefused { code: "transport_support_failure", ref message } if message.starts_with(antecedent_core::reason_details::dose_response::DOSE_DENSITY_INVALID)
     ));
     // A replay refusal carries its registered reason code through IoError.
     let error = consume_smoothed_dose_artifact(
@@ -1580,7 +1625,7 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     assert!(matches!(
         replays(|w| w.options.min_local_ess = 1e9),
         Err(IoError::SmoothedDose(Refusal::ReplayRefused { code: "transport_support_failure", ref message }))
-            if message.starts_with("dose_response.local_dose_ess")
+            if message.starts_with(antecedent_core::reason_details::dose_response::LOCAL_DOSE_ESS)
     ));
 }
 
@@ -1790,7 +1835,10 @@ fn a_target_row_below_the_membership_floor_refuses_even_when_every_source_row_cl
         antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &ctx).unwrap_err();
     let (code, message) = estimation_refusal(&error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("dose_response.membership_overlap"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::dose_response::MEMBERSHIP_OVERLAP),
+        "{message}"
+    );
     // The same fold models under a negligible floor: every source row clears 0.05, the
     // edited target row does not.
     let loose = SmoothedDoseOptions { min_membership_probability: 1e-300, ..options() };
@@ -1893,7 +1941,11 @@ fn the_estimator_layer_returns_the_grid_and_refuses_directly() {
         &ctx,
     )
     .unwrap_err();
-    assert!(estimation_refusal(&error).1.starts_with("dose_response.grid_outside_dose_support"));
+    assert!(
+        estimation_refusal(&error)
+            .1
+            .starts_with(antecedent_core::reason_details::dose_response::GRID_OUTSIDE_DOSE_SUPPORT)
+    );
 }
 
 #[test]
@@ -1916,9 +1968,18 @@ fn dose_menu_lists_refused_estimators_with_reasons() {
     );
     assert!(smoothed.nuisance_tasks.iter().all(|t| t.contains("default")));
     for (name, detail) in [
-        ("kennedy_local_linear_point_curve", Some("dose_response.target_not_smoothed")),
-        ("generalized_propensity_estimated_density", Some("dose_response.estimated_dose_density")),
-        ("dose_response_simultaneous_band", Some("dose_response.cate_or_simultaneous")),
+        (
+            "kennedy_local_linear_point_curve",
+            Some(antecedent_core::reason_details::dose_response::TARGET_NOT_SMOOTHED),
+        ),
+        (
+            "generalized_propensity_estimated_density",
+            Some(antecedent_core::reason_details::dose_response::ESTIMATED_DOSE_DENSITY),
+        ),
+        (
+            "dose_response_simultaneous_band",
+            Some(antecedent_core::reason_details::dose_response::CATE_OR_SIMULTANEOUS),
+        ),
         ("conditional_group_dose_response", None),
     ] {
         let entry = by_name(&menu, name);
@@ -1947,7 +2008,7 @@ fn dose_menu_lists_refused_estimators_with_reasons() {
     let entry = by_name(&extrapolative, "smoothed_dose_transport_aipw");
     assert_eq!(
         entry.refusal.unwrap().detail.as_deref(),
-        Some("dose_response.grid_outside_dose_support")
+        Some(antecedent_core::reason_details::dose_response::GRID_OUTSIDE_DOSE_SUPPORT)
     );
     let neural = SmoothedDoseOptions {
         outcome: LearnerSpec::NeuralNet(antecedent_estimate::NeuralSpec::default()),
@@ -1956,7 +2017,7 @@ fn dose_menu_lists_refused_estimators_with_reasons() {
     let refused_menu = StudyBuilder::smoothed_dose_menu(&diagram, &q, Some(&neural)).unwrap();
     assert_eq!(
         by_name(&refused_menu, "smoothed_dose_transport_aipw").refusal.unwrap().detail.as_deref(),
-        Some("dose_response.learner_not_portable")
+        Some(antecedent_core::reason_details::dose_response::LEARNER_NOT_PORTABLE)
     );
     // A graph whose selection acts on the outcome certifies nothing.
     let mut graph = antecedent_graph::Admg::with_variables(3);
@@ -2038,7 +2099,7 @@ fn the_free_dose_menu_follows_its_options_without_the_builder() {
     let refused = antecedent_estimate::smoothed_dose_estimator_menu(&id, &estimated, None, None);
     assert_eq!(
         refused.entries[0].refusal.as_ref().unwrap().detail.as_deref(),
-        Some("dose_response.estimated_dose_density")
+        Some(antecedent_core::reason_details::dose_response::ESTIMATED_DOSE_DENSITY)
     );
 }
 
@@ -2072,7 +2133,12 @@ fn smoothed_dose_posterior_refuses_an_external_power_prior() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("smoothed_dose_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::smoothed_dose_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -2110,7 +2176,8 @@ fn a_missing_outcome_dose_or_covariate_is_refused_instead_of_the_row_being_dropp
         let text = error.to_string();
         assert!(
             text.contains("finite")
-                || text.contains("dose_response.dose_density_invalid")
+                || text
+                    .contains(antecedent_core::reason_details::dose_response::DOSE_DENSITY_INVALID)
                 || text.contains("invalid certified smoothed dose transport input"),
             "{column}: {text}"
         );

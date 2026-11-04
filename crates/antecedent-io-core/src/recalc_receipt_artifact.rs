@@ -52,7 +52,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     RecalcReceiptArtifactError {
         noun: "recalc receipt",
-        identity: "recalc_receipt.identity_mismatch",
+        identity: antecedent_core::reason_details::recalc_receipt::IDENTITY_MISMATCH,
         variants {
             /// A derived stage is stored as reused under a fresh-process boundary.
             FreshProcessReuse {
@@ -106,27 +106,27 @@ impl RecalcReceiptArtifactError {
         match self {
             Self::FreshProcessReuse { .. } => Some((
                 antecedent_core::reason_code!("score_table_unavailable"),
-                "recalc_receipt.fresh_process_reuse",
+                antecedent_core::reason_details::recalc_receipt::FRESH_PROCESS_REUSE,
                 explanation,
             )),
             Self::PlanMismatch { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.plan_mismatch",
+                antecedent_core::reason_details::recalc_receipt::PLAN_MISMATCH,
                 explanation,
             )),
             Self::CountsInconsistent { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.counts_inconsistent",
+                antecedent_core::reason_details::recalc_receipt::COUNTS_INCONSISTENT,
                 explanation,
             )),
             Self::TotalsMismatch => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.totals_mismatch",
+                antecedent_core::reason_details::recalc_receipt::TOTALS_MISMATCH,
                 explanation,
             )),
             Self::IdentityMismatch { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.identity_mismatch",
+                antecedent_core::reason_details::recalc_receipt::IDENTITY_MISMATCH,
                 explanation,
             )),
             _ => None,

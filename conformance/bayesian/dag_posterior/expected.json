@@ -91,7 +91,20 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/dag_posterior_conformance.rs",
-          "sha256": "e6d82b181078d84471e86aa90f8dd0371a1693966fcef21d3da66f33c21c989b"
+          "items": [
+            "fn chain",
+            "fn collider",
+            "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure",
+            "fn directed",
+            "fn fixture",
+            "fn index",
+            "fn lag1",
+            "fn ols_rss",
+            "fn static_engines",
+            "fn storage",
+            "fn uniform"
+          ],
+          "sha256": "e75a1be5eeef85dbae72ea73c3027f99d117d55749e0119e6ce9c86d03d6804f"
         }
       ],
       "fixture_payload_sha256": "d82cd880e84610f9776d13a6aadc748d65403c55c4de85ea6fc61c4226445420"

@@ -41,14 +41,17 @@ record_sha256 = "ebb17a57ab64bedd5cf692a08047a61d45b8c6d4b145fcb37af3d569a48eda6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rule_scheduling.rs"
-sha256 = "af998b192a7edb562fa77cea311f0ae6c56c4e24d2299ba3ca45c2a6dca0b177"
+items = ["struct ZhangR10", "struct ZhangR9"]
+sha256 = "ec48b61dc2711c66e67bf4dbe2bf87626d67b54515afa33e95c136a7794de6f5"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/uncovered_paths.rs"
-sha256 = "26fd1db120c8784000d9cb2008c0f4fb8bce671be9067daa5327b27ed9578c2b"
+items = ["fn default"]
+sha256 = "0060ccbb8a11c2bbfbdf70f3080f635ac0a16108be80e9d9355c31aae57788a0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs"
-sha256 = "87cac5e883bd35978014d93b1add0e8ffd14433d0109fc4037620baad077b0bd"
+items = ["fn adjacent", "fn ancestral", "fn classes", "fn connects", "fn fci_returns_the_invariant_pag_of_every_five_node_class", "fn fci_returns_the_invariant_pag_of_every_four_node_class", "fn fci_returns_the_invariant_pag_of_every_three_node_class", "fn head_at", "fn mark", "fn mark_in", "fn maximal", "fn msep", "fn new", "fn pairs", "fn rfci_returns_the_invariant_pag_of_every_three_and_four_node_class", "fn run_fci", "fn sweep", "fn table", "struct Mixed", "struct TableOracle", "type Code"]
+sha256 = "a9ec56fc64c478eb4321b8d2fb34f4b8497417b8a6bd2809b7a71eff0c0dfe8a"

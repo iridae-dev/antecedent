@@ -40,17 +40,20 @@ record_sha256 = "82476cf06fd803a7b8413e5a42c8d7b60af72ae6d5be97d1b660382617ec9a5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
+items = ["const LAD_MAX_SWEEPS", "const LAD_OBJECTIVE_TOLERANCE", "const LAD_POLISH_MOVES_PER_COEFFICIENT", "const LAD_RESIDUAL_FLOOR", "const REFINE_PIVOT_SQ", "const REFINE_RSS_FRACTION", "enum GraphScoreFamily", "enum ParentSetOp", "fn bic_from_rss", "fn bind", "fn centered_column", "fn clear", "fn col", "fn compensated_sum", "fn content_fingerprint", "fn delta_score", "fn ensure_gram", "fn equilibrated_spd", "fn fingerprint", "fn full_graph_score", "fn gaussian_bic_from_gram", "fn gaussian_design_gram", "fn laplace_bic_local", "fn local_score", "fn new", "fn parents_of", "fn polish_lad_vertex", "fn refined_rss", "fn rss_from_joint_gram", "fn score_graph", "fn solve_spd", "fn solve_square", "fn sorted_parents", "struct GraphScoreCacheKey", "struct GraphScoreData", "struct LocalScoreCache"]
+sha256 = "a494d8f77845d35ea2d2956ee6b94f6fa164f9fc130595353e7a1fa722c88f6b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/particle_filter.rs"
-sha256 = "c677bf88fec95fdd866bc16ee14b430e2c695e3c94d57bd02cc402508f7c3770"
+items = ["fn ess", "fn log_weights", "fn n_particles", "fn normalized_weights_into", "fn particles", "fn step", "fn systematic_resample", "fn try_ess", "struct LgssmParams", "struct ParticleFilterState", "struct StepScratch"]
+sha256 = "e826441444a7f14ec3bdc02c3b4462f9e0d04baf9ca41e236a5c29ca20ca7039"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/tests/state_incremental_particle_graph_score_reference.rs"
-sha256 = "cccbb041aa949f327636d4c696a08644005f9455db58cf02de1c496dea75f022"
+items = ["fn cache", "fn close", "fn data_of", "fn local_scores_deltas_and_totals_match_the_exact_reference", "fn new", "fn normalized", "fn num", "fn step"]
+sha256 = "c23fe0037139de51b5075b7c78e7ebff36a8e4d4b52fbfcd34a74b6dcb264934"
 
 [[method_review.artifacts]]
 role = "reference"

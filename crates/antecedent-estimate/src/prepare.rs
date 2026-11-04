@@ -289,7 +289,7 @@ pub(crate) fn require_contrast_arms_populated(
     let named: Vec<String> = empty.iter().map(std::string::ToString::to_string).collect();
     Err(crate::util::refuse(
         antecedent_core::reason_code!("arm_not_populated"),
-        "treatment_levels.level_not_populated",
+        antecedent_core::reason_details::treatment_levels::LEVEL_NOT_POPULATED,
         &format!(
             "the contrasted treatment level {} has no complete-case rows (active {active},              control {control}); the treatment takes the levels {}. A contrast to a level the              data never visited would be extrapolated, not estimated. Next attempt: contrast              two observed levels, or collect data that visits the requested level",
             named.join(" and "),
@@ -395,7 +395,7 @@ pub(crate) fn validate_streamed_adjustment_levels(
         .unwrap();
     Err(crate::util::refuse(
         antecedent_core::reason_code!("treatment_level_undeclared"),
-        "treatment_levels.undeclared_level",
+        antecedent_core::reason_details::treatment_levels::UNDECLARED_LEVEL,
         &format!(
             "{excluded} complete-case rows have a treatment value at neither declared level (active {active}, control {control}); first found {first}; {}. Excluding them would restrict the target population to the rows at the two declared levels. Next attempt: declare that restriction with OtherLevels::ExcludeUndeclared, or use the full-population generalized-propensity estimator",
             streamed_levels_description(&levels)

@@ -11,6 +11,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import provider_callbacks as pc
 from antecedent import transport_handoff as th
 from antecedent.errors import CausalTypeError
@@ -115,11 +116,11 @@ def test_a_handoff_that_the_library_refuses_does_not_seal() -> None:
     native = refusal_of(
         lambda: th.hand_to_callback(offer(), callback(), "effect", accepts_transported=False)
     )
-    assert native.detail == "provider_transport.native_target_required"
+    assert native.detail == reason_details.provider_transport.NATIVE_TARGET_REQUIRED
 
     # The claim is not in the target population of its own transport identity.
     elsewhere = refusal_of(lambda: th.hand_to_callback(offer("trial_a"), callback(), "effect"))
-    assert elsewhere.detail == "provider_transport.claim_not_in_target"
+    assert elsewhere.detail == reason_details.provider_transport.CLAIM_NOT_IN_TARGET
 
 
 def test_an_edited_handoff_is_refused() -> None:

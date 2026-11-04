@@ -36,7 +36,22 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/sparse_equilibrium_scale.rs",
-          "sha256": "3e6b2b73fb097e6ada859b1aba36ab08f17da226edbbb4df660c97b3cf10d465"
+          "items": [
+            "fn ctx",
+            "fn dense_log_abs_det",
+            "fn equation",
+            "fn identity_covariance",
+            "fn identity_minus",
+            "fn intercepts_of",
+            "fn max_diff",
+            "fn noise",
+            "fn nonlinear_tanh_ring_matches_an_independent_fixed_point_reference",
+            "fn ring",
+            "fn solutions_match_the_retained_numpy_reference_document",
+            "fn sparse_likelihood_log_determinant_matches_the_dense_reference",
+            "fn weights_of"
+          ],
+          "sha256": "dc4f00251ed09a3e70edc3003a2ceefa47eadcba8b61f37e44bc312a2a07adc6"
         }
       ],
       "sources": [],

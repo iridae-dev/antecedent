@@ -10,6 +10,7 @@ while fixing the state at its mode gives ``0.46``. A replacement panel whose eve
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced
@@ -211,8 +212,8 @@ def test_source_state_only_refuses_a_source_law_and_a_point_state():
             )
         )
         assert error.reason_code == "transport_missing_evidence"
-        assert error.detail == "initial_state.target_law_missing"
-        assert "initial_state.target_law_missing" in str(error)
+        assert error.detail == reason_details.initial_state.TARGET_LAW_MISSING
+        assert reason_details.initial_state.TARGET_LAW_MISSING in str(error)
 
 
 def test_source_state_only_refuses_support_gaps_and_bad_premises():
@@ -223,7 +224,7 @@ def test_source_state_only_refuses_support_gaps_and_bad_premises():
         )
     )
     assert error.reason_code == "transport_support_failure"
-    assert error.detail == "initial_state.support_gap"
+    assert error.detail == reason_details.initial_state.SUPPORT_GAP
 
     error = refusal_of(
         lambda: temporal_initial_state(
@@ -234,7 +235,7 @@ def test_source_state_only_refuses_support_gaps_and_bad_premises():
         )
     )
     assert error.reason_code == "invalid_argument"
-    assert error.detail == "initial_state.invalid_premises"
+    assert error.detail == reason_details.initial_state.INVALID_PREMISES
 
     error = refusal_of(
         lambda: temporal_initial_state(
@@ -244,7 +245,7 @@ def test_source_state_only_refuses_support_gaps_and_bad_premises():
             premises=premises(),
         )
     )
-    assert error.detail == "temporal_interval.unknown_units"
+    assert error.detail == reason_details.temporal_interval.UNKNOWN_UNITS
     assert error.reason_code == "route_not_supported"
 
 
@@ -337,18 +338,18 @@ def test_period_replace_chains_and_exports_an_independent_artifact():
 @pytest.mark.parametrize(
     ("overrides", "detail"),
     [
-        ({"horizon": 3}, "temporal_refresh.horizon_changed"),
+        ({"horizon": 3}, reason_details.temporal_refresh.HORIZON_CHANGED),
         (
             {"lag_alignment": {"s0": 1, "a1": 2, "l2": 2, "a2": 2, "y": 2}},
-            "temporal_refresh.lag_alignment_changed",
+            reason_details.temporal_refresh.LAG_ALIGNMENT_CHANGED,
         ),
         (
             {"intervention_history": ["a1=0", "a2=1"]},
-            "temporal_refresh.intervention_history_changed",
+            reason_details.temporal_refresh.INTERVENTION_HISTORY_CHANGED,
         ),
-        ({"proof_id": "proof_2"}, "temporal_refresh.premises_changed"),
-        ({"graph_id": "three_slice_graph"}, "temporal_refresh.premises_changed"),
-        ({"selection_targets": ["s_t1"]}, "temporal_refresh.premises_changed"),
+        ({"proof_id": "proof_2"}, reason_details.temporal_refresh.PREMISES_CHANGED),
+        ({"graph_id": "three_slice_graph"}, reason_details.temporal_refresh.PREMISES_CHANGED),
+        ({"selection_targets": ["s_t1"]}, reason_details.temporal_refresh.PREMISES_CHANGED),
     ],
 )
 def test_third_period_invalidates_with_a_typed_refusal(overrides, detail):
@@ -368,12 +369,12 @@ def test_third_period_a_replacement_that_is_not_new_is_stale():
         lambda: temporal_new_period_refresh(held(), same_snapshot, window=window((1000, 2000)))
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_refresh.stale_snapshot"
+    assert error.detail == reason_details.temporal_refresh.STALE_SNAPSHOT
     same_period = make_panel("snap_new", first_unit=10, start=0, lift=1)
     error = refusal_of(
         lambda: temporal_new_period_refresh(held(), same_period, window=window((0, 1000)))
     )
-    assert error.detail == "temporal_refresh.stale_snapshot"
+    assert error.detail == reason_details.temporal_refresh.STALE_SNAPSHOT
 
 
 def test_third_period_invalid_replacements_and_missing_windows_refuse():
@@ -382,11 +383,11 @@ def test_third_period_invalid_replacements_and_missing_windows_refuse():
         lambda: temporal_new_period_refresh(held(), new_panel(), window=window((1000, 1500)))
     )
     assert error.reason_code == "invalid_argument"
-    assert error.detail == "temporal_refresh.invalid_replacement"
+    assert error.detail == reason_details.temporal_refresh.INVALID_REPLACEMENT
     error = refusal_of(
         lambda: temporal_new_period_refresh(held(), new_panel(), window=window((2000, 2000)))
     )
-    assert error.detail == "temporal_refresh.invalid_replacement"
+    assert error.detail == reason_details.temporal_refresh.INVALID_REPLACEMENT
     # A held result that never declared its window has nothing to refresh.
     error = refusal_of(
         lambda: temporal_new_period_refresh(
@@ -394,10 +395,10 @@ def test_third_period_invalid_replacements_and_missing_windows_refuse():
         )
     )
     assert error.reason_code == "invalid_argument"
-    assert error.detail == "temporal_refresh.window_missing"
+    assert error.detail == reason_details.temporal_refresh.WINDOW_MISSING
     # A result that was not produced by a refresh has no refresh artifact.
     error = refusal_of(held().export_refresh)
-    assert error.detail == "temporal_refresh.no_refresh"
+    assert error.detail == reason_details.temporal_refresh.NO_REFRESH
 
 
 def test_period_reseal_consumer_refuses_tampered_refresh_bytes():
@@ -453,7 +454,7 @@ def test_internal_candidate_route_reports_an_interval_after_real_validation():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_interval.studentized_unbalanced"
+    assert error.detail == reason_details.temporal_interval.STUDENTIZED_UNBALANCED
     candidate = _temporal_dependent_interval_candidate(
         balanced_interval_panel(), sequence=SEQUENCE, replicates=40
     )
@@ -479,7 +480,7 @@ def test_dependent_interval_validates_its_arguments():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_interval.unknown_units"
+    assert error.detail == reason_details.temporal_interval.UNKNOWN_UNITS
 
     error = refusal_of(
         lambda: temporal_dependent_interval(
@@ -487,7 +488,7 @@ def test_dependent_interval_validates_its_arguments():
         )
     )
     assert error.reason_code == "too_few_clusters"
-    assert error.detail == "temporal_interval.too_few_units"
+    assert error.detail == reason_details.temporal_interval.TOO_FEW_UNITS
 
     error = refusal_of(
         lambda: temporal_dependent_interval(
@@ -495,7 +496,7 @@ def test_dependent_interval_validates_its_arguments():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_interval.too_many_replicates"
+    assert error.detail == reason_details.temporal_interval.TOO_MANY_REPLICATES
 
     error = refusal_of(
         lambda: temporal_dependent_interval(
@@ -514,7 +515,7 @@ def test_dependent_interval_validates_its_arguments():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_interval.unsupported_history"
+    assert error.detail == reason_details.temporal_interval.UNSUPPORTED_HISTORY
 
 
 def test_the_two_step_sequence_route_is_unchanged():

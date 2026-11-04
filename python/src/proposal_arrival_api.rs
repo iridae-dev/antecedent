@@ -28,14 +28,14 @@ fn preserved_catalog(
 ) -> PyResult<antecedent_core::EvidenceCatalog> {
     if graph.names.len() > 12 {
         return Err(with_reason_code(
-            value_err("proposal_arrival.bounds_exceeded"),
+            value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
             reason_code!("route_not_supported"),
         ));
     }
     for (field, maximum) in [("environments", 64), ("regimes", 128), ("bindings", 128)] {
         if catalog.getattr(field)?.len()? > maximum {
             return Err(with_reason_code(
-                value_err("proposal_arrival.bounds_exceeded"),
+                value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
                 reason_code!("route_not_supported"),
             ));
         }
@@ -43,7 +43,7 @@ fn preserved_catalog(
     for env in catalog.getattr("environments")?.try_iter()? {
         if env?.getattr("variables")?.len()? > 12 {
             return Err(with_reason_code(
-                value_err("proposal_arrival.bounds_exceeded"),
+                value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
                 reason_code!("route_not_supported"),
             ));
         }
@@ -63,7 +63,7 @@ fn preserved_catalog(
         .as_ref()
         .ok_or_else(|| {
             with_reason_code(
-                value_err("proposal_arrival.base_catalog_missing"),
+                value_err(antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_MISSING),
                 reason_code!("invalid_argument"),
             )
         })?
@@ -99,9 +99,13 @@ fn preserved_catalog(
 }
 fn inspect_law_inputs(sources: [&Bound<'_, PyAny>; 2]) -> PyResult<()> {
     for laws in sources {
-        if crate::recalc_bounds::sequence_len(laws, "proposal_arrival.invalid_request")? > 64 {
+        if crate::recalc_bounds::sequence_len(
+            laws,
+            antecedent_core::reason_details::proposal_arrival::INVALID_REQUEST,
+        )? > 64
+        {
             return Err(with_reason_code(
-                value_err("proposal_arrival.bounds_exceeded"),
+                value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
                 reason_code!("route_not_supported"),
             ));
         }
@@ -111,7 +115,9 @@ fn inspect_law_inputs(sources: [&Bound<'_, PyAny>; 2]) -> PyResult<()> {
                 let values = law.getattr(name)?;
                 if !values.is_none() && values.len()? > 65_536 {
                     return Err(with_reason_code(
-                        value_err("proposal_arrival.bounds_exceeded"),
+                        value_err(
+                            antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
+                        ),
                         reason_code!("route_not_supported"),
                     ));
                 }
@@ -119,14 +125,16 @@ fn inspect_law_inputs(sources: [&Bound<'_, PyAny>; 2]) -> PyResult<()> {
             let axes = law.getattr("axes")?;
             if axes.len()? > 12 {
                 return Err(with_reason_code(
-                    value_err("proposal_arrival.bounds_exceeded"),
+                    value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
                     reason_code!("route_not_supported"),
                 ));
             }
             for axis in axes.try_iter()? {
                 if axis?.get_item(1)?.len()? > 65_536 {
                     return Err(with_reason_code(
-                        value_err("proposal_arrival.bounds_exceeded"),
+                        value_err(
+                            antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
+                        ),
                         reason_code!("route_not_supported"),
                     ));
                 }
@@ -153,14 +161,16 @@ fn estimate_proposal_arrival(
         || request_json.len() > 8 * 1024 * 1024
     {
         return Err(with_reason_code(
-            value_err("proposal_arrival.bounds_exceeded"),
+            value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
             reason_code!("route_not_supported"),
         ));
     }
     let mut request: ArrivalRequest = serde_json::from_str(request_json).map_err(invalid)?;
     if !request.repair_artifact.is_empty() || !request.ranking_artifact.is_empty() {
         return Err(with_reason_code(
-            value_err("proposal_arrival.duplicate_original_artifacts"),
+            value_err(
+                antecedent_core::reason_details::proposal_arrival::DUPLICATE_ORIGINAL_ARTIFACTS,
+            ),
             reason_code!("invalid_argument"),
         ));
     }
@@ -222,7 +232,7 @@ fn consume_proposal_arrival(
 ) -> PyResult<String> {
     if artifact.len() > MAX_ARRIVAL_BYTES {
         return Err(with_reason_code(
-            value_err("proposal_arrival.bounds_exceeded"),
+            value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
             reason_code!("route_not_supported"),
         ));
     }

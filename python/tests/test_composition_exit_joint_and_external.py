@@ -31,6 +31,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision, external
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.extensibility import ProviderTrust
@@ -130,9 +131,9 @@ def test_joint_draw_refuses_independent_marginals_and_wrong_meaning() -> None:
         gen.joint_law_identity(alignment="independent_marginals"), paired, calibration="exact"
     )
     assert marginals.mean(0) == pytest.approx(0.5, abs=TOLERANCE)
-    with pytest.raises(REFUSED, match="aligned_joint_draws.marginals_not_joint"):
+    with pytest.raises(REFUSED, match=reason_details.aligned_joint_draws.MARGINALS_NOT_JOINT):
         marginals.covariance(0, 1)
-    with pytest.raises(REFUSED, match="aligned_joint_draws.marginals_not_joint"):
+    with pytest.raises(REFUSED, match=reason_details.aligned_joint_draws.MARGINALS_NOT_JOINT):
         marginals.joint_product_expectation(0, 1)
 
     # A nonlinear decision refuses the same law with a typed, registered refusal.
@@ -147,7 +148,7 @@ def test_joint_draw_refuses_independent_marginals_and_wrong_meaning() -> None:
             )
         )
     assert joint.value.reason_code == "joint_law_required"
-    assert joint.value.detail == "decision_evaluation.joint_law_required"
+    assert joint.value.detail == reason_details.decision_evaluation.JOINT_LAW_REQUIRED
     assert joint.value.expected == "joint"
     assert joint.value.supplied == "independent_marginals"
     assert_registered_refusal(joint.value)
@@ -230,7 +231,7 @@ def test_external_response_refuses_observational_mismatched_and_unverified() -> 
     with pytest.raises(CausalUnsupportedError) as law:
         one.bind(gen.external_response(quantities=observational, values=[3.0], support=None))
     assert isinstance(law.value, external.ExternalRefusal)
-    assert law.value.detail == "external_response_binding.unchecked_observational_law"
+    assert law.value.detail == reason_details.external_response_binding.UNCHECKED_OBSERVATIONAL_LAW
     assert law.value.remedy
     assert_registered_refusal(law.value)
 
@@ -242,7 +243,7 @@ def test_external_response_refuses_observational_mismatched_and_unverified() -> 
         spec.bind(gen.external_response(quantities=wrong_units))
     assert isinstance(units.value, external.ExternalRefusal)
     assert units.value.reason_code == "quantity_semantics_mismatch"
-    assert units.value.detail == "external_response_binding.coordinate_units"
+    assert units.value.detail == reason_details.external_response_binding.COORDINATE_UNITS
     assert (units.value.offending, units.value.expected, units.value.supplied) == (
         "coordinate[1]",
         "mmHg",
@@ -252,7 +253,7 @@ def test_external_response_refuses_observational_mismatched_and_unverified() -> 
     assert_registered_refusal(units.value)
     with pytest.raises(CausalUnsupportedError) as short:
         spec.bind(gen.external_response(values=[1.0, 3.0], support=None))
-    assert short.value.detail == "external_response_binding.dimension"
+    assert short.value.detail == reason_details.external_response_binding.DIMENSION
     with pytest.raises(CausalUnsupportedError) as graph:
         spec.bind(gen.external_response(graph_id="graph:other"))
     assert graph.value.reason_code == "external_binding_mismatch"
@@ -270,12 +271,12 @@ def test_external_response_refuses_observational_mismatched_and_unverified() -> 
     with pytest.raises(CausalUnsupportedError) as missing:
         spec.bind(gen.external_response(attested_by=None, probes=probes[:2]))
     assert missing.value.reason_code == "external_verification_failed"
-    assert missing.value.detail == "external_object_verification.missing_probe"
+    assert missing.value.detail == reason_details.external_object_verification.MISSING_PROBE
     assert missing.value.offending == "known_truth"
     failing = (*probes[:3], external.VerificationProbe("known_truth", 1.5, 1.0, 1e-9))
     with pytest.raises(CausalUnsupportedError) as failed:
         spec.bind(gen.external_response(attested_by=None, probes=failing))
-    assert failed.value.detail == "external_object_verification.failed_probe"
+    assert failed.value.detail == reason_details.external_object_verification.FAILED_PROBE
     with pytest.raises(CausalUnsupportedError) as meaning:
         spec.bind(
             gen.external_response(provider=gen.external_provider(meaning="posterior_predictive"))

@@ -120,11 +120,16 @@ impl ClaimError {
         match self {
             Self::UnsupportedClaimShape(why) => ExternalRefusal {
                 expected: Some((*why).to_owned()),
-                ..build(invalid, "decision_claims.unsupported_claim_shape", None, None)
+                ..build(
+                    invalid,
+                    antecedent_core::reason_details::decision_claims::UNSUPPORTED_CLAIM_SHAPE,
+                    None,
+                    None,
+                )
             },
             Self::MissingScenarioUtility { action, input } => build(
                 unsatisfied,
-                "decision_claims.missing_scenario_utility",
+                antecedent_core::reason_details::decision_claims::MISSING_SCENARIO_UTILITY,
                 Some(format!("{action}.inputs[{input}]")),
                 Some("bind every action input to an outcome the scenarios evaluate"),
             ),
@@ -140,7 +145,7 @@ impl ClaimError {
                 ),
                 ..build(
                     unsatisfied,
-                    "decision_claims.probabilities_not_declared",
+                    antecedent_core::reason_details::decision_claims::PROBABILITIES_NOT_DECLARED,
                     None,
                     Some(
                         "declare weights for the scenario set, or use a worst-case or invariance policy",
@@ -149,19 +154,19 @@ impl ClaimError {
             },
             Self::IdentityMismatch(part) => build(
                 invalid,
-                "decision_claims.identity_mismatch",
+                antecedent_core::reason_details::decision_claims::IDENTITY_MISMATCH,
                 Some(part.clone()),
                 Some("convert the same scenario report the identity was recorded from"),
             ),
             Self::RangeUnavailable => build(
                 unsatisfied,
-                "decision_claims.range_unavailable",
+                antecedent_core::reason_details::decision_claims::RANGE_UNAVAILABLE,
                 None,
                 Some("declare a finite outcome domain or weights that account for every scenario"),
             ),
             Self::UnresolvedScenarios(count) => build(
                 unsatisfied,
-                "decision_claims.unresolved_scenarios",
+                antecedent_core::reason_details::decision_claims::UNRESOLVED_SCENARIOS,
                 Some(count.to_string()),
                 Some(
                     "an identified set covers identified scenarios only; resolve the rest or use atoms",

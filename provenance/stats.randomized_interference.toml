@@ -41,14 +41,16 @@ record_sha256 = "9aafb5d558ae1608f1f11a2231011d1647b81d38659ac1d07b1e2e96da98c71
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/interference.rs"
-sha256 = "4240db11575330dc4b893512252056c678eb2a638ad7e83344fe224263c556a9"
+items = ["enum ExposureProbabilityMethod", "fn admit_exposure_probability_work", "fn admit_exposure_probability_work_for_shape", "fn check_exposure_cancelled", "fn enumerate_assignments", "fn exposure_probabilities", "fn exposures_into", "fn new", "fn same_exposure", "fn sample_into", "fn validate_design", "fn validate_exposure_inputs", "struct AssignmentSampler", "struct ExposureProbabilities"]
+sha256 = "ac2762121b77e37804bde96e97e50492f9c4d7ebe70e66731cf696cce64ce4f9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/interference_enumeration.rs"
-sha256 = "2b5227f3933c735c3cc2824f1ae7e85d3ef6119f27ff05e83a6d9fe3e4717644"
+items = ["const N", "fn design", "fn exposure_probabilities_equal_independent_enumeration", "fn network", "fn own_k", "fn support"]
+sha256 = "72e46dc57a9a2c35f66ccc82589484edc52a447564610d3c869203d2a4b8556c"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/randomized_interference/expected.json"
-sha256 = "4f6bd3452d24411805b9e57d62612f2bc61b1f672e0a84193c3281352e4bbc3e"
+sha256 = "dc42740e43c6cd91e63f335ff29bb428d355186fe83f4c13fa3b4cdada957bb3"

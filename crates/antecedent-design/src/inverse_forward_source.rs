@@ -113,28 +113,38 @@ const TAG_COMPOSED: &str = "antecedent.inverse_forward_source.composed";
 const PROBABILITY_SUM_TOLERANCE: f64 = 1e-9;
 
 /// Detail: a transported response is offered where only native target data is accepted.
-pub const DETAIL_TRANSPORTED_NOT_ACCEPTED: &str = "inverse_forward_source.transported_not_accepted";
+pub const DETAIL_TRANSPORTED_NOT_ACCEPTED: &str =
+    antecedent_core::reason_details::inverse_forward_source::TRANSPORTED_NOT_ACCEPTED;
 /// Detail: a composed response is malformed.
-pub const DETAIL_COMPOSED_INVALID: &str = "inverse_forward_source.composed_response_invalid";
+pub const DETAIL_COMPOSED_INVALID: &str =
+    antecedent_core::reason_details::inverse_forward_source::COMPOSED_RESPONSE_INVALID;
 /// Detail: a composed query and its stored result are different kinds.
-pub const DETAIL_COMPOSED_MISMATCH: &str = "inverse_forward_source.composed_query_result_mismatch";
+pub const DETAIL_COMPOSED_MISMATCH: &str =
+    antecedent_core::reason_details::inverse_forward_source::COMPOSED_QUERY_RESULT_MISMATCH;
 /// Detail: a composed response's family does not match its queries.
-pub const DETAIL_COMPOSED_FAMILY: &str = "inverse_forward_source.composed_family_mismatch";
+pub const DETAIL_COMPOSED_FAMILY: &str =
+    antecedent_core::reason_details::inverse_forward_source::COMPOSED_FAMILY_MISMATCH;
 /// Detail: the numeric coding of a finite outcome is missing or inconsistent.
-pub const DETAIL_COMPOSED_LEVELS: &str = "inverse_forward_source.composed_level_coding";
+pub const DETAIL_COMPOSED_LEVELS: &str =
+    antecedent_core::reason_details::inverse_forward_source::COMPOSED_LEVEL_CODING;
 /// Detail: a composed mean was addressed by an outcome-law coordinate.
 pub const DETAIL_COMPOSED_OUTCOME_COORDINATE: &str =
-    "inverse_forward_source.composed_coordinate_is_outcome_law";
+    antecedent_core::reason_details::inverse_forward_source::COMPOSED_COORDINATE_IS_OUTCOME_LAW;
 /// Detail: a Gaussian composition cannot supply the requested law.
-pub const DETAIL_COMPOSED_LAW: &str = "inverse_forward_source.composed_law_not_materialized";
+pub const DETAIL_COMPOSED_LAW: &str =
+    antecedent_core::reason_details::inverse_forward_source::COMPOSED_LAW_NOT_MATERIALIZED;
 /// Detail: a point source was asked for a law.
-pub const DETAIL_POINT_ONLY_LAW: &str = "inverse_forward_source.point_only_law_requested";
+pub const DETAIL_POINT_ONLY_LAW: &str =
+    antecedent_core::reason_details::inverse_forward_source::POINT_ONLY_LAW_REQUESTED;
 /// Detail: an interval region was requested of a source that has none.
-pub const DETAIL_INTERVAL: &str = "inverse_forward_source.interval_not_supported";
+pub const DETAIL_INTERVAL: &str =
+    antecedent_core::reason_details::inverse_forward_source::INTERVAL_NOT_SUPPORTED;
 /// Detail: a per-action source cannot be sealed as one artifact.
-pub const DETAIL_PER_ACTION: &str = "inverse_forward_source.per_action_not_sealable";
+pub const DETAIL_PER_ACTION: &str =
+    antecedent_core::reason_details::inverse_forward_source::PER_ACTION_NOT_SEALABLE;
 /// Detail: a stored origin does not describe the embedded claim.
-pub const DETAIL_ORIGIN: &str = "inverse_forward_source.origin_invalid";
+pub const DETAIL_ORIGIN: &str =
+    antecedent_core::reason_details::inverse_forward_source::ORIGIN_INVALID;
 
 /// What kind of route produced the forward claim.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

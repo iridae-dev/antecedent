@@ -68,6 +68,8 @@ from typing import Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -131,7 +133,7 @@ def _invalid(message: str, offending: str | None = None) -> DoseGridRefusal:
         {
             "code": "invalid_argument",
             "stage": "dose_grid",
-            "detail": "dose_grid.invalid_request",
+            "detail": _reason_details.dose_grid.INVALID_REQUEST,
             "offending": offending,
             "message": message,
         }

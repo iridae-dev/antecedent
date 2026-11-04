@@ -151,17 +151,37 @@ impl BundleStage {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::TamperedQuantity => "composition_bundle.tampered_quantity",
-            Self::SwappedEvidence => "composition_bundle.swapped_evidence",
-            Self::GraphOrSnapshotMismatch => "composition_bundle.graph_or_snapshot_mismatch",
-            Self::UnsupportedLaw => "composition_bundle.unsupported_law",
-            Self::ProviderRequestChanged => "composition_bundle.provider_request_changed",
-            Self::CallbackUnavailable => "composition_bundle.callback_unavailable",
-            Self::IncompatibleVersion => "composition_bundle.incompatible_version",
-            Self::Oversized => "composition_bundle.oversized",
-            Self::UnknownNodeKind => "composition_bundle.unknown_node_kind",
-            Self::EdgeDigestMismatch => "composition_bundle.edge_digest_mismatch",
-            Self::ExpectedIdentityMismatch => "composition_bundle.expected_identity_mismatch",
+            Self::TamperedQuantity => {
+                antecedent_core::reason_details::composition_bundle::TAMPERED_QUANTITY
+            }
+            Self::SwappedEvidence => {
+                antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE
+            }
+            Self::GraphOrSnapshotMismatch => {
+                antecedent_core::reason_details::composition_bundle::GRAPH_OR_SNAPSHOT_MISMATCH
+            }
+            Self::UnsupportedLaw => {
+                antecedent_core::reason_details::composition_bundle::UNSUPPORTED_LAW
+            }
+            Self::ProviderRequestChanged => {
+                antecedent_core::reason_details::composition_bundle::PROVIDER_REQUEST_CHANGED
+            }
+            Self::CallbackUnavailable => {
+                antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE
+            }
+            Self::IncompatibleVersion => {
+                antecedent_core::reason_details::composition_bundle::INCOMPATIBLE_VERSION
+            }
+            Self::Oversized => antecedent_core::reason_details::composition_bundle::OVERSIZED,
+            Self::UnknownNodeKind => {
+                antecedent_core::reason_details::composition_bundle::UNKNOWN_NODE_KIND
+            }
+            Self::EdgeDigestMismatch => {
+                antecedent_core::reason_details::composition_bundle::EDGE_DIGEST_MISMATCH
+            }
+            Self::ExpectedIdentityMismatch => {
+                antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
+            }
         }
     }
 

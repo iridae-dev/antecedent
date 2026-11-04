@@ -46,12 +46,14 @@ record_sha256 = "e4c5437d4ab765f9b96c0a409803002029fda8b8b66489af93e1bb3a0a97cfe
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/latent_class_effects.rs"
-sha256 = "9318d6a186eacfb79ae814e0ecbea1fcdf3bfceb13a46c7371482fbe47d3e796"
+items = ["const EXHAUSTIVE_ALIGNMENT_CLASSES", "const LATENT_CLASS_CAVEAT", "const LATENT_CLASS_INFERENCE_CLAIM", "const LATENT_CLASS_MAX_ITERATIONS", "const LATENT_CLASS_MAX_RESTARTS", "const MONOTONE_TOLERANCE", "enum EmFailure", "enum PremiseStatus", "fn align_replicate", "fn as_u64", "fn best_fit", "fn bootstrap_replicate", "fn bootstrap_se", "fn cancelled_fit", "fn canonical_order", "fn check_identification", "fn class_design", "fn cmp_rows", "fn declare_conditional_randomization", "fn distinct_design_points", "fn e_step", "fn fit_latent_class_effects", "fn hard_responsibilities", "fn m_step", "fn min_cost_assignment", "fn mixture_average", "fn new", "fn permutations", "fn permute_into", "fn premises", "fn reorder", "fn resample", "fn row", "fn run_em", "fn seeded_init", "fn unit_draw", "fn validate_config", "fn validate_data", "fn wls", "struct BootstrapSe", "struct FitState", "struct LatentClassBootstrap", "struct LatentClassConfig", "struct LatentClassData", "struct LatentClassEffect", "struct LatentClassPremise", "struct LatentClassResult", "struct Limits", "struct Params", "struct Problem", "type Replicate"]
+sha256 = "92709fccafaf67ced776dc345d61dc30bbd61c93b585b87f67e470e6b5c9fe67"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/latent_class_reference.rs"
-sha256 = "1bee4d6241b6739cda9eed14593493eb35ee682d34d39e05093046966a79fb18"
+items = ["fn close", "fn config", "fn floats", "fn premises_the_data_cannot_supply_are_refused_when_undeclared", "fn the_selected_fit_is_the_independent_stationary_point"]
+sha256 = "848d382ca8bb5b6cc69177dd2486c1bc480d5092fb378619d79183b2efcfd1a9"
 
 [[method_review.artifacts]]
 role = "reference"

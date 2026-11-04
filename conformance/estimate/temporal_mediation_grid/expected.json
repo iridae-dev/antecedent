@@ -57,7 +57,38 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/temporal_mediation.rs",
-          "sha256": "555740063b966d7c92b3ad5ac652589a9c27ec0bf9ed81b91df069dc4737b8a1"
+          "items": [
+            "fn coefficient_covariance",
+            "fn coefficient_variance",
+            "fn column",
+            "fn default",
+            "fn estimate",
+            "fn estimate_from_fit",
+            "fn estimate_with_adjustment",
+            "fn estimate_with_extras",
+            "fn fit_design",
+            "fn iid_se",
+            "fn mediated_series",
+            "fn mediation_design",
+            "fn new",
+            "fn ols_fit_with_residuals",
+            "fn ols_mechanism",
+            "fn ols_two_col",
+            "fn outcome_fit",
+            "fn prepare_design_with_gaps",
+            "fn recovers_positive_mediated_effect",
+            "fn reduced_fit",
+            "fn treatment_lag",
+            "fn validate",
+            "fn with_allow_iid_sobel_se",
+            "struct ContrastFit",
+            "struct MediationDesign",
+            "struct TemporalMediationEstimate",
+            "struct TemporalMediationEstimator",
+            "type OlsColumns",
+            "type OlsFit"
+          ],
+          "sha256": "c90a562203fe6d46bd08d872121249f59ef898ce2423dbc345749c44a4dace68"
         }
       ],
       "fixture_payload_sha256": "2313a9f7b3c1034ead2474663ed74e078dd50c55e87ff182da5a3d36cd3a2520"

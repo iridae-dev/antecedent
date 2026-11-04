@@ -41,17 +41,20 @@ record_sha256 = "6fce0a3d88174f9437e9dc41d2512eb88227a569b403eef49590c077e2e09f8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/adaptive_policy.rs"
-sha256 = "05f8bd7731ed5c37b91b89240511bcdd6a57d778e4ec8635807f63bd1fe2c22e"
+items = ["const MAX_PIECEWISE_CUTS", "const MAX_POLICY_FEATURES", "const MAX_SCHEDULE_STEPS", "const MAX_TREE_DEPTH", "enum PolicyFeature", "enum PolicyRule", "fn action_bounds", "fn bad", "fn bound", "fn bounds", "fn features", "fn id", "fn lag", "fn new", "fn rule", "fn variable", "struct AdaptivePolicyError", "struct AdaptivePolicyFamily", "struct ParameterBound"]
+sha256 = "0fde40ec45df8fa5f1b4ddae0deac78c934c58afc35aa74079cf5a29d908e601"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/adaptive_policy_search.rs"
-sha256 = "1cfe36499b355837cd982c86702d3d1c26f7d46757d8fc1821ff0a9060efb170"
+items = ["const WILSON_Z", "enum AdaptivePolicySearchError", "enum DrawSplit", "enum HeldOutDesign", "enum HeldOutRequirement", "enum PolicyObjective", "enum PolicyStanding", "enum SearchStop", "enum StandingRequest", "fn cancelled", "fn check_source", "fn compare", "fn compile", "fn contrasts", "fn default", "fn evaluate", "fn execute", "fn fractional_lower_tail_mean", "fn invalid", "fn mean_and_se", "fn memory_quote", "fn observable_variables", "fn search_family", "fn standard_normal", "fn try_candidate", "fn wilson_upper", "struct AdaptivePolicySearchResult", "struct ChanceBound", "struct ConstraintReport", "struct FamilySearchResult", "struct FamilyState", "struct PairedContrast", "struct PolicyAttempt", "struct PolicyConstraints", "struct PolicyEvaluation", "struct PolicyPath", "struct PolicySearchOptions", "struct PreparedAdaptivePolicySearch", "struct ResponseStanding", "struct Score", "trait PolicyRolloutSource"]
+sha256 = "54e8790c00fd562c64f26229f6affa5ca31af11085f74fbb916e90ef88d3b916"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/adaptive_policy_search.rs"
-sha256 = "baa2a59b7b9c370a42a804ec4f0cd35d670b7b4ba319ea6d8c8f6dbcb34b38e9"
+items = ["const STATE", "enum Dynamics", "fn feedback_family", "fn horizon", "fn linear_feedback_reaches_the_riccati_optimum_and_beats_the_open_loop_optimum", "fn lq", "fn lq_p", "fn new", "fn next", "fn norm_cdf", "fn norm_pdf", "fn options", "fn refusals_are_typed_for_unobserved_features_invalid_problems_budget_and_cancellation", "fn run", "fn schedule_family", "fn state_dependent_threshold_beats_the_best_fixed_schedule_at_the_closed_form_optimum", "fn the_in_test_closed_forms_match_the_conformance_document", "fn threshold_family", "fn treatment", "fn treatment_step_value", "struct Sim"]
+sha256 = "7ce815cfaec67da739812bbb037c6956d9f4a339329d87c181be0986046b7c51"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -61,4 +64,4 @@ sha256 = "04a5457d3b0bc542be1329b588146e5ac43879e2d77ba5c0c8fb80c8e3f07811"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/design/adaptive_policy_search/expected.json"
-sha256 = "963d349e31ed65a5892e3373c7838e0cc4462aad18a148601e9ff4be9748b37b"
+sha256 = "a9e4b89dbc36d9ca3f4df6272545883c3b139fd19fb0cd2e79e659d3cbf3b6dc"

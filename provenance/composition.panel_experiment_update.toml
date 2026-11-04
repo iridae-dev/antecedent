@@ -50,12 +50,14 @@ record_sha256 = "bcb99323a1aac2ef1ca2e6e28b90dd29ae040281f7211bb1c0e271774e4394f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/finite_belief.rs"
-sha256 = "231433a04ec379ddd9c005912d3e1766800814d136e52a8473887c9b60e0c516"
+items = ["fn condition", "fn invalid", "fn linear_functional_rows", "struct AffineGaussianExperiment", "struct JointAffineGaussianExperiment"]
+sha256 = "3629cfedc295d2dbbe10083ede9f76b3541460f9e11526c5d30070099cdd28ba"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/finite_belief_reference.rs"
-sha256 = "117b98521bbbc69544a33f5dd8ea08ace0be87059a8d951acef2e76d8fb082a2"
+items = ["fn floats", "fn joint_update_is_the_marginal_product_when_independent_and_the_bivariate_law_otherwise", "fn joint_update_refuses_what_is_not_a_joint_sampling_law", "fn linear_functional_equals_the_exact_row_dot_product", "fn malformed_updates_are_refused_and_never_reweighted", "fn reference", "fn refused", "fn text_floats", "fn the_update_equals_the_normalised_gaussian_likelihood_times_prior"]
+sha256 = "a8d1116c4c8b5e4fb336955f55b482b12ecc27928ab1d3b4a942817fd7ce9282"
 
 [[method_review.artifacts]]
 role = "reference"

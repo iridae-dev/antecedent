@@ -120,7 +120,7 @@ impl EvidenceLedgerRefusal {
     fn invalid(message: impl Into<String>) -> Self {
         Self::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "evidence_ledger.invalid_declaration",
+            antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
             message,
         )
     }
@@ -128,7 +128,7 @@ impl EvidenceLedgerRefusal {
     fn cancelled() -> Self {
         Self::new(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "evidence_ledger.cancelled",
+            antecedent_core::reason_details::evidence_ledger::CANCELLED,
             "cancelled before a synthesis was formed; the ledger is unchanged",
         )
     }
@@ -151,7 +151,7 @@ impl EvidenceLedgerRefusal {
             Some((code, detail, message)) => Self::new(code, detail, message),
             None => Self::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.replay_mismatch",
+                antecedent_core::reason_details::evidence_ledger::REPLAY_MISMATCH,
                 error.to_string(),
             ),
         }
@@ -546,7 +546,7 @@ fn too_many(count: usize) -> Result<(), EvidenceLedgerRefusal> {
     if count > MAX_COMBINATION_SOURCES {
         return Err(EvidenceLedgerRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "evidence_ledger.limit_exceeded",
+            antecedent_core::reason_details::evidence_ledger::LIMIT_EXCEEDED,
             format!(
                 "{count} sources in one request; at most {MAX_COMBINATION_SOURCES} are combined at once"
             ),
@@ -705,7 +705,7 @@ impl EvidenceLedgerSession {
         let record = staged.result(result).ok_or_else(|| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.unknown_result",
+                antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
                 "the registered result is not in the staged ledger",
             )
         })?;
@@ -1184,7 +1184,7 @@ impl EvidenceLedgerSession {
             .map_err(|error| {
                 EvidenceLedgerRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "evidence_ledger.interval_report_invalid",
+                    antecedent_core::reason_details::evidence_ledger::INTERVAL_REPORT_INVALID,
                     format!("the pooled interval cannot be reported ({error:?})"),
                 )
             })?;
@@ -1214,7 +1214,7 @@ impl EvidenceLedgerSession {
         let Some(value) = self.values.get(&result) else {
             return Err(EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.unknown_result",
+                antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
                 "the result is not in the ledger",
             ));
         };
@@ -1222,14 +1222,14 @@ impl EvidenceLedgerSession {
         let record = self.ledger.result(result).ok_or_else(|| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.unknown_result",
+                antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
                 "the result is not in the ledger",
             )
         })?;
         let unmeasured = |what: &str| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
-                "evidence_ledger.interval_construction_unavailable",
+                antecedent_core::reason_details::evidence_ledger::INTERVAL_CONSTRUCTION_UNAVAILABLE,
                 format!("no interval construction exists for {what}"),
             )
         };

@@ -95,13 +95,19 @@ fn discrepancy_artifact_incomparable_measurements_refuse_with_the_core_detail() 
     let (code, detail, _) =
         MechanismDiscrepancyArtifact::seal(&units).unwrap_err().refusal().expect("typed refusal");
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "mechanism_discrepancy.incomparable_measurements");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::mechanism_discrepancy::INCOMPARABLE_MEASUREMENTS
+    );
 
     let mut protocol = request();
     protocol.target.measurement = measurement("protocol-2", "cm");
     let (_, detail, _) =
         MechanismDiscrepancyArtifact::seal(&protocol).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "mechanism_discrepancy.incomparable_measurements");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::mechanism_discrepancy::INCOMPARABLE_MEASUREMENTS
+    );
 }
 
 #[test]
@@ -112,14 +118,18 @@ fn discrepancy_artifact_dependence_must_be_declared_independent() {
         let (code, detail, _) =
             MechanismDiscrepancyArtifact::seal(&dependent).unwrap_err().refusal().unwrap();
         assert_eq!(code, "route_not_supported", "{kind}");
-        assert_eq!(detail, "mechanism_discrepancy.dependence_unknown", "{kind}");
+        assert_eq!(
+            detail,
+            antecedent_core::reason_details::mechanism_discrepancy::DEPENDENCE_UNKNOWN,
+            "{kind}"
+        );
     }
     let mut bogus = request();
     bogus.dependence = "bogus".into();
     let (code, detail, _) =
         MechanismDiscrepancyArtifact::seal(&bogus).unwrap_err().refusal().unwrap();
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "mechanism_discrepancy.invalid_request");
+    assert_eq!(detail, antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST);
 }
 
 /// Seal `mutated` as a consumer-consistent artifact and consume it against the identity of
@@ -139,7 +149,7 @@ fn resealed_mutation_refuses(
     assert_eq!(error, MechanismDiscrepancyArtifactError::IdentityMismatch { field }, "{field}");
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "mechanism_discrepancy.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::mechanism_discrepancy::WRONG_CONTRACT);
 }
 
 #[test]
@@ -228,7 +238,10 @@ fn discrepancy_artifact_unresealed_tampering_does_not_replay() {
         MechanismDiscrepancyArtifact::from_bytes(&reencode(&forged, &numbers), None).unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "mechanism_discrepancy.incomparable_measurements");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::mechanism_discrepancy::INCOMPARABLE_MEASUREMENTS
+    );
 
     // A changed stored row count disagrees with the intercept sum of squares.
     let mut forged = meta.clone();
@@ -238,7 +251,10 @@ fn discrepancy_artifact_unresealed_tampering_does_not_replay() {
             .unwrap_err()
             .refusal()
             .unwrap();
-    assert_eq!(detail, "mechanism_discrepancy.inconsistent_summary");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::mechanism_discrepancy::INCONSISTENT_SUMMARY
+    );
 
     // A changed stored level.
     let mut forged = meta.clone();

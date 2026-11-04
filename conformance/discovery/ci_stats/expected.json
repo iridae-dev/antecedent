@@ -108,7 +108,15 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/discovery_ci_stats.rs",
-          "sha256": "cf5b2803a9b9de69c7e81fdbce629bba55ce4f52c7a7bb3cf904d6a3f208dfbf"
+          "items": [
+            "fn close",
+            "fn discovery_ci_stats_gpdc_cmiknn_gsquared",
+            "fn fixture_dir",
+            "fn load_cols",
+            "fn run_ci",
+            "type CiColumns"
+          ],
+          "sha256": "88474817c06c09d34f2f4d9b9a921968aa3b2843a7fd8471a96ea8afda515902"
         }
       ],
       "fixture_payload_sha256": "45af55a63ecd1559c62ba5dd6140a0c7363286754ead3351fcf84dd8db7075ad"

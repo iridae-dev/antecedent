@@ -132,7 +132,11 @@ fn imputation_domains_refuse_non_imputation_policies() {
     );
     let error = run_trial(&trial, Some(declaration)).unwrap_err();
     assert_eq!(error.reason_code(), Some("invalid_argument"));
-    assert!(error.to_string().contains("multiple_imputation.variable_domain"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::multiple_imputation::VARIABLE_DOMAIN)
+    );
 }
 
 #[test]
@@ -244,7 +248,12 @@ fn incomplete_observation_covariates_and_foreign_policies_are_refused() {
         ),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("missing_data.covariates_incomplete"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::missing_data::COVARIATES_INCOMPLETE),
+        "{error}"
+    );
 
     let t = trial(600, 6);
     let build =

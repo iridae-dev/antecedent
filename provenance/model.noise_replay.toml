@@ -41,17 +41,20 @@ record_sha256 = "fd39b8120a089a5b0a55d1d964da9a962698c8d92e119f5b88b9726b8a5aed9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/noise_replay.rs"
-sha256 = "0bd2eed5c894f923ed53d074252a598ff05439dede8f92e34943274cd6ea75e7"
+items = ["const NOISE_REPLAY_STREAM_DOMAIN", "const NOISE_ROLE", "const NOISE_ROW_BLOCK", "const NOISE_TABLE_BUDGET", "const POLICY_ROLE", "enum Fixed", "enum NoiseOrigin", "enum NoiseSource", "fn bytes_for", "fn check_budget", "fn check_cancelled", "fn coalition", "fn column", "fn draw_column", "fn from_abducted", "fn n_nodes", "fn n_rows", "fn new", "fn noise_stream_index", "fn origins", "fn policy_stream_index", "fn replay", "fn replay_admitted", "fn replay_into", "fn sample", "fn sample_admitted", "fn shape_table", "fn values", "struct NoiseReplayer", "struct NoiseTable", "struct ReplayOutcome"]
+sha256 = "3c46bd58983564fedce2467bed06e637c03ee701593eb07f4aa2adc8cc653a36"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/sample.rs"
-sha256 = "16fda6b2a7b1ab99b31e897bc84044c7aaf7c95253d1bcf9acad86c7bbcbb553"
+items = ["enum NodeNoise", "fn admit_cells", "fn apply_shift", "fn count_param", "fn evaluate_node", "fn noise_kind_override", "fn noise_kind_slot", "fn positive", "fn refuse_cross_family_soft", "fn sample_stochastic", "fn sample_with_overlay", "fn sample_with_overlay_admitted", "fn sample_with_overlay_ctx", "fn sample_with_overlay_polled", "fn soft_discrete_slot", "fn soft_gp_slot", "fn soft_to_slot", "struct NodeEvaluation"]
+sha256 = "3786125d929029477c6ebbec83128197666eec0f159217008b91a702860574a0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/scm_replay_reference.rs"
-sha256 = "44dda2df0353575eae867be3b3b91694dca0a4f59841f98b6f88d419342e09b1"
+items = ["const TINY_SIGMA", "fn a_declared_activation_mask_is_refused_rather_than_ignored", "fn a_node_that_is_both_hard_set_and_shifted_is_refused", "fn ancestral_sampling_with_a_vanishing_noise_scale_follows_the_deterministic_part", "fn close", "fn compile", "fn compiled_evaluation_and_replay_match_the_structural_equations_exactly", "fn gathered", "fn node", "fn num", "fn overlay", "fn table"]
+sha256 = "8c3a8bff62f55c319548757dc693ac62cfba168581f7b9e2905e25cd93ed1fc1"
 
 [[method_review.artifacts]]
 role = "reference"

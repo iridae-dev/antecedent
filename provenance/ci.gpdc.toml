@@ -37,17 +37,20 @@ record_sha256 = "b7013356e2cccf782d8fd8e09a1b7d06634692715a6872aa8658071a6a9e930
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/advanced/gpdc.rs"
-sha256 = "6c21de57862b55c2808b9286cbff40573ecb3d012aca34e47a5a68b483efb1d8"
+items = ["fn dcor_reaches_observed", "fn default", "fn length_scale", "fn new", "fn ridge", "struct Gpdc"]
+sha256 = "79a748f822183a9c5100d68ad57c54630d24848c7adbd8750bdedf610ef46291"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/dcor.rs"
-sha256 = "79448e02c2f1a2c711cb8b4944f2ce0430964b8095167ed58f64e145f6307d17"
+items = ["fn new", "struct Fenwick"]
+sha256 = "69c11a20098267830fd62712aa6579130235dcdcd9cc16f86fac7add5788d981"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
-sha256 = "b4e575a6e8d2ba2ead2997b2192fe7ff87cd7952f4beebab8885191df494ff8f"
+items = ["const REPLICATES", "fn check", "fn distance_correlation_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null", "fn floats", "fn knn_distance_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null"]
+sha256 = "43b33db33b730741256bfa4c26d1e286d60a9b9df933401f0af2840b3f50297d"
 
 [[method_review.artifacts]]
 role = "reference"

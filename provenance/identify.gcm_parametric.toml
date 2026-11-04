@@ -25,9 +25,11 @@ record_sha256 = "d3b74bf5d6e841bd4ddb1fb5556ce8858bc0f30877f9df56320f73ac82e83b1
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/execute_helpers_parametric.rs"
-sha256 = "e30289dd17f83d3f75fe6aadfffaa1f88f1950ccfcbe014574138da20d54102e"
+items = ["enum ClassAtomOutcome", "fn class_structural_mixture", "fn envelope_to_identification_result", "fn envelope_to_identification_result_for", "fn identification_status_ok_for_case", "fn parametric_scm_identification", "fn parametric_scm_identification_over", "fn scalar_identified_set", "struct ClassMixtureFacts"]
+sha256 = "40ab79bb5ad3cda76c8bf6918330c9ccbcb0071a108ab16a6771cf46e1ea1e0a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/src/analysis/execute/tests.rs"
-sha256 = "7bd467794b36d08d6dff866a488214061ca270e0f795ddc8ebc38864a7e6a967"
+items = ["fn assert_identify_only_refused", "fn ate", "fn bidirected_admg_distribution_cheap_builds_as_a_supported_functional_refuter_state", "fn bootstrap_report", "fn both_wordings_share_the_cached_code", "fn cached_count", "fn cancel_on_envelope_identify_ctx", "fn case", "fn case_result", "fn cheap_overlap_comparison", "fn envelope_refuters_compare_each_atom_with_its_own_estimate", "fn fitted_atoms", "fn frequentist_graph_posterior_overlap_withheld_when_estimands_disagree", "fn fresh_graph_posterior_cancelled_during_identification_returns_typed_error", "fn graph_envelope_unions_assumptions_from_every_identified_case", "fn graph_posterior_ate_known_truth_mixture", "fn graph_posterior_ate_known_truth_mixture_frequentist", "fn graph_posterior_overlap_withheld_when_estimands_disagree_bayesian", "fn identify_computations", "fn identify_only_refuses_graph_posterior", "fn identify_only_refuses_non_dag_admg_graph", "fn known_truth_data", "fn known_truth_graph_mixture_data", "fn mix_weighted_analytic_se_is_nan_if_any_atom_is_nonfinite", "fn multi_atom_se_requires_joint_sampling_covariance", "fn parametric_scm_identification_functional_is_resolvable", "fn prior_restricted_mass_is_unevaluable_not_unidentified", "fn prior_sensitivity_is_claimed_only_when_it_mixed", "fn recording_ctx", "fn single_atom_graph_posterior_keeps_its_se_without_omission_diagnostic", "fn toy_data", "struct CancelOnEnvelopeIdentify", "struct RecordingProgress"]
+sha256 = "3e205645d80bd4e776b2838405a3d6f1a7c80b1abd95aa588c5a4b100202d39b"

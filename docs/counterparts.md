@@ -16,9 +16,9 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 
 | Method | static / frequentist | static / bayesian | temporal / frequentist | temporal / bayesian |
 | --- | --- | --- | --- | --- |
-| `P01.iv` | supported | supported | not supported | not supported |
+| `P01.iv` | supported | supported | supported | supported |
 | `P01.linear` | supported | supported | supported | supported |
-| `P02.glm` | supported | supported | not supported | not supported |
+| `P02.glm` | supported | supported | supported | supported |
 | `P02.penalized_propensity` | not supported | not supported | not supported | not supported |
 | `P03.aipw` | supported | supported | not supported | not supported |
 | `P03.policy` | not supported | not supported | not supported | not supported |
@@ -29,7 +29,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P07.curve` | supported | supported | supported | supported |
 | `P07.derivative` | supported | supported | supported | supported |
 | `P07.dose_grid` | not supported | not supported | not supported | not supported |
-| `P07.quantile` | not supported | not supported | not supported | not supported |
+| `P07.quantile` | not supported | supported | not supported | not supported |
 | `P07.smoothed_dose` | not supported | not supported | not supported | not supported |
 | `P08` | supported | supported | supported | supported |
 | `P09.adaptive` | not supported | not supported | not supported | not supported |
@@ -51,10 +51,10 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.attribution` | supported | supported | supported | supported |
 | `P13.refuter` | not supported | not supported | not supported | not supported |
 | `P14` | supported | supported | supported | supported |
-| `P15.conditional` | supported | supported | not supported | not supported |
+| `P15.conditional` | supported | supported | supported | supported |
 | `P15.projection` | supported | supported | supported | supported |
-| `P15.pulse` | n/a (theory) | n/a (theory) | not supported | not supported |
-| `P15.sustained` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `P15.pulse` | n/a (theory) | n/a (theory) | supported | supported |
+| `P15.sustained` | n/a (theory) | n/a (theory) | supported | supported |
 | `P16` | not supported | not supported | not supported | not supported |
 | `P17` | not supported | not supported | not supported | not supported |
 | `P18` | not supported | not supported | not supported | not supported |
@@ -124,12 +124,6 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.refuter.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.frequentist` | supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.pulse.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.sustained.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.dose_grid import (
     DoseBiasAware,
     DoseClaims,
@@ -92,7 +93,7 @@ def test_a_band_claim_on_a_contrast_is_refused() -> None:
     claims = DoseClaims(pointwise_level=True, simultaneous_band=True)
     with pytest.raises(DoseGridRefusal) as info:
         run("contrast", claims=claims, curvature_bound=0.2)
-    assert info.value.detail == "dose_grid.no_simultaneous_band_method"
+    assert info.value.detail == reason_details.dose_grid.NO_SIMULTANEOUS_BAND_METHOD
 
 
 def test_the_quadratic_premise_and_a_bound_are_separate_rows() -> None:

@@ -43,12 +43,14 @@ record_sha256 = "478af3bcdfaa76a2b90b5348b3e25d65b91da7e0748212bd8ed120d54a4e541
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/frontdoor.rs"
-sha256 = "716e4bc7aae3176ad0176dd4775f012ff98946e150e5b11fc6162e1d0c3f118a"
+items = ["const LINEAR_PATH_PRODUCT_ASSUMPTION_ID", "const STAGE1_NCOLS", "const STAGE1_TREATMENT_COL", "const STAGE2_FIRST_MEDIATOR_COL", "const STAGE2_TREATMENT_COL", "enum CrossStagePolicy", "fn attach_bootstrap", "fn bootstrap_se", "fn default", "fn fill_row_score", "fn fit", "fn fit_stage1", "fn fit_stage2", "fn linear_path_product_restriction", "fn new", "fn point_estimate", "fn prepare", "fn prepare_frontdoor_problem", "fn problem", "fn require_read_inference", "fn scale_meat_by_equation_df", "fn stacked_cluster_meat", "fn stacked_hc_meat", "fn stacked_path_sum_se", "fn stacked_theta_cov_and_grad", "fn stage1_matrix", "fn stage2_matrix", "fn zero_cross_blocks", "struct FrontDoorTwoStage", "struct FrontDoorWorkspace", "struct PreparedFrontDoorProblem", "struct StackedStageViews"]
+sha256 = "e7efb09ebbe8f1d83e4f67e1bd6e0d95130f1b7fef81990bf28f5ccffae6a6cc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/frontdoor_two_stage_reference.rs"
-sha256 = "eabb54fc29d32bf7cd3af4bad2e5ded5ba547173b23fe6e39cf1ca2a9a04fb2b"
+items = ["fn close", "fn floats", "fn path_sum_and_stacked_standard_errors_match_the_exact_reference"]
+sha256 = "8af770eaab79d377d744729d5de6222f9d9b4f86b426c35b5aaee8a5472e4b53"
 
 [[method_review.artifacts]]
 role = "reference"

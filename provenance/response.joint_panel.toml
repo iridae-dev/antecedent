@@ -56,12 +56,14 @@ record_sha256 = "803e6894c93ff55725e221b19478eff9015f8c553a5a608c0f77e0a96798043
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/joint_panel/likelihood.rs"
-sha256 = "574da9f1ce6bf8ac2a21283b12dcd587b8983431cb290e8d587138f76b7ef19f"
+items = ["enum Detail", "fn ar1_moments", "fn ar1_moments_at", "fn ar1_random_intercept", "fn ar1_random_intercept_at", "fn combine", "fn decode", "fn exposure", "fn group_marginal", "fn layout", "fn linear_count", "fn log_likelihood", "fn marginal", "fn mechanism", "fn new", "fn observed_periods", "fn observed_response", "fn positive_exp", "fn residuals", "fn response", "fn saturate", "fn spatial_correlation", "fn spatial_marginal", "fn validate_parameters", "struct Ar1Moments", "struct CompiledPanel", "struct GaussianGroup", "struct Layout", "struct Marginal"]
+sha256 = "ff140ceeca8a73a79c6c517088b3c69c103ecf9d6a14bf8e82daf9e9ca36276d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/joint_panel/ar1_random_intercept_reference_tests.rs"
-sha256 = "d5cba716025dd69e11b03f50fcc0cb26661eb6101e7d29f75cee6c4121b9223c"
+items = ["fn cases", "fn close", "fn closed_form_matches_the_dense_covariance_reference", "fn f", "fn invalid_parameters_and_residuals_are_refused_not_evaluated", "fn the_likelihood_is_time_reversible_but_not_permutation_invariant"]
+sha256 = "ee57f70ec9cfda0699dd158108ba2e7d10d7cf03f679b9c1558476080fa0719c"
 
 [[method_review.artifacts]]
 role = "reference"

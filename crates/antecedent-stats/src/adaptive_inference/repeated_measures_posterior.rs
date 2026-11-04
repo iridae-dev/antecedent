@@ -213,7 +213,7 @@ pub fn repeated_measures_posterior(
 ) -> Result<RepeatedMeasuresPosterior, Error> {
     if request.selection == SelectionMechanism::DependsOnUnobserved {
         return Err(premise_failure(
-            "adaptive_inference.selection_not_ignorable",
+            antecedent_core::reason_details::adaptive_inference::SELECTION_NOT_IGNORABLE,
             "the assignment depends on an unobserved quantity, so the likelihood of the arm means \
              does not factor from the assignment mechanism; model the selection jointly with the \
              outcome, or randomize independently of unobserved quantities",
@@ -248,14 +248,14 @@ pub fn repeated_measures_posterior(
     }
     let (weights, summary_variance) = gls_unit_summary(request.structure).ok_or_else(|| {
         premise_failure(
-            "adaptive_inference.structure_incomplete",
+            antecedent_core::reason_details::adaptive_inference::STRUCTURE_INCOMPLETE,
             "the declared within-unit structure is incomplete or not a valid covariance",
         )
     })?;
     let (counts, sums) = accumulate_units(request.units, &weights, arms)?;
     if counts[request.plus] == 0 || counts[request.minus] == 0 {
         return Err(premise_failure(
-            "adaptive_inference.arm_not_observed",
+            antecedent_core::reason_details::adaptive_inference::ARM_NOT_OBSERVED,
             "a contrast arm has no completed unit; a prior alone does not identify the contrast",
         ));
     }

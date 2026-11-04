@@ -758,7 +758,7 @@ class TypedTransportedComposition:
     ) -> FirstOrderInterval:
         """The first-order interval of a contrast at ``level`` with its calibration slot.
 
-        The slot status is ``not_measured`` until a coverage record measures the construction;
+        The slot status is ``not_measured`` while no coverage record measures the construction;
         the interval is conditional on the declared transport premises.
         """
         execution = resolve_execution(execution)

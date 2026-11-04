@@ -23,17 +23,20 @@ record_sha256 = "4091a86a6f1f649cc589d2565406e25e91e56e36424917c59fa1a0a9516aad2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_mediation.rs"
-sha256 = "c03420de6e45d05ae7375ded882d676a736fbd31d4331317d0f07ef7562f3494"
+items = ["const MEDIATION_JOINT_NOTE", "fn compose_temporal_mediation", "fn compose_temporal_mediation_set", "fn couple_mediation_mechanisms", "fn ols_coefficient", "fn prepare_temporal_mediation", "fn prepare_temporal_mediation_adjusted", "fn prepare_temporal_mediation_with_gaps"]
+sha256 = "a537c8c0ec54d86388fb576e2033582b0e02a6a6dfe2143595d9c0ae1d08d649"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
+items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
+sha256 = "81480e7cac5f4ca97855d646a708ed4e96bc6043c32c4099dedb383a4798b9e2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_mediation_reference.rs"
-sha256 = "2df05956ad1b3c9474206626894ca87c524d926e6841bf8e6b47ca40495fdcd5"
+items = ["const DRAWS", "fn cases", "fn fit", "fn floats", "fn moments", "fn problem", "fn the_composed_decomposition_matches_the_exact_product_moments"]
+sha256 = "c1cdfafcb70e1a10f7a864e6dbd8871a70658c1d4be4543580932a46de986d23"
 
 [[method_review.artifacts]]
 role = "reference"

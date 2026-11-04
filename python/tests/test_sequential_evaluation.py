@@ -35,6 +35,7 @@ from dataclasses import replace
 
 import pytest
 from antecedent import Execution, _native
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import sequential_evaluation as se
 from antecedent.errors import CausalTypeError, CausalValueError
@@ -306,7 +307,7 @@ def test_delayed_outcomes_and_the_censoring_rule():
     refused(
         lambda: se.evaluate(model(), det("pilot3", entries)),
         "invalid_argument",
-        "sequential_evaluation.delayed_outcome_beyond_horizon",
+        reason_details.sequential_evaluation.DELAYED_OUTCOME_BEYOND_HORIZON,
     )
     forfeiting = model(censoring="forfeit")
     evaluation = se.evaluate(forfeiting, det("pilot3", entries))
@@ -363,7 +364,7 @@ def test_a_policy_that_takes_an_unsupported_action_is_refused_with_its_history()
     error = refused(
         lambda: se.evaluate(problem, det("v", POLICIES["repair_now"][0])),
         "history_support_violated",
-        "sequential_evaluation.action_not_supported",
+        reason_details.sequential_evaluation.ACTION_NOT_SUPPORTED,
     )
     assert "repair" in error.message or "repair" in str(error)
     assert error.remedy
@@ -377,7 +378,7 @@ def test_incomplete_policy_and_over_budget_policy_are_refused():
     refused(
         lambda: se.evaluate(model(), det("v", incomplete)),
         "invalid_argument",
-        "sequential_evaluation.policy_incomplete",
+        reason_details.sequential_evaluation.POLICY_INCOMPLETE,
     )
     greedy = dict(POLICIES["inspect_twice"][0])
     greedy[((INSPECT, ALARM), (INSPECT, NEGATIVE))] = INSPECT
@@ -385,7 +386,7 @@ def test_incomplete_policy_and_over_budget_policy_are_refused():
     refused(
         lambda: se.evaluate(model(), det("v", greedy)),
         "invalid_argument",
-        "sequential_evaluation.resource_budget_exceeded",
+        reason_details.sequential_evaluation.RESOURCE_BUDGET_EXCEEDED,
     )
 
 
@@ -394,18 +395,18 @@ def test_a_static_score_table_and_policy_learning_are_not_sequential_evaluation(
     refused(
         lambda: se.evaluate(model(), table_policy),
         "route_not_supported",
-        "sequential_evaluation.static_score_table",
+        reason_details.sequential_evaluation.STATIC_SCORE_TABLE,
     )
     learned = se.LearnedFromEvaluationData(rule="fitted_q_iteration")
     refused(
         lambda: se.resolve_policy(learned),
         "route_not_supported",
-        "sequential_evaluation.policy_change_refused",
+        reason_details.sequential_evaluation.POLICY_CHANGE_REFUSED,
     )
     refused(
         lambda: se.compare(model(), [se.Comparison("c", "act_now", learned)]),
         "route_not_supported",
-        "sequential_evaluation.policy_change_refused",
+        reason_details.sequential_evaluation.POLICY_CHANGE_REFUSED,
     )
     fixed = det("v", POLICIES["ship_now"][0])
     assert se.resolve_policy(fixed) == fixed
@@ -417,13 +418,13 @@ def test_another_population_or_period_and_any_interval_are_typed_refusals():
     error = refused(
         lambda: se.check_request(problem, target_population="plant_b"),
         "transport_missing_evidence",
-        "sequential_evaluation.transported_policy_contract_missing",
+        reason_details.sequential_evaluation.TRANSPORTED_POLICY_CONTRACT_MISSING,
     )
     assert "selection diagram" in error.remedy
     refused(
         lambda: se.check_request(problem, target_period="2027"),
         "transport_missing_evidence",
-        "sequential_evaluation.temporal_transport_contract_missing",
+        reason_details.sequential_evaluation.TEMPORAL_TRANSPORT_CONTRACT_MISSING,
     )
     refused(
         lambda: se.compare(
@@ -432,12 +433,12 @@ def test_another_population_or_period_and_any_interval_are_typed_refusals():
             target_population="plant_b",
         ),
         "transport_missing_evidence",
-        "sequential_evaluation.transported_policy_contract_missing",
+        reason_details.sequential_evaluation.TRANSPORTED_POLICY_CONTRACT_MISSING,
     )
     refused(
         se.request_interval,
         "uncertainty_representation_insufficient",
-        "sequential_evaluation.interval_not_supported",
+        reason_details.sequential_evaluation.INTERVAL_NOT_SUPPORTED,
     )
 
 
@@ -453,12 +454,12 @@ def test_observation_channels_pass_through_the_measurement_model_checks():
     refused(
         lambda: se.evaluate(with_channel(wrong_construct), inspect_only),
         "measurement_binding_mismatch",
-        "sequential_evaluation.channel_construct_mismatch",
+        reason_details.sequential_evaluation.CHANNEL_CONSTRUCT_MISMATCH,
     )
     refused(
         lambda: se.evaluate(with_channel(alarm_panel(population_id="plant_b")), inspect_only),
         "measurement_binding_mismatch",
-        "sequential_evaluation.channel_binding_mismatch",
+        reason_details.sequential_evaluation.CHANNEL_BINDING_MISMATCH,
     )
     proxy = alarm_panel(
         indicator=mm.MeasurementVariable("unit_condition", "noisy_misclassified", "category")
@@ -474,7 +475,7 @@ def test_observation_channels_pass_through_the_measurement_model_checks():
         se.SequentialEvaluationRefusal, se.evaluate, with_channel(differential), inspect_only
     ).value
     assert error.reason_code == "differential_error_not_pooled"
-    assert error.detail == "measurement_model.structure_parameters"
+    assert error.detail == reason_details.measurement_model.STRUCTURE_PARAMETERS
 
 
 def test_malformed_declarations_raise_before_any_native_call():
@@ -505,7 +506,7 @@ def test_a_belief_session_updates_by_bayes_and_records_each_observation_once():
     refused(
         lambda: session.observe(INSPECT, ALARM, "inspection_1"),
         "evidence_double_counted",
-        "sequential_evaluation.record_already_counted",
+        reason_details.sequential_evaluation.RECORD_ALREADY_COUNTED,
     )
     assert (session.ledger_state, session.recorded, session.time) == (state, recorded, 1)
     assert session.observe(INSPECT, NEGATIVE, "inspection_2").belief == pytest.approx(
@@ -514,12 +515,12 @@ def test_a_belief_session_updates_by_bayes_and_records_each_observation_once():
     refused(
         lambda: session.observe(INSPECT, ALARM, "inspection_3"),
         "invalid_argument",
-        "sequential_evaluation.resource_budget_exceeded",
+        reason_details.sequential_evaluation.RESOURCE_BUDGET_EXCEEDED,
     )
     refused(
         lambda: session.observe(SHIP, 0, "ship_1"),
         "invalid_argument",
-        "sequential_evaluation.commit_has_no_observation",
+        reason_details.sequential_evaluation.COMMIT_HAS_NO_OBSERVATION,
     )
 
 
@@ -581,13 +582,13 @@ def test_comparisons_and_the_value_of_collecting_evidence_through_the_design_ran
             problem, [se.Comparison("x", "act_now", det("v", POLICIES["inspect_then_act"][0]))]
         ),
         "invalid_argument",
-        "sequential_evaluation.comparison_kind_mismatch",
+        reason_details.sequential_evaluation.COMPARISON_KIND_MISMATCH,
     )
     # the cross-check is not offered for a model with a stopping boundary
     refused(
         lambda: se.value_of_collecting_evidence(model(), INSPECT, (SHIP, REPAIR)),
         "route_not_supported",
-        "sequential_evaluation.voi_scope",
+        reason_details.sequential_evaluation.VOI_SCOPE,
     )
 
 
@@ -650,12 +651,12 @@ def test_cancellation_and_bounds_are_observed():
     refused(
         lambda: se.rollout(problem, policy, seed=1, rollouts=0),
         "invalid_argument",
-        "sequential_evaluation.rollouts",
+        reason_details.sequential_evaluation.ROLLOUTS,
     )
     refused(
         lambda: se.evaluate(problem, det("v", POLICIES["inspect_twice"][0]), max_nodes=3),
         "invalid_argument",
-        "sequential_evaluation.limit_exceeded",
+        reason_details.sequential_evaluation.LIMIT_EXCEEDED,
     )
 
 
@@ -776,12 +777,12 @@ def test_off_policy_refusals_positivity_duplicates_and_inconsistent_logs():
     refused(
         lambda: se.evaluate_off_policy(problem, waits, behaviour, log),
         "history_support_violated",
-        "sequential_evaluation.behaviour_support_missing",
+        reason_details.sequential_evaluation.BEHAVIOUR_SUPPORT_MISSING,
     )
     refused(
         lambda: se.evaluate_off_policy(problem, target, behaviour, [*log, log[0]]),
         "evidence_double_counted",
-        "sequential_evaluation.trajectory_recorded_twice",
+        reason_details.sequential_evaluation.TRAJECTORY_RECORDED_TWICE,
     )
     wrong = [
         replace(log[0], steps=(replace(log[0].steps[0], probability=0.125), *log[0].steps[1:])),
@@ -790,13 +791,13 @@ def test_off_policy_refusals_positivity_duplicates_and_inconsistent_logs():
     refused(
         lambda: se.evaluate_off_policy(problem, target, behaviour, wrong),
         "invalid_argument",
-        "sequential_evaluation.logged_trajectory_inconsistent",
+        reason_details.sequential_evaluation.LOGGED_TRAJECTORY_INCONSISTENT,
     )
     ship_first = [t for t in log if t.steps[0].action == SHIP][:5]
     refused(
         lambda: se.evaluate_off_policy(problem, target, behaviour, ship_first),
         "history_support_violated",
-        "sequential_evaluation.no_overlap",
+        reason_details.sequential_evaluation.NO_OVERLAP,
     )
 
 
@@ -859,7 +860,7 @@ def test_a_resealed_other_evaluation_corruption_and_wrong_kinds_are_refused():
         refused(
             lambda wanted=wanted: require_success(se.consume_artifact(forged, **wanted)),
             "route_not_supported",
-            "sequential_evaluation.identity_mismatch",
+            reason_details.sequential_evaluation.IDENTITY_MISMATCH,
         )
     # a different law is a different model identity
     changed = require_success(
@@ -873,7 +874,7 @@ def test_a_resealed_other_evaluation_corruption_and_wrong_kinds_are_refused():
         refused(
             lambda broken=broken: require_success(se.consume_artifact(broken)),
             "invalid_argument",
-            "sequential_evaluation.malformed",
+            reason_details.sequential_evaluation.MALFORMED,
         )
     with pytest.raises(CausalTypeError):
         require_success(se.consume_artifact("not bytes"))  # type: ignore[arg-type]
@@ -958,7 +959,7 @@ def test_declared_bounds_are_refused_not_truncated():
                 )
             ),
             "invalid_argument",
-            "sequential_evaluation.model_states",
+            reason_details.sequential_evaluation.MODEL_STATES,
         )
     # more than 1024 actions
     crowd = se.FiniteModel(
@@ -973,7 +974,7 @@ def test_declared_bounds_are_refused_not_truncated():
     refused(
         lambda: se.evaluate(crowd, ship_now),
         "invalid_argument",
-        "sequential_evaluation.model_actions",
+        reason_details.sequential_evaluation.MODEL_ACTIONS,
     )
     # a horizon beyond 1024 decision times, and a horizon of zero
     for horizon in (1025, 0):
@@ -982,19 +983,21 @@ def test_declared_bounds_are_refused_not_truncated():
                 se.FiniteModel(**{**base, "horizon": horizon}), ship_now
             ),
             "invalid_argument",
-            "sequential_evaluation.model_horizon",
+            reason_details.sequential_evaluation.MODEL_HORIZON,
         )
     one = se.FiniteModel(**base)
     # more than 65536 policy entries
     big = se.Policy.deterministic("big", {((0, i),): 0 for i in range(65_537)})
     refused(
-        lambda: se.evaluate(one, big), "invalid_argument", "sequential_evaluation.limit_exceeded"
+        lambda: se.evaluate(one, big),
+        "invalid_argument",
+        reason_details.sequential_evaluation.LIMIT_EXCEEDED,
     )
     # more than 10 million rollouts
     refused(
         lambda: se.rollout(one, ship_now, seed=1, rollouts=10_000_001),
         "invalid_argument",
-        "sequential_evaluation.limit_exceeded",
+        reason_details.sequential_evaluation.LIMIT_EXCEEDED,
     )
     # more than 150000 logged trajectories
     log = [
@@ -1003,5 +1006,5 @@ def test_declared_bounds_are_refused_not_truncated():
     refused(
         lambda: se.evaluate_off_policy(one, ship_now, ship_now, log),
         "invalid_argument",
-        "sequential_evaluation.limit_exceeded",
+        reason_details.sequential_evaluation.LIMIT_EXCEEDED,
     )

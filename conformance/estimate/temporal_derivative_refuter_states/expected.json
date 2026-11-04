@@ -58,7 +58,20 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_derivative_refuter_known_truth.rs",
-          "sha256": "87aa13cc2504191b94eabd69e942d51bcfbd05e78279c46e46ff9fdefeaccb3a"
+          "items": [
+            "fn fixture",
+            "fn functionals",
+            "fn graph",
+            "fn number",
+            "fn numbers",
+            "fn published",
+            "fn report",
+            "fn series",
+            "fn study",
+            "fn temporal_derivative_planted_off_support_point_is_detected",
+            "fn temporal_derivative_refuter_states_known_truth"
+          ],
+          "sha256": "32c58dfe4e7bb96694762c9f692f36c4f29e2adc4699f372fa3506f0ffa2d03c"
         }
       ],
       "fixture_payload_sha256": "5a10653881dc96e248d9aa9b440b6494fd4b45082fef1a7d0d2edc81d65b1130"

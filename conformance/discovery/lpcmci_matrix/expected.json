@@ -48,7 +48,16 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs",
-          "sha256": "595aca70c61b6ca5bfa3432ae424fb4022f71d6f3566baee00d5c9e8969dc0de"
+          "items": [
+            "fn canonical",
+            "fn fixture",
+            "fn lpcmci_fixture_records_retained_harness_and_historical_pins",
+            "fn lpcmci_matches_tigramite_motif_matrix_and_relabeling",
+            "fn reference_links",
+            "fn series",
+            "type LinkKey"
+          ],
+          "sha256": "262c6cc6e4d8cd071a112a1853bc5d2e55573a8bfe94e08b61b15c3e885a0abc"
         },
         {
           "role": "comparison_helper",

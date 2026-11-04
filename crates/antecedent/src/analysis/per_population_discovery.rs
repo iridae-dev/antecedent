@@ -116,7 +116,7 @@ pub fn request_selection_targets_from_differences(
     let differing = report.differing_edges().len();
     Err(DiscoveredStructureRefusal {
         code: antecedent_core::reason_code!("discovered_structure_unresolved"),
-        detail: "selective_discovery.differences_are_not_selection_targets",
+        detail: antecedent_core::reason_details::selective_discovery::DIFFERENCES_ARE_NOT_SELECTION_TARGETS,
         unresolved_edges: Vec::new(),
         bounded_search_receipts: Vec::new(),
         remedy: format!(

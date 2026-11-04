@@ -56,12 +56,14 @@ record_sha256 = "3c9b30f50cc2c01d1aa6c9d261bac25e3939f204059c4a335fe3877f404b3d0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_synthetic_control.rs"
-sha256 = "bcbfacaa7aefc418b6e348676c84570f6b769364fb524cd6af32f39f96cb01e8"
+items = ["const CHAINS", "const CHAIN_SEED_STRIDE", "const MAX_RHAT", "const MIN_BULK_ESS", "const PATH_SEED_STRIDE", "const STEP_SCALES", "const THIN", "fn assemble", "fn below", "fn effect_draw", "fn fit_bayesian_synthetic_control", "fn new", "fn parse_panel", "fn period_paths", "fn power", "fn residuals", "fn run_chain", "fn transfer_step", "fn validate", "fn whitened_ss", "struct BayesianSyntheticControlEstimate", "struct BayesianSyntheticControlSpec", "struct ChainDraws", "struct ChainState", "struct ScPanel"]
+sha256 = "c5dd2943b060fd0f57ca3f31d4f5f0b9db61d3e2cbee9f126a2751e1862f63f3"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_synthetic_control_reference.rs"
-sha256 = "85b76278ea66e7555b17d78ae2df3814891869ccf7a02f15f70e1088d579e351"
+items = ["const UNITS", "fn panel", "fn weights_effect_and_pre_fit_match_the_simplex_quadrature"]
+sha256 = "20e1ba1f296b6fe5f463b335e7239defe59c1dd117edb12bf6503b26c22ae2de"
 
 [[method_review.artifacts]]
 role = "reference"

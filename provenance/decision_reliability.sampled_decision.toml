@@ -42,12 +42,14 @@ record_sha256 = "b3f5ecd2adbe2017791da172b0805e8c6c56bb59222a64ea0080d6bfb7a3f6a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/mc_error.rs"
-sha256 = "f54d1d36153f1cd8cf2039783e84d1cbb0ad54b760bbc6012e6b61cff4de3811"
+items = ["const EPS", "const MAX_ITERATIONS", "const TINY", "enum BatchPlan", "enum Functional", "enum PairCoupling", "enum RiskTail", "enum StandardErrorMethod", "enum ThresholdSide", "fn batch_means", "fn batch_quantiles", "fn batches", "fn beta_continued_fraction", "fn cvar_lower", "fn estimate", "fn estimate_difference", "fn finite_checked", "fn influence_method", "fn maritz_jarrett_se", "fn mean_like", "fn order_index", "fn quantile_estimate", "fn regularized_beta", "fn series_stats", "fn sorted_copy", "fn validate", "fn welford", "struct DifferenceEstimate", "struct FunctionalEstimate", "struct McEstimate", "struct SeriesStats", "type MeanLikeSeries"]
+sha256 = "912a391bc14710b6abab3750b508a34373348ba0b65f57d77125c89ca829c44d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
-sha256 = "4177dfefe54de8216399f2ad5f4c20e4481b106b199caec104dcedf63439d5a5"
+items = ["fn carrier", "fn check_interval", "fn close", "fn dependence", "fn derived_uncertainty_matches_the_definition_level_reference", "fn differences_match_the_definition_level_reference", "fn estimates_match_the_definition_level_reference", "fn floats", "fn functional", "fn plan", "fn reference"]
+sha256 = "015549e251e8b1517c84a556c767ff78f9386c6e569cc291104650a25bd7c1ca"
 
 [[method_review.artifacts]]
 role = "reference"

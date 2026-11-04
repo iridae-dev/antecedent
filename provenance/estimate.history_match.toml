@@ -40,12 +40,14 @@ record_sha256 = "98a844a6221d72161057da84775336e27baa7f16cc3b02a0761f57f7731b2a7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/history_match.rs"
-sha256 = "891f07484365561fe247fa8d9e709ced33b86860981c691083acbf959cf509ff"
+items = ["fn contrast", "fn from_donors", "fn in_period", "fn match_histories", "fn match_rows", "fn mean", "fn nearest", "fn new", "fn outcome", "fn period", "fn score", "fn try_new", "fn validate_caliper", "fn weight", "struct CollapsedHistoryIndex", "struct FrequentistHistoryContrast", "struct FrequentistHistoryEstimate", "struct HistoryUnit", "struct MatchedHistories", "struct Pair", "struct PeriodHistoryContrast", "struct Row"]
+sha256 = "71afae7008922f62a98715343f8c3db6f227cc5a734b981457515e2e176324f8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/history_match_variance_reference.rs"
-sha256 = "584e29ef04558960abca6ab61b914bc2cc61aae173ec22d199701038c6c458c9"
+items = ["fn standard_error_matches_every_noise_pattern_and_is_unbiased_for_the_conditional_variance"]
+sha256 = "1845a46f342383c2e4b147423cd119fa2136aaaacfa633774c72032d7f5445b2"
 
 [[method_review.artifacts]]
 role = "reference"

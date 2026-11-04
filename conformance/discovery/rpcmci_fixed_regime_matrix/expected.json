@@ -49,7 +49,16 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs",
-          "sha256": "5546059ed8f3e1b8a3bdda3d0ea4a950e5416a83cda6c57b5114da638c1feaf6"
+          "items": [
+            "fn canonical",
+            "fn case_data",
+            "fn fixed_label_rpcmci_matches_independent_per_regime_tigramite",
+            "fn fixed_regime_fixture_records_scope_and_retained_harness",
+            "fn fixture",
+            "fn reference_links",
+            "type LinkKey"
+          ],
+          "sha256": "9ff0db1a013cf2be39bf5f38d2a33608b43848fdeac211410f2ac9b29d226417"
         },
         {
           "role": "comparison_helper",

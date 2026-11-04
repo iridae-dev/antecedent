@@ -5,11 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# No primary paper: A closed variant: no method is implemented, so there is nothing to cite.
+# No primary paper: A closed variant: no interval method is implemented, so there is nothing to cite.
 papers = [
 ]
 implementation_deviations = [
-  "Intentionally implements nothing: an interval, posterior or coverage statement for a revalidated or composed claim, and the inheritance of a calibration record by a claim about another target, stay closed until whole-method coverage is measured at the composed coordinate.",
+  "Intentionally implements no interval, posterior or coverage statement for a revalidated or composed claim, and no inheritance of a calibration record by a claim about another target. A calibration record that no longer holds at the claim's coordinate is carried as a calibration withdrawal on the claim (its interval is annotated, the point value stands); it is never refused and never silently kept.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -20,16 +20,18 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "closed_variant"
-rationale = "A closed variant: no interval, posterior or coverage statement is produced for a revalidated or composed claim, and a calibration record is not inherited by a claim about another target."
-no_independent_algorithm = "revalidate.rs classifies claims against an earlier snapshot and returns a typed refusal (composition_verification.calibration_not_held) with the remedy of reporting the point value only; it computes no interval."
-record_sha256 = "6daf63e3b6a903c360dc5eb3cb4fe565d4f3c87a9aa8ea526fde3a8bb54fe913"
+rationale = "A closed variant: no interval, posterior or coverage statement is produced for a revalidated or composed claim, a calibration record is not inherited by a claim about another target, and a calibration the claim can no longer rely on is carried as a withdrawal that annotates the interval instead of refusing the claim."
+no_independent_algorithm = "revalidate.rs classifies claims against an earlier snapshot; support, provider-trust, retired-input and unexecutable-stage withdrawals and numerical recomputation yield typed refusals, while a calibration withdrawal yields no refusal and is carried on the claim (class withdrawn, calibration state lost, point value untouched); it computes no interval."
+record_sha256 = "38c97c23ee1ff4ab6da1814ddc58acf330253925960aedca48e156bf254c21d4"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
-sha256 = "9d1445744930d78e72c8f7d1e16b8bd63baf7269641a0cd6844acc56bc76a565"
+items = ["enum CalibrationState", "enum NumericalCause", "enum ObservedEffect", "enum PriorAuthority", "enum WithdrawalKind", "fn as_str", "fn claim", "fn claims", "fn dependency_set", "fn evaluate_calibration", "fn from_result_status", "fn from_revalidation", "fn held_record", "fn identity", "fn keys_of", "fn ledger_effects", "fn own_causes", "fn own_withdrawals", "fn plain", "fn propagate_cause", "fn refusal", "fn removed", "fn require_valid", "fn revalidate", "fn withdrawn_for", "struct CalibrationLineage", "struct ClaimRevalidation", "struct GraphRevalidation", "struct NumericalReason", "struct Withdrawal", "struct Working", "type Held"]
+sha256 = "d58c257551c327eaf0ff3fef5ff347e218e022a2649bc105ebe15bfc8fcb7101"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/composition_verification.rs"
-sha256 = "80a857c0316a6040d57e4bae067c81eb3c9b13f445514b298e165cf9e57b5a31"
+items = ["const ALL", "fn a_change_leaves_the_sibling_valid_and_recomputes_every_dependent", "fn a_different_calibration_record_is_not_inherited", "fn a_node_added_after_the_earlier_snapshot_has_nothing_to_reuse", "fn a_provider_standing_nobody_stated_is_not_a_support", "fn a_refit_under_an_unchanged_structure_is_a_recomputation_with_no_old_authority", "fn a_removed_input_is_a_retired_support_not_a_stale_number", "fn a_replaced_calibration_record_recomputes_its_owner_and_refuses_its_heirs", "fn a_reused_claim_does_not_keep_authority_across_a_trust_standing_that_moved", "fn a_standing_is_stated_as_one_value_and_unstated_standing_is_refused", "fn a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers", "fn an_unchanged_graph_is_still_valid_and_keeps_its_authority", "fn an_unsupported_target_withdraws_only_what_rests_on_its_support", "fn another_vocabulary_adapts_onto_the_one_class", "fn build", "fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_withdrawn_not_refused", "fn d", "fn declaration_order_never_changes_identity_order_or_classification", "fn heap", "fn keys", "fn ledger_standings_drive_the_graph_classification", "fn malformed_graphs_are_refused", "fn no_effects", "fn node", "fn obs", "fn params", "fn permutations", "fn pool", "fn replaced_scientific_premises_withdraw_old_authority_and_descendants", "fn restored_support_recomputes_the_claims_that_were_never_supported_there", "fn reusing_a_structural_derivation_after_data_replacement_keeps_no_fit_authority", "fn shared_data_comes_from_the_ledger_overlap_and_unknown_is_never_independent", "fn the_classification_identity_binds_every_reported_field", "fn the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates", "fn transport_pair", "fn transported_calibration_is_never_inherited_by_a_different_target", "struct Params"]
+sha256 = "08a43a04648fd7e0288640ba93387aed6be53ddb335e86ec4fbe43f64371d672"

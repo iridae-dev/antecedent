@@ -37,12 +37,14 @@ record_sha256 = "089d3620ba2fe7e93b2198a47b4f87a37345795dcc9f1634fdc608e4abda8c3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/policy_value.rs"
-sha256 = "687875c34156bca53ad14d617ae5993d4fcd95d7d1621676a3069a238f64104d"
+items = ["fn binary_ipw_value", "fn binary_policy_row_scores", "fn evaluate_binary_ipw_policy", "fn evaluate_fixed_candidate_regret", "fn evaluate_multi_action_cate", "fn evaluate_multi_action_ipw_policy", "fn evaluate_multi_action_policy_value_scores", "fn evaluate_policy_value_ipw_scores", "fn evaluate_policy_value_scores", "fn evaluate_scores", "fn evaluate_uplift_bins", "fn row_scores", "fn uplift_by_score_bin", "struct BinaryIpwDesign", "struct BinaryIpwPolicy", "struct BinaryPolicyDesign", "struct BinaryPolicyLimits", "struct BinaryPolicyRowScores", "struct FixedCandidateRegret", "struct MultiActionCatePoint", "struct MultiActionIpwDesign", "struct MultiActionIpwPolicy", "struct MultiActionLimits", "struct PolicyValueScores", "struct RowScores", "struct ScoreBinUplift", "struct UpliftBinScore"]
+sha256 = "b5736d0da4827f335d5c282c1c3a5035df921585b392f82625bc40402a47a9ea"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/policy_value_reference.rs"
-sha256 = "ee61f00b9accfe825b33e72e5aff48e8c64a23d043a08b9ada8f1bb81d5474aa"
+items = ["fn binary_scores_standard_errors_and_point_values_match_the_exact_scores", "fn bools", "fn cases", "fn close", "fn finite_class_regret_interval_matches_the_exact_bonferroni_contrasts", "fn floats", "fn idx", "fn multi_action_scores_point_values_and_stratum_effects_match_the_exact_scores", "fn multi_inputs", "fn uplift_bins_match_the_exact_scores_and_a_singleton_bin_is_handled_as_documented"]
+sha256 = "f09711ea9d9c6e9362ca7828084847f89a9b63caee64f5fcf0e1fb8540aa7d7c"
 
 [[method_review.artifacts]]
 role = "reference"

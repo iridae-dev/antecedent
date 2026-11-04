@@ -40,17 +40,20 @@ record_sha256 = "e3bfe0970469c1cdc7ed43f5ef4cd1645e8f9354f8549b9dcc044d731782785
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/advanced/knn.rs"
-sha256 = "0a046874c839fae9391b33621543673cce76845b20d38e2c7af5eeaaac8fcadf"
+items = ["fn default", "fn new", "struct KnnDependence"]
+sha256 = "9ccfd594c20cdc812e0999b09f63c622bf2433fe9cfa15d65c9d34d7d7b46f4e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/block_shuffle.rs"
-sha256 = "49abbb5e641ca4e86c4409a5c83fb00b19fd42479b9ddf4104a8c2e6b86d55f0"
+items = ["fn default", "fn null_reaches_observed"]
+sha256 = "4aff21e81bb2a67a4961ba405391368ab5b4b615eca77e8f268dca07e5e444de"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
-sha256 = "b4e575a6e8d2ba2ead2997b2192fe7ff87cd7952f4beebab8885191df494ff8f"
+items = ["const REPLICATES", "fn check", "fn distance_correlation_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null", "fn floats", "fn knn_distance_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null"]
+sha256 = "43b33db33b730741256bfa4c26d1e286d60a9b9df933401f0af2840b3f50297d"
 
 [[method_review.artifacts]]
 role = "reference"

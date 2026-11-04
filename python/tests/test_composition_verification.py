@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_verification as cv
 from antecedent import evidence_ledger as el
 from antecedent.composition_verification import CompositionVerificationRefusal
@@ -153,7 +154,7 @@ def test_a_change_leaves_the_sibling_valid_and_recomputes_every_dependent():
         assert {r.origin for r in claim.numerical} == {"cohort"}
     error = refused(lambda: result.require_valid("decision"))
     assert error.reason_code == "claim_revalidation_required"
-    assert error.detail == "composition_verification.recompute_required"
+    assert error.detail == reason_details.composition_verification.RECOMPUTE_REQUIRED
     assert error.remedy
 
 
@@ -186,7 +187,7 @@ def test_a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers()
     assert result.classify("decision").withdrawn_for("provider_trust")
     error = refused(lambda: result.require_valid("decision"))
     assert error.reason_code == "claim_support_withdrawn"
-    assert error.detail == "composition_verification.provider_trust_withdrawn"
+    assert error.detail == reason_details.composition_verification.PROVIDER_TRUST_WITHDRAWN
 
 
 def test_an_unsupported_target_withdraws_only_the_claim_resting_on_its_support():
@@ -198,7 +199,7 @@ def test_an_unsupported_target_withdraws_only_the_claim_resting_on_its_support()
         "support", "target", "income above 200k",
     )  # fmt: skip
     error = refused(lambda: result.require_valid("transported"))
-    assert error.detail == "composition_verification.support_withdrawn"
+    assert error.detail == reason_details.composition_verification.SUPPORT_WITHDRAWN
 
 
 def test_calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused():
@@ -255,7 +256,7 @@ def test_transported_calibration_never_inherits_to_a_different_target():
     assert moved.classify("retargeted").klass == "withdrawn"
     error = refused(lambda: moved.require_valid("retargeted"))
     assert error.reason_code == "claim_revalidation_required"
-    assert error.detail == "composition_verification.recompute_required"
+    assert error.detail == reason_details.composition_verification.RECOMPUTE_REQUIRED
     other_target = cv.verify_composition(other, previous=other).require_valid("retargeted")
     assert other_target.klass == "withdrawn"
 
@@ -438,7 +439,7 @@ def test_shared_data_comes_from_the_ledger_and_unknown_is_never_independent():
         ledger.revise_source(require_success(el.SourceRevision.withdraw(a, "consent withdrawn")))
     )
     error = refused(lambda: result.verify_ledger(graph, ledger))
-    assert error.detail == "composition_verification.ledger_mismatch"
+    assert error.detail == reason_details.composition_verification.LEDGER_MISMATCH
 
 
 # --------------------------------------------------------------------------- artifact
@@ -504,7 +505,7 @@ def test_a_mutated_artifact_is_refused():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "composition_verification.identity_mismatch"
+    assert error.detail == reason_details.composition_verification.IDENTITY_MISMATCH
     assert error.remedy
 
 
@@ -522,14 +523,14 @@ def test_malformed_declarations_are_refused_or_rejected():
         cv.verify_composition("graph")  # type: ignore[arg-type]
     twice = cv.CompositionGraph([node("a", "claim"), node("a", "claim")])
     assert refused(lambda: cv.verify_composition(twice)).detail == (
-        "composition_verification.graph_invalid"
+        reason_details.composition_verification.GRAPH_INVALID
     )
     cyclic = cv.CompositionGraph(
         [node("a", "claim"), node("b", "claim")],
         [cv.Edge("a", "b", "data"), cv.Edge("b", "a", "data")],
     )
     assert refused(lambda: cv.verify_composition(cyclic)).detail == (
-        "composition_verification.graph_invalid"
+        reason_details.composition_verification.GRAPH_INVALID
     )
     no_edge = cv.CompositionGraph(
         [
@@ -538,7 +539,7 @@ def test_malformed_declarations_are_refused_or_rejected():
         ]
     )
     assert refused(lambda: cv.verify_composition(no_edge)).detail == (
-        "composition_verification.graph_invalid"
+        reason_details.composition_verification.GRAPH_INVALID
     )
 
 
@@ -772,7 +773,7 @@ def test_plan_stages_give_the_nodes_and_effects_of_a_data_replacement():
     assert result.classify("identification").authority_retained is True
     error = refused(lambda: result.require_valid("decision"))
     assert error.reason_code == "claim_revalidation_required"
-    assert error.detail == "composition_verification.recompute_required"
+    assert error.detail == reason_details.composition_verification.RECOMPUTE_REQUIRED
     assert error.remedy
     assert result.require_valid("identification").klass == "still_valid"
 
@@ -816,7 +817,7 @@ def test_a_stage_standing_is_stated_on_its_node_and_a_stage_outside_the_plan_is_
         )
     )
     assert missing.reason_code == "invalid_argument"
-    assert missing.detail == "composition_verification.stage_not_in_plan"
+    assert missing.detail == reason_details.composition_verification.STAGE_NOT_IN_PLAN
     with pytest.raises(CausalValueError):
         cv.plan_declaration(
             _declared(), _declared(), [cv.StageBinding("x", "claim", "no_such_stage")]
@@ -866,7 +867,7 @@ def test_claim_freshness_is_withdrawal_supersession_or_a_moved_snapshot_and_offl
     assert result.classify("report").klass == "withdrawn"
     error = refused(lambda: result.require_valid("report"))
     assert error.reason_code == "claim_support_withdrawn"
-    assert error.detail == "composition_verification.input_retired"
+    assert error.detail == reason_details.composition_verification.INPUT_RETIRED
     moved = cv.verify_composition(
         graph, previous=graph, effects=one(current_snapshot=D("another snapshot"))
     )

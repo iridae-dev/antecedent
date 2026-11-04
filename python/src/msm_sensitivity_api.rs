@@ -36,7 +36,7 @@ fn msm_refusal(error: &MsmSensitivityError) -> String {
 fn declaration_refusal(message: &str) -> String {
     refusal_json(
         reason_code!("invalid_argument"),
-        "sensitivity_decision_composition.invalid_surface",
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
         message,
     )
 }
@@ -44,14 +44,15 @@ fn declaration_refusal(message: &str) -> String {
 fn io_refusal(error: &IoError) -> String {
     match error {
         IoError::Refused { code, message } => {
-            let (detail, text) = message
-                .split_once(": ")
-                .unwrap_or(("sensitivity_decision_composition.wrong_contract", message.as_str()));
+            let (detail, text) = message.split_once(": ").unwrap_or((
+                antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
+                message.as_str(),
+            ));
             refusal_json(code, detail, text)
         }
         other => refusal_json(
             reason_code!("invalid_argument"),
-            "sensitivity_decision_composition.invalid_artifact",
+            antecedent_core::reason_details::sensitivity_decision_composition::INVALID_ARTIFACT,
             &other.to_string(),
         ),
     }

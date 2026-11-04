@@ -258,7 +258,10 @@ fn mnar_ranges_are_assumption_ranges_never_confidence_intervals() {
 fn mnar_refuses_unsupported_estimators_unbounded_ranges_and_undeclared_mechanisms() {
     let data = shift_data();
     let err = MnarEstimator::from_name("causal_forest").unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.unsupported_estimator");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_ESTIMATOR
+    );
     assert_eq!(err.reason_code(), "route_not_supported");
     assert_eq!(
         MnarEstimator::from_name("difference_in_means").unwrap().name(),
@@ -268,14 +271,21 @@ fn mnar_refuses_unsupported_estimators_unbounded_ranges_and_undeclared_mechanism
     let mut spec = shift(ArmLoading::common(), -1.0, 1.0);
     spec.mechanism = None;
     let err = run(&data, &spec).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.mechanism_not_declared");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::mnar_sensitivity::MECHANISM_NOT_DECLARED
+    );
     assert_eq!(err.reason_code(), "required_option_missing");
 
     for (lower, upper) in
         [(f64::NEG_INFINITY, 1.0), (-1.0, f64::INFINITY), (-1.0, f64::NAN), (-1.0, 1.0e13)]
     {
         let err = run(&data, &shift(ArmLoading::common(), lower, upper)).unwrap_err();
-        assert_eq!(err.detail(), "mnar_sensitivity.unbounded_range", "{lower} {upper}");
+        assert_eq!(
+            err.detail(),
+            antecedent_core::reason_details::mnar_sensitivity::UNBOUNDED_RANGE,
+            "{lower} {upper}"
+        );
     }
     let tilt = MnarSensitivitySpec::new(
         MnarMechanism {
@@ -285,20 +295,26 @@ fn mnar_refuses_unsupported_estimators_unbounded_ranges_and_undeclared_mechanism
         -2.0 * MNAR_MAX_TILT,
         1.0,
     );
-    assert_eq!(run(&tilt_data(), &tilt).unwrap_err().detail(), "mnar_sensitivity.unbounded_range");
+    assert_eq!(
+        run(&tilt_data(), &tilt).unwrap_err().detail(),
+        antecedent_core::reason_details::mnar_sensitivity::UNBOUNDED_RANGE
+    );
 
     let err = run(&data, &shift(ArmLoading::common(), 1.0, 2.0)).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.range_excludes_mar");
+    assert_eq!(err.detail(), antecedent_core::reason_details::mnar_sensitivity::RANGE_EXCLUDES_MAR);
 
     let mut spec = shift(ArmLoading::common(), -1.0, 1.0);
     spec.sampling_composition = Some("add the interval to the range".into());
     let err = run(&data, &spec).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.composition_not_supported");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::mnar_sensitivity::COMPOSITION_NOT_SUPPORTED
+    );
     assert_eq!(err.reason_code(), "route_not_supported");
 
     let zero = ArmLoading { treated: 0.0, control: 0.0 };
     let err = run(&data, &shift(zero, -1.0, 1.0)).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.invalid_loading");
+    assert_eq!(err.detail(), antecedent_core::reason_details::mnar_sensitivity::INVALID_LOADING);
 }
 
 #[test]
@@ -307,22 +323,25 @@ fn mnar_refuses_malformed_data_and_options() {
     let spec = shift(ArmLoading::common(), -1.0, 1.0);
     let short = &outcome[..5];
     let err = mnar_sensitivity(&MnarData::new(&treatment, short), &spec).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.invalid_data");
+    assert_eq!(err.detail(), antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA);
     let mut bad = treatment.clone();
     bad[0] = 2.0;
     let err = mnar_sensitivity(&MnarData::new(&bad, &outcome), &spec).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.invalid_data");
+    assert_eq!(err.detail(), antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA);
     let mut thin = outcome.clone();
     for slot in thin.iter_mut().take(5) {
         *slot = None;
     }
     let err = mnar_sensitivity(&MnarData::new(&treatment, &thin), &spec).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.insufficient_observed");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::mnar_sensitivity::INSUFFICIENT_OBSERVED
+    );
     let mut spec = spec;
     spec.level = 1.0;
     assert_eq!(
         run(&(treatment, outcome), &spec).unwrap_err().detail(),
-        "mnar_sensitivity.invalid_level"
+        antecedent_core::reason_details::mnar_sensitivity::INVALID_LEVEL
     );
 }
 
@@ -530,13 +549,19 @@ fn mnar_adjusted_estimators_need_declared_covariates() {
         MnarModel::DeltaPatternMixture,
     );
     let err = mnar_sensitivity(&MnarData::new(&treatment, &outcome), &spec).unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.covariates_required");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::mnar_sensitivity::COVARIATES_REQUIRED
+    );
     let covariates: [&[f64]; 1] = [&x];
     let dim = shift(ArmLoading::common(), -1.0, 1.0);
     let err =
         mnar_sensitivity(&MnarData::new(&treatment, &outcome).with_covariates(&covariates), &dim)
             .unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.covariates_not_used");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::mnar_sensitivity::COVARIATES_NOT_USED
+    );
 }
 
 #[test]

@@ -39,7 +39,15 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
-          "sha256": "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"
+          "items": [
+            "fn case_data",
+            "fn exact_enumeration_matches_the_independent_stdlib_enumeration_to_rounding",
+            "fn expected",
+            "fn fixture",
+            "fn max_error",
+            "fn named_marginals"
+          ],
+          "sha256": "306dfe12af534ea5ca4694c747a33e4f4ac0e44d0840693e6bceeff51fb6a662"
         }
       ],
       "sources": [],

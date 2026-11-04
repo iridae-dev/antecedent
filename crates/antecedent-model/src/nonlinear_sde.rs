@@ -163,7 +163,7 @@ impl SdeInput {
             }
             if self.values.iter().any(|&value| value < lo || value > hi) {
                 return Err(unsupported(
-                    "sde.input_outside_certified_envelope",
+                    antecedent_core::reason_details::sde::INPUT_OUTSIDE_CERTIFIED_ENVELOPE,
                     format!(
                         "input '{}' has a schedule value outside its declared envelope [{lo}, {hi}]",
                         self.name
@@ -546,7 +546,7 @@ impl SdeSystem {
             let row: f64 = g.iter().take(d).map(|x| imax_abs(*x)).sum();
             if !row.is_finite() {
                 return Err(unsupported(
-                    "sde.unbounded_growth",
+                    antecedent_core::reason_details::sde::UNBOUNDED_GROWTH,
                     format!(
                         "the drift of '{}' has an unbounded derivative over the declared state box; \
                          declare finite lower and upper bounds on every state the nonlinearity multiplies",
@@ -559,7 +559,7 @@ impl SdeSystem {
             let row: f64 = g.iter().take(d).map(|x| imax_abs(*x)).sum();
             if !row.is_finite() {
                 return Err(unsupported(
-                    "sde.unbounded_growth",
+                    antecedent_core::reason_details::sde::UNBOUNDED_GROWTH,
                     format!(
                         "the diffusion of '{}' is unbounded over the declared state box; declare \
                          finite bounds, or use an expression with a bounded derivative",
@@ -783,7 +783,7 @@ fn action_cell(time: f64, start: f64, step: f64) -> Result<f64, SdeError> {
         || (time - (start + rounded * step)).abs() > tolerance
     {
         return Err(unsupported(
-            "sde.action_time_off_grid",
+            antecedent_core::reason_details::sde::ACTION_TIME_OFF_GRID,
             format!("action time {time} is not representable on the declared grid"),
         ));
     }
@@ -958,7 +958,7 @@ impl SdeSystem {
             let (rlo, rhi) = replacement.range();
             if rlo < lo || rhi > hi {
                 return Err(unsupported(
-                    "sde.input_outside_certified_envelope",
+                    antecedent_core::reason_details::sde::INPUT_OUTSIDE_CERTIFIED_ENVELOPE,
                     format!(
                         "replacement schedule of '{}' has range [{rlo}, {rhi}] outside the \
                          certified envelope [{lo}, {hi}]; widen the declared envelope so the \
@@ -1653,7 +1653,7 @@ pub fn simulate_sde(
         && !compiled.certificate.diagonal_milstein_admissible
     {
         return Err(unsupported(
-            "sde.milstein_noncommutative",
+            antecedent_core::reason_details::sde::MILSTEIN_NONCOMMUTATIVE,
             "a diffusion depends on another state, so the diagonal Milstein correction omits \
              Levy-area terms; use Euler-Maruyama or make each diffusion depend only on its own state",
         ));
@@ -1858,7 +1858,7 @@ pub fn sample_sde_paths(
         && !compiled.certificate.diagonal_milstein_admissible
     {
         return Err(unsupported(
-            "sde.milstein_noncommutative",
+            antecedent_core::reason_details::sde::MILSTEIN_NONCOMMUTATIVE,
             "a diffusion depends on another state; the diagonal Milstein correction is not exact",
         ));
     }

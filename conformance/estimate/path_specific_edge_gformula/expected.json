@@ -43,7 +43,24 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/path_specific_edge_gformula_pins.rs",
-          "sha256": "965f6a6ae249e44212c5971bd654f186b902452012dd0cbe125a72ce1e83c45b"
+          "items": [
+            "fn assert_edge_g_formula_identification",
+            "fn bayes",
+            "fn bayesian_edge_g_formula_posterior_centres_on_reference_fresh_and_prepared",
+            "fn check_bayesian",
+            "fn check_frequentist",
+            "fn column_names",
+            "fn expand",
+            "fn frequentist_edge_g_formula_matches_reference_fresh_and_prepared",
+            "fn graph",
+            "fn index",
+            "fn pin",
+            "fn query",
+            "fn shared_descendant_bayesian_posterior_centres_on_reference",
+            "fn shared_descendant_through_distinct_children_matches_reference",
+            "fn study"
+          ],
+          "sha256": "957c6d24bebd48a42b90664dd5234418c4e0336a4bbfc37162c5cf8577d501d9"
         }
       ],
       "fixture_payload_sha256": "ba21ee55eed8f15615a44eec2e0ed4af25e2c039e7349907cb13314e95b466d3"

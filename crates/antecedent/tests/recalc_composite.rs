@@ -221,7 +221,9 @@ fn native_proof_substitution_refuses_purely_and_preserves_shared_state() {
     }
     assert!(matches!(
         session.plan(&request),
-        Err(CompositeError::Request("composite_recalc.native_state_mismatch"))
+        Err(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH
+        ))
     ));
     assert_eq!((p1.calls, p2.calls), (1, 1));
     let out = execute(&mut session, &old, &mut p1, &mut p2);
@@ -391,7 +393,9 @@ fn declared_source_preference_selects_all_three_actual_sources_and_is_terminal_o
     request.input_order = vec!["native".into(); 3];
     assert!(matches!(
         session.plan(&request),
-        Err(CompositeError::Request("composite_recalc.request_unsupported"))
+        Err(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED
+        ))
     ));
     let out = execute(&mut session, &published, &mut p1, &mut p2);
     assert_eq!(out.receipt.totals().total(), 0);
@@ -459,7 +463,10 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
         SupportStatus::Supported,
     ];
     let no_source = ConditionalStudyRanking::execute(&session, conditional_policy());
-    assert_eq!(no_source.err().unwrap().detail, "conditional_study_ranking.source_unavailable");
+    assert_eq!(
+        no_source.err().unwrap().detail,
+        antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE
+    );
     execute(&mut session, &request, &mut p1, &mut p2);
     let before_calls = (p1.calls, p2.calls);
     let before = ConditionalStudyRanking::execute(&session, conditional_policy()).unwrap();
@@ -489,7 +496,7 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
     assert_ne!(after.identity(), before.identity());
     assert_eq!(
         ConditionalStudyRanking::consume(&bytes, &session, None).err().unwrap().detail,
-        "conditional_study_ranking.source_mismatch"
+        antecedent_core::reason_details::conditional_study_ranking::SOURCE_MISMATCH
     );
     // Resealing altered scientific source fields still cannot match issued current state.
     let mut mutated: serde_json::Value =
@@ -507,7 +514,7 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
     incomplete.branches.pop();
     assert_eq!(
         ConditionalStudyRanking::execute(&session, incomplete).err().unwrap().detail,
-        "conditional_study_ranking.invalid_policy"
+        antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY
     );
     let mut policy = conditional_policy();
     policy.policy_id = "conditional-study-v2".into();

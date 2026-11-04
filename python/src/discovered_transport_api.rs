@@ -647,7 +647,7 @@ fn discovered_temporal_transport_estimate_run(
         let Some(outcome) = adapter.outcome().cloned() else {
             return Ok(Err(SelectiveDiscoveryError::refused(
                 antecedent_core::reason_code!("invalid_argument"),
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "the discovery run retained no outcome",
             )));
         };

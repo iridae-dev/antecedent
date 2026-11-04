@@ -40,7 +40,16 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-state/tests/rolling_mechanism_oracle.rs",
-          "sha256": "432afba73b24120adf3448c9282a18d0e6d36653f1da0e6fd160b3283d24a698"
+          "items": [
+            "const FIXTURE",
+            "fn close",
+            "fn idx_f64",
+            "fn json_usize",
+            "fn rolling_summaries_match_independent_batch_windows",
+            "fn row",
+            "fn row_and_batch_append_replay_identically"
+          ],
+          "sha256": "bab2946632031f7a309dfa51a6a8a7cbf71f1278584d5963e3fa0e174fbc1ca7"
         }
       ],
       "sources": [],

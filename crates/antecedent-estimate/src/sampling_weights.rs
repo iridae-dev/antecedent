@@ -279,7 +279,7 @@ pub(crate) fn root_weight_design(
 pub fn invalid(message: &str) -> EstimationError {
     crate::util::refuse(
         antecedent_core::reason_code!("sampling_weights_invalid"),
-        "sampling_weights.invalid",
+        antecedent_core::reason_details::sampling_weights::INVALID,
         message,
     )
 }
@@ -290,7 +290,7 @@ pub fn invalid(message: &str) -> EstimationError {
 pub fn unsupported_route(message: &str) -> EstimationError {
     crate::util::refuse(
         antecedent_core::reason_code!("option_not_applicable"),
-        "sampling_weights.route_unsupported",
+        antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED,
         message,
     )
 }

@@ -362,7 +362,10 @@ fn shared_rows_covariance_adjustment_pair_with_joint_dropping_matches_tuple_enum
 
 // ---- negative: incompatible / unknown dependence and bounds --------------------------
 
-const UNKNOWN: (&str, &str) = ("route_not_supported", "scenario_covariance.unknown_dependence");
+const UNKNOWN: (&str, &str) = (
+    "route_not_supported",
+    antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE,
+);
 
 fn both_methods_refuse(family: &[ScenarioRowEstimator], code: &str, detail: &str) {
     assert_refusal(exact_enumeration_covariance(family, &exact_options(), &ctx()), code, detail);
@@ -435,25 +438,37 @@ fn independent_rows_bounds_and_arguments_refuse() {
     assert_refusal(
         shared_row_bootstrap_covariance(&family, &under, &ctx()),
         "invalid_argument",
-        "scenario_covariance.too_few_replicates",
+        antecedent_core::reason_details::scenario_covariance::TOO_FEW_REPLICATES,
     );
 
     // Too few rows.
     let one_row: Vec<Arc<str>> = vec![Arc::from("only")];
     let tiny = vec![ScenarioRowEstimator::new("a", SNAPSHOT, one_row, |_| Ok(0.0))];
-    both_methods_refuse(&tiny, "invalid_argument", "scenario_covariance.too_few_rows");
+    both_methods_refuse(
+        &tiny,
+        "invalid_argument",
+        antecedent_core::reason_details::scenario_covariance::TOO_FEW_ROWS,
+    );
 
     // Duplicate scenario id and no scenarios.
     let twins = vec![linear_by_name("a"), linear_by_name("a")];
-    both_methods_refuse(&twins, "invalid_argument", "scenario_covariance.duplicate_scenario_id");
-    both_methods_refuse(&[], "invalid_argument", "scenario_covariance.no_scenarios");
+    both_methods_refuse(
+        &twins,
+        "invalid_argument",
+        antecedent_core::reason_details::scenario_covariance::DUPLICATE_SCENARIO_ID,
+    );
+    both_methods_refuse(
+        &[],
+        "invalid_argument",
+        antecedent_core::reason_details::scenario_covariance::NO_SCENARIOS,
+    );
 
     // Exact enumeration above the declared cap.
     let capped = ExactEnumerationOptions { max_compositions: 461, max_failure_mass: 0.0 };
     assert_refusal(
         exact_enumeration_covariance(&family, &capped, &ctx()),
         "execution_resource_limit",
-        "scenario_covariance.exact_enumeration_cap",
+        antecedent_core::reason_details::scenario_covariance::EXACT_ENUMERATION_CAP,
     );
 }
 
@@ -469,12 +484,12 @@ fn independent_rows_failing_estimators_and_cancellation_refuse() {
     assert_refusal(
         shared_row_bootstrap_covariance(&failing, &boot, &ctx()),
         "transport_numerical_failure",
-        "scenario_covariance.too_many_failed_replicates",
+        antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
     );
     assert_refusal(
         exact_enumeration_covariance(&failing, &exact_options(), &ctx()),
         "transport_numerical_failure",
-        "scenario_covariance.too_many_failed_replicates",
+        antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
     );
 
     let family = vec![linear_by_name("a"), linear_by_name("b")];
@@ -483,12 +498,12 @@ fn independent_rows_failing_estimators_and_cancellation_refuse() {
     assert_refusal(
         shared_row_bootstrap_covariance(&family, &boot_options(1), &cancelled),
         "cancelled_no_claim",
-        "scenario_covariance.cancelled",
+        antecedent_core::reason_details::scenario_covariance::CANCELLED,
     );
     assert_refusal(
         exact_enumeration_covariance(&family, &exact_options(), &cancelled),
         "cancelled_no_claim",
-        "scenario_covariance.cancelled",
+        antecedent_core::reason_details::scenario_covariance::CANCELLED,
     );
 }
 
@@ -644,7 +659,12 @@ fn scenario_covariance_posterior_refuses_an_external_power_prior() {
         covariance_entry_posterior(&[0.1, 0.2], &[0.1, 0.2], PosteriorRequest::ExternalPower)
             .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("scenario_covariance_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::scenario_covariance_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]

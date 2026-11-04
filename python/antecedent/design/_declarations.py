@@ -48,6 +48,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -420,7 +422,8 @@ class DesignDecision:
             raise CausalTypeError("rollout needs an independently consumed DesignRankingResult")
         if self.prior.kind != "draws":
             raise CausalValueError(
-                "rollout.finite_draw_state_required", reason_code="route_not_supported"
+                _reason_details.rollout.FINITE_DRAW_STATE_REQUIRED,
+                reason_code="route_not_supported",
             )
         states = list(self.prior.states)
         if len(states) > 65_536 or len(self.actions) * len(states) > 4 * 1024 * 1024:

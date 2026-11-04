@@ -53,12 +53,14 @@ record_sha256 = "0453625878ea33a931c77eaf47c2c1914e83ec84d61335e3748ade1a7e527ac
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/mechanism_discrepancy.rs"
-sha256 = "e06449373628c834a5d0954baf9f35b70cc64ba3d4f68ac0c751315b5b4b9132"
+items = ["const EXACT_FIT_TOLERANCE", "const LEVEL_FLOOR", "const MECHANISM_DISCREPANCY_ALIGNMENT", "const MECHANISM_DISCREPANCY_CAVEAT", "const MECHANISM_DISCREPANCY_DEPENDENCE", "const MECHANISM_DISCREPANCY_INFERENCE_CLAIM", "const MECHANISM_DISCREPANCY_INTERCEPT", "const MECHANISM_DISCREPANCY_MIN_RESIDUAL_DF", "const MECHANISM_DISCREPANCY_NULL", "const MECHANISM_DISCREPANCY_POWER_CAVEAT", "const SUMMARY_TOLERANCE", "enum DiscrepancyConclusion", "enum SampleDependence", "fn canonicalize", "fn check_comparable", "fn chol_solve", "fn coefficient_rows", "fn forward_solve", "fn joint_wald", "fn normal_upper_quantile", "fn ols", "fn population_fit", "fn power_statement", "fn sorted_measurement", "fn stored_summary", "fn summarize_population", "fn test_mechanism_discrepancy", "fn test_mechanism_discrepancy_from_summaries", "fn validate_options", "fn validate_summary_shape", "struct Canonical", "struct CoefficientDiscrepancy", "struct DiscrepancyOptions", "struct DiscrepancyTest", "struct MechanismDiscrepancyResult", "struct MechanismMeasurement", "struct MechanismSummary", "struct Ols", "struct ParentSpec", "struct PopulationFit", "struct PopulationSample"]
+sha256 = "8966b237e187d9b20d3cfc9b5b8f0eee4c13044cce54da7183dd3b03bc944061"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/mechanism_discrepancy_reference.rs"
-sha256 = "46def9442ceb85aec27c270845628ed77cb921d34ea462b9cc8f1f8a2a0add03"
+items = ["fn a_large_response_offset_costs_digits_through_the_summary_and_is_bounded", "fn document", "fn fits_wald_holm_and_detectable_differences_equal_the_rational_reference", "fn near", "fn population", "fn reference", "fn text"]
+sha256 = "c2ca71e77329eb752cf0f0f55c812554e4e3299a392ae88a6cb03bd42daac138"
 
 [[method_review.artifacts]]
 role = "reference"

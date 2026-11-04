@@ -125,7 +125,12 @@ fn nonunit_storage_weights_refuse_instead_of_changing_population_silently() {
         .unwrap()
         .prepare(&ExecutionContext::for_tests(3))
         .unwrap_err();
-    assert!(error.to_string().contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }
 
 #[test]

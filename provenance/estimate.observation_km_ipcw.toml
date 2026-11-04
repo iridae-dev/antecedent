@@ -41,12 +41,14 @@ record_sha256 = "9ea6113956c955ce04709a7e7a32164092b2d312cd7d79150d867b9df65db9b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/observation.rs"
-sha256 = "7784fdd67924fd1f2cce59a2e096806299f487bc75d429aa25a21b48ee6b9af5"
+items = ["fn censoring_product_limit", "fn censoring_tail_restriction", "fn first_step_below_floor", "fn kaplan_meier_ipcw", "fn selected_outcome_pseudo_values", "struct KaplanMeierIpcw"]
+sha256 = "081c91ceec1e1c3ed35d525ec72d24c413d0d37a639ea37d92da213ee616b077"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/observation_ipcw_reference.rs"
-sha256 = "ee962c0fbdf203c1961ad72856177e3a4f421b890d75eaa06b393c08c0d29b8c"
+items = ["fn cases", "fn delayed_entry_weights_divide_the_left_limit_at_entry_by_the_left_limit_at_the_time", "fn floats", "fn pseudo_values_match_the_closed_forms_and_refuse_invalid_inputs", "fn selected_outcome_pseudo_values_are_exactly_unbiased_over_every_selection_pattern", "fn weights_and_tail_restriction_equal_the_rational_product_limit"]
+sha256 = "add15abac8c7c7cad99d9508f65375b568f2cde4a9467d8c2088bd4ac587b7e5"
 
 [[method_review.artifacts]]
 role = "reference"

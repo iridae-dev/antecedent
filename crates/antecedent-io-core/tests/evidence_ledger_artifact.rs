@@ -282,7 +282,7 @@ fn a_resealed_synthesis_value_edit_is_refused() {
     assert_eq!(error, EvidenceLedgerArtifactError::SynthesisMismatch("values"));
     let (code, detail, _) = error.refusal().expect("registered refusal");
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "evidence_ledger.synthesis_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::evidence_ledger::SYNTHESIS_MISMATCH);
 }
 
 #[test]
@@ -454,7 +454,7 @@ fn an_operation_the_ledger_refuses_cannot_be_smuggled_through_a_resealed_artifac
     assert!(matches!(error, EvidenceLedgerArtifactError::Refused { .. }), "{error}");
     let (code, detail, _) = error.refusal().expect("registered refusal");
     assert_eq!(code, "evidence_double_counted");
-    assert_eq!(detail, "evidence_ledger.repeated_source");
+    assert_eq!(detail, antecedent_core::reason_details::evidence_ledger::REPEATED_SOURCE);
 }
 
 // -- transport, reuse and repeated use through export ----------------------------------------------

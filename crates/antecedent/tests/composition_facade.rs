@@ -396,7 +396,10 @@ fn facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
     let wrong = consume(&bytes, &"0".repeat(64), &SuppliedSources::default()).unwrap_err();
     assert_eq!(stage_of(&wrong), BundleStage::ExpectedIdentityMismatch);
     let refusal = wrong.to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.expected_identity_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
+    );
 
     // A byte flipped in the container is a container refusal, not a verified bundle.
     let mut flipped = bytes.clone();
@@ -435,7 +438,10 @@ fn facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
     .unwrap();
     assert_eq!(failed_stage(&changed, "provider"), BundleStage::ProviderRequestChanged);
     let refusal = changed.require_verified().unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.provider_request_changed");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::PROVIDER_REQUEST_CHANGED
+    );
 }
 
 #[test]

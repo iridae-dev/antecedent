@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The published number is the posterior mean of the dummy-coded level coefficients under independent normal priors, with the ordinary-least-squares residual variance plugged in. No interval is produced.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported).",
 ]
 
 upstream_implementations_observed = []
@@ -25,19 +25,22 @@ rationale = "Posterior mean of the dummy-coded categorical coefficients under in
 no_independent_algorithm = "full_coefficient_posterior_mean (vector_treatment.rs) forms (X'X + (sigma2/tau^2) D)^-1 X'y with D the identity on non-intercept columns and inverts it; this is the closed-form conjugate normal posterior mean, not a new procedure. Only that function and the refusal wrappers in posterior_mean.rs were mapped: vector_treatment.rs also holds the frequentist joint fit (square roots, Cholesky) and posterior_mean.rs the Gaussian-kernel local-quadratic route, which belong to other records."
 covered_by = ["prob.conjugate_gaussian", "stats.regularized"]
 derivation = "Normal likelihood with variance sigma2 (plug-in rss/(n-p)) and independent N(0, tau^2) priors on non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2/tau^2) D)^-1 X'y, the ridge normal equations; verified against full_coefficient_posterior_mean."
-record_sha256 = "6de773e92e5b75ca44e613fa83a129e8f87cecdf6c23eb7999109f709753738e"
+record_sha256 = "875cb2cbeabb74b482686b8d024f416a00f0f17cbbd7b48dae0f90d248ad33b9"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum LocalQuadraticNamespace", "enum PosteriorRequest", "fn categorical_treatment_posterior", "fn consume_coefficient_posterior", "fn consume_local_quadratic_posterior", "fn details", "fn local_quadratic_mean", "fn local_quadratic_posterior", "fn refuse", "fn scale_of", "fn vector_treatment_posterior"]
+sha256 = "ab2d0671d285883dd402a3d255fd82753c8bc67ce0f3453ddcbe42fdfe3d256b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
-sha256 = "e1a4c389bd34f5adf822ca6ada553810ccf7b97c363e10f1b9eb48ca78fd5ec6"
+items = ["const RANK_TOLERANCE", "const VECTOR_TREATMENT_INTERCEPT", "enum VectorCovariance", "fn build_design", "fn check_design", "fn first_dependent_column", "fn fit_ols", "fn full_coefficient_posterior_mean", "fn gram_of", "fn joint_gram_addressable", "fn new", "fn row_of", "fn summarize_joint", "fn summarize_vector_design", "fn validate_input", "fn validate_shared", "struct Design", "struct DesignSummary", "struct NamedColumn", "struct Ols", "struct TreatmentColumn", "struct VectorTreatmentInput"]
+sha256 = "02227a7a62300226e2936fa1b8ce284b1e3da98903ac9234745c3de13eb243f7"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
-sha256 = "fba0ed7f9b8e7249d377fc8ab6a4a5382f8e2a152341490cd3f3cd8093c13ed5"
+items = ["const SCALE", "fn categorical_input", "fn categorical_posterior_consumer_replays_the_dummy_summary", "fn categorical_posterior_mean_stays_near_the_group_mean_differences", "fn categorical_posterior_refuses_an_external_power_prior", "fn categorical_spec", "fn dose_grid_posterior_consumer_replays_the_local_normal_equations", "fn dose_grid_posterior_mean_stays_near_the_linear_dose_response", "fn dose_grid_posterior_refuses_a_mapped_prior", "fn hand_summary", "fn line", "fn prior", "fn quadratic_posterior_consumer_replays_the_local_normal_equations", "fn quadratic_posterior_mean_stays_near_the_linear_dose_response", "fn quadratic_posterior_refuses_an_unmeasured_band", "fn refusal", "fn treatment", "fn vector_input", "fn vector_posterior_consumer_replays_the_hand_normal_equations", "fn vector_posterior_mean_stays_near_the_hand_solved_coefficients", "fn vector_posterior_refuses_a_mapped_prior"]
+sha256 = "e9aa16e963b1753e9360c7f0d9b4d61b0e1a3ec67ecddb893e69eaa2aff2482b"

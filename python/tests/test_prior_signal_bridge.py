@@ -5,6 +5,7 @@ from dataclasses import replace
 
 import antecedent as ac
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import design as dr
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
@@ -128,9 +129,12 @@ def test_original_checked_prior_reaches_canonical_ranker_and_replays():
     "options,detail",
     [
         ({"reuse": ("obs:1",)}, ".source_overlap"),
-        ({"provider": dr.GaussianMeanSignal(1.0)}, "prior_signal.signal_family_mismatch"),
-        ({"prior_id": "other"}, "prior_signal.prior_identity_mismatch"),
-        ({"state": quantity("other")}, "prior_signal.state_quantity_mismatch"),
+        (
+            {"provider": dr.GaussianMeanSignal(1.0)},
+            reason_details.prior_signal.SIGNAL_FAMILY_MISMATCH,
+        ),
+        ({"prior_id": "other"}, reason_details.prior_signal.PRIOR_IDENTITY_MISMATCH),
+        ({"state": quantity("other")}, reason_details.prior_signal.STATE_QUANTITY_MISMATCH),
     ],
 )
 def test_ranking_cannot_drop_original_overlap_or_rebind_checked_source(options, detail):
@@ -143,25 +147,34 @@ def test_transport_and_overlap_use_existing_checked_native_adapter():
     source = dr.PriorSignalSource("historic", "ate", "elsewhere", ("original-study",), ("obs:1",))
     with pytest.raises(dr.DesignRankingRefusal) as error:
         adapt(sources=[source])
-    assert error.value.detail == "prior_signal.transport_policy_required"
+    assert error.value.detail == reason_details.prior_signal.TRANSPORT_POLICY_REQUIRED
     assert error.value.reason_code == "transport_policy_required"
     checked = adapt(sources=[source], transport_policy_id="named-policy")
     assert checked.diagnostics["transport_policy_id"] == "named-policy"
     with pytest.raises(dr.DesignRankingRefusal) as reused:
         adapt(candidate_observation_ids=["obs:1"])
-    assert reused.value.detail == "prior_signal.observation_reuse"
+    assert reused.value.detail == reason_details.prior_signal.OBSERVATION_REUSE
 
 
 @pytest.mark.parametrize(
     "options,detail",
     [
-        ({"catalog": catalog(summary=True)}, "prior_signal.named_state_draws_required"),
-        ({"catalog": catalog(name="coef_0")}, "prior_signal.named_state_draws_required"),
+        (
+            {"catalog": catalog(summary=True)},
+            reason_details.prior_signal.NAMED_STATE_DRAWS_REQUIRED,
+        ),
+        (
+            {"catalog": catalog(name="coef_0")},
+            reason_details.prior_signal.NAMED_STATE_DRAWS_REQUIRED,
+        ),
         (
             {"sources": [dr.PriorSignalSource("historic", "ate", "target", (), ("obs:1",))]},
-            "prior_signal.lineage_missing",
+            reason_details.prior_signal.LINEAGE_MISSING,
         ),
-        ({"state": quantity(population="elsewhere")}, "prior_signal.target_population_mismatch"),
+        (
+            {"state": quantity(population="elsewhere")},
+            reason_details.prior_signal.TARGET_POPULATION_MISMATCH,
+        ),
     ],
 )
 def test_incomplete_or_relabelled_sources_refuse(options, detail):
@@ -257,7 +270,7 @@ def test_checked_prior_projection_cannot_be_relabelled():
     object.__setattr__(checked, "prior", replace(checked.prior, states=(1000.0,)))
     with pytest.raises(dr.DesignRankingRefusal) as error:
         rank(checked)
-    assert error.value.detail == "prior_signal.prior_projection_mismatch"
+    assert error.value.detail == reason_details.prior_signal.PRIOR_PROJECTION_MISMATCH
     assert error.value.reason_code == "invalid_argument"
 
 
@@ -276,7 +289,7 @@ def test_source_draw_mutation_changes_retained_source_expectations():
 def test_catalog_metadata_cannot_upgrade_original_unidentified_posterior():
     with pytest.raises(dr.DesignRankingRefusal) as error:
         adapt(catalog=catalog(identification="NotIdentified"))
-    assert error.value.detail == "prior_signal.original_posterior_unidentified"
+    assert error.value.detail == reason_details.prior_signal.ORIGINAL_POSTERIOR_UNIDENTIFIED
 
 
 def test_original_population_tag_cannot_be_relabelled():
@@ -286,7 +299,7 @@ def test_original_population_tag_cannot_be_relabelled():
     )
     with pytest.raises(dr.DesignRankingRefusal) as error:
         adapt(catalog=PriorCatalog([tagged]))
-    assert error.value.detail == "prior_signal.source_population_mismatch"
+    assert error.value.detail == reason_details.prior_signal.SOURCE_POPULATION_MISMATCH
 
 
 def test_two_original_sources_cannot_double_count_observations():
@@ -298,7 +311,7 @@ def test_two_original_sources_cannot_double_count_observations():
     ]
     with pytest.raises(dr.DesignRankingRefusal) as error:
         adapt(catalog=PriorCatalog([original, second]), sources=sources)
-    assert error.value.detail == "prior_signal.prior_sources_overlap"
+    assert error.value.detail == reason_details.prior_signal.PRIOR_SOURCES_OVERLAP
 
 
 def test_source_count_bound_precedes_source_iteration_and_catalog_metadata_conversion():

@@ -7,7 +7,7 @@
 //! confounded contrast 2 + 2·(P(Z=1|T=1) − P(Z=1|T=0)), which is not the ATE),
 //! and the scalar mixture carries a joint influence-function SE.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -128,7 +128,7 @@ fn assert_shape(result: &StudyResult) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
     let test = "class_posterior_frequentist_ate_joint_if_nominal_90_coverage";
     let key = RecordKey { test, dgp: "draw_data", interval: "analytic_se" };

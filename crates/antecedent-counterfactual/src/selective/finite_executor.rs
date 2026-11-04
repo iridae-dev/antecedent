@@ -461,7 +461,7 @@ impl FiniteScmExecutor {
         if request.exogenous == ExogenousInference::PosteriorSampling {
             return Err(refuse(
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
-                "cross_world_execution.sampled_abduction_not_supported",
+                antecedent_core::reason_details::cross_world_execution::SAMPLED_ABDUCTION_NOT_SUPPORTED,
                 Some("posterior_sampling".to_owned()),
                 "this row enumerates the exogenous posterior exactly; a sampled posterior only \
                  adds Monte Carlo error to an exactly computable quantity, so request exact \
@@ -471,7 +471,7 @@ impl FiniteScmExecutor {
         if request.reading == RequestedReading::Envelope {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cross_world_execution.envelope_needs_parameter_set",
+                antecedent_core::reason_details::cross_world_execution::ENVELOPE_NEEDS_PARAMETER_SET,
                 Some("envelope".to_owned()),
                 "an envelope is the range over a declared set of parameterisations; declare the \
                  set and call execute_envelope, or request the point or spread reading",
@@ -598,7 +598,10 @@ impl FiniteScmExecutor {
         };
         if method == ExogenousMethod::JointEnumeration {
             if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
-                return Err(invalid("cross_world_execution.bounds_exceeded", "abduction_work"));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+                    "abduction_work",
+                ));
             }
             if compiled
                 .joint_states
@@ -606,7 +609,10 @@ impl FiniteScmExecutor {
                 .saturating_mul(request.worlds.len())
                 > MAX_EVALUATION_WORK
             {
-                return Err(invalid("cross_world_execution.bounds_exceeded", "evaluation_work"));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+                    "evaluation_work",
+                ));
             }
         }
         let involved = request.quantity.involved_worlds(&request.worlds);
@@ -800,7 +806,7 @@ impl FiniteScmExecutor {
         if spread_requested && matches!(request.quantity, FiniteQuantity::MeanContrast { .. }) {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cross_world_execution.spread_needs_enumeration",
+                antecedent_core::reason_details::cross_world_execution::SPREAD_NEEDS_ENUMERATION,
                 Some("variable_elimination".to_owned()),
                 "elimination computes the first moment of the quantity only; the spread of a \
                  mean contrast needs its second moment, so reduce the exogenous space below \
@@ -927,7 +933,7 @@ impl FiniteScmExecutor {
         if request.reading != RequestedReading::Envelope {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "cross_world_execution.envelope_reading_required",
+                antecedent_core::reason_details::cross_world_execution::ENVELOPE_READING_REQUIRED,
                 Some(request.reading.as_str().to_owned()),
                 "execute_envelope answers the envelope reading only; set the request's reading \
                  to the envelope",
@@ -936,7 +942,7 @@ impl FiniteScmExecutor {
         if alternatives.is_empty() {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "cross_world_execution.envelope_parameter_set_empty",
+                antecedent_core::reason_details::cross_world_execution::ENVELOPE_PARAMETER_SET_EMPTY,
                 None,
                 "an envelope over the request's single parameterisation is its point value; \
                  declare at least one alternative parameterisation or request the point reading",
@@ -946,7 +952,7 @@ impl FiniteScmExecutor {
             if !same_structure(&request.scm, alt) {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "cross_world_execution.envelope_member_structure_differs",
+                    antecedent_core::reason_details::cross_world_execution::ENVELOPE_MEMBER_STRUCTURE_DIFFERS,
                     Some(format!("member_{}", i + 1)),
                     "every member of the declared set must share the request's population, \
                      history, variables, parents and exogenous assignments, and differ only \

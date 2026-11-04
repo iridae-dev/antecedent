@@ -44,7 +44,13 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_robust_ate.rs",
-          "sha256": "497bd15877e085bc943c554014fccd91d481238b6150b664d4e7d0a001e23c5b"
+          "items": [
+            "fn bayesian_robust_ate_all_observed_staged_known_truth",
+            "fn fixture",
+            "fn rebind_estimate",
+            "fn synthetic"
+          ],
+          "sha256": "578e60c686c184b42e729399fe073b7d067e1bc73a4c866f1baa7ecc71fe20c5"
         }
       ],
       "fixture_payload_sha256": "ad760bbc8307d1b404aa97c8ee1002172fd0b8129369bef6b3f12bcb4a72db5a"

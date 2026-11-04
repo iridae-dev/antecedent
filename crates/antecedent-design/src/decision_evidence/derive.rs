@@ -1473,7 +1473,7 @@ pub(super) mod tests {
         r.horizon = 8;
         assert_eq!(
             derive(&ev, &r, &q).unwrap_err().reason_code(),
-            "decision_evidence.incompatible_horizon"
+            antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_HORIZON
         );
         let mut r = request();
         r.target = Target::Deployment { bridge_assumption_id: None };

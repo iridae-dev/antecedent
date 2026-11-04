@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from antecedent import Admg, Execution
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.transport import advanced as transport
 
@@ -61,23 +62,31 @@ def joint_kwargs(**overrides):
 def test_joint_bayesian_in_scope_request_without_identification_asks_for_it():
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs()))
     assert_refused(
-        error, "transport_missing_evidence", "bayesian_transport.identification_required"
+        error,
+        "transport_missing_evidence",
+        reason_details.bayesian_transport.IDENTIFICATION_REQUIRED,
     )
 
 
 def test_joint_bayesian_adjacent_graph_refuses_before_the_producer():
     adjacent = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")], [("x", "y")])
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(graph=adjacent)))
-    assert_refused(error, "route_not_supported", "bayesian_transport.unsupported_graph")
+    assert_refused(
+        error, "route_not_supported", reason_details.bayesian_transport.UNSUPPORTED_GRAPH
+    )
     error = refusal_of(
         lambda: transport.joint_bayesian_transport(**joint_kwargs(graph_class="graph_posterior"))
     )
-    assert_refused(error, "route_not_supported", "bayesian_transport.unsupported_graph")
+    assert_refused(
+        error, "route_not_supported", reason_details.bayesian_transport.UNSUPPORTED_GRAPH
+    )
     # A graph without a bidirected edge stays a fixed DAG: in scope, so it asks for identification.
     dag = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")])
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(graph=dag)))
     assert_refused(
-        error, "transport_missing_evidence", "bayesian_transport.identification_required"
+        error,
+        "transport_missing_evidence",
+        reason_details.bayesian_transport.IDENTIFICATION_REQUIRED,
     )
 
 
@@ -85,25 +94,29 @@ def test_joint_bayesian_scope_refusals_carry_their_own_details():
     error = refusal_of(
         lambda: transport.joint_bayesian_transport(**joint_kwargs(draws=0)), CausalValueError
     )
-    assert_refused(error, "invalid_argument", "bayesian_transport.too_many_draws")
+    assert_refused(error, "invalid_argument", reason_details.bayesian_transport.TOO_MANY_DRAWS)
     error = refusal_of(
         lambda: transport.joint_bayesian_transport(**joint_kwargs(draws=100_001)), CausalValueError
     )
-    assert_refused(error, "invalid_argument", "bayesian_transport.too_many_draws")
+    assert_refused(error, "invalid_argument", reason_details.bayesian_transport.TOO_MANY_DRAWS)
     error = refusal_of(
         lambda: transport.joint_bayesian_transport(**joint_kwargs(dependence="overlapping_units"))
     )
-    assert_refused(error, "sampling_dependence_unknown", "bayesian_transport.source_dependence")
+    assert_refused(
+        error, "sampling_dependence_unknown", reason_details.bayesian_transport.SOURCE_DEPENDENCE
+    )
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(sources=[])))
-    assert_refused(error, "transport_missing_evidence", "bayesian_transport.missing_source")
+    assert_refused(
+        error, "transport_missing_evidence", reason_details.bayesian_transport.MISSING_SOURCE
+    )
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(target=None)))
-    assert_refused(error, "joint_law_required", "bayesian_transport.missing_law")
+    assert_refused(error, "joint_law_required", reason_details.bayesian_transport.MISSING_LAW)
     many = [f"x{index}" for index in range(300)]
     error = refusal_of(
         lambda: transport.joint_bayesian_transport(**joint_kwargs(features=many)),
         CausalValueError,
     )
-    assert_refused(error, "invalid_argument", "bayesian_transport.too_many_parameters")
+    assert_refused(error, "invalid_argument", reason_details.bayesian_transport.TOO_MANY_PARAMETERS)
 
 
 def test_joint_bayesian_validates_its_arguments_as_typed_errors():
@@ -158,7 +171,7 @@ def test_nested_fisher_measured_interval_and_invalid_level():
             ),
             CausalValueError,
         )
-        assert_refused(error, "invalid_argument", "nested_markov.fisher_invalid_level")
+        assert_refused(error, "invalid_argument", reason_details.nested_markov.FISHER_INVALID_LEVEL)
 
 
 def test_nested_markov_outside_class_requests_refuse_without_a_nonidentification_claim():
@@ -174,7 +187,9 @@ def test_nested_markov_outside_class_requests_refuse_without_a_nonidentification
     ]
     for case in cases:
         error = refusal_of(lambda case=case: transport.binary_nested_markov(**case))
-        assert_refused(error, "route_not_supported", "nested_markov.outside_binary_pilot")
+        assert_refused(
+            error, "route_not_supported", reason_details.nested_markov.OUTSIDE_BINARY_PILOT
+        )
         assert "nonidentif" not in str(error)
 
 
@@ -185,7 +200,7 @@ def test_nested_markov_invalid_counts_and_arguments_are_typed_errors():
         ),
         CausalValueError,
     )
-    assert_refused(error, "invalid_argument", "nested_markov.invalid_counts")
+    assert_refused(error, "invalid_argument", reason_details.nested_markov.INVALID_COUNTS)
     with pytest.raises(
         CausalTypeError, match=re.escape("binary_nested_markov requires graph=Admg(...)")
     ):
@@ -260,14 +275,18 @@ def test_sampled_recovery_zero_support_and_native_nonrecoverability_refuse():
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=complete_rows((0,))))
     )
-    assert_refused(error, "route_not_supported", "sampled_recovery.unrecoverable_pattern")
+    assert_refused(
+        error, "route_not_supported", reason_details.sampled_recovery.UNRECOVERABLE_PATTERN
+    )
     # An adjacent m-graph with a verified nonrecoverability witness has no recovered law.
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(
             **sampled_kwargs(stage=recovered_stage(self_censoring=True))
         )
     )
-    assert_refused(error, "route_not_supported", "sampled_recovery.unrecoverable_pattern")
+    assert_refused(
+        error, "route_not_supported", reason_details.sampled_recovery.UNRECOVERABLE_PATTERN
+    )
 
 
 def test_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
@@ -285,17 +304,17 @@ def test_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=[(0, 0, 1, 0)])),
         CausalValueError,
     )
-    assert_refused(error, "invalid_argument", "sampled_recovery.invalid_input")
+    assert_refused(error, "invalid_argument", reason_details.sampled_recovery.INVALID_INPUT)
     duplicate = complete_rows() + [complete_rows()[0]]
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=duplicate)),
         CausalValueError,
     )
-    assert_refused(error, "invalid_argument", "sampled_recovery.invalid_input")
+    assert_refused(error, "invalid_argument", reason_details.sampled_recovery.INVALID_INPUT)
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=[])), CausalValueError
     )
-    assert_refused(error, "invalid_argument", "sampled_recovery.invalid_input")
+    assert_refused(error, "invalid_argument", reason_details.sampled_recovery.INVALID_INPUT)
 
 
 def test_sampled_recovery_validates_its_arguments_as_typed_errors():

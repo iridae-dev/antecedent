@@ -828,9 +828,13 @@ fn inspect_inverse(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
 
 fn repair_failure(error: &RepairArtifactError) -> NodeFailure {
     let stage = match error.detail {
-        "repair_artifact.unsupported_version" => BundleStage::IncompatibleVersion,
-        "repair_artifact.bounds_exceeded" => BundleStage::Oversized,
-        "repair_artifact.budget" => BundleStage::CallbackUnavailable,
+        antecedent_core::reason_details::repair_artifact::UNSUPPORTED_VERSION => {
+            BundleStage::IncompatibleVersion
+        }
+        antecedent_core::reason_details::repair_artifact::BOUNDS_EXCEEDED => BundleStage::Oversized,
+        antecedent_core::reason_details::repair_artifact::BUDGET => {
+            BundleStage::CallbackUnavailable
+        }
         _ => BundleStage::SwappedEvidence,
     };
     failure(stage, error.to_string())
@@ -1149,7 +1153,10 @@ pub fn projection_node_description(
     upstream: &[UpstreamNode<'_>],
 ) -> Result<VerifiedNode, NodeFailure> {
     if artifact.node_kind() != kind {
-        return Err(failure(BundleStage::SwappedEvidence, "composition_bundle.swapped_evidence"));
+        return Err(failure(
+            BundleStage::SwappedEvidence,
+            antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE,
+        ));
     }
     let report = artifact.report();
     for parent in upstream {
@@ -1160,7 +1167,7 @@ pub fn projection_node_description(
         {
             return Err(failure(
                 BundleStage::SwappedEvidence,
-                "composition_bundle.swapped_evidence",
+                antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE,
             ));
         }
         if parent.kind == NodeKind::ExternalClaim {
@@ -1168,7 +1175,7 @@ pub fn projection_node_description(
             if parent.identity != original.identity {
                 return Err(failure(
                     BundleStage::SwappedEvidence,
-                    "composition_bundle.swapped_evidence",
+                    antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE,
                 ));
             }
         }
@@ -1214,7 +1221,7 @@ impl NodeVerifier for SourceProjectionVerifier {
         if artifact.is_native() {
             return Err(failure(
                 BundleStage::CallbackUnavailable,
-                "composition_bundle.callback_unavailable",
+                antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE,
             ));
         }
         projection_node_description(self.0, &artifact, upstream)

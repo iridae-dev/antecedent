@@ -108,7 +108,10 @@ fn report_json(parts: &ReportParts<'_>) -> String {
         })
     });
     let (reason, detail) = if parts.outcome == "nonrecoverable" {
-        (Some("transport_proven_non_transportable"), Some("recovery_chain.nonrecoverable_witness"))
+        (
+            Some("transport_proven_non_transportable"),
+            Some(antecedent_core::reason_details::recovery_chain::NONRECOVERABLE_WITNESS),
+        )
     } else {
         (None, None)
     };

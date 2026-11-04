@@ -45,12 +45,14 @@ record_sha256 = "935518107bd707258ef0dbd9983af474ceccfefd0b9ef8dae264693b6c8a7f4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/observation_query.rs"
-sha256 = "2d11276e06fb85a305c43f5b6084910b2749563068028157d902d19e59fae0dc"
+items = ["const LEVEL_TOLERANCE", "const MAX_BAYES_HYPOTHESES", "const MAX_BAYES_OBSERVATION_LEVELS", "const MAX_BAYES_TABLE_CELLS", "const MAX_BAYES_UPDATE_WORK", "const SIMPLEX_TOLERANCE", "enum Direction", "enum ObservationQueryError", "enum UnreachableBound", "fn alpha", "fn beta", "fn bucketed", "fn check_closed_probability", "fn check_update_work", "fn composition", "fn condition", "fn condition_after_intervention", "fn condition_gaussian", "fn condition_on_measured", "fn distinct_names", "fn hypotheses", "fn intervene", "fn intervened_law", "fn level_index", "fn likelihood", "fn mean", "fn named_levels", "fn new", "fn observation_levels", "fn posterior", "fn posterior_from_counts", "fn prior", "fn resolve_assignments", "fn threshold_crossing_observations", "fn variable_index", "struct BayesPosterior", "struct ConditionalDistribution", "struct GaussianConditional", "struct MeasuredConditional", "struct SignalLevelOutcome", "struct ThresholdCrossing"]
+sha256 = "8543bea014ce170c1141bd893f3b6bfcc477a0e750af8501b26e5acbab531a22"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/finite_law_conditioning_reference.rs"
-sha256 = "740fd079976158af35da45377fe475d29cbf811db676d4f27a92d2a188c16b6d"
+items = ["const TOL", "fn borrowed", "fn build", "fn compare", "fn pairs", "fn queries_match_an_exact_rational_enumeration", "fn strings"]
+sha256 = "777fe06d1ee17b9d3f014cca0dc55a13ca009439c79189d4260af67e0a308404"
 
 [[method_review.artifacts]]
 role = "reference"

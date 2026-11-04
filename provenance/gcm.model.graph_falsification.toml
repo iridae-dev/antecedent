@@ -50,12 +50,14 @@ record_sha256 = "d9f689c587faeeea3c2212af9461612ca879acbf318717e0b988bb7bb363973
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/falsify.rs"
-sha256 = "144ee1f0a4b3c06a542a61bc3fce42b0bfa8b2e67d97052285e825404fb2fbca"
+items = ["const DEFAULT_MAX_CI_TESTS", "const MAX_ENUMERATED_RELABELLINGS", "const MAX_FALSIFICATION_WORK", "const PERMUTATION_STREAM", "enum GraphFalsificationOutcome", "enum GraphUninformativeReason", "enum RelabellingPlan", "fn below", "fn default", "fn draw_permutations", "fn ensure", "fn factorial_within", "fn falsify_graph", "fn iter", "fn key_under", "fn len", "fn limitations", "fn local_markov_implications", "fn next_permutation", "fn of", "fn refuse", "fn relabelled", "fn shuffle", "fn stopped", "fn validate", "fn violations", "struct CiKey", "struct CiSession", "struct EquivalenceSignature", "struct GraphFalsificationConfig", "struct GraphFalsificationReport", "struct Implication", "struct MarkovImplicationTest"]
+sha256 = "89f8c132d05254e1d0516cddbcacf691fcd075b15ae7fc02f541ad3448c7f608"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/graph_falsification_reference.rs"
-sha256 = "99eb6d369a66d2240485a40c14f0e06c7089d7d7710d30105fb778d78468107c"
+items = ["fn counts_p_values_equivalence_and_verdicts_match_the_definition", "fn floats", "fn table"]
+sha256 = "57f777ac02ae06f2928b328f2ed74ef582e01ba595d5225fb1e9028336d1ee84"
 
 [[method_review.artifacts]]
 role = "reference"

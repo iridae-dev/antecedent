@@ -219,7 +219,7 @@ impl PyDecisionInput {
         let antecedent_design::composition_boundary::InputSource::Mean(means) = self.inner.source()
         else {
             return Err(crate::recalc_api::invalid(
-                "source_evidence.point_binding_mismatch",
+                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
                 "external original requires a mean input",
             ));
         };
@@ -495,7 +495,7 @@ fn evidence_from_external_claim(
         ExternalClaimTrust::ExactRequestVerified => {
             let probes = identity.verification.as_ref().ok_or_else(|| {
                 invalid_json(
-                    "external_object_verification.missing_probe",
+                    antecedent_core::reason_details::external_object_verification::MISSING_PROBE,
                     Some(identity.provider_id.clone()),
                 )
             })?;
@@ -505,7 +505,7 @@ fn evidence_from_external_claim(
                     Ok(VerificationProbe {
                         kind: probe_from_name(&probe.kind).ok_or_else(|| {
                             invalid_json(
-                                "external_object_verification.missing_probe",
+                                antecedent_core::reason_details::external_object_verification::MISSING_PROBE,
                                 Some(probe.kind.clone()),
                             )
                         })?,
@@ -521,7 +521,7 @@ fn evidence_from_external_claim(
                 .map(|name| {
                     capability_from_name(name).ok_or_else(|| {
                         invalid_json(
-                            "external_response_binding.malformed_capability",
+                            antecedent_core::reason_details::external_response_binding::MALFORMED_CAPABILITY,
                             Some(name.clone()),
                         )
                     })
@@ -535,7 +535,7 @@ fn evidence_from_external_claim(
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| {
                     invalid_json(
-                        "external_response_binding.malformed_quantity",
+                        antecedent_core::reason_details::external_response_binding::MALFORMED_QUANTITY,
                         Some(error.to_owned()),
                     )
                 })?;
@@ -544,7 +544,10 @@ fn evidence_from_external_claim(
             )
             .map(DistributionMeaning::from)
             .map_err(|error| {
-                invalid_json("external_response_binding.malformed_meaning", Some(error.to_string()))
+                invalid_json(
+                    antecedent_core::reason_details::external_response_binding::MALFORMED_MEANING,
+                    Some(error.to_string()),
+                )
             })?;
             let object = ExternalScientificObject::Law(LawProviderContract {
                 identity: ProviderObjectIdentity {
@@ -1920,7 +1923,7 @@ fn variables(names: &[String], wanted: &[String]) -> PyResult<Arc<[VariableId]>>
 fn arrival_invalid(message: impl Into<String>) -> String {
     proposal_refusal_json(&ProposalReceiptError {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "proposal_receipt.arrival_invalid",
+        detail: antecedent_core::reason_details::proposal_receipt::ARRIVAL_INVALID,
         message: message.into(),
     })
 }
@@ -2100,7 +2103,8 @@ impl PyProposalBundle {
                 None,
                 Some(proposal_refusal_json(&ProposalReceiptError {
                     code: antecedent_core::reason_code!("design_signal_invalid"),
-                    detail: "proposal_receipt.candidate_not_in_bundle",
+                    detail:
+                        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_BUNDLE,
                     message: format!("candidate {id} has no receipt in this bundle"),
                 })),
             ));

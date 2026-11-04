@@ -376,8 +376,9 @@ fn a_selection_arrow_dominates_an_invariance_declaration() {
     }];
     let error = source.transport_to(&declaration, &ctx()).unwrap_err();
     assert!(
-        details(&error)
-            .contains(&"mechanism_composition.population_selection_arrow_into_mechanism"),
+        details(&error).contains(
+            &antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        ),
         "{:?}",
         details(&error)
     );
@@ -397,8 +398,9 @@ fn declared_and_unknown_refits_and_declared_sources_are_refused_by_name() {
     };
     let error = source.transport_to(&transport(&["M"], vec![written]), &ctx()).unwrap_err();
     assert!(
-        details(&error)
-            .contains(&"mechanism_composition.provenance_declared_mechanism_unacknowledged"),
+        details(&error).contains(
+            &antecedent_core::reason_details::mechanism_composition::PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED
+        ),
         "{:?}",
         details(&error)
     );
@@ -417,7 +419,10 @@ fn declared_and_unknown_refits_and_declared_sources_are_refused_by_name() {
     // A declared (not fitted) source mechanism is not carried.
     let declared = prepare(chain(true), DependenceInput::Unknown, true);
     let error = declared.transport_to(&transport(&["M"], vec![]), &ctx()).unwrap_err();
-    assert!(details(&error).contains(&"mechanism_transport.origin_not_fitted"));
+    assert!(
+        details(&error)
+            .contains(&antecedent_core::reason_details::mechanism_transport::ORIGIN_NOT_FITTED)
+    );
     assert!(
         error.refusals.iter().any(|r| r.code == "mechanism_composition_incoherent"),
         "{:?}",

@@ -245,7 +245,12 @@ fn mediation_quadrature_error_check_reports_and_refuses() {
     match run(&g, &ignorable, &strict) {
         Err(EstimationError::Refused { code, message }) => {
             assert_eq!(code, "mechanism_fit_not_converged");
-            assert!(message.contains("nonlinear_mediation.integration_error"), "{message}");
+            assert!(
+                message.contains(
+                    antecedent_core::reason_details::nonlinear_mediation::INTEGRATION_ERROR
+                ),
+                "{message}"
+            );
         }
         other => panic!("a tolerance below the rounding disagreement must refuse, got {other:?}"),
     }
@@ -275,20 +280,33 @@ fn mediation_confounding_and_cross_world_premises_are_refused() {
     ];
     for premises in &mut flags {
         let msg = refusal_message(run(&g, premises, &cfg));
-        assert!(msg.contains("nonlinear_mediation.confounding"), "{msg}");
+        assert!(
+            msg.contains(antecedent_core::reason_details::nonlinear_mediation::CONFOUNDING),
+            "{msg}"
+        );
     }
     let induced = NonlinearMediationPremises {
         treatment_induced_mediator_outcome_confounders: vec!["L".to_string()],
         ..NonlinearMediationPremises::sequentially_ignorable()
     };
     let msg = refusal_message(run(&g, &induced, &cfg));
-    assert!(msg.contains("nonlinear_mediation.treatment_induced_confounding"), "{msg}");
+    assert!(
+        msg.contains(
+            antecedent_core::reason_details::nonlinear_mediation::TREATMENT_INDUCED_CONFOUNDING
+        ),
+        "{msg}"
+    );
     let no_cross_world = NonlinearMediationPremises {
         cross_world_independence: false,
         ..NonlinearMediationPremises::sequentially_ignorable()
     };
     let msg = refusal_message(run(&g, &no_cross_world, &cfg));
-    assert!(msg.contains("nonlinear_mediation.cross_world_independence_not_declared"), "{msg}");
+    assert!(
+        msg.contains(
+            antecedent_core::reason_details::nonlinear_mediation::CROSS_WORLD_INDEPENDENCE_NOT_DECLARED
+        ),
+        "{msg}"
+    );
     let interventional = NonlinearMediationConfig {
         estimand: NonlinearMediationEstimand::InterventionalEffects,
         ..cfg
@@ -298,7 +316,12 @@ fn mediation_confounding_and_cross_world_premises_are_refused() {
         &NonlinearMediationPremises::sequentially_ignorable(),
         &interventional,
     ));
-    assert!(msg.contains("nonlinear_mediation.interventional_effects_not_supported"), "{msg}");
+    assert!(
+        msg.contains(
+            antecedent_core::reason_details::nonlinear_mediation::INTERVENTIONAL_EFFECTS_NOT_SUPPORTED
+        ),
+        "{msg}"
+    );
 }
 
 #[test]
@@ -322,7 +345,7 @@ fn mediation_weak_overlap_is_refused() {
     let g = grid(&s);
     let msg =
         refusal_message(run(&g, &NonlinearMediationPremises::sequentially_ignorable(), &config(8)));
-    assert!(msg.contains("nonlinear_mediation.overlap"), "{msg}");
+    assert!(msg.contains(antecedent_core::reason_details::nonlinear_mediation::OVERLAP), "{msg}");
     // An unpopulated treated arm is the same refusal on counts.
     let full = grid(&base_scm());
     let keep: Vec<usize> = {
@@ -349,7 +372,7 @@ fn mediation_weak_overlap_is_refused() {
         &NonlinearMediationPremises::sequentially_ignorable(),
         &config(8),
     ));
-    assert!(msg.contains("nonlinear_mediation.overlap"), "{msg}");
+    assert!(msg.contains(antecedent_core::reason_details::nonlinear_mediation::OVERLAP), "{msg}");
 }
 
 #[test]
@@ -513,7 +536,10 @@ fn mediation_posterior_refuses_a_mapped_prior() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("mediation_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::mediation_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -549,7 +575,10 @@ fn mediation_posterior_consumer_replays_the_design_summary() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("mediation_posterior.empty_design"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::mediation_posterior::EMPTY_DESIGN),
+        "{message}"
+    );
 }
 
 #[test]

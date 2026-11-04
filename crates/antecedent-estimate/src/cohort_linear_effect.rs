@@ -252,7 +252,7 @@ impl CohortLinearFit {
         if feature_quantities.len() != self.feature_ranges.len() {
             return Err(ExportRefusal {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "compact_export.dimension_mismatch",
+                detail: antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH,
                 subject: "feature_quantities".to_owned(),
             });
         }
@@ -339,11 +339,14 @@ pub const FIT_WIDTH_VARIABLE: &str = "fit.p";
 /// The only fitting procedure whose covariance supports an interval.
 pub const FIT_PROCEDURE_ID: &str = "ols_hc3_treatment_by_basis";
 /// Refusal detail of a declared (caller-built) export asked for an interval.
-pub const DETAIL_REQUIRES_NATIVE_FIT: &str = "cohort_decision.interval_requires_native_fit";
+pub const DETAIL_REQUIRES_NATIVE_FIT: &str =
+    antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT;
 /// Refusal detail of a shifted or otherwise point-only source asked for an interval.
-pub const DETAIL_NOT_SUPPORTED: &str = "cohort_decision.interval_not_supported";
+pub const DETAIL_NOT_SUPPORTED: &str =
+    antecedent_core::reason_details::cohort_decision::INTERVAL_NOT_SUPPORTED;
 /// Refusal detail of an invalid nominal level.
-pub const DETAIL_LEVEL_INVALID: &str = "cohort_decision.interval_level_invalid";
+pub const DETAIL_LEVEL_INVALID: &str =
+    antecedent_core::reason_details::cohort_decision::INTERVAL_LEVEL_INVALID;
 /// Scope of the issued interval.
 pub const INTERVAL_SCOPE: &str = "interval for the declared-cohort mean of the true conditional effect under a correctly specified linear effect basis, ignorable or randomized treatment and independent rows, for a cohort of the fitted population; excludes support selection and a shifted target population";
 /// Reference size of a replayed fit's rows. Not enforced: the normal-equation sizes follow the

@@ -385,7 +385,7 @@ impl MultiLevelAipw {
                 if ctx.cancellation.is_cancelled() {
                     return Err(refuse(
                         antecedent_core::reason_code!("cancelled_no_claim"),
-                        "treatment_levels.cancelled",
+                        antecedent_core::reason_details::treatment_levels::CANCELLED,
                         "the cross-fitted generalized-propensity fit was cancelled before every fold was fit; no estimate is reported",
                     ));
                 }
@@ -401,7 +401,7 @@ impl MultiLevelAipw {
                 if let Some(missing) = present.iter().position(|&seen| !seen) {
                     return Err(refuse(
                         antecedent_core::reason_code!("arm_not_populated"),
-                        "treatment_levels.training_fold_missing_level",
+                        antecedent_core::reason_details::treatment_levels::TRAINING_FOLD_MISSING_LEVEL,
                         &format!(
                             "a cross-fit training fold has no row at treatment level {}; use fewer folds or merge the level",
                             prepared.levels[missing]
@@ -445,7 +445,7 @@ impl MultiLevelAipw {
                     if level_train.len() <= ncols {
                         return Err(refuse(
                             antecedent_core::reason_code!("arm_not_populated"),
-                            "treatment_levels.sparse_level",
+                            antecedent_core::reason_details::treatment_levels::SPARSE_LEVEL,
                             &format!(
                                 "a cross-fit training fold has no more rows at treatment level {} than design columns, so its outcome model has no residual degrees of freedom",
                                 prepared.levels[c]
@@ -618,7 +618,7 @@ impl PreparedLevels {
         {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "treatment_levels.invalid_level_set",
+                antecedent_core::reason_details::treatment_levels::INVALID_LEVEL_SET,
                 "the declared treatment levels must be at least two distinct finite values",
             ));
         }
@@ -655,7 +655,7 @@ impl PreparedLevels {
         if let Some(value) = first_undeclared {
             return Err(refuse(
                 antecedent_core::reason_code!("treatment_level_undeclared"),
-                "treatment_levels.full_population_undeclared_level",
+                antecedent_core::reason_details::treatment_levels::FULL_POPULATION_UNDECLARED_LEVEL,
                 &format!(
                     "{undeclared} complete-case rows have a treatment value outside the declared \
                      level set; first found {value}; {}. The full-population estimate averages \
@@ -669,7 +669,7 @@ impl PreparedLevels {
         if let Some(empty) = rows_by_level.iter().position(|&rows| rows == 0) {
             return Err(refuse(
                 antecedent_core::reason_code!("arm_not_populated"),
-                "treatment_levels.level_not_populated",
+                antecedent_core::reason_details::treatment_levels::LEVEL_NOT_POPULATED,
                 &format!("no complete-case row has the declared treatment level {}", levels[empty]),
             ));
         }
@@ -711,7 +711,7 @@ impl PreparedLevels {
         self.levels.iter().position(|&l| l == level).ok_or_else(|| {
             refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "treatment_levels.contrast_level_not_declared",
+                antecedent_core::reason_details::treatment_levels::CONTRAST_LEVEL_NOT_DECLARED,
                 &format!("the query contrasts treatment level {level}, which is not in the declared level set"),
             )
         })

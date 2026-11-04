@@ -588,7 +588,10 @@ fn b_claims_an_unweighted_envelope_refuses_while_scenarios_are_unresolved() {
     .unwrap_err();
     assert_eq!(error, ClaimError::UnresolvedScenarios(2));
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_claims.unresolved_scenarios");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::UNRESOLVED_SCENARIOS
+    );
     assert_eq!(refusal.offending.as_deref(), Some("2"));
 }
 
@@ -605,7 +608,10 @@ fn b_claims_an_unbound_action_input_refuses_with_missing_scenario_utility() {
     )
     .unwrap_err();
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_claims.missing_scenario_utility");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::MISSING_SCENARIO_UTILITY
+    );
     assert_eq!(refusal.offending.as_deref(), Some("treat.inputs[0]"));
 }
 
@@ -620,7 +626,10 @@ fn b_claims_bayes_needs_declared_weights_and_never_reads_completion_counts() {
             .unwrap_err();
     assert_eq!(error, ClaimError::ProbabilitiesNotDeclared { completion_counts: false });
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_claims.probabilities_not_declared");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::PROBABILITIES_NOT_DECLARED
+    );
     assert_eq!(refusal.supplied.as_deref(), Some("none"));
 
     // Completions of a CPDAG carry counts, never probabilities.
@@ -641,7 +650,10 @@ fn b_claims_bayes_needs_declared_weights_and_never_reads_completion_counts() {
         None,
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "decision_claims.probabilities_not_declared");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::PROBABILITIES_NOT_DECLARED
+    );
 
     // Declared weights are read; unresolved mass then blocks a Bayes choice.
     let report = mixed_report(Some([0.3, 0.2, 0.25, 0.15]));
@@ -735,7 +747,7 @@ fn b_claims_a_changed_scenario_digest_is_refused() {
         Some(&source),
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "decision_claims.identity_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_claims::IDENTITY_MISMATCH);
     assert_eq!(refusal.offending.as_deref(), Some("b_standardize"));
 
     // A dropped scenario, changed premises and changed data are refused likewise.
@@ -761,7 +773,7 @@ fn b_claims_a_changed_scenario_digest_is_refused() {
         None,
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "decision_claims.identity_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_claims::IDENTITY_MISMATCH);
     assert_eq!(refusal.offending.as_deref(), Some("causal_contract_id"));
 }
 
@@ -778,7 +790,7 @@ fn b_claims_a_policy_other_than_the_contracts_is_refused() {
         None,
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "decision_adapters.policy_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_adapters::POLICY_MISMATCH);
 }
 
 #[test]
@@ -834,7 +846,10 @@ fn supplied_interval_endpoints_map_to_exact_utilities_without_inventing_joint_co
         &support,
     )
     .unwrap_err();
-    assert_eq!(error.to_refusal().detail, "decision_claims.unsupported_claim_shape");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_claims::UNSUPPORTED_CLAIM_SHAPE
+    );
     assert!(matches!(
         error,
         ClaimError::UnsupportedClaimShape(

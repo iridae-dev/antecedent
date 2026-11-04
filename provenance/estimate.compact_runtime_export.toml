@@ -44,12 +44,14 @@ record_sha256 = "be46d5de29d1b4f91234a5e3be84e91095aec47b2e59b381c97095788656949
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/compact_export.rs"
-sha256 = "038d547a8566b2958f563e157a984d8cb5ecc43cd36ffd69ffe3ed44f4813f52"
+items = ["const CALIBRATION_STATUS", "const COMPACT_EXPORT_VERSION", "const MAX_POLYNOMIAL_DEGREE", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const PSD_TOLERANCE", "const SE_BASIS", "const SYMMETRY_TOLERANCE", "const UNCERTAINTY_SCOPE", "enum InputSupport", "enum QueryValue", "enum TermSpec", "fn basis_row", "fn body", "fn build", "fn canonical_support", "fn check_covariance", "fn check_input_value", "fn check_inputs", "fn check_mask", "fn check_quantity", "fn check_region", "fn check_semantics", "fn check_shape", "fn check_support", "fn check_terms", "fn compute_digests", "fn data_digest", "fn declared", "fn default", "fn evaluate", "fn evaluate_body", "fn first_negative_pivot", "fn hash_quantity", "fn hash_support", "fn hash_term", "fn identity", "fn invalid", "fn new", "fn number_of", "fn premises_digest", "fn region_matches", "fn seal", "fn with_level", "fn with_number", "struct CompactExport", "struct CompactExportBody", "struct ExportInput", "struct ExportLimits", "struct ExportQuery", "struct ExportRefusal", "struct ExportScope", "struct ExportSpec", "struct MaskCondition", "struct MaskRegion", "struct PointWithSe"]
+sha256 = "797268ff5c0cb4cebe9e059f4153e296282d99e53b7334392f77c619bdfa7160"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/compact_export.rs"
-sha256 = "8e22b44e9a93144ecab59348cc5ddeb9670d14a7d69cbd2397d1e62e8ba73ccf"
+items = ["fn compact_point_and_se_equal_the_exact_rational_quadratic_form", "fn quantity", "fn reference_floats", "fn reference_spec", "fn reference_terms"]
+sha256 = "8f14edaa7332e9f69a48c802e34c15dabef6f5310b06c3eef155ca0e387b056c"
 
 [[method_review.artifacts]]
 role = "reference"

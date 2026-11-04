@@ -12,7 +12,7 @@
 //! never declared here — it is read from the runtime by binding every scored
 //! replicate's execution with `common::calibration_bind`.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -189,7 +189,7 @@ const INTERFERENCE_CELL: Cell =
 /// so with a diffuse prior and a large ring the credible interval is
 /// frequency-calibrated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn interference_query_dag_bayesian_neighbor_count_nominal_coverage() {
     // contrast (own 0, nb 0) -> (own 1, nb 0) = BETA0 (the neighbor term cancels).
     let truth = BETA0;
@@ -352,7 +352,7 @@ fn transport_truth_frozen(target: &[Individual]) -> f64 {
 /// captures exactly the trial-sampling uncertainty it conditions on, so
 /// `posterior_quantile` coverage is nominal.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn transport_query_admg_bayesian_bootstrap_nominal_coverage() {
     let target = frozen_target();
     // truth = 1 + mean over the frozen target x column (tau(x) = 1 + x).

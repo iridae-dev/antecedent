@@ -41,17 +41,20 @@ record_sha256 = "00c679ec2b98ebbae955917a1d9f4d2d3ff2eb1e3ba4845925e43c3f1d3aab3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/ancova.rs"
-sha256 = "3f7a01015ac72ccb782a57e930fe7a775c7041e8aa76281a3f4f79f961f4b355"
+items = ["const MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL", "const MIN_UNITS_PER_ARM_FOR_SMALL_ARM_INTERVAL", "const RANK_DEFICIENT", "fn assignment_design", "fn fit_ancova", "fn small_arm_interval_95", "fn small_arm_interval_any_covariates_95", "struct AncovaFit", "struct SmallArmInterval"]
+sha256 = "b0b703126abd982b19d6bbf726e3ab57af2971dc0fbceccd25e99f0c3d1e0b48"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/covariance.rs"
-sha256 = "f262f41b73a2745de3ac80015bdc636d6bc9c3b7e30c6be1e7c7e5f4e12aa49c"
+items = ["const LEVERAGE_SATURATION", "enum SandwichKind", "fn accumulate_xx", "fn basis_rank_tolerance", "fn cluster_finite_sample", "fn cluster_meat", "fn coefficient_covariance", "fn congruence", "fn distinct_count", "fn ensure_multiway_meat_psd", "fn hc2_coefficient_bell_mccaffrey", "fn hc_leverage", "fn hc_meat", "fn identity", "fn multiway_meat", "fn newey_west_meat", "fn newey_west_meat_on_rows", "fn sandwich_basis", "fn sandwich_from_multipliers", "struct Hc2Coefficient", "struct SandwichBasis"]
+sha256 = "44cb98c517e8dc92a06e4baab6a391733d91e5c27dbc713b6b70c70f906aac98"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/ancova_reference.rs"
-sha256 = "dbd745165736fbad27d503726c825450c71fb0389b15a6d294aca53cb4169b73"
+items = ["fn close", "fn floats", "fn hc0_hc2_and_degrees_of_freedom_match_the_exact_rational_fit"]
+sha256 = "ea4fca6a48e976926fe85c84955af6b752fde8b64348137e68e1d65c6a6fa757"
 
 [[method_review.artifacts]]
 role = "reference"

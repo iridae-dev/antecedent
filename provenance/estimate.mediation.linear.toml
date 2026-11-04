@@ -24,9 +24,11 @@ record_sha256 = "e12f51c31a863f21c8ecc2e5ef606f4da29fe3fd81af10dda5a9f54558b4c4e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/static_mediation.rs"
-sha256 = "2629b95322d752cc0168b21b3c37b930067208a8b619638a58e9bf3653fcb993"
+items = ["fn estimate_static_mediation", "fn new", "fn propagate", "fn source", "struct MediationRows"]
+sha256 = "5974fdcf1b0aec5a3cc288058d9b9966d971e37dcdff3f4d2208153432e787fa"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/static_mediation_oracle_tests.rs"
-sha256 = "508730f9b7c8e12d1ac02fe9143b4b211979eea280d48eb026b0adbcff456a70"
+items = ["const N", "fn serial_and_parallel_mediators_match_cross_world_structural_evaluation"]
+sha256 = "d6e67b4d2b28d04a5d2009164a7d1e27605ebd868d79d4456c1ca71eb5ef1f43"

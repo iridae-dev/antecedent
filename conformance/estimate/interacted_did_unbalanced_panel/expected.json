@@ -41,7 +41,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs",
-          "sha256": "0e837fa7314330eaecded2eeca1ec09f8dce534af0a7da05efb8da6104dd5ad3"
+          "items": [
+            "fn interacted_reference",
+            "fn panel",
+            "fn spec",
+            "fn sun_abraham_on_an_unbalanced_panel_matches_the_full_dummy_regression_reference",
+            "struct Simulated"
+          ],
+          "sha256": "580e3e525656a6fb56d12188bd2864d2eb4bed93b2b5e3b49b92c15ff4cbcab0"
         }
       ],
       "fixture_payload_sha256": "b942d67fed936f19bc4c17e18ceb6901336a91cc58b05f3e3fa09075d668324a"

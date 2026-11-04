@@ -42,6 +42,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -149,7 +151,7 @@ class PatternLaw:
         if not all(math.isfinite(c) for c in [*self._cells(), self.neither]):
             raise _refusal_of(
                 "invalid_argument",
-                "recovery_chain.invalid_observed_law",
+                _reason_details.recovery_chain.INVALID_OBSERVED_LAW,
                 "an observed pattern cell is negative or not finite",
             )
         return json.dumps(
@@ -303,7 +305,7 @@ class ChainDecision:
         if self.artifact is None:
             raise _refusal_of(
                 "invalid_argument",
-                "recovery_chain.not_evaluated",
+                _reason_details.recovery_chain.NOT_EVALUATED,
                 "evaluate the recovered decision on an observed pattern law before exporting",
             )
         return artifact_from_receipt(self, self.artifact)

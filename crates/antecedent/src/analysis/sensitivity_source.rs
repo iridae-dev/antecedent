@@ -64,16 +64,24 @@ impl SourceBackedSensitivity {
         limits: SourceLimits,
     ) -> Result<Self, IoError> {
         if source.len() > limits.max_bytes {
-            return Err(sensitivity_invalid("sensitivity_source.limits_exceeded"));
+            return Err(sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED,
+            ));
         }
         let original = JointSensitivityArtifactWire::consume(source, ctx)?;
         let result = original.replay_result(ctx)?;
         let quantities = surface.quantities();
         if quantities.len() != 1 {
-            return Err(sensitivity_invalid("sensitivity_source.surface_mismatch"));
+            return Err(sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH,
+            ));
         }
-        let effect = ScientificQuantity::try_from(quantities[0].quantity.clone())
-            .map_err(|_| sensitivity_invalid("sensitivity_source.surface_mismatch"))?;
+        let effect =
+            ScientificQuantity::try_from(quantities[0].quantity.clone()).map_err(|_| {
+                sensitivity_invalid(
+                    antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH,
+                )
+            })?;
         let actual = SensitivityArtifact::from_joint_result(
             &result,
             &effect,
@@ -82,7 +90,9 @@ impl SourceBackedSensitivity {
             &surface.provenance().causal_contract_id,
         )?;
         if &actual != surface {
-            return Err(sensitivity_invalid("sensitivity_source.surface_mismatch"));
+            return Err(sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH,
+            ));
         }
         Ok(Self { source: Arc::from(source), original: Arc::new(original), surface: actual })
     }
@@ -123,8 +133,11 @@ impl SourceBackedSensitivity {
             input.parents.push(source);
         }
         prefix.extend(links);
-        ProvenanceChain::new(prefix)
-            .map_err(|_| sensitivity_invalid("sensitivity_source.surface_mismatch"))
+        ProvenanceChain::new(prefix).map_err(|_| {
+            sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH,
+            )
+        })
     }
     /// Query source scientific standing and complete native derivation.
     /// # Errors
@@ -133,16 +146,18 @@ impl SourceBackedSensitivity {
         let chain = self.provenance_chain()?;
         let mut lineage = Vec::new();
         for link in chain.links() {
-            let digest = chain
-                .digest_of(&link.id)
-                .map_err(|_| sensitivity_invalid("sensitivity_source.lineage_digest"))?;
+            let digest = chain.digest_of(&link.id).map_err(|_| {
+                sensitivity_invalid(
+                    antecedent_core::reason_details::sensitivity_source::LINEAGE_DIGEST,
+                )
+            })?;
             let mut parent_digests = Vec::new();
             for id in &link.parents {
-                parent_digests.push(
-                    chain
-                        .digest_of(id)
-                        .map_err(|_| sensitivity_invalid("sensitivity_source.lineage_digest"))?,
-                );
+                parent_digests.push(chain.digest_of(id).map_err(|_| {
+                    sensitivity_invalid(
+                        antecedent_core::reason_details::sensitivity_source::LINEAGE_DIGEST,
+                    )
+                })?);
             }
             lineage.push(serde_json::json!({
                 "id": link.id,
@@ -180,7 +195,9 @@ impl SourceBackedSensitivity {
             surface: self.surface.to_bytes("source-backed-sensitivity")?,
         })?);
         if bytes.len() > limits.max_bytes {
-            return Err(sensitivity_invalid("sensitivity_source.limits_exceeded"));
+            return Err(sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED,
+            ));
         }
         Ok(bytes)
     }
@@ -199,13 +216,20 @@ impl SourceBackedSensitivity {
         limits: SourceLimits,
     ) -> Result<Self, IoError> {
         if bytes.len() > limits.max_bytes {
-            return Err(sensitivity_invalid("sensitivity_source.limits_exceeded"));
+            return Err(sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED,
+            ));
         }
-        let payload = bytes
-            .strip_prefix(MAGIC)
-            .ok_or_else(|| sensitivity_invalid("sensitivity_source.invalid_artifact"))?;
-        let wire: Wire = from_cbor(payload)
-            .map_err(|_| sensitivity_invalid("sensitivity_source.invalid_artifact"))?;
+        let payload = bytes.strip_prefix(MAGIC).ok_or_else(|| {
+            sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::INVALID_ARTIFACT,
+            )
+        })?;
+        let wire: Wire = from_cbor(payload).map_err(|_| {
+            sensitivity_invalid(
+                antecedent_core::reason_details::sensitivity_source::INVALID_ARTIFACT,
+            )
+        })?;
         let surface = SensitivityArtifact::from_bytes(&wire.surface, None)?;
         Self::checked_with_limits(&wire.source, &surface, ctx, limits)
     }

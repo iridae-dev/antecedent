@@ -16,6 +16,7 @@ import json
 import numpy as np
 import pytest
 from antecedent import Execution, _native
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.accepted_graph import AcceptedGraph
 from antecedent.discovery import (
@@ -313,7 +314,7 @@ def test_a_masked_split_records_the_exclusions_and_keeps_original_row_ids() -> N
     split.verify_source(data, mask=keep)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as error:
         split.verify_source(data)
-    assert error.value.detail == "selective_discovery.split_mask_mismatch"
+    assert error.value.detail == reason_details.selective_discovery.SPLIT_MASK_MISMATCH
 
 
 def test_incomplete_rows_are_excluded_before_the_split() -> None:
@@ -347,11 +348,11 @@ def test_a_weighted_split_gathers_weights_and_reports_the_effective_size() -> No
     # Other weights are another source, and re-weighted analysis rows are other rows.
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as error:
         split.verify_source(data, weights=np.ones(N))
-    assert error.value.detail == "selective_discovery.split_weights_mismatch"
+    assert error.value.detail == reason_details.selective_discovery.SPLIT_WEIGHTS_MISMATCH
     split.check_analysis_table(split.analysis, weights=gathered)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as error:
         split.check_analysis_table(split.analysis, weights=np.ones(len(gathered)))
-    assert error.value.detail == "selective_discovery.analysis_rows_not_the_split_part"
+    assert error.value.detail == reason_details.selective_discovery.ANALYSIS_ROWS_NOT_THE_SPLIT_PART
 
 
 def test_weights_must_match_the_declared_test() -> None:
@@ -361,12 +362,12 @@ def test_weights_must_match_the_declared_test() -> None:
         sd.discover_on_split(
             split_contract(), data, discovery_fraction=0.5, split_seed=1, weights=weights
         )
-    assert error.value.detail == "selective_discovery.weights_not_read_by_test"
+    assert error.value.detail == reason_details.selective_discovery.WEIGHTS_NOT_READ_BY_TEST
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as error:
         sd.discover_on_split(
             split_contract("weighted_parcorr"), data, discovery_fraction=0.5, split_seed=1
         )
-    assert error.value.detail == "selective_discovery.weighted_test_without_weights"
+    assert error.value.detail == reason_details.selective_discovery.WEIGHTED_TEST_WITHOUT_WEIGHTS
 
 
 def test_rfci_reads_the_same_statements_as_fci() -> None:

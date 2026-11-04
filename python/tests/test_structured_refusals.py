@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision, external
 from antecedent.errors import CausalUnsupportedError
 from antecedent.joint_distribution import (
@@ -78,7 +79,7 @@ def test_decision_refusal_fields_survive_the_bridge():
     assert isinstance(refusal, CausalUnsupportedError)
     assert refusal.reason_code == "joint_law_required"
     assert refusal.stage == "evaluate"
-    assert refusal.detail == "decision_evaluation.joint_law_required"
+    assert refusal.detail == reason_details.decision_evaluation.JOINT_LAW_REQUIRED
     assert refusal.offending == "A1"
     assert refusal.expected == "joint"
     assert refusal.supplied == "independent_marginals"
@@ -97,7 +98,7 @@ def test_unit_and_capability_style_mistakes_stay_distinct_across_families():
     with pytest.raises(decision.DecisionRefusal) as population:
         _refused(wrong_population)
     assert population.value.reason_code == "quantity_semantics_mismatch"
-    assert population.value.detail == "decision_contract.outside_decision_scope"
+    assert population.value.detail == reason_details.decision_contract.OUTSIDE_DECISION_SCOPE
 
     unknown_action = decision.Contract(
         actions=_contract().actions,
@@ -109,12 +110,12 @@ def test_unit_and_capability_style_mistakes_stay_distinct_across_families():
     with pytest.raises(decision.DecisionRefusal) as unknown:
         _refused(unknown_action)
     assert unknown.value.reason_code == "invalid_argument"
-    assert unknown.value.detail == "decision_contract.unknown_action"
+    assert unknown.value.detail == reason_details.decision_contract.UNKNOWN_ACTION
 
     pairs = {
         (population.value.reason_code, population.value.detail),
         (unknown.value.reason_code, unknown.value.detail),
-        ("joint_law_required", "decision_evaluation.joint_law_required"),
+        ("joint_law_required", reason_details.decision_evaluation.JOINT_LAW_REQUIRED),
     }
     assert len(pairs) == 3
     assert external.ExternalRefusal is not decision.DecisionRefusal

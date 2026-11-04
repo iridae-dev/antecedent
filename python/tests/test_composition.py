@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition as comp
 from antecedent import decision
 from antecedent.errors import CausalTypeError
@@ -172,7 +173,7 @@ def test_composition_boundary_caller_native_constructor_refuses_before_coercion(
     with pytest.raises(CausalValueError) as refused:
         JointDistributionArtifact(identity, UnreadableDraws(), trust="native_supported")  # type: ignore[arg-type]
     assert refused.value.reason_code == "invalid_argument"
-    assert "native_distribution.authority_required" in str(refused.value)
+    assert reason_details.native_distribution.AUTHORITY_REQUIRED in str(refused.value)
 
 
 def test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native() -> None:
@@ -187,7 +188,7 @@ def test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native(
     assert artifact.trust == "native_supported" and artifact.calibration == "exact"
     with pytest.raises(comp.UnverifiedTrustRefusal) as refused:
         comp.DecisionInput.from_distribution("native", artifact, requirement="native")
-    assert refused.value.detail == "composition_boundary.metadata_only_native_claim"
+    assert refused.value.detail == reason_details.composition_boundary.METADATA_ONLY_NATIVE_CLAIM
     assert refused.value.reason_code == "attested_not_reverifiable"
     assert refused.value.offending == "native"
     assert_registered_refusal(refused.value)
@@ -200,12 +201,12 @@ def test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native(
             evidence=comp.TrustEvidence.attested("lab"),
             requirement="native",
         )
-    assert attested.value.detail == "composition_boundary.metadata_only_native_claim"
+    assert attested.value.detail == reason_details.composition_boundary.METADATA_ONLY_NATIVE_CLAIM
 
     # An artifact that does not even claim native still is not native.
     with pytest.raises(comp.UnverifiedTrustRefusal) as plain:
         comp.DecisionInput.from_distribution("plain", joint(), requirement="native")
-    assert plain.value.detail == "composition_boundary.native_required"
+    assert plain.value.detail == reason_details.composition_boundary.NATIVE_REQUIRED
 
 
 def test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() -> (
@@ -260,7 +261,9 @@ def test_composition_boundary_exact_request_verification_needs_a_matching_receip
             comp.DecisionInput.from_distribution(
                 "ext", claimed, evidence=evidence, requirement="exact_request_verified"
             )
-        assert refused.value.detail == "composition_boundary.verification_receipt_missing"
+        assert (
+            refused.value.detail == reason_details.composition_boundary.VERIFICATION_RECEIPT_MISSING
+        )
         assert refused.value.reason_code == "external_verification_failed"
         assert_registered_refusal(refused.value)
 
@@ -282,7 +285,9 @@ def test_composition_boundary_one_missing_coordinate_beside_a_supported_action()
     extend = decided.disposition("extend")
     assert extend.status == "unsupported" and extend.input_id is None
     assert extend.reasons == (
-        comp.UnsupportedReason("grid", 0, "composition_boundary.coordinate_missing", None),
+        comp.UnsupportedReason(
+            "grid", 0, reason_details.composition_boundary.COORDINATE_MISSING, None
+        ),
     )
     assert decided.disposition("wait").input_id == "grid"
 
@@ -291,7 +296,10 @@ def test_composition_boundary_one_missing_coordinate_beside_a_supported_action()
         require_success(
             comp.evaluate_with_support(mean_contract(), [grid], comp.SupportPolicy.require_all())
         )
-    assert refused.value.detail == "composition_boundary.unsupported_action_not_comparable"
+    assert (
+        refused.value.detail
+        == reason_details.composition_boundary.UNSUPPORTED_ACTION_NOT_COMPARABLE
+    )
     assert refused.value.offending == "extend"
     assert_registered_refusal(refused.value)
 
@@ -308,7 +316,7 @@ def test_composition_boundary_one_masked_coordinate_beside_a_supported_action_jo
     assert decided.sources == 1
     (reason,) = decided.disposition("extend").reasons
     assert reason.input_id == "law"
-    assert reason.issue == "composition_boundary.coordinate_unsupported"
+    assert reason.issue == reason_details.composition_boundary.COORDINATE_UNSUPPORTED
     assert reason.support == "outside_empirical_support"
     with pytest.raises(comp.SupportRefusal):
         require_success(
@@ -390,7 +398,7 @@ def test_composition_boundary_actions_answered_by_different_inputs_compare_by_va
     )
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.evaluate_with_support(regret, [first, second]))
-    assert refused.value.detail == "composition_boundary.paired_draws_across_sources"
+    assert refused.value.detail == reason_details.composition_boundary.PAIRED_DRAWS_ACROSS_SOURCES
     assert refused.value.reason_code == "joint_law_required"
 
 
@@ -417,7 +425,9 @@ def test_composition_boundary_a_probability_is_never_answered_from_a_mean() -> N
     ):
         with pytest.raises(comp.SupportRefusal) as refused:
             require_success(comp.evaluate_functional(mean_only, "treat", functional, grid))
-        assert refused.value.detail == "composition_boundary.mean_is_not_a_distribution"
+        assert (
+            refused.value.detail == reason_details.composition_boundary.MEAN_IS_NOT_A_DISTRIBUTION
+        )
         assert refused.value.offending == "treat"
 
     # A scalar claim is a mean too.
@@ -486,7 +496,10 @@ def test_composition_boundary_mean_sources_leave_nonlinear_and_outcome_law_actio
     assert decided.verdict.kind == "only_one_evaluated" and decided.verdict.selected == "wait"
     nonlinear = decided.disposition("risky")
     assert nonlinear.status == "unevaluated"
-    assert nonlinear.unevaluated_reason == "composition_boundary.non_affine_needs_joint_law"
+    assert (
+        nonlinear.unevaluated_reason
+        == reason_details.composition_boundary.NON_AFFINE_NEEDS_JOINT_LAW
+    )
     # The outcome-law coordinate is absent from a mean grid: unsupported, never read as a mean.
     assert decided.disposition("law").status == "unsupported"
     assert decided.unevaluated_actions == ("risky",)
@@ -512,7 +525,7 @@ def test_composition_boundary_mean_sources_leave_nonlinear_and_outcome_law_actio
     decided = require_success(comp.evaluate_with_support(law_and_treat, [labelled]))
     assert decided.verdict.selected == "treat"
     assert decided.disposition("law").unevaluated_reason == (
-        "composition_boundary.outcome_law_needs_joint_law"
+        reason_details.composition_boundary.OUTCOME_LAW_NEEDS_JOINT_LAW
     )
 
 
@@ -552,7 +565,9 @@ def test_composition_boundary_shared_data_refuses_independent_pooling() -> None:
                 "statistical_pooling",
             )
         )
-    assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
+    assert (
+        refused.value.detail == reason_details.composition_boundary.SHARED_EVIDENCE_NOT_INDEPENDENT
+    )
     assert refused.value.reason_code == "scenario_aggregate_not_supported"
     assert refused.value.offending == "native~external"
     assert_registered_refusal(refused.value)
@@ -586,7 +601,9 @@ def test_composition_boundary_shared_data_refuses_paired_draws_without_a_support
         require_success(
             comp.check_paired_draws(pair, [shared_data("native", "external", covariance)])
         )
-    assert refused.value.detail == "composition_boundary.dependence_route_not_supported"
+    assert (
+        refused.value.detail == reason_details.composition_boundary.DEPENDENCE_ROUTE_NOT_SUPPORTED
+    )
     assert_registered_refusal(refused.value)
 
 
@@ -603,7 +620,10 @@ def test_composition_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair()
                     inputs, [shared_data("native", "external", route)], "statistical_pooling"
                 )
             )
-        assert refused.value.detail == "composition_boundary.dependence_route_not_supported"
+        assert (
+            refused.value.detail
+            == reason_details.composition_boundary.DEPENDENCE_ROUTE_NOT_SUPPORTED
+        )
     ok = comp.DependenceRoute("joint_law", "joint-law-1", "native")
     require_success(
         comp.check_composition(
@@ -618,7 +638,9 @@ def test_composition_boundary_declared_independence_is_overridden_by_a_shared_sn
     relation = comp.PairRelation("first", "second", comp.EvidenceRelation.independent())
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.check_composition([first, second], [relation], "statistical_pooling"))
-    assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
+    assert (
+        refused.value.detail == reason_details.composition_boundary.SHARED_EVIDENCE_NOT_INDEPENDENT
+    )
 
 
 def test_composition_boundary_unknown_dependence_is_never_independence() -> None:
@@ -627,7 +649,10 @@ def test_composition_boundary_unknown_dependence_is_never_independence() -> None
     for operation in comp.OPERATIONS:
         with pytest.raises(comp.DependenceRefusal) as refused:
             require_success(comp.check_composition(inputs, [unknown], operation))
-        assert refused.value.detail == "composition_boundary.unknown_dependence_is_not_independence"
+        assert (
+            refused.value.detail
+            == reason_details.composition_boundary.UNKNOWN_DEPENDENCE_IS_NOT_INDEPENDENCE
+        )
         assert refused.value.reason_code == "sampling_dependence_unknown"
         assert_registered_refusal(refused.value)
         # A pair that was never declared is the same as unknown.
@@ -641,7 +666,7 @@ def test_composition_boundary_an_undeclared_operation_is_refused() -> None:
     independent = comp.PairRelation("native", "external", comp.EvidenceRelation.independent())
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.check_composition(inputs, [independent]))
-    assert refused.value.detail == "composition_boundary.operation_not_declared"
+    assert refused.value.detail == reason_details.composition_boundary.OPERATION_NOT_DECLARED
     # Independent sources pool, and pooling records that independence was assumed.
     receipt = require_success(comp.check_composition(inputs, [independent], "statistical_pooling"))
     assert receipt.independence_assumed and receipt.routes == () and receipt.shared_evidence == ()
@@ -650,10 +675,10 @@ def test_composition_boundary_an_undeclared_operation_is_refused() -> None:
     stranger = comp.PairRelation("native", "ghost", comp.EvidenceRelation.independent())
     with pytest.raises(comp.CompositionRefusal) as ghost:
         require_success(comp.check_composition(inputs, [stranger], "statistical_pooling"))
-    assert ghost.value.detail == "composition_boundary.unknown_input"
+    assert ghost.value.detail == reason_details.composition_boundary.UNKNOWN_INPUT
     with pytest.raises(comp.CompositionRefusal) as alone:
         require_success(comp.check_composition(inputs[:1], [], "statistical_pooling"))
-    assert alone.value.detail == "composition_boundary.invalid_input"
+    assert alone.value.detail == reason_details.composition_boundary.INVALID_INPUT
 
 
 def test_composition_boundary_operations_are_declared_separately() -> None:
@@ -714,7 +739,9 @@ def test_composition_boundary_conflicting_atoms_never_become_a_silent_average() 
     atoms = [comp.StructuralAtom("graph-a"), comp.StructuralAtom("graph-b")]
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.check_atom_combination(atoms, "weighted_by_declared_probabilities"))
-    assert refused.value.detail == "composition_boundary.conflicting_atoms_not_averaged"
+    assert (
+        refused.value.detail == reason_details.composition_boundary.CONFLICTING_ATOMS_NOT_AVERAGED
+    )
     assert refused.value.reason_code == "scenario_aggregate_not_supported"
 
     # Probabilities on only some atoms are still not support to average.
@@ -742,12 +769,12 @@ def test_composition_boundary_conflicting_atoms_never_become_a_silent_average() 
     over = [comp.StructuralAtom("graph-a", 0.75), comp.StructuralAtom("graph-b", 0.5)]
     with pytest.raises(comp.DependenceRefusal) as invalid:
         require_success(comp.check_atom_combination(over, "weighted_by_declared_probabilities"))
-    assert invalid.value.detail == "composition_boundary.atom_probabilities_invalid"
+    assert invalid.value.detail == reason_details.composition_boundary.ATOM_PROBABILITIES_INVALID
     with pytest.raises(comp.CompositionRefusal) as repeated:
         require_success(
             comp.check_atom_combination([comp.StructuralAtom("graph-a")] * 2, "report_each")
         )
-    assert repeated.value.detail == "composition_boundary.invalid_input"
+    assert repeated.value.detail == reason_details.composition_boundary.INVALID_INPUT
 
 
 def test_means_length_mismatch_is_typed_error():

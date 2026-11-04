@@ -38,17 +38,20 @@ record_sha256 = "0381c993afcaac8e15e2b0ba3a2cd0b7adc9038af87d86a846a3e2694c3092f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/derivative.rs"
-sha256 = "1691f5f1636d110f2db615ae6f2b707b134c83dcacaeb9a3321141c5a779de86"
+items = ["fn average_derivative", "fn cross_fitted_ade_scores", "fn weighted_cross_fitted_ade"]
+sha256 = "bbdb306be0b5b00723a052252613a01f44cf2b59a786878de30d0998757d78fc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/crossfit.rs"
-sha256 = "251565bc32f124e1010e3aa63917a4f0d41eeaf04ab9c4890b9573ad44a8e268"
+items = ["fn treatment_sigma"]
+sha256 = "68435c5cceb79625ee5acad8974c89ab7d5093d8c213b298f04a47a314fa246f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_riesz_ade_reference.rs"
-sha256 = "06518254e1e2a9ed9d209d0f62a1b5053e2a908128044f0442a931626b010c7f"
+items = ["const SLOPE", "fn estimate_response_riesz_ade_of_a_linear_law_on_a_skewed_treatment_equals_the_closed_form", "fn estimate_response_riesz_ade_refuses_other_weightings_and_excess_folds", "fn estimate_response_riesz_ade_scores_estimate_interval_and_overlap_match_exact_pipeline", "fn estimator_for", "fn fixture", "fn floats", "fn num"]
+sha256 = "e66581ef4cdfae00b2c04bb70d1172a4ade2d8dcd14ad4625715d95a46e8f407"
 
 [[method_review.artifacts]]
 role = "reference"

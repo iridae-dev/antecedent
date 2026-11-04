@@ -13,6 +13,7 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
@@ -166,7 +167,7 @@ def test_the_cheapest_sufficient_study_arrives_and_executes_its_plan():
     assert stage.outcome == "sufficient"
     decided = stage.plan()
     assert decided["inference_claim"] == "none"
-    assert decided["failure"]["detail"] == "mixed_search.missing_joint"
+    assert decided["failure"]["detail"] == reason_details.mixed_search.MISSING_JOINT
     ranked = [(p["candidates"], p["cost_units"], p["stage"]) for p in decided["proposals"]]
     assert ranked == [
         (["trial_y"], 2, "mixed_source:rule_search"),
@@ -193,12 +194,14 @@ def test_arrival_of_another_shape_is_refused_and_the_right_shape_executes():
     deliver = stage.plan()["proposals"][0]["deliver"]
     wrong = [{**deliver[0], "measured": ["x", "y"]}]
     studies, _ = arrival(wrong)
-    with pytest.raises(CausalUnsupportedError, match="study_plan.arrival_mismatch") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.study_plan.ARRIVAL_MISMATCH
+    ) as refused:
         stage.receive(0, catalog(studies), "arrival")
     assert refused.value.reason_code == "invalid_argument"
     assert_registered_refusal(refused.value)
     studies, _ = arrival(deliver)
-    with pytest.raises(CausalUnsupportedError, match="study_plan.arrival_mismatch"):
+    with pytest.raises(CausalUnsupportedError, match=reason_details.study_plan.ARRIVAL_MISMATCH):
         stage.receive(0, catalog(studies), "another-snapshot")
     assert stage.receive(0, catalog(studies), "arrival")["outcome"] == "identified"
     execute_arrival(deliver)
@@ -208,7 +211,9 @@ def test_export_binds_the_plan_and_a_consumer_refuses_what_it_cannot_afford():
     stage = plan()
     artifact = bytes(stage.export())
     assert artifact.startswith(b"ANTECEDENT-STUDY-PLAN\x01")
-    with pytest.raises(CausalUnsupportedError, match="study_plan.bounds_exceeded") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.study_plan.BOUNDS_EXCEEDED
+    ) as refused:
         transport.replay_study_plan(artifact, max_operations=1_000, max_depth=16)
     assert refused.value.reason_code == "route_not_supported"
     with pytest.raises(CausalSerializationError):
@@ -237,22 +242,28 @@ def test_invalid_designs_and_a_base_that_identifies_are_refused_by_reason():
     restricted = transport.StudyCandidate(
         "trial_z1", "target", ["y"], 1, "randomise z", interventions=["z"], levels=[{"z": 1.0}]
     )
-    with pytest.raises(CausalUnsupportedError, match="study_plan.invalid_candidate") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.study_plan.INVALID_CANDIDATE
+    ) as refused:
         transport.plan_studies(
             graph=graph(), query=query(), catalog=catalog(BASE), candidates=[restricted]
         )
     assert refused.value.reason_code == "invalid_argument"
     elsewhere = transport.StudyCandidate("abroad", "elsewhere", ["y"], 1, "cohort")
-    with pytest.raises(CausalUnsupportedError, match="study_plan.invalid_candidate"):
+    with pytest.raises(CausalUnsupportedError, match=reason_details.study_plan.INVALID_CANDIDATE):
         transport.plan_studies(
             graph=graph(), query=query(), catalog=catalog(BASE), candidates=[elsewhere]
         )
     complete = BASE[:1] + [("trial", "trial", ("z",), ("x", "y"), "joint", "snap-trial")]
-    with pytest.raises(CausalUnsupportedError, match="study_plan.no_failure_to_repair"):
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.study_plan.NO_FAILURE_TO_REPAIR
+    ):
         transport.plan_studies(
             graph=graph(), query=query(), catalog=catalog(complete), candidates=CANDIDATES
         )
-    with pytest.raises(CausalUnsupportedError, match="study_plan.bounds_exceeded") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.study_plan.BOUNDS_EXCEEDED
+    ) as refused:
         transport.plan_studies(
             graph=graph(), query=query(), catalog=catalog(BASE), candidates=CANDIDATES, max_depth=17
         )
@@ -272,7 +283,7 @@ def test_a_budget_stop_is_a_receipt_never_a_verdict():
     assert decided["stop"]["stop"] == "search.operations"
     assert decided["stop"]["unevaluated"]
     assert decided["proposals"], "the proposals verified before the stop are kept"
-    with pytest.raises(CausalUnsupportedError, match="study_plan.budget") as refused:
+    with pytest.raises(CausalUnsupportedError, match=reason_details.study_plan.BUDGET) as refused:
         transport.plan_studies(
             graph=graph(),
             query=query(),
@@ -286,7 +297,9 @@ def test_a_budget_stop_is_a_receipt_never_a_verdict():
 def test_a_candidate_level_label_colliding_with_a_base_regime_is_refused():
     # The base already holds a regime labelled like trial_y's first level.
     clash = [*BASE, ("trial_y#0", "cohort", (), ("x", "z"), "joint", "snap-clash")]
-    with pytest.raises(CausalUnsupportedError, match="study_plan.invalid_candidate") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.study_plan.INVALID_CANDIDATE
+    ) as refused:
         transport.plan_studies(
             graph=graph(), query=query(), catalog=catalog(clash), candidates=CANDIDATES
         )
@@ -393,9 +406,9 @@ def test_a_multi_level_mz_plan_receives_by_level_labels_and_replays():
     assert received["outcome"] == "identified" and received["route"] == "mz"
     assert received["cited_regimes"] == ["a_do_z2#0", "a_do_z2#1", "b_do_z1#0"]
     # One level missing, or a preview snapshot, is refused.
-    with pytest.raises(CausalUnsupportedError, match="study_plan.arrival_mismatch"):
+    with pytest.raises(CausalUnsupportedError, match=reason_details.study_plan.ARRIVAL_MISMATCH):
         stage.receive(0, mz_catalog(deliver[1:]), "arrival")
-    with pytest.raises(CausalUnsupportedError, match="study_plan.arrival_mismatch"):
+    with pytest.raises(CausalUnsupportedError, match=reason_details.study_plan.ARRIVAL_MISMATCH):
         stage.receive(0, mz_catalog(deliver, "hypothetical:1"), "hypothetical:1")
     # Export and an independent replay reproduce the plan.
     artifact = bytes(stage.export())
@@ -411,7 +424,7 @@ def test_a_cancelled_plan_is_a_budget_stop_never_a_verdict():
 
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(CausalError, match="study_plan.budget") as refused:
+    with pytest.raises(CausalError, match=reason_details.study_plan.BUDGET) as refused:
         transport.plan_studies(
             graph=graph(),
             query=query(),

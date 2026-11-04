@@ -131,7 +131,12 @@ fn changed_semantic_id_wrong_meaning_and_marginals_refuse() {
         identity(DistributionMeaningWire::CausalFunctionalPosterior, DrawAlignment::Joint, "y"),
     ] {
         let error = DistributionArtifact::from_bytes(&bytes, &changed).unwrap_err();
-        assert!(error.to_string().contains("aligned_joint_draws.identity_expected"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED),
+            "{error}"
+        );
     }
     let marginals = law(identity(
         DistributionMeaningWire::InterventionalPredictive,
@@ -139,7 +144,12 @@ fn changed_semantic_id_wrong_meaning_and_marginals_refuse() {
         "y",
     ));
     let error = marginals.covariance(0, 1).unwrap_err();
-    assert!(error.to_string().contains("aligned_joint_draws.marginals_not_joint"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::aligned_joint_draws::MARGINALS_NOT_JOINT),
+        "{error}"
+    );
 }
 
 /// Artifact: both directions round-trip through the one bounded wire format; the

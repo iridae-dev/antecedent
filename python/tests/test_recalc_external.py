@@ -11,6 +11,7 @@ from dataclasses import replace
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import external
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
@@ -98,14 +99,14 @@ def test_callback_policy_descriptor_and_bound_output_failures_count_actual_attem
         require_success(session.execute(other, provider=provider))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
-        "external_recalc.provider_mismatch",
+        reason_details.external_recalc.PROVIDER_MISMATCH,
         "provider_request.0",
     )
     assert len(calls) == 1 and session.is_live
     unknown, unsupported, unknown_calls = fixture("unknown")
     with pytest.raises(ExternalCallbackRefusal) as error:
         require_success(ExternalCallbackSession().execute(unknown, provider=unsupported))
-    assert error.value.detail == "external_recalc.policy_unsupported"
+    assert error.value.detail == reason_details.external_recalc.POLICY_UNSUPPORTED
     assert error.value.reason_code == "route_not_supported" and unknown_calls == []
     bad = CallbackProvider(
         lambda inputs: external.Response(request.descriptor.provider, [1.0], attested_by="lab"),
@@ -125,7 +126,7 @@ def test_callback_stateful_execution_and_unsafe_side_effect_retry():
     assert again.receipt.totals.external_invocations == 1 and len(calls) == 2
     with pytest.raises(ExternalCallbackRefusal) as error:
         require_success(ExternalCallbackSession.resume(bytes(session.export()), request))
-    assert error.value.detail == "external_recalc.replay_unsupported"
+    assert error.value.detail == reason_details.external_recalc.REPLAY_UNSUPPORTED
     side, _, _ = fixture("side_effecting")
     attempts = []
 
@@ -137,11 +138,11 @@ def test_callback_stateful_execution_and_unsafe_side_effect_retry():
     failed = ExternalCallbackSession()
     with pytest.raises(ExternalCallbackRefusal) as error:
         require_success(failed.execute(side, provider=actual))
-    assert error.value.detail == "external_recalc.callback_failed"
+    assert error.value.detail == reason_details.external_recalc.CALLBACK_FAILED
     assert error.value.attempt["invocations"] == 1 and not failed.is_live
     with pytest.raises(ExternalCallbackRefusal) as error:
         require_success(failed.execute(side, provider=actual))
-    assert error.value.detail == "external_recalc.retry_unsafe" and len(attempts) == 1
+    assert error.value.detail == reason_details.external_recalc.RETRY_UNSAFE and len(attempts) == 1
 
 
 def test_callback_fresh_process_replay_requires_real_provider_and_matches_output(tmp_path):
@@ -203,7 +204,7 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
         )
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "cancelled_no_claim",
-        "recalc.cancelled",
+        reason_details.recalc.CANCELLED,
         "provider_request.0",
     )
     assert calls == [] and error.value.attempt is None
@@ -219,7 +220,8 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
             )
         )
     assert (
-        error.value.detail == "recalc.cancelled" and error.value.reason_code == "cancelled_no_claim"
+        error.value.detail == reason_details.recalc.CANCELLED
+        and error.value.reason_code == "cancelled_no_claim"
     )
     assert error.value.attempt["invocations"] == 1
     oversized = replace(request, data={"a": np.zeros(100_001)})
@@ -232,7 +234,7 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
             )
         )
     assert error.value.reason_code == "invalid_argument" and (
-        "recalc.memory_budget_exceeded" in str(error.value)
+        reason_details.recalc.MEMORY_BUDGET_EXCEEDED in str(error.value)
     )
     session = ExternalCallbackSession()
     require_success(session.execute(request, provider=provider))
@@ -251,7 +253,7 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
         require_success(replay.execute(request, provider=bad))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
-        "external_recalc.replay_mismatch",
+        reason_details.external_recalc.REPLAY_MISMATCH,
         "provider_request.0",
     )
     assert error.value.attempt["invocations"] == 1 and not replay.is_live

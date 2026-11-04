@@ -39,17 +39,20 @@ record_sha256 = "c77e3c09f45d47bf351e9f8a12f24ee9f215390e1e63b77d4b624d627f04c8f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
-sha256 = "cc9d7ff3f218a80ac33724c26308edeb0232a0f4a5fd4fee75af7e0e49ef779b"
+items = ["const LAPLACE_RANK_INTERVAL_BELOW_DRAWS", "enum BayesianBackendKind", "enum ReferenceArm", "fn adaptive_schedule", "fn add_modifier_mean_uncertainty", "fn apply_coefficient_names", "fn assemble_posterior_draws", "fn at", "fn center_interactions_on_arm", "fn check_sequential_prior", "fn coefficient_names_from_design", "fn conjugate", "fn default", "fn draw_budget", "fn effective_likelihood", "fn effects", "fn fit", "fn from_fit", "fn gcomp_evaluator", "fn glm_family", "fn new", "fn prepare", "fn prior_assumptions", "fn prior_in_force", "fn random_intercept_gls_whiten", "fn redraw", "fn temper_likelihood", "fn whiten_design", "fn with_inner", "fn with_n_draws", "fn with_prior", "fn with_prior_scale", "fn with_seed", "struct AdaptiveOutcome", "struct AdaptiveRedraw", "struct BackendInputs", "struct BayesianGCompWorkspace", "struct BayesianGComputationAte", "struct BayesianTemporalGcomp", "struct EffectEvaluation", "struct PreparedBayesianProblem", "struct ResidualVarianceDraws", "type CenteredDesign", "type WhitenedDesign"]
+sha256 = "62a994744d83b479affd76570812905a787d22b6b026897bcac6b74a0703dc93"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
+items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
+sha256 = "81480e7cac5f4ca97855d646a708ed4e96bc6043c32c4099dedb383a4798b9e2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs"
-sha256 = "554be29dfad553d17344acd4ef6094ffc760e979fcbf35db5f7fb016b17c1ed1"
+items = ["const DRAWS", "fn cases", "fn effect_summary", "fn estimator", "fn fit", "fn floats", "fn problem", "fn the_effect_posterior_matches_the_exact_conjugate_reference", "fn the_temporal_wrapper_is_the_same_fit_on_the_same_design"]
+sha256 = "6b73fb2f927d9ff5e602aa746881ff9a2d0e4d85a0ff171c25fcbccad80d2de7"
 
 [[method_review.artifacts]]
 role = "reference"

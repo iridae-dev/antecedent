@@ -258,7 +258,10 @@ fn dropped_zero_variance_resamples_are_counted_and_bounded_by_the_declared_fract
     strict["config"]["max_failed_fraction"] = serde_json::json!(0.0);
     let (code, message) = refusal_message(run(&data, &strict).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unsupported_history"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNSUPPORTED_HISTORY),
+        "{message}"
+    );
     assert!(message.contains(&format!("{failed} of 200")), "{message}");
 
     // A tolerated fraction just above the observed one passes, one just below refuses.
@@ -324,6 +327,11 @@ fn a_studentized_request_beyond_the_certified_unit_range_is_refused_not_rerouted
         .expect_err("a request for the bootstrap-t must not return another construction");
     let (code, message) = refusal_message(error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.studentized_bounds_exceeded"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::temporal_interval::STUDENTIZED_BOUNDS_EXCEEDED
+        ),
+        "{message}"
+    );
     assert_eq!(estimator.0.get(), 0, "no resampling work before the refusal");
 }

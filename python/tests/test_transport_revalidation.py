@@ -17,6 +17,7 @@ Oracles (hand-classified; the Python spelling of
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_verification as cv
 from antecedent import transported_response as tr
 from antecedent.errors import CausalValueError
@@ -205,7 +206,7 @@ def test_the_builder_refuses_what_a_scene_cannot_state() -> None:
             .build()
         )
     )
-    assert elsewhere.detail == "transport_revalidation.claim_target_mismatch"
+    assert elsewhere.detail == reason_details.transport_revalidation.CLAIM_TARGET_MISMATCH
     assert elsewhere.reason_code == "quantity_semantics_mismatch"
 
     orphan = refusal_of(
@@ -217,7 +218,7 @@ def test_the_builder_refuses_what_a_scene_cannot_state() -> None:
             .build()
         )
     )
-    assert orphan.detail == "transport_revalidation.source_undeclared"
+    assert orphan.detail == reason_details.transport_revalidation.SOURCE_UNDECLARED
 
     repeated = refusal_of(
         lambda: (
@@ -232,7 +233,7 @@ def test_the_builder_refuses_what_a_scene_cannot_state() -> None:
             .build()
         )
     )
-    assert repeated.detail == "transport_revalidation.duplicate_claim"
+    assert repeated.detail == reason_details.transport_revalidation.DUPLICATE_CLAIM
 
 
 def test_the_scene_identity_follows_the_response_value_at_an_unchanged_shape() -> None:
@@ -342,7 +343,7 @@ def test_a_scene_claim_reads_its_trust_from_provenance_and_refuses_a_stated_leve
     native = rv.revalidate(None, one_claim(native_response(), None))
     assert native.claim("effect").classification == "still_valid"
     refused = refusal_of(lambda: one_claim(native_response(), "verified_extension"))
-    assert refused.detail == "transport_revalidation.provider_trust_not_applicable"
+    assert refused.detail == reason_details.transport_revalidation.PROVIDER_TRUST_NOT_APPLICABLE
     assert refused.reason_code == "invalid_argument"
     with pytest.raises(CausalValueError, match="provider_trust"):
         one_claim(response("effect", "trial", "clinic_b", 2.0), "certified")
@@ -368,7 +369,7 @@ def test_a_standalone_response_states_its_coordinate_standing_and_composition_no
     refused = refusal_of(
         lambda: rv.response_claim_standing(native_response(), provider_trust="unverified")
     )
-    assert refused.detail == "transport_revalidation.provider_trust_not_applicable"
+    assert refused.detail == reason_details.transport_revalidation.PROVIDER_TRUST_NOT_APPLICABLE
 
     node = rv.response_claim_node(
         "effect",

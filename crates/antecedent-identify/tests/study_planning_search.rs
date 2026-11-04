@@ -179,7 +179,10 @@ fn complementary_sources_are_sufficient_only_as_a_pair() {
     let plan = default_plan();
     // The frozen failure is the mz-transport decision on the target law alone.
     assert_eq!(plan.failure.code, "transport_missing_evidence");
-    assert_eq!(plan.failure.detail, "mz_transport.missing_joint_regime");
+    assert_eq!(
+        plan.failure.detail,
+        antecedent_core::reason_details::mz_transport::MISSING_JOINT_REGIME
+    );
     assert!(!plan.failure.facts.is_empty());
     assert_eq!(
         statuses(&plan),
@@ -265,7 +268,7 @@ fn a_replayed_obstruction_is_theorem_limited() {
         plan_study_additions(&g, &route, &base, &candidates, StudyPlanLimits::default(), &ctx)
             .unwrap_err();
     assert_eq!(refusal.code, "transport_proven_non_transportable");
-    assert_eq!(refusal.detail, "study_plan.theorem_limited");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::study_plan::THEOREM_LIMITED);
     assert!(refusal.receipt.is_none());
 }
 
@@ -282,7 +285,13 @@ fn no_sufficient_subset_is_none_certified_never_impossible() {
     let plan =
         plan(&mz(fig_1_sources()), &base, &candidates, StudyPlanLimits::default(), &ctx).unwrap();
     assert!(plan.proposals.is_empty());
-    assert_eq!(plan.status(), Some(("transport_not_certified", "study_plan.none_certified")));
+    assert_eq!(
+        plan.status(),
+        Some((
+            "transport_not_certified",
+            antecedent_core::reason_details::study_plan::NONE_CERTIFIED
+        ))
+    );
     assert_eq!(plan.subsets.len(), 7);
     assert!(plan.subsets.iter().all(|s| s.outcome.status() == "insufficient"));
     assert!(plan.stop.is_none() && !plan.minimal);
@@ -326,7 +335,10 @@ fn a_stopped_plan_keeps_verified_proposals_and_names_unevaluated_subsets() {
             probe -= 1;
         }
     };
-    assert_eq!(pair_start.status(), Some(("transport_budget_cancel", "study_plan.budget")));
+    assert_eq!(
+        pair_start.status(),
+        Some(("transport_budget_cancel", antecedent_core::reason_details::study_plan::BUDGET))
+    );
     let receipt = pair_start.receipt().unwrap();
     assert!(receipt.unevaluated.contains(&"subset:[a_do_z2,b_do_z1]".to_owned()));
     assert!(!receipt.explored.contains(&"subset:[a_do_z2,b_do_z1]".to_owned()));
@@ -334,7 +346,10 @@ fn a_stopped_plan_keeps_verified_proposals_and_names_unevaluated_subsets() {
     assert!(receipt.explored.iter().all(|r| !receipt.unevaluated.contains(r)));
     // A budget that cannot finish the base decision refuses with its receipt.
     let refusal = plan(&mz(fig_1_sources()), &base, &candidates, limits(1), &ctx).unwrap_err();
-    assert_eq!((refusal.code, refusal.detail), ("transport_budget_cancel", "study_plan.budget"));
+    assert_eq!(
+        (refusal.code, refusal.detail),
+        ("transport_budget_cancel", antecedent_core::reason_details::study_plan::BUDGET)
+    );
     let receipt = refusal.receipt.unwrap();
     assert_eq!(receipt.stop, SearchStop::Operations);
     assert_eq!(receipt.unevaluated.first().map(String::as_str), Some("stage:base"));
@@ -516,8 +531,10 @@ fn bounds_and_impossible_designs_refuse_by_detail() {
         let refusal = plan(&route, &base, &candidates, limits, &ctx).unwrap_err();
         (refusal.code, refusal.detail)
     };
-    let invalid = ("invalid_argument", "study_plan.invalid_candidate");
-    let bound = ("route_not_supported", "study_plan.bounds_exceeded");
+    let invalid =
+        ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_CANDIDATE);
+    let bound =
+        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED);
     // The number of candidates and of regimes per candidate is bounded by the plan's budget,
     // not by a constant: seventeen candidates and nine regimes in one are admitted.
     let many = |n: u32| {
@@ -624,7 +641,7 @@ fn a_base_that_already_identifies_has_no_failure_to_repair() {
             .unwrap_err();
     assert_eq!(
         (refusal.code, refusal.detail),
-        ("invalid_argument", "study_plan.no_failure_to_repair")
+        ("invalid_argument", antecedent_core::reason_details::study_plan::NO_FAILURE_TO_REPAIR)
     );
 }
 
@@ -641,7 +658,7 @@ fn a_base_regime_without_provider_lineage_is_refused_before_any_work() {
         assert!(refusal.message.contains("lineage"), "{}", refusal.message);
         (refusal.code, refusal.detail)
     };
-    let invalid = ("invalid_argument", "study_plan.invalid_query");
+    let invalid = ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_QUERY);
     // An available base regime with no provider binding has no lineage.
     let bound = base();
     let unbound = EvidenceCatalog::try_new(
@@ -790,7 +807,7 @@ fn the_plan_memory_bound_accepts_512_mib_and_refuses_one_byte_more() {
     let refusal = memory_plan(&candidates, STUDY_PLAN_MEMORY_BYTES + 1).unwrap_err();
     assert_eq!(
         (refusal.code, refusal.detail),
-        ("route_not_supported", "study_plan.bounds_exceeded")
+        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED)
     );
     assert!(refusal.receipt.is_none());
     // Refused before any work: even a cancelled context reports the bound.
@@ -801,5 +818,5 @@ fn the_plan_memory_bound_accepts_512_mib_and_refuses_one_byte_more() {
         ..StudyPlanLimits::default()
     };
     let refusal = plan(&mz(fig_1_sources()), &base, &candidates, limits, &cancelled).unwrap_err();
-    assert_eq!(refusal.detail, "study_plan.bounds_exceeded");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED);
 }

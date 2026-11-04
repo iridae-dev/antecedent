@@ -7,6 +7,7 @@ from dataclasses import replace
 
 import pytest
 from antecedent import Admg, Execution, proposals, repair
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalValueError
 from antecedent.proposal_arrival import ArrivedStudy, consume_arrival
 from antecedent.transport import advanced as tr
@@ -143,12 +144,12 @@ def test_arrival_public_counts_identity_scope_and_sample_refusals(change):
     else:
         study = replace(study, operations=0)
     detail = {
-        "counts": "proposal_arrival.sample_size_mismatch",
-        "snapshot": "proposal_arrival.provider_binding_mismatch",
+        "counts": reason_details.proposal_arrival.SAMPLE_SIZE_MISMATCH,
+        "snapshot": reason_details.proposal_arrival.PROVIDER_BINDING_MISMATCH,
         "population": "exact law names an unknown population/regime",
-        "assignment": "proposal_arrival.assignment_mismatch",
-        "exact": "proposal_arrival.raw_counts_required",
-        "budget": "proposal_arrival.bounds_exceeded",
+        "assignment": reason_details.proposal_arrival.ASSIGNMENT_MISMATCH,
+        "exact": reason_details.proposal_arrival.RAW_COUNTS_REQUIRED,
+        "budget": reason_details.proposal_arrival.BOUNDS_EXCEEDED,
         "schema": "repair coordinate names differ from the supplied graph",
     }[change]
     with pytest.raises(CausalValueError, match=detail) as refused:

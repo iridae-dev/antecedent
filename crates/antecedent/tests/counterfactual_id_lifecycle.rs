@@ -468,7 +468,7 @@ fn a_mutated_artifact_fails_consumption_with_a_typed_error() {
     // Every error carries a registered (reason code, detail) pair.
     assert_eq!(
         CounterfactualIdArtifactError::PointMismatch.reason(),
-        ("invalid_argument", "counterfactual_id.invalid_artifact")
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT)
     );
 }
 
@@ -575,7 +575,13 @@ fn consumer_limits_refuse_before_any_work_and_bounds_hold_at_export() {
     ] {
         let error = consume_counterfactual_id_artifact(&bytes, limits, &ctx()).unwrap_err();
         assert!(matches!(error, CounterfactualIdArtifactError::LimitsExceeded(_)), "{error:?}");
-        assert_eq!(error.reason(), ("route_not_supported", "counterfactual_id.bounds_exceeded"));
+        assert_eq!(
+            error.reason(),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED
+            )
+        );
     }
     // The context's hard memory limit below the stored cap refuses up front too.
     let mut small = ctx();
@@ -645,7 +651,10 @@ fn the_two_cross_world_formats_refuse_each_other() {
     )
     .unwrap_err();
     assert_eq!(error, CounterfactualIdArtifactError::UnsupportedSemantics("required features"));
-    assert_eq!(error.reason(), ("invalid_argument", "counterfactual_id.invalid_artifact"));
+    assert_eq!(
+        error.reason(),
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT)
+    );
     // An edge-contrast artifact is refused by this reader.
     // Continuous columns, the fixed-DAG cell's linear-Gaussian fit.
     let xs: Vec<f64> = (0..40).map(|i| (f64::from(i) * 0.37).sin()).collect();
@@ -673,7 +682,10 @@ fn the_two_cross_world_formats_refuse_each_other() {
         matches!(&error, CounterfactualIdArtifactError::Decode(m) if m.contains("unknown field `graph_edges`")),
         "{error:?}"
     );
-    assert_eq!(error.reason(), ("invalid_argument", "counterfactual_id.invalid_artifact"));
+    assert_eq!(
+        error.reason(),
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT)
+    );
 }
 
 // ---------------------------------------------------------------- refusals
@@ -955,7 +967,10 @@ fn laws_without_support_or_positivity_are_refused() {
         .evaluate(&exact(&[2, 2], vec![0.25; 4], "narrow"), &ctx())
         .unwrap_err()
         .to_string();
-    assert!(text.contains("counterfactual_id.invalid_query"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::counterfactual_id::INVALID_QUERY),
+        "{text}"
+    );
 }
 
 #[test]

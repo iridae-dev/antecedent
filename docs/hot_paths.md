@@ -80,8 +80,8 @@ cargo bench -p antecedent --bench transport -- --test
 
 Absolute timings in baseline files are machine-class references (Apple M1).
 CI does not compare timings: `scripts/gate_hot_path_baselines.sh` checks only
-that each linked baseline file exists and records a wall time or a "none
-published" waiver, because shared runners cannot enforce M1 times. Comparing
+that each linked baseline file exists and records a wall time or the statement "none
+published", because shared runners cannot enforce M1 times. Comparing
 Criterion means with the documented budgets is a manual step on the reference
 machine (`GATE_CRITERION_MEANS=1`), and a regression beyond a budget is
 reviewed by hand, not blocked automatically. Only rows marked "asserted in

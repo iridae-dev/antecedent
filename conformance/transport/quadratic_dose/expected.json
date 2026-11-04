@@ -37,7 +37,20 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/tests/dose_grid_functional.rs",
-          "sha256": "c3f7424bacfbc9200abcdf360c139cd79a94dbffddc6055d92133756d5df0af0"
+          "items": [
+            "const GRID",
+            "const N",
+            "fn claims",
+            "fn contrast_between_named_doses_matches_closed_form",
+            "fn design",
+            "fn level_and_derivative_recover_truth_under_alternating_noise_within_tolerance",
+            "fn local_quadratic_reference",
+            "fn request",
+            "fn run",
+            "fn truth_derivative",
+            "fn truth_level"
+          ],
+          "sha256": "be9fcf47ffa2bfc75efb98f455121649bf6e3cfeea99e0e3240f70ad15ca4f5f"
         }
       ],
       "fixture_payload_sha256": "755a3c530f78da2330f5b81f6cece40ee2b7dedf5e8d521a18fac028d717d4e1"

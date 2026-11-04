@@ -42,12 +42,14 @@ record_sha256 = "f35459c9a283b32952fdeda53e4d078727c76c8c3978ecc98a8931a9e1acb46
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-sha256 = "d8a7bfc6b04d7fc4e30754aed03b368ad30842bb0d8213f5a2cf46d5bc53da20"
+items = ["enum MeasurementErrorError", "fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn matvec", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
+sha256 = "67b1373719e9bef37427f1a0f38b01e6f3d1dd951c4e45671091fbe73b5c971f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/measurement_correction_reference.rs"
-sha256 = "c72308dc4e4c48e192e25c94b11a9935581f35c860809ec43cb7cc6a5069ee63"
+items = ["fn categorical_corrections_match_the_analytic_delta_method", "fn categorical_inputs", "fn close", "fn corrected_prevalence_matches_exact_rational_arithmetic", "fn number", "fn numbers", "fn rates", "fn reference", "fn risk_differences_match_exact_rational_arithmetic", "fn two_categories_reproduce_the_binary_correction"]
+sha256 = "bb17cf370380b0dc49a0e853eecf1343ea7b19be4a8b9367b33ad12f50eb1bfb"
 
 [[method_review.artifacts]]
 role = "reference"

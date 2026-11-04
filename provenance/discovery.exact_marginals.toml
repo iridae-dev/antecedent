@@ -39,17 +39,20 @@ record_sha256 = "20c7a9506cb4ca8aa08852fad3fd93ef9c5aa98f0943289a22f96291a9352cf
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_marginals.rs"
-sha256 = "6d23cb35da1990509f7122b1a4b9e7ec04bcc441fbc1f1821d115ba0135c1f2b"
+items = ["const EXACT_MARGINAL_WORK_BUDGET", "fn exact_dag_marginals", "fn exact_marginal_work", "fn fold_subsets", "fn log_add", "fn marginals_from_factors", "fn scaled_total", "struct ExactDagMarginals"]
+sha256 = "39e701878a39673ca3b92b870a9dc6ae5bce19045332738b210b67322f9a0c58"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
+items = ["enum GraphScoreFamily", "fn content_fingerprint", "fn fingerprint", "fn new"]
+sha256 = "d476d5e163fff24927af3414c10c34ef896c67a4d5f9db37911a3c58b41d66e6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
-sha256 = "6806340d5893a5429ed954e0322b719de2d7fa19743561520e98fc798803f651"
+items = ["fn dynamic_programme_matches_brute_force_enumeration_of_every_dag", "fn link", "fn order_and_structure_samplers_match_the_enumerated_marginals_under_priors_and_constraints", "fn problems", "struct Problem"]
+sha256 = "2a2679b69ade0650702ac3cb42a6295f4e1cd7d79e8e0142a003d636be62c621"
 
 [[method_review.artifacts]]
 role = "reference"

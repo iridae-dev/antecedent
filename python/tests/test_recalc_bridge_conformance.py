@@ -15,6 +15,7 @@ import tracemalloc
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalValueError
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
@@ -111,7 +112,9 @@ def test_a_declared_size_above_the_budget_is_refused_before_any_large_allocation
     tracemalloc.start()
     try:
         for call in (session.plan, session.execute):
-            with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
+            with pytest.raises(
+                CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED
+            ) as error:
                 call(request, execution=Execution(limits=ResourceLimits(memory_bytes=budget)))
             assert error.value.reason_code == "invalid_argument"
         peak = tracemalloc.get_traced_memory()[1]
@@ -156,7 +159,7 @@ def test_a_cancelled_run_stops_at_once_and_retains_no_partial_state():
         )
     assert (error.value.reason_code, error.value.detail) == (
         "cancelled_no_claim",
-        "recalc.cancelled",
+        reason_details.recalc.CANCELLED,
     )
     assert session.is_live and session.identities == identities
     assert (
@@ -173,7 +176,7 @@ def test_a_cancelled_run_stops_at_once_and_retains_no_partial_state():
     with pytest.raises(RecalcRefusal) as error:
         require_success(fresh.execute(request, execution=Execution(cancel=token)))
     assert time.perf_counter() - started < 10.0
-    assert error.value.detail == "recalc.cancelled"
+    assert error.value.detail == reason_details.recalc.CANCELLED
     assert not fresh.is_live and not fresh.identities
 
 
@@ -188,6 +191,6 @@ def test_a_request_above_the_downstream_limit_names_the_limit_and_the_requested_
             )
         )
     message = str(error.value)
-    assert "recalc.memory_budget_exceeded" in message
+    assert reason_details.recalc.MEMORY_BUDGET_EXCEEDED in message
     assert str(requested) in message and str(limit) in message
     assert error.value.reason_code == "invalid_argument"

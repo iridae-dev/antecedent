@@ -15,6 +15,7 @@ import dataclasses
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cohort_decision as cd
 from antecedent import decision
 from antecedent.errors import CausalTypeError, CausalValueError
@@ -144,7 +145,7 @@ def test_the_decision_source_is_the_existing_surface_with_the_same_mean(model) -
     contract = affine_contract(source, 5.0, -2.0)
     with pytest.raises(cd.CohortDecisionRefusal) as unaccepted:
         require_success(contract.evaluate(source))
-    assert unaccepted.value.detail == "cohort_decision.extrapolative_not_accepted"
+    assert unaccepted.value.detail == reason_details.cohort_decision.EXTRAPOLATIVE_NOT_ACCEPTED
     decided = require_success(contract.evaluate(source.accept_extrapolative()))
     assert effect.mean_source.means == pytest.approx((effect.mean_contrast,), abs=TOLERANCE)
     by_id = {a.id: a for a in decided.actions}
@@ -193,7 +194,7 @@ def test_a_fresh_consumer_rederives_the_identity_and_refuses_a_wrong_one(model) 
     with pytest.raises(cd.CohortDecisionRefusal) as mismatch:
         forged.verify()
     assert mismatch.value.reason_code == "transport_not_certified"
-    assert mismatch.value.detail == "transported_effect.identity_mismatch"
+    assert mismatch.value.detail == reason_details.transported_effect.IDENTITY_MISMATCH
 
 
 # ------------------------------------------------------------------------------ refusals
@@ -203,45 +204,45 @@ def test_every_unmet_premise_is_named(model) -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as missing:
         transport(model, declared=None)
     assert missing.value.reason_code == "transport_missing_evidence"
-    assert missing.value.detail == "transported_effect.shift_declaration_required"
+    assert missing.value.detail == reason_details.transported_effect.SHIFT_DECLARATION_REQUIRED
     assert missing.value.remedy
 
     # A selection arrow into the outcome mechanism breaks the invariance premise.
     with pytest.raises(cd.CohortDecisionRefusal) as arrow:
         transport(model, declared=shift(children=("z", "y")))
     assert arrow.value.reason_code == "transport_not_certified"
-    assert arrow.value.detail == "transported_effect.selection_enters_mechanism"
+    assert arrow.value.detail == reason_details.transported_effect.SELECTION_ENTERS_MECHANISM
     assert arrow.value.offending == "y"
 
     # Modifiers that are not exactly the model's features.
     with pytest.raises(cd.CohortDecisionRefusal) as modifiers:
         transport(model, declared=shift(modifiers=("z", "age")))
     assert modifiers.value.reason_code == "transport_not_certified"
-    assert modifiers.value.detail == "transported_effect.modifier_set_mismatch"
+    assert modifiers.value.detail == reason_details.transported_effect.MODIFIER_SET_MISMATCH
 
     # A declaration for other populations.
     with pytest.raises(cd.CohortDecisionRefusal) as populations:
         transport(model, declared=shift(source="clinic_x"))
-    assert populations.value.detail == "transported_effect.shift_declaration_mismatch"
+    assert populations.value.detail == reason_details.transported_effect.SHIFT_DECLARATION_MISMATCH
 
     # The cohort is declared to be the model's own population.
     with pytest.raises(cd.CohortDecisionRefusal) as same:
         transport(model, cohort_=cohort(population="clinic_a"))
     assert same.value.reason_code == "quantity_semantics_mismatch"
-    assert same.value.detail == "transported_effect.population_not_different"
+    assert same.value.detail == reason_details.transported_effect.POPULATION_NOT_DIFFERENT
 
 
 def test_overlap_failures_name_the_feature_and_row(model) -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as disjoint:
         transport(model, cohort_=cohort(z=[3.0, 4.0], w=[0.5, 0.5]))
     assert disjoint.value.reason_code == "transport_support_failure"
-    assert disjoint.value.detail == "transported_effect.no_overlap"
+    assert disjoint.value.detail == reason_details.transported_effect.NO_OVERLAP
     assert "feature=z" in str(disjoint.value.offending)
 
     with pytest.raises(cd.CohortDecisionRefusal) as beyond:
         transport(model, cohort_=cohort(z=[0.0, 3.0], w=[0.5, 0.5]))
     assert beyond.value.reason_code == "transport_support_failure"
-    assert beyond.value.detail == "transported_effect.out_of_support"
+    assert beyond.value.detail == reason_details.transported_effect.OUT_OF_SUPPORT
     assert "row=row-1" in str(beyond.value.offending)
 
 
@@ -252,14 +253,14 @@ def test_schema_units_and_type_gates(model) -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as schema:
         transport(model, cohort_=wrong_feature)
     assert schema.value.reason_code == "schema_mismatch"
-    assert schema.value.detail == "transported_effect.feature_schema_mismatch"
+    assert schema.value.detail == reason_details.transported_effect.FEATURE_SCHEMA_MISMATCH
 
     levels = cd.CohortBinding(
         snapshot_id="s", population="clinic_b", columns={"z": ["low", "high"]}
     )
     with pytest.raises(cd.CohortDecisionRefusal) as categorical:
         transport(model, cohort_=levels)
-    assert categorical.value.detail == "transported_effect.cohort_not_numeric"
+    assert categorical.value.detail == reason_details.transported_effect.COHORT_NOT_NUMERIC
 
     with pytest.raises(CausalValueError):
         transport(model, units="")
@@ -278,11 +279,11 @@ def test_interval_and_law_are_refused_with_the_support_evidence(model) -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as interval:
         effect.interval()
     assert interval.value.reason_code == "route_not_supported"
-    assert interval.value.detail == "transported_effect.interval_not_supported"
+    assert interval.value.detail == reason_details.transported_effect.INTERVAL_NOT_SUPPORTED
     with pytest.raises(cd.CohortDecisionRefusal) as law:
         effect.refuse("law")
     assert law.value.reason_code == "decision_contract_unsatisfied"
-    assert law.value.detail == "transported_effect.law_not_supplied"
+    assert law.value.detail == reason_details.transported_effect.LAW_NOT_SUPPLIED
     with pytest.raises(cd.CohortDecisionRefusal) as quantile:
         effect.refuse("quantile")
     assert quantile.value.reason_code == "decision_contract_unsatisfied"

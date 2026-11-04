@@ -53,12 +53,14 @@ record_sha256 = "491705a1154cac99a95af1cc3a02504d0cdf4c0f9651d39f7f071f49eef32fa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/ranker.rs"
-sha256 = "6f050d88acea6d04166adb1169e850e88cf9c93b0d9954c9f2c30f88edffe0e3"
+items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn evaluation", "fn exact_expectation", "fn exact_gain", "fn filter_active_candidates", "fn likelihood", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn posterior_entropy", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn score", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DecisionScoring", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EntropyChannel", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
+sha256 = "ab5971540dc7ca499637348754cb2178e197bd3597fd980308a1fb3d53e32d54"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/graph_entropy_channel_reference.rs"
-sha256 = "c6d5cffca9cc325ca63069cd36996c046d16163cacb9e1d54fefa799c157fa7b"
+items = ["fn candidate", "fn entropy_scores_equal_mutual_information_of_the_declared_channel", "fn scores"]
+sha256 = "e4c3de0e7b8fec5f139736a85bc037a73bbbacca3fda402f8032112013777091"
 
 [[method_review.artifacts]]
 role = "reference"

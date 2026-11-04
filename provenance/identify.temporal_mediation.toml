@@ -42,9 +42,11 @@ record_sha256 = "013da874a1d425631a42b42467763ec82fd6738873b1b3367b73921bee1dfd4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/temporal_mediation.rs"
-sha256 = "e5abc4ba1597f1a854407b09f549feb258fddf460a6c68eb76f3d38ed9e0aab2"
+items = ["fn adjustment_nodes_admitted", "fn admit_mediation_scratch", "fn describe_keys", "fn ensure_mediators_intercept", "fn identify", "fn identify_backdoor", "fn identify_horizon", "fn identify_with_horizon", "fn mediation_adjustment", "fn mediation_result", "fn new", "struct MediationAdjustment", "struct TemporalMediationIdentifier"]
+sha256 = "a5d29392468085f8bdcb465968efd88e563fc34fb49cca186b47116bd5b73d57"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/temporal_mediation_population_regression.rs"
-sha256 = "4a0c80429c9a9284380c0b0ad3044a3bd5f91b9180e5b1d20ec182f0ec3b85ef"
+items = ["const M", "const N2", "const OPTIONAL", "const REQUIRED", "const T", "const W", "const Y", "const Z", "fn a_query_with_several_horizons_is_not_answered_for_the_first_alone", "fn estimates", "fn every_answered_single_mediator_template_matches_the_true_effects", "fn inverse_i_minus", "fn matches_truth", "fn ols", "fn ordered_and_parallel_mediator_sets_match_the_true_effects", "fn run", "fn sem", "fn solve", "fn template", "fn temporal_query", "fn truth", "fn unit", "struct Sem", "struct Tally", "struct Truth", "type Edge"]
+sha256 = "85221f8e6b6258a183310973df1d3c0ae037de8b384cbb35023cc65d68b5e037"

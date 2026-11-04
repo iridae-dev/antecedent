@@ -11,7 +11,7 @@
 //! here — it is read from the runtime by binding every scored replicate's
 //! execution with `common::calibration_bind`.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -162,7 +162,7 @@ const TRANSPORT_CELL: Cell = Cell { estimator: "transport.trial_ipw", dgp: "tran
 
 /// Dahabreh trial-to-target IPW with its ratio-of-means delta-method SE.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn transport_admg_trial_ipw_frequentist_nominal_coverage() {
     let truth = transport_truth();
     let mut tallies =
@@ -275,7 +275,7 @@ const INTERFERENCE_CELL: Cell =
 const INTERFERENCE_MEASURED: [f64; GRID_POINTS] = [1.0; GRID_POINTS];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn interference_dag_bernoulli_neighbor_count_conservative_bound_boundary() {
     let alpha = alpha();
     let mut tallies = keyed_pair(

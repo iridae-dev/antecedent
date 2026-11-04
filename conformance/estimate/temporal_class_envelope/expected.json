@@ -127,7 +127,21 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs",
-          "sha256": "9b499bf9aa04109fffd4b41a26d125ac9cf46b3be2b6910f2e3d043ab8e60c41"
+          "items": [
+            "enum ClassGraph",
+            "fn build",
+            "fn identified_pag_pin",
+            "fn identified_pag_series",
+            "fn identify_computations",
+            "fn pag",
+            "fn pin",
+            "fn recording_ctx",
+            "fn series",
+            "fn temporal_class_pag_completion_weighting_and_identified_set_bounds_are_exact",
+            "fn temporal_pag_identified_multi_completion_pulse_and_sustained",
+            "struct RecordingProgress"
+          ],
+          "sha256": "24c6c6133d596044c30027775f491d6848532cb50693f397836b369663c23431"
         }
       ],
       "fixture_payload_sha256": "cd75777e19c93a0cf9a35ee88badbd6006e39a94db68136f9f5a35d4d9126522"

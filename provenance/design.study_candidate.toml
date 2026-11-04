@@ -38,9 +38,11 @@ record_sha256 = "aeba05016c9bd54890c23139c24abbbda5610493e7e23098b0c86dd05dde531
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/study_candidate.rs"
-sha256 = "0e42db235d8456c6bf020e8995126af1a9aad3457f9175a3faaf6f9641f7aef1"
+items = ["const ALL", "enum StudyKind", "fn as_str", "fn canonical", "fn check_against", "fn design_action", "fn distinct", "fn from_name", "fn is_observational", "fn offers", "fn proposed_regimes", "fn semantic_id", "fn set", "fn validate", "fn wrong_contract", "struct DurableStudyCandidate", "struct ExpectedEvidence", "struct StudyCandidateError", "struct StudyCostDeclaration", "struct UnitRules"]
+sha256 = "478ee7c3c345b160526a0a04dacffb90b40f853fd8e6f75fcded28923f9ddb43"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/study_candidate.rs"
-sha256 = "381dc6af9ce2d632f5ff976faa675d800e7d91ce3cfead62a684c3126b934269"
+items = ["const A", "const Y", "const Z", "fn candidate_c", "fn candidate_observing_separate_regimes_cannot_claim_the_joint_factor", "fn design_action_bridges_to_the_existing_planners", "fn evidence", "fn instrument_natural_experiment_and_panel_studies_validate_their_own_shapes", "fn joint_candidate_validates_and_matches_the_joint_obligation", "fn joint_obligation", "fn level", "fn missing_unit_timing_or_cost_semantics_refuse", "fn observational", "fn proposed_regimes_are_proposed_and_tied_to_the_semantic_id", "fn refusal", "fn reordering_preserves_semantic_identity", "fn the_kind_is_part_of_the_semantic_identity_and_existing_names_are_unchanged", "fn the_new_kinds_deliver_observational_laws_and_plan_as_measurements", "fn v", "fn vars"]
+sha256 = "ffc48ecccf9054780c6b3ac624d0a32c8fb1f52ca2147afb7ccbd46bf886254a"

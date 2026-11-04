@@ -19,14 +19,17 @@ record_sha256 = "62e93b070a71ad344da3c66389ea4cb753a517c0c750e4cbd28438a02a8a930
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/sensitivity_source.rs"
-sha256 = "886aa11c202aa7b179a2ac580e8931cf55199f2b297e5972a9f4d2be9b4bdbe5"
+items = ["const MAGIC", "const MAX_BYTES", "fn checked", "fn checked_with_limits", "fn consume", "fn consume_with_limits", "fn default", "fn export", "fn export_with_limits", "fn original_bytes", "fn provenance_chain", "fn sensitivity_invalid", "fn summary", "fn surface", "struct SourceBackedSensitivity", "struct SourceLimits", "struct Wire"]
+sha256 = "284d3caf63ba53274ae3f38b67aff72ff1d97198e377cc4a89208e10954d060a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
-sha256 = "c8f30f016a66af4188ef17dee7e80e3ec886151295e0e402485a0f5fc702785d"
+items = ["const W", "const X", "const Y", "const Z", "fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason", "fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay", "fn a_z_transport_artifact_is_refused_by_the_mz_consumer", "fn artifact", "fn baseline_bytes", "fn builder", "fn catalog", "fn consume", "fn data", "fn diagram", "fn empirical_counts", "fn prepare", "fn prepared_z_stage_evaluates_joint_sensitivity_without_reidentifying", "fn probabilities", "fn query", "fn refused", "fn reseal", "fn resealed_semantic_mutations_fail_replay_for_the_right_reason", "fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_surface", "fn spec", "fn stored_limits_above_the_consumer_maxima_refuse_before_any_work", "fn the_declared_composition_names_the_endpoint_bootstrap", "fn the_endpoint_bootstrap_interval_replays", "fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer", "fn the_one_factor_sensitivity_artifact_is_unchanged_and_refuses_the_joint_format", "fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier", "fn the_range_artifact_refuses_a_forged_sampling_interval", "fn unknown_wire_fields_are_refused", "struct Builder", "struct CancelAfterFirstLine"]
+sha256 = "1f62380124c4dac19e3047705ab05b877fcaee068b0263b5d05d0aad383190bb"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/source_evidence.rs"
-sha256 = "c3746d8b65eb42d04940c12e0729b90a0477bb777b5cb4e93f945e77f617bbff"
+items = ["fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_local_values", "fn bounded_evidence_refuses_oversized_logical_sections_before_decompression", "fn contract", "fn full_original_source_comparison_rejects_changed_science_and_seed", "fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_changed_mean_binding", "fn opaque_resolution_executes_original_preparation_and_rejects_changed_science", "fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption", "fn original_external_attestation_retains_exact_support_request_and_source_without_native_authority", "fn original_native_source_chain_is_typed_and_independently_rederived", "fn produce_source", "fn source", "fn source_with"]
+sha256 = "6a0254ce2171ef093b736c2c925287a407aa190bfcac960c40c40b2e4f69707b"

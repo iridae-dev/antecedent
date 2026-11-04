@@ -18,7 +18,7 @@
 //! * `smoothed_dose_transport_weak_overlap_boundary` asserts the far-target boundary
 //!   refuses in at least 90% of datasets; it emits no record.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

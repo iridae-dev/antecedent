@@ -1183,7 +1183,7 @@ fn artifact_error_json(
         None => json!({
             "code": antecedent_core::reason_code!("invalid_argument"),
             "stage": "consume",
-            "detail": "callback_protocol.artifact_invalid",
+            "detail": antecedent_core::reason_details::callback_protocol::ARTIFACT_INVALID,
             "message": error.to_string(),
             "offending": null, "expected": null, "supplied": null,
             "remedy": "supply an intact callback_result_v1 artifact",

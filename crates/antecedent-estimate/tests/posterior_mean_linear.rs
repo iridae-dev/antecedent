@@ -79,7 +79,10 @@ fn vector_posterior_refuses_a_mapped_prior() {
             .unwrap_err(),
     );
     assert!(message.contains("route_not_supported"), "{message}");
-    assert!(message.contains("vector_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -144,7 +147,11 @@ fn categorical_posterior_refuses_an_external_power_prior() {
         .unwrap_err(),
     );
     assert!(message.contains("route_not_supported"), "{message}");
-    assert!(message.contains("categorical_posterior.external_power_prior"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::categorical_posterior::EXTERNAL_POWER_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -200,7 +207,11 @@ fn quadratic_posterior_refuses_an_unmeasured_band() {
         .unwrap_err(),
     );
     assert!(message.contains("not_supported"), "{message}");
-    assert!(message.contains("quadratic_posterior.band_not_constructed"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::quadratic_posterior::BAND_NOT_CONSTRUCTED),
+        "{message}"
+    );
 }
 
 #[test]
@@ -270,7 +281,10 @@ fn dose_grid_posterior_refuses_a_mapped_prior() {
         .unwrap_err(),
     );
     assert!(message.contains("route_not_supported"), "{message}");
-    assert!(message.contains("dose_grid_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::dose_grid_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

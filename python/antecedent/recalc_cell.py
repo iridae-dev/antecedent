@@ -47,6 +47,8 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -92,7 +94,11 @@ Quantity = Literal["interaction", "average_effect", "cell_minus_control"]
 the ``average_effect`` of one treatment, or one ``cell_minus_control`` contrast (set ``arm``)."""
 _QUANTITIES = ("interaction", "average_effect", "cell_minus_control")
 _UNAVAILABLE = frozenset(
-    {"recalc.unavailable_fit", "recalc.unavailable_data", "recalc.unavailable_provider"}
+    {
+        _reason_details.recalc.UNAVAILABLE_FIT,
+        _reason_details.recalc.UNAVAILABLE_DATA,
+        _reason_details.recalc.UNAVAILABLE_PROVIDER,
+    }
 )
 
 
@@ -135,7 +141,7 @@ def _cell_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
         return _resume_refusal_type(wire)
     if detail in _UNAVAILABLE:
         return RecalcUnavailable
-    if detail == "recalc.no_live_state":
+    if detail == _reason_details.recalc.NO_LIVE_STATE:
         return RecalcNoLiveState
     return RecalcRefusal
 

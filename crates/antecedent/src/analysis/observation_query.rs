@@ -176,7 +176,7 @@ fn cancelled() -> ObservationQueryRefusal {
     ObservationQueryRefusal::of(
         antecedent_core::reason_code!("cancelled_no_claim"),
         "observe",
-        "observation_query.cancelled",
+        antecedent_core::reason_details::observation_query::CANCELLED,
         "cancelled before a value was formed; this is not a verdict on the model",
     )
 }
@@ -192,14 +192,14 @@ fn artifact_refusal(error: ObservationQueryArtifactError) -> ObservationQueryRef
         | ObservationQueryArtifactError::ResultMismatch => ObservationQueryRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "consume",
-            "observation_query.artifact_refused",
+            antecedent_core::reason_details::observation_query::ARTIFACT_REFUSED,
             "the premises, query and reading do not hash to the stored or the retained identity, \
              or the stored result is not their replay",
         ),
         other => ObservationQueryRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "consume",
-            "observation_query.artifact_invalid",
+            antecedent_core::reason_details::observation_query::ARTIFACT_INVALID,
             other.to_string(),
         ),
     }
@@ -271,7 +271,7 @@ pub fn retain_regression(
         ObservationQueryRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "observe",
-            "observation_query.invalid_declaration",
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
             error.to_string(),
         )
     })?;
@@ -557,7 +557,7 @@ impl ObservationClaim {
             return Err(ObservationQueryRefusal::of(
                 antecedent_core::reason_code!("invalid_argument"),
                 "observe",
-                "observation_query.no_parameter_draws",
+                antecedent_core::reason_details::observation_query::NO_PARAMETER_DRAWS,
                 "this claim carries no parameter draws; ask for parameter uncertainty with a retained-data redraw",
             ));
         };
@@ -565,7 +565,7 @@ impl ObservationClaim {
             return Err(ObservationQueryRefusal::of(
                 antecedent_core::reason_code!("invalid_argument"),
                 "observe",
-                "observation_query.unknown_quantity",
+                antecedent_core::reason_details::observation_query::UNKNOWN_QUANTITY,
                 quantity,
             ));
         };
@@ -630,7 +630,7 @@ impl ObservationClaim {
                     ObservationQueryRefusal::of(
                         antecedent_core::reason_code!("invalid_argument"),
                         "observe",
-                        "observation_query.invalid_interval",
+                        antecedent_core::reason_details::observation_query::INVALID_INTERVAL,
                         error.to_string(),
                     )
                 })?;
@@ -763,7 +763,7 @@ fn measured_wire(
         return Err(ObservationQueryRefusal::of(
             antecedent_core::reason_code!("proxy_offered_as_construct"),
             "observe",
-            "observation_query.measured_as_construct",
+            antecedent_core::reason_details::observation_query::MEASURED_AS_CONSTRUCT,
             slot.variable_id.clone(),
         ));
     };
@@ -869,7 +869,7 @@ impl PreparedMechanismComposition {
                         ExternalRefusal::new(
                             antecedent_core::reason_code!("invalid_argument"),
                             "observe",
-                            "observation_query.levels_for_continuous_model",
+                            antecedent_core::reason_details::observation_query::LEVELS_FOR_CONTINUOUS_MODEL,
                         )
                         .with_offending(
                             request
@@ -908,7 +908,7 @@ impl PreparedMechanismComposition {
                         ExternalRefusal::new(
                             antecedent_core::reason_code!("invalid_argument"),
                             "observe",
-                            "observation_query.real_values_for_finite_model",
+                            antecedent_core::reason_details::observation_query::REAL_VALUES_FOR_FINITE_MODEL,
                         )
                         .with_offending(variable.clone())
                         .with_remedy(
@@ -994,7 +994,7 @@ impl PreparedMechanismComposition {
                 return Err(ObservationQueryRefusal::of(
                     antecedent_core::reason_code!("route_not_supported"),
                     "observe",
-                    "observation_query.measured_signal_not_redrawn",
+                    antecedent_core::reason_details::observation_query::MEASURED_SIGNAL_NOT_REDRAWN,
                     other.operation(),
                 ));
             }
@@ -1167,7 +1167,7 @@ impl PreparedMechanismComposition {
                 return Err(ObservationQueryRefusal::of(
                     antecedent_core::reason_code!("route_not_supported"),
                     "observe",
-                    "observation_query.measured_background",
+                    antecedent_core::reason_details::observation_query::MEASURED_BACKGROUND,
                     slot.variable_id.clone(),
                 ));
             }

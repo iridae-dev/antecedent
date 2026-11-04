@@ -141,7 +141,7 @@ fn composition_plan_declaration(
                 return Ok((
                     None,
                     Some(invalid(
-                        "composition_verification.stage_not_in_plan",
+                        antecedent_core::reason_details::composition_verification::STAGE_NOT_IN_PLAN,
                         &format!("the requested workflow does not contain stage `{label}`"),
                         Some(&label),
                     )),

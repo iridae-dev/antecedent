@@ -41,12 +41,14 @@ record_sha256 = "b76cfffb3b1ad71ad67a8a885a9ebb1c77eaa753385e1f1ac54eabc3e2b507f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_link.rs"
-sha256 = "6006f8c19d102bdb214ff77cf92b9cdf0db11233e7356538191f18c399cb9be0"
+items = ["enum TemporalOutcomeLink", "enum TrajectoryDependence", "fn binary_outcomes", "fn column_is_ones", "fn column_value", "fn default", "fn delta_method_se", "fn family", "fn finite_column", "fn fit", "fn kernel", "fn mean_contrast", "fn new", "fn observed_eta", "fn refuse_series", "fn regime_coefficients", "fn regime_eta", "fn shape", "fn stats", "fn try_new", "struct BayesianTemporalLink", "struct FrequentistLinkContrast", "struct FrequentistTemporalLink", "struct RegimeColumn", "struct TemporalContrastDesign"]
+sha256 = "f452d7bd7392b4e7fef1c475ed6028327bc361dcc6b59b37417139fbadb6904e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_link_bayesian_reference.rs"
-sha256 = "a9df4b2bbfa86bd8d562a20d21186ea5e8c58a5f907bf2609cb9b81ebbe34854"
+items = ["const DRAWS", "fn declarations_change_the_answer_or_are_refused", "fn design", "fn floats", "fn laplace_posterior_mean_and_draw_standard_deviation_equal_the_gauss_hermite_moments", "fn link", "fn maximum_likelihood_contrast_and_fisher_standard_error_with_two_lags", "fn rel"]
+sha256 = "ec95ae1ff3b5ccaba415cc8bd04cca252c5f7160ce60e2aea0926f00a48f9f1b"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -123,14 +123,27 @@ impl DoseGridArtifactError {
         match self {
             Self::UnsupportedSemantics(_) => (
                 antecedent_core::reason_code!("route_not_supported"),
-                "dose_grid.unsupported_semantics".to_owned(),
+                antecedent_core::reason_details::dose_grid::UNSUPPORTED_SEMANTICS.to_owned(),
             ),
-            Self::LimitsExceeded(_) => (invalid, "dose_grid.consumer_limit_exceeded".to_owned()),
+            Self::LimitsExceeded(_) => (
+                invalid,
+                antecedent_core::reason_details::dose_grid::CONSUMER_LIMIT_EXCEEDED.to_owned(),
+            ),
             Self::Refused { code, detail, .. } => (*code, detail.clone()),
-            Self::ResultMismatch => (invalid, "dose_grid.result_replay_mismatch".to_owned()),
-            Self::PremisesMismatch => (invalid, "dose_grid.premises_mismatch".to_owned()),
-            Self::DataMismatch => (invalid, "dose_grid.data_identity_mismatch".to_owned()),
-            Self::Undecodable(_) => (invalid, "dose_grid.undecodable".to_owned()),
+            Self::ResultMismatch => (
+                invalid,
+                antecedent_core::reason_details::dose_grid::RESULT_REPLAY_MISMATCH.to_owned(),
+            ),
+            Self::PremisesMismatch => {
+                (invalid, antecedent_core::reason_details::dose_grid::PREMISES_MISMATCH.to_owned())
+            }
+            Self::DataMismatch => (
+                invalid,
+                antecedent_core::reason_details::dose_grid::DATA_IDENTITY_MISMATCH.to_owned(),
+            ),
+            Self::Undecodable(_) => {
+                (invalid, antecedent_core::reason_details::dose_grid::UNDECODABLE.to_owned())
+            }
         }
     }
 }
@@ -154,14 +167,14 @@ impl From<EstimationError> for DoseGridArtifactError {
             | EstimationError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
                 Self::Refused {
                     code: antecedent_core::reason_code!("transport_budget_cancel"),
-                    detail: "dose_grid.cancelled".into(),
+                    detail: antecedent_core::reason_details::dose_grid::CANCELLED.into(),
                     message: "dose grid cancelled".into(),
                 }
             }
             EstimationError::Stats(error @ antecedent_stats::StatsError::ResourceLimit { .. }) => {
                 Self::Refused {
                     code: antecedent_core::reason_code!("transport_budget_cancel"),
-                    detail: "dose_grid.resource_limit".into(),
+                    detail: antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.into(),
                     message: error.to_string(),
                 }
             }
@@ -169,19 +182,22 @@ impl From<EstimationError> for DoseGridArtifactError {
             | EstimationError::Stats(antecedent_stats::StatsError::Admission(error)) => {
                 Self::Refused {
                     code: antecedent_core::reason_code!("transport_budget_cancel"),
-                    detail: "dose_grid.resource_limit".into(),
+                    detail: antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.into(),
                     message: error.to_string(),
                 }
             }
             EstimationError::Refused { code, message }
             | EstimationError::RefusedWithFields { code, message, .. } => Self::Refused {
                 code,
-                detail: message.detail().unwrap_or("dose_grid.refused").to_owned(),
+                detail: message
+                    .detail()
+                    .unwrap_or(antecedent_core::reason_details::dose_grid::REFUSED)
+                    .to_owned(),
                 message: message.explanation().to_owned(),
             },
             other => Self::Refused {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "dose_grid.invalid_request".to_owned(),
+                detail: antecedent_core::reason_details::dose_grid::INVALID_REQUEST.to_owned(),
                 message: other.to_string(),
             },
         }
@@ -735,7 +751,7 @@ impl DoseGridRequestWire {
         if !result_is_finite(&result) {
             return Err(DoseGridArtifactError::Refused {
                 code: antecedent_core::reason_code!("transport_numerical_failure"),
-                detail: "dose_grid.non_finite_result".to_owned(),
+                detail: antecedent_core::reason_details::dose_grid::NON_FINITE_RESULT.to_owned(),
                 message: "the local fit produced a non-finite value".to_owned(),
             });
         }

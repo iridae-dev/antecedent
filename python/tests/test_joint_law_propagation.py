@@ -18,6 +18,7 @@ import textwrap
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import joint_law_propagation as jl
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import (
@@ -122,7 +123,7 @@ def test_index_pairing_of_unrelated_joint_artifacts_is_refused() -> None:
     with pytest.raises(R) as error:
         require_success(jl.aligned_functional("product", lx, ry, "product"))
     assert error.value.reason_code == "joint_law_required"
-    assert error.value.detail == "joint_law_propagation.alignment_mismatch"
+    assert error.value.detail == reason_details.joint_law_propagation.ALIGNMENT_MISMATCH
     assert error.value.remedy
 
 
@@ -134,7 +135,7 @@ def test_independent_marginal_artifacts_are_never_paired_by_index() -> None:
     with pytest.raises(R) as error:
         require_success(jl.aligned_functional("nonlinear_functional", mx, my, "minimum"))
     assert error.value.reason_code == "joint_law_required"
-    assert error.value.detail == "joint_law_propagation.index_pairing_refused"
+    assert error.value.detail == reason_details.joint_law_propagation.INDEX_PAIRING_REFUSED
     with pytest.raises(CausalValueError):
         require_success(
             jl.aligned_functional(
@@ -206,7 +207,7 @@ def test_known_weight_mixture_matches_the_closed_form() -> None:
     with pytest.raises(R) as error:
         require_success(jl.mixture(parts, weights_declared=False))
     assert error.value.reason_code == "invalid_argument"
-    assert error.value.detail == "joint_law_propagation.mixture_weights_unknown"
+    assert error.value.detail == reason_details.joint_law_propagation.MIXTURE_WEIGHTS_UNKNOWN
 
 
 # ------------------------------------------------------------------- envelopes
@@ -277,10 +278,12 @@ def test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled() -> N
         assert error.value.reason_code == "uncertainty_representation_insufficient"
     with pytest.raises(R) as error:
         claim.interval()
-    assert error.value.detail == "joint_law_propagation.no_interval_construction"
+    assert error.value.detail == reason_details.joint_law_propagation.NO_INTERVAL_CONSTRUCTION
     with pytest.raises(R) as error:
         require_success(claim.posterior())
-    assert error.value.detail == "joint_law_propagation.no_posterior_for_fixed_law_inputs"
+    assert (
+        error.value.detail == reason_details.joint_law_propagation.NO_POSTERIOR_FOR_FIXED_LAW_INPUTS
+    )
     # A value function without a verified sign structure is refused.
     bad = jl.PropagationDraws.independent_marginal("x", [-1.0, 1.0, 2.0], evidence_id="s1")
     other = jl.PropagationDraws.independent_marginal("y", [-1.0, 1.0, 2.0], evidence_id="s2")
@@ -290,7 +293,7 @@ def test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled() -> N
                 "nonlinear_functional", jl.EnvelopeQuery.of_functional("ratio"), bad, other
             )
         )
-    assert error.value.detail == "joint_law_propagation.structure_not_verified"
+    assert error.value.detail == reason_details.joint_law_propagation.STRUCTURE_NOT_VERIFIED
     ranged = require_success(
         jl.correlation_range(
             "sum",
@@ -325,7 +328,10 @@ def test_transported_composition_needs_an_aligned_law_or_a_covariance() -> None:
                 )
             )
         assert error.value.reason_code == "joint_law_required"
-        assert error.value.detail == "joint_law_propagation.transported_dependence_required"
+        assert (
+            error.value.detail
+            == reason_details.joint_law_propagation.TRANSPORTED_DEPENDENCE_REQUIRED
+        )
     claim = require_success(
         jl.linear_moments(
             "sum",
@@ -357,7 +363,7 @@ def test_artifact_round_trip_mutation_and_fresh_process(tmp_path) -> None:  # ty
         require_success(
             jl.consume_joint_law_propagation_artifact(data, expected_identity="not-the-identity")
         )
-    assert error.value.detail == "joint_law_propagation.artifact_refused"
+    assert error.value.detail == reason_details.joint_law_propagation.ARTIFACT_REFUSED
     # Sampled single-byte edits never replay to a different accepted claim.
     for position in range(0, len(data), max(1, len(data) // 64)):
         mutated = bytearray(data)

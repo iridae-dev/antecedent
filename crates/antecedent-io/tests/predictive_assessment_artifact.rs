@@ -121,7 +121,7 @@ fn a_resealed_edit_of_a_stored_law_is_refused_by_recomputation() {
     assert_eq!(error, Error::IdentityMismatch { field: "predictor_laws" });
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "predictive_assessment.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::predictive_assessment::WRONG_CONTRACT);
     // The unforged bytes still consume.
     PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx()).unwrap();
 }
@@ -155,7 +155,10 @@ fn a_resealed_edit_of_a_stored_score_is_refused() {
     assert_eq!(error, Error::ResultMismatch("scores"));
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "predictive_assessment.report_replay_mismatch");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::predictive_assessment::REPORT_REPLAY_MISMATCH
+    );
 }
 
 #[test]
@@ -334,14 +337,20 @@ fn a_refused_assessment_does_not_seal() {
     let error = PredictiveAssessmentArtifact::seal(&callback, &ctx()).unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "predictive_assessment.law_callback_not_built");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::predictive_assessment::LAW_CALLBACK_NOT_BUILT
+    );
 
     let mut iid = spec(6);
     iid.design = ValidationDesign::Blocked { blocks: vec![0, 0, 1, 1, 2, 2] };
     let error = PredictiveAssessmentArtifact::seal(&iid, &ctx()).unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "sampling_dependence_unknown");
-    assert_eq!(detail, "predictive_assessment.iid_not_supported_for_dependent_design");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::predictive_assessment::IID_NOT_SUPPORTED_FOR_DEPENDENT_DESIGN
+    );
 }
 
 #[test]
@@ -391,7 +400,10 @@ fn comparison_replay_is_bounded_and_duplicate_pairs_are_refused() {
     meta.comparisons = vec![("a".into(), "b".into()), ("a".into(), "b".into())];
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "duplicates").unwrap();
     let error = PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()).unwrap_err();
-    assert_eq!(error.refusal().unwrap().1, "predictive_assessment.invalid_law");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::predictive_assessment::INVALID_LAW
+    );
     meta.comparisons = vec![("a".into(), "b".into()); 1000];
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "amplification").unwrap();
     assert_eq!(

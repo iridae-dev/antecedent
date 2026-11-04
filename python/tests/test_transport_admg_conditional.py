@@ -16,6 +16,7 @@ import struct
 
 import pytest
 from antecedent import Admg, build_flavor
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalCancelledError,
     CausalSerializationError,
@@ -199,7 +200,9 @@ def test_prepare_exact_compiles_a_plan_after_query_disposal():
         truth(0, 0), abs=1e-12
     )
     # A request that does not bind the conditioned variable is refused by name.
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_request") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_REQUEST
+    ) as info:
         decide().prepare_exact(laws(), {"x": 1.0})
     assert info.value.reason_code == "invalid_argument"
 
@@ -291,7 +294,9 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
     # Relabelled names in the frame (same byte length) are refused.
     swapped = artifact.replace(b"\x83axayaw", b"\x83ayaxaw", 1)
     assert swapped != artifact
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_artifact") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_ARTIFACT
+    ) as info:
         transport.consume_admg_conditional_transport_artifact(swapped)
     assert info.value.reason_code == "invalid_argument"
 
@@ -319,7 +324,7 @@ def test_counted_laws_are_not_supported_on_the_conditional_route():
         stage.prepare_empirical(laws(), REQUESTS)
         return
     with pytest.raises(
-        CausalUnsupportedError, match="admg_transport.counted_laws_unsupported"
+        CausalUnsupportedError, match=reason_details.admg_transport.COUNTED_LAWS_UNSUPPORTED
     ) as info:
         stage.prepare_empirical(laws(), REQUESTS)
     assert info.value.reason_code == "not_supported"
@@ -398,7 +403,7 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     assert stage.identification_status == "proven_non_transportable"
     decision = stage.decision()
     assert decision["reason_code"] == "transport_proven_non_transportable"
-    assert decision["detail"] == "admg_transport.proven_non_transportable"
+    assert decision["detail"] == reason_details.admg_transport.PROVEN_NON_TRANSPORTABLE
     candidate = decision["candidate"]
     assert candidate["proof"] is True
     assert candidate["reduced_query"] == {"outcomes": ["y", "w"], "treatments": ["x"]}
@@ -407,7 +412,7 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     assert witness["first_value"] != witness["second_value"]
     assert witness_holds(witness, NAMES)
     with pytest.raises(
-        CausalUnsupportedError, match="admg_transport.proven_non_transportable"
+        CausalUnsupportedError, match=reason_details.admg_transport.PROVEN_NON_TRANSPORTABLE
     ) as info:
         stage.prepare_exact(laws(), REQUESTS)
     assert info.value.reason_code == "transport_proven_non_transportable"
@@ -434,7 +439,9 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     receipt = exhausted.decision()["receipt"]
     assert receipt["stop"] == "search.operations" and receipt["operations_consumed"] == 2
     # Limits above the frozen maxima refuse as bounds_exceeded.
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.bounds_exceeded") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.BOUNDS_EXCEEDED
+    ) as info:
         decide(max_operations=4097)
     assert info.value.reason_code == "route_not_supported"
     # Overlapping roles are refused before native code.
@@ -492,10 +499,12 @@ def test_an_s_hedge_without_a_witness_stays_not_certified():
     assert stage.outcome == "not_certified"
     decision = stage.decision()
     assert decision["reason_code"] == "transport_not_certified"
-    assert decision["detail"] == "admg_transport.not_certified"
+    assert decision["detail"] == reason_details.admg_transport.NOT_CERTIFIED
     assert decision["stages"][-1] == {"stage": "conditional_witness", "outcome": "out_of_scope"}
     assert decision["candidate"]["proof"] is False
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.not_certified") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.NOT_CERTIFIED
+    ) as info:
         stage.prepare_exact(laws(), REQUESTS)
     assert info.value.reason_code == "transport_not_certified"
 
@@ -507,7 +516,9 @@ def test_an_unknown_variable_reaches_native_code_as_an_invalid_query():
         treatments=["x"],
         conditioned_on=["w"],
     )
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_query") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_QUERY
+    ) as info:
         transport.identify_admg_conditional_transport(
             graph=graph(), query=unknown, catalog=catalog()
         )
@@ -517,7 +528,9 @@ def test_an_unknown_variable_reaches_native_code_as_an_invalid_query():
 
 def test_a_catalog_disagreeing_with_the_diagram_is_an_invalid_catalog():
     # The source environment declares selection on y; the diagram selects w.
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_catalog") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_CATALOG
+    ) as info:
         transport.identify_admg_conditional_transport(
             graph=graph(), query=query(("w",)), catalog=catalog(selected=("y",))
         )
@@ -535,10 +548,12 @@ def test_a_missing_source_experiment_is_a_missing_evidence_stage():
     decision = stage.decision()
     assert decision["identification_status"] == "missing_evidence"
     assert decision["reason_code"] == "transport_missing_evidence"
-    assert decision["detail"] == "admg_transport.missing_evidence"
+    assert decision["detail"] == reason_details.admg_transport.MISSING_EVIDENCE
     assert decision["remaining"] == ["w"]
     assert any("source" in o for o in decision["obligations"]), decision["obligations"]
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.missing_evidence") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.MISSING_EVIDENCE
+    ) as info:
         stage.prepare_exact(laws(), REQUESTS)
     assert info.value.reason_code == "transport_missing_evidence"
 
@@ -549,7 +564,9 @@ def test_a_zero_mass_conditioning_event_is_a_support_failure():
     point = json.loads(require_success(prepared.estimate()))
     assert risk(point) == pytest.approx(truth_w_zero(0), abs=1e-12)
     prepared = decide().prepare_exact(laws(w_zero=True), [{"x": 0.0, "w": 1.0}])
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.support_failure") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.SUPPORT_FAILURE
+    ) as info:
         require_success(prepared.estimate())
     assert info.value.reason_code == "transport_support_failure"
     assert "zero mass" in str(info.value)
@@ -582,7 +599,9 @@ def test_consumer_mismatches_carry_their_reason_codes():
     # edited without re-sealing: the premises digest no longer matches.
     key = b"\x71search_operations"
     edited = edit_payload(artifact, key + b"\x19\x10\x00", key + b"\x19\x0f\xff")
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.premises_mismatch") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.PREMISES_MISMATCH
+    ) as info:
         transport.consume_admg_conditional_transport_artifact(edited)
     assert info.value.reason_code == "transport_not_certified"
     assert "premises digest mismatch" in str(info.value)
@@ -592,7 +611,9 @@ def test_consumer_mismatches_carry_their_reason_codes():
     old = b"\xfb" + struct.pack(">d", p)
     new = b"\xfb" + struct.pack(">d", math.nextafter(p, 1.0))
     edited = edit_payload(artifact, old, new)
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.replay_mismatch") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.REPLAY_MISMATCH
+    ) as info:
         transport.consume_admg_conditional_transport_artifact(edited)
     assert info.value.reason_code == "transport_not_certified"
     assert "a point does not replay" in str(info.value)
@@ -647,12 +668,14 @@ def test_conditional_questions_enter_the_scenario_envelope():
     assert rows["chain"]["identification_status"] == "identified"
     if negative == "not_certified":
         assert rows["shifted"]["identification_status"] == "not_certified"
-        assert rows["shifted"]["detail"].startswith("admg_transport.not_certified")
+        assert rows["shifted"]["detail"].startswith(reason_details.admg_transport.NOT_CERTIFIED)
         assert "inspection-only candidate (not a proof)" in rows["shifted"]["detail"]
     else:
         assert negative == "structurally_unidentified"
         assert rows["shifted"]["identification_status"] == "proven_non_transportable"
-        assert rows["shifted"]["detail"].startswith("admg_transport.proven_non_transportable")
+        assert rows["shifted"]["detail"].startswith(
+            reason_details.admg_transport.PROVEN_NON_TRANSPORTABLE
+        )
     assert rows["shifted"]["point"] is None
     # The true scenario's point is the enumerated truth, inside the envelope.
     expected = truth(1, 1)
@@ -669,7 +692,9 @@ def test_conditional_questions_enter_the_scenario_envelope():
     assert [row["status"] for row in consumed["scenarios"]] == [
         row["status"] for row in report["scenarios"]
     ]
-    with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate"):
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.scenarios.SHARED_DATA_AGGREGATE
+    ):
         prepared.aggregate_interval()
 
 
@@ -677,7 +702,7 @@ def test_conditional_scenario_requests_bind_the_conditioned_variables():
     with pytest.raises((CausalValueError, CausalUnsupportedError)) as info:
         prepare_scenarios({"x": 1.0})
     assert info.value.reason_code == "invalid_argument"
-    assert "admg_transport.invalid_request" in str(info.value)
+    assert reason_details.admg_transport.INVALID_REQUEST in str(info.value)
     with pytest.raises(CausalTypeError):
         transport.prepare_transport_scenarios(
             scenario_set(),

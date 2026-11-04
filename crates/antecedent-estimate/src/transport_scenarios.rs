@@ -504,7 +504,7 @@ fn require_conditional_counts_supported(
 ) -> Result<(), EstimationError> {
     antecedent_core::support_gate::require_supported(
         ctx,
-        "admg_transport.counted_laws_unsupported",
+        antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
         &["admg_conditional.counted_law_plugin_check"],
     )?;
     Ok(())

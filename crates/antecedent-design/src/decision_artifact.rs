@@ -817,7 +817,7 @@ pub fn contract_from_json_refusal(
         RefusalBuilder::new(
             antecedent_core::reason_code!("invalid_argument"),
             "declare",
-            "decision_contract.invalid_declaration",
+            antecedent_core::reason_details::decision_contract::INVALID_DECLARATION,
         )
         .offending(why)
         .remedy("declare the contract with the documented fields")

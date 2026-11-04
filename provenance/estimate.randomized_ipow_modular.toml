@@ -35,29 +35,35 @@ record_sha256 = "238d3501c6292bdc3c1e149ecd5247d030872817320f2553646878eb8eec877
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_missing.rs"
-sha256 = "e5449c8a5a1259a34cc47bf136474fe7543ad08101460d6a314c79a8e6ec6dc9"
+items = ["const OBSERVATION_PROBABILITY_FLOOR", "fn observation_probabilities", "fn responder_pseudo_outcomes", "fn score_terms", "fn solve_symmetric"]
+sha256 = "9dbd301f2644512fa3e0162575d408103ab638daf90281e90ebd479feb7d4e08"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
-sha256 = "483ce9d2e1e6d4192c3f52892555b7a1456e16f96520c5bc8026e46241b580a2"
+items = ["module"]
+sha256 = "248118bf18356c601fee1077ba83f01e7afbd5e40e3e72b0a84e4c6c4f9f1e8d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/randomized_ipow_wire.rs"
-sha256 = "9c66abc90e0b5b8744b475b76c10f2970cbbd9cec0a4c5eb1c86edd00887e4e4"
+items = ["const CLAIM", "const METHOD", "fn key", "fn supported"]
+sha256 = "2ac8c422f59a3ac94cd3b8e4e45c589f96458ad8b3f02b2748202bc42f58d5af"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/randomized_ipow_artifact.rs"
-sha256 = "a1ff750f09936fb49d1149455975830136c48e13705efce678606e9d181c67a6"
+items = ["fn accept_claim", "fn consume_analysis_result", "fn consume_analysis_result_within", "fn decode_analysis_result_artifact", "fn posterior_row", "fn promote_replayed_ipow", "fn replay", "fn verify"]
+sha256 = "b98ce400cceefc98147a9d7b4020b1e9605f6c7bc8a4fda367f9d36093ba4fa8"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
-sha256 = "fa85601a4a522bef190003933b515dae29470954faefe3c7811ddcbab2c3ad37"
+items = ["module"]
+sha256 = "c50a98808610d626839ca26984b81e58542d3a1e03324a630dd89c2323538368"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/bayesian_randomized_routes.rs"
-sha256 = "117d47a67b7dea576cdde147c3ffe8c11e4499a9f1cafe110532358687735c1d"
+items = ["const ASSIGNMENT", "const DOSE", "const IPW_MISSING", "const IPW_OUTCOME", "const OUTCOME", "const ROUTE", "const TRIAL", "fn a_declared_first_order_carryover_adds_the_carryover_and_sustained_effects", "fn a_first_stage_that_reaches_zero_is_refused_not_published_as_a_ratio", "fn a_tampered_bayesian_dose_grid_artifact_is_refused_with_its_exact_typed_error", "fn bayes", "fn close", "fn column", "fn consume", "fn encouragement", "fn four_arm_data", "fn gaussian_arms", "fn inverse_probability", "fn ipw_trial", "fn live", "fn many_arms_report_every_arm_against_the_reference", "fn request", "fn run", "fn run_weighted", "fn supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update", "fn supported_ipow_posterior_replays_after_the_builder_is_dropped", "fn switchback", "fn switchback_model", "fn the_bayesian_dose_grid_route_replays_to_the_conjugate_reference_through_a_fresh_consumer", "fn the_boundaries_are_refused_with_their_next_attempt", "fn the_complier_posterior_recovers_the_known_effect_and_is_unsupported", "fn the_complier_posterior_refuses_an_arm_contrast_estimator", "fn the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target", "fn the_factorial_main_effects_and_interaction_match_the_exact_moments", "fn the_retained_artifact_carries_the_posterior_and_an_independent_loader_recomputes_it", "fn the_superpopulation_estimator_answers_the_other_estimand", "fn the_switchback_posterior_matches_the_whitened_least_squares_reference", "fn the_weighted_posterior_is_not_the_responder_only_posterior", "fn trial", "fn uniform_arms", "fn units", "fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals", "fn unsupported_multi_arm_and_factorial_ipow_are_typed_refusals", "fn weighted_bayesian_boundaries_are_typed_refusals", "fn weighted_conjugate_update_matches_the_closed_form_pseudo_outcome_posterior"]
+sha256 = "9aba8b975b1d16c4364f2585bfac8faa93ec5d99875be1ad44a52a6af6b4a58d"

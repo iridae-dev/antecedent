@@ -242,12 +242,11 @@ bash scripts/gate_gcm_conformance.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
-bash scripts/gate_calibration.sh
-bash scripts/gate_response_calibration.sh
+bash scripts/measure_calibration_groups.sh
 bash scripts/gate_release.sh
 ```
 
-`gate_calibration.sh` is the statistical calibration suite (SE coverage, CI
+`measure_calibration_groups.sh` is the statistical calibration suite (SE coverage, CI
 Type I / permutation uniformity, discovery null FPR). It never runs in CI and
 CI never fails on calibration state. A change to statistical code is measured on
 a development machine with `bash scripts/measure_calibration.sh`, which runs only

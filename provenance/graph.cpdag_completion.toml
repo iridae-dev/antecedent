@@ -39,14 +39,17 @@ record_sha256 = "7393100b912aaa8f218202f2de869d546d6893cd36f2417f38963ab767ee600
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cpdag_completion.rs"
-sha256 = "1f4c0132f8a5f2d85bfa5eb59a42c1db0b0569e8e6fc3af90990b7a836a4a48d"
+items = ["fn is_mec_member", "fn max_completions", "fn new", "fn with_budget", "struct CpdagCompletionSampler"]
+sha256 = "72e05afb325dc86c56985e2f358efceafa750221c739ff9dcf21ca4affc23d68"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/mec_search.rs"
-sha256 = "9d3930bb942b18a635f5101a1930cf4ef723e7763d935f43d50ff68097a19752"
+items = ["fn children", "fn conflict_edge_count", "fn edges", "fn has_edge", "fn is_mec_member", "fn new", "fn node_count", "fn orient_undirected", "fn parents", "fn sorted_pair", "fn unshielded_colliders_cpdag", "fn unshielded_colliders_dag", "struct ReadOnlyContext", "trait MecCpdag", "trait MecDag"]
+sha256 = "fce9abdaa5e256fb823d2733653d2dd00043fb10492adac7020d844a073a2e57"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/cpdag_mec_exhaustive.rs"
-sha256 = "b21a88548eb932eaf39c72a90a816e0ba0355c03b5999fb5f3a99723e401d558"
+items = ["fn acyclic", "fn all_dags", "fn check", "fn completions", "fn completions_equal_the_class_for_a_stride_of_five_node_classes", "fn completions_equal_the_class_for_every_four_node_class", "fn completions_equal_the_class_for_every_three_node_class", "fn id", "fn invariant", "fn the_completion_cap_yields_distinct_members", "fn to_dag", "type Arcs", "type Invariants"]
+sha256 = "58d3eb2668a11db65b3c679a9d00a419eeb3c7e36265d4672c45486ff4cdf407"

@@ -646,7 +646,7 @@ impl FiniteSequentialModel {
         if model.indicator.id == self.state_variable {
             return Err(SequentialEvaluationError::new(
                 antecedent_core::reason_code!("proxy_offered_as_construct"),
-                "sequential_evaluation.indicator_as_state",
+                antecedent_core::reason_details::sequential_evaluation::INDICATOR_AS_STATE,
                 format!(
                     "the channel of `{}` names the measured column `{}` as the latent state variable",
                     action.label, model.indicator.id
@@ -686,7 +686,7 @@ impl FiniteSequentialModel {
         if model.structure != ErrorStructure::NonDifferential {
             return Err(SequentialEvaluationError::new(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
-                "sequential_evaluation.differential_channel",
+                antecedent_core::reason_details::sequential_evaluation::DIFFERENTIAL_CHANNEL,
                 format!("the channel of `{}` is declared differential", action.label),
                 "declare non-differential error; error that differs by arm, population or time has no bounded route",
             ));

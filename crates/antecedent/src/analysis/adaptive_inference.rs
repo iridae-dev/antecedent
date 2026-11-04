@@ -220,7 +220,8 @@ impl AdaptiveInferenceSession {
     pub fn interval(&self) -> Result<(), AdaptiveInferenceRefusal> {
         Err(AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
-            detail: "adaptive_inference.interval_names_no_quantity".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::INTERVAL_NAMES_NO_QUANTITY
+                .to_owned(),
             message: format!(
                 "an interval, credible interval or coverage statement of the procedure {} as an unqualified request names no scientific quantity: an interval belongs to one named result; request the interval of a result with measured_interval, which reports it with its calibration status; the point values and uncalibrated diagnostics are the result",
                 self.contract.cell().identifier()
@@ -258,7 +259,7 @@ impl AdaptiveInferenceSession {
             |error| match error {
                 antecedent_io::IoError::Refused { code, message } => {
                     let (detail, text) = message.split_once(": ").map_or(
-                        ("adaptive_inference.interval_names_no_quantity", message.as_str()),
+                        (antecedent_core::reason_details::adaptive_inference::INTERVAL_NAMES_NO_QUANTITY, message.as_str()),
                         |(d, t)| (d, t),
                     );
                     AdaptiveInferenceRefusal {
@@ -269,7 +270,7 @@ impl AdaptiveInferenceSession {
                 }
                 other => AdaptiveInferenceRefusal {
                     code: antecedent_core::reason_code!("invalid_argument"),
-                    detail: "adaptive_inference.input_invalid".to_owned(),
+                    detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
                     message: other.to_string(),
                 },
             },
@@ -363,7 +364,7 @@ fn artifact_refusal(
         Some((code, detail, message)) => AdaptiveInferenceRefusal { code, detail, message },
         None => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.input_invalid".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
             message: text.to_owned(),
         },
     }

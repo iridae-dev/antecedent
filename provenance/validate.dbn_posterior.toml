@@ -23,17 +23,20 @@ record_sha256 = "ce354444105986188cb7a99e2eddc54a55659fb846c23043c1688d87a93feb5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "a3b7a83f837448185b84106af86340b716dd51e00db12901963d443ecac540c6"
+items = ["const REPORT_ALL", "const REPORT_COMPARISON", "const REPORT_FAILURE", "const REPORT_INFORMATIVE", "const REPORT_ORIGINAL", "const REPORT_PASSED", "const REPORT_REFUTED", "const REPORT_REPLICATES", "enum RefutationScope", "fn build", "fn builder", "fn comparison", "fn failure_condition", "fn informative", "fn mixture_weighted", "fn original_ate", "fn passed", "fn refuted_ate", "fn replicates", "struct RefutationReport", "struct RefutationReportBuilder"]
+sha256 = "d995b22b353e9748a62442642f3094e4aecf9b2b235bfd655ae21131408d2a29"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/mediation.rs"
-sha256 = "b2ac0b86b4513e213ace42f293131bb7642666a2b2f44f9e3ddb13372638547d"
+items = ["enum QueryRefutationPlan", "fn mix_weighted", "fn report"]
+sha256 = "e5dec35a274bffa61307781e6f5c8d7bddb6a024299309de8706beb34f94ca35"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/src/dbn_posterior_reference_tests.rs"
-sha256 = "1a5889b29e738076623f355346a63608cb86f3b28df802f4696ad0c70ec1f2ec"
+items = ["fn assert_mixed", "fn close", "fn mix_weighted_groups_refuters_over_atoms", "fn mixture_weighted_equals_the_exact_reference", "fn reference", "fn report"]
+sha256 = "64a474f6e46c79d60c8efcb1eee0a916ed2f028e1c8e2cfbd43b5f956b6568dc"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -48,24 +48,29 @@ record_sha256 = "cd4358799a4002dc08aaffeb1afd18ce333449182482a0000a2b13867ac4d37
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/evidence_plan.rs"
-sha256 = "70c6a2f53628d8a23074d2d411b66f85040b092803653a57cce08bbcd43ccff9"
+items = ["const PLAN_CALIBRATION", "const PLAN_RANKING_GUARANTEE", "const SUBSET_VALUE_NOTE", "enum PlanOutcome", "enum PlanValueBasis", "fn as_str", "fn build", "fn calibration", "fn closing", "fn compare", "fn from_ranking", "fn gate_rank", "fn identity", "fn invalid", "fn mark_close_calls", "fn obligation", "fn of", "fn rank_options", "fn ranking_guarantee", "fn score", "fn status", "fn units", "fn value_of", "struct EvidencePlan", "struct EvidencePlanError", "struct OptionValue", "struct PlanCost", "struct PlanInputs", "struct PlanOption", "struct PlanRoute", "struct PlanValuation", "struct PlanValue", "struct PlanValueRow", "struct RouteBudget", "struct UnverifiedRoute"]
+sha256 = "ef8efec80d6ad60681085640bef852cd205c20ef4b3d4d178345644d26358255"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/candidate_generation.rs"
-sha256 = "b84ca0f6ae79b0c8652fc96a10e0509adf3369cf7a12a4909d4b03cd5db3e0a2"
+items = ["fn complete", "fn generate_candidates", "fn id_list", "fn kinds_for", "fn label_of", "fn raw", "fn refusal", "fn sorted", "fn validate", "struct CandidateGeneration", "struct CandidateTemplate", "struct StudyDeclarations", "struct UnmatchedObligation", "type TemplateKey"]
+sha256 = "3dd167d525361172a772a0bf3c4b0047d72cacc26540859a2f927fda9f6208c2"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/structure_identification.rs"
-sha256 = "a98bde7d3197938444835bb532a6fc382ef4548daee626a44f4c2c46e0e502d8"
+items = ["fn budget"]
+sha256 = "26f569a83c3559ba8f4ea075d759b036bd4a594262a4f79e10c04d79f42c4b2b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/confounder_value.rs"
-sha256 = "020746bb97f2d2a509a8e540ac20de375f131070b2340f5197f6e873746761d8"
+items = ["const MAX_PRIOR_DRAWS", "fn decision_prior", "fn from_table", "fn identity", "fn new", "fn prior", "fn prior_draws", "fn problem", "fn rows", "fn source_digests", "fn states", "fn surface", "struct ConfounderPriorDeclaration", "struct ConfounderValueError", "struct ConfounderValueFrame", "struct GridUtility"]
+sha256 = "fd272f3acf67120a6b5b3008e1a56fb16e2bdc7de61e6a5b47b6ad6fcf15059c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/evidence_plan.rs"
-sha256 = "d979d97205fe63f5ad946186765342c3da23848e67cad12fc0df21fc9aaa2985"
+items = ["const T", "const Y", "const Z", "fn a_hedge_is_answered_by_experiments_and_a_sampling_candidate_is_never_verified", "fn a_resealed_edit_of_an_option_a_value_or_the_outcome_is_refused", "fn a_study_of_part_of_the_adjustment_set_does_not_identify", "fn admg", "fn an_instrument_is_not_certified_by_a_study_and_the_assumptions_remain", "fn artifact_fixture", "fn backdoor", "fn bet", "fn budget_exhaustion_is_reported_as_a_budget_and_never_as_impossibility", "fn costs_are_compared_only_in_one_unit", "fn ctx", "fn dag", "fn evaluate", "fn evsi_candidate", "fn gate_of", "fn limits", "fn measuring_a_named_confounder_is_valued_under_the_declared_prior", "fn observation", "fn plan_of", "fn quantity", "fn request", "fn routes_without_a_theorem_checker_are_listed_and_not_scored", "fn run", "fn several_routes_are_compared_in_one_plan_each_stating_what_it_resolves", "fn study", "fn the_plan_artifact_round_trips_and_replays_every_route_and_value", "fn v", "fn value_of", "fn vars", "fn verified_options_come_first_and_are_ordered_by_net_value_under_the_declared_cost_map"]
+sha256 = "4265cd8d40f4e2c493de9824012d7882c2bec3c0b6457bd8498a97544c665ff6"

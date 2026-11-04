@@ -911,7 +911,9 @@ mod tests {
         let (code, message) =
             refusal(measure_source(b"untrusted", &ExecutionContext::for_tests(7)).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("graph_imputation.invalid_source"));
+        assert!(
+            message.contains(antecedent_core::reason_details::graph_imputation::INVALID_SOURCE)
+        );
     }
 
     #[test]

@@ -206,7 +206,9 @@ fn shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused() {
     // composition must not silently treat A as independent of B.
     let err = ComposedLinearGaussian::compile(&spec_of(vec![a.clone()])).unwrap_err();
     assert!(
-        details(&err).contains(&"mechanism_composition.latent_shared_with_absent_mechanism"),
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::LATENT_SHARED_WITH_ABSENT_MECHANISM
+        ),
         "{err:?}"
     );
 
@@ -214,7 +216,9 @@ fn shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused() {
     let plain_b = lg("B", 1.0, 1.0, &[]);
     let err = ComposedLinearGaussian::compile(&spec_of(vec![a.clone(), plain_b])).unwrap_err();
     assert!(
-        details(&err).contains(&"mechanism_composition.latent_sharing_not_reciprocal"),
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::LATENT_SHARING_NOT_RECIPROCAL
+        ),
         "{err:?}"
     );
 
@@ -222,7 +226,12 @@ fn shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused() {
     let mut unloaded = a.clone();
     unloaded.latents = vec![latent(None, &["B"])];
     let err = ComposedLinearGaussian::compile(&spec_of(vec![unloaded, b.clone()])).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.latent_loading_undeclared"), "{err:?}");
+    assert!(
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::LATENT_LOADING_UNDECLARED
+        ),
+        "{err:?}"
+    );
 
     // Both depend on U but neither lists the other: undeclared sharing.
     let mut a_silent = a;
@@ -231,7 +240,9 @@ fn shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused() {
     b_silent.latents = vec![latent(Some(3.0), &[])];
     let err = ComposedLinearGaussian::compile(&spec_of(vec![a_silent, b_silent])).unwrap_err();
     assert!(
-        details(&err).contains(&"mechanism_composition.latent_sharing_not_declared"),
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::LATENT_SHARING_NOT_DECLARED
+        ),
         "{err:?}"
     );
 }
@@ -244,7 +255,12 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     let mut spec = spec_of(mechanisms);
     spec.edges.push(("M".into(), "Y".into()));
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.parents_declared_graph_mismatch"]);
+    assert_eq!(
+        details(&err),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::PARENTS_DECLARED_GRAPH_MISMATCH
+        ]
+    );
     let finding = &err.findings()[0];
     assert_eq!(finding.expected.as_deref(), Some("{M,X}"));
     assert_eq!(finding.supplied.as_deref(), Some("{X}"));
@@ -253,27 +269,41 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     let mut mechanisms = chain();
     mechanisms[2].conditioning_set.push("Z".into());
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.conditioning_extra_conditioner"]);
+    assert_eq!(
+        details(&err),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::CONDITIONING_EXTRA_CONDITIONER
+        ]
+    );
 
     // Units: M is produced in mmHg but Y was fitted on M in kPa.
     let mut mechanisms = chain();
     mechanisms[1].output_units = "mmHg".into();
     mechanisms[2].parents[1].units = "kPa".into();
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.units_mismatch"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::UNITS_MISMATCH]
+    );
     assert_eq!(err.findings()[0].subject, "M->Y");
 
     // Transform: Y was fitted on log M, M is produced on the identity scale.
     let mut mechanisms = chain();
     mechanisms[2].parents[1].transform = "log".into();
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.transform_mismatch"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::TRANSFORM_MISMATCH]
+    );
 
     // Support gap: Y was fitted on X in [0, 10]; X is declared on the whole line.
     let mut mechanisms = chain();
     mechanisms[2].parents[0].domain = Domain::Interval { lo: 0.0, hi: 10.0 };
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.support_not_contained"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::SUPPORT_NOT_CONTAINED]
+    );
     // Declaring the producer's own bounded support repairs it.
     let mut mechanisms = chain();
     mechanisms[2].parents[0].domain = Domain::Interval { lo: 0.0, hi: 10.0 };
@@ -285,13 +315,21 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     mechanisms[2].parents[0].domain = Domain::Interval { lo: 0.0, hi: 10.0 };
     mechanisms[0].output_support = Domain::Interval { lo: 20.0, hi: 30.0 };
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.support_disjoint"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::SUPPORT_DISJOINT]
+    );
 
     // Population: M was fitted elsewhere with no declaration.
     let mut mechanisms = chain();
     mechanisms[1].context.population = "source".into();
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms.clone())).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.population_undeclared_transport"]);
+    assert_eq!(
+        details(&err),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT
+        ]
+    );
 
     // A selection diagram that does not point into M admits it ...
     let mut spec = spec_of(mechanisms.clone());
@@ -309,7 +347,9 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
     assert_eq!(
         details(&err),
-        vec!["mechanism_composition.population_selection_arrow_into_mechanism"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        ]
     );
     // An invariance declaration contradicts the arrow and cannot override it:
     // the diagram dominates, as in the transport entry point and the finite
@@ -324,7 +364,9 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
     assert_eq!(
         details(&err),
-        vec!["mechanism_composition.population_selection_arrow_into_mechanism"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        ]
     );
     // The same declaration admits it where the diagram is silent about M.
     spec.selection_diagrams[0].selection_nodes[0].points_into = vec!["X".into()];
@@ -334,36 +376,53 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     let mut mechanisms = chain();
     mechanisms[0].context.regime = "do(Z=1)".into();
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.regime_undeclared_invariance"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::REGIME_UNDECLARED_INVARIANCE]
+    );
 
     // Cycle: refused before anything executes.
     let cyc = spec_of(vec![lg("A", 0.0, 1.0, &[("B", 0.5)]), lg("B", 0.0, 1.0, &[("A", 0.5)])]);
     let err = ComposedLinearGaussian::compile(&cyc).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.cycle_directed_cycle"), "{err:?}");
+    assert!(
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::CYCLE_DIRECTED_CYCLE
+        ),
+        "{err:?}"
+    );
 
     // Duplicate mechanism for one variable.
     let mut mechanisms = chain();
     mechanisms.push(lg("M", 9.0, 1.0, &[("X", 1.0)]));
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.identity_duplicate_mechanism"));
+    assert!(details(&err).contains(
+        &antecedent_core::reason_details::mechanism_composition::IDENTITY_DUPLICATE_MECHANISM
+    ));
 
     // A parent with no mechanism of its own.
     let err = ComposedLinearGaussian::compile(&spec_of(vec![lg("Y", 0.0, 1.0, &[("W", 1.0)])]))
         .unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.identity_parent_without_mechanism"));
+    assert!(details(&err).contains(
+        &antecedent_core::reason_details::mechanism_composition::IDENTITY_PARENT_WITHOUT_MECHANISM
+    ));
 
     // Provenance: an unbound mechanism, and an analyst-declared one.
     let mut mechanisms = chain();
     mechanisms[1].provenance.artifact_id = " ".into();
     let err = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.provenance_missing_artifact"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::PROVENANCE_MISSING_ARTIFACT]
+    );
     let mut mechanisms = chain();
     mechanisms[1].provenance.origin = MechanismOrigin::Declared;
     let mut spec = spec_of(mechanisms);
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
     assert_eq!(
         details(&err),
-        vec!["mechanism_composition.provenance_declared_mechanism_unacknowledged"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED
+        ]
     );
     spec.admit_declared_mechanisms = true;
     assert!(ComposedLinearGaussian::compile(&spec).is_ok());
@@ -389,7 +448,12 @@ fn an_intervention_outside_a_consumers_fitted_domain_is_refused() {
     let model = ComposedLinearGaussian::compile(&spec_of(mechanisms)).unwrap();
     assert!(model.law(&[("X", 3.0)]).is_ok());
     let err = model.law(&[("X", 11.0)]).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.support_intervention_outside_domain"]);
+    assert_eq!(
+        details(&err),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::SUPPORT_INTERVENTION_OUTSIDE_DOMAIN
+        ]
+    );
 }
 
 fn uncertain_chain(dependence: PosteriorDependence) -> ComposedModelSpec {
@@ -555,7 +619,10 @@ fn unknown_posterior_dependence_stays_unknown_and_refuses_the_uncertainty_claim(
     near(model.mean_contrast(&ate_at(2.0)).unwrap(), 13.5);
     // ... but the uncertainty claim is a joint-law refusal, not independence.
     let err = model.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.posterior_dependence_unknown"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN]
+    );
     assert_eq!(uncertainty_findings(&spec).len(), 1);
 
     // A missing pair in a cross-covariance declaration is unknown for that pair.
@@ -578,10 +645,9 @@ fn unknown_posterior_dependence_stays_unknown_and_refuses_the_uncertainty_claim(
     let err = model.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
     let d = details(&err);
     assert_eq!(d.len(), 2);
-    assert!(
-        d.iter()
-            .all(|x| *x == "mechanism_composition.posterior_dependence_cross_covariance_missing")
-    );
+    assert!(d.iter().all(|x| {
+        *x == antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_CROSS_COVARIANCE_MISSING
+    }));
 
     // A mechanism that reports no marginal law has no uncertainty to propagate.
     let mut no_marginal = uncertain_chain(PosteriorDependence::IndependentByDesign {
@@ -590,7 +656,10 @@ fn unknown_posterior_dependence_stays_unknown_and_refuses_the_uncertainty_claim(
     no_marginal.mechanisms[1].uncertainty = None;
     let model = ComposedLinearGaussian::compile(&no_marginal).unwrap();
     let err = model.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.uncertainty_marginal_missing"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_MARGINAL_MISSING]
+    );
 }
 
 #[test]
@@ -603,7 +672,9 @@ fn misaligned_or_contradicted_uncertainty_is_refused_at_composition() {
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
     assert_eq!(
         details(&err),
-        vec!["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        ]
     );
 
     // A posterior covariance and a sampling covariance are not one law.
@@ -612,20 +683,31 @@ fn misaligned_or_contradicted_uncertainty_is_refused_at_composition() {
     });
     spec.mechanisms[0].uncertainty.as_mut().unwrap().meaning = UncertaintyMeaning::Posterior;
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.uncertainty_meaning_mismatch"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_MEANING_MISMATCH]
+    );
 
     // A covariance over the wrong parameters.
     let mut spec = uncertain_chain(PosteriorDependence::Unknown);
     spec.mechanisms[0].uncertainty.as_mut().unwrap().parameters =
         vec![ParameterTerm::Coefficient("Q".into())];
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.uncertainty_parameter_set_mismatch"]);
+    assert_eq!(
+        details(&err),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_PARAMETER_SET_MISMATCH
+        ]
+    );
 
     // Not positive semidefinite.
     let mut spec = uncertain_chain(PosteriorDependence::Unknown);
     spec.mechanisms[1].uncertainty.as_mut().unwrap().covariance = vec![1.0, 2.0, 2.0, 1.0];
     let err = ComposedLinearGaussian::compile(&spec).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.uncertainty_not_psd"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_NOT_PSD]
+    );
 
     // Cross covariance that makes the joint law invalid is caught on assembly.
     let m_terms = vec![ParameterTerm::Intercept, ParameterTerm::Coefficient("X".into())];
@@ -663,7 +745,10 @@ fn misaligned_or_contradicted_uncertainty_is_refused_at_composition() {
     });
     let model = ComposedLinearGaussian::compile(&spec).unwrap();
     let err = model.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
-    assert_eq!(details(&err), vec!["mechanism_composition.uncertainty_assembled_not_psd"]);
+    assert_eq!(
+        details(&err),
+        vec![antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_ASSEMBLED_NOT_PSD]
+    );
 }
 
 #[test]
@@ -906,7 +991,12 @@ fn finite_tables_that_cannot_compose_are_refused() {
         rows[0].probabilities = vec![("0".into(), 0.5), ("1".into(), 0.3), ("2".into(), 0.2)];
     }
     let err = ComposedFinite::compile(&spec_of(mechanisms)).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.support_not_contained"), "{err:?}");
+    assert!(
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::SUPPORT_NOT_CONTAINED
+        ),
+        "{err:?}"
+    );
 
     // A table with a missing parent configuration.
     let mut mechanisms = binary_chain();
@@ -915,7 +1005,9 @@ fn finite_tables_that_cannot_compose_are_refused() {
     }
     let err = ComposedFinite::compile(&spec_of(mechanisms)).unwrap_err();
     assert!(
-        details(&err).contains(&"mechanism_composition.support_missing_parent_configuration"),
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::SUPPORT_MISSING_PARENT_CONFIGURATION
+        ),
         "{err:?}"
     );
 
@@ -925,11 +1017,20 @@ fn finite_tables_that_cannot_compose_are_refused() {
         rows[0].probabilities = vec![("0".into(), 0.6), ("1".into(), 0.6)];
     }
     let err = ComposedFinite::compile(&spec_of(mechanisms)).unwrap_err();
-    assert!(details(&err).contains(&"mechanism_composition.shape_invalid_table"), "{err:?}");
+    assert!(
+        details(&err)
+            .contains(&antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_TABLE),
+        "{err:?}"
+    );
 
     // Families are never mixed.
     let mut mechanisms = binary_chain();
     mechanisms.push(lg("Z", 0.0, 1.0, &[]));
     let findings = check_composition(&spec_of(mechanisms));
-    assert!(findings.iter().any(|f| f.detail == "mechanism_composition.family_mixed"));
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.detail
+                == antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED)
+    );
 }

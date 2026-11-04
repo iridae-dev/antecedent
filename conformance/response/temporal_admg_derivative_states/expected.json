@@ -48,7 +48,26 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_admg_derivative_known_truth.rs",
-          "sha256": "8e846133f15e49ac3542cc964f1f905cfd3d987a9159f34679432ab252858c0c"
+          "items": [
+            "const N",
+            "const W",
+            "const X",
+            "const Y",
+            "const Z",
+            "fn cases",
+            "fn fixture",
+            "fn number",
+            "fn point",
+            "fn published",
+            "fn report",
+            "fn series",
+            "fn study",
+            "fn template",
+            "fn temporal_admg_derivative_planted_off_support_point_is_detected",
+            "fn temporal_admg_derivative_routes_and_refuter_states_known_truth",
+            "fn v"
+          ],
+          "sha256": "746886b747cbd137816022059bd18b3a25a78a97bab2e963c60b26ca20ee6e5c"
         }
       ],
       "fixture_payload_sha256": "52f59269be4bce6d386007252492a967f473a75229434b9e891d38c321d48678"

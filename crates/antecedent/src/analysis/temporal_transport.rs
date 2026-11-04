@@ -29,8 +29,10 @@ use antecedent_io::temporal_transport_artifact::{
     temporal_refusal,
 };
 
-const TARGET_LAW_MISSING: &str = "temporal_transport.target_law_missing";
-const TARGET_LAW_MISMATCH: &str = "temporal_transport.target_law_mismatch";
+const TARGET_LAW_MISSING: &str =
+    antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISSING;
+const TARGET_LAW_MISMATCH: &str =
+    antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISMATCH;
 
 /// A decided, compiled two-step sequence.
 #[derive(Clone, Debug)]

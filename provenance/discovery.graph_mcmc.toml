@@ -39,32 +39,37 @@ record_sha256 = "8b047fb441f98562f3649a8b95f7f85c648efeab8fe6c6cb9b022f280344804
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
+items = ["enum GraphScoreFamily", "fn content_fingerprint", "fn fingerprint", "fn new"]
+sha256 = "d476d5e163fff24927af3414c10c34ef896c67a4d5f9db37911a3c58b41d66e6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_score.rs"
-sha256 = "ec51c35b8848a327c0d09b580c2b6d1dd8f6e154efee7e86b11bc067dc59b396"
+items = ["const GRAPH_SCORE_DATA_VERSION", "fn clone", "fn graph_score_cache_key", "fn new"]
+sha256 = "d845f04f6d17923e16183380169b183c85e4d8e3112402bdc098413fa7c72825"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_enumeration.rs"
-sha256 = "f05350502d26f8a364fd713dece746e90faa73ba186a124944db459f146004af"
+items = ["const MAX_ENUM_NODES", "fn default", "fn enumerate_unique_dags", "fn grow_dags", "fn new", "fn run", "fn sample_instead", "struct ExactDagPosterior"]
+sha256 = "7673a1a6a5799ab55b473fdc2ee312dc2853493dbd9021fc00defb632632a196"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
-sha256 = "7e99ed2821b5677124c9a38bc981d1176f739df0a59ffd2ae2da79b5234f5a1c"
+items = ["enum GraphPosteriorAtomKind", "fn algorithm", "fn as_str", "fn atom_kind", "fn atoms", "fn bernoulli_edges", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn uniform", "fn weights", "struct GraphPosterior", "struct GraphPrior", "struct SamplingSummary"]
+sha256 = "74b0cad960c710599a88b1e78588aaea1059f9a5fbda80b1b765e44d6ce4257c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
-sha256 = "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"
+items = ["fn case_data", "fn exact_enumeration_matches_the_independent_stdlib_enumeration_to_rounding", "fn expected", "fn fixture", "fn max_error", "fn named_marginals"]
+sha256 = "306dfe12af534ea5ca4694c747a33e4f4ac0e44d0840693e6bceeff51fb6a662"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/graph_mcmc_exact/expected.json"
-sha256 = "6dbac279f2aa37d25f725d6943d3b7c561123d5000aa1a48cf63a381232c7569"
+sha256 = "161236e1acb8748bbbbf7bd2c0941ba8d180b10a8b7c7724c7c78c796c068c0a"
 
 [[method_review.artifacts]]
 role = "reference"

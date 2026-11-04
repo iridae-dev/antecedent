@@ -99,9 +99,9 @@ impl DecisionReliabilityRefusal {
                     antecedent_core::reason_code!("invalid_argument")
                 },
                 detail: if cancelled {
-                    "decision_reliability.cancelled"
+                    antecedent_core::reason_details::decision_reliability::CANCELLED
                 } else {
-                    "decision_reliability.memory_budget_exceeded"
+                    antecedent_core::reason_details::decision_reliability::MEMORY_BUDGET_EXCEEDED
                 }
                 .to_owned(),
                 message: error.to_string(),
@@ -116,7 +116,7 @@ impl DecisionReliabilityRefusal {
             {
                 return Self {
                     code: *code,
-                    detail: "decision_reliability.artifact_kind_mismatch".to_owned(),
+                    detail: antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH.to_owned(),
                     message: text.to_owned(),
                     remedy: None,
                 };
@@ -124,7 +124,7 @@ impl DecisionReliabilityRefusal {
         }
         Self {
             code: error.reason_code().unwrap_or(antecedent_core::reason_code!("invalid_argument")),
-            detail: "decision_reliability.artifact".to_owned(),
+            detail: antecedent_core::reason_details::decision_reliability::ARTIFACT.to_owned(),
             message: error.to_string(),
             remedy: None,
         }
@@ -443,7 +443,9 @@ pub fn consume_decision_reliability_artifact(
             );
             return Err(DecisionReliabilityRefusal {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "decision_reliability.artifact_kind_mismatch".to_owned(),
+                detail:
+                    antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
+                        .to_owned(),
                 message,
                 remedy: Some(antecedent_design::inverse_query_artifact::artifact_kind_remedy(
                     &kind,

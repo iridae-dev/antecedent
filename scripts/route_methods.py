@@ -13,7 +13,8 @@ record is derived from the implementation and its evidence, then re-verified:
   inference      the estimator's inference side is the one `compiler_consistency.rs` pins
                  (refused under the other mode)
   target         the query is on the support axes and the route exists in the manifest
-  uncertainty    a measured coverage record's interval method; else an interval method a
+  uncertainty    the interval kind the cell's construction claim (`interval`) or a construction
+                 fixture of its capability record names; else an interval method a
                  named evidence test asserts; else a point-only cell; else the sibling
                  coordinates of the same estimator; else a declared procedure that the owning
                  source corroborates. The record names which, so nothing is a default.
@@ -87,7 +88,7 @@ GRAPHLESS_CLAIM_KIND = {
     "conditional_q_pointwise_95_normal_interval": "analytic",
     "intercept_and_period_effects_pointwise_95_normal_intervals": "analytic",
 }
-# Declared procedures of the executing routes that no coverage record measures. Each is the
+# Declared procedures of the executing routes that no construction fixture covers. Each is the
 # procedure the owning source implements; `CORROBORATION` names what that source must contain.
 DECLARED_KIND = {
     "bayesian.gcomp.model_based_arm_effect": "posterior",
@@ -292,7 +293,8 @@ def derivative_uncertainty(
             ["analytic", "none"],
             "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured",
         )
-    if graph in {"Cpdag", "Pag", "Admg"} and structure in {"explicit", "accepted"}:
+    # A TemporalAdmg answers through the contemporaneous projection of the class executor.
+    if graph in {"Cpdag", "Pag", "Admg", "TemporalAdmg"} and structure in {"explicit", "accepted"}:
         return (
             ["analytic", "none"],
             "crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold",
@@ -572,7 +574,7 @@ class Sources:
         self.children = load(CHILDREN)["child"]
         self.estimators = parse_estimators(ev.text(IDS))
         self.sides = inference_classes(ev.text(CONSISTENCY))
-        self.records = {r["id"]: r for r in ev.coverage_records()}
+        self.capability_records = load("parity/capability_records.toml")["record"]
         self.provenance = provenance_links.stems(ev.root)
         self._tests: list[tuple[str, str]] | None = None
 
@@ -643,13 +645,51 @@ def design_of(graph_class: str) -> str:
     return "temporal" if graph_class.startswith("Temporal") else "static"
 
 
-def record_ids(cell: dict) -> set[str]:
-    ids = set(cell.get("calibration", []) or [])
-    for figure in cell.get("coverage_figures", []) or []:
-        ids |= set(figure.get("cites", []))
-    for estimator in cell.get("calibration_estimators", []) or []:
-        ids |= set(estimator.get("calibration", []))
-    return ids
+def construction_fixtures(src: Sources, cell: dict) -> list[str]:
+    """Construction fixtures of the capability records whose matrix units select the cell."""
+    found: list[str] = []
+    for record in src.capability_records:
+        if not any(
+            all(cell.get(key) == value for key, value in unit.items())
+            for unit in record.get("matrix_units") or []
+        ):
+            continue
+        if not any(
+            r.get("status") == "supported"
+            and (r.get("claim") or record.get("inference_claim")) == "interval"
+            for r in record.get("routes") or []
+        ):
+            continue
+        for fixture in record.get("fixtures") or []:
+            if fixture.get("role") == "construction" and fixture.get("evidence_test"):
+                found.append(fixture["evidence_test"])
+    return found
+
+
+def construction_kinds(src: Sources, cell: dict) -> set[str]:
+    """Interval kinds a cell's route constructs: its own claim and its construction fixtures."""
+    kinds: set[str] = set(cell.get("interval", []))
+    for path in construction_fixtures(src, cell):
+        kinds |= {
+            INTERVAL_KIND[VARIANT_METHOD[v]] for v in INTERVAL_REF.findall(src.ev.text(path))
+        }
+    return kinds - {"none"}
+
+
+def construction_fixture(src: Sources, cells: list[dict], kinds: set[str]) -> str:
+    """The test that stands behind the constructed kinds: a construction fixture that builds
+    one of them, else the executing test of a cell that claims one."""
+    for cell in cells:
+        for path in construction_fixtures(src, cell):
+            found = {
+                INTERVAL_KIND[VARIANT_METHOD[v]] for v in INTERVAL_REF.findall(src.ev.text(path))
+            }
+            if found & kinds:
+                return path
+    for cell in cells:
+        if set(cell.get("interval", [])) & kinds:
+            return cell["evidence_test"]
+    return ""
 
 
 def consumer_for(
@@ -698,21 +738,17 @@ def supported_methods(src: Sources) -> list[dict]:
         lowered[key][0].add(row["identifier"])
         lowered[key][1].add(row["lowering"])
 
-    # measured kinds per (cell structure) and per estimator-level sibling
-    def measured(cells: list[dict]) -> set[str]:
-        kinds = set()
+    # constructed kinds per (cell structure) and per estimator-level sibling
+    def constructed(cells: list[dict]) -> set[str]:
+        kinds: set[str] = set()
         for cell in cells:
-            for rid in record_ids(cell):
-                record = src.records.get(rid)
-                kind = ev.record_kind(record) if record else None
-                if kind:
-                    kinds.add(kind)
+            kinds |= construction_kinds(src, cell)
         return kinds
 
     sibling: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
     for (_query, graph, estimator, inference), cells in groups.items():
         for structure in STRUCTURE_ORDER:
-            sibling[(estimator, inference, design_of(graph), structure)] |= measured(
+            sibling[(estimator, inference, design_of(graph), structure)] |= constructed(
                 [c for c in cells if c["structure"] == structure]
             )
 
@@ -724,15 +760,14 @@ def supported_methods(src: Sources) -> list[dict]:
         by_structure: dict[str, tuple[str, str]] = {}
         for structure in structures:
             members = [c for c in cells if c["structure"] == structure]
-            kinds = measured(members)
+            kinds = constructed(members)
             sources_: list[str] = []
             basis = ""
             if kinds:
-                basis = "measured_record"
-                ids = sorted({rid for c in members for rid in record_ids(c) if rid in src.records})
-                sources_ = [f"coverage_record:{ids[0]}"]
-            elif {c.get("calibration_reason") for c in members} == {"no_interval_reported"}:
-                kinds, basis, sources_ = {"none"}, "point_only_cell", ["cell:no_interval_reported"]
+                basis = "construction_fixture"
+                sources_ = [f"test:{construction_fixture(src, members, kinds)}"]
+            elif all(c.get("interval") == ["none"] for c in members):
+                kinds, basis, sources_ = {"none"}, "point_only_cell", ["cell:interval_none"]
             else:
                 asserted = set()
                 for c in members:
@@ -1058,7 +1093,7 @@ def render(methods: list[dict]) -> str:
         MARK,
         "# One record per method: a supported (query, graph class, estimator, inference), or a",
         "# graphless, execution-only or fitting-gap route. Derived from the support records, the",
-        "# estimator table, the coverage records and the evidence tests, then verified by",
+        "# estimator table, the construction claims and the evidence tests, then verified by",
         "# `python3 scripts/route_methods.py --check`.",
         "",
     ]
@@ -1145,25 +1180,33 @@ def verify_uncertainty(src: Sources, m: dict) -> list[str]:
     kind, basis = m["uncertainty"], m["uncertainty_basis"]
     if kind not in KINDS:
         return [
-            f"{mid}: uncertainty is not derived ({kind!r}); no coverage record, asserted interval, point-only cell, sibling record or declared procedure supports it"
+            f"{mid}: uncertainty is not derived ({kind!r}); no construction fixture, asserted interval, point-only cell, sibling record or declared procedure supports it"
         ]
     label, _, detail = basis.partition("|")
     if m["kind"] == "supported_estimator":
         if label not in (
-            "measured_record",
+            "construction_fixture",
             "point_only_cell",
             "asserted_in_test",
             "estimator_records",
             "declared_unmeasured",
         ):
             return [f"{mid}: uncertainty basis {label!r} is outside the vocabulary"]
-        if label == "measured_record":
-            rid = detail.removeprefix("coverage_record:")
-            record = src.records.get(rid)
-            if record is None or ev.record_kind(record) not in m["uncertainty_by_structure"][
-                0
-            ].split("=")[1].split("|")[0].split(","):
-                return [f"{mid}: coverage record {rid} does not show {kind}"]
+        if label == "construction_fixture":
+            path = detail.removeprefix("test:")
+            for problem in ev.fixture_findings(path):
+                return [f"{mid}: {problem}"]
+            claimed: set[str] = set()
+            for cell in src.cells:
+                if (
+                    cell["query"] == m["target"]
+                    and cell["graph_class"] == m["graph_class"]
+                    and m["estimator"] in cell["estimators"]
+                    and cell["inference"].lower() == m["inference"]
+                ):
+                    claimed |= construction_kinds(src, cell)
+            if kind not in claimed:
+                return [f"{mid}: no cell or construction fixture of the route claims {kind}"]
         if label == "asserted_in_test":
             path = detail.removeprefix("test:")
             kinds = {INTERVAL_KIND[VARIANT_METHOD[v]] for v in INTERVAL_REF.findall(ev.text(path))}
@@ -1209,7 +1252,7 @@ def implementation_extra(rid: str) -> list[str]:
     return [extra] if isinstance(extra, str) else list(extra)
 
 
-# The graph-class routes that execute without a coverage record. Each runs the finite-discrete or
+# The graph-class routes that execute without a construction claim. Each runs the finite-discrete or
 # regression estimator of its query on the identified functional of every completion, atom or
 # window; the frequentist interval is the design-aware resample (row, cluster or circular block)
 # of that functional and the Bayesian form is the Bayesian bootstrap over the same resamples, so

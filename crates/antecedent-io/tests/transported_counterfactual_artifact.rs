@@ -214,7 +214,10 @@ fn artifact_resealed_changes_are_refused_against_the_retained_identity() {
             TransportedCounterfactualArtifact::from_bytes(&bytes, Some(&retained)).unwrap_err();
         assert_eq!(error, TransportedCounterfactualArtifactError::IdentityMismatch { field });
         let refusal = error.refusal().unwrap();
-        assert_eq!(refusal.detail, "transported_counterfactual.artifact_changed");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_counterfactual::ARTIFACT_CHANGED
+        );
         assert_eq!(refusal.code, "route_not_supported");
         assert_eq!(refusal.offending.as_deref(), Some(field));
     }
@@ -249,9 +252,12 @@ fn artifact_stale_identity_after_an_unresealed_edit_is_refused() {
 fn artifact_false_labelled_premises_are_refused_even_when_resealed() {
     let sealed = seal(&request());
     for (flip, detail) in [
-        (0, "transported_counterfactual.nonadditive_mechanism"),
-        (1, "transported_counterfactual.noise_law_not_shared"),
-        (2, "transported_counterfactual.cross_world_independence_missing"),
+        (0, antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM),
+        (1, antecedent_core::reason_details::transported_counterfactual::NOISE_LAW_NOT_SHARED),
+        (
+            2,
+            antecedent_core::reason_details::transported_counterfactual::CROSS_WORLD_INDEPENDENCE_MISSING,
+        ),
     ] {
         let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
         // Relabel one premise false (earlier premises stay true so the named one is first).
@@ -335,7 +341,10 @@ fn artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
     on_outcome.selections = selection("y");
     let refusal = refusal_of(&on_outcome);
     assert_eq!(refusal.code, "transport_proven_non_transportable");
-    assert_eq!(refusal.detail, "transported_counterfactual.selection_on_mechanism");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+    );
     let witness = refusal.witness.expect("the NDE is sensitive to the outcome mechanism");
     assert_eq!(witness.selected_node, "y");
     assert_eq!(witness.perturbed_parent, "a");
@@ -355,22 +364,34 @@ fn artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
     // Undeclared premises refuse with the core's own detail.
     let mut undeclared = request();
     undeclared.premises = PremisesWire::default();
-    assert_eq!(refusal_of(&undeclared).detail, "transported_counterfactual.nonadditive_mechanism");
+    assert_eq!(
+        refusal_of(&undeclared).detail,
+        antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM
+    );
     // Missing evidence names the missing factor; overlap names the point.
     let mut withheld = request();
     withheld.evidence.retain(|e| e.role == "source");
     let refusal = refusal_of(&withheld);
-    assert_eq!(refusal.detail, "transported_counterfactual.factor_missing");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::FACTOR_MISSING
+    );
     assert_eq!(refusal.missing_factors, ["target:observational"]);
     let mut outside = request();
     outside.target_law = law(&[(0.0, 0.5), (3.0, 0.5)]);
     let refusal = refusal_of(&outside);
-    assert_eq!(refusal.detail, "transported_counterfactual.overlap_failure");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::OVERLAP_FAILURE
+    );
     assert_eq!(refusal.offending.as_deref(), Some("z=3"));
     // A repeated evidence factor or an unknown role is an invalid factor.
     let mut repeated = request();
     repeated.evidence.push(repeated.evidence[0].clone());
-    assert_eq!(refusal_of(&repeated).detail, "transported_counterfactual.invalid_factor");
+    assert_eq!(
+        refusal_of(&repeated).detail,
+        antecedent_core::reason_details::transported_counterfactual::INVALID_FACTOR
+    );
 }
 
 #[test]

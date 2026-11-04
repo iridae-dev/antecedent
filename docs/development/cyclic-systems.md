@@ -198,7 +198,7 @@ references, OU stationary/transient truths, equation-replacement effects, exhaus
 small-graph sigma-separation, all 512 three-node mixed-graph FCI oracle cases, and
 small incidence BGCM separations against independently solved linear Gaussian
 systems. Python tests exercise installed-wheel workflows and fresh-process CPU
-consumers. Tests are registered in `parity/v3_test_registry.toml`. The child-to-workflow
+consumers. Tests are registered in `parity/test_registry.toml`. The child-to-workflow
 contract is `parity/cyclic/acceptance.toml`. The standalone implementation gate is
 `python3 scripts/gate_cyclic_systems.py --python /path/to/installed-wheel/python`;
 it verifies full-size research-result integrity, runs the compiled component

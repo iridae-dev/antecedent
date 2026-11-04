@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail closed on the 3.0 test registry.
 
-Every row in parity/v3_test_registry.toml must name a source file that exists.
+Every row in parity/test_registry.toml must name a source file that exists.
 A crate with autotests = false compiles only src/ unit tests, [[test]] paths,
 and files a suite_NN.rs aggregator includes with #[path]; an included file must
 also be listed in that crate's tests/suite_map.txt. A registry that points at
@@ -9,13 +9,13 @@ nothing does not pass.
 
 Gates that already cite a path (checked_execution, support, evidence,
 composition, transport, decision) require evidence_path, and that file must
-exist. A stamped evidence file (a line ``# v3-evidence``, or any ``revision =
+exist. A stamped evidence file (a line ``# test-evidence``, or any ``revision =
 "<sha>"``) must carry revision equal to git HEAD; any other sha is stale, and
 a stamp without revision is a missing required key. inventory consumes this
 script. named consumes a compiled cargo test, so the source file is its evidence.
 
-    python3 scripts/check_v3_test_registry.py
-    python3 scripts/check_v3_test_registry.py --self-test
+    python3 scripts/check_test_registry.py
+    python3 scripts/check_test_registry.py --self-test
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from test_evidence import (
     target_files,
 )
 
-REGISTRY = "parity/v3_test_registry.toml"
+REGISTRY = "parity/test_registry.toml"
 KNOWN_GATES = (
     "inventory",
     "checked_execution",
@@ -57,7 +57,7 @@ EVIDENCE_REQUIRED = {
 }
 SHA = re.compile(r"[0-9a-f]{40}")
 REVISION = re.compile(r'(?m)^revision\s*=\s*"(.*)"\s*$')
-STAMP = re.compile(r"(?m)^#\s*v3-evidence\s*$")
+STAMP = re.compile(r"(?m)^#\s*test-evidence\s*$")
 PATH_ATTR = re.compile(r'#\[path\s*=\s*"([^"]+)"\]')
 TEST_ATTR = re.compile(r"#\[(?:\w+::)?test\b|proptest!\s*\{|#\[rstest\]|#\[test_case\b")
 IGNORED = re.compile(r"#\[ignore\b")
@@ -387,7 +387,7 @@ def check(root: Path) -> int:
         print("\n".join(found))
         return 1
     count = len(tomllib.loads((root / REGISTRY).read_text(encoding="utf-8"))["test"])
-    print(f"v3 test registry OK: {count} registered test")
+    print(f"test registry OK: {count} registered test")
     return 0
 
 
@@ -436,7 +436,7 @@ def _expect_fail(name: str, root: Path, needle: str) -> None:
 def _expect_ok(name: str, root: Path) -> None:
     proc = _run(root)
     text = proc.stdout + proc.stderr
-    if proc.returncode != 0 or "v3 test registry OK" not in text or "Traceback" in text:
+    if proc.returncode != 0 or "test registry OK" not in text or "Traceback" in text:
         sys.exit(f"self-test {name}: expected pass, rc={proc.returncode}\n{text}")
     print(f"ok  {name}")
 
@@ -579,7 +579,7 @@ autotests = false
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, "scripts/check.py", "# executable check\n")
-        _write(root, "parity/stale.toml", f'# v3-evidence\nrevision = "{"0" * 40}"\n')
+        _write(root, "parity/stale.toml", f'# test-evidence\nrevision = "{"0" * 40}"\n')
         _registry(
             root,
             [
@@ -598,7 +598,7 @@ autotests = false
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, "scripts/check.py", "# executable check\n")
-        _write(root, "parity/unstamped.toml", "# v3-evidence\n")
+        _write(root, "parity/unstamped.toml", "# test-evidence\n")
         _registry(
             root,
             [
@@ -638,7 +638,7 @@ autotests = false
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        _write(root, "scripts/check_v3_test_registry.py", 'if __name__ == "__main__":\n    pass\n')
+        _write(root, "scripts/check_test_registry.py", 'if __name__ == "__main__":\n    pass\n')
         _registry(
             root,
             [
@@ -646,7 +646,7 @@ autotests = false
                     "id": "v3-registry-sentinel",
                     "crate": "scripts",
                     "cargo_target": "script",
-                    "path": "scripts/check_v3_test_registry.py",
+                    "path": "scripts/check_test_registry.py",
                     "gates": ["inventory"],
                 }
             ],
@@ -656,7 +656,7 @@ autotests = false
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _crate(root, "suite_01: foo\n")
-        _write(root, "parity/fresh.toml", f'# v3-evidence\nrevision = "{head}"\n')
+        _write(root, "parity/fresh.toml", f'# test-evidence\nrevision = "{head}"\n')
         _registry(
             root,
             [
@@ -742,7 +742,7 @@ autotests = false
                 "scripts/test_orphan.py: test file has no registry row",
             )
 
-    print("v3 test registry self-test: ok")
+    print("test registry self-test: ok")
     return 0
 
 
@@ -753,7 +753,7 @@ def main(argv: list[str]) -> int:
         return check(Path(argv[1]).resolve())
     if not argv:
         return check(ROOT)
-    print("usage: check_v3_test_registry.py [--self-test|--root DIR]", file=sys.stderr)
+    print("usage: check_test_registry.py [--self-test|--root DIR]", file=sys.stderr)
     return 2
 
 

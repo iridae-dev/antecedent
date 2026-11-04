@@ -16,6 +16,7 @@ Target law ``{0: 0.25, 1: 0.75}`` (``E z = 0.75``); source law ``{0: 0.4, 1: 0.4
 """
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalSerializationError,
     CausalTypeError,
@@ -152,7 +153,7 @@ def test_premises_default_to_undeclared_and_each_refuses_with_its_own_detail():
     args = (scm(), source(), target(), MechanismSelection.on("z"), nde())
     with pytest.raises(TransportedCounterfactualRefusal) as raised:
         transported_path_specific_effect(*args)
-    assert raised.value.detail == "transported_counterfactual.nonadditive_mechanism"
+    assert raised.value.detail == reason_details.transported_counterfactual.NONADDITIVE_MECHANISM
     assert raised.value.reason_code == "route_not_supported"
     assert raised.value.offending == "additive_noise"
     cases = {
@@ -169,7 +170,7 @@ def test_premises_default_to_undeclared_and_each_refuses_with_its_own_detail():
 def test_selection_on_the_outcome_refuses_with_a_two_model_witness():
     error = refusal_of(selection=MechanismSelection.on("y"))
     assert error.reason_code == "transport_proven_non_transportable"
-    assert error.detail == "transported_counterfactual.selection_on_mechanism"
+    assert error.detail == reason_details.transported_counterfactual.SELECTION_ON_MECHANISM
     witness = error.witness
     assert witness is not None
     assert (witness.selected_node, witness.perturbed_parent) == ("y", "a")
@@ -187,7 +188,7 @@ def test_selection_on_a_mediator_is_witnessed_only_when_the_contrast_depends_on_
     # The NDE does not depend on the mediator's equation: refused, no impossibility claimed.
     error = refusal_of(selection=MechanismSelection.on("m"))
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "transported_counterfactual.selection_on_mechanism"
+    assert error.detail == reason_details.transported_counterfactual.SELECTION_ON_MECHANISM
     assert error.witness is None and error.offending == "m"
     # The NIE depends on it: witness (perturbing the A coefficient of M by 1 moves it by 6).
     error = refusal_of(assignment=nie(), selection=MechanismSelection.on("m"))
@@ -202,14 +203,14 @@ def test_selection_on_a_mediator_is_witnessed_only_when_the_contrast_depends_on_
 def test_target_outside_the_source_support_is_an_overlap_failure():
     error = refusal_of(target_law=target({0.0: 0.5, 3.0: 0.5}))
     assert error.reason_code == "transport_support_failure"
-    assert error.detail == "transported_counterfactual.overlap_failure"
+    assert error.detail == reason_details.transported_counterfactual.OVERLAP_FAILURE
     assert error.offending == "z=3"
 
 
 def test_absent_regime_evidence_is_factor_missing():
     error = refusal_of(evidence=[("source", "observational", "fit")])
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_counterfactual.factor_missing"
+    assert error.detail == reason_details.transported_counterfactual.FACTOR_MISSING
     assert error.missing_factors == ("target:observational",)
     withheld = refusal_of(evidence=())
     assert withheld.missing_factors == ("source:observational", "target:observational")
@@ -224,14 +225,23 @@ def test_malformed_inputs_are_refused_or_rejected():
     error = refusal_of(model=cyclic)
     assert (error.reason_code, error.detail) == (
         "invalid_argument",
-        "transported_counterfactual.invalid_model",
+        reason_details.transported_counterfactual.INVALID_MODEL,
     )
     not_a_child = EdgeAssignment("y", A1, A0, ("z",))
-    assert refusal_of(assignment=not_a_child).detail == "transported_counterfactual.invalid_query"
+    assert (
+        refusal_of(assignment=not_a_child).detail
+        == reason_details.transported_counterfactual.INVALID_QUERY
+    )
     bad_law = CovariateLaw.univariate("z", {0.0: 0.5, 1.0: 0.25})
-    assert refusal_of(target_law=bad_law).detail == "transported_counterfactual.invalid_law"
+    assert (
+        refusal_of(target_law=bad_law).detail
+        == reason_details.transported_counterfactual.INVALID_LAW
+    )
     nowhere = MechanismSelection.on("nowhere")
-    assert refusal_of(selection=nowhere).detail == "transported_counterfactual.invalid_diagram"
+    assert (
+        refusal_of(selection=nowhere).detail
+        == reason_details.transported_counterfactual.INVALID_DIAGRAM
+    )
     with pytest.raises(CausalValueError):
         Affine(float("nan"))
     with pytest.raises(CausalTypeError):
@@ -285,7 +295,7 @@ def test_resealed_changes_are_refused_against_the_retained_identity():
             consume_transported_counterfactual_artifact(
                 bytes(forged.export()), expected_identity=retained
             )
-        assert raised.value.detail == "transported_counterfactual.artifact_changed"
+        assert raised.value.detail == reason_details.transported_counterfactual.ARTIFACT_CHANGED
         assert raised.value.reason_code == "route_not_supported"
         assert raised.value.offending == field
         assert_registered_refusal(raised.value)
@@ -307,5 +317,5 @@ def test_the_general_class_is_not_supported():
     # The narrow-class cell does not open the closed general route.
     with pytest.raises(CausalUnsupportedError) as raised:
         transported_path_specific()
-    assert raised.value.detail == "transported_counterfactual.prerequisite_missing"
+    assert raised.value.detail == reason_details.transported_counterfactual.PREREQUISITE_MISSING
     assert raised.value.reason_code == "transport_missing_evidence"

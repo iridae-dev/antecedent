@@ -252,7 +252,10 @@ fn a_repeated_treatment_or_outcome_modifier_a_weighted_series_and_a_bootstrap_ar
     let weights: Vec<f64> = (0..data.time_index().length).map(|i| 1.0 + (i % 3) as f64).collect();
     let error = prepare(&series(case, Some(weights)), &base).unwrap_err();
     let (_, message) = error.coded_refusal().expect("a coded refusal");
-    assert_eq!(message.detail(), Some("sampling_weights.route_unsupported"));
+    assert_eq!(
+        message.detail(),
+        Some(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED)
+    );
 
     // The iid row bootstrap and the dependence-honest fit would hold the centring fixed.
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &base).unwrap();
@@ -319,5 +322,8 @@ fn the_float_conditional_function_refuses_a_weighted_series_like_the_prepared_pr
     )
     .unwrap_err();
     let (_, message) = error.coded_refusal().expect("a coded refusal");
-    assert_eq!(message.detail(), Some("sampling_weights.route_unsupported"));
+    assert_eq!(
+        message.detail(),
+        Some(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED)
+    );
 }

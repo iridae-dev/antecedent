@@ -276,35 +276,50 @@ fn period_reseal_refuses_a_changed_period_snapshot_or_units() {
     period.new_window.period_end = 1500;
     let (code, message) = refused(consume(&reseal(period)));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("temporal_refresh.invalid_replacement"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT),
+        "{message}"
+    );
 
     // A wider period still covers the panel but is not the one the receipt binds.
     let mut wider = artifact();
     wider.new_window.period_end = 3000;
     let (code, message) = refused(consume(&reseal(wider)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_refresh.receipt_mismatch"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH),
+        "{message}"
+    );
 
     // A snapshot id that is not the panel's.
     let mut snapshot = artifact();
     snapshot.new_window.snapshot_id = "snap_forged".into();
     let (code, message) = refused(consume(&reseal(snapshot)));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("temporal_refresh.invalid_replacement"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT),
+        "{message}"
+    );
 
     // Units that are not the panel's units.
     let mut units = artifact();
     units.new_window.unit_ids = vec!["10".into(), "12".into()];
     let (code, message) = refused(consume(&reseal(units)));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("temporal_refresh.invalid_replacement"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT),
+        "{message}"
+    );
 
     // The old window's period rewritten: not the one the receipt binds.
     let mut old_period = artifact();
     old_period.old_window.period_end = 1005;
     let (code, message) = refused(consume(&reseal(old_period)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_refresh.receipt_mismatch"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -316,32 +331,46 @@ fn period_reseal_refuses_a_replacement_that_is_the_old_snapshot() {
     wire.new_panel.snapshot_id = "snap_old".into();
     let (code, message) = refused(consume(&reseal(wire)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_refresh.stale_snapshot"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::STALE_SNAPSHOT),
+        "{message}"
+    );
 }
 
 #[test]
 fn period_reseal_refuses_a_resealed_change_of_decision_receipt_or_interval() {
     let mut flipped = artifact();
     flipped.decision = "invalidated".into();
-    flipped.invalidation = Some("temporal_refresh.horizon_changed".into());
+    flipped.invalidation =
+        Some(antecedent_core::reason_details::temporal_refresh::HORIZON_CHANGED.into());
     let message = convert_detail(consume(&reseal(flipped)));
     assert!(message.contains("temporal_refresh_artifact.decision"), "{message}");
 
     let mut interval_flag = artifact();
     interval_flag.interval_invalidated = false;
     let (_, message) = refused(consume(&reseal(interval_flag)));
-    assert!(message.contains("temporal_refresh.receipt_mismatch"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH),
+        "{message}"
+    );
 
     let mut receipt = artifact();
     receipt.receipt.as_mut().unwrap().proof_id = "proof_forged".into();
     let (_, message) = refused(consume(&reseal(receipt)));
-    assert!(message.contains("temporal_refresh.receipt_digest_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_DIGEST_MISMATCH),
+        "{message}"
+    );
 
     let mut stale = artifact();
     stale.refreshed.as_mut().unwrap().interval_present = true;
     let (code, message) = refused(consume(&reseal(stale)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_refresh.stale_interval"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::STALE_INTERVAL),
+        "{message}"
+    );
 
     let mut dropped = artifact();
     dropped.receipt = None;
@@ -365,7 +394,10 @@ fn period_reseal_refuses_a_resealed_change_of_value_law_or_premises() {
     source.law.population = "source".into();
     let (code, message) = refused(consume(&reseal(source)));
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 
     let mut graph = artifact();
     graph.premises.graph_id = "other_graph".into();

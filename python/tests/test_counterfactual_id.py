@@ -11,6 +11,7 @@ import itertools
 
 import antecedent
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.counterfactual_id import (
     EffectOnTreated,
     consume_counterfactual_id_artifact,
@@ -120,7 +121,7 @@ def test_a_consumer_holding_the_law_digest_refuses_an_artifact_computed_on_anoth
     with pytest.raises(CausalError) as wrong_law:
         consume_counterfactual_id_artifact(effect.artifact, expected_data_digest=other.data_digest)
     assert wrong_law.value.reason_code == "invalid_argument"
-    assert "counterfactual_id.invalid_artifact" in str(wrong_law.value)
+    assert reason_details.counterfactual_id.INVALID_ARTIFACT in str(wrong_law.value)
     with pytest.raises(CausalTypeError):
         consume_counterfactual_id_artifact(effect.artifact, expected_data_digest=7)  # type: ignore[arg-type]
 
@@ -164,7 +165,7 @@ def test_refusals_carry_reason_codes() -> None:
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert "counterfactual_id.conflicting_subscripts" in str(error)
+    assert reason_details.counterfactual_id.CONFLICTING_SUBSCRIPTS in str(error)
     assert "not a proof of non-identifiability" in str(error)
 
     def ett(graph=None, **overrides):
@@ -194,7 +195,7 @@ def test_refusals_carry_reason_codes() -> None:
         lambda: prepare().evaluate(probabilities=[0.2, 0.2, 0.0, 0.0, 0.1, 0.1, 0.2, 0.2])
     )
     assert error.reason_code == "invalid_argument"
-    assert "counterfactual_id.positivity_violation" in str(error)
+    assert reason_details.counterfactual_id.POSITIVITY_VIOLATION in str(error)
 
 
 def test_the_binary_complement_answers_where_id_star_stops() -> None:
@@ -222,7 +223,9 @@ def test_the_binary_complement_answers_where_id_star_stops() -> None:
     assert consumed.independently_verified
     # With a three-level treatment the ID* refusal stands (not a verdict).
     levels["x"] = [0.0, 1.0, 2.0]
-    with pytest.raises(CausalError, match="counterfactual_id.conflicting_subscripts") as caught:
+    with pytest.raises(
+        CausalError, match=reason_details.counterfactual_id.CONFLICTING_SUBSCRIPTS
+    ) as caught:
         prepare_effect_on_treated(
             graph, levels, treatment="x", active=1.0, observed=0.0, outcome="y", outcome_level=1.0
         )
@@ -278,7 +281,7 @@ def test_a_cancelled_search_is_a_budget_stop_with_its_receipt() -> None:
             execution=antecedent.Execution(cancel=token),
         )
     assert stopped.value.reason_code == "transport_budget_cancel"
-    assert "counterfactual_id.budget" in str(stopped.value)
+    assert reason_details.counterfactual_id.BUDGET in str(stopped.value)
     assert "receipt: stop search.cancelled" in str(stopped.value)
 
 
@@ -288,5 +291,5 @@ def test_a_count_table_whose_total_exceeds_u64_is_refused_not_wrapped() -> None:
     with pytest.raises(CausalError) as refused:
         prepare().evaluate(counts=[huge, huge, 1, 0, 0, 0, 0, 0])
     assert refused.value.reason_code == "invalid_argument"
-    assert "counterfactual_id.invalid_query" in str(refused.value)
+    assert reason_details.counterfactual_id.INVALID_QUERY in str(refused.value)
     assert "exceeds" in str(refused.value)

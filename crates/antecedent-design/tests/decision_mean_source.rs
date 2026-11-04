@@ -123,7 +123,10 @@ fn a_nonlinear_utility_needs_more_than_a_mean() {
     assert!(needed.contains(&SourceRepresentation::JointDraws));
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
-    assert_eq!(refusal.detail, "decision_evaluation.mean_source_insufficient");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT
+    );
 
     let clipped = UtilityExpr::maximum(UtilityExpr::Input(0), UtilityExpr::Const(0.0));
     assert!(matches!(

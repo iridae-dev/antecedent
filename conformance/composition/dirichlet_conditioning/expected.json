@@ -78,7 +78,27 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/observation_query_facade.rs",
-          "sha256": "6889a5d280baf13393c1b1d24a0f215cf63611b6e3b64350e7041d05d811c4dc"
+          "items": [
+            "const TOL",
+            "fn a_redraw_after_an_intervention_and_a_gaussian_redraw_return_aligned_draws",
+            "fn confounded",
+            "fn confounded_counts",
+            "fn ctx",
+            "fn direct",
+            "fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_spread",
+            "fn gaussian_chain",
+            "fn level",
+            "fn linear_input",
+            "fn near",
+            "fn pair",
+            "fn quantile",
+            "fn quantity",
+            "fn real",
+            "fn real_quantity",
+            "fn request_of",
+            "fn table_input"
+          ],
+          "sha256": ""
         }
       ],
       "fixture_payload_sha256": "9812a84fc0899c2709dad3fbbecc41e25fbd8ca058dac7c6b3429afe49a80603"

@@ -20,6 +20,7 @@ import json
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import mechanism_composition as mc
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.mechanism_composition import MechanismCompositionRefusal
@@ -299,7 +300,7 @@ def test_a_transport_is_verified_only_against_the_identity_it_re_derives(
     mismatch = refusal_of(
         lambda: require_success(source.verify_transport(declared, expected_identity=other.identity))
     )
-    assert mismatch.detail == "mechanism_transport.transport_identity_mismatch"
+    assert mismatch.detail == reason_details.mechanism_transport.TRANSPORT_IDENTITY_MISMATCH
     with pytest.raises(CausalTypeError):
         source.verify_transport("not a transport", expected_identity=base.identity)  # type: ignore[arg-type]
 
@@ -383,7 +384,10 @@ def test_a_selection_arrow_dominates_an_invariance_declaration(source_gcm) -> No
     invariance = mc.TransportInvariance("M", "population", "pop", "clinic_b", "assume:m-invariant")
     error = refusal_of(lambda: source.transport_to(transport(invariances=[invariance])))
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert "mechanism_composition.population_selection_arrow_into_mechanism" in error.details
+    assert (
+        reason_details.mechanism_composition.POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        in error.details
+    )
     assert error.remedy
 
 
@@ -399,12 +403,17 @@ def test_declared_and_unknown_refits_are_refused_by_name(source_gcm, target_gcm)
         evidence_id="data:M:declared",
     )
     error = refusal_of(lambda: source.transport_to(transport(refits=[written])))
-    assert "mechanism_composition.provenance_declared_mechanism_unacknowledged" in error.details
+    assert (
+        reason_details.mechanism_composition.PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED
+        in error.details
+    )
     # A refit of a variable the composition has no mechanism for.
     stray = dataclasses.replace(refit_m(target_gcm), variable_id="Q")
     error = refusal_of(lambda: source.transport_to(transport(refits=[stray])))
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert error.detail == "mechanism_composition.identity_declaration_unknown_variable"
+    assert (
+        error.detail == reason_details.mechanism_composition.IDENTITY_DECLARATION_UNKNOWN_VARIABLE
+    )
 
 
 def test_declared_source_mechanisms_are_not_carried() -> None:
@@ -421,8 +430,12 @@ def test_declared_source_mechanisms_are_not_carried() -> None:
         admit_declared_mechanisms=True,
     )
     error = refusal_of(lambda: declared.transport_to(transport(into=("M",))))
-    assert "mechanism_transport.origin_not_fitted" in error.details
-    origin = [r for r in error.refusals if r["detail"] == "mechanism_transport.origin_not_fitted"]
+    assert reason_details.mechanism_transport.ORIGIN_NOT_FITTED in error.details
+    origin = [
+        r
+        for r in error.refusals
+        if r["detail"] == reason_details.mechanism_transport.ORIGIN_NOT_FITTED
+    ]
     assert origin and all(r["code"] == "mechanism_composition_incoherent" for r in origin)
 
 

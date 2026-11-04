@@ -49,7 +49,7 @@ fn io_refusal(error: &IoError, stage: &'static str) -> String {
         }
         other => (
             antecedent_core::reason_code!("decision_contract_unsatisfied"),
-            "decision_contract.invalid_declaration".to_owned(),
+            antecedent_core::reason_details::decision_contract::INVALID_DECLARATION.to_owned(),
             Some(other.to_string()),
         ),
     };
@@ -363,8 +363,12 @@ struct ClaimWire {
 }
 
 fn parse_status(name: &str) -> Result<antecedent_core::SupportStatus, String> {
-    antecedent_core::SupportStatus::from_name(name)
-        .ok_or_else(|| invalid_json("decision_adapters.unknown_support_status", Some(name.into())))
+    antecedent_core::SupportStatus::from_name(name).ok_or_else(|| {
+        invalid_json(
+            antecedent_core::reason_details::decision_adapters::UNKNOWN_SUPPORT_STATUS,
+            Some(name.into()),
+        )
+    })
 }
 
 fn support_from(wire: Option<SupportWire>) -> Result<AtomSupport, String> {
@@ -388,7 +392,12 @@ fn support_from(wire: Option<SupportWire>) -> Result<AtomSupport, String> {
 }
 
 fn probability_from(wire: Option<ProbabilityWire>, id: &str) -> Result<ClaimProbability, String> {
-    let bad = || invalid_json("decision_adapters.invalid_probability", Some(id.to_owned()));
+    let bad = || {
+        invalid_json(
+            antecedent_core::reason_details::decision_adapters::INVALID_PROBABILITY,
+            Some(id.to_owned()),
+        )
+    };
     Ok(match wire {
         None => ClaimProbability::Unspecified,
         Some(p) => match (p.kind.as_str(), p.value, p.count) {
@@ -408,14 +417,26 @@ fn claim_from(
     let evidence = match (wire.status.as_str(), source) {
         ("evaluated", Some(source)) => AtomEvidence::Evaluated(Box::new(source.inner().clone())),
         ("unidentified", _) => AtomEvidence::Unidentified,
-        ("unevaluated", _) => match wire.reason.as_deref() {
-            Some(reason) if !reason.trim().is_empty() => {
-                AtomEvidence::Unevaluated(reason.to_owned())
+        ("unevaluated", _) => {
+            match wire.reason.as_deref() {
+                Some(reason) if !reason.trim().is_empty() => {
+                    AtomEvidence::Unevaluated(reason.to_owned())
+                }
+                _ => return Err(bad(
+                    antecedent_core::reason_details::decision_adapters::UNEVALUATED_NEEDS_REASON,
+                )),
             }
-            _ => return Err(bad("decision_adapters.unevaluated_needs_reason")),
-        },
-        ("evaluated", None) => return Err(bad("decision_adapters.evaluated_needs_draws")),
-        _ => return Err(bad("decision_adapters.unknown_claim_status")),
+        }
+        ("evaluated", None) => {
+            return Err(bad(
+                antecedent_core::reason_details::decision_adapters::EVALUATED_NEEDS_DRAWS,
+            ));
+        }
+        _ => {
+            return Err(bad(
+                antecedent_core::reason_details::decision_adapters::UNKNOWN_CLAIM_STATUS,
+            ));
+        }
     };
     let probability = probability_from(wire.probability, &wire.id)?;
     Ok(SuppliedClaim { id: wire.id, probability, evidence, support: support_from(wire.support)? })
@@ -439,10 +460,17 @@ fn prepare(
 ) -> Result<Prepared, String> {
     let contract = admissible_contract_from_json_refusal(declaration_json)
         .map_err(|refusal| external_refusal_json(&refusal))?;
-    let wires: Vec<ClaimWire> = serde_json::from_str(claims_json)
-        .map_err(|e| invalid_json("decision_adapters.invalid_claims", Some(e.to_string())))?;
+    let wires: Vec<ClaimWire> = serde_json::from_str(claims_json).map_err(|e| {
+        invalid_json(
+            antecedent_core::reason_details::decision_adapters::INVALID_CLAIMS,
+            Some(e.to_string()),
+        )
+    })?;
     if wires.len() != sources.len() {
-        return Err(invalid_json("decision_adapters.claims_sources_mismatch", None));
+        return Err(invalid_json(
+            antecedent_core::reason_details::decision_adapters::CLAIMS_SOURCES_MISMATCH,
+            None,
+        ));
     }
     // Each evaluated claim owns a copy of its draw artifact: bound the total before cloning.
     let cloned_bytes = wires
@@ -455,7 +483,7 @@ fn prepare(
         });
     if cloned_bytes.is_none_or(|bytes| bytes > MAX_CLAIM_DRAW_BYTES) {
         return Err(invalid_json(
-            "decision_adapters.claim_draws_too_large",
+            antecedent_core::reason_details::decision_adapters::CLAIM_DRAWS_TOO_LARGE,
             Some(format!("the claims copy more than {MAX_CLAIM_DRAW_BYTES} bytes of draws")),
         ));
     }
@@ -468,7 +496,10 @@ fn prepare(
     let adapted = match kind {
         "point" => {
             let Ok([claim]) = <[SuppliedClaim; 1]>::try_from(claims) else {
-                return Err(invalid_json("decision_adapters.point_claim_is_single", None));
+                return Err(invalid_json(
+                    antecedent_core::reason_details::decision_adapters::POINT_CLAIM_IS_SINGLE,
+                    None,
+                ));
             };
             adapt_point_claim(&claim.id, claim.evidence, claim.support, policy)
         }
@@ -476,7 +507,10 @@ fn prepare(
         "weighted_graph_posterior" => adapt_weighted_graph_atoms(claims, policy),
         "finite_scenarios" => adapt_finite_scenarios(claims, policy),
         other => {
-            return Err(invalid_json("decision_adapters.unknown_claim_kind", Some(other.into())));
+            return Err(invalid_json(
+                antecedent_core::reason_details::decision_adapters::UNKNOWN_CLAIM_KIND,
+                Some(other.into()),
+            ));
         }
     }
     .map_err(|e| external_refusal_json(&e.to_refusal()))?;
@@ -833,7 +867,10 @@ fn evaluate_identified_set_decision(
             let contract = admissible_contract_from_json_refusal(declaration_json)
                 .map_err(|refusal| external_refusal_json(&refusal))?;
             let wires: Vec<UtilityWire> = serde_json::from_str(utilities_json).map_err(|e| {
-                invalid_json("decision_adapters.invalid_utilities", Some(e.to_string()))
+                invalid_json(
+                    antecedent_core::reason_details::decision_adapters::INVALID_UTILITIES,
+                    Some(e.to_string()),
+                )
             })?;
             let utilities = wires
                 .into_iter()

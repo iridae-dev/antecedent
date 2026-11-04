@@ -58,7 +58,30 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/attribution_refuter_known_truth.rs",
-          "sha256": "b9a6b57b0c97885c11145d3e5c24fc6635d0c0212d3091d9c537557c7c1e3ba5"
+          "items": [
+            "fn a_change_attribution_validation_is_refused_for_want_of_a_detectable_violation",
+            "fn a_masked_attribution_is_the_attribution_of_the_visible_rows",
+            "fn anomaly_attribution_refuter_states_known_truth",
+            "fn clean_random_temporal_series_pass_every_stability_check_across_seeds",
+            "fn clean_temporal_series_pass_bootstrap_stability_at_every_length",
+            "fn dag",
+            "fn fixture",
+            "fn masked_body",
+            "fn next",
+            "fn noisy_series",
+            "fn on_large_stack",
+            "fn query",
+            "fn report",
+            "fn series",
+            "fn states_body",
+            "fn table",
+            "fn temporal_anomaly_attribution_refuter_states_known_truth",
+            "fn temporal_dag",
+            "fn temporal_states_body",
+            "fn uniform",
+            "struct Normals"
+          ],
+          "sha256": "81bf1013766fb97ac2df8bc90106bf637d5f64de2bb3d8ed1daa57899fdb9bfc"
         }
       ],
       "fixture_payload_sha256": "e62d4b628bc4bb1c9f32540b78193366629e47235ac3569329d3c3b45b32e58a"

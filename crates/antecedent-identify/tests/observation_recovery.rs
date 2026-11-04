@@ -128,7 +128,7 @@ fn self_censoring_is_nonrecoverable_with_a_verified_witness() {
     );
     assert_eq!(
         antecedent_identify::RecoveryDetail::NonrecoverableWitness.detail(),
-        "recovery.nonrecoverable_witness"
+        antecedent_core::reason_details::recovery::NONRECOVERABLE_WITNESS
     );
 }
 

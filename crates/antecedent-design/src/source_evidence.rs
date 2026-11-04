@@ -62,51 +62,64 @@ impl SourceEvidence {
     /// Invalid bytes, absent original claim, absent response coordinates or invalid scopes.
     pub fn from_result(bytes: &[u8]) -> Result<Self, SourceEvidenceError> {
         if bytes.len() > MAX_SOURCE_EVIDENCE_BYTES {
-            return Err(invalid("source_evidence.limits_exceeded"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
         let manifest = antecedent_io_core::EncodedArtifact::read_selective(
             std::io::Cursor::new(bytes),
             &std::collections::HashSet::new(),
         )
-        .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?
+        .map_err(|_| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+        })?
         .manifest;
         let logical_bytes = manifest
             .sections
             .iter()
             .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size))
-            .ok_or_else(|| invalid("source_evidence.limits_exceeded"))?;
+            .ok_or_else(|| {
+                invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED)
+            })?;
         if logical_bytes > 16 * 1024 * 1024 {
-            return Err(invalid("source_evidence.limits_exceeded"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
-        let original = consume_analysis_result(bytes)
-            .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?;
+        let original = consume_analysis_result(bytes).map_err(|_| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+        })?;
         if !original.acceptance.recognized
             || !original.acceptance.claim_present
             || original.contract.is_none()
         {
-            return Err(invalid("source_evidence.source_unverified"));
+            return Err(invalid(
+                antecedent_core::reason_details::source_evidence::SOURCE_UNVERIFIED,
+            ));
         }
-        let response = original
-            .body
-            .response
-            .as_ref()
-            .ok_or_else(|| invalid("source_evidence.response_unavailable"))?;
+        let response = original.body.response.as_ref().ok_or_else(|| {
+            invalid(antecedent_core::reason_details::source_evidence::RESPONSE_UNAVAILABLE)
+        })?;
         let coordinates = response
             .coordinates
             .as_ref()
             .filter(|coordinates| !coordinates.is_empty())
-            .ok_or_else(|| invalid("source_evidence.coordinates_unavailable"))?
+            .ok_or_else(|| {
+                invalid(antecedent_core::reason_details::source_evidence::COORDINATES_UNAVAILABLE)
+            })?
             .iter()
             .cloned()
             .map(ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| invalid("source_evidence.invalid_coordinates"))?;
+            .map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_COORDINATES)
+            })?;
         for diagnostic in &response.support.diagnostics {
             match diagnostic.scope.as_deref().unwrap_or("global") {
                 "per_coordinate" if diagnostic.values.len() == coordinates.len() => {}
                 "global" => {}
                 "inapplicable" if diagnostic.values.is_empty() => {}
-                _ => return Err(invalid("source_evidence.diagnostic_scope_mismatch")),
+                _ => {
+                    return Err(invalid(
+                        antecedent_core::reason_details::source_evidence::DIAGNOSTIC_SCOPE_MISMATCH,
+                    ));
+                }
             }
         }
         Ok(Self {
@@ -126,10 +139,12 @@ impl SourceEvidence {
             ExternalClaimArtifact, ExternalClaimMetadata, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
         };
         if bytes.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES {
-            return Err(invalid("source_evidence.limits_exceeded"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
         let mut reader = antecedent_io_core::ArtifactReader::open_seek(std::io::Cursor::new(bytes))
-            .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?;
+            .map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+            })?;
         let manifest = reader.manifest().clone();
         if manifest
             .sections
@@ -137,24 +152,34 @@ impl SourceEvidence {
             .try_fold(0_u64, |sum, section| sum.checked_add(section.uncompressed_size))
             .is_none_or(|size| size > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES as u64)
         {
-            return Err(invalid("source_evidence.limits_exceeded"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
         let metadata: ExternalClaimMetadata = antecedent_io_core::from_cbor(
             reader
                 .load_section("external_claim.meta")
-                .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?
+                .map_err(|_| {
+                    invalid(
+                        antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT,
+                    )
+                })?
                 .as_bytes(),
         )
-        .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?;
-        let external = ExternalClaimArtifact::from_bytes(bytes, &metadata.identity)
-            .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?;
+        .map_err(|_| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+        })?;
+        let external =
+            ExternalClaimArtifact::from_bytes(bytes, &metadata.identity).map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+            })?;
         let coordinates = metadata
             .identity
             .quantities
             .into_iter()
             .map(ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| invalid("source_evidence.invalid_coordinates"))?;
+            .map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_COORDINATES)
+            })?;
         Ok(Self {
             source: Arc::from(bytes),
             original: None,
@@ -177,7 +202,9 @@ impl SourceEvidence {
             return if self.external == actual.external {
                 Ok(())
             } else {
-                Err(invalid("source_evidence.source_binding_mismatch"))
+                Err(invalid(
+                    antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH,
+                ))
             };
         }
         let encode = |source: &Self| {
@@ -188,10 +215,14 @@ impl SourceEvidence {
                 &original.body,
                 &original.contract,
             ))
-            .map_err(|_| invalid("source_evidence.invalid_source_artifact"))
+            .map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+            })
         };
         if encode(self)? != encode(actual)? {
-            return Err(invalid("source_evidence.source_binding_mismatch"));
+            return Err(invalid(
+                antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH,
+            ));
         }
         Ok(())
     }
@@ -204,9 +235,9 @@ impl SourceEvidence {
     /// Retained original consumer output for source-backed adapters; no re-decoding or authority upgrade.
     #[doc(hidden)]
     pub fn original_consumption(&self) -> Result<&AnalysisResultConsumption, SourceEvidenceError> {
-        self.original
-            .as_deref()
-            .ok_or_else(|| invalid("source_evidence.resolution_scope_unsupported"))
+        self.original.as_deref().ok_or_else(|| {
+            invalid(antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED)
+        })
     }
 
     /// Original producer artifact label, retained verbatim for native replay.
@@ -230,14 +261,15 @@ impl SourceEvidence {
     /// Invalid contract, unknown/duplicate action or excessive declaration size.
     pub fn project(&self, text: &str, actions: &[String]) -> Result<Self, SourceEvidenceError> {
         if text.len() > 1024 * 1024 || actions.len() > 4096 {
-            return Err(invalid("source_evidence.limits_exceeded"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
-        let contract = contract_from_json_refusal(text)
-            .map_err(|_| invalid("source_evidence.invalid_contract"))?;
+        let contract = contract_from_json_refusal(text).map_err(|_| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_CONTRACT)
+        })?;
         if actions.iter().enumerate().any(|(index, id)| {
             actions[..index].contains(id) || !contract.actions.iter().any(|action| &action.id == id)
         }) {
-            return Err(invalid("source_evidence.action_mismatch"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::ACTION_MISMATCH));
         }
         let mut result = self.clone();
         result.actions = actions.to_vec();
@@ -256,47 +288,59 @@ impl SourceEvidence {
                 || identity.causal_contract_id != source.causal_contract_id
                 || source.coordinates.len() != source.means.len()
             {
-                return Err(invalid("source_evidence.point_binding_mismatch"));
+                return Err(invalid(
+                    antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                ));
             }
             for (quantity, value) in source.coordinates.iter().zip(&source.means) {
                 let index = self
                     .coordinates
                     .iter()
                     .position(|q| q.require_same_coordinate(quantity).is_ok())
-                    .ok_or_else(|| invalid("source_evidence.point_binding_mismatch"))?;
+                    .ok_or_else(|| invalid(antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH))?;
                 if external.values()[index].to_bits() != value.to_bits() {
-                    return Err(invalid("source_evidence.point_binding_mismatch"));
+                    return Err(invalid(
+                        antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                    ));
                 }
             }
             return Ok(());
         }
         let original = self.original_consumption()?;
-        let response = original
-            .body
-            .response
-            .as_ref()
-            .ok_or_else(|| invalid("source_evidence.response_unavailable"))?;
+        let response = original.body.response.as_ref().ok_or_else(|| {
+            invalid(antecedent_core::reason_details::source_evidence::RESPONSE_UNAVAILABLE)
+        })?;
         let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
             mean, ..
         }) = &response.estimate
         else {
-            return Err(invalid("source_evidence.point_binding_mismatch"));
+            return Err(invalid(
+                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+            ));
         };
         let snapshot =
             original.contract.as_ref().map(|contract| to_hex(&contract.identities.data_snapshot));
         if snapshot.as_deref() != Some(source.snapshot_id.as_str())
             || source.coordinates.len() != source.means.len()
         {
-            return Err(invalid("source_evidence.point_binding_mismatch"));
+            return Err(invalid(
+                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+            ));
         }
         for (quantity, value) in source.coordinates.iter().zip(&source.means) {
             let index = self
                 .coordinates
                 .iter()
                 .position(|coordinate| coordinate.require_same_coordinate(quantity).is_ok())
-                .ok_or_else(|| invalid("source_evidence.point_binding_mismatch"))?;
+                .ok_or_else(|| {
+                    invalid(
+                        antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                    )
+                })?;
             if mean.get(index).is_none_or(|original| original.to_bits() != value.to_bits()) {
-                return Err(invalid("source_evidence.point_binding_mismatch"));
+                return Err(invalid(
+                    antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                ));
             }
         }
         Ok(())
@@ -326,7 +370,9 @@ impl SourceEvidence {
                     .any(|coordinate| coordinate.require_same_coordinate(quantity).is_ok())
             })
         {
-            return Err(invalid("source_evidence.point_binding_mismatch"));
+            return Err(invalid(
+                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+            ));
         }
         Ok(())
     }
@@ -342,16 +388,16 @@ impl SourceEvidence {
             .coordinates
             .iter()
             .position(|coordinate| coordinate.require_same_coordinate(quantity).is_ok())
-            .ok_or_else(|| invalid("source_evidence.coordinate_mismatch"))?;
+            .ok_or_else(|| {
+                invalid(antecedent_core::reason_details::source_evidence::COORDINATE_MISMATCH)
+            })?;
         if self.external.is_some() {
             return Ok(json!([]));
         }
         let original = self.original_consumption()?;
-        let response = original
-            .body
-            .response
-            .as_ref()
-            .ok_or_else(|| invalid("source_evidence.response_unavailable"))?;
+        let response = original.body.response.as_ref().ok_or_else(|| {
+            invalid(antecedent_core::reason_details::source_evidence::RESPONSE_UNAVAILABLE)
+        })?;
         Ok(Value::Array(response.support.diagnostics.iter().map(|diagnostic| {
             let scope = diagnostic.scope.as_deref().unwrap_or("global");
             json!({"id":diagnostic.id,"detail":diagnostic.detail,"scope":scope,
@@ -367,15 +413,17 @@ impl SourceEvidence {
     ) -> Result<antecedent_contract::ProvenanceChain, SourceEvidenceError> {
         use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         if let Some(external) = &self.external {
-            let chain = external
-                .metadata()
-                .identity
-                .provenance_chain()
-                .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?;
+            let chain = external.metadata().identity.provenance_chain().map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+            })?;
             let mut links = chain.links().to_vec();
             let parent = links
                 .last()
-                .ok_or_else(|| invalid("source_evidence.invalid_source_artifact"))?
+                .ok_or_else(|| {
+                    invalid(
+                        antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT,
+                    )
+                })?
                 .id
                 .clone();
             let source = format!("source_artifact:{}", blake3_hex(&self.source));
@@ -388,7 +436,9 @@ impl SourceEvidence {
             if let Some(contract) = &self.contract {
                 let decision = format!(
                     "decision_contract:{}",
-                    contract.identity().map_err(|_| invalid("source_evidence.invalid_contract"))?
+                    contract.identity().map_err(|_| invalid(
+                        antecedent_core::reason_details::source_evidence::INVALID_CONTRACT
+                    ))?
                 );
                 links.push(CompositionLink {
                     id: decision.clone(),
@@ -403,14 +453,14 @@ impl SourceEvidence {
                     declared_parent_digests: None,
                 });
             }
-            return ProvenanceChain::new(links)
-                .map_err(|_| invalid("source_evidence.invalid_source_artifact"));
+            return ProvenanceChain::new(links).map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+            });
         }
         let consumption = self.original_consumption()?;
-        let original = consumption
-            .contract
-            .as_ref()
-            .ok_or_else(|| invalid("source_evidence.invalid_source_artifact"))?;
+        let original = consumption.contract.as_ref().ok_or_else(|| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+        })?;
         let causal = format!("causal_contract:{}", to_hex(&original.seal));
         let data = format!("snapshot:{}", to_hex(&original.identities.data_snapshot));
         let program = format!("native_program:{}", to_hex(&original.identities.program));
@@ -430,15 +480,16 @@ impl SourceEvidence {
         let parent = if let Some(contract) = &self.contract {
             let decision = format!(
                 "decision_contract:{}",
-                contract.identity().map_err(|_| invalid("source_evidence.invalid_contract"))?
+                contract.identity().map_err(|_| invalid(
+                    antecedent_core::reason_details::source_evidence::INVALID_CONTRACT
+                ))?
             );
             links.push(link(decision.clone(), CompositionStage::DecisionContract, vec![]));
             let transform = format!(
                 "source_projection:{}",
-                blake3_hex(
-                    &antecedent_io_core::to_cbor(&(&decision, &self.actions))
-                        .map_err(|_| invalid("source_evidence.invalid_contract"))?
-                )
+                blake3_hex(&antecedent_io_core::to_cbor(&(&decision, &self.actions)).map_err(
+                    |_| invalid(antecedent_core::reason_details::source_evidence::INVALID_CONTRACT)
+                )?)
             );
             links.push(link(
                 transform.clone(),
@@ -450,7 +501,9 @@ impl SourceEvidence {
             source
         };
         links.push(link("claim".into(), CompositionStage::Claim, vec![parent]));
-        ProvenanceChain::new(links).map_err(|_| invalid("source_evidence.invalid_source_artifact"))
+        ProvenanceChain::new(links).map_err(|_| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
+        })
     }
     /// Original typed ancestry including verified Merkle parent links.
     pub fn lineage(&self) -> Result<Value, SourceEvidenceError> {
@@ -463,14 +516,14 @@ impl SourceEvidence {
                 .map(|parent| {
                     chain
                         .digest_of(parent)
-                        .map_err(|_| invalid("source_evidence.invalid_source_artifact"))
+                        .map_err(|_| invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             links.push(json!({
                 "id": link.id,
                 "stage": link.stage.as_str(),
                 "parents": link.parents,
-                "digest": chain.digest_of(&link.id).map_err(|_| invalid("source_evidence.invalid_source_artifact"))?,
+                "digest": chain.digest_of(&link.id).map_err(|_| invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT))?,
                 "parent_digests": parent_digests
             }));
         }
@@ -516,10 +569,10 @@ impl SourceEvidence {
                 "scope":"original_external_source; no transformed numeric diagnostic or trust/calibration upgrade"});
         }
         let Some(original) = self.original.as_deref() else {
-            return json!({"detail":"source_evidence.resolution_scope_unsupported"});
+            return json!({"detail":antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED});
         };
         let Some(response) = original.body.response.as_ref() else {
-            return json!({"detail":"source_evidence.response_unavailable"});
+            return json!({"detail":antecedent_core::reason_details::source_evidence::RESPONSE_UNAVAILABLE});
         };
         json!({"source_artifact_digest":to_hex(&original.artifact_digest),
             "original_acceptance": {"recognized":original.acceptance.recognized,"verified_references":original.acceptance.verified_references,"claim_present":original.acceptance.claim_present,"unresolved_dependencies":original.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"restriction":original.acceptance.restriction.as_deref()},
@@ -539,46 +592,53 @@ impl SourceEvidence {
         let mut bytes = MAGIC.to_vec();
         let wire = EvidenceWire {
             source: self.source.to_vec(),
-            contract: self
-                .contract
-                .as_ref()
-                .map(contract_to_json)
-                .transpose()
-                .map_err(|_| invalid("source_evidence.invalid_contract"))?,
+            contract: self.contract.as_ref().map(contract_to_json).transpose().map_err(|_| {
+                invalid(antecedent_core::reason_details::source_evidence::INVALID_CONTRACT)
+            })?,
             actions: self.actions.clone(),
             external_identity: self
                 .external
                 .as_ref()
                 .map(|external| external.metadata().identity.clone()),
         };
-        ciborium::into_writer(&wire, &mut bytes)
-            .map_err(|_| invalid("source_evidence.invalid_artifact"))?;
+        ciborium::into_writer(&wire, &mut bytes).map_err(|_| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_ARTIFACT)
+        })?;
         if bytes.len() > MAX_SOURCE_EVIDENCE_BYTES {
-            return Err(invalid("source_evidence.limits_exceeded"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
         Ok(bytes)
     }
     /// Independently consume original scientific result and rebuild semantic contributors.
     pub fn consume(bytes: &[u8]) -> Result<Self, SourceEvidenceError> {
         if bytes.len() > MAX_SOURCE_EVIDENCE_BYTES {
-            return Err(invalid("source_evidence.limits_exceeded"));
+            return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
         if !bytes.starts_with(MAGIC) {
-            return Err(invalid("source_evidence.invalid_artifact"));
+            return Err(invalid(
+                antecedent_core::reason_details::source_evidence::INVALID_ARTIFACT,
+            ));
         }
         let mut remainder = &bytes[MAGIC.len()..];
-        let wire: EvidenceWire = ciborium::from_reader(&mut remainder)
-            .map_err(|_| invalid("source_evidence.invalid_artifact"))?;
+        let wire: EvidenceWire = ciborium::from_reader(&mut remainder).map_err(|_| {
+            invalid(antecedent_core::reason_details::source_evidence::INVALID_ARTIFACT)
+        })?;
         if !remainder.is_empty() {
-            return Err(invalid("source_evidence.invalid_artifact"));
+            return Err(invalid(
+                antecedent_core::reason_details::source_evidence::INVALID_ARTIFACT,
+            ));
         }
         let result = if let Some(expected) = wire.external_identity {
             let result = Self::from_external(&wire.source)?;
             let Some(external) = result.external.as_ref() else {
-                return Err(invalid("source_evidence.invalid_source_artifact"));
+                return Err(invalid(
+                    antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT,
+                ));
             };
             if external.metadata().identity != expected {
-                return Err(invalid("source_evidence.source_binding_mismatch"));
+                return Err(invalid(
+                    antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH,
+                ));
             }
             result
         } else {
@@ -587,7 +647,7 @@ impl SourceEvidence {
         match wire.contract {
             Some(contract) => result.project(&contract, &wire.actions),
             None if wire.actions.is_empty() => Ok(result),
-            None => Err(invalid("source_evidence.action_mismatch")),
+            None => Err(invalid(antecedent_core::reason_details::source_evidence::ACTION_MISMATCH)),
         }
     }
 }

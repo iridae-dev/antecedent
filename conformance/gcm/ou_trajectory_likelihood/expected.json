@@ -38,7 +38,13 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/ou_trajectory/tests.rs",
-          "sha256": "21500bb8e7d6010fa5295c5b8fea8d580821c6b1c51a6a9cd1da46a5f6e0cdbb"
+          "items": [
+            "fn matrix_rows",
+            "fn numbers",
+            "fn start",
+            "fn the_kalman_likelihood_matches_the_committed_joint_gaussian_reference"
+          ],
+          "sha256": "b624e7a2aadaf58987b179aec9dbdaf97a4713ba5575129bf0e02e1baf056118"
         }
       ],
       "fixture_payload_sha256": "ff990ee9e58072a2052072fd1342512413b28f9cad0e6bbada313b200fb4f6bb"

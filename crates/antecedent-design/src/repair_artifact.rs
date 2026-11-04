@@ -121,7 +121,7 @@ impl RepairArtifactError {
     fn invalid(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("transport_not_certified"),
-            detail: "repair_artifact.invalid_artifact",
+            detail: antecedent_core::reason_details::repair_artifact::INVALID_ARTIFACT,
             message: message.into(),
         }
     }
@@ -129,7 +129,7 @@ impl RepairArtifactError {
     fn unsupported_version(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("transport_not_certified"),
-            detail: "repair_artifact.unsupported_version",
+            detail: antecedent_core::reason_details::repair_artifact::UNSUPPORTED_VERSION,
             message: message.into(),
         }
     }
@@ -137,7 +137,7 @@ impl RepairArtifactError {
     fn bounds(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("route_not_supported"),
-            detail: "repair_artifact.bounds_exceeded",
+            detail: antecedent_core::reason_details::repair_artifact::BOUNDS_EXCEEDED,
             message: message.into(),
         }
     }
@@ -145,7 +145,7 @@ impl RepairArtifactError {
     fn budget(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("transport_budget_cancel"),
-            detail: "repair_artifact.budget",
+            detail: antecedent_core::reason_details::repair_artifact::BUDGET,
             message: message.into(),
         }
     }
@@ -153,7 +153,7 @@ impl RepairArtifactError {
     fn mismatch(section: &str, message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("transport_not_certified"),
-            detail: "repair_artifact.replay_mismatch",
+            detail: antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH,
             message: format!("{section}: {}", message.into()),
         }
     }
@@ -1015,7 +1015,7 @@ fn stop_wire(receipt: &SearchReceipt) -> RepairStopWire {
 fn outcome_name(report: &RepairReport) -> &'static str {
     match report.status() {
         None => "repaired",
-        Some((_, "identification_repair.budget")) => "exhausted",
+        Some((_, antecedent_core::reason_details::identification_repair::BUDGET)) => "exhausted",
         Some(_) => "none_certified",
     }
 }

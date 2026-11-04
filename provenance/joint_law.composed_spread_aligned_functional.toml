@@ -30,9 +30,11 @@ record_sha256 = "c854b75181cf2b001d9b02a1ccaeb2bbea3955be549fc3f03ec3a252cf72252
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+items = ["fn atoms", "fn mean", "fn value", "fn variance"]
+sha256 = "7f10546a36a4b361a0e8b88b15d52954cfa88600c127178c8fbb293dd7323ba7"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs"
-sha256 = "6c9e98c93d27af4e15cf154356852c0abc7b3c8e2cecc969e23d848b379e6dc4"
+items = ["fn a_cancelled_context_produces_no_claim", "fn a_covariance_aware_contrast_replays_to_the_closed_form", "fn a_declared_correlation_range_is_an_assumption_range", "fn a_known_weight_mixture_replays_to_the_closed_form", "fn a_mixture_exceedance_uses_the_known_weights_and_no_joint_law", "fn a_transported_interval_is_composed_only_under_a_covariance_or_an_aligned_law", "fn aligned", "fn aligned_linear_claims_refuse_nonfinite_coefficients_and_overflow", "fn aligned_product", "fn aligned_spread", "fn an_aligned_nonlinear_functional_matches_the_finite_joint_law_enumeration", "fn an_aligned_spread_replays_to_the_enumerated_joint_law", "fn an_exceedance_decision_reports_its_monte_carlo_band_and_verdict", "fn assumption_ranges_refuse_unrepresentable_moments", "fn bernoulli", "fn bits", "fn contrast", "fn ctx", "fn declared", "fn details", "fn envelope", "fn independent_claims_refuse_covariance_cross_terms_even_after_resealing", "fn joint_rows", "fn reseal", "fn semantic_mutations_are_refused", "fn spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused", "fn summary", "fn the_declared_operation_is_bound_to_the_stored_numbers", "fn the_dependence_envelope_endpoints_are_the_closed_form_and_the_label_is_structural", "fn unrelated_marginals_are_never_paired_by_index", "fn value", "fn values_are_invariant_to_input_order_and_relabelling"]
+sha256 = "fe910c267527d7831311143c9803c5d2e58611e9fab123f5b801db51fa738e1d"

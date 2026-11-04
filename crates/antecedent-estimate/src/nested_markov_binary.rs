@@ -110,7 +110,8 @@ pub(crate) const DEFAULT_TOLERANCE: f64 = 1e-11;
 /// Cell probabilities must sum to one within this.
 pub(crate) const NORMALIZATION_TOLERANCE: f64 = 1e-12;
 /// Detail of the refusal for anything outside the one selected pilot.
-pub(crate) const OUTSIDE_PILOT: &str = "nested_markov.outside_binary_pilot";
+pub(crate) const OUTSIDE_PILOT: &str =
+    antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT;
 /// Detail of the refusal of the public interval route.
 
 const FEASIBLE_TOLERANCE: f64 = 1e-12;
@@ -136,7 +137,7 @@ fn invalid(detail: &str, message: &str) -> EstimationError {
 fn positivity(message: &str) -> EstimationError {
     EstimationError::refused_detail(
         antecedent_core::reason_code!("transport_support_failure"),
-        "nested_markov.positivity",
+        antecedent_core::reason_details::nested_markov::POSITIVITY,
         message,
     )
 }
@@ -769,7 +770,7 @@ fn cancelled(diagnostics: &FitDiagnostics) -> Refusal {
     with(
         EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "nested_markov.cancelled",
+            antecedent_core::reason_details::nested_markov::CANCELLED,
             "the fit was cancelled; no estimate is reported",
         ),
         diagnostics,
@@ -808,7 +809,7 @@ pub fn fit_nested_markov(
     if ctx.cancellation.is_cancelled() {
         return Err(plain(EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "nested_markov.cancelled",
+            antecedent_core::reason_details::nested_markov::CANCELLED,
             "the fit was cancelled; no estimate is reported",
         )));
     }
@@ -1114,7 +1115,7 @@ fn checked_pilot_identification(input: &NestedMarkovInput) -> Result<(), Estimat
     let unavailable = || {
         EstimationError::refused_detail(
             antecedent_core::reason_code!("effect_not_identified"),
-            "nested_markov.identification_unavailable",
+            antecedent_core::reason_details::nested_markov::IDENTIFICATION_UNAVAILABLE,
             "the checked general-ID engine did not identify the selected pilot contrast",
         )
     };

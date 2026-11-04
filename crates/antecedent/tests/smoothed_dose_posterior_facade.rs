@@ -246,7 +246,7 @@ fn artifact_round_trips_through_an_independent_loader_and_refuses_forgeries() {
     let refused = consume(&reseal(certificate)).unwrap_err();
     assert!(
         matches!(&refused, PosteriorRowArtifactError::Refused { detail, .. }
-            if detail == "smoothed_dose_posterior.certificate_mismatch"),
+            if detail == antecedent_core::reason_details::smoothed_dose_posterior::CERTIFICATE_MISMATCH),
         "{refused:?}"
     );
 

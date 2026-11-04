@@ -241,7 +241,10 @@ fn missing_selection_contract_is_refused_by_name() {
         evaluate_transported_policy(&TransportedPolicyRequest { diagram: None, ..base }, &ctx())
             .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "transported_policy.selection_diagram_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::SELECTION_DIAGRAM_MISSING
+    );
     assert!(err.remedy.contains("selection diagram"));
 
     let err = evaluate_transported_policy(
@@ -250,7 +253,10 @@ fn missing_selection_contract_is_refused_by_name() {
     )
     .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "transported_policy.target_initial_law_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::TARGET_INITIAL_LAW_MISSING
+    );
 
     // an undeclared mechanism is never assumed invariant
     let mut partial = diagram.clone();
@@ -260,7 +266,10 @@ fn missing_selection_contract_is_refused_by_name() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "transported_policy.mechanism_status_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::MECHANISM_STATUS_MISSING
+    );
     assert!(err.message.contains("observation[0]"));
 
     // a diagram for another pair of populations
@@ -271,7 +280,10 @@ fn missing_selection_contract_is_refused_by_name() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "transported_policy.diagram_binding_mismatch");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::DIAGRAM_BINDING_MISMATCH
+    );
 
     // the model's own population is not a transport
     let err = evaluate_transported_policy(
@@ -279,7 +291,7 @@ fn missing_selection_contract_is_refused_by_name() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "transported_policy.target_is_source");
+    assert_eq!(err.detail, antecedent_core::reason_details::transported_policy::TARGET_IS_SOURCE);
 }
 
 #[test]
@@ -308,7 +320,10 @@ fn a_shifted_dynamic_mechanism_is_refused_with_the_mechanism_named() {
         };
         let err = evaluate_transported_policy(&request, &ctx()).unwrap_err();
         assert_eq!(err.code, "transport_missing_evidence");
-        assert_eq!(err.detail, "transported_policy.mechanism_not_invariant");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::transported_policy::MECHANISM_NOT_INVARIANT
+        );
         assert!(err.message.contains(&shifted.name()));
     }
 }
@@ -331,7 +346,10 @@ fn support_and_declaration_consistency_of_the_target_law_are_checked() {
     };
     let err = evaluate_transported_policy(&request, &ctx()).unwrap_err();
     assert_eq!(err.code, "transport_support_failure");
-    assert_eq!(err.detail, "transported_policy.target_support_outside_source");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::TARGET_SUPPORT_OUTSIDE_SOURCE
+    );
     assert!(err.message.contains("faulty"));
 
     // a target law that differs although the initial law is declared invariant
@@ -350,7 +368,10 @@ fn support_and_declaration_consistency_of_the_target_law_are_checked() {
     };
     let err = evaluate_transported_policy(&request, &ctx()).unwrap_err();
     assert_eq!(err.code, "invalid_argument");
-    assert_eq!(err.detail, "transported_policy.initial_law_declared_invariant");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::INITIAL_LAW_DECLARED_INVARIANT
+    );
 
     // the same law is accepted as invariant
     let same = [0.5, 0.5];
@@ -362,7 +383,7 @@ fn support_and_declaration_consistency_of_the_target_law_are_checked() {
     let bad = [0.5, 0.4];
     let request = TransportedPolicyRequest { target_initial: Some(&bad), ..request };
     let err = evaluate_transported_policy(&request, &ctx()).unwrap_err();
-    assert_eq!(err.detail, "transported_policy.target_initial_law");
+    assert_eq!(err.detail, antecedent_core::reason_details::transported_policy::TARGET_INITIAL_LAW);
 }
 
 #[test]
@@ -406,7 +427,7 @@ fn the_evaluation_identity_follows_the_inputs_and_replays() {
     let mut forged = first.clone();
     forged.target_value += 0.5;
     let err = verify_transported_policy(&forged, &request, &ctx()).unwrap_err();
-    assert_eq!(err.detail, "transported_policy.value_mismatch");
+    assert_eq!(err.detail, antecedent_core::reason_details::transported_policy::VALUE_MISMATCH);
 
     // the diagram identity does not depend on listing order
     let mut reversed = diagram.clone();
@@ -559,7 +580,10 @@ fn a_shifted_utility_needs_its_target_utility_and_relaxes_nothing_else() {
     )
     .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "transported_policy.target_utility_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::TARGET_UTILITY_MISSING
+    );
 
     // supplied, declared invariant
     let invariant = diagram(&source);
@@ -569,7 +593,10 @@ fn a_shifted_utility_needs_its_target_utility_and_relaxes_nothing_else() {
     )
     .unwrap_err();
     assert_eq!(err.code, "invalid_argument");
-    assert_eq!(err.detail, "transported_policy.utility_declared_invariant");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::UTILITY_DECLARED_INVARIANT
+    );
 
     // a shifted transition or observation stays refused, utility supplied or not
     for dynamic in [
@@ -587,7 +614,10 @@ fn a_shifted_utility_needs_its_target_utility_and_relaxes_nothing_else() {
             &ctx(),
         )
         .unwrap_err();
-        assert_eq!(err.detail, "transported_policy.mechanism_not_invariant");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::transported_policy::MECHANISM_NOT_INVARIANT
+        );
         assert!(err.message.contains(&dynamic.name()));
     }
 
@@ -604,7 +634,10 @@ fn a_shifted_utility_needs_its_target_utility_and_relaxes_nothing_else() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "transported_policy.target_support_outside_source");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::TARGET_SUPPORT_OUTSIDE_SOURCE
+    );
 }
 
 #[test]
@@ -631,13 +664,20 @@ fn a_target_utility_must_match_the_source_and_declare_its_provenance() {
     unsourced.provenance.source = "  ".into();
     let err = refusal(&unsourced);
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "transported_policy.target_utility_provenance_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::TARGET_UTILITY_PROVENANCE_MISSING
+    );
 
     for digest in ["", "abc", &"G".repeat(64), &TARGET_DIGEST.to_uppercase()] {
         let mut bad = good.clone();
         bad.provenance.digest = digest.into();
         let err = refusal(&bad);
-        assert_eq!(err.detail, "transported_policy.target_utility_digest", "{digest}");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::transported_policy::TARGET_UTILITY_DIGEST,
+            "{digest}"
+        );
     }
 
     // the target cannot add or drop an action, add a state or invent a delayed outcome
@@ -650,7 +690,10 @@ fn a_target_utility_must_match_the_source_and_declare_its_provenance() {
     let mut invented_delay = good.clone();
     invented_delay.actions[SHIP].delayed = Some(vec![1.0, 1.0]);
     for bad in [dropped, extra_state, short_immediate, invented_delay] {
-        assert_eq!(refusal(&bad).detail, "transported_policy.target_utility_support");
+        assert_eq!(
+            refusal(&bad).detail,
+            antecedent_core::reason_details::transported_policy::TARGET_UTILITY_SUPPORT
+        );
     }
 
     let mut infinite = good.clone();
@@ -662,7 +705,10 @@ fn a_target_utility_must_match_the_source_and_declare_its_provenance() {
     for bad in [infinite, not_a_number, negative_cost] {
         let err = refusal(&bad);
         assert_eq!(err.code, "invalid_argument");
-        assert_eq!(err.detail, "transported_policy.target_utility_value");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::transported_policy::TARGET_UTILITY_VALUE
+        );
     }
 }
 
@@ -747,14 +793,20 @@ fn the_target_utility_and_its_provenance_are_bound_into_the_identity_and_replay(
     replay(&first, &utility).unwrap();
     for tampered in [&repriced, &relabelled, &redigested] {
         let err = replay(&first, tampered).unwrap_err();
-        assert_eq!(err.detail, "transported_policy.value_mismatch");
+        assert_eq!(err.detail, antecedent_core::reason_details::transported_policy::VALUE_MISMATCH);
     }
     let mut forged = first.clone();
     forged.target_utility.as_mut().unwrap().provenance.source = "someone_else".into();
-    assert_eq!(replay(&forged, &utility).unwrap_err().detail, "transported_policy.value_mismatch");
+    assert_eq!(
+        replay(&forged, &utility).unwrap_err().detail,
+        antecedent_core::reason_details::transported_policy::VALUE_MISMATCH
+    );
     let mut dropped = first.clone();
     dropped.target_utility = None;
-    assert_eq!(replay(&dropped, &utility).unwrap_err().detail, "transported_policy.value_mismatch");
+    assert_eq!(
+        replay(&dropped, &utility).unwrap_err().detail,
+        antecedent_core::reason_details::transported_policy::VALUE_MISMATCH
+    );
 }
 
 #[test]
@@ -803,7 +855,7 @@ fn refreshing_the_source_model_keeps_the_utility_declaration_and_recomputes_the_
     };
     assert_eq!(
         verify_transported_policy(&old, &request, &ctx()).unwrap_err().detail,
-        "transported_policy.value_mismatch"
+        antecedent_core::reason_details::transported_policy::VALUE_MISMATCH
     );
     verify_transported_policy(&new, &request, &ctx()).unwrap();
 }
@@ -845,16 +897,19 @@ fn a_declared_target_utility_is_validated_then_accepted_and_echoed() {
     };
     assert_eq!(
         broken(&|u| u.provenance.source.clear()),
-        "transported_policy.target_utility_provenance_missing"
+        antecedent_core::reason_details::transported_policy::TARGET_UTILITY_PROVENANCE_MISSING
     );
     assert_eq!(
         broken(&|u| u.provenance.digest = "zz".into()),
-        "transported_policy.target_utility_digest"
+        antecedent_core::reason_details::transported_policy::TARGET_UTILITY_DIGEST
     );
-    assert_eq!(broken(&|u| u.terminal.push(0.0)), "transported_policy.target_utility_support");
+    assert_eq!(
+        broken(&|u| u.terminal.push(0.0)),
+        antecedent_core::reason_details::transported_policy::TARGET_UTILITY_SUPPORT
+    );
     assert_eq!(
         broken(&|u| u.actions[SHIP].immediate[0] = f64::NAN),
-        "transported_policy.target_utility_value"
+        antecedent_core::reason_details::transported_policy::TARGET_UTILITY_VALUE
     );
 }
 
@@ -906,7 +961,10 @@ fn a_target_utility_keeps_the_transition_observation_and_support_premises() {
             &ctx(),
         )
         .unwrap_err();
-        assert_eq!(err.detail, "transported_policy.mechanism_not_invariant");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::transported_policy::MECHANISM_NOT_INVARIANT
+        );
         assert!(err.message.contains(&dynamic.name()));
     }
     let narrow = model([1.0, 0.0]);
@@ -921,7 +979,10 @@ fn a_target_utility_keeps_the_transition_observation_and_support_premises() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "transported_policy.target_support_outside_source");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::transported_policy::TARGET_SUPPORT_OUTSIDE_SOURCE
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -996,7 +1057,10 @@ fn time_varying_horizon_and_history_incompatibilities_are_refused() {
     let err = evaluate_temporal_policy(&TemporalPolicyRequest { invariance: None, ..base }, &ctx())
         .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "temporal_policy_transport.time_invariance_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::temporal_policy_transport::TIME_INVARIANCE_MISSING
+    );
 
     // a time-varying transition
     let mut varying = invariance_ok.clone();
@@ -1011,7 +1075,10 @@ fn time_varying_horizon_and_history_incompatibilities_are_refused() {
     )
     .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "temporal_policy_transport.mechanism_time_varying");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::temporal_policy_transport::MECHANISM_TIME_VARYING
+    );
     assert!(err.message.contains("transition[0]"));
 
     // a different horizon in the target period
@@ -1020,19 +1087,28 @@ fn time_varying_horizon_and_history_incompatibilities_are_refused() {
     let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &longer, ..base }, &ctx())
         .unwrap_err();
     assert_eq!(err.code, "route_not_supported");
-    assert_eq!(err.detail, "temporal_policy_transport.horizon_mismatch");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::temporal_policy_transport::HORIZON_MISMATCH
+    );
 
     // histories over a different alphabet
     let mut renamed = target_ok.clone();
     renamed.alphabet.actions[INSPECT].symbols.push("fault_code".into());
     let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &renamed, ..base }, &ctx())
         .unwrap_err();
-    assert_eq!(err.detail, "temporal_policy_transport.history_alphabet_incompatible");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::temporal_policy_transport::HISTORY_ALPHABET_INCOMPATIBLE
+    );
     let mut fewer = target_ok.clone();
     fewer.alphabet.actions.pop();
     let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &fewer, ..base }, &ctx())
         .unwrap_err();
-    assert_eq!(err.detail, "temporal_policy_transport.history_alphabet_incompatible");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::temporal_policy_transport::HISTORY_ALPHABET_INCOMPATIBLE
+    );
 
     // a declaration for other periods
     let mut wrong = invariance_ok.clone();
@@ -1042,14 +1118,20 @@ fn time_varying_horizon_and_history_incompatibilities_are_refused() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "temporal_policy_transport.invariance_binding_mismatch");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::temporal_policy_transport::INVARIANCE_BINDING_MISMATCH
+    );
 
     // the model's own period
     let mut same = target_ok.clone();
     same.period = "2026".into();
     let err = evaluate_temporal_policy(&TemporalPolicyRequest { target: &same, ..base }, &ctx())
         .unwrap_err();
-    assert_eq!(err.detail, "temporal_policy_transport.target_is_source");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::temporal_policy_transport::TARGET_IS_SOURCE
+    );
 
     // the existing request check still names the missing contract
     assert!(
@@ -1243,16 +1325,25 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
     let err =
         transport_adaptive_trial(&AdaptiveTransportRequest { contract: None, ..base }).unwrap_err();
     assert_eq!(err.code, "adaptive_contract_incomplete");
-    assert_eq!(err.detail, "adaptive_transport.assignment_monitoring_contract_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::ASSIGNMENT_MONITORING_CONTRACT_MISSING
+    );
     assert!(err.remedy.contains("realized assignment probabilities"));
 
     let err =
         transport_adaptive_trial(&AdaptiveTransportRequest { diagram: None, ..base }).unwrap_err();
-    assert_eq!(err.detail, "adaptive_transport.selection_diagram_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::SELECTION_DIAGRAM_MISSING
+    );
     let err =
         transport_adaptive_trial(&AdaptiveTransportRequest { target_stratum_law: None, ..base })
             .unwrap_err();
-    assert_eq!(err.detail, "adaptive_transport.target_stratum_law_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::TARGET_STRATUM_LAW_MISSING
+    );
 
     // a shifted outcome mechanism cannot be supplied by the trial
     let mut shifted = trial_diagram();
@@ -1261,7 +1352,10 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
         transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&shifted), ..base })
             .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "adaptive_transport.outcome_mechanism_not_invariant");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::OUTCOME_MECHANISM_NOT_INVARIANT
+    );
 
     // an undeclared mechanism
     let mut partial = trial_diagram();
@@ -1269,7 +1363,10 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
     let err =
         transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&partial), ..base })
             .unwrap_err();
-    assert_eq!(err.detail, "adaptive_transport.mechanism_status_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::MECHANISM_STATUS_MISSING
+    );
 
     // a fixed design is not an adaptive source
     let fixed = AdaptiveDesignContract::new(declaration(cell(
@@ -1282,7 +1379,10 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
         transport_adaptive_trial(&AdaptiveTransportRequest { contract: Some(&fixed), ..base })
             .unwrap_err();
     assert_eq!(err.code, "route_not_supported");
-    assert_eq!(err.detail, "adaptive_transport.design_not_adaptive");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::DESIGN_NOT_ADAPTIVE
+    );
 
     // a procedure cell with no adaptively weighted route
     let thompson = AdaptiveDesignContract::new(declaration(cell(
@@ -1314,7 +1414,10 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
     let err = transport_adaptive_trial(&AdaptiveTransportRequest { contract: Some(&thin), ..base })
         .unwrap_err();
     assert_eq!(err.code, "adaptive_assumption_violated");
-    assert_eq!(err.detail, "adaptive_transport.assignment_below_floor");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::ASSIGNMENT_BELOW_FLOOR
+    );
 }
 
 #[test]
@@ -1337,7 +1440,10 @@ fn a_stratum_the_adaptive_assignment_starved_is_a_support_failure() {
     };
     let err = transport_adaptive_trial(&request).unwrap_err();
     assert_eq!(err.code, "transport_support_failure");
-    assert_eq!(err.detail, "adaptive_transport.stratum_arm_unobserved");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::STRATUM_ARM_UNOBSERVED
+    );
     assert!(err.message.contains("got_control"));
 }
 
@@ -1366,21 +1472,24 @@ fn the_trial_population_is_bound_to_the_diagram_and_distinct_from_the_target() {
     })
     .unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "adaptive_transport.diagram_binding_mismatch");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::DIAGRAM_BINDING_MISMATCH
+    );
 
     // target equal to source
     let mut same = trial_diagram();
     same.target_population = "trial_sites".into();
     let err = transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&same), ..base })
         .unwrap_err();
-    assert_eq!(err.detail, "adaptive_transport.target_is_source");
+    assert_eq!(err.detail, antecedent_core::reason_details::adaptive_transport::TARGET_IS_SOURCE);
 
     // blank label
     let mut blank = trial_diagram();
     blank.target_population = "  ".into();
     let err = transport_adaptive_trial(&AdaptiveTransportRequest { diagram: Some(&blank), ..base })
         .unwrap_err();
-    assert_eq!(err.detail, "adaptive_transport.population_label");
+    assert_eq!(err.detail, antecedent_core::reason_details::adaptive_transport::POPULATION_LABEL);
 }
 
 #[test]
@@ -1409,6 +1518,9 @@ fn an_invariant_stratum_law_must_equal_the_trials_empirical_law() {
         ..request
     })
     .unwrap_err();
-    assert_eq!(err.detail, "adaptive_transport.stratum_law_declared_invariant");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::adaptive_transport::STRATUM_LAW_DECLARED_INVARIANT
+    );
     assert!(err.remedy.contains("shifted"));
 }

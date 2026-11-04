@@ -116,7 +116,8 @@ pub const MSM_ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// The statement of the withheld sampling interval.
 pub const MSM_SAMPLING_STATEMENT: &str = "sampling interval: not reported";
 /// Detail of the withheld sampling interval.
-pub const MSM_INTERVAL_WITHHELD: &str = "msm_sensitivity.no_interval_method";
+pub const MSM_INTERVAL_WITHHELD: &str =
+    antecedent_core::reason_details::msm_sensitivity::NO_INTERVAL_METHOD;
 
 /// A finite-support outcome law (values and probabilities, any order).
 #[derive(Clone, Debug, PartialEq)]
@@ -336,7 +337,11 @@ struct Prepared {
 }
 
 fn invalid_law(message: &str) -> MsmSensitivityError {
-    refuse(reason_code!("invalid_argument"), "msm_sensitivity.outcome_law", message)
+    refuse(
+        reason_code!("invalid_argument"),
+        antecedent_core::reason_details::msm_sensitivity::OUTCOME_LAW,
+        message,
+    )
 }
 
 fn prepare_arm(law: &MsmOutcomeLaw, hidden: f64) -> Result<Arm, MsmSensitivityError> {
@@ -366,7 +371,7 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
     if strata.is_empty() || strata.len() > MSM_MAX_STRATA {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("{} strata declared; 1 to {MSM_MAX_STRATA} are admitted", strata.len()),
         ));
     }
@@ -376,7 +381,7 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
     if cells.is_none_or(|c| c > MSM_MAX_LAW_CELLS) {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("the outcome laws hold more than {MSM_MAX_LAW_CELLS} atoms in total"),
         ));
     }
@@ -387,14 +392,14 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
         if !e.is_finite() || e <= 0.0 || e >= 1.0 {
             return Err(refuse(
                 reason_code!("route_not_supported"),
-                "msm_sensitivity.positivity",
+                antecedent_core::reason_details::msm_sensitivity::POSITIVITY,
                 format!("propensity {e} is not strictly inside (0, 1); the weights are undefined"),
             ));
         }
         if !stratum.mass.is_finite() || stratum.mass <= 0.0 {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "msm_sensitivity.stratum_mass",
+                antecedent_core::reason_details::msm_sensitivity::STRATUM_MASS,
                 format!("stratum mass {} must be positive and finite", stratum.mass),
             ));
         }
@@ -408,7 +413,7 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
     if (total - 1.0).abs() > MSM_UNIT_MASS_TOLERANCE {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.stratum_mass",
+            antecedent_core::reason_details::msm_sensitivity::STRATUM_MASS,
             format!("stratum masses sum to {total}, not 1"),
         ));
     }
@@ -456,14 +461,14 @@ fn check_lambda(lambda: f64) -> Result<(), MsmSensitivityError> {
     if !lambda.is_finite() || lambda < 1.0 {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.lambda_below_one",
+            antecedent_core::reason_details::msm_sensitivity::LAMBDA_BELOW_ONE,
             format!("Lambda {lambda} must be finite and at least 1"),
         ));
     }
     if lambda > MSM_MAX_LAMBDA {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("Lambda {lambda} exceeds {MSM_MAX_LAMBDA}"),
         ));
     }
@@ -474,7 +479,7 @@ fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.composition_not_supported",
+            antecedent_core::reason_details::msm_sensitivity::COMPOSITION_NOT_SUPPORTED,
             format!(
                 "composing a sampling interval with the assumption range by `{method}` is not supported"
             ),
@@ -484,21 +489,21 @@ fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     if spec.lambda_max <= 1.0 {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.lambda_range_empty",
+            antecedent_core::reason_details::msm_sensitivity::LAMBDA_RANGE_EMPTY,
             "lambda_max must exceed 1 so the grid spans an assumption range",
         ));
     }
     if !(2..=MSM_MAX_GRID_POINTS).contains(&spec.grid_points) {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("{} grid points; 2 to {MSM_MAX_GRID_POINTS} are admitted", spec.grid_points),
         ));
     }
     if spec.decision_threshold.is_some_and(|t| !t.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.invalid_threshold",
+            antecedent_core::reason_details::msm_sensitivity::INVALID_THRESHOLD,
             "the decision threshold must be finite",
         ));
     }
@@ -507,7 +512,7 @@ fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.invalid_tolerance",
+            antecedent_core::reason_details::msm_sensitivity::INVALID_TOLERANCE,
             format!("tolerance {} is outside [1e-12, 1e-3]", spec.tolerance),
         ));
     }
@@ -615,7 +620,7 @@ pub fn msm_ate_sensitivity(
     if cells.saturating_mul(spec.grid_points as u64) > MSM_MAX_WORK {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("{} grid points over {cells} atoms exceeds the work budget", spec.grid_points),
         ));
     }

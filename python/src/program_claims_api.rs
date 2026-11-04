@@ -127,7 +127,7 @@ pub(crate) fn claim_from(wire: ClaimWire) -> Result<ExternalProgramClaim, Extern
             ScientificQuantity::try_from(quantity).map_err(|why| {
                 declared_refusal(
                     "bind",
-                    "program_binding.malformed_quantity",
+                    antecedent_core::reason_details::program_binding::MALFORMED_QUANTITY,
                     Some("quantities".to_owned()),
                     None,
                     Some(why.to_owned()),
@@ -228,7 +228,7 @@ fn calibration_from(name: &str) -> Result<DistributionCalibration, ExternalRefus
         "point_only" => Ok(DistributionCalibration::PointOnly),
         other => Err(declared_refusal(
             "bind",
-            "native_claims.calibration_not_supported",
+            antecedent_core::reason_details::native_claims::CALIBRATION_NOT_SUPPORTED,
             None,
             Some("unmeasured,point_only".to_owned()),
             Some(other.to_owned()),
@@ -386,7 +386,7 @@ impl PyNativeResponseClaim {
                         None,
                         Some(refusal_json(declared_refusal(
                             "evaluate",
-                            "native_claims.no_source_requirement",
+                            antecedent_core::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
                             None,
                             None,
                             None,
@@ -426,7 +426,7 @@ impl PyNativeResponseClaim {
                 Ok(None) => {
                     let refusal = declared_refusal(
                         "evaluate",
-                        "native_claims.no_source_requirement",
+                        antecedent_core::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
                         None,
                         None,
                         None,
@@ -479,22 +479,33 @@ fn native_response_claim(
         let Some(raw) = raw else {
             return Ok((
                 None,
-                Some(refusal_json(refusal("native_claims.native_state_unavailable"))?),
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                ))?),
             ));
         };
         let Some(authority) = &raw.authority else {
             return Ok((
                 None,
-                Some(refusal_json(refusal("native_claims.native_state_unavailable"))?),
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                ))?),
             ));
         };
         if supplied != raw.claim_projection() {
-            return Ok((None, Some(refusal_json(refusal("native_claims.projection_mismatch"))?)));
+            return Ok((
+                None,
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::PROJECTION_MISMATCH,
+                ))?),
+            ));
         }
         let Some(executed) = authority.result.executed_contract() else {
             return Ok((
                 None,
-                Some(refusal_json(refusal("native_claims.native_state_unavailable"))?),
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                ))?),
             ));
         };
         let actual_snapshot = executed.identities.data_snapshot.to_hex();
@@ -503,10 +514,20 @@ fn native_response_claim(
         if snapshot_id.is_some_and(|id| id != actual_snapshot)
             || rng_id.is_some_and(|id| id != actual_rng)
         {
-            return Ok((None, Some(refusal_json(refusal("native_claims.provenance_mismatch"))?)));
+            return Ok((
+                None,
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::PROVENANCE_MISMATCH,
+                ))?),
+            ));
         }
         if program.graph_id != actual_graph {
-            return Ok((None, Some(refusal_json(refusal("native_claims.program_mismatch"))?)));
+            return Ok((
+                None,
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::PROGRAM_MISMATCH,
+                ))?),
+            ));
         }
         if program.contract_id
             != native_contract_id(
@@ -515,7 +536,12 @@ fn native_response_claim(
                 premises_json,
             )?
         {
-            return Ok((None, Some(refusal_json(refusal("native_claims.contract_mismatch"))?)));
+            return Ok((
+                None,
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::CONTRACT_MISMATCH,
+                ))?),
+            ));
         }
         let actual_calibration =
             if matches!(authority.response.uncertainty, ResponseUncertainty::None) {
@@ -526,7 +552,9 @@ fn native_response_claim(
         if calibration.is_some_and(|value| value != actual_calibration) {
             return Ok((
                 None,
-                Some(refusal_json(refusal("native_claims.calibration_not_supported"))?),
+                Some(refusal_json(refusal(
+                    antecedent_core::reason_details::native_claims::CALIBRATION_NOT_SUPPORTED,
+                ))?),
             ));
         }
         let context = NativeResponseContext {

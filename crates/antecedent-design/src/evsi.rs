@@ -385,55 +385,55 @@ impl EvsiError {
         match self {
             Self::Signal(error) => error.to_refusal(),
             Self::Design(DesignError::Resource(message)) => {
-                at("execution_resource_limit", "evsi.execution_resource_limit").expected(message.clone()).build()
+                at("execution_resource_limit", antecedent_core::reason_details::evsi::EXECUTION_RESOURCE_LIMIT).expected(message.clone()).build()
             }
             Self::Design(error) => {
-                at(signal, "evsi.design_error").expected(error.to_string()).build()
+                at(signal, antecedent_core::reason_details::evsi::DESIGN_ERROR).expected(error.to_string()).build()
             }
             Self::InvalidRequest(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evsi.invalid_request",
+                antecedent_core::reason_details::evsi::INVALID_REQUEST,
             )
             .offending(*what)
             .build(),
             Self::DuplicateCandidate(id) => {
-                at(signal, "evsi.duplicate_candidate").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::DUPLICATE_CANDIDATE).offending(id.clone()).build()
             }
-            Self::SourceOverlap(ids) => at(signal, "evsi.source_overlap")
+            Self::SourceOverlap(ids) => at(signal, antecedent_core::reason_details::evsi::SOURCE_OVERLAP)
                 .offending(ids.join(","))
                 .remedy("use only data not already summarized by the prior")
                 .build(),
             Self::SourceOverlapUnknown { candidate, reason } => at(
                 antecedent_core::reason_code!("evidence_overlap_unknown"),
-                "evsi.source_overlap_unknown",
+                antecedent_core::reason_details::evsi::SOURCE_OVERLAP_UNKNOWN,
             )
             .offending(candidate.clone())
             .expected(reason.clone())
             .remedy("declare the observations behind the prior and the study in the evidence ledger")
             .build(),
             Self::SampleSizeMismatch(id) => {
-                at(signal, "evsi.sample_size_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::SAMPLE_SIZE_MISMATCH).offending(id.clone()).build()
             }
             Self::ReceiptMismatch(id) => {
-                at(signal, "evsi.receipt_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::RECEIPT_MISMATCH).offending(id.clone()).build()
             }
             Self::PriorStatesMismatch(id) => {
-                at(signal, "evsi.prior_states_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::PRIOR_STATES_MISMATCH).offending(id.clone()).build()
             }
             Self::ActionSetChanged => at(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                "evsi.action_set_changed",
+                antecedent_core::reason_details::evsi::ACTION_SET_CHANGED,
             )
             .remedy("an action-set change is a separate decision problem")
             .build(),
-            Self::DecisionValuesNeedDraws => at(signal, "evsi.decision_values_need_draws").build(),
+            Self::DecisionValuesNeedDraws => at(signal, antecedent_core::reason_details::evsi::DECISION_VALUES_NEED_DRAWS).build(),
             Self::DecisionValuesIncoherent(id) => {
-                at(signal, "evsi.decision_values_incoherent").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::DECISION_VALUES_INCOHERENT).offending(id.clone()).build()
             }
-            Self::CostMapRequired => at(units, "evsi.cost_map_required")
+            Self::CostMapRequired => at(units, antecedent_core::reason_details::evsi::COST_MAP_REQUIRED)
                 .remedy("supply a cost-to-utility mapping or report value and cost separately")
                 .build(),
-            Self::CostUnitsMismatch(what) => at(units, "evsi.cost_units_mismatch")
+            Self::CostUnitsMismatch(what) => at(units, antecedent_core::reason_details::evsi::COST_UNITS_MISMATCH)
                 .offending(what.clone())
                 .remedy(
                     "declare each study cost in the cost map's cost unit and map it into the decision's utility unit",
@@ -441,17 +441,17 @@ impl EvsiError {
                 .build(),
             Self::InvalidCost(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evsi.invalid_cost",
+                antecedent_core::reason_details::evsi::INVALID_COST,
             )
             .offending(what.clone())
             .build(),
             Self::BoundViolation(which) => {
-                at(signal, "evsi.bound_violation").offending(*which).build()
+                at(signal, antecedent_core::reason_details::evsi::BOUND_VIOLATION).offending(*which).build()
             }
             Self::Cancelled => {
-                at(antecedent_core::reason_code!("cancelled_no_claim"), "evsi.cancelled").build()
+                at(antecedent_core::reason_code!("cancelled_no_claim"), antecedent_core::reason_details::evsi::CANCELLED).build()
             }
-            Self::Unscored(id) => at(signal, "evsi.unscored_candidate").offending(id.clone()).build(),
+            Self::Unscored(id) => at(signal, antecedent_core::reason_details::evsi::UNSCORED_CANDIDATE).offending(id.clone()).build(),
         }
     }
 }

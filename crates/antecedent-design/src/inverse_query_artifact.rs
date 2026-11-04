@@ -105,11 +105,15 @@ const META_SECTION: &str = "inverse_query.meta";
 const CONTRACT_SECTION: &str = "inverse_query.contract";
 const DATA_SECTION: &str = "inverse_query.data";
 const CONTRACT_ARTIFACT_ID: &str = "inverse-query-contract";
-const WRONG_CONTRACT: &str = "functional_inverse_query.wrong_contract";
-const GLOBAL_CLAIM: &str = "functional_inverse_query.global_feasibility_claim";
-const BOUNDS: &str = "functional_inverse_query.bounds_exceeded";
-const ORIGIN_INVALID: &str = "functional_inverse_query.forward_origin_invalid";
-const KIND_MISMATCH: &str = "functional_inverse_query.artifact_kind_mismatch";
+const WRONG_CONTRACT: &str =
+    antecedent_core::reason_details::functional_inverse_query::WRONG_CONTRACT;
+const GLOBAL_CLAIM: &str =
+    antecedent_core::reason_details::functional_inverse_query::GLOBAL_FEASIBILITY_CLAIM;
+const BOUNDS: &str = antecedent_core::reason_details::functional_inverse_query::BOUNDS_EXCEEDED;
+const ORIGIN_INVALID: &str =
+    antecedent_core::reason_details::functional_inverse_query::FORWARD_ORIGIN_INVALID;
+const KIND_MISMATCH: &str =
+    antecedent_core::reason_details::functional_inverse_query::ARTIFACT_KIND_MISMATCH;
 
 /// The kind of bytes that are a recognised artifact: a container's own kind, or the
 /// bare-CBOR joint-law propagation and mechanism-composition artifacts, decoded
@@ -199,7 +203,7 @@ pub fn artifact_refusal(error: &IoError) -> antecedent_contract::ExternalRefusal
         }
         other => (
             antecedent_core::reason_code!("invalid_argument"),
-            "functional_inverse_query.invalid_artifact".to_owned(),
+            antecedent_core::reason_details::functional_inverse_query::INVALID_ARTIFACT.to_owned(),
             other.to_string(),
         ),
     };
@@ -1363,7 +1367,7 @@ impl InverseQueryArtifact {
             {
                 return Err(source_refusal(crate::source_evidence::SourceEvidenceError {
                     code: antecedent_core::reason_code!("invalid_argument"),
-                    detail: "source_evidence.action_mismatch",
+                    detail: antecedent_core::reason_details::source_evidence::ACTION_MISMATCH,
                 }));
             }
             let matches_claim = |claim: &ForwardClaim| match claim {
@@ -1417,7 +1421,8 @@ impl InverseQueryArtifact {
             if !matched {
                 return Err(source_refusal(crate::source_evidence::SourceEvidenceError {
                     code: antecedent_core::reason_code!("invalid_argument"),
-                    detail: "source_evidence.forward_binding_mismatch",
+                    detail:
+                        antecedent_core::reason_details::source_evidence::FORWARD_BINDING_MISMATCH,
                 }));
             }
         }

@@ -584,9 +584,15 @@ impl Source<'_> {
             }
         }
         if masked {
-            Some((FeasibilityStatus::Unsupported, "decision_evaluation.unsupported_coordinate"))
+            Some((
+                FeasibilityStatus::Unsupported,
+                antecedent_core::reason_details::decision_evaluation::UNSUPPORTED_COORDINATE,
+            ))
         } else if missing {
-            Some((FeasibilityStatus::Unevaluated, "decision_evaluation.quantity_not_found"))
+            Some((
+                FeasibilityStatus::Unevaluated,
+                antecedent_core::reason_details::decision_evaluation::QUANTITY_NOT_FOUND,
+            ))
         } else {
             None
         }

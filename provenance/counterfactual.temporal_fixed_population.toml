@@ -41,17 +41,20 @@ record_sha256 = "43fb701691e3d78cae1469e00c85c73074993bd1a494bdd9d4575bab7997639
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/temporal_cross_world.rs"
-sha256 = "50496219e0294003301723c38e6efc7460112118fd46c33e8226c9342ce1dd4b"
+items = ["const ALL", "const MAX_HORIZON", "const MAX_UNITS", "const MAX_WORLDS", "const MECHANISM_CLASS", "const POLL_EVERY", "enum TemporalCounterfactualError", "enum TemporalNode", "fn abduce_unit", "fn as_str", "fn check_inputs", "fn check_pairing", "fn digest", "fn digest_draw", "fn digest_factual", "fn digest_fit", "fn digest_graph", "fn digest_history", "fn empty", "fn evaluate_temporal_counterfactual", "fn exogenous_of", "fn index", "fn invalid", "fn is_action", "fn is_self_consistent", "fn name", "fn new", "fn node_value", "fn poll", "fn recompute_digest", "fn refusal", "fn refuse", "fn replay", "fn sorted_edges", "fn unit_set", "fn unpaired", "fn unsupported", "fn validate_graph", "fn witness", "struct FactualUnitHistory", "struct NamedActionHistory", "struct NodeMechanism", "struct RefusingWitness", "struct SharedAbductionReceipt", "struct TemporalCounterfactualResult", "struct TemporalCounterfactualSpec", "struct TemporalGraph", "struct TemporalMechanismFit", "struct TemporalRefusal", "struct UnitCounterfactual", "struct UnitDrawDigest"]
+sha256 = "e2ee4d3c76f7c8d19d46429aef344afec8343224fd7a8c123730a914debf0a2b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/temporal_cross_world/general.rs"
-sha256 = "f9243cd1e15d2e5a60c665324ad5e243f58249774f293070ca7b2ee35d67d32b"
+items = ["const MAX_WORK", "fn abduce_unit", "fn check_fit", "fn check_inputs", "fn covariate_node", "fn digest_draw", "fn digest_factual", "fn digest_fit", "fn digest_world", "fn evaluate_general_temporal_counterfactual", "fn exogenous_of", "fn is_action", "fn is_self_consistent", "fn node_count", "fn node_value", "fn outcome_node", "fn recompute_digest", "fn replay", "fn unpaired", "struct GeneralAbductionReceipt", "struct GeneralActionHistory", "struct GeneralFactualHistory", "struct GeneralMechanismFit", "struct GeneralNodeMechanism", "struct GeneralTemporalResult", "struct GeneralTemporalSpec", "struct GeneralUnitCounterfactual"]
+sha256 = "a1ad578044ca7b941e364aa92ecfe9f1ea3d95393b9cecfa073ac6378aa0eaa1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/temporal_fixed_population_reference.rs"
-sha256 = "554c2382aaa00962e5ab5bf63273b15a539428c7744b1c4a098bc1e7f4ad1730"
+items = ["fn cases", "fn f", "fn floats", "fn general_horizon_route_matches_the_exact_reference_and_its_staged_executor", "fn general_spec"]
+sha256 = "c410a7ea219d18078f12d03970416da0fb13bb01d13518e526a23a9d1e0506a2"
 
 [[method_review.artifacts]]
 role = "reference"

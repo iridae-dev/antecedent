@@ -134,12 +134,16 @@ pub const COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =
 pub const COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A request outside a declared bound.
-pub(crate) const BOUNDS_EXCEEDED: &str = "counterfactual_transport.bounds_exceeded";
+pub(crate) const BOUNDS_EXCEEDED: &str =
+    antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED;
 /// A malformed query, graph or catalog.
-const INVALID_QUERY: &str = "counterfactual_transport.invalid_query";
-const INVALID_CATALOG: &str = "counterfactual_transport.invalid_catalog";
+const INVALID_QUERY: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_QUERY;
+const INVALID_CATALOG: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_CATALOG;
 /// The graph is outside the contract (directed cycle).
-const GRAPH_OUTSIDE_CONTRACT: &str = "counterfactual_transport.graph_outside_contract";
+const GRAPH_OUTSIDE_CONTRACT: &str =
+    antecedent_core::reason_details::counterfactual_transport::GRAPH_OUTSIDE_CONTRACT;
 
 /// Refuse a directed cycle before the transport problem is ordered.
 fn refuse_transport_cycle(
@@ -175,15 +179,22 @@ fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
 }
 
 /// The coupling is not the shared latent exogenous coupling.
-const COUPLING_UNSUPPORTED: &str = "counterfactual_transport.coupling_unsupported";
+const COUPLING_UNSUPPORTED: &str =
+    antecedent_core::reason_details::counterfactual_transport::COUPLING_UNSUPPORTED;
 /// A regime law of a selected sample is supplied; the contract has no selection-bias model.
-const SELECTED_SAMPLE: &str = "counterfactual_transport.selected_sample_law";
-const NO_FACTOR_DERIVATION: &str = "counterfactual_transport.factor_not_derivable";
-const MISSING_REGIME: &str = "counterfactual_transport.missing_regime";
-const CHECKED_OBSTRUCTION: &str = "counterfactual_transport.checked_obstruction";
-const BUDGET: &str = "counterfactual_transport.budget";
-const INVALID_DERIVATION: &str = "counterfactual_transport.invalid_derivation";
-const INVALID_WITNESS: &str = "counterfactual_transport.invalid_witness";
+const SELECTED_SAMPLE: &str =
+    antecedent_core::reason_details::counterfactual_transport::SELECTED_SAMPLE_LAW;
+const NO_FACTOR_DERIVATION: &str =
+    antecedent_core::reason_details::counterfactual_transport::FACTOR_NOT_DERIVABLE;
+const MISSING_REGIME: &str =
+    antecedent_core::reason_details::counterfactual_transport::MISSING_REGIME;
+const CHECKED_OBSTRUCTION: &str =
+    antecedent_core::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION;
+const BUDGET: &str = antecedent_core::reason_details::counterfactual_transport::BUDGET;
+const INVALID_DERIVATION: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_DERIVATION;
+const INVALID_WITNESS: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_WITNESS;
 
 /// The frozen `(reason code, counterfactual_transport.* detail)` pair of an error
 /// raised by this route: `route_not_supported` for a bound or a graph outside the

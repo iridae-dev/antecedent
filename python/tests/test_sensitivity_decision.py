@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent import sensitivity_decision as sd
 from antecedent.decision import Contract
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
@@ -230,7 +231,10 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
         )
     assert isinstance(composed.value, CausalUnsupportedError)
     assert composed.value.reason_code == "route_not_supported"
-    assert composed.value.detail == "sensitivity_decision_composition.composition_not_supported"
+    assert (
+        composed.value.detail
+        == reason_details.sensitivity_decision_composition.COMPOSITION_NOT_SUPPORTED
+    )
 
     # An artifact that claims a composition is refused at construction.
     claimed = sd.SamplingInterval(
@@ -252,7 +256,7 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
     with pytest.raises(sd.SensitivityRefusal) as weights:
         require_success(sd.decide(plain.contract(), plain, weights=[0.2, 0.3, 0.5]))
     assert weights.value.reason_code == "decision_contract_unsatisfied"
-    assert weights.value.detail == "sensitivity_decision_composition.wrong_contract"
+    assert weights.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
 
 
 def test_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
@@ -269,7 +273,10 @@ def test_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
     with pytest.raises(sd.SensitivityRefusal) as unsupported:
         require_success(sd.decide(artifact.contract(), artifact))
     assert unsupported.value.reason_code == "quantity_semantics_mismatch"
-    assert unsupported.value.detail == "sensitivity_decision_composition.unsupported_coordinate"
+    assert (
+        unsupported.value.detail
+        == reason_details.sensitivity_decision_composition.UNSUPPORTED_COORDINATE
+    )
     avoided = require_success(sd.decide(artifact.contract(), artifact, range=(0.0, 0.0)))
     assert avoided.invariant_action == "A"
 
@@ -298,7 +305,7 @@ def test_mixed_estimands_and_foreign_inputs_refuse():
                 sd.SensitivityAction("B", sd.quantity("ua")),
             ],
         )
-    assert mixed.value.detail == "sensitivity_decision_composition.wrong_contract"
+    assert mixed.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
     assert mixed.value.reason_code == "decision_contract_unsatisfied"
 
     artifact = _frozen()
@@ -311,7 +318,7 @@ def test_mixed_estimands_and_foreign_inputs_refuse():
     )
     with pytest.raises(sd.SensitivityRefusal) as units:
         require_success(sd.decide(foreign, artifact))
-    assert units.value.detail == "sensitivity_decision_composition.wrong_contract"
+    assert units.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
     with pytest.raises(CausalTypeError):
         require_success(sd.decide("not a contract", artifact))  # type: ignore[arg-type]
 
@@ -348,7 +355,7 @@ def test_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
         require_success(
             sd.SensitivityArtifact.consume(resealed, expected_identity=artifact.identity)
         )
-    assert changed.value.detail == "sensitivity_decision_composition.wrong_contract"
+    assert changed.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
     assert "retained identity" in str(changed.value)
     assert other.identity["premises_digest"] == artifact.identity["premises_digest"]
     assert other.identity["data_digest"] != artifact.identity["data_digest"]

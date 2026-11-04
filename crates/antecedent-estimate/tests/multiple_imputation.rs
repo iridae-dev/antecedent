@@ -28,7 +28,10 @@ fn sparse_group_ids_are_refused_before_sizing_imputation_draws() {
         let groups: Arc<[u32]> = labels.into();
         let error =
             multiple_imputation::bind_units(None, Some(Arc::clone(&groups)), rows).unwrap_err();
-        assert_eq!(error.detail(), "multiple_imputation.units_labels");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::multiple_imputation::UNITS_LABELS
+        );
         // Directly constructing Groups must not bypass bind_units' validation.
         let values: Vec<f64> = (0..rows).map(|i| i as f64 + 1.0).collect();
         let error = Imputer::new(
@@ -37,7 +40,10 @@ fn sparse_group_ids_are_refused_before_sizing_imputation_draws() {
             ImputationUnits::Groups(groups),
         )
         .unwrap_err();
-        assert_eq!(error.detail(), "multiple_imputation.units_labels");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::multiple_imputation::UNITS_LABELS
+        );
     }
     let groups =
         multiple_imputation::bind_units(None, Some(Arc::from([0_u32, 0, 1, 1])), 4).unwrap();
@@ -68,7 +74,10 @@ fn interactions_recheck_the_observed_conditional_model_width() {
             (Arc::from("x2"), Arc::from("x3")),
         ])
         .unwrap_err();
-    assert_eq!(error.detail(), "multiple_imputation.not_identified");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::multiple_imputation::NOT_IDENTIFIED
+    );
 }
 
 #[test]
@@ -92,9 +101,15 @@ fn interaction_and_dynamic_width_checks_are_independent_of_builder_order() {
     // Eleven observed interior rows identify nine base dynamic coefficients,
     // but not the tenth interaction coefficient with the required two-row margin.
     let error = model().with_dynamics(1).unwrap().with_interactions(&pair).unwrap_err();
-    assert_eq!(error.detail(), "multiple_imputation.not_identified");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::multiple_imputation::NOT_IDENTIFIED
+    );
     let error = model().with_interactions(&pair).unwrap().with_dynamics(1).unwrap_err();
-    assert_eq!(error.detail(), "multiple_imputation.not_identified");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::multiple_imputation::NOT_IDENTIFIED
+    );
 }
 
 #[test]
@@ -140,15 +155,15 @@ fn rubin_pooling_matches_a_hand_computation() {
 
     assert_eq!(
         rubin_pool(&[1.0], &[0.1], None).unwrap_err().detail(),
-        "multiple_imputation.too_few_imputations"
+        antecedent_core::reason_details::multiple_imputation::TOO_FEW_IMPUTATIONS
     );
     assert_eq!(
         rubin_pool(&[1.0, 2.0], &[0.1, -0.1], None).unwrap_err().detail(),
-        "multiple_imputation.pool_non_finite"
+        antecedent_core::reason_details::multiple_imputation::POOL_NON_FINITE
     );
     assert_eq!(
         rubin_pool(&[1.0, 2.0], &[0.1, 0.1], Some(0.0)).unwrap_err().detail(),
-        "multiple_imputation.pool_df"
+        antecedent_core::reason_details::multiple_imputation::POOL_DF
     );
 }
 
@@ -164,12 +179,12 @@ fn the_stacked_posterior_keeps_the_between_axis() {
     assert!(stacked.between_share() > 0.8);
     assert_eq!(
         stack_posterior(&[&a, &b[..2]]).unwrap_err().detail(),
-        "multiple_imputation.stack_shape",
+        antecedent_core::reason_details::multiple_imputation::STACK_SHAPE,
         "unequal draws would weight unequally"
     );
     assert_eq!(
         stack_posterior(&[&a]).unwrap_err().detail(),
-        "multiple_imputation.too_few_imputations"
+        antecedent_core::reason_details::multiple_imputation::TOO_FEW_IMPUTATIONS
     );
 }
 
@@ -337,7 +352,10 @@ fn missing_not_at_random_is_refused_with_a_sensitivity_analysis() {
     let spec = ImputationSpec::new().with_assumption(MissingnessAssumption::MissingNotAtRandom);
     let refused = multiple_imputation::check_spec(&spec).unwrap_err();
     assert_eq!(refused.code(), "missing_policy_not_applicable");
-    assert_eq!(refused.detail(), "multiple_imputation.not_at_random");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::multiple_imputation::NOT_AT_RANDOM
+    );
     assert_eq!(
         refused.next_attempt().map(antecedent_core::NextAttempt::name),
         Some("sensitivity_analysis")
@@ -348,7 +366,10 @@ fn missing_not_at_random_is_refused_with_a_sensitivity_analysis() {
     {
         let refused = multiple_imputation::check_spec(&spec).unwrap_err();
         assert_eq!(refused.code(), "invalid_argument");
-        assert_eq!(refused.detail(), "multiple_imputation.spec_range");
+        assert_eq!(
+            refused.detail(),
+            antecedent_core::reason_details::multiple_imputation::SPEC_RANGE
+        );
     }
 }
 
@@ -382,7 +403,7 @@ fn the_sampling_design_governs_the_imputation_unit() {
     );
     assert_eq!(
         multiple_imputation::bind_units(None, Some(groups), 5).unwrap_err().detail(),
-        "multiple_imputation.units_shape"
+        antecedent_core::reason_details::multiple_imputation::UNITS_SHAPE
     );
 
     // Whole-cluster draws: rows of one cluster share one bootstrap weight, and the result
@@ -450,7 +471,10 @@ fn a_tiny_admission_pool_refuses_before_a_table_is_drawn() {
     let pool = AdmissionPool::fixed(1, 64);
     let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
     let refused = imputer.impute(0, &ctx).unwrap_err();
-    assert_eq!(refused.detail(), "multiple_imputation.admission_refused");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::multiple_imputation::ADMISSION_REFUSED
+    );
     assert_eq!(pool.available().bytes(), 64, "nothing stays charged");
     let failure = multiple_imputation::run(&imputer, &ctx, |_, _| {
         Ok::<_, ()>(ImputationFit::frequentist(0.0, 1.0, None))
@@ -516,7 +540,10 @@ fn unidentified_conditional_models_are_refused() {
         &[(Arc::from("x"), antecedent_data::ImputationDomain::Continuous)],
     )
     .unwrap_err();
-    assert_eq!(refused.detail(), "multiple_imputation.not_identified");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::multiple_imputation::NOT_IDENTIFIED
+    );
     assert_eq!(
         refused.next_attempt().map(antecedent_core::NextAttempt::name),
         Some("complete_case")
@@ -538,7 +565,10 @@ fn constant_zero_one_requires_domain_and_binary_boundary_preserves_support() {
         let error =
             Imputer::new(columns(), ImputationSpec::new(), ImputationUnits::Rows).unwrap_err();
         assert_eq!(error.code(), "invalid_argument");
-        assert_eq!(error.detail(), "multiple_imputation.ambiguous_variable_domain");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::multiple_imputation::AMBIGUOUS_VARIABLE_DOMAIN
+        );
         let binary = [(Arc::from("x"), ImputationDomain::Binary)];
         let imputer = Imputer::new_with_domains(
             columns(),
@@ -561,7 +591,10 @@ fn constant_zero_one_requires_domain_and_binary_boundary_preserves_support() {
             &binary,
         )
         .unwrap_err();
-        assert_eq!(normal.detail(), "multiple_imputation.binary_under_joint_normal");
+        assert_eq!(
+            normal.detail(),
+            antecedent_core::reason_details::multiple_imputation::BINARY_UNDER_JOINT_NORMAL
+        );
         let continuous = [(Arc::from("x"), ImputationDomain::Continuous)];
         let continuous = Imputer::new_with_domains(
             columns(),
@@ -638,7 +671,10 @@ fn constant_zero_one_requires_domain_and_binary_boundary_preserves_support() {
         )
         .unwrap_err();
         assert_eq!(error.code(), "invalid_argument");
-        assert_eq!(error.detail(), "multiple_imputation.variable_domain");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::multiple_imputation::VARIABLE_DOMAIN
+        );
     }
     let bad = vec![ImputationColumn::new("x", vec![0.0, 0.0, 2.0, 0.0, f64::NAN])];
     let error = Imputer::new_with_domains(
@@ -649,7 +685,10 @@ fn constant_zero_one_requires_domain_and_binary_boundary_preserves_support() {
     )
     .unwrap_err();
     assert_eq!(error.code(), "invalid_argument");
-    assert_eq!(error.detail(), "multiple_imputation.variable_domain");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::multiple_imputation::VARIABLE_DOMAIN
+    );
 }
 
 #[test]

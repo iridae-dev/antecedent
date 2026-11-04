@@ -59,24 +59,30 @@ use crate::compose::{
 pub const MECHANISM_TRANSPORT_VERSION: u32 = 2;
 
 /// A carried mechanism is not a fitted one.
-pub const DETAIL_ORIGIN_NOT_FITTED: &str = "mechanism_transport.origin_not_fitted";
+pub const DETAIL_ORIGIN_NOT_FITTED: &str =
+    antecedent_core::reason_details::mechanism_transport::ORIGIN_NOT_FITTED;
 /// A carried mechanism is not additive-noise linear-Gaussian.
-pub const DETAIL_FAMILY_UNSUPPORTED: &str = "mechanism_transport.family_unsupported";
+pub const DETAIL_FAMILY_UNSUPPORTED: &str =
+    antecedent_core::reason_details::mechanism_transport::FAMILY_UNSUPPORTED;
 /// The diagram does not describe the source population of a carried mechanism.
-pub const DETAIL_DIAGRAM_SOURCE_MISMATCH: &str = "mechanism_transport.diagram_source_mismatch";
+pub const DETAIL_DIAGRAM_SOURCE_MISMATCH: &str =
+    antecedent_core::reason_details::mechanism_transport::DIAGRAM_SOURCE_MISMATCH;
 /// The diagram does not describe the request's target population.
-pub const DETAIL_DIAGRAM_TARGET_MISMATCH: &str = "mechanism_transport.diagram_target_mismatch";
+pub const DETAIL_DIAGRAM_TARGET_MISMATCH: &str =
+    antecedent_core::reason_details::mechanism_transport::DIAGRAM_TARGET_MISMATCH;
 /// A supplied target mechanism was not fitted in the target population.
-pub const DETAIL_TARGET_NOT_NATIVE: &str = "mechanism_transport.target_mechanism_not_native";
+pub const DETAIL_TARGET_NOT_NATIVE: &str =
+    antecedent_core::reason_details::mechanism_transport::TARGET_MECHANISM_NOT_NATIVE;
 /// A variable has more than one mechanism in one role.
-pub const DETAIL_DUPLICATE_MECHANISM: &str = "mechanism_transport.duplicate_mechanism";
+pub const DETAIL_DUPLICATE_MECHANISM: &str =
+    antecedent_core::reason_details::mechanism_transport::DUPLICATE_MECHANISM;
 /// A selection node points into a latent cause of a carried mechanism.
 pub const DETAIL_SELECTION_INTO_LATENT: &str =
     crate::compose::coherence::DETAIL_SELECTION_INTO_LATENT;
 /// A selection node points into a carried mechanism's variable (the literal
 /// of the composition checker, so one defect has one name).
 pub const DETAIL_SELECTION_INTO_MECHANISM: &str =
-    "mechanism_composition.population_selection_arrow_into_mechanism";
+    antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM;
 
 const TAG_IDENTITY: &str = "antecedent.model.mechanism_transport.complete_dependence.v2";
 

@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal, Utility
@@ -85,7 +86,7 @@ def test_temporal_accepts_one_hundred_thousand_history_rows_as_columns():
     assert sum(len(unit.histories) for unit in units) == 102_400
     result = require_success(TemporalSession().execute(big, execution=Execution(seed=41)))
     assert result.means == pytest.approx((truth(1, 1, 0.8), truth(0, 0, 0.8)), abs=1e-9)
-    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+    with pytest.raises(CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED):
         require_success(
             TemporalSession().execute(
                 big,
@@ -176,10 +177,10 @@ def test_temporal_unmeasured_history_protocol_preserves_source_state():
         session.dependent_interval()
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "route_not_supported",
-        "recalc.temporal_history_unsupported",
+        reason_details.recalc.TEMPORAL_HISTORY_UNSUPPORTED,
         "data_snapshot",
     )
-    assert "temporal_interval.studentized_unbalanced" in str(error.value)
+    assert reason_details.temporal_interval.STUDENTIZED_UNBALANCED in str(error.value)
     assert session.identities == ids
     # A request outside the measured protocol is reported, annotated `not_measured`.
     reported = session.dependent_interval(
@@ -209,7 +210,7 @@ def test_temporal_exact_scope_refusals_preserve_native_state():
             require_success(session.execute(changed, execution=Execution(seed=41)))
         assert (error.value.reason_code, error.value.detail, error.value.stage) == (
             "route_not_supported",
-            "recalc.temporal_scope_unsupported",
+            reason_details.recalc.TEMPORAL_SCOPE_UNSUPPORTED,
             "identification",
         )
         assert session.identities == ids
@@ -237,7 +238,7 @@ def test_temporal_native_capabilities_and_bounded_histories():
             )
         )
     assert error.value.reason_code == "invalid_argument"
-    assert "recalc.memory_budget_exceeded" in str(error.value)
+    assert reason_details.recalc.MEMORY_BUDGET_EXCEEDED in str(error.value)
 
 
 def test_temporal_source_artifact_independent_fresh_process_rebuild(tmp_path):
@@ -265,7 +266,7 @@ def test_temporal_source_artifact_independent_fresh_process_rebuild(tmp_path):
         )
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
-        "recalc.temporal_artifact_seed_mismatch",
+        reason_details.recalc.TEMPORAL_ARTIFACT_SEED_MISMATCH,
         "score_artifact",
     )
     code = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, pathlib, sys\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_temporal import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext, RecalcRefusal\nfrom antecedent.recalc_temporal import TemporalSession, consume_temporal_result\nreplay = require_success(consume_temporal_result(pathlib.Path(sys.argv[1]).read_bytes(), execution=Execution(seed=41)))\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nflags = require_success(TemporalSession.resume(receipt, ResumeContext(portable_fit=True, portable_scores=True)))\ntry:\n    require_success(flags.execute(request(), execution=Execution(seed=41)))\n    raise AssertionError('flags restored native mechanisms')\nexcept RecalcRefusal as error:\n    refused = (error.reason_code, error.detail, error.stage)\nraw = require_success(require_success(TemporalSession.resume(receipt, ResumeContext(supplied_data=True))).execute(request(), execution=Execution(seed=41)))\nprint(json.dumps({'means': replay.result.means, 'point': replay.result.law.ate, 'rebuild': replay.result.receipt.totals.factor_builds, 'reuse': require_success(replay.session.execute(request(), execution=Execution(seed=41))).receipt.totals.total, 'raw': raw.receipt.totals.factor_builds, 'refused': refused}))\n"
@@ -281,7 +282,7 @@ def test_temporal_source_artifact_independent_fresh_process_rebuild(tmp_path):
     assert observed["reuse"] == 0
     assert observed["refused"] == [
         "score_table_unavailable",
-        "recalc.unavailable_data",
+        reason_details.recalc.UNAVAILABLE_DATA,
         "data_snapshot",
     ]
 
@@ -296,7 +297,7 @@ def test_temporal_typed_unit_ownership_and_source_support_refusals():
         require_success(session.execute(duplicate, execution=Execution(seed=41)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "route_not_supported",
-        "recalc.temporal_history_unsupported",
+        reason_details.recalc.TEMPORAL_HISTORY_UNSUPPORTED,
         "data_snapshot",
     )
     assert session.identities == ids
@@ -309,7 +310,7 @@ def test_temporal_typed_unit_ownership_and_source_support_refusals():
         require_success(session.execute(gap, execution=Execution(seed=41)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "transport_support_failure",
-        "recalc.temporal_support_failure",
+        reason_details.recalc.TEMPORAL_SUPPORT_FAILURE,
         "law",
     )
     assert session.identities == ids

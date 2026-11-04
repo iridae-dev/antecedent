@@ -221,7 +221,10 @@ fn a_posterior_update_is_a_separate_signal_that_needs_its_observation_law() {
     // An update without the observation law is refused, as in the provider contract.
     let mut no_law = posterior();
     no_law.operations.remove(&CallbackOperation::Sample);
-    assert_eq!(detail(&refusal_of(&no_law)), "callback_protocol.update_declaration_mismatch");
+    assert_eq!(
+        detail(&refusal_of(&no_law)),
+        antecedent_core::reason_details::callback_protocol::UPDATE_DECLARATION_MISMATCH
+    );
 }
 
 #[test]
@@ -230,50 +233,77 @@ fn malformed_declarations_are_refused_with_registered_details() {
     let mut cases: Vec<(CallbackDeclaration, &str)> = Vec::new();
     let mut blank = gaussian();
     blank.identity.version_id = "  ".into();
-    cases.push((blank, "callback_protocol.blank_field"));
+    cases.push((blank, antecedent_core::reason_details::callback_protocol::BLANK_FIELD));
     let mut none = gaussian();
     none.operations.clear();
-    cases.push((none, "callback_protocol.no_operations"));
+    cases.push((none, antecedent_core::reason_details::callback_protocol::NO_OPERATIONS));
     let mut law_update = gaussian();
     law_update.operations.insert(CallbackOperation::PosteriorUpdate);
-    cases.push((law_update, "callback_protocol.operation_not_for_kind"));
+    cases.push((
+        law_update,
+        antecedent_core::reason_details::callback_protocol::OPERATION_NOT_FOR_KIND,
+    ));
     let mut posterior_cdf = posterior();
     posterior_cdf.operations.insert(CallbackOperation::Cdf);
-    cases.push((posterior_cdf, "callback_protocol.operation_not_for_kind"));
+    cases.push((
+        posterior_cdf,
+        antecedent_core::reason_details::callback_protocol::OPERATION_NOT_FOR_KIND,
+    ));
     let mut law_meaning = gaussian();
     law_meaning.meaning = DistributionMeaning::ParameterPosterior;
-    cases.push((law_meaning, "callback_protocol.meaning_not_for_kind"));
+    cases.push((
+        law_meaning,
+        antecedent_core::reason_details::callback_protocol::MEANING_NOT_FOR_KIND,
+    ));
     let mut posterior_meaning = posterior();
     posterior_meaning.meaning = DistributionMeaning::EstimatorSampling;
-    cases.push((posterior_meaning, "callback_protocol.meaning_not_for_kind"));
+    cases.push((
+        posterior_meaning,
+        antecedent_core::reason_details::callback_protocol::MEANING_NOT_FOR_KIND,
+    ));
     let mut update_missing = posterior();
     update_missing.update = None;
-    cases.push((update_missing, "callback_protocol.update_declaration_mismatch"));
+    cases.push((
+        update_missing,
+        antecedent_core::reason_details::callback_protocol::UPDATE_DECLARATION_MISMATCH,
+    ));
     let mut stray_update = gaussian();
     stray_update.update = posterior().update;
-    cases.push((stray_update, "callback_protocol.update_declaration_mismatch"));
+    cases.push((
+        stray_update,
+        antecedent_core::reason_details::callback_protocol::UPDATE_DECLARATION_MISMATCH,
+    ));
     let mut unnamed_stream = gaussian();
     unnamed_stream.replay = ReplayContract::SeededStochastic { stream_id: " ".into() };
-    cases.push((unnamed_stream, "callback_protocol.replay_contract_incomplete"));
+    cases.push((
+        unnamed_stream,
+        antecedent_core::reason_details::callback_protocol::REPLAY_CONTRACT_INCOMPLETE,
+    ));
     let mut zero_attempts = gaussian();
     zero_attempts.replay =
         ReplayContract::SideEffecting { retry: RetryContract::IdempotentKey { max_attempts: 0 } };
-    cases.push((zero_attempts, "callback_protocol.replay_contract_incomplete"));
+    cases.push((
+        zero_attempts,
+        antecedent_core::reason_details::callback_protocol::REPLAY_CONTRACT_INCOMPLETE,
+    ));
     let mut duplicate = gaussian();
     duplicate.dependencies = DependencyDeclaration::Complete(vec![
         CallbackDependency::new(DependencyKind::Data, "table", "v1"),
         CallbackDependency::new(DependencyKind::Data, "table", "v2"),
     ]);
-    cases.push((duplicate, "callback_protocol.duplicate_name"));
+    cases.push((duplicate, antecedent_core::reason_details::callback_protocol::DUPLICATE_NAME));
     let mut categorical = gaussian();
     categorical.support = SupportDomain::Categorical { levels: vec!["a".into(), "b".into()] };
-    cases.push((categorical, "callback_protocol.invalid_support"));
+    cases.push((categorical, antecedent_core::reason_details::callback_protocol::INVALID_SUPPORT));
     let mut nested_without_inputs = gaussian();
     nested_without_inputs.kind = CallbackKind::Nested;
-    cases.push((nested_without_inputs, "callback_protocol.nested_inputs_mismatch"));
+    cases.push((
+        nested_without_inputs,
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUTS_MISMATCH,
+    ));
     let mut trust_blank = gaussian();
     trust_blank.trust = CallbackTrust::ExternallyAttested { attestor: " ".into() };
-    cases.push((trust_blank, "callback_protocol.trust_incomplete"));
+    cases.push((trust_blank, antecedent_core::reason_details::callback_protocol::TRUST_INCOMPLETE));
     for (declaration, expected) in cases {
         let refusal = refusal_of(&declaration);
         assert_eq!(refusal.code, code, "{expected}");
@@ -437,7 +467,10 @@ fn opaque_or_undeclared_dependencies_make_reuse_ineligible() {
         };
         let plan = plan_reuse(&declaration, &request, Some(&stored), None);
         let CallbackPlan::Refuse(refusal) = plan else { panic!("must refuse, got {plan:?}") };
-        assert_eq!(refusal.detail, "callback_protocol.opaque_dependencies");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::callback_protocol::OPAQUE_DEPENDENCIES
+        );
         assert_eq!(refusal.code, antecedent_core::reason_code!("callback_reuse_ineligible"));
     }
 }
@@ -493,7 +526,10 @@ fn a_side_effecting_callback_is_reused_only_under_an_idempotent_contract_and_key
     let CallbackPlan::Refuse(refusal) = plan_reuse(&no_retry, &request, Some(&stored), None) else {
         panic!("a side-effecting callback with no retry contract is refused");
     };
-    assert_eq!(refusal.detail, "callback_protocol.no_idempotency_contract");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::callback_protocol::NO_IDEMPOTENCY_CONTRACT
+    );
     // First execution, with nothing stored, is a recompute decision; the
     // executor's policy decides whether effects are allowed.
     assert_eq!(
@@ -523,7 +559,10 @@ fn standing_is_diagnostic_unless_replayable_complete_and_attested() {
         let mut declaration = gaussian();
         mutate(&mut declaration);
         let refusal = standing_of(&declaration, true).expect_err("diagnostic");
-        assert_eq!(refusal.detail, "callback_protocol.diagnostic_only");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::callback_protocol::DIAGNOSTIC_ONLY
+        );
         assert_eq!(refusal.offending.as_deref(), Some(reason));
         assert_eq!(standing_label(&declaration, true), ResultStanding::Diagnostic);
     };
@@ -565,23 +604,23 @@ fn a_well_formed_law_is_accepted_and_every_malformed_law_is_refused() {
     assert!(accepted(&cdf, CallbackOutput::Cdf { values: vec![0.1, 0.5, 0.9] }, &real));
     assert_eq!(
         refused_detail(&cdf, CallbackOutput::Cdf { values: vec![0.1, 0.9, 0.5] }, &real),
-        "callback_protocol.output_not_a_law"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW
     );
     assert_eq!(
         refused_detail(&cdf, CallbackOutput::Cdf { values: vec![0.1, 0.5, 1.2] }, &real),
-        "callback_protocol.output_not_a_law"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW
     );
     assert_eq!(
         refused_detail(&cdf, CallbackOutput::Cdf { values: vec![0.1, f64::NAN, 0.9] }, &real),
-        "callback_protocol.output_not_finite"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_FINITE
     );
     assert_eq!(
         refused_detail(&cdf, CallbackOutput::Cdf { values: vec![0.1, 0.5] }, &real),
-        "callback_protocol.output_shape"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_SHAPE
     );
     assert_eq!(
         refused_detail(&cdf, CallbackOutput::Mean { value: 0.0 }, &real),
-        "callback_protocol.output_shape"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_SHAPE
     );
     // A distribution function must put no mass below the support.
     let positive = SupportDomain::NonNegative;
@@ -589,7 +628,7 @@ fn a_well_formed_law_is_accepted_and_every_malformed_law_is_refused() {
     assert!(accepted(&below, CallbackOutput::Cdf { values: vec![0.0, 0.4] }, &positive));
     assert_eq!(
         refused_detail(&below, CallbackOutput::Cdf { values: vec![0.2, 0.4] }, &positive),
-        "callback_protocol.output_not_a_law"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW
     );
     // And all of it at or above the upper end of a bounded support.
     let unit = SupportDomain::interval(0.0, 1.0);
@@ -597,7 +636,7 @@ fn a_well_formed_law_is_accepted_and_every_malformed_law_is_refused() {
     assert!(accepted(&top, CallbackOutput::Cdf { values: vec![0.5, 1.0] }, &unit));
     assert_eq!(
         refused_detail(&top, CallbackOutput::Cdf { values: vec![0.5, 0.9] }, &unit),
-        "callback_protocol.output_not_a_law"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW
     );
 }
 
@@ -608,28 +647,28 @@ fn quantiles_draws_and_means_are_checked_against_the_support() {
     assert!(accepted(&quantile, CallbackOutput::Quantile { values: vec![0.1, 0.5, 0.9] }, &unit));
     assert_eq!(
         refused_detail(&quantile, CallbackOutput::Quantile { values: vec![0.5, 0.4, 0.9] }, &unit),
-        "callback_protocol.output_not_a_law"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW
     );
     assert_eq!(
         refused_detail(&quantile, CallbackOutput::Quantile { values: vec![0.1, 0.5, 1.5] }, &unit),
-        "callback_protocol.output_outside_support"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_OUTSIDE_SUPPORT
     );
     let sample = CallbackQuery::Sample { draws: 2 };
     assert_eq!(
         refused_detail(&sample, CallbackOutput::Sample { draws: vec![0.2, -0.1] }, &unit),
-        "callback_protocol.output_outside_support"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_OUTSIDE_SUPPORT
     );
     // A binary quantity takes only 0 and 1; its mean is a probability.
     let binary = SupportDomain::Binary;
     assert!(accepted(&sample, CallbackOutput::Sample { draws: vec![0.0, 1.0] }, &binary));
     assert_eq!(
         refused_detail(&sample, CallbackOutput::Sample { draws: vec![0.0, 0.5] }, &binary),
-        "callback_protocol.output_outside_support"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_OUTSIDE_SUPPORT
     );
     assert!(accepted(&CallbackQuery::Mean, CallbackOutput::Mean { value: 0.3 }, &binary));
     assert_eq!(
         refused_detail(&CallbackQuery::Mean, CallbackOutput::Mean { value: 1.5 }, &binary),
-        "callback_protocol.output_outside_support"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_OUTSIDE_SUPPORT
     );
     let update = CallbackQuery::PosteriorUpdate { observation: 2.0, draws: 2 };
     assert!(accepted(
@@ -643,7 +682,7 @@ fn quantiles_draws_and_means_are_checked_against_the_support() {
             CallbackOutput::PosteriorUpdate { mean: 1.6, draws: vec![1.0] },
             &SupportDomain::Real
         ),
-        "callback_protocol.output_shape"
+        antecedent_core::reason_details::callback_protocol::OUTPUT_SHAPE
     );
 }
 
@@ -659,17 +698,26 @@ fn queries_and_sizes_are_bounded_and_checked() {
         CallbackQuery::PosteriorUpdate { observation: f64::NAN, draws: 0 },
     ] {
         let refusal = query.validate().expect_err("malformed query");
-        assert_eq!(refusal.detail, "callback_protocol.query_invalid");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::callback_protocol::QUERY_INVALID
+        );
         let attempt =
             validate_output(&query, CallbackOutput::Mean { value: 0.0 }, &real, 10).unwrap_err();
-        assert_eq!(attempt.detail, "callback_protocol.query_invalid");
+        assert_eq!(
+            attempt.detail,
+            antecedent_core::reason_details::callback_protocol::QUERY_INVALID
+        );
     }
     // A larger answer than the bound is a limit refusal, not an invalid law.
     let query = CallbackQuery::Sample { draws: 11 };
     let refusal =
         validate_output(&query, CallbackOutput::Sample { draws: vec![0.0; 11] }, &real, 10)
             .expect_err("too large");
-    assert_eq!(refusal.detail, "callback_protocol.output_too_large");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_TOO_LARGE
+    );
     assert_eq!(refusal.code, antecedent_core::reason_code!("callback_limit_exceeded"));
 }
 
@@ -770,7 +818,10 @@ fn an_unregistered_inner_callback_is_refused_not_assumed_independent() {
     let outer = nested_over("outer", &inner, EvidenceBasis::Declared(BTreeSet::new()));
     let refusal = callback_source_declaration(&outer, &BTreeMap::new())
         .expect_err("the inner callback is not registered");
-    assert_eq!(refusal.detail, "callback_protocol.request_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::callback_protocol::REQUEST_MISMATCH
+    );
     assert_eq!(refusal.offending.as_deref(), Some("inner"));
 }
 
@@ -809,7 +860,10 @@ fn a_callback_connects_to_a_consumer_only_for_its_declared_quantity() {
         "source_law",
     )
     .unwrap_err();
-    assert!(wrong_population.iter().any(|r| r.detail == "interface_contract.population_mismatch"));
+    assert!(
+        wrong_population.iter().any(|r| r.detail
+            == antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH)
+    );
     let wrong_regime = check_connection(
         &producer,
         CALLBACK_OUTPUT_PORT,
@@ -817,7 +871,12 @@ fn a_callback_connects_to_a_consumer_only_for_its_declared_quantity() {
         "source_law",
     )
     .unwrap_err();
-    assert!(wrong_regime.iter().any(|r| r.detail == "interface_contract.regime_mismatch"));
+    assert!(
+        wrong_regime
+            .iter()
+            .any(|r| r.detail
+                == antecedent_core::reason_details::interface_contract::REGIME_MISMATCH)
+    );
     // A mean-only callback cannot feed a consumer that needs draws.
     let mean_only = with_ops(&[CallbackOperation::Mean]);
     let operation = check_connection(

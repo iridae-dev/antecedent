@@ -110,7 +110,7 @@ fn msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds() {
         panic!("the sampling interval must be withheld");
     };
     assert_eq!(reason_code, "uncertainty_representation_insufficient");
-    assert_eq!(detail, "msm_sensitivity.no_interval_method");
+    assert_eq!(detail, antecedent_core::reason_details::msm_sensitivity::NO_INTERVAL_METHOD);
     let provenance = built.provenance();
     assert_eq!(provenance.source_kind, MSM_SOURCE_KIND);
     assert_eq!(provenance.decision_threshold, Some(0.0));
@@ -191,7 +191,9 @@ fn msm_artifact_refuses_a_sampling_composition() {
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
     assert!(
-        message.starts_with("sensitivity_decision_composition.composition_not_supported"),
+        message.starts_with(
+            antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
+        ),
         "{message}"
     );
 }
@@ -205,11 +207,21 @@ fn msm_adapter_refuses_malformed_surfaces() {
         .unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("sensitivity_decision_composition.invalid_surface"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+        ),
+        "{message}"
+    );
     // A single action is not a decision.
     let one = vec![act("treat", UtilityTerm::quantity("ate"))];
     let error = msm_sensitivity_artifact(&result, &scientific("ate"), &[], one, "c").unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "decision_contract_unsatisfied");
-    assert!(message.starts_with("sensitivity_decision_composition.wrong_contract"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+        ),
+        "{message}"
+    );
 }

@@ -174,7 +174,10 @@ fn a_change_leaves_the_sibling_valid_and_recomputes_every_dependent() {
     // a refusal names the changed origin and does not call it a withdrawal
     let refusal = r.require_valid("decision").expect_err("stale decision");
     assert_eq!(refusal.code, "claim_revalidation_required");
-    assert_eq!(refusal.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     assert_eq!(refusal.expected.as_deref(), Some("origin cohort"));
 }
 
@@ -251,7 +254,10 @@ fn a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers() {
     assert!(decision.withdrawn_for(WithdrawalKind::ProviderTrust));
     let refusal = r.require_valid("decision").expect_err("withdrawn");
     assert_eq!(refusal.code, "claim_support_withdrawn");
-    assert_eq!(refusal.detail, "composition_verification.provider_trust_withdrawn");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN
+    );
     assert_eq!(refusal.offending.as_deref(), Some("decision"));
 }
 

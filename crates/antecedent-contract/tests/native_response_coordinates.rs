@@ -153,7 +153,10 @@ fn units_are_required_and_never_inferred() {
     ] {
         let refusal = response_coordinates(&r, &name_of, &blank).unwrap_err();
         assert_eq!(refusal.code, "invalid_argument");
-        assert_eq!(refusal.detail, "coordinate_support.units_required");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::coordinate_support::UNITS_REQUIRED
+        );
         assert_eq!(refusal.validate(), Ok(()));
     }
 }
@@ -213,7 +216,10 @@ fn what_has_no_exact_regime_refuses_instead_of_being_scalarized() {
     for (case, kind) in cases {
         let refusal = refusal_of(&case);
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "coordinate_support.regime_not_describable");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::coordinate_support::REGIME_NOT_DESCRIBABLE
+        );
         assert_eq!(refusal.supplied.as_deref(), Some(kind));
     }
 }
@@ -233,7 +239,10 @@ fn derivative_functionals_and_temporal_paths_refuse_with_their_own_detail() {
     );
     let refusal = refusal_of(&derivative);
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "coordinate_support.functional_not_described");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::coordinate_support::FUNCTIONAL_NOT_DESCRIBED
+    );
     assert_eq!(refusal.supplied.as_deref(), Some("point_derivative"));
 
     let jacobian = response(
@@ -256,7 +265,10 @@ fn derivative_functionals_and_temporal_paths_refuse_with_their_own_detail() {
         ResponseValue::Vector(Arc::from([1.0, 2.0])),
         Some(vec![1, 2]),
     );
-    assert_eq!(refusal_of(&path).detail, "coordinate_support.temporal_path_not_described");
+    assert_eq!(
+        refusal_of(&path).detail,
+        antecedent_core::reason_details::coordinate_support::TEMPORAL_PATH_NOT_DESCRIBED
+    );
 }
 
 #[test]
@@ -267,6 +279,9 @@ fn a_variable_the_caller_cannot_name_refuses() {
     };
     let refusal = refusal_of(&response(unknown, surface(2), None));
     assert_eq!(refusal.code, "unknown_variable");
-    assert_eq!(refusal.detail, "coordinate_support.unknown_variable");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::coordinate_support::UNKNOWN_VARIABLE
+    );
     assert_eq!(refusal.supplied.as_deref(), Some("99"));
 }

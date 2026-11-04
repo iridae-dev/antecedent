@@ -30,14 +30,17 @@ record_sha256 = "71ec370eef260f19240d8aa6421fdb796e91b9e8db9a880c1dc90854e315553
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink", "fn smoothed_dose_score_posterior"]
+sha256 = "7ed7e3a6b4ef6bb0d217437e88802b449b497c61cc26f6686706d81183fe37a4"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/smoothed_dose_lifecycle.rs"
-sha256 = "75cfd4123b2d80a4ae422cd779a828ee408c4d194f09de51056041128409a526"
+items = ["const DESIGNS", "const GRID", "const H", "fn a_bootstrap_replicate_reuses_the_point_run_fold_of_every_drawn_row", "fn a_kinked_fitted_curve_surfaces_its_quadrature_error_and_refuses_at_a_tight_tolerance", "fn a_missing_outcome_dose_or_covariate_is_refused_instead_of_the_row_being_dropped", "fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error", "fn a_target_row_below_the_membership_floor_refuses_even_when_every_source_row_clears_it", "fn assert_models_out_of_fold", "fn bootstrap_grouping_follows_the_declared_sampling_design", "fn coefficient", "fn dose_menu_lists_refused_estimators_with_reasons", "fn estimate", "fn estimate_reuses_the_prepared_certificate_and_refresh_keeps_it", "fn estimation_refusal", "fn every_fold_model_is_fitted_out_of_fold_and_fold_edits_never_reach_it", "fn exact_nu", "fn exact_plug_in", "fn exported", "fn identify", "fn invalid_fold_predictors_keep_semantic_refusals_at_the_artifact_boundary", "fn kernel_hinge", "fn kernel_power", "fn known_truth_curve_under_both_designs", "fn misspecified_nuisance_cases_match_only_the_claimed_robustness", "fn mutant_estimates", "fn mutate", "fn options", "fn permuting_the_grid_permutes_the_results_bit_for_bit", "fn prepare", "fn quadrature_matches_exact_integration_and_the_oracle_score_is_centred", "fn refit", "fn refresh_replaces_rows_and_refuses_a_changed_schema", "fn refused", "fn refused_code", "fn requests_outside_the_cell_refuse_with_their_details", "fn smoothed_dose_posterior_consumer_replays_the_score_mean", "fn smoothed_dose_posterior_mean_stays_at_the_known_truth", "fn smoothed_dose_posterior_refuses_an_external_power_prior", "fn smoothing_bias_is_reported_apart_and_the_estimate_targets_psi_h", "fn step_tree", "fn the_bandwidth_is_part_of_the_estimand_identity", "fn the_estimator_layer_returns_the_grid_and_refuses_directly", "fn the_exported_grid_is_replayed_by_an_independent_consumer", "fn the_free_dose_menu_follows_its_options_without_the_builder", "fn the_io_wire_consumes_bytes_directly_under_its_own_limits", "fn thread_budget_changes_leave_seeded_results_identical", "fn weak_overlap_and_thin_dose_support_refuse_rather_than_extrapolate", "fn weighting_only"]
+sha256 = "96f0b26cdc00d92048ee3a7c4e44b154765c3876654a2061309ebcd436e0704b"

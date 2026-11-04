@@ -48,7 +48,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian.rs",
-          "sha256": "255f80e6327d78d3ecb87f0ac9ff57eeb4861648d61b38e60c0a8ed0af96aa32"
+          "items": [
+            "fn fixture_dir",
+            "fn laplace_glm"
+          ],
+          "sha256": "a3509683e67c6c7b297e81fe734b16bdd3a706c4821bef40cb01f720cb972355"
         }
       ],
       "fixture_payload_sha256": "c1ce3be5fcd759295ad5726542d3b7c4713404583d0912666aead59e4b2ef15e"

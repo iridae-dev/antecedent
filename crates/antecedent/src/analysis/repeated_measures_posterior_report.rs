@@ -177,7 +177,7 @@ pub struct RepeatedMeasuresPosteriorReport {
 fn invalid(message: impl Into<String>) -> AdaptiveInferenceRefusal {
     AdaptiveInferenceRefusal {
         code: reason_code!("invalid_argument"),
-        detail: "adaptive_inference.input_invalid".to_owned(),
+        detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
         message: message.into(),
     }
 }

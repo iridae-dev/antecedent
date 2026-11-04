@@ -19,14 +19,17 @@ record_sha256 = "5f8bc44cd41b9ed071ad68127c21164bb3dd6721a39ff6b6fdfd1b66941ead4
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/execution_attempt.rs"
-sha256 = "5b49c676ca677a5ff3440c9f5470255cbf9e4ef136b879255d65934c38198dd0"
+items = ["const OBSERVERS", "const OPERATIONS", "enum Operation", "enum PhysicalEvent", "fn add_admitted", "fn attach_current", "fn contains", "fn counts", "fn execute", "fn is_complete", "fn is_empty", "fn new", "fn operations", "fn physical", "fn snapshot", "fn unfinished", "struct AttemptReport", "struct Counters", "struct OperationCounts", "struct Scope"]
+sha256 = "186eda3031c764b5740ea82fa919eff4a6e6379dc9553e83f31037a60d291e25"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_attempt.rs"
-sha256 = "5e053baba9f4e0c851776f0c5dd02de08b6abbd2f532a49ececedfec8801ee98"
+items = ["fn execute_with_attempt"]
+sha256 = "9301da753f225df0efd7337a94c98e37b958b9d2d88ca371a8a82c0b1b07a1db"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_attempt.rs"
-sha256 = "98ec3ef308033261bbc85ec73d3a42c3fafadd4ec4eafac1af6401e5759aa216"
+items = ["fn adjusted", "fn configurable_aipw_request", "fn original_adjusted_attempts_match_success_counters_and_failed_state_is_not_published", "fn original_adjusted_law_summary_failure_does_not_modify_the_fit", "fn original_glm_nonconvergence_retains_completed_solves_and_old_model", "fn original_mapped_prior_construction_failure_and_reuse_have_separate_attempt_counts", "fn original_provider_failure_and_post_callback_cancellation_preserve_exact_attempts", "fn original_score_retarget_summary_reuses_fits_but_records_actual_law_work", "fn original_static_mid_execution_cancellation_preserves_completed_work_and_old_state", "fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state", "fn recalc_warm_aipw_configuration_refresh_matches_fresh_fit", "fn response", "fn utility"]
+sha256 = "a240d1a84eabdab5abf3c0f6a3055e0a3a5fc9943e2c6575802db7141c838a53"

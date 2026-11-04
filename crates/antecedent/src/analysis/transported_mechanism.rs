@@ -87,12 +87,13 @@ pub const MECHANISM_TRANSPORT_SUPPORT: &str = "extrapolative";
 pub const MECHANISM_TRANSPORT_INFERENCE: &str = "point_only";
 /// The retained transport identity is not the recomputed one.
 pub const DETAIL_TRANSPORT_IDENTITY_MISMATCH: &str =
-    "mechanism_transport.transport_identity_mismatch";
+    antecedent_core::reason_details::mechanism_transport::TRANSPORT_IDENTITY_MISMATCH;
 /// A target refit names a variable the composition has no mechanism for.
 pub const DETAIL_REFIT_UNKNOWN_VARIABLE: &str =
-    "mechanism_composition.identity_declaration_unknown_variable";
+    antecedent_core::reason_details::mechanism_composition::IDENTITY_DECLARATION_UNKNOWN_VARIABLE;
 /// A target refit changes the family of a mechanism.
-pub const DETAIL_REFIT_FAMILY_CHANGED: &str = "mechanism_composition.family_mixed";
+pub const DETAIL_REFIT_FAMILY_CHANGED: &str =
+    antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED;
 
 /// What a transport of a prepared composition to a target population declares.
 #[derive(Clone, Debug, PartialEq)]
@@ -178,19 +179,19 @@ fn model_error(error: CompositionError) -> MechanismCompositionRefusal {
         }
         CompositionError::Cancelled => one(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "mechanism_composition.cancelled",
+            antecedent_core::reason_details::mechanism_composition::CANCELLED,
             "transport".to_owned(),
             "retry; cancellation is not a verdict on the mechanisms",
         ),
         CompositionError::Numerical { message } => one(
             antecedent_core::reason_code!("invalid_argument"),
-            "mechanism_composition.numerical_failure",
+            antecedent_core::reason_details::mechanism_composition::NUMERICAL_FAILURE,
             message,
             "check the mechanisms' numbers",
         ),
         other => one(
             antecedent_core::reason_code!("route_not_supported"),
-            "mechanism_composition.request_unsupported",
+            antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             other.to_string(),
             "use a linear-Gaussian composition of fitted mechanisms",
         ),
@@ -512,7 +513,7 @@ impl TransportedMechanismComposition {
                     ExternalRefusal::new(
                         antecedent_core::reason_code!("mechanism_composition_incoherent"),
                         "export",
-                        "mechanism_composition.artifact_invalid",
+                        antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
                     )
                     .with_offending(error.to_string()),
                 ],
@@ -522,7 +523,7 @@ impl TransportedMechanismComposition {
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
                     "export",
-                    "mechanism_composition.artifact_invalid",
+                    antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
                 )
                 .with_offending(error.to_string()),
             ],

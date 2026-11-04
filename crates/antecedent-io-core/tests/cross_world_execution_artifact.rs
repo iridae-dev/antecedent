@@ -117,7 +117,10 @@ fn sealing_refuses_duplicate_world_routes() {
     let error = CrossWorldExecutionArtifact::seal(&req, &ctx()).unwrap_err();
     let refusal = error.refusal().unwrap();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "cross_world_execution.invalid_world");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::cross_world_execution::INVALID_WORLD
+    );
 }
 
 #[test]
@@ -149,7 +152,10 @@ fn a_different_declared_identity_is_refused_even_for_a_valid_artifact() {
         error,
         CrossWorldExecutionArtifactError::IdentityMismatch { field: "mechanism_digest" }
     ));
-    assert_eq!(error.refusal().unwrap().detail, "cross_world_execution.artifact_changed");
+    assert_eq!(
+        error.refusal().unwrap().detail,
+        antecedent_core::reason_details::cross_world_execution::ARTIFACT_CHANGED
+    );
 }
 
 #[test]
@@ -315,7 +321,10 @@ mod resealed {
         });
         let refusal = refused(&duplicate).refusal().unwrap();
         assert_eq!(refusal.code, "invalid_argument");
-        assert_eq!(refusal.detail, "cross_world_execution.invalid_world");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world_execution::INVALID_WORLD
+        );
 
         // The shared exogenous states edited.
         let draws = reseal(&good, |meta, _| meta.shared_draws[0].states = vec![5, 6]);

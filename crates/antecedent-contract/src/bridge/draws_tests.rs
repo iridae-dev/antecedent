@@ -145,7 +145,10 @@ fn a_posterior_is_carried_only_by_the_draws_check() {
     let refused = bridge.check_support().unwrap_err();
     assert_eq!(
         code(&refused),
-        ("bridge_mapping_not_supported", "scientific_bridge.value_kind_not_carried")
+        (
+            "bridge_mapping_not_supported",
+            antecedent_core::reason_details::scientific_bridge::VALUE_KIND_NOT_CARRIED
+        )
     );
     // A mean still goes through the point check and is not a draws bridge's business.
     let mean = affine(ValueKind::Mean, None, None);
@@ -155,7 +158,10 @@ fn a_posterior_is_carried_only_by_the_draws_check() {
         let refused = affine(kind, None, None).check_draws_support().unwrap_err();
         assert_eq!(
             code(&refused),
-            ("bridge_mapping_not_supported", "scientific_bridge.value_kind_not_carried")
+            (
+                "bridge_mapping_not_supported",
+                antecedent_core::reason_details::scientific_bridge::VALUE_KIND_NOT_CARRIED
+            )
         );
     }
     // The source and target kinds still have to agree.
@@ -163,7 +169,7 @@ fn a_posterior_is_carried_only_by_the_draws_check() {
     mixed.target_value = ValueKind::PredictiveLaw;
     assert_eq!(
         code(&mixed.check_draws_support().unwrap_err()).1,
-        "scientific_bridge.value_kind_substitution"
+        antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
     );
 }
 
@@ -171,9 +177,15 @@ fn a_posterior_is_carried_only_by_the_draws_check() {
 fn an_uncertain_map_declares_its_dependence_and_no_map_counts_its_uncertainty_twice() {
     let some = Some(uncertainty(0.01, 0.04, 0.0));
     let refused = affine(ValueKind::Posterior, some.clone(), None).check_draws_support();
-    assert_eq!(code(&refused.unwrap_err()).1, "scientific_bridge.source_dependence_missing");
+    assert_eq!(
+        code(&refused.unwrap_err()).1,
+        antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
+    );
     let refused = affine(ValueKind::Posterior, None, Some(independent())).check_draws_support();
-    assert_eq!(code(&refused.unwrap_err()).1, "scientific_bridge.mapping_uncertainty_missing");
+    assert_eq!(
+        code(&refused.unwrap_err()).1,
+        antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_MISSING
+    );
     assert!(
         affine(ValueKind::Posterior, some.clone(), Some(independent()))
             .check_draws_support()
@@ -184,12 +196,12 @@ fn an_uncertain_map_declares_its_dependence_and_no_map_counts_its_uncertainty_tw
     let line = contract(trial_line(), ValueKind::Posterior, some, Some(independent()));
     assert_eq!(
         code(&line.check_draws_support().unwrap_err()).1,
-        "scientific_bridge.mapping_uncertainty_invalid"
+        antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID
     );
     let line = contract(trial_line(), ValueKind::Posterior, None, None);
     assert_eq!(
         code(&line.check_draws_support().unwrap_err()).1,
-        "scientific_bridge.source_dependence_missing"
+        antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
     );
     let line = contract(trial_line(), ValueKind::Posterior, None, Some(independent()));
     assert!(line.check_draws_support().is_ok());
@@ -243,12 +255,21 @@ fn a_covariance_no_joint_law_has_is_refused() {
     };
     // 0.02^2 = 0.0004 exceeds 0.01 * 0.01 = 0.0001.
     let refused = law.innovation(0.01).unwrap_err();
-    assert_eq!(code(&refused).1, "scientific_bridge.dependence_not_a_covariance");
+    assert_eq!(
+        code(&refused).1,
+        antecedent_core::reason_details::scientific_bridge::DEPENDENCE_NOT_A_COVARIANCE
+    );
     // A covariance with draws that do not vary is not a statement about anything.
     let refused = law.innovation(0.0).unwrap_err();
-    assert_eq!(code(&refused).1, "scientific_bridge.draws_unusable");
+    assert_eq!(
+        code(&refused).1,
+        antecedent_core::reason_details::scientific_bridge::DRAWS_UNUSABLE
+    );
     let refused = law.innovation(f64::NAN).unwrap_err();
-    assert_eq!(code(&refused).1, "scientific_bridge.source_variance_invalid");
+    assert_eq!(
+        code(&refused).1,
+        antecedent_core::reason_details::scientific_bridge::SOURCE_VARIANCE_INVALID
+    );
 }
 
 #[test]
@@ -269,13 +290,13 @@ fn public_affine_law_invalid_variances_and_covariances_refuse() {
         x.intercept_variance = bad;
         assert_eq!(
             code(&x.innovation(1.0).unwrap_err()).1,
-            "scientific_bridge.mapping_uncertainty_invalid"
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID
         );
         let mut x = law.clone();
         x.slope_variance = bad;
         assert_eq!(
             code(&x.innovation(1.0).unwrap_err()).1,
-            "scientific_bridge.mapping_uncertainty_invalid"
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID
         );
     }
     for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
@@ -283,13 +304,13 @@ fn public_affine_law_invalid_variances_and_covariances_refuse() {
         x.intercept_slope_covariance = bad;
         assert_eq!(
             code(&x.innovation(1.0).unwrap_err()).1,
-            "scientific_bridge.mapping_uncertainty_invalid"
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID
         );
         let mut x = law.clone();
         x.source_slope_covariance = bad;
         assert_eq!(
             code(&x.innovation(1.0).unwrap_err()).1,
-            "scientific_bridge.source_dependence_invalid"
+            antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_INVALID
         );
     }
     let mut zero = law.clone();
@@ -365,7 +386,10 @@ fn a_line_of_too_few_trials_has_no_finite_coefficient_variance() {
             1,
         )
         .unwrap_err();
-    assert_eq!(code(&refused).1, "scientific_bridge.validation_trials_too_few");
+    assert_eq!(
+        code(&refused).1,
+        antecedent_core::reason_details::scientific_bridge::VALIDATION_TRIALS_TOO_FEW
+    );
 }
 
 #[test]
@@ -386,25 +410,40 @@ fn only_aligned_draws_of_the_declared_kind_and_quantity_are_bridged() {
         .unwrap_err();
     assert_eq!(
         code(&refused),
-        ("bridge_mapping_not_supported", "scientific_bridge.source_not_draws")
+        (
+            "bridge_mapping_not_supported",
+            antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_DRAWS
+        )
     );
     assert_eq!(refused.supplied.as_deref(), Some("associational"));
     // Draws of another meaning are neither a posterior nor a predictive law.
     let refused = bridge.plan_distribution(&source(None, ClaimKind::Mixture, true), 1).unwrap_err();
     assert_eq!(
         code(&refused),
-        ("distribution_meaning_mismatch", "scientific_bridge.draws_meaning_mismatch")
+        (
+            "distribution_meaning_mismatch",
+            antecedent_core::reason_details::scientific_bridge::DRAWS_MEANING_MISMATCH
+        )
     );
     // A predictive law is not a posterior.
     let refused = bridge
         .plan_distribution(&source(Some(ValueKind::PredictiveLaw), ClaimKind::Mixture, true), 1)
         .unwrap_err();
-    assert_eq!(code(&refused).1, "scientific_bridge.value_kind_substitution");
+    assert_eq!(
+        code(&refused).1,
+        antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
+    );
     // Independent marginals have no row pairing for the bridged draws to keep.
     let refused = bridge
         .plan_distribution(&source(Some(ValueKind::Posterior), ClaimKind::Mixture, false), 1)
         .unwrap_err();
-    assert_eq!(code(&refused), ("joint_law_required", "scientific_bridge.draws_not_aligned"));
+    assert_eq!(
+        code(&refused),
+        (
+            "joint_law_required",
+            antecedent_core::reason_details::scientific_bridge::DRAWS_NOT_ALIGNED
+        )
+    );
     // Draws about another quantity.
     let other = quantity("trial:other");
     let refused = bridge
@@ -413,7 +452,10 @@ fn only_aligned_draws_of_the_declared_kind_and_quantity_are_bridged() {
             1,
         )
         .unwrap_err();
-    assert_eq!(code(&refused).1, "scientific_bridge.quantity_mismatch");
+    assert_eq!(
+        code(&refused).1,
+        antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH
+    );
 }
 
 #[test]
@@ -441,7 +483,10 @@ fn mapped_draw_summary_must_describe_a_finite_nonempty_law() {
     ];
     for summary in invalid {
         let error = bridge.plan_distribution(&source, 11).unwrap().finish(&summary).unwrap_err();
-        assert_eq!(code(&error).1, "scientific_bridge.draws_unusable");
+        assert_eq!(
+            code(&error).1,
+            antecedent_core::reason_details::scientific_bridge::DRAWS_UNUSABLE
+        );
     }
 }
 
@@ -498,11 +543,11 @@ fn the_derived_claim_is_one_realization_of_the_bridge() {
     // The bridged draws are a predictive law, never a mean.
     assert_eq!(
         code(&first.require_value_kind(ValueKind::Mean).unwrap_err()).1,
-        "scientific_bridge.value_kind_substitution"
+        antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
     );
     assert!(first.require_value_kind(ValueKind::PredictiveLaw).is_ok());
     assert_eq!(
         code(&first.request_interval().unwrap_err()).1,
-        "scientific_bridge.interval_not_supported"
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED
     );
 }

@@ -17,7 +17,7 @@ WHEEL_STEP = """
   (cd python && uv run maturin build --release --out "$wheel_dir")
   uv pip install --python "$venv_dir/venv/bin/python" "${wheels[0]}"
   cd "$run_dir"
-  "$venv_dir/venv/bin/python" "$ROOT/scripts/gate_release_candidate_2.py" "$venv_dir"
+  "$venv_dir/venv/bin/python" "$ROOT/scripts/check_installed_wheel_import.py" "$venv_dir"
   "$venv_dir/venv/bin/python" "$ROOT/scripts/run_doc_examples.py"
   "$venv_dir/venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/python/tests"
 """
@@ -56,7 +56,7 @@ class ReleaseClosureTest(unittest.TestCase):
         for needle, label in (
             ("run_doc_examples.py", "documented snippets"),
             ("-m pytest", "Python suite"),
-            ("gate_release_candidate_2.py", "wheel is the imported package"),
+            ("check_installed_wheel_import.py", "wheel is the imported package"),
         ):
             broken = "\n".join(line for line in WHEEL_STEP.splitlines() if needle not in line)
             self.assertTrue(
@@ -123,7 +123,7 @@ class ReleaseClosureTest(unittest.TestCase):
         unrelated = {"case": [case("a", "value", "crates/c/tests/t.rs::runs")]}
         self.assertEqual(closure.replay_identity_problems(unrelated, self.root), [])
 
-    def test_every_interval_case_binds_a_record_for_its_public_test_and_the_attested_gate(
+    def test_the_release_candidate_runs_the_release_gate_and_inventory(
         self,
     ) -> None:
         candidate, release = "bash scripts/gate_release.sh", "python3 scripts/check_release_inventory.py\n"

@@ -262,37 +262,37 @@ fn invalid(detail: &'static str, remedy: &'static str) -> ExternalRefusal {
 fn required_elements(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<ExternalRefusal>) {
     if declaration.policy_history.is_none() {
         refusals.push(missing(
-            "adaptive_inference.policy_history_missing",
+            antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
             "retain the assignment-policy history: the policy state that governed each stretch of units",
         ));
     }
     if declaration.assignment_probabilities.is_none() {
         refusals.push(missing(
-            "adaptive_inference.assignment_probabilities_missing",
+            antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_PROBABILITIES_MISSING,
             "retain each unit's realized assignment probabilities (the policy's distribution over arms at that unit)",
         ));
     }
     if declaration.exposure.is_none() {
         refusals.push(missing(
-            "adaptive_inference.exposure_history_missing",
+            antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING,
             "retain the arm each unit actually received, so assignment and exposure can be compared",
         ));
     }
     if declaration.availability.is_none() {
         refusals.push(missing(
-            "adaptive_inference.outcome_availability_missing",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING,
             "retain when each outcome became available and how that delay relates to the outcome",
         ));
     }
     if declaration.interim_analyses.is_none() {
         refusals.push(missing(
-            "adaptive_inference.interim_analyses_missing",
+            antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
             "retain the interim analyses performed: units enrolled and information fraction at each look",
         ));
     }
     if declaration.stopping_rule.is_none() {
         refusals.push(missing(
-            "adaptive_inference.stopping_rule_missing",
+            antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
             "retain the stopping rule, its parameters and whether it ended the trial",
         ));
     }
@@ -308,20 +308,29 @@ fn check_shapes(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Exte
         labels.windows(2).all(|w| w[0] != w[1]) && labels.iter().all(|l| !l.trim().is_empty())
     };
     if arms < 2 || u32::try_from(arms).is_err() || !distinct {
-        refusals.push(invalid("adaptive_inference.arms_invalid", remedy));
+        refusals.push(invalid(
+            antecedent_core::reason_details::adaptive_inference::ARMS_INVALID,
+            remedy,
+        ));
     }
     if !(2..=MAX_CONTRACT_UNITS).contains(&units) || declaration.outcomes.len() != units {
-        refusals.push(invalid("adaptive_inference.shape_mismatch", remedy));
+        refusals.push(invalid(
+            antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH,
+            remedy,
+        ));
     }
     if declaration.assigned_arm.iter().any(|&a| a as usize >= arms) {
         refusals.push(invalid(
-            "adaptive_inference.arm_out_of_range",
+            antecedent_core::reason_details::adaptive_inference::ARM_OUT_OF_RANGE,
             "every assigned arm must index a declared arm label",
         ));
     }
     let bad_outcome = declaration.outcomes.iter().any(|m| m.iter().any(|y| !y.is_finite()));
     if bad_outcome {
-        refusals.push(invalid("adaptive_inference.outcome_invalid", "outcomes must be finite"));
+        refusals.push(invalid(
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID,
+            "outcomes must be finite",
+        ));
     }
     if matches!(
         declaration.cell.outcome,
@@ -329,27 +338,27 @@ fn check_shapes(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Exte
             | super::matrix::OutcomeStructure::RepeatedChoice
     ) {
         refusals.push(invalid(
-            "adaptive_inference.choice_outcome_needs_choice_contract",
+            antecedent_core::reason_details::adaptive_inference::CHOICE_OUTCOME_NEEDS_CHOICE_CONTRACT,
             "a choice outcome is not an assigned-arm outcome: declare it with the choice design contract",
         ));
     }
     let single = declaration.cell.outcome == super::matrix::OutcomeStructure::SingleOutcome;
     if single && declaration.outcomes.iter().any(|m| m.len() > 1) {
         refusals.push(invalid(
-            "adaptive_inference.outcome_invalid",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID,
             "a single-outcome procedure carries at most one measurement per unit",
         ));
     }
     let bernoulli = declaration.cell.assignment == AssignmentFamily::ThompsonBetaBernoulli;
     if bernoulli && declaration.outcomes.iter().flatten().any(|&y| !is_binary(y)) {
         refusals.push(invalid(
-            "adaptive_inference.outcome_invalid",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID,
             "Beta-Bernoulli Thompson sampling is defined for outcomes in {0, 1}",
         ));
     }
     if !(declaration.probability_floor > 0.0 && declaration.probability_floor <= 1.0) {
         refusals.push(invalid(
-            "adaptive_inference.probability_floor_invalid",
+            antecedent_core::reason_details::adaptive_inference::PROBABILITY_FLOOR_INVALID,
             "declare a probability floor in (0, 1]",
         ));
     }
@@ -364,7 +373,7 @@ fn check_history(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Ext
             && epochs.last().is_some_and(|e| (e.first_unit as usize) < units);
         if !ordered {
             refusals.push(invalid(
-                "adaptive_inference.policy_history_invalid",
+                antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_INVALID,
                 "policy epochs must start at unit 0, increase strictly and lie within the units",
             ));
         }
@@ -384,13 +393,13 @@ fn check_history(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Ext
         }
         if malformed {
             refusals.push(invalid(
-                "adaptive_inference.probabilities_invalid",
+                antecedent_core::reason_details::adaptive_inference::PROBABILITIES_INVALID,
                 "each unit needs one probability per arm, each in [0, 1], summing to one",
             ));
         }
         if zero_assigned {
             refusals.push(invalid(
-                "adaptive_inference.assigned_probability_zero",
+                antecedent_core::reason_details::adaptive_inference::ASSIGNED_PROBABILITY_ZERO,
                 "a unit was assigned an arm the policy gave probability zero: the recorded probabilities are not the policy's",
             ));
         }
@@ -399,7 +408,7 @@ fn check_history(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Ext
             && rows.windows(2).any(|w| w[0] != w[1])
         {
             refusals.push(invalid(
-                "adaptive_inference.rule_mismatch",
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
                 "fixed randomization declares constant probabilities, but the recorded probabilities vary between units",
             ));
         }
@@ -407,7 +416,7 @@ fn check_history(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Ext
     if let Some(exposure) = &declaration.exposure {
         if exposure.len() != units || exposure.iter().any(|&a| a as usize >= arms) {
             refusals.push(invalid(
-                "adaptive_inference.shape_mismatch",
+                antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH,
                 "exposure needs one declared arm per unit",
             ));
         }
@@ -427,14 +436,14 @@ fn check_monitoring(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<
         && looks.first().is_some_and(|l| l.units_enrolled > 0);
     if !ordered {
         refusals.push(invalid(
-            "adaptive_inference.looks_not_ordered",
+            antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
             "interim analyses must increase strictly in units and information, with information in (0, 1], and the last look must include every unit",
         ));
     }
     let wanted_single = declaration.cell.monitoring == MonitoringStrategy::FinalAnalysisOnly;
     if ordered && ((looks.len() == 1) != wanted_single) {
         refusals.push(invalid(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "the number of interim analyses disagrees with the declared monitoring strategy",
         ));
     }
@@ -448,7 +457,7 @@ fn check_monitoring(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<
             );
         if !consistent {
             refusals.push(invalid(
-                "adaptive_inference.shape_mismatch",
+                antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH,
                 "availability needs one entry per unit, a look within the declared looks exactly where an outcome was observed",
             ));
         } else if ordered {
@@ -459,7 +468,7 @@ fn check_monitoring(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<
             });
             if early {
                 refusals.push(invalid(
-                    "adaptive_inference.shape_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH,
                     "an outcome cannot be available at a look before its unit was enrolled",
                 ));
             }
@@ -498,7 +507,7 @@ fn check_rule(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Extern
     };
     if !kind_matches_cell || !spec_ok {
         refusals.push(invalid(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "the stopping rule disagrees with the procedure cell: its kind, parameters and the monitoring strategy must agree",
         ));
     }
@@ -600,7 +609,7 @@ impl AdaptiveDesignContract {
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
                     STAGE_BIND,
-                    "adaptive_inference.look_out_of_range",
+                    antecedent_core::reason_details::adaptive_inference::LOOK_OUT_OF_RANGE,
                 )
                 .with_offending(format!("look {look}"))
                 .with_remedy("select a look index below the number of interim analyses")
@@ -645,7 +654,7 @@ impl AdaptiveDesignContract {
         if exposure != &self.declaration.assigned_arm {
             return Err(declare_bind(
                 antecedent_core::reason_code!("adaptive_assumption_violated"),
-                "adaptive_inference.exposure_differs_from_assignment",
+                antecedent_core::reason_details::adaptive_inference::EXPOSURE_DIFFERS_FROM_ASSIGNMENT,
                 "analyse by assignment (intention to treat) with a compliance model, or restrict to units that received the assigned arm; noncompliance is not modelled",
             ));
         }
@@ -653,7 +662,7 @@ impl AdaptiveDesignContract {
         if availability.delay == DelayMechanism::OutcomeDependent {
             return Err(declare_bind(
                 antecedent_core::reason_code!("adaptive_assumption_violated"),
-                "adaptive_inference.delay_not_ignorable",
+                antecedent_core::reason_details::adaptive_inference::DELAY_NOT_IGNORABLE,
                 "declare a delay that does not depend on the outcome, or model the delay mechanism; units whose outcomes are missing for outcome-related reasons cannot be dropped",
             ));
         }
@@ -679,7 +688,7 @@ pub(super) fn authorize_cell(
         return Err(ExternalRefusal::new(
             antecedent_core::reason_code!("adaptive_design_ignored"),
             STAGE_BIND,
-            "adaptive_inference.fixed_sample_on_adaptive_data",
+            antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA,
         )
         .with_expected("a design fixed in advance: fixed randomization, one final analysis, no stopping rule")
         .with_supplied(cell.identifier())
@@ -693,7 +702,7 @@ pub(super) fn authorize_cell(
                 return Err(ExternalRefusal::new(
                     antecedent_core::reason_code!("route_not_supported"),
                     STAGE_BIND,
-                    "adaptive_inference.paradigm_not_supported_for_cell",
+                    antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL,
                 )
                 .with_offending(paradigm.as_str())
                 .with_supplied(cell.identifier())
@@ -706,7 +715,7 @@ pub(super) fn authorize_cell(
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
-                "adaptive_inference.cell_incoherent",
+                antecedent_core::reason_details::adaptive_inference::CELL_INCOHERENT,
             )
             .with_supplied(cell.identifier())
             .with_expected(reason));
@@ -715,7 +724,7 @@ pub(super) fn authorize_cell(
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
-                "adaptive_inference.pairing_not_supported",
+                antecedent_core::reason_details::adaptive_inference::PAIRING_NOT_SUPPORTED,
             )
             .with_supplied(cell.identifier())
             .with_expected(reason));
@@ -724,7 +733,7 @@ pub(super) fn authorize_cell(
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
-                "adaptive_inference.cell_not_delivered",
+                antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED,
             )
             .with_supplied(cell.identifier())
             .with_offending(owner)

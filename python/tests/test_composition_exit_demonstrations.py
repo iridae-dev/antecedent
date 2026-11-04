@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from antecedent import Admg, Cpdag
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.execution import Execution
 from antecedent.inference import MeasuredInference
@@ -166,7 +167,7 @@ def test_demo_graph_selection_family_has_scenario_evidence_and_honest_mass() -> 
     with pytest.raises(transport.CpdagScenarioRefusal) as aggregate:
         result.aggregate_interval()
     assert aggregate.value.reason_code == "scenario_aggregate_not_supported"
-    assert aggregate.value.detail == "scenarios.shared_data_aggregate"
+    assert aggregate.value.detail == reason_details.scenarios.SHARED_DATA_AGGREGATE
 
     # Scenario-specific evidence: a completion whose own evidence lacks a variable is missing
     # evidence and its mass is not redistributed; the envelope ranges over the others only.
@@ -214,7 +215,7 @@ def test_demo_graph_selection_family_has_scenario_evidence_and_honest_mass() -> 
         with pytest.raises(transport.ScenarioCovarianceRefusal) as unknown:
             _covariance(first, second)
         assert unknown.value.reason_code == "route_not_supported"
-        assert unknown.value.detail == "scenario_covariance.unknown_dependence"
+        assert unknown.value.detail == reason_details.scenario_covariance.UNKNOWN_DEPENDENCE
 
 
 # --------------------------------------------------------------------------------------------
@@ -247,7 +248,7 @@ def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
         transport.binary_nested_markov(
             graph=verma, regimes=[{"counts": [250] * 16, "intervened": ["X2"]}]
         )
-    assert "nested_markov.outside_binary_pilot" in str(outside.value)
+    assert reason_details.nested_markov.OUTSIDE_BINARY_PILOT in str(outside.value)
     assert "nonidentif" not in str(outside.value)
 
 
@@ -347,7 +348,7 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
     )
     assert (refused.reason_code, refused.detail) == (
         "transport_missing_evidence",
-        "initial_state.target_law_missing",
+        reason_details.initial_state.TARGET_LAW_MISSING,
     )
 
     # New-period refresh. A replacement panel with every cell mean 0.1 higher re-evaluates to
@@ -366,12 +367,14 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
     assert result.value == pytest.approx(0.421, abs=1e-12), "the held result is unchanged"
     # Invalidation reasons: each premise change refuses with its own typed detail.
     changes = {
-        "temporal_refresh.horizon_changed": {"horizon": 3},
-        "temporal_refresh.lag_alignment_changed": {
+        reason_details.temporal_refresh.HORIZON_CHANGED: {"horizon": 3},
+        reason_details.temporal_refresh.LAG_ALIGNMENT_CHANGED: {
             "lag_alignment": {"s0": 1, "a1": 2, "l2": 2, "a2": 2, "y": 2}
         },
-        "temporal_refresh.intervention_history_changed": {"intervention_history": ["a1=0", "a2=1"]},
-        "temporal_refresh.premises_changed": {"proof_id": "proof_2"},
+        reason_details.temporal_refresh.INTERVENTION_HISTORY_CHANGED: {
+            "intervention_history": ["a1=0", "a2=1"]
+        },
+        reason_details.temporal_refresh.PREMISES_CHANGED: {"proof_id": "proof_2"},
     }
     for detail, overrides in changes.items():
         error = _refusal(
@@ -390,7 +393,7 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
             window=_window((1000, 2000)),
         )
     )
-    assert stale.detail == "temporal_refresh.stale_snapshot"
+    assert stale.detail == reason_details.temporal_refresh.STALE_SNAPSHOT
 
     # A measured whole-unit interval must also survive independent source replay.
     from test_temporal_interval_activation import panel as interval_panel
@@ -507,7 +510,7 @@ def test_demo_temporal_counterfactual_and_unsupported_cells_stay_visibly_unsuppo
     # A noise term outside the declared bound refutes the history with its witness.
     with pytest.raises(TemporalRefusal) as refuting:
         _counterfactual(mechanisms=_mechanisms(halfwidth=0.45))
-    assert refuting.value.detail == "temporal_counterfactual.refuting_history"
+    assert refuting.value.detail == reason_details.temporal_counterfactual.REFUTING_HISTORY
     assert refuting.value.witness["unit"] == "unit-0"
     assert refuting.value.witness["residual"] == pytest.approx(0.5, abs=1e-9)
     # Unpaired histories refuse with the offending unit.
@@ -515,7 +518,7 @@ def test_demo_temporal_counterfactual_and_unsupported_cells_stay_visibly_unsuppo
         _counterfactual(
             plus=ActionHistory("always_treat", PLUS, units=("unit-0", "unit-1", "unit-2"))
         )
-    assert unpaired.value.detail == "temporal_counterfactual.unpaired_histories"
+    assert unpaired.value.detail == reason_details.temporal_counterfactual.UNPAIRED_HISTORIES
     assert unpaired.value.offending == "unit-3"
 
     # Transported counterfactual: closed, naming exactly the gates still missing.
@@ -527,7 +530,9 @@ def test_demo_temporal_counterfactual_and_unsupported_cells_stay_visibly_unsuppo
     with pytest.raises(TemporalRefusal) as transported:
         transported_path_specific(required_factors=["source:rct", "target:field"])
     assert transported.value.reason_code == "transport_missing_evidence"
-    assert transported.value.detail == "transported_counterfactual.prerequisite_missing"
+    assert (
+        transported.value.detail == reason_details.transported_counterfactual.PREREQUISITE_MISSING
+    )
     assert transported.value.missing_gates == gates
     assert transported.value.missing_factors == ("source:rct", "target:field")
     with pytest.raises(TemporalRefusal) as passed:
@@ -539,7 +544,9 @@ def test_demo_temporal_counterfactual_and_unsupported_cells_stay_visibly_unsuppo
     # Every gate and factor present still does not open the cell: the joint cross-world theorem
     # is not derived.
     assert passed.value.reason_code == "route_not_supported"
-    assert passed.value.detail == "transported_counterfactual.joint_theorem_not_derived"
+    assert (
+        passed.value.detail == reason_details.transported_counterfactual.JOINT_THEOREM_NOT_DERIVED
+    )
     assert passed.value.missing_gates == ()
 
     # A caller-created label cannot impersonate the original checked recovery proof.

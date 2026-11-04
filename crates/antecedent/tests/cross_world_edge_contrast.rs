@@ -584,7 +584,10 @@ fn nonidentified_cross_world_queries_refuse_with_cross_world_not_identified() {
     let error = check(&graph, &recanting).unwrap_err();
     let text = reason(&error);
     assert!(text.contains("reason=cross_world_not_identified"), "{text}");
-    assert!(text.contains("cross_world.recanting_witness"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::cross_world::RECANTING_WITNESS),
+        "{text}"
+    );
     // The same graph with every edge intervened has no witness.
     let total = CrossWorldQuery::path_specific(v(0), v(3), 0.0, 1.0, &edges, &edges).unwrap();
     check(&graph, &total).unwrap();
@@ -603,7 +606,10 @@ fn nonidentified_cross_world_queries_refuse_with_cross_world_not_identified() {
     .unwrap();
     let text = reason(&check(&mediation_dag(), &three).unwrap_err());
     assert!(text.contains("reason=route_not_supported"), "{text}");
-    assert!(text.contains("cross_world.query_outside_contract"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT),
+        "{text}"
+    );
     assert!(!text.contains("cross_world_not_identified"), "{text}");
 
     // A different outcome per world is not this cell's contrast.
@@ -619,7 +625,10 @@ fn nonidentified_cross_world_queries_refuse_with_cross_world_not_identified() {
     .unwrap();
     let text = reason(&check(&mediation_dag(), &mixed).unwrap_err());
     assert!(text.contains("reason=route_not_supported"), "{text}");
-    assert!(text.contains("cross_world.query_outside_contract"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT),
+        "{text}"
+    );
     assert!(!text.contains("cross_world_not_identified"), "{text}");
 
     // A baseline world that reads another world is another shape as well.
@@ -639,7 +648,10 @@ fn nonidentified_cross_world_queries_refuse_with_cross_world_not_identified() {
     .unwrap();
     let text = reason(&check(&mediation_dag(), &baseline_reads).unwrap_err());
     assert!(text.contains("reason=route_not_supported"), "{text}");
-    assert!(text.contains("cross_world.query_outside_contract"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT),
+        "{text}"
+    );
 }
 
 /// Accepted, latent-confounded, equivalence-class and oversized structures, and
@@ -698,7 +710,10 @@ fn structures_and_inference_outside_the_cell_are_refused() {
     for refused in [&admg as &dyn Fn() -> _, &cpdag, &pag, &accepted] {
         let text = reason(&run(refused));
         assert!(text.contains("reason=route_not_supported"), "{text}");
-        assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT),
+            "{text}"
+        );
     }
     let interval = evaluate_cross_world_effect(
         mediation_dag(),
@@ -710,7 +725,10 @@ fn structures_and_inference_outside_the_cell_are_refused() {
     .unwrap_err();
     let text = reason(&interval);
     assert!(text.contains("reason=estimator_inference_mismatch"), "{text}");
-    assert!(text.contains("cross_world.interval_requested"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::cross_world::INTERVAL_REQUESTED),
+        "{text}"
+    );
     // The supported graph has no size limit: nine variables evaluate like three.
     let nine: Vec<Vec<f64>> =
         (0..9).map(|k| (0..30).map(|i| f64::from(i * (k + 1)).sin()).collect()).collect();
@@ -770,7 +788,8 @@ fn structures_and_inference_outside_the_cell_are_refused() {
         .unwrap_err(),
     );
     assert!(
-        text.contains("reason=invalid_argument") && text.contains("cross_world.invalid_query"),
+        text.contains("reason=invalid_argument")
+            && text.contains(antecedent_core::reason_details::cross_world::INVALID_QUERY),
         "{text}"
     );
 }
@@ -1145,7 +1164,10 @@ fn temporal_structures_are_refused_with_the_graph_contract_detail() {
     for result in errors {
         let text = reason(&result.unwrap_err());
         assert!(text.contains("reason=route_not_supported"), "{text}");
-        assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT),
+            "{text}"
+        );
     }
 }
 

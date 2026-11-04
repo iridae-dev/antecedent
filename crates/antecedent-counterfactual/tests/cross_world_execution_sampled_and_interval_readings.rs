@@ -126,7 +126,8 @@ fn a_sampled_posterior_is_refused_before_any_work_for_every_request_shape() {
                     detail(&err),
                     (
                         "estimator_inference_mismatch".to_owned(),
-                        "cross_world_execution.sampled_abduction_not_supported".to_owned()
+                        antecedent_core::reason_details::cross_world_execution::SAMPLED_ABDUCTION_NOT_SUPPORTED
+                            .to_owned()
                     ),
                     "{name} {coupling:?} {reading:?}"
                 );
@@ -146,10 +147,13 @@ fn interval_and_posterior_readings_are_not_supported_for_every_quantity_and_coup
     for (name, quantity, _) in quantities() {
         for coupling in COUPLINGS {
             for (reading, expected) in [
-                (RequestedReading::Interval, "joint_law_propagation.no_interval_construction"),
+                (
+                    RequestedReading::Interval,
+                    antecedent_core::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION,
+                ),
                 (
                     RequestedReading::Posterior,
-                    "joint_law_propagation.no_posterior_for_fixed_law_inputs",
+                    antecedent_core::reason_details::joint_law_propagation::NO_POSTERIOR_FOR_FIXED_LAW_INPUTS,
                 ),
             ] {
                 let mut exec = FiniteScmExecutor::new();
@@ -209,7 +213,8 @@ fn envelope_reading_is_refused_before_any_work_and_spread_is_the_exact_noise_var
             detail(&err),
             (
                 "route_not_supported".to_owned(),
-                "cross_world_execution.envelope_needs_parameter_set".to_owned()
+                antecedent_core::reason_details::cross_world_execution::ENVELOPE_NEEDS_PARAMETER_SET
+                    .to_owned()
             ),
             "{name}"
         );

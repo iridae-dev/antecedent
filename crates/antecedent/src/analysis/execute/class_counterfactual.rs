@@ -83,11 +83,19 @@ fn reasoned(code: &str, detail: &str, message: impl std::fmt::Display) -> Causal
 }
 
 fn outside_contract(message: impl std::fmt::Display) -> CausalError {
-    reasoned("route_not_supported", "counterfactual_id.query_outside_contract", message)
+    reasoned(
+        "route_not_supported",
+        antecedent_core::reason_details::counterfactual_id::QUERY_OUTSIDE_CONTRACT,
+        message,
+    )
 }
 
 fn invalid_query(message: impl std::fmt::Display) -> CausalError {
-    reasoned("invalid_argument", "counterfactual_id.invalid_query", message)
+    reasoned(
+        "invalid_argument",
+        antecedent_core::reason_details::counterfactual_id::INVALID_QUERY,
+        message,
+    )
 }
 
 fn bounds(message: impl Into<String>) -> CausalError {

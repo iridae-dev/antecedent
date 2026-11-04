@@ -40,12 +40,14 @@ record_sha256 = "1bedb0b4839bdcf80294b85271eac3cd9600b6ede7bb9d42b6d7e133b8ba396
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/composition.rs"
-sha256 = "2485edc3fda18948107f42b5b0abc504444a36923c9cf7143d5dd7f5241a2d96"
+items = ["const TAG_COMPOSITION", "fn check_composition", "fn check_composition_inner", "fn check_disjoint", "fn compose", "fn decide_connections", "fn feed_forward_order", "fn ledger_overlap", "fn new", "fn order_components", "fn resolve_connections", "fn resolve_inherited_calibration", "fn validate_components", "struct ComponentConnection", "struct ComposedInterfaces", "type Edges"]
+sha256 = "3b914bad534aacda92e65daaece515e3ec4d4cdcd4469251ece3f620fda73346"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_cyclic_composition_reference.rs"
-sha256 = "0c31cb4e097401346b9b3faa812c921764a8d4d4c48f86e8f024bffa8b0b58c1"
+items = ["const NAMES", "const REFERENCE", "fn component", "fn every_small_digraph_is_ordered_or_refused_exactly_as_the_definition_says", "fn quantity", "fn run"]
+sha256 = "4293362ab26d860ca52b9031a12cab7831df29823865f9ff36c9ea556b067ce2"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -471,14 +471,14 @@ fn validate_forward(
 ) -> Result<BTreeMap<Vec<u64>, usize>, InverseOutcomeError> {
     if !forward.mean_response {
         return Err(route_not_supported_err(
-            "inverse.forward_not_mean_response",
+            antecedent_core::reason_details::inverse::FORWARD_NOT_MEAN_RESPONSE,
             "the forward route's estimand is not a mean response a -> E[Y^do(a)] (a derivative, \
              contrast or other functional carries no target-mean reading)",
         ));
     }
     if !forward.point_identified {
         return Err(route_not_supported_err(
-            "inverse.forward_not_point_identified",
+            antecedent_core::reason_details::inverse::FORWARD_NOT_POINT_IDENTIFIED,
             "the forward response is not point identified (an identified set, a class mixture or \
              an unidentified response has no single mean to compare with a threshold)",
         ));
@@ -490,7 +490,7 @@ fn validate_forward(
         || forward.support.len() != rows
     {
         return Err(invalid(
-            "inverse.invalid_forward",
+            antecedent_core::reason_details::inverse::INVALID_FORWARD,
             "the forward evaluation needs at least one point, one dose coordinate with an \
              optional horizon coordinate, and one mean and support label per point",
         ));
@@ -499,13 +499,13 @@ fn validate_forward(
     for (row, point) in forward.points.iter().enumerate() {
         if point.len() != forward.dimension || point.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
-                "inverse.invalid_forward",
+                antecedent_core::reason_details::inverse::INVALID_FORWARD,
                 "every forward point needs `dimension` finite coordinates",
             ));
         }
         if index.insert(point_key(point), row).is_some() {
             return Err(invalid(
-                "inverse.invalid_forward",
+                antecedent_core::reason_details::inverse::INVALID_FORWARD,
                 "the forward evaluation repeats a point, so its mean is not a function of the action",
             ));
         }
@@ -518,7 +518,7 @@ fn validate_forward(
             && interval.lower.iter().zip(&interval.upper).all(|(lo, hi)| lo <= hi);
         if !bounded {
             return Err(invalid(
-                "inverse.invalid_forward",
+                antecedent_core::reason_details::inverse::INVALID_FORWARD,
                 "the forward interval needs ordered, non-NaN endpoints per point and a level in (0, 1)",
             ));
         }
@@ -528,20 +528,23 @@ fn validate_forward(
 
 fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), InverseOutcomeError> {
     if actions.is_empty() {
-        return Err(invalid("inverse.invalid_action", "the action grid is empty"));
+        return Err(invalid(
+            antecedent_core::reason_details::inverse::INVALID_ACTION,
+            "the action grid is empty",
+        ));
     }
     let mut labels = BTreeSet::new();
     let mut horizon = None;
     for action in actions {
         if action.label.trim().is_empty() || !labels.insert(action.label.as_str()) {
             return Err(invalid(
-                "inverse.invalid_action",
+                antecedent_core::reason_details::inverse::INVALID_ACTION,
                 "action labels must be non-empty and unique",
             ));
         }
         if action.point.len() != dimension || action.point.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
-                "inverse.invalid_action",
+                antecedent_core::reason_details::inverse::INVALID_ACTION,
                 format!("action `{}` needs {dimension} finite coordinates", action.label),
             ));
         }
@@ -549,14 +552,14 @@ fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), Inve
             let current = canonical_bits(action.point[1]);
             if horizon.replace(current).is_some_and(|first| first != current) {
                 return Err(invalid(
-                    "inverse.invalid_action",
+                    antecedent_core::reason_details::inverse::INVALID_ACTION,
                     "one inverse-outcome enumeration must use one fixed outcome horizon",
                 ));
             }
         }
         if !action.cost.is_finite() || action.cost < 0.0 {
             return Err(invalid(
-                "inverse.invalid_action",
+                antecedent_core::reason_details::inverse::INVALID_ACTION,
                 format!("action `{}` needs a finite non-negative cost", action.label),
             ));
         }
@@ -564,7 +567,7 @@ fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), Inve
         for constraint in &action.constraints {
             if constraint.name.trim().is_empty() || !names.insert(constraint.name.as_str()) {
                 return Err(invalid(
-                    "inverse.invalid_action",
+                    antecedent_core::reason_details::inverse::INVALID_ACTION,
                     format!("action `{}` needs non-empty, distinct constraint names", action.label),
                 ));
             }
@@ -667,38 +670,41 @@ fn supported_target(
         InverseQuery::TargetMean { threshold, direction } => (threshold, direction),
         InverseQuery::ChanceConstraint { .. } => {
             return Err(functional_unsupported(
-                "inverse.probability_target",
+                antecedent_core::reason_details::inverse::PROBABILITY_TARGET,
                 "a mean response cannot establish a chance constraint P(Y^do(a) >= y) >= q; that \
                  needs a separately identified and calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::Quantile { .. } => {
             return Err(functional_unsupported(
-                "inverse.quantile_target",
+                antecedent_core::reason_details::inverse::QUANTILE_TARGET,
                 "a target-quantile inverse query needs the interventional distribution and is \
                  not supported without a calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::ObservationalScenarios => {
             return Err(functional_unsupported(
-                "inverse.observational_scenarios",
+                antecedent_core::reason_details::inverse::OBSERVATIONAL_SCENARIOS,
                 "observational scenarios compatible with an outcome (P(X | Y)) are not actions \
                  and are not supported; ask for feasible interventions instead",
             ));
         }
     };
     if !threshold.is_finite() {
-        return Err(invalid("inverse.invalid_target", "the threshold must be finite"));
+        return Err(invalid(
+            antecedent_core::reason_details::inverse::INVALID_TARGET,
+            "the threshold must be finite",
+        ));
     }
     if !tolerance.is_finite() || tolerance < 0.0 {
         return Err(invalid(
-            "inverse.invalid_target",
+            antecedent_core::reason_details::inverse::INVALID_TARGET,
             "the tolerance must be finite and non-negative",
         ));
     }
     if budget.is_some_and(|limit| !limit.is_finite() || limit < 0.0) {
         return Err(invalid(
-            "inverse.invalid_target",
+            antecedent_core::reason_details::inverse::INVALID_TARGET,
             "the budget must be finite and non-negative",
         ));
     }
@@ -730,7 +736,7 @@ pub fn classify_inverse_outcome(
         if cancel.is_cancelled() {
             return Err(InverseOutcomeError {
                 code: reason_code!("transport_budget_cancel"),
-                detail: "inverse.cancelled",
+                detail: antecedent_core::reason_details::inverse::CANCELLED,
                 message: "the enumeration was cancelled before every action was classified; no \
                           verdict is reported"
                     .to_owned(),
@@ -1048,17 +1054,17 @@ mod tests {
         for (query, detail, code) in [
             (
                 InverseQuery::ChanceConstraint { threshold: 3.0, probability: 0.9 },
-                "inverse.probability_target",
+                antecedent_core::reason_details::inverse::PROBABILITY_TARGET,
                 "inverse_functional_unsupported",
             ),
             (
                 InverseQuery::Quantile { level: 0.9, threshold: 3.0 },
-                "inverse.quantile_target",
+                antecedent_core::reason_details::inverse::QUANTILE_TARGET,
                 "inverse_functional_unsupported",
             ),
             (
                 InverseQuery::ObservationalScenarios,
-                "inverse.observational_scenarios",
+                antecedent_core::reason_details::inverse::OBSERVATIONAL_SCENARIOS,
                 "inverse_functional_unsupported",
             ),
         ] {
@@ -1071,7 +1077,7 @@ mod tests {
         let refusal =
             run(&InverseQuery::ChanceConstraint { threshold: 0.0, probability: 0.5 }, &broken, &[])
                 .unwrap_err();
-        assert_eq!(refusal.detail, "inverse.probability_target");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::inverse::PROBABILITY_TARGET);
     }
 
     #[test]
@@ -1081,12 +1087,18 @@ mod tests {
         let refusal = run(&at_least(3.0), &derivative, &grid_actions(&GRID)).unwrap_err();
         assert_eq!(
             (refusal.detail, refusal.code),
-            ("inverse.forward_not_mean_response", "route_not_supported")
+            (
+                antecedent_core::reason_details::inverse::FORWARD_NOT_MEAN_RESPONSE,
+                "route_not_supported"
+            )
         );
         let mut set = linear_forward(&GRID);
         set.point_identified = false;
         let refusal = run(&at_least(3.0), &set, &grid_actions(&GRID)).unwrap_err();
-        assert_eq!(refusal.detail, "inverse.forward_not_point_identified");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::inverse::FORWARD_NOT_POINT_IDENTIFIED
+        );
     }
 
     #[test]
@@ -1098,7 +1110,10 @@ mod tests {
             assert_eq!(error.code, "invalid_argument", "{error}");
             error.detail
         };
-        assert_eq!(detail(run(&at_least(f64::NAN), &forward, &actions)), "inverse.invalid_target");
+        assert_eq!(
+            detail(run(&at_least(f64::NAN), &forward, &actions)),
+            antecedent_core::reason_details::inverse::INVALID_TARGET
+        );
         let negative = classify_inverse_outcome(
             &at_least(1.0),
             &forward,
@@ -1107,23 +1122,35 @@ mod tests {
             -1.0,
             &CancellationToken::new(),
         );
-        assert_eq!(detail(negative), "inverse.invalid_target");
-        assert_eq!(detail(run(&at_least(1.0), &forward, &[])), "inverse.invalid_action");
+        assert_eq!(detail(negative), antecedent_core::reason_details::inverse::INVALID_TARGET);
+        assert_eq!(
+            detail(run(&at_least(1.0), &forward, &[])),
+            antecedent_core::reason_details::inverse::INVALID_ACTION
+        );
         let mut duplicate = actions.clone();
         duplicate[1].label = duplicate[0].label.clone();
-        assert_eq!(detail(run(&at_least(1.0), &forward, &duplicate)), "inverse.invalid_action");
+        assert_eq!(
+            detail(run(&at_least(1.0), &forward, &duplicate)),
+            antecedent_core::reason_details::inverse::INVALID_ACTION
+        );
         let mut wrong_dimension = actions.clone();
         wrong_dimension[0].point = vec![0.0, 1.0];
         assert_eq!(
             detail(run(&at_least(1.0), &forward, &wrong_dimension)),
-            "inverse.invalid_action"
+            antecedent_core::reason_details::inverse::INVALID_ACTION
         );
         let mut priced = actions.clone();
         priced[0].cost = f64::NAN;
-        assert_eq!(detail(run(&at_least(1.0), &forward, &priced)), "inverse.invalid_action");
+        assert_eq!(
+            detail(run(&at_least(1.0), &forward, &priced)),
+            antecedent_core::reason_details::inverse::INVALID_ACTION
+        );
         let mut repeated = forward.clone();
         repeated.points[1] = repeated.points[0].clone();
-        assert_eq!(detail(run(&at_least(1.0), &repeated, &actions)), "inverse.invalid_forward");
+        assert_eq!(
+            detail(run(&at_least(1.0), &repeated, &actions)),
+            antecedent_core::reason_details::inverse::INVALID_FORWARD
+        );
         let mut backwards = forward;
         backwards.interval = Some(ForwardInterval {
             scope: IntervalScope::Pointwise,
@@ -1132,7 +1159,10 @@ mod tests {
             lower: vec![1.0; GRID.len()],
             upper: vec![0.0; GRID.len()],
         });
-        assert_eq!(detail(run(&at_least(1.0), &backwards, &actions)), "inverse.invalid_forward");
+        assert_eq!(
+            detail(run(&at_least(1.0), &backwards, &actions)),
+            antecedent_core::reason_details::inverse::INVALID_FORWARD
+        );
     }
 
     #[test]
@@ -1167,7 +1197,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             (refusal.detail, refusal.code),
-            ("inverse.cancelled", "transport_budget_cancel")
+            (antecedent_core::reason_details::inverse::CANCELLED, "transport_budget_cancel")
         );
     }
 
@@ -1239,7 +1269,10 @@ mod tests {
             ActionSpec { point: vec![1.0, 2.0], ..action("late", 1.0, 0.0) },
         ];
         let error = run(&at_least(2.0), &forward, &actions).unwrap_err();
-        assert_eq!((error.code, error.detail), ("invalid_argument", "inverse.invalid_action"));
+        assert_eq!(
+            (error.code, error.detail),
+            ("invalid_argument", antecedent_core::reason_details::inverse::INVALID_ACTION)
+        );
         assert!(error.message.contains("one fixed outcome horizon"));
     }
 }

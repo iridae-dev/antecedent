@@ -18,6 +18,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -137,7 +139,7 @@ class UnitHistory:
                     node: _number(
                         getattr(self, node),
                         node,
-                        detail="temporal_counterfactual.non_finite_history",
+                        detail=_reason_details.temporal_counterfactual.NON_FINITE_HISTORY,
                         offending=self.unit,
                     )
                 },
@@ -177,7 +179,7 @@ class ActionHistory:
                 _number(
                     a,
                     "action",
-                    detail="temporal_counterfactual.non_finite_history",
+                    detail=_reason_details.temporal_counterfactual.NON_FINITE_HISTORY,
                     offending=self.name,
                 )
                 for a in self.actions
@@ -216,7 +218,9 @@ class NodeMechanism:
         coerce_fields(
             self,
             intercept=_number(
-                self.intercept, "intercept", detail="temporal_counterfactual.fit_mismatch"
+                self.intercept,
+                "intercept",
+                detail=_reason_details.temporal_counterfactual.FIT_MISMATCH,
             ),
         )
         coerce_fields(
@@ -225,7 +229,7 @@ class NodeMechanism:
                 _name(parent, "parent"): _number(
                     coef,
                     "coefficient",
-                    detail="temporal_counterfactual.fit_mismatch",
+                    detail=_reason_details.temporal_counterfactual.FIT_MISMATCH,
                     offending=self.node,
                 )
                 for parent, coef in dict(self.coefficients).items()
@@ -237,7 +241,7 @@ class NodeMechanism:
                 noise_halfwidth=_number(
                     self.noise_halfwidth,
                     "noise_halfwidth",
-                    detail="temporal_counterfactual.fit_mismatch",
+                    detail=_reason_details.temporal_counterfactual.FIT_MISMATCH,
                     offending=self.node,
                 ),
             )
@@ -571,7 +575,7 @@ class WorldHistory:
             values=_real_sequence(
                 self.values,
                 "values",
-                detail="temporal_counterfactual.non_finite_history",
+                detail=_reason_details.temporal_counterfactual.NON_FINITE_HISTORY,
                 offending=self.unit,
             ),
         )
@@ -607,7 +611,7 @@ class WorldActions:
             actions=_real_sequence(
                 self.actions,
                 "actions",
-                detail="temporal_counterfactual.non_finite_history",
+                detail=_reason_details.temporal_counterfactual.NON_FINITE_HISTORY,
                 offending=self.name,
             ),
         )

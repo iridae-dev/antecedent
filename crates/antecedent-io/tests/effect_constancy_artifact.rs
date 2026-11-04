@@ -169,7 +169,7 @@ fn artifact_incompatible_partitions_refuse_with_the_core_detail() {
         EffectConstancyArtifact::seal(&request(vec![part("a", 1.0, 0.5), changed])).unwrap_err();
     let (code, detail, _) = error.refusal().expect("a typed refusal");
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "effect_constancy.incompatible_partitions");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS);
 
     let bad_covariance = EffectConstancyRequestWire {
         dependence: DependenceWire {
@@ -181,21 +181,21 @@ fn artifact_incompatible_partitions_refuse_with_the_core_detail() {
     let (code, detail, _) =
         EffectConstancyArtifact::seal(&bad_covariance).unwrap_err().refusal().unwrap();
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "effect_constancy.invalid_covariance");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE);
 
     let unknown = EffectConstancyRequestWire {
         family: FamilyWire { kind: "against_reference".into(), reference: Some("zzz".into()) },
         ..request(vec![part("a", 1.0, 0.5), part("b", 2.0, 0.5)])
     };
     let (_, detail, _) = EffectConstancyArtifact::seal(&unknown).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "effect_constancy.unknown_reference");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::UNKNOWN_REFERENCE);
 
     let tag = EffectConstancyRequestWire {
         dependence: DependenceWire { kind: "bogus".into(), covariance: vec![] },
         ..request(vec![part("a", 1.0, 0.5), part("b", 2.0, 0.5)])
     };
     let (_, detail, _) = EffectConstancyArtifact::seal(&tag).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "effect_constancy.invalid_request");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::INVALID_REQUEST);
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn resealed_mutation_refuses(
     assert_eq!(error, EffectConstancyArtifactError::IdentityMismatch { field }, "{field}");
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "effect_constancy.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::WRONG_CONTRACT);
 }
 
 #[test]
@@ -314,7 +314,7 @@ fn artifact_unresealed_tampering_does_not_replay() {
     assert!(matches!(
         EffectConstancyArtifact::from_bytes(&reencoded, None),
         Err(EffectConstancyArtifactError::Refused { code, detail, .. })
-            if code == "invalid_argument" && detail == "effect_constancy.invalid_covariance"
+            if code == "invalid_argument" && detail == antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE
     ));
 
     // A changed stored multiplicity family.

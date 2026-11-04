@@ -79,6 +79,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+import route_behaviour
 from _repo import REPO_ROOT as root
 from capability_source import (
     Symbol,
@@ -89,16 +90,13 @@ from capability_source import (
     crate_src,
     duplicate_refusal_pairs,
     external_surface_ownership,
-    finite_refusal_helpers,
     input_exception_evidence_problems,
     nontest_rust,
     pyo3_items,
-    python_literals,
     python_symbols,
     refusal_code_pair_problems,
-    refusal_stage_literals,
-    rust_literals,
     rust_pub_items,
+    scan_refusal_details,
     shared_namespace_problems,
     typed_input_exception_problems,
 )
@@ -135,7 +133,11 @@ RULES = {
     "search_charge_loop": "a .charge( on the budget sits in a looping or recursive fn that live code reaches",
     # refusals
     "refusal_code": "a refusal code is a registered runtime_refusal code",
-    "refusal_when": "a refusal states its condition",
+    "refusal_when": "a refusal of a record without generated behaviour states its condition",
+    "refusal_code_handwritten": "a supported record's refusal row does not restate its code; the generated behaviour states it",
+    "refusal_detail_unregistered": "a supported record's refusal detail is registered in parity/reason_details.toml and emitted by source",
+    "route_behaviour_drift": "parity/generated/route_behaviour.toml equals what the records, the reason-detail registry and source derive",
+    "stage_row_restates": "a transport stage row of a record-owned route does not state its stage, status, reason code or claim",
     "refusal_detail_shape": "a refusal detail is <namespace>.<snake_case>",
     "refusal_detail_duplicate": "identical refusal code/detail pairs are unique in a record",
     "refusal_namespace": "a record's refusal details share one namespace",
@@ -316,10 +318,23 @@ support_refusal_reasons_path = Path(
 extra_sources = [
     Path(p) for p in os.environ.get("CAPABILITY_EXTRA_SOURCES", "").split(os.pathsep) if p
 ]
-stage_routes = {
-    row.get("route"): row
-    for row in tomllib.loads(stages_path.read_text(encoding="utf-8")).get("routes", [])
-}
+stages_registry = tomllib.loads(stages_path.read_text(encoding="utf-8"))
+# Behaviour a record does not restate lives in parity/generated/route_behaviour.toml (see
+# scripts/route_behaviour.py): the canonical registry requires it, a trusted-testing registry uses
+# the file beside it when there is one and is otherwise self-contained.
+generated_path = (
+    root / route_behaviour.GENERATED
+    if registry_path.resolve() == (root / "parity/capability_records.toml").resolve()
+    else registry_path.parent / "generated/route_behaviour.toml"
+)
+generated = route_behaviour.load(generated_path)
+reason_details_path = (
+    root / route_behaviour.REASON_DETAILS
+    if generated_path == root / route_behaviour.GENERATED
+    else registry_path.parent / "reason_details.toml"
+)
+_stage_rows, _stage_row_problems = route_behaviour.stage_routes(root, stages_registry, generated)
+stage_routes = {row.get("route"): row for row in _stage_rows}
 support_cells = tomllib.loads(support_path.read_text(encoding="utf-8")).get("cell", [])
 # The support axes cannot name a contrast, so a closed sub-cell contrast owned by
 # a record is a [[closed_contrast]] row (the support-matrix gates read only
@@ -482,45 +497,8 @@ def code_of(path: Path, in_crate: bool) -> str:
 
 
 def scan_details(namespaces: set[str]):
-    """(found, dynamic): namespace -> detail -> [(path, in_crate, Lit)] for every
-    literal in non-test source that is exactly `<ns>.<snake>` or starts
-    `<ns>.<snake>:`, and namespace -> ["file:line"] for every literal that builds
-    a detail dynamically (`<ns>.` followed by a format placeholder or ending
-    there)."""
-    found: dict[str, dict[str, list]] = {ns: {} for ns in namespaces}
-    dynamic: dict[str, list[str]] = {ns: [] for ns in namespaces}
-    if not namespaces:
-        return found, dynamic
-    alt = "|".join(map(re.escape, sorted(namespaces)))
-    shape = re.compile(r"^(" + alt + r")\.([a-z0-9_]+)(?::|$)")
-    dyn = re.compile(r"(?<![\w.])(" + alt + r")\.(?:\{|%|$)")
-    hint = re.compile("|".join(re.escape(ns + ".") for ns in sorted(namespaces)))
-    for path, in_crate in source_files():
-        if not path.is_file() or not hint.search(raw(path)):
-            continue
-        if path.suffix == ".py":
-            lits, finite_lines, stages = python_literals(path), set(), set()
-        else:
-            inferred, finite_lines = finite_refusal_helpers(path, in_crate=in_crate)
-            stages = refusal_stage_literals(path, in_crate=in_crate)
-            lits = [*rust_literals(path, in_crate=in_crate), *inferred]
-        for lit in lits:
-            if (lit.line, lit.value) in stages:
-                continue
-            m = shape.match(lit.value)
-            if m:
-                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append(
-                    (path, in_crate, lit)
-                )
-            for d in dyn.finditer(lit.value):
-                if not (
-                    lit.line in finite_lines
-                    and lit.value in {f"{d.group(1)}.{{detail}}: {{message}}",
-                                      f"{d.group(1)}.{{detail}}",
-                                      f"{d.group(1)}.{{scope}}: {{message}}"}
-                ):
-                    dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
-    return found, dynamic
+    """Refusal-detail literals of the non-test source corpus (see capability_source)."""
+    return scan_refusal_details(namespaces, source_files(), raw, rel)
 
 
 _refs: dict[str, dict[Path, int]] = {}
@@ -557,6 +535,31 @@ namespaces_in_use = {
     if "." in refusal.get("detail", "")
 }
 code_details, dynamic_details = scan_details(namespaces_in_use)
+# Generated behaviour: the file must equal what the records, the reason-detail registry and
+# source derive; supported records then take their refusal codes from it.
+if generated is None:
+    if generated_path == root / route_behaviour.GENERATED:
+        fail(
+            "route_behaviour_drift",
+            f"{route_behaviour.GENERATED} is missing; run python3 scripts/generate_route_behaviour.py",
+        )
+else:
+    _derived, _derive_problems = route_behaviour.derive(
+        records, route_behaviour.load_details(reason_details_path), code_details
+    )
+    for _problem in _derive_problems:
+        fail("refusal_detail_unregistered", _problem)
+    for _rid in sorted(set(_derived) | set(generated)):
+        if _derived.get(_rid) != generated.get(_rid):
+            fail(
+                "route_behaviour_drift",
+                f"{_rid}: {route_behaviour.GENERATED} differs from the derived behaviour; "
+                f"run python3 scripts/generate_route_behaviour.py",
+            )
+    for _problem in route_behaviour.materialise_refusals(records, generated):
+        fail("refusal_code_handwritten", _problem)
+for _problem in _stage_row_problems:
+    fail("stage_row_restates", _problem)
 # Details each namespace's implemented records declare between them. Sibling records
 # of one capability family may share a namespace (the joint-sensitivity range record and its sampling
 # uncertainty record both use `joint_sensitivity`): a literal in the namespace is
@@ -690,7 +693,7 @@ for rec in records:
                 "refusal_code",
                 f"{rid}: refusal code {code!r} is not a registered runtime_refusal code",
             )
-        if not refusal.get("when"):
+        if not refusal.get("when") and not (generated is not None and record_supported):
             fail("refusal_when", f"{rid}: refusal {code!r} needs its condition")
         parts = detail.split(".")
         if len(parts) != 2 or not all(

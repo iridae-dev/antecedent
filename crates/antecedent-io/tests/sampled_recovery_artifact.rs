@@ -247,19 +247,31 @@ fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_r
     ];
     for (name, mutate) in mutations {
         let message = refusal(&resealed(&wire, mutate));
-        assert!(message.contains("sampled_recovery.receipt_mismatch"), "{name}: {message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH),
+            "{name}: {message}"
+        );
     }
     // A changed snapshot is not the snapshot the catalog binds.
     let message = refusal(&resealed(&wire, |w| w.snapshot_id = "snap-other".into()));
-    assert!(message.contains("sampled_recovery.invalid_input"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::sampled_recovery::INVALID_INPUT),
+        "{message}"
+    );
     // A pattern the proxy model excludes (a proxy value with no response).
     let message = refusal(&resealed(&wire, |w| w.rows[0] = (0, 0, 1, 0)));
-    assert!(message.contains("sampled_recovery.invalid_input"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::sampled_recovery::INVALID_INPUT),
+        "{message}"
+    );
     // A tampered derivation does not verify.
     let message = refusal(&resealed(&wire, |w| {
         w.derivation.rule_version = "binary_observation_recovery.v0".into();
     }));
-    assert!(message.contains("recovery.invalid_derivation"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::recovery::INVALID_DERIVATION),
+        "{message}"
+    );
     // Without resealing, edited rows break the data identity and an edited seed breaks
     // the premises digest.
     let mut edited = wire.clone();
@@ -272,7 +284,8 @@ fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_r
     let mut edited = wire;
     edited.result.recovered_cell_covariance[0] += 1e-9;
     assert!(
-        refusal(&edited.export().expect("export")).contains("sampled_recovery.receipt_mismatch")
+        refusal(&edited.export().expect("export"))
+            .contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH)
     );
 }
 
@@ -297,15 +310,22 @@ fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
     let mut row = sealed.clone();
     row.rows[0].3 ^= 1;
     assert!(
-        refusal(&resealed(&row, |_| {})).contains("sampled_recovery.receipt_mismatch"),
+        refusal(&resealed(&row, |_| {}))
+            .contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH),
         "a changed row"
     );
     let mut seed = sealed.clone();
     seed.receipt.config.seed += 1;
-    assert!(refusal(&resealed(&seed, |_| {})).contains("sampled_recovery.receipt_mismatch"));
+    assert!(
+        refusal(&resealed(&seed, |_| {}))
+            .contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH)
+    );
     let other = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
     let message = refusal(&resealed(&sealed, |w| w.derivation.rule_version = other.clone()));
-    assert!(message.contains("recovery.invalid_derivation"), "another version spelling: {message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::recovery::INVALID_DERIVATION),
+        "another version spelling: {message}"
+    );
 }
 
 #[test]
@@ -410,7 +430,10 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
         resealed(&wire, |w| w.receipt.replicates[0].failure = Some("forged_failure".into())),
     ] {
         let message = refusal(&corrupt);
-        assert!(message.contains("sampled_recovery.receipt_mismatch"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH),
+            "{message}"
+        );
     }
     let legacy_disguise = resealed(&wire, |w| w.version = 2);
     let message = SampledRecoveryArtifactWire::decode(&legacy_disguise)

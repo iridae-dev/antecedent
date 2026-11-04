@@ -17,6 +17,7 @@ import sys
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cohort_decision as cd
 from antecedent import decision
 from antecedent import inverse_query as iq
@@ -180,10 +181,22 @@ def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model
             require_success(asked.evaluate(source))
         assert law.value.reason_code == "decision_contract_unsatisfied"
     for kind, code, detail in (
-        ("probability", "decision_contract_unsatisfied", "cohort_decision.law_not_supplied"),
-        ("quantile", "decision_contract_unsatisfied", "cohort_decision.law_not_supplied"),
-        ("nonlinear_utility", "decision_contract_unsatisfied", "cohort_decision.law_not_supplied"),
-        ("joint_law", "joint_law_required", "cohort_decision.joint_law_required"),
+        (
+            "probability",
+            "decision_contract_unsatisfied",
+            reason_details.cohort_decision.LAW_NOT_SUPPLIED,
+        ),
+        (
+            "quantile",
+            "decision_contract_unsatisfied",
+            reason_details.cohort_decision.LAW_NOT_SUPPLIED,
+        ),
+        (
+            "nonlinear_utility",
+            "decision_contract_unsatisfied",
+            reason_details.cohort_decision.LAW_NOT_SUPPLIED,
+        ),
+        ("joint_law", "joint_law_required", reason_details.cohort_decision.JOINT_LAW_REQUIRED),
     ):
         with pytest.raises(cd.CohortDecisionRefusal) as refused:
             source.refuse(kind)
@@ -192,7 +205,7 @@ def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model
     with pytest.raises(cd.CohortDecisionRefusal) as interval:
         source.interval()
     assert interval.value.reason_code == "route_not_supported"
-    assert interval.value.detail == "cohort_decision.interval_not_supported"
+    assert interval.value.detail == reason_details.cohort_decision.INTERVAL_NOT_SUPPORTED
 
 
 def test_the_source_replays_in_a_fresh_process_under_the_retained_identity(model, tmp_path) -> None:
@@ -260,7 +273,7 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
             outcome_units="mmHg",
         )
     assert outside.value.reason_code == "invalid_argument"
-    assert outside.value.detail == "cohort_decision.outside_support"
+    assert outside.value.detail == reason_details.cohort_decision.OUTSIDE_SUPPORT
     assert "patient-b" in str(outside.value.offending)
     assert outside.value.remedy
     # Missing and extra features.
@@ -272,7 +285,7 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
             outcome_units="mmHg",
         )
     assert missing.value.reason_code == "schema_mismatch"
-    assert missing.value.detail == "cohort_decision.feature_schema_mismatch"
+    assert missing.value.detail == reason_details.cohort_decision.FEATURE_SCHEMA_MISMATCH
     with pytest.raises(cd.CohortDecisionRefusal) as extra:
         model.decision_source(
             cohort=cd.CohortBinding(
@@ -283,7 +296,7 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
             ),
             outcome_units="mmHg",
         )
-    assert extra.value.detail == "cohort_decision.feature_schema_mismatch"
+    assert extra.value.detail == reason_details.cohort_decision.FEATURE_SCHEMA_MISMATCH
     # Units are required and never inferred.
     with pytest.raises(CausalValueError):
         model.decision_source(cohort=cohort(), outcome_units="")
@@ -292,22 +305,22 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
     with pytest.raises(cd.CohortDecisionRefusal) as population:
         model.decision_source(cohort=foreign, outcome_units="mmHg")
     assert population.value.reason_code == "transport_missing_evidence"
-    assert population.value.detail == "cohort_decision.shift_declaration_required"
+    assert population.value.detail == reason_details.cohort_decision.SHIFT_DECLARATION_REQUIRED
     # A different contrast than the one the decision names.
     with pytest.raises(cd.CohortDecisionRefusal) as contrast:
         model.decision_source(
             cohort=cohort(), outcome_units="mmHg", expected_contrast="contrast:do(t=2)-do(t=0)"
         )
-    assert contrast.value.detail == "cohort_decision.contrast_mismatch"
+    assert contrast.value.detail == reason_details.cohort_decision.CONTRAST_MISMATCH
     # Invalid cohorts are refused at binding.
     with pytest.raises(cd.CohortDecisionRefusal) as weights:
         cd.CohortBinding(
             snapshot_id="s", population="target", columns={"z": [0.0, 1.0]}, weights=[0.5, 0.6]
         )
-    assert weights.value.detail == "cohort_decision.weights_not_normalized"
+    assert weights.value.detail == reason_details.cohort_decision.WEIGHTS_NOT_NORMALIZED
     with pytest.raises(cd.CohortDecisionRefusal) as nonfinite:
         cd.CohortBinding(snapshot_id="s", population="target", columns={"z": [float("nan")]})
-    assert nonfinite.value.detail == "cohort_decision.cohort_invalid"
+    assert nonfinite.value.detail == reason_details.cohort_decision.COHORT_INVALID
     # NumPy normally coerces this mixed sequence to strings; binding must retain the caller's
     # types so numeric values cannot silently become categorical levels.
     with pytest.raises(CausalTypeError, match="mixes levels and numbers"):
@@ -374,7 +387,7 @@ def test_a_cohort_source_is_decided_under_a_support_policy_with_the_hand_calcula
     contract = affine_contract(shifted, 5.0, -2.0)
     with pytest.raises(cd.CohortDecisionRefusal) as unaccepted:
         shifted.decide(contract)
-    assert unaccepted.value.detail == "cohort_decision.extrapolative_not_accepted"
+    assert unaccepted.value.detail == reason_details.cohort_decision.EXTRAPOLATIVE_NOT_ACCEPTED
     accepted = shifted.accept_extrapolative()
     strict = accepted.decide(contract)
     assert strict.verdict.kind == "no_supported_action" and strict.outcomes == ()
@@ -398,7 +411,7 @@ def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:
     contract = affine_contract(source, 5.0, -2.0)
     with pytest.raises(cd.CohortDecisionRefusal) as unaccepted:
         require_success(contract.evaluate(source))
-    assert unaccepted.value.detail == "cohort_decision.extrapolative_not_accepted"
+    assert unaccepted.value.detail == reason_details.cohort_decision.EXTRAPOLATIVE_NOT_ACCEPTED
     accepted = require_success(contract.evaluate(source.accept_extrapolative()))
     assert accepted.selected == ("treat",)
     # The shifted cohort must still lie inside the fitted support.
@@ -421,7 +434,7 @@ def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as inverse:
         source.forward_claim()
     assert inverse.value.reason_code == "decision_contract_unsatisfied"
-    assert inverse.value.detail == "inverse_forward_source.transported_not_accepted"
+    assert inverse.value.detail == reason_details.inverse_forward_source.TRANSPORTED_NOT_ACCEPTED
 
 
 def test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_refused(
@@ -439,11 +452,11 @@ def test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_ref
             cd.consume_cohort_decision_source(
                 bytes(other.export()), expected_identity=retained, cohort_digest=base.cohort_digest
             )
-        assert swapped.value.detail == "cohort_decision.cohort_changed"
+        assert swapped.value.detail == reason_details.cohort_decision.COHORT_CHANGED
         # Without the cohort expectation the consistently resealed artifact is another identity.
         with pytest.raises(cd.CohortDecisionRefusal) as resealed:
             cd.consume_cohort_decision_source(bytes(other.export()), expected_identity=retained)
-        assert resealed.value.detail == "cohort_decision.identity_unexpected"
+        assert resealed.value.detail == reason_details.cohort_decision.IDENTITY_UNEXPECTED
     # A different parent claim.
     foreign = other_model.decision_source(cohort=cohort(), outcome_units="mmHg")
     assert foreign.parent_claim != base.parent_claim
@@ -453,17 +466,17 @@ def test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_ref
             expected_identity=foreign.identity,
             parent_claim=base.parent_claim,
         )
-    assert parent.value.detail == "cohort_decision.wrong_parent_identity"
+    assert parent.value.detail == reason_details.cohort_decision.WRONG_PARENT_IDENTITY
     with pytest.raises(cd.CohortDecisionRefusal) as load:
         FittedEffectModel.load(
             bytes(other_model.export()), expected_parent_claim=model.parent_claim
         )
-    assert load.value.detail == "cohort_decision.wrong_parent_identity"
+    assert load.value.detail == reason_details.cohort_decision.WRONG_PARENT_IDENTITY
     # Other retained expectations are typed gates.
     for field, detail in (
-        ("population", "cohort_decision.population_mismatch"),
-        ("outcome_units", "cohort_decision.units_mismatch"),
-        ("contrast", "cohort_decision.contrast_mismatch"),
+        ("population", reason_details.cohort_decision.POPULATION_MISMATCH),
+        ("outcome_units", reason_details.cohort_decision.UNITS_MISMATCH),
+        ("contrast", reason_details.cohort_decision.CONTRAST_MISMATCH),
     ):
         with pytest.raises(cd.CohortDecisionRefusal) as gate:
             cd.consume_cohort_decision_source(
@@ -517,10 +530,10 @@ def test_a_declared_compact_model_carries_the_uncalibrated_variance_and_is_never
     )
     with pytest.raises(cd.CohortDecisionRefusal) as not_contrast:
         cd.decision_source_from_compact_export(absolute, cohort=cohort(), outcome_units="mmHg")
-    assert not_contrast.value.detail == "cohort_decision.contrast_not_declared"
+    assert not_contrast.value.detail == reason_details.cohort_decision.CONTRAST_NOT_DECLARED
     with pytest.raises(cd.CohortDecisionRefusal) as units:
         cd.decision_source_from_compact_export(export, cohort=cohort(), outcome_units="g/dL")
-    assert units.value.detail == "cohort_decision.units_mismatch"
+    assert units.value.detail == reason_details.cohort_decision.UNITS_MISMATCH
     # A portable (analysis result) model has no variance diagnostic.
 
 
@@ -541,7 +554,7 @@ def test_a_portable_model_has_no_variance_diagnostic_and_feeds_an_inverse_query(
                 source.forward_claim()
             )
         )
-    assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+    assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
     with pytest.raises(CausalTypeError):
         require_success(
             iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(target),)).evaluate(source)
@@ -657,7 +670,7 @@ def test_a_declared_compact_export_is_point_only_with_its_own_detail() -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as refused:
         plain.interval()
     assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "cohort_decision.interval_requires_native_fit"
+    assert refused.value.detail == reason_details.cohort_decision.INTERVAL_REQUIRES_NATIVE_FIT
 
 
 def test_a_native_fit_is_the_declared_ols_with_hc3_covariance_and_refuses_bad_designs() -> None:
@@ -709,4 +722,4 @@ def test_a_native_fit_is_the_declared_ols_with_hc3_covariance_and_refuses_bad_de
                 population="target",
                 **kwargs,  # type: ignore[arg-type]
             )
-        assert refused.value.detail == "cohort_decision.native_fit_refused"
+        assert refused.value.detail == reason_details.cohort_decision.NATIVE_FIT_REFUSED

@@ -77,7 +77,28 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/src/bounds.rs",
-          "sha256": "688e600fa78776a81ccac34dc17530d2ef73d8e558bee87ba5a56762329c92e9"
+          "items": [
+            "const RANK",
+            "const TOL",
+            "const TYPES",
+            "fn binary_iv_ate_bounds",
+            "fn binary_iv_inequality_satisfied",
+            "fn cell_index",
+            "fn constraint_system",
+            "fn decode_type",
+            "fn enumerate_bases",
+            "fn feasible_ate_bounds",
+            "fn matches_frozen_bpbounds_table1_oracle",
+            "fn matches_observed",
+            "fn never_takers_leave_treated_potential_outcome_unknown",
+            "fn perfect_compliance_deterministic_effect_is_point_identified",
+            "fn satisfied_law_is_reported_by_the_shared_predicate",
+            "fn solve",
+            "fn validate",
+            "fn violated_law_is_rejected_by_bounds_and_the_shared_predicate",
+            "struct BinaryIvLaw"
+          ],
+          "sha256": "bb0832444af6cc07e96c2c8b4c33ee05771f3cc58fcabcfd9778426ef8ce6a14"
         }
       ],
       "fixture_payload_sha256": "37cceaf4a730ca360e971502c966d4a1ebdfa87fab5b5b925a8049103ab4eefa"

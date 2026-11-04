@@ -40,7 +40,7 @@ pub fn check_static_point_labels(
     if labels.len() != value_len {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "coordinate_support.point_count_mismatch",
+            antecedent_core::reason_details::coordinate_support::POINT_COUNT_MISMATCH,
             value_len.to_string(),
             labels.len().to_string(),
         ));
@@ -52,9 +52,9 @@ pub fn check_static_point_labels(
             Err(refuse(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 if hides_missing {
-                    "coordinate_support.missing_evidence_relabeled"
+                    antecedent_core::reason_details::coordinate_support::MISSING_EVIDENCE_RELABELED
                 } else {
-                    "coordinate_support.summary_not_worst_label"
+                    antecedent_core::reason_details::coordinate_support::SUMMARY_NOT_WORST_LABEL
                 },
                 worst.as_str().to_owned(),
                 status.as_str().to_owned(),
@@ -76,13 +76,19 @@ mod tests {
         let count = check_static_point_labels(&labels, S::WeakOverlap, 4).unwrap_err();
         assert_eq!(
             (count.code, count.detail.as_str()),
-            ("invalid_argument", "coordinate_support.point_count_mismatch")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::coordinate_support::POINT_COUNT_MISMATCH
+            )
         );
         assert_eq!((count.expected.as_deref(), count.supplied.as_deref()), (Some("4"), Some("3")));
         let summary = check_static_point_labels(&labels, S::Supported, 3).unwrap_err();
         assert_eq!(
             (summary.code, summary.detail.as_str()),
-            ("quantity_semantics_mismatch", "coordinate_support.summary_not_worst_label")
+            (
+                "quantity_semantics_mismatch",
+                antecedent_core::reason_details::coordinate_support::SUMMARY_NOT_WORST_LABEL
+            )
         );
         assert_eq!(summary.expected.as_deref(), Some("weak_overlap"));
     }
@@ -95,7 +101,10 @@ mod tests {
         // coordinate for it hides which kind of failure it is.
         for hidden in [S::OutsideEmpiricalSupport, S::WeakOverlap, S::Supported] {
             let refusal = check_static_point_labels(&labels, hidden, 3).unwrap_err();
-            assert_eq!(refusal.detail, "coordinate_support.missing_evidence_relabeled");
+            assert_eq!(
+                refusal.detail,
+                antecedent_core::reason_details::coordinate_support::MISSING_EVIDENCE_RELABELED
+            );
             assert_eq!(refusal.expected.as_deref(), Some("missing_evidence"));
             assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code));
         }

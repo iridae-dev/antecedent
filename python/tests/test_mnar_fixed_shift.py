@@ -1,5 +1,6 @@
 import pytest
 from antecedent import Execution, ResourceLimits, mnar_fixed_shift
+from antecedent import _reason_details as reason_details
 from antecedent.state import CancellationToken
 
 KWARGS = {"population": "target", "design": "independent_randomized_arms"}
@@ -80,7 +81,7 @@ def test_duplicate_subjects_are_refused_across_arms() -> None:
     ids[40] = ids[0]
     with pytest.raises(mnar_fixed_shift.MnarFixedShiftRefusal) as refusal:
         mnar_fixed_shift.prepare_fixed_shift(ids, arm, outcome, **KWARGS, treated_shift=0.0)
-    assert refusal.value.detail == "mnar_fixed_shift.duplicate_subject"
+    assert refusal.value.detail == reason_details.mnar_fixed_shift.DUPLICATE_SUBJECT
 
 
 def test_declared_design_is_required() -> None:

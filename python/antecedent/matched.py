@@ -86,7 +86,7 @@ class MatchedCaseControlResult(ScientificResult):
 
     ``interval`` is ``(lower, upper)`` of the odds ratio at ``interval_level`` when a level
     was requested, ``None`` otherwise; ``interval_calibration`` is its calibration slot
-    (``status`` is ``not_measured`` until a coverage record measures the construction).
+    (``status`` is ``not_measured`` while no coverage record measures the construction).
     The exported artifact carries the point and counts only.
 
     ``set_types`` is the sufficient statistic of the declared sets: one

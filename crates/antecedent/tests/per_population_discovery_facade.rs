@@ -173,26 +173,41 @@ fn pooled_or_duplicated_populations_and_malformed_requests_are_refused_without_w
     // The same rows under two labels are one dataset, not two populations.
     assert_eq!(
         refused(&contract(), &[rows("north", &north), rows("south", &north)]),
-        ("invalid_argument", "selective_discovery.pooled_population_data")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_DATA
+        )
     );
     // A pooled declaration (a further population on the contract) is not per-population.
     let mut pooled = contract();
     pooled.additional_populations = vec!["south".to_owned()];
     assert_eq!(
         refused(&pooled, &[rows("north", &north), rows("south", &south)]),
-        ("route_not_supported", "selective_discovery.pooled_population_search")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_SEARCH
+        )
     );
     assert_eq!(
         refused(&contract(), &[rows("north", &north)]),
-        ("invalid_argument", "selective_discovery.populations_missing")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::selective_discovery::POPULATIONS_MISSING
+        )
     );
     assert_eq!(
         refused(&contract(), &[rows("north", &north), rows("north", &south)]),
-        ("invalid_argument", "selective_discovery.population_repeated")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::selective_discovery::POPULATION_REPEATED
+        )
     );
     assert_eq!(
         refused(&contract(), &[rows("north", &north), rows(" ", &south)]),
-        ("invalid_argument", "selective_discovery.population_missing")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::selective_discovery::POPULATION_MISSING
+        )
     );
 }
 
@@ -242,7 +257,10 @@ fn differences_between_populations_are_not_selection_targets() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "discovered_structure_unresolved");
-    assert_eq!(refusal.detail, "selective_discovery.differences_are_not_selection_targets");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::DIFFERENCES_ARE_NOT_SELECTION_TARGETS
+    );
     assert!(refusal.remedy.starts_with("2 edge(s) differ"));
     assert!(refusal.remedy.contains("Declare the selection targets"));
 }

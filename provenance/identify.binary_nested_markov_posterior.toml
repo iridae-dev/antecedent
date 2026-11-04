@@ -48,12 +48,14 @@ record_sha256 = "078d9ad849b6db3d2ca0633d7d35ff86d9833683a13b14f70158c369e82c620
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-learn/src/nested_markov_bayesian.rs"
-sha256 = "a50a5a18fc19971bb1b1b158301d61da22fb79bb99539488f01d773688dbc6ef"
+items = ["const MAX_DRAWS", "const OUTPUTS", "const PARAMETERS", "enum BayesianRefusal", "fn beta", "fn bracket", "fn default", "fn fit", "fn gamma", "fn log_block", "fn probabilities", "fn slice", "fn spend", "fn summarize", "fn uniform", "fn validate", "struct Diagnostics", "struct Options", "struct Posterior", "struct Prior", "struct Work"]
+sha256 = "ca3c564bda17b8bc7cb097a8ea306d0fc38c5556911ecf44e2e911529c2a08b8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-learn/tests/nested_markov_bayesian_reference.rs"
-sha256 = "9161fa8043f30c1b9498de30369d060f1694e4b940b3b1e8b2e3c72fd7ca226a"
+items = ["fn asymmetric_counts_posterior_means_match_independent_quadrature", "fn coordinate_law_satisfies_the_verma_nested_markov_constraints", "fn gauss", "fn integrate", "fn low_count_full_joint_posterior_matches_independent_integration_and_prior_sensitivity", "fn moment", "fn terms", "fn weighted_quantile", "struct Reference", "struct Term"]
+sha256 = "8dd8f33a95129428aae665d7ff629205cf89d3ed45a82343da98944cdc7b69e6"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -15,6 +15,7 @@ from pathlib import Path
 import antecedent as at
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import typed_mechanism_transport as tmt
 from antecedent.errors import CausalTypeError, CausalValueError
 
@@ -138,7 +139,9 @@ def test_a_shifted_mechanism_without_target_evidence_is_refused(sources, targets
             list(sources.values()),
             [targets["income"], targets["price"]],
         )
-    assert caught.value.details == ("typed_mechanism_transport.shifted_without_target_evidence",)
+    assert caught.value.details == (
+        reason_details.typed_mechanism_transport.SHIFTED_WITHOUT_TARGET_EVIDENCE,
+    )
     assert caught.value.reason_code == "transport_missing_evidence"
 
 
@@ -157,7 +160,9 @@ def test_a_wrongly_declared_invariance_is_flagged_by_target_data(sources, target
             list(sources.values()),
             [targets["income"], shifted_price, *(targets[v] for v in OUTCOMES)],
         )
-    assert caught.value.details == ("typed_mechanism_transport.invariance_contradicted",)
+    assert caught.value.details == (
+        reason_details.typed_mechanism_transport.INVARIANCE_CONTRADICTED,
+    )
 
 
 def test_an_invariance_without_target_data_is_recorded_as_untested(sources, targets) -> None:
@@ -178,7 +183,9 @@ def test_unknown_dependence_refuses_the_variance_but_not_the_point(sources, targ
     assert done.mean_contrast(level("demand", 1.0), draws=5_000).draws == 5_000
     with pytest.raises(tmt.TypedMechanismRefusal) as caught:
         done.mean_contrast_uncertainty(level("demand", 1.0), draws=5_000)
-    assert caught.value.details == ("typed_mechanism_transport.parameter_dependence_unknown",)
+    assert caught.value.details == (
+        reason_details.typed_mechanism_transport.PARAMETER_DEPENDENCE_UNKNOWN,
+    )
 
 
 def test_the_interval_carries_its_calibration_status(transported) -> None:
@@ -200,7 +207,9 @@ def test_identity_is_verified_only_against_what_it_re_derives(
     assert receipt.identity == transported.identity
     with pytest.raises(tmt.TypedMechanismRefusal) as caught:
         tmt.verify_typed_transport(*args, expected_identity="0" * 64)
-    assert caught.value.details == ("typed_mechanism_transport.transport_identity_mismatch",)
+    assert caught.value.details == (
+        reason_details.typed_mechanism_transport.TRANSPORT_IDENTITY_MISMATCH,
+    )
 
 
 def test_fit_refuses_support_violations_and_separation() -> None:

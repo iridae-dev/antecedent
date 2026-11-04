@@ -38,7 +38,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/src/path_specific.rs",
-          "sha256": "ccbe2d177db2a9c7164e67baca9cb7e7dd9dbb92ba62a438be9232c8baaf7cc5"
+          "items": [
+            "fn witness"
+          ],
+          "sha256": "46b9707c014e298ce6c6964d087b091467538b1ee155e05d9987ec38074b5f0e"
         }
       ],
       "sources": [],

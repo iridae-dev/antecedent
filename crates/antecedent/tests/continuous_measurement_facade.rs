@@ -203,10 +203,16 @@ fn interval_and_export_refuse() {
     let half = 1.959_963_984_540_054 * estimate.standard_error().unwrap();
     assert!((lo - (estimate.point() - half)).abs() < 1e-9, "{lo}");
     assert!((hi - (estimate.point() + half)).abs() < 1e-9, "{hi}");
-    assert_eq!(estimate.interval(1.0).unwrap_err().detail, "measurement_model.interval_level");
+    assert_eq!(
+        estimate.interval(1.0).unwrap_err().detail,
+        antecedent_core::reason_details::measurement_model::INTERVAL_LEVEL
+    );
     let export = estimate.export("continuous").unwrap_err();
     assert_eq!(export.code, "route_not_supported");
-    assert_eq!(export.detail, "measurement_model.continuous_export");
+    assert_eq!(
+        export.detail,
+        antecedent_core::reason_details::measurement_model::CONTINUOUS_EXPORT
+    );
 }
 
 #[test]

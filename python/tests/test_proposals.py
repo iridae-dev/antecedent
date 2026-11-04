@@ -17,6 +17,7 @@ import copy
 
 import pytest
 from antecedent import Admg, Dag, repair
+from antecedent import _reason_details as reason_details
 from antecedent import design as dr
 from antecedent import proposals as px
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
@@ -269,7 +270,7 @@ def test_receipt_never_marks_a_hypothetical_derivation_as_available(fx):
     )
     error = refused(
         lambda: fx.bundle.on_arrival(cohort(), proposed),
-        "proposal_receipt.hypothetical_not_evidence",
+        reason_details.proposal_receipt.HYPOTHETICAL_NOT_EVIDENCE,
     )
     assert error.reason_code == "transport_missing_evidence"
     manipulable = px.ArrivedEvidence.regimes(
@@ -279,7 +280,7 @@ def test_receipt_never_marks_a_hypothetical_derivation_as_available(fx):
     )
     refused(
         lambda: fx.bundle.on_arrival(cohort(), manipulable),
-        "proposal_receipt.hypothetical_not_evidence",
+        reason_details.proposal_receipt.HYPOTHETICAL_NOT_EVIDENCE,
     )
 
 
@@ -299,7 +300,7 @@ def test_receipt_bundle_identity_does_not_depend_on_candidate_order(fx):
     assert shuffled.identity == fx.bundle.identity
     refused(
         lambda: shuffled.verify(fx.repair_bytes, fx.ranking_bytes, consume=False),
-        "proposal_receipt.non_canonical_order",
+        reason_details.proposal_receipt.NON_CANONICAL_ORDER,
     )
 
 
@@ -408,7 +409,7 @@ def test_receipt_bundle_level_mutations_refuse(fx):
         lambda: px.ProposalBundle.from_dict(data).verify(
             fx.repair_bytes, fx.ranking_bytes, consume=False
         ),
-        "proposal_receipt.candidate_set_mismatch",
+        reason_details.proposal_receipt.CANDIDATE_SET_MISMATCH,
     )
     # A proposal with an unknown candidate id.
     data = copy.deepcopy(fx.bundle.to_dict())
@@ -417,7 +418,7 @@ def test_receipt_bundle_level_mutations_refuse(fx):
         lambda: px.ProposalBundle.from_dict(data).verify(
             fx.repair_bytes, fx.ranking_bytes, consume=False
         ),
-        "proposal_receipt.candidate_not_in_ranking",
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_RANKING,
     )
 
 
@@ -429,7 +430,7 @@ def test_receipt_a_different_ranking_is_not_the_one_the_bundle_binds(fx):
     assert other.identity != fx.ranked.identity
     refused(
         lambda: fx.bundle.verify(fx.repair_bytes, bytes(other.export())),
-        "proposal_receipt.ranking_digest_mismatch",
+        reason_details.proposal_receipt.RANKING_DIGEST_MISMATCH,
     )
 
 
@@ -439,7 +440,7 @@ def test_receipt_candidate_in_repair_but_not_in_ranking_is_refused(fx):
     # does not cover it.
     refused(
         lambda: fx.bundle.verify(fx.repair_bytes, bytes(only_cheap.export())),
-        "proposal_receipt.candidate_not_in_ranking",
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_RANKING,
     )
     single = px.ProposalBundle.build(fx.repair_bytes, bytes(only_cheap.export()))
     assert single.candidate_ids == (fx.narrow_id,)
@@ -450,7 +451,7 @@ def test_receipt_candidate_in_ranking_but_not_in_repair_is_refused(fx):
     stranger = rank(fx.repaired, fx.studies, {"narrow": 0.625, "cohort": 0.75}, ids=ids)
     refused(
         lambda: px.ProposalBundle.build(fx.repair_bytes, bytes(stranger.export())),
-        "proposal_receipt.candidate_not_in_repair",
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_REPAIR,
     )
 
 
@@ -463,7 +464,7 @@ def test_receipt_a_ranking_that_costs_a_candidate_differently_is_refused(fx):
     )
     refused(
         lambda: px.ProposalBundle.build(fx.repair_bytes, bytes(dearer.export())),
-        "proposal_receipt.cost_mismatch",
+        reason_details.proposal_receipt.COST_MISMATCH,
     )
 
 
@@ -474,7 +475,7 @@ def test_receipt_a_foreign_repair_artifact_is_refused(fx):
     # Neither ranked candidate is declared in the other repair report.
     refused(
         lambda: px.ProposalBundle.build(bytes(other.export()), fx.ranking_bytes),
-        "proposal_receipt.candidate_not_in_repair",
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_REPAIR,
     )
 
 
@@ -531,7 +532,7 @@ def test_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed
         lambda: fx.bundle.on_arrival(
             cohort(), law(["t", "y", "z1", "z2"], sample_size=SAMPLES - 1)
         ),
-        "proposal_receipt.arrival_sample_mismatch",
+        reason_details.proposal_receipt.ARRIVAL_SAMPLE_MISMATCH,
     )
     refused(
         lambda: fx.bundle.on_arrival(
@@ -540,26 +541,26 @@ def test_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed
                 "clinic", ["t", "y", "z1", "z2"], snapshot_id="  ", sample_size=SAMPLES
             ),
         ),
-        "proposal_receipt.arrival_invalid",
+        reason_details.proposal_receipt.ARRIVAL_INVALID,
     )
     refused(
         lambda: fx.bundle.on_arrival(
             cohort(),
             px.ArrivedEvidence.regimes([], snapshot_id="snapshot:none", sample_size=SAMPLES),
         ),
-        "proposal_receipt.arrival_empty",
+        reason_details.proposal_receipt.ARRIVAL_EMPTY,
     )
     # A receipt answers only the candidate it was issued for.
     stranger = observation("stranger", ["t", "y", "z1", "z2", "w1"], 40)
     refused(
         lambda: fx.bundle.on_arrival(stranger, law(["t", "y", "z1", "z2"])),
-        "proposal_receipt.candidate_not_in_bundle",
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_BUNDLE,
     )
     # A bundle without the failed contract cannot re-identify anything.
     bare = px.ProposalBundle.build(fx.repair_bytes, fx.ranking_bytes)
     refused(
         lambda: bare.on_arrival(cohort(), law(["t", "y", "z1", "z2"])),
-        "proposal_receipt.contract_required",
+        reason_details.proposal_receipt.CONTRACT_REQUIRED,
     )
     # An observed law is a back-door delivery, never a transport one.
     transport_fx = TransportFixture()
@@ -568,7 +569,7 @@ def test_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed
             experiment(),
             px.ArrivedEvidence.law("source", ["x", "y"], snapshot_id="s", sample_size=SAMPLES),
         ),
-        "proposal_receipt.arrival_family_mismatch",
+        reason_details.proposal_receipt.ARRIVAL_FAMILY_MISMATCH,
     )
 
 

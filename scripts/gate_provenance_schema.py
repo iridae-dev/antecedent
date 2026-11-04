@@ -31,6 +31,7 @@ path_pattern = re.compile(
     r"((?:crates|python|conformance|tests|parity|benches|docs)/[A-Za-z0-9_./-]+)"
 )
 problems: list[str] = []
+item_bound = 0
 checked = 0
 path_refs = 0
 primary_reviewed = 0
@@ -50,6 +51,12 @@ for path in records:
 
     if record.get("feature_id") != path.stem:
         problems.append(f"{rel}: feature_id must equal filename stem {path.stem!r}")
+    for key in ("method_review", "non_algorithm_review"):
+        review = record.get(key)
+        if isinstance(review, dict):
+            item_bound += sum(
+                isinstance(a, dict) and "items" in a for a in review.get("artifacts") or []
+            )
     review_findings = method_review_problems(root, record)
     problems.extend(f"{rel}: {problem}" for problem in review_findings)
     if isinstance(record.get("method_review"), dict) and not review_findings:
@@ -261,5 +268,5 @@ if problems:
     sys.exit(1)
 
 print(
-    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted provenance/API links, {primary_reviewed} bounded primary method reviews, {non_algorithm_mapped} justified non-algorithm mappings)"
+    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted provenance/API links, {primary_reviewed} bounded primary method reviews, {non_algorithm_mapped} justified non-algorithm mappings, {item_bound} item-bound artifacts)"
 )

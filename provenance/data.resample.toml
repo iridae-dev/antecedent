@@ -36,19 +36,23 @@ record_sha256 = "e9a7eeb604edf4d6a82169850ac9ece004a21973b613b4917467708ac1d8c0b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/resample.rs"
-sha256 = "aeb9f7ed94d0a0b573306b12d7a34dbcfa7aad9ea5336cd4ccd6257509571977"
+items = ["enum PermutationScheme", "enum ResamplingPlan", "fn fill_resample_indexes", "fn fill_resample_indexes_grouped", "fn needs_clusters"]
+sha256 = "5bc986347f36bf6d5b352a489fd132a8cdedf7d8daaa3905b902d9bb542a9b24"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/resample/indexes.rs"
-sha256 = "a5c538eea061804dafbfbd5f8a0f1e6d15fc44fd8396ba0e26eca9a63ae8a69f"
+items = ["fn circular_block_length", "fn cluster", "fn integer_cube_root_ceil"]
+sha256 = "ff973abcfdee4d752d0668302c1cb172d2368bc5a1157cf8a94a32323fa8a7ec"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/resample/replicates.rs"
-sha256 = "cbfe5304ac171df34f6a2882004a22ea11618937c30d0a902f372aa2c239cc49"
+items = ["fn check_resampling_cancelled", "fn fill_resample_index_replicate", "fn fill_resample_weight_replicate", "fn fill_resample_weights", "fn resample_rng"]
+sha256 = "c2acea92ac5f49f082308f1f65a7aa3287d6f5cfbbc0208d59864d3a3c5df174"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/resample_law_reference.rs"
-sha256 = "4305af94e7f4d9345662a51aa8565f1036a66af33c3c5f3f536aa104b2a17016"
+items = ["fn a_moving_block_as_long_as_the_series_is_the_identity", "fn a_single_cluster_bootstrap_returns_that_cluster", "fn assert_law", "fn bayesian_bootstrap_weights_follow_the_scaled_dirichlet_marginals", "fn block_law", "fn cluster_bootstrap_draws_g_whole_clusters_uniformly_with_label_order_irrelevant", "fn draws", "fn iid_and_full_permutation_laws_are_uniform", "fn ks_statistic", "fn moving_and_circular_block_laws_match_the_enumerated_block_start_laws", "fn stationary_bootstrap_follows_the_geometric_block_chain_exactly", "fn stationary_bootstrap_refuses_an_expected_length_below_one_or_not_finite", "fn stationary_law", "fn within_cluster_permutation_shuffles_each_cluster_among_its_own_slots"]
+sha256 = "b42f560215140e5f61881d814f4910089f40310e94751882daa28c0b01637751"

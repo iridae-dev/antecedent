@@ -491,7 +491,8 @@ fn invariant_parts() -> SensitivityParts {
             identified_bound: None,
             sampling: SamplingStatus::Withheld {
                 reason_code: "uncertainty_representation_insufficient".into(),
-                detail: "joint_sensitivity.no_interval_method".into(),
+                detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+                    .into(),
             },
         },
         provenance: SensitivityProvenance {
@@ -611,7 +612,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "joint_law_required",
             stage: "inverse_query",
-            detail: "decision_evaluation.joint_law_required",
+            detail: antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED,
         },
     );
     assert_eq!(joint.offending.as_deref(), Some("risky"));
@@ -646,7 +647,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "design_signal_invalid",
             stage: "declare",
-            detail: "signal_provider.sample_size_mismatch",
+            detail: antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_MISMATCH,
         },
     );
     assert_eq!(signal.expected.as_deref(), Some("1"));
@@ -658,7 +659,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "external_capability_missing",
             stage: "declare",
-            detail: "signal_provider.capability_missing",
+            detail: antecedent_core::reason_details::signal_provider::CAPABILITY_MISSING,
         },
     );
     assert_eq!(capability.capability, Some(ExternalCapability::Update));
@@ -669,7 +670,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "design_signal_invalid",
             stage: "declare",
-            detail: "signal_provider.posterior_incoherent",
+            detail: antecedent_core::reason_details::signal_provider::POSTERIOR_INCOHERENT,
         },
     );
 
@@ -680,7 +681,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "design_signal_invalid",
             stage: "declare",
-            detail: "signal_provider.posterior_incoherent",
+            detail: antecedent_core::reason_details::signal_provider::POSTERIOR_INCOHERENT,
         },
     );
 
@@ -710,7 +711,11 @@ fn evsi_and_cost_unit_refusals()
     let overlap = EvsiError::SourceOverlap(vec!["o1".into(), "o2".into()]).to_refusal();
     check(
         &overlap,
-        &Expect { code: "design_signal_invalid", stage: "evaluate", detail: "evsi.source_overlap" },
+        &Expect {
+            code: "design_signal_invalid",
+            stage: "evaluate",
+            detail: antecedent_core::reason_details::evsi::SOURCE_OVERLAP,
+        },
     );
     assert_eq!(overlap.offending.as_deref(), Some("o1,o2"));
     assert!(overlap.remedy.is_some());
@@ -721,7 +726,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_cost_units_mismatch",
             stage: "evaluate",
-            detail: "evsi.cost_units_mismatch",
+            detail: antecedent_core::reason_details::evsi::COST_UNITS_MISMATCH,
         },
     );
     assert_eq!(units.offending.as_deref(), Some("candidate study cost unit usd"));
@@ -733,7 +738,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_cost_units_mismatch",
             stage: "evaluate",
-            detail: "evsi.cost_map_required",
+            detail: antecedent_core::reason_details::evsi::COST_MAP_REQUIRED,
         },
     );
 
@@ -743,7 +748,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_cost_units_mismatch",
             stage: "consume",
-            detail: "design_ranking.cost_units_mismatch",
+            detail: antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH,
         },
     );
     assert!(ranking.remedy.is_some());
@@ -754,7 +759,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_signal_invalid",
             stage: "consume",
-            detail: "design_ranking.digest_mismatch",
+            detail: antecedent_core::reason_details::design_ranking::DIGEST_MISMATCH,
         },
     );
 
@@ -790,7 +795,7 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         &Expect {
             code: "inverse_functional_unsupported",
             stage: "inverse_query",
-            detail: "functional_inverse_query.wrong_contract",
+            detail: antecedent_core::reason_details::functional_inverse_query::WRONG_CONTRACT,
         },
     );
     assert_eq!(wrong.offending.as_deref(), Some("retained identity differs"));
@@ -804,7 +809,8 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         &Expect {
             code: "inverse_functional_unsupported",
             stage: "inverse_query",
-            detail: "functional_inverse_query.global_feasibility_claim",
+            detail:
+                antecedent_core::reason_details::functional_inverse_query::GLOBAL_FEASIBILITY_CLAIM,
         },
     );
 
@@ -813,7 +819,10 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         code: "inverse_functional_unsupported",
         message: "no detail written".into(),
     });
-    assert_eq!(bare.detail, "functional_inverse_query.wrong_contract");
+    assert_eq!(
+        bare.detail,
+        antecedent_core::reason_details::functional_inverse_query::WRONG_CONTRACT
+    );
 
     let other = artifact_refusal(&IoError::Convert("truncated payload".into()));
     check(
@@ -821,7 +830,7 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         &Expect {
             code: "invalid_argument",
             stage: "inverse_query",
-            detail: "functional_inverse_query.invalid_artifact",
+            detail: antecedent_core::reason_details::functional_inverse_query::INVALID_ARTIFACT,
         },
     );
     assert!(other.offending.as_deref().is_some_and(|text| text.contains("truncated payload")));
@@ -873,7 +882,7 @@ fn backdoor_obligation_has_the_derived_identity_and_the_python_visible_fields() 
 fn obligation_refusals_use_the_registered_codes_and_details_python_reports() {
     let wrong = EvidenceObligationError::wrong_contract("a study never proves an assumption");
     assert_eq!(wrong.code, "transport_missing_evidence");
-    assert_eq!(wrong.detail, "evidence_obligations.wrong_contract");
+    assert_eq!(wrong.detail, antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT);
     let invalid = EvidenceObligation::try_new(EvidenceObligationSpec {
         quantities: std::collections::BTreeMap::new(),
         kind: EvidenceObligationKind::Measure,
@@ -892,7 +901,10 @@ fn obligation_refusals_use_the_registered_codes_and_details_python_reports() {
     })
     .unwrap_err();
     assert_eq!(invalid.code, "invalid_argument");
-    assert_eq!(invalid.detail, "evidence_obligations.invalid_obligation");
+    assert_eq!(
+        invalid.detail,
+        antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION
+    );
 }
 
 // -- (4) cross-surface fixture hooks (ignored until regenerated) ---------------------------

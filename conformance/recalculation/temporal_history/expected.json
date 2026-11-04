@@ -38,12 +38,35 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_temporal.rs",
-          "sha256": "8ca164fb0bcd35339c9ed7fb76dc6d9c808e529bb033c65c8053d16039ca8d57"
+          "items": [
+            "fn checked_response_retired_intervals_refuse_before_resampling",
+            "fn close",
+            "fn ctx",
+            "fn effect",
+            "fn mean",
+            "fn pin",
+            "fn request",
+            "fn run",
+            "fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership",
+            "fn temporal_history_closed_candidate_replays_whole_unit_identities_without_coverage_claim",
+            "fn temporal_history_empirical_artifact_is_independently_checked_from_raw_units",
+            "fn temporal_history_new_sequence_and_new_raw_histories_invalidate_only_real_work",
+            "fn temporal_history_portable_flags_cannot_supply_fits_and_raw_resume_rebuilds",
+            "fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit",
+            "fn temporal_history_response_and_effect_match_enumerated_longitudinal_truth",
+            "fn temporal_history_source_program_uses_only_reachable_actual_observational_source_leaves",
+            "fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph",
+            "fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits"
+          ],
+          "sha256": "e1245f1384e257276cb271fcf43d336fe865a99712cad72b50bc3444bb2b36a6"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/temporal_history_fit.rs",
-          "sha256": "154c5d1b7253e1963c8dfbf6d0a9b9e6da8b91890490840e4f3b229255ba3ee8"
+          "items": [
+            "fn unit"
+          ],
+          "sha256": "87d76c500882f7d0194f7fb97974656b361f99fb05f760d0d9e8f3f4725aacff"
         }
       ],
       "fixture_payload_sha256": "5cb250f33597c7c4ef405392ef7c6fd2e94fe72cabac03ec796b535cf4384b1e"

@@ -36,12 +36,14 @@ record_sha256 = "8a425752b0a839b3a2a5bee249ed15c4232ffee3160a9b28ce2d2a5125632d6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/augmented_panel_did.rs"
-sha256 = "f6a6cb07e600286b1ff0b7185dfce0888b757579252b1ca81d5142324720b778"
+items = ["fn estimate", "fn resample_augmented_panel", "fn weighted_effect", "struct AugmentedPanelDidFit"]
+sha256 = "7113614baf3201e6e09df73edcde77cb4123f18a3f510ed3c7a20f25591db99e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/augmented_did_reference.rs"
-sha256 = "a9db5b64bdd274d076fd3e15752e23fd1154e6f3e2ca046ed006e864a5759216"
+items = ["fn a_constant_error_in_the_supplied_prediction_cancels", "fn cases", "fn close", "fn floats", "fn the_augmented_effect_and_comparison_size_match_the_exact_reference"]
+sha256 = "f41bec710e03d2df51e4efde0985b87822d20c29503092ae798542df2238af54"
 
 [[method_review.artifacts]]
 role = "reference"

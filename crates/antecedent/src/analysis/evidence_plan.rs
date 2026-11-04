@@ -158,15 +158,22 @@ impl EvidencePlanFacadeError {
     #[must_use]
     pub fn detail(&self) -> String {
         match self {
-            Self::NoFailure => "evidence_plan.no_failure_to_plan".to_owned(),
-            Self::NoRoute => "evidence_plan.no_route".to_owned(),
-            Self::UnknownValueStudy(_) => "evidence_plan.invalid_request".to_owned(),
-            Self::Compile(_) => "evidence_plan.compile_refused".to_owned(),
+            Self::NoFailure => {
+                antecedent_core::reason_details::evidence_plan::NO_FAILURE_TO_PLAN.to_owned()
+            }
+            Self::NoRoute => antecedent_core::reason_details::evidence_plan::NO_ROUTE.to_owned(),
+            Self::UnknownValueStudy(_) => {
+                antecedent_core::reason_details::evidence_plan::INVALID_REQUEST.to_owned()
+            }
+            Self::Compile(_) => {
+                antecedent_core::reason_details::evidence_plan::COMPILE_REFUSED.to_owned()
+            }
             Self::Repair(error) => error.detail.to_owned(),
             Self::Plan(error) => error.detail.to_owned(),
-            Self::Value(error) => error
-                .refusal()
-                .map_or_else(|| "design_ranking.invalid_request".to_owned(), |r| r.detail),
+            Self::Value(error) => error.refusal().map_or_else(
+                || antecedent_core::reason_details::design_ranking::INVALID_REQUEST.to_owned(),
+                |r| r.detail,
+            ),
         }
     }
 }
@@ -753,6 +760,9 @@ mod tests {
             &ctx,
         )
         .unwrap_err();
-        assert_eq!(refused.detail(), "identification_repair.not_a_failure");
+        assert_eq!(
+            refused.detail(),
+            antecedent_core::reason_details::identification_repair::NOT_A_FAILURE
+        );
     }
 }

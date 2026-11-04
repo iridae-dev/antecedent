@@ -173,11 +173,19 @@ fn preparing_from_a_decided_derivation_never_decides_again_and_checks_its_inputs
     ] {
         let error = prepare(graph, catalog, effect, Vec::new()).unwrap_err();
         assert_eq!(error.reason_code(), Some("transport_not_certified"), "{error}");
-        assert!(error.to_string().contains("recovery.invalid_derivation"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::recovery::INVALID_DERIVATION),
+            "{error}"
+        );
     }
     let error = prepare(model.graph.clone(), model.catalog(), None, requests()).unwrap_err();
     assert_eq!(error.reason_code(), Some("invalid_argument"));
-    assert!(error.to_string().contains("recovery.invalid_query"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::recovery::INVALID_QUERY),
+        "{error}"
+    );
 }
 
 #[test]
@@ -214,7 +222,10 @@ fn refresh_keeps_the_derivation_and_refuses_another_snapshot() {
     .unwrap();
     let error = prepared.refresh(moved, &ctx()).unwrap_err();
     assert_eq!(error.reason_code(), Some("invalid_argument"));
-    assert!(error.to_string().contains("recovery.invalid_observed_law"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::recovery::INVALID_OBSERVED_LAW),
+        "{error}"
+    );
     let _ = SNAPSHOT;
 }
 
@@ -236,7 +247,11 @@ fn a_nonrecoverable_decision_refuses_preparation_with_its_witness_code() {
     )
     .unwrap_err();
     assert_eq!(error.reason_code(), Some("transport_proven_non_transportable"));
-    assert!(error.to_string().contains("recovery.nonrecoverable_witness"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::recovery::NONRECOVERABLE_WITNESS)
+    );
 }
 
 #[test]
@@ -295,7 +310,10 @@ fn the_io_consumer_replays_under_the_stored_limits() {
         panic!("limits above the consumer's maxima must refuse");
     };
     assert_eq!(error.reason_code(), Some("route_not_supported"));
-    assert!(error.to_string().contains("recovery.bounds_exceeded"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::recovery::BOUNDS_EXCEEDED),
+        "{error}"
+    );
 }
 
 fn reseal(wire: &mut RecoveryArtifactWire) {
@@ -457,11 +475,11 @@ fn a_mutated_artifact_fails_independent_consumption() {
     // Every kind maps to a registered code and an observation-recovery detail.
     assert_eq!(
         RecoveryArtifactError::PremisesMismatch.refusal(),
-        ("transport_not_certified", "recovery.invalid_derivation")
+        ("transport_not_certified", antecedent_core::reason_details::recovery::INVALID_DERIVATION)
     );
     assert_eq!(
         RecoveryArtifactError::LimitsExceeded("x").refusal(),
-        ("route_not_supported", "recovery.bounds_exceeded")
+        ("route_not_supported", antecedent_core::reason_details::recovery::BOUNDS_EXCEEDED)
     );
 }
 

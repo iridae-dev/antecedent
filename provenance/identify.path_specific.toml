@@ -40,9 +40,11 @@ record_sha256 = "0ea9eeec36e625be614db3b3ba54c593e4070590911efaccb8d9ee64d7c0f3b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/path_specific.rs"
-sha256 = "ccbe2d177db2a9c7164e67baca9cb7e7dd9dbb92ba62a438be9232c8baaf7cc5"
+items = ["const PATH_SPECIFIC_STRUCTURAL_ZERO_DIAGNOSTIC_CODE", "enum PathQuestion", "fn ancestors_avoiding", "fn classify_first_hops", "fn classify_mediation", "fn control_reference_problem", "fn district_contrast", "fn district_g_formula", "fn edge_g_formula", "fn identify", "fn identify_path_specific", "fn new", "fn outcome_ancestors_without_treatment", "fn path_question", "fn prepare", "fn prepare_dag", "fn recanting_witness", "fn required_on_one_path", "fn surgical_admg", "struct DistrictRequest", "struct FirstHops", "struct PathSpecificIdentifier"]
+sha256 = "3666b7b9020ebab2dd697b92c2056f9b9fb3d785d8147e9ecdd3888ad642ddf6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/path_specific_enumeration.rs"
-sha256 = "7fb788667ddf0b44f0929e964a944066398ca96ab47cd13d7a65e22f0c157a7a"
+items = ["fn dag", "fn from_mask", "fn identification_matches_the_recanting_witness_definition_on_every_small_dag", "fn path_specific_with_no_matching_path_is_identified_zero", "fn paths", "fn reference", "fn status_ok", "fn subsets_of", "fn sweep", "fn the_reference_finds_the_textbook_witness", "fn v", "fn walk", "struct Graph"]
+sha256 = "251f6197afb9698a6aeee422d2b1f57411ebef5544275ad452061b367f331c72"

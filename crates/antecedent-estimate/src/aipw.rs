@@ -468,7 +468,7 @@ impl AipwAte {
             }
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "penalized_propensity.scope",
+                antecedent_core::reason_details::penalized_propensity::SCOPE,
                 "a penalized propensity is supported only for the untrimmed AllObserved mean \
                 ATE: other functionals and populations, and trimmed fits, refit full-sample \
                 nuisances and have no cross-fitted penalized route",

@@ -29,12 +29,14 @@ record_sha256 = "84414a6662f73028fb94a7adbd331c6212e0e6bb520a92ec66db85a14f2c9a4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/calibration.rs"
-sha256 = "6e7f0589f92a60c8cf8e0767f070f7457f34fd1382e9ae4e1e266671ce898031"
+items = ["const DIAGNOSTIC_CALIBRATION", "const DIAGNOSTIC_LABEL", "const MAX_BINS", "const PSI_PSEUDOCOUNT", "fn bin_of", "fn distribution_drift", "struct DistributionDrift"]
+sha256 = "cee6b2493353d1d67dd72e35cec63f852de60fb2dbab59bb0f7e638467543ead"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/distribution_drift_reference.rs"
-sha256 = "97b913f372e55d7d9db9964f135883c77f2e8fd420c17455974dea018a65860c"
+items = ["fn ks_distance_and_population_stability_index_equal_their_definitions", "fn reference", "fn swapping_the_windows_or_permuting_cases_changes_nothing_that_should_not_change", "fn window"]
+sha256 = "40a63743d195a8c7ce501534cb626e5174883d2788ed7eb5b96992ca7b19cfa3"
 
 [[method_review.artifacts]]
 role = "reference"

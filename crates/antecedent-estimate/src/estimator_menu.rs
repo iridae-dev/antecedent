@@ -374,7 +374,7 @@ pub fn transport_estimator_menu_with(
             static_fields: all_requirements.map(String::from).to_vec(),
             refusal: Some(refusal(
                 antecedent_core::reason_code!("route_not_supported"),
-                Some("learned_transport.cate_requested"),
+                Some(antecedent_core::reason_details::learned_transport::CATE_REQUESTED),
                 "heterogeneous and simultaneous targets are not supported in this cell",
             )),
         },

@@ -53,17 +53,20 @@ record_sha256 = "ddca060ab4c8fee03971de96df92421a8e2cf7e05c2417e5cd82847b08299d6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs"
-sha256 = "768e7efc33a7f8dbd619b4d0105bdf92cc64d162e3ce64794bd75ebbb6f41374"
+items = ["const BOUNDS_EXCEEDED", "const COUNTERFACTUAL_TRANSPORT_CONTRACT", "const COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES", "const COUNTERFACTUAL_TRANSPORT_MAX_LIMITS", "const COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES", "const COUPLING_UNSUPPORTED", "const GRAPH_OUTSIDE_CONTRACT", "const INITIAL_COMPLEMENT_DEPTH", "const INVALID_WITNESS", "const NO_FACTOR_DERIVATION", "const SELECTED_SAMPLE", "enum Abort", "enum CounterfactualFunctional", "enum CounterfactualItemSource", "enum CounterfactualLevel", "enum CounterfactualTransportDecision", "enum Rejection", "fn admit_summation", "fn assemble", "fn atoms_map", "fn bidirected", "fn bounds_exceeded", "fn candidate_seeds", "fn canonical", "fn charge", "fn collect_items", "fn decide_bounded", "fn derivation", "fn derive_conjunction", "fn derive_query", "fn derive_query_within", "fn directed", "fn directed_edge_ids", "fn fmt", "fn from", "fn full_mask", "fn get", "fn identify_counterfactual_transport", "fn index_of", "fn invalid_catalog", "fn invalid_query", "fn lease_storage", "fn level_index", "fn levels", "fn lift_level", "fn mask_text", "fn mask_variables", "fn merged", "fn new", "fn not_certified", "fn note", "fn one", "fn operations_remaining", "fn reduce_conditioning", "fn refuse_transport_cycle", "fn remap_items", "fn run_stages", "fn stage", "fn supplied_seeds", "fn validate", "fn variables", "fn work", "struct CounterfactualCitedRegime", "struct CounterfactualFactor", "struct CounterfactualItem", "struct CounterfactualMissingRegime", "struct CounterfactualMovedAtom", "struct CounterfactualSum", "struct CounterfactualSymbol", "struct CounterfactualTransportDerivation", "struct CounterfactualTransportInspection", "struct CounterfactualTransportMissing", "struct CounterfactualTransportObstruction", "struct CounterfactualTransportProblem", "struct CounterfactualTransportQuery", "struct CounterfactualTransportSearchRecord", "struct CounterfactualTransportSource", "struct CounterfactualTransportUnsupported", "struct DeriveCtx", "struct QueryPlan", "struct Search", "struct UsableRegime", "struct Validated", "type ReducedConditioning"]
+sha256 = "722a00abb4716c43038251174baee7bd9695a5dbaa3544b56fe11ded0177cb06"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport.rs"
-sha256 = "0db8724fc90c57607de332e08565b3bb2a9e4c13009ef77e60d944f43a28789d"
+items = ["const AGREEMENT", "const BLOCK", "const DETAIL_BUDGET", "const DETAIL_COUNTED", "const DETAIL_INCOMPATIBLE", "const DETAIL_INVALID", "const DETAIL_MISSING", "const DETAIL_SUPPORT", "const DETAIL_ZERO_MASS", "const MISSING", "const UNSET", "const ZERO_MASS", "enum Failure", "enum Frame", "enum FreeCoordinatePolicy", "enum ItemFrame", "fn as_ref", "fn averaged_factor", "fn charge", "fn charge_catalog_validation", "fn checked_evidence_text_cmp", "fn checked_evidence_text_copy", "fn describe", "fn ensure_item_cache", "fn evaluate_counterfactual_transport", "fn evaluate_with_policy", "fn extract_of", "fn factor_value", "fn functional", "fn into_error", "fn invalid", "fn level_at", "fn new", "fn push", "fn refused", "fn reserve", "fn retain_factor", "fn sum_over", "fn sum_value", "fn tick", "fn validate_execution_shape", "fn value", "fn view_of", "fn with_level", "struct CounterfactualTransportEvidence", "struct CounterfactualTransportPoint", "struct Engine", "struct EvaluationRepairs", "struct ItemExtract", "struct ItemStack", "struct ItemSum", "struct LawView", "struct RetainedSlice", "struct RetainedSliceInner", "struct SetupBudget"]
+sha256 = "d5ecd05817cf20df593012b56e0e7b8fcc5f60995dcd8f394455b17d8358b71e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/counterfactual_transport_general_sweep.rs"
-sha256 = "de2d4a7da67dd15491415717ccb41152f5a8048c22551bd3edfe3961f66705c4"
+items = ["const TOLERANCE", "fn confounded", "fn confounded_case", "fn front_door", "fn front_door_case", "fn identification_does_not_depend_on_the_numbers_and_values_equal_enumeration", "fn mediation", "fn mediation_case", "fn nested", "fn next", "fn pmf3", "fn pops", "fn target_of", "struct Dyadic"]
+sha256 = "ec40249eda1894fa3c3790b69bd1909e4f16175ddb4dfcd96cd0c596897f89e1"
 
 [[method_review.artifacts]]
 role = "reference"

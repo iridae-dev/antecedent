@@ -38,7 +38,19 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/interventional_distribution_class_route_evidence.rs",
-          "sha256": "238e23536ad1770e87a75052b5068bda4e4339f45e8d5bb0fac24da1a4799f0d"
+          "items": [
+            "fn a_cpdag_whose_completions_disagree_publishes_the_enumerated_envelope",
+            "fn disagreeing_cpdag",
+            "fn edges",
+            "fn expand",
+            "fn field",
+            "fn node",
+            "fn pin",
+            "fn query",
+            "fn study",
+            "fn variable_count"
+          ],
+          "sha256": "398e0e4909eae351f1ae6b42756b705aefa7201115e939135b57396e81e8ce9c"
         }
       ],
       "fixture_payload_sha256": "556837e934fb024186f87984d8932ed9259e7cb38315694bdd7b70d5ea35f7de"

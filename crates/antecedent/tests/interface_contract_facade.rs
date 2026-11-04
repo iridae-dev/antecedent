@@ -84,9 +84,9 @@ fn a_pair_that_matches_syntactically_fails_scientifically() {
     assert_eq!(
         details,
         [
-            "interface_contract.population_mismatch",
-            "interface_contract.operation_unavailable",
-            "interface_contract.uncertainty_meaning_missing",
+            antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH,
+            antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE,
+            antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISSING,
         ]
     );
     assert!(refusals.iter().all(|r| r.remedy.is_some()));
@@ -157,6 +157,9 @@ fn an_exported_contract_is_inspected_and_consumed_against_a_retained_identity() 
     .expect("exports");
     let refusal = consume_interface_contract_artifact(&other.bytes, Some(&exported.identity))
         .expect_err("another contract");
-    assert_eq!(refusal.detail, "interface_contract.identity_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::interface_contract::IDENTITY_MISMATCH
+    );
     assert!(refusal.remedy.is_some());
 }

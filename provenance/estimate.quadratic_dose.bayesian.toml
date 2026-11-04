@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The published number is the local-quadratic level and derivative at the posterior mean of the slope coefficients under independent normal priors, with the weighted residual variance plugged in: it is RSS / (W - 3) of the unpenalised Gaussian-kernel fit, W the kernel weight sum, computed before the penalty, and the intercept is unpenalised. No interval is produced.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported).",
 ]
 
 upstream_implementations_observed = []
@@ -28,17 +28,19 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "Four penalty scales (0.05, 0.5, 4, 50) at doses 6.0, 2.5, 9.5 on one 34-row curved design; level and derivative agree to a relative 1e-9 and the consumer replay from the retained normal equations to 1e-8. A scale of 1e8 reproduces the unpenalised fit to 1e-6 and a scale of 1e-9 shrinks the slope to zero. Not exercised: weight sums near the floor of three, doses offset by 1e8 (the centring u = D - d0 is by construction), heavy-tailed noise, and any coverage. The plug-in variance does not include the penalty, so a tight prior does not inflate it (contrast with the Bayesian RD record); that is stated, not corrected. The record cites no publication; the local-polynomial correspondence is to the definition only."
 sources = ["https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No numerical defect was found: the kernel weights, the unpenalised residual variance divisor W - 3, the penalty added to the slope and curvature diagonals only, and the returned (level, derivative) agree with the multiprecision reference for four prior scales.", "The record deviation text now states the divisor W - 3, that the intercept is unpenalised and that the variance is computed before the penalty."]
-record_sha256 = "656c3d1af19790e02e8c140ce9263fcfe3452c33db1bc1a23a9d23386f53dc95"
+record_sha256 = "780a6af42840703601f361c2b434ee389751fd401c8d07d5eea8657993ae5782"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum LocalQuadraticNamespace", "enum PosteriorRequest", "fn categorical_treatment_posterior", "fn consume_coefficient_posterior", "fn consume_local_quadratic_posterior", "fn details", "fn local_quadratic_mean", "fn local_quadratic_posterior", "fn refuse", "fn scale_of", "fn vector_treatment_posterior"]
+sha256 = "ab2d0671d285883dd402a3d255fd82753c8bc67ce0f3453ddcbe42fdfe3d256b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dose_posterior_reference.rs"
-sha256 = "51c50a721b51764de80c46f1ced762bd38523e7841d43681db6e17bc899a57fb"
+items = ["fn a_loose_prior_approaches_the_unpenalized_fit_and_a_tight_prior_flattens_the_curvature", "fn close", "fn fixture", "fn floats", "fn inverse_gamma_residual_prior_gives_the_student_t_moments", "fn known_variance_policy_moments_equal_the_exact_conjugate_window_integrals", "fn local_quadratic_level_and_derivative_equal_the_penalized_weighted_fit", "fn policy_case", "fn run_policy", "fn text", "struct PolicyCase"]
+sha256 = "2c727c58661276f8aca92b89ef4844f1b8f6c9fad4a87e0b8c348274d7b02974"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -53,4 +55,5 @@ sha256 = "05f1a8021d5b7b79399430ae981882b23e682ad43115818663970a7b40253d08"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
-sha256 = "fba0ed7f9b8e7249d377fc8ab6a4a5382f8e2a152341490cd3f3cd8093c13ed5"
+items = ["const SCALE", "fn categorical_input", "fn categorical_posterior_consumer_replays_the_dummy_summary", "fn categorical_posterior_mean_stays_near_the_group_mean_differences", "fn categorical_posterior_refuses_an_external_power_prior", "fn categorical_spec", "fn dose_grid_posterior_consumer_replays_the_local_normal_equations", "fn dose_grid_posterior_mean_stays_near_the_linear_dose_response", "fn dose_grid_posterior_refuses_a_mapped_prior", "fn hand_summary", "fn line", "fn prior", "fn quadratic_posterior_consumer_replays_the_local_normal_equations", "fn quadratic_posterior_mean_stays_near_the_linear_dose_response", "fn quadratic_posterior_refuses_an_unmeasured_band", "fn refusal", "fn treatment", "fn vector_input", "fn vector_posterior_consumer_replays_the_hand_normal_equations", "fn vector_posterior_mean_stays_near_the_hand_solved_coefficients", "fn vector_posterior_refuses_a_mapped_prior"]
+sha256 = "e9aa16e963b1753e9360c7f0d9b4d61b0e1a3ec67ecddb893e69eaa2aff2482b"

@@ -92,40 +92,45 @@ pub const TYPED_TRANSPORT_STREAM_DOMAIN: StreamDomain =
 
 /// A shifted mechanism (a selection node points into it) has no target fit.
 pub const DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE: &str =
-    "typed_mechanism_transport.shifted_without_target_evidence";
+    antecedent_core::reason_details::typed_mechanism_transport::SHIFTED_WITHOUT_TARGET_EVIDENCE;
 /// The target fit of a mechanism declared invariant rejects the declaration.
 pub const DETAIL_INVARIANCE_CONTRADICTED: &str =
-    "typed_mechanism_transport.invariance_contradicted";
+    antecedent_core::reason_details::typed_mechanism_transport::INVARIANCE_CONTRADICTED;
 /// A target fit has another family, mean or parent set than the source mechanism it checks.
 pub const DETAIL_TARGET_SPEC_DIFFERS: &str =
-    "typed_mechanism_transport.target_specification_differs";
+    antecedent_core::reason_details::typed_mechanism_transport::TARGET_SPECIFICATION_DIFFERS;
 /// A target fit was not fitted on the source mechanism's design, so the parameters are not comparable.
-pub const DETAIL_DESIGN_NOT_SHARED: &str = "typed_mechanism_transport.design_not_shared";
+pub const DETAIL_DESIGN_NOT_SHARED: &str =
+    antecedent_core::reason_details::typed_mechanism_transport::DESIGN_NOT_SHARED;
 /// A shifted mechanism's target fit changes the parent set of the source mechanism.
-pub const DETAIL_PARENTS_CHANGED: &str = "typed_mechanism_transport.parents_changed";
+pub const DETAIL_PARENTS_CHANGED: &str =
+    antecedent_core::reason_details::typed_mechanism_transport::PARENTS_CHANGED;
 /// A mechanism names a parent that has no mechanism in the transported model.
 pub const DETAIL_PARENT_WITHOUT_MECHANISM: &str =
-    "typed_mechanism_transport.parent_without_mechanism";
+    antecedent_core::reason_details::typed_mechanism_transport::PARENT_WITHOUT_MECHANISM;
 /// A selection node points into a variable no supplied mechanism produces.
 pub const DETAIL_SELECTION_TARGET_UNKNOWN: &str =
-    "typed_mechanism_transport.selection_target_unknown_variable";
+    antecedent_core::reason_details::typed_mechanism_transport::SELECTION_TARGET_UNKNOWN_VARIABLE;
 /// A carried mechanism was fitted in another regime without an explicit invariance declaration.
 pub const DETAIL_REGIME_NOT_DECLARED: &str =
-    "typed_mechanism_transport.regime_not_declared_invariant";
+    antecedent_core::reason_details::typed_mechanism_transport::REGIME_NOT_DECLARED_INVARIANT;
 /// The consistency-test level is outside `(0, 0.5)`.
-pub const DETAIL_INVARIANCE_LEVEL: &str = "typed_mechanism_transport.invariance_level_invalid";
+pub const DETAIL_INVARIANCE_LEVEL: &str =
+    antecedent_core::reason_details::typed_mechanism_transport::INVARIANCE_LEVEL_INVALID;
 /// The declared parameter dependence is malformed.
-pub const DETAIL_DEPENDENCE_INVALID: &str = "typed_mechanism_transport.dependence_invalid";
+pub const DETAIL_DEPENDENCE_INVALID: &str =
+    antecedent_core::reason_details::typed_mechanism_transport::DEPENDENCE_INVALID;
 /// The structure has a directed cycle.
-pub const DETAIL_CYCLE: &str = "typed_mechanism_transport.cycle";
+pub const DETAIL_CYCLE: &str = antecedent_core::reason_details::typed_mechanism_transport::CYCLE;
 /// A claim over more than one mechanism's parameters has no declared dependence.
 pub const DETAIL_DEPENDENCE_UNKNOWN: &str =
-    "typed_mechanism_transport.parameter_dependence_unknown";
+    antecedent_core::reason_details::typed_mechanism_transport::PARAMETER_DEPENDENCE_UNKNOWN;
 /// The declared dependence omits a pair of involved mechanisms.
 pub const DETAIL_DEPENDENCE_INCOMPLETE: &str =
-    "typed_mechanism_transport.parameter_dependence_incomplete";
+    antecedent_core::reason_details::typed_mechanism_transport::PARAMETER_DEPENDENCE_INCOMPLETE;
 /// A request names a variable the transported model does not have.
-pub const DETAIL_UNKNOWN_VARIABLE: &str = "typed_mechanism_transport.unknown_variable";
+pub const DETAIL_UNKNOWN_VARIABLE: &str =
+    antecedent_core::reason_details::typed_mechanism_transport::UNKNOWN_VARIABLE;
 
 const TAG_IDENTITY: &str = "antecedent.model.typed_mechanism_transport";
 

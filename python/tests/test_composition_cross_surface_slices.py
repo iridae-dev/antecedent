@@ -26,6 +26,7 @@ from antecedent import (
     load,
     prepare,
 )
+from antecedent import _reason_details as reason_details
 from antecedent import evidence_ledger as ledger_api
 from antecedent._artifact_protocol import exported_artifact
 from antecedent.inference import MeasuredInference
@@ -349,7 +350,7 @@ def test_overlapping_studies_pool_under_a_declared_covariance_and_replace_the_di
             session.pool_summaries("overlap_pool", overlapping, replaces=disjoint.result)
         )
     assert refusal.value.reason_code == "evidence_double_counted"
-    assert refusal.value.detail == "evidence_ledger.shared_observations"
+    assert refusal.value.detail == reason_details.evidence_ledger.SHARED_OBSERVATIONS
 
     replacing = require_success(
         session.pool_summaries(

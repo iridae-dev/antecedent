@@ -315,7 +315,7 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
     let short = vec![1.0; n - 1];
     assert!(
         detail(RowDeclaration { sampling_weights: Some(&short), ..RowDeclaration::default() })
-            .contains("dose_grid.invalid_request")
+            .contains(antecedent_core::reason_details::dose_grid::INVALID_REQUEST)
     );
     let few = vec![0u32; n - 1];
     assert!(
@@ -323,7 +323,7 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
             dependence: RowDependence::Clustered(&few),
             ..RowDeclaration::default()
         })
-        .contains("dose_grid.invalid_request")
+        .contains(antecedent_core::reason_details::dose_grid::INVALID_REQUEST)
     );
     // Weights that are not a valid declaration.
     let mut bad = vec![1.0; n];
@@ -342,7 +342,7 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
             dependence: RowDependence::Clustered(&one),
             ..RowDeclaration::default()
         })
-        .contains("dose_grid.too_few_clusters")
+        .contains(antecedent_core::reason_details::dose_grid::TOO_FEW_CLUSTERS)
     );
     // The lag is never silently capped or zero.
     for lag in [0, n, n + 5] {
@@ -350,7 +350,10 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
             dependence: RowDependence::Serial { lag },
             ..RowDeclaration::default()
         });
-        assert!(text.contains("dose_grid.invalid_lag"), "lag {lag}: {text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::dose_grid::INVALID_LAG),
+            "lag {lag}: {text}"
+        );
     }
     // One weight that dwarfs the rest collapses the Kish size of its window: refused, not fitted.
     let mut dominant = vec![1.0; n];
@@ -365,7 +368,10 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
     )
     .unwrap_err()
     .to_string();
-    assert!(error.contains("dose_grid.insufficient_local_weight"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT),
+        "{error}"
+    );
     // A weight that deletes every row in a window leaves the fit unsupported, never extrapolated.
     let mut tail = vec![1.0; n];
     for (i, w) in tail.iter_mut().enumerate() {
@@ -383,5 +389,8 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
     )
     .unwrap_err()
     .to_string();
-    assert!(error.contains("dose_grid.unsupported_dose"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE),
+        "{error}"
+    );
 }

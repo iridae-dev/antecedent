@@ -299,7 +299,7 @@ fn check_premises(
     if config.estimand == NonlinearMediationEstimand::InterventionalEffects {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "nonlinear_mediation.interventional_effects_not_supported",
+            antecedent_core::reason_details::nonlinear_mediation::INTERVENTIONAL_EFFECTS_NOT_SUPPORTED,
             "only natural direct and indirect effects are open for the nonlinear continuous mediator",
         ));
     }
@@ -309,14 +309,14 @@ fn check_premises(
     {
         return Err(refuse(
             not_identified,
-            "nonlinear_mediation.confounding",
+            antecedent_core::reason_details::nonlinear_mediation::CONFOUNDING,
             "an unmeasured treatment-outcome, treatment-mediator or mediator-outcome confounder is declared; sequential ignorability fails",
         ));
     }
     if !premises.treatment_induced_mediator_outcome_confounders.is_empty() {
         return Err(refuse(
             cross_world,
-            "nonlinear_mediation.treatment_induced_confounding",
+            antecedent_core::reason_details::nonlinear_mediation::TREATMENT_INDUCED_CONFOUNDING,
             &format!(
                 "mediator-outcome confounders affected by treatment ({}) break natural-effect identification",
                 premises.treatment_induced_mediator_outcome_confounders.join(", ")
@@ -326,7 +326,7 @@ fn check_premises(
     if !premises.cross_world_independence {
         return Err(refuse(
             cross_world,
-            "nonlinear_mediation.cross_world_independence_not_declared",
+            antecedent_core::reason_details::nonlinear_mediation::CROSS_WORLD_INDEPENDENCE_NOT_DECLARED,
             "natural effects need the cross-world independence declared",
         ));
     }
@@ -345,49 +345,49 @@ fn validate(
     {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.length_mismatch",
+            antecedent_core::reason_details::nonlinear_mediation::LENGTH_MISMATCH,
             "columns differ in length",
         ));
     }
     if config.outcome_degree == 0 {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_degree",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_DEGREE,
             "outcome degree must be at least 1",
         ));
     }
     if config.quadrature_nodes == 0 {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_nodes",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_NODES,
             "node count must be at least 1",
         ));
     }
     if config.outcome_degree > NONLINEAR_MEDIATION_MAX_DEGREE {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.degree_above_limit",
+            antecedent_core::reason_details::nonlinear_mediation::DEGREE_ABOVE_LIMIT,
             "outcome degree exceeds the supported maximum",
         ));
     }
     if config.quadrature_nodes > NONLINEAR_MEDIATION_MAX_NODES {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.nodes_above_limit",
+            antecedent_core::reason_details::nonlinear_mediation::NODES_ABOVE_LIMIT,
             "node count exceeds the supported maximum",
         ));
     }
     if !(config.integration_tolerance.is_finite() && config.integration_tolerance > 0.0) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_tolerance",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_TOLERANCE,
             "tolerance must be positive and finite",
         ));
     }
     if !(config.max_support_violation > 0.0 && config.max_support_violation <= 1.0) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_support_bound",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_SUPPORT_BOUND,
             "support bound must lie in (0, 1]",
         ));
     }
@@ -399,14 +399,14 @@ fn validate(
     {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.non_finite_input",
+            antecedent_core::reason_details::nonlinear_mediation::NON_FINITE_INPUT,
             "columns must be finite",
         ));
     }
     if !input.treatment.iter().all(|&v| v.abs() < 1e-12 || (v - 1.0).abs() < 1e-12) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.treatment_not_binary",
+            antecedent_core::reason_details::nonlinear_mediation::TREATMENT_NOT_BINARY,
             "treatment must be coded 0 or 1",
         ));
     }
@@ -431,7 +431,7 @@ fn check_arms(
     if treated < config.min_arm_count.max(1) || control < config.min_arm_count.max(1) {
         return Err(refuse(
             antecedent_core::reason_code!("arm_not_populated"),
-            "nonlinear_mediation.overlap",
+            antecedent_core::reason_details::nonlinear_mediation::OVERLAP,
             &format!(
                 "treatment arms hold {treated} treated and {control} control rows, below the required {}",
                 config.min_arm_count.max(1)
@@ -456,7 +456,7 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
     if n <= p {
         return Err(refuse(
             rank_code,
-            "nonlinear_mediation.too_few_rows",
+            antecedent_core::reason_details::nonlinear_mediation::TOO_FEW_ROWS,
             "fewer rows than regression columns",
         ));
     }
@@ -467,7 +467,7 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
         if !(s.is_finite() && s > 0.0) {
             return Err(refuse(
                 rank_code,
-                "nonlinear_mediation.rank_deficient",
+                antecedent_core::reason_details::nonlinear_mediation::RANK_DEFICIENT,
                 "a regression column is identically zero",
             ));
         }
@@ -483,7 +483,7 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
     if fit.rank() < p {
         return Err(refuse(
             rank_code,
-            "nonlinear_mediation.rank_deficient",
+            antecedent_core::reason_details::nonlinear_mediation::RANK_DEFICIENT,
             "regression design is rank deficient",
         ));
     }
@@ -544,7 +544,7 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
     if !(scale.is_finite() && scale > 1e-12) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.degenerate_mediator",
+            antecedent_core::reason_details::nonlinear_mediation::DEGENERATE_MEDIATOR,
             "the mediator has no spread",
         ));
     }
@@ -554,7 +554,7 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
     if !(sigma2.is_finite() && sigma2 > 1e-12 * scale * scale) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.degenerate_mediator_residual",
+            antecedent_core::reason_details::nonlinear_mediation::DEGENERATE_MEDIATOR_RESIDUAL,
             "the mediator residual has no spread",
         ));
     }
@@ -665,7 +665,7 @@ fn gauss_hermite(n: usize) -> Result<Quadrature, EstimationError> {
         if !converged || !z.is_finite() {
             return Err(refuse(
                 antecedent_core::reason_code!("mechanism_fit_not_converged"),
-                "nonlinear_mediation.quadrature_nodes_not_converged",
+                antecedent_core::reason_details::nonlinear_mediation::QUADRATURE_NODES_NOT_CONVERGED,
                 "Gauss-Hermite node iteration did not converge",
             ));
         }
@@ -686,7 +686,7 @@ fn gauss_hermite(n: usize) -> Result<Quadrature, EstimationError> {
     if (total - 1.0).abs().partial_cmp(&1e-9) != Some(std::cmp::Ordering::Less) {
         return Err(refuse(
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
-            "nonlinear_mediation.quadrature_weights_invalid",
+            antecedent_core::reason_details::nonlinear_mediation::QUADRATURE_WEIGHTS_INVALID,
             "Gauss-Hermite weights do not sum to one",
         ));
     }
@@ -816,7 +816,7 @@ struct BootstrapOutcome {
 fn cancelled() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "nonlinear_mediation.cancelled",
+        antecedent_core::reason_details::nonlinear_mediation::CANCELLED,
         "the nonlinear mediation estimate was cancelled; no estimate is reported",
     )
 }
@@ -969,7 +969,7 @@ pub fn estimate_nonlinear_mediation(
     if violation > config.max_support_violation {
         return Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "nonlinear_mediation.overlap",
+            antecedent_core::reason_details::nonlinear_mediation::OVERLAP,
             &format!(
                 "{violation:.4} of the cross-world mediator law lies outside the treated arm's observed mediator range, above {}",
                 config.max_support_violation
@@ -983,7 +983,7 @@ pub fn estimate_nonlinear_mediation(
     if !(sd_y.is_finite() && sd_y > 1e-12) {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "nonlinear_mediation.degenerate_outcome",
+            antecedent_core::reason_details::nonlinear_mediation::DEGENERATE_OUTCOME,
             "the outcome has no spread",
         ));
     }
@@ -998,7 +998,7 @@ pub fn estimate_nonlinear_mediation(
     ) {
         return Err(refuse(
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
-            "nonlinear_mediation.integration_error",
+            antecedent_core::reason_details::nonlinear_mediation::INTEGRATION_ERROR,
             &format!(
                 "{} versus {} node effects differ by {integration_error:.3e} of the outcome sd, above {}",
                 nodes,
@@ -1014,7 +1014,7 @@ pub fn estimate_nonlinear_mediation(
     ) {
         return Err(refuse(
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
-            "nonlinear_mediation.identity_violation",
+            antecedent_core::reason_details::nonlinear_mediation::IDENTITY_VIOLATION,
             "total effect differs from direct plus indirect",
         ));
     }

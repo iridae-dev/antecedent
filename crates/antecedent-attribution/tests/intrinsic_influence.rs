@@ -528,7 +528,12 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     let text = intrinsic_influence(&m, NoiseIndependence::Undeclared, None, &q, &ctx())
         .unwrap_err()
         .to_string();
-    assert!(text.contains("intrinsic_influence.noise_independence_undeclared"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::intrinsic_influence::NOISE_INDEPENDENCE_UNDECLARED
+        ),
+        "{text}"
+    );
 
     let mut other = Admg::with_variables(3);
     other.insert_directed(node(0), node(2)).unwrap();
@@ -552,7 +557,10 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     )
     .unwrap_err()
     .to_string();
-    assert!(text.contains("intrinsic_influence.mechanism_unfitted"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::MECHANISM_UNFITTED),
+        "{text}"
+    );
 
     let state_space = model(
         &[],
@@ -572,7 +580,12 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     )
     .unwrap_err()
     .to_string();
-    assert!(text.contains("intrinsic_influence.noise_not_row_independent"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::intrinsic_influence::NOISE_NOT_ROW_INDEPENDENT
+        ),
+        "{text}"
+    );
 
     let categorical = model(
         &[],
@@ -591,7 +604,10 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     )
     .unwrap_err()
     .to_string();
-    assert!(text.contains("intrinsic_influence.target_not_continuous"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::TARGET_NOT_CONTINUOUS),
+        "{text}"
+    );
 }
 
 #[test]
@@ -608,7 +624,10 @@ fn exact_allocation_beyond_the_simulation_budget_and_invalid_settings_are_refuse
     let text = intrinsic_influence(&long, NoiseIndependence::Declared, None, &q, &ctx())
         .unwrap_err()
         .to_string();
-    assert!(text.contains("intrinsic_influence.draw_budget_exceeded"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::DRAW_BUDGET_EXCEEDED),
+        "{text}"
+    );
 
     let (m, _) = chain();
     for bad in [
@@ -620,12 +639,18 @@ fn exact_allocation_beyond_the_simulation_budget_and_invalid_settings_are_refuse
         query().with_allocation(IntrinsicAllocation::Permutation { n_permutations: 1 }),
     ] {
         let text = run(&m, 2, &bad).unwrap_err().to_string();
-        assert!(text.contains("intrinsic_influence.invalid_settings"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::intrinsic_influence::INVALID_SETTINGS),
+            "{text}"
+        );
     }
 
     let huge = query().with_simulation(100_000, 100_000, 4);
     let text = run(&m, 2, &huge).unwrap_err().to_string();
-    assert!(text.contains("intrinsic_influence.draw_budget_exceeded"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::DRAW_BUDGET_EXCEEDED),
+        "{text}"
+    );
 }
 
 #[test]
@@ -706,7 +731,10 @@ fn a_latent_common_cause_between_two_parents_is_refused_naming_the_pair() {
     )
     .unwrap_err();
     let text = err.to_string();
-    assert!(text.contains("intrinsic_influence.correlated_noise"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::CORRELATED_NOISE),
+        "{text}"
+    );
     assert!(text.contains("variables 0 and 1"), "{text}");
 }
 

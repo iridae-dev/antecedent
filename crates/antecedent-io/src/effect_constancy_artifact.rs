@@ -62,7 +62,7 @@ crate::sectioned_artifact_error!(
 fn invalid_request(message: &str) -> EffectConstancyArtifactError {
     EffectConstancyArtifactError::refused(
         antecedent_core::reason_code!("invalid_argument"),
-        "effect_constancy.invalid_request",
+        antecedent_core::reason_details::effect_constancy::INVALID_REQUEST,
         message,
     )
 }

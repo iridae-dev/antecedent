@@ -272,21 +272,21 @@ fn a_missing_population_or_regime_refuses_before_any_connection() {
     check(
         &no_population.admit().expect_err("population"),
         "interface_contract_invalid",
-        "provider_transport.population_missing",
+        antecedent_core::reason_details::provider_transport::POPULATION_MISSING,
     );
     let mut no_regime = verified_source(EvidenceBasis::Undeclared);
     no_regime.quantity.regime_id = String::new();
     check(
         &no_regime.admit().expect_err("regime"),
         "interface_contract_invalid",
-        "provider_transport.regime_missing",
+        antecedent_core::reason_details::provider_transport::REGIME_MISSING,
     );
     let mut no_assumptions = verified_source(EvidenceBasis::Undeclared);
     no_assumptions.assumptions.clear();
     check(
         &no_assumptions.admit().expect_err("assumptions"),
         "interface_contract_invalid",
-        "provider_transport.assumptions_missing",
+        antecedent_core::reason_details::provider_transport::ASSUMPTIONS_MISSING,
     );
 }
 
@@ -300,7 +300,11 @@ fn attestation_does_not_stand_in_for_required_verification() {
         EvidenceBasis::Undeclared,
     );
     let refusal = required.admit().expect_err("attestation where verification is required");
-    check(&refusal, "external_verification_failed", "provider_transport.verification_required");
+    check(
+        &refusal,
+        "external_verification_failed",
+        antecedent_core::reason_details::provider_transport::VERIFICATION_REQUIRED,
+    );
     assert_eq!(refusal.expected.as_deref(), Some("verified_extension"));
     assert_eq!(refusal.supplied.as_deref(), Some("externally_attested"));
 
@@ -330,7 +334,7 @@ fn a_receipt_for_another_request_or_a_native_support_is_refused() {
     check(
         &wrong.admit().expect_err("receipt covers another request"),
         "external_verification_failed",
-        "provider_transport.receipt_does_not_cover",
+        antecedent_core::reason_details::provider_transport::RECEIPT_DOES_NOT_COVER,
     );
     let native = source(
         first,
@@ -341,7 +345,7 @@ fn a_receipt_for_another_request_or_a_native_support_is_refused() {
     check(
         &native.admit().expect_err("native support"),
         "interface_contract_invalid",
-        "provider_transport.native_trust_claimed",
+        antecedent_core::reason_details::provider_transport::NATIVE_TRUST_CLAIMED,
     );
 }
 
@@ -352,7 +356,7 @@ fn a_quantity_the_provider_does_not_declare_or_a_foreign_population_is_refused()
     check(
         &other_regime.admit().expect_err("regime not declared by the object"),
         "external_binding_mismatch",
-        "provider_transport.quantity_not_declared",
+        antecedent_core::reason_details::provider_transport::QUANTITY_NOT_DECLARED,
     );
 
     // A source whose population is not a declared source population of the
@@ -363,7 +367,7 @@ fn a_quantity_the_provider_does_not_declare_or_a_foreign_population_is_refused()
             .require_bound_to(&transport(&["trial_b"], "target"))
             .expect_err("trial_a is not a source of this transport"),
         "interface_contract_quantity_mismatch",
-        "provider_transport.population_not_a_source",
+        antecedent_core::reason_details::provider_transport::POPULATION_NOT_A_SOURCE,
     );
     let mut without_assumption = transport(&["trial_a"], "target");
     without_assumption.assumptions = vec!["something else".to_owned()];
@@ -372,7 +376,7 @@ fn a_quantity_the_provider_does_not_declare_or_a_foreign_population_is_refused()
             .require_bound_to(&without_assumption)
             .expect_err("the provider's assumption is not carried"),
         "interface_contract_assumption_mismatch",
-        "provider_transport.assumptions_not_carried",
+        antecedent_core::reason_details::provider_transport::ASSUMPTIONS_NOT_CARRIED,
     );
 
     // A route that needs another population is not served by this source.
@@ -519,7 +523,7 @@ fn a_consumer_that_needs_native_target_data_refuses_a_transported_claim() {
     check(
         &refusals[0],
         "interface_contract_assumption_mismatch",
-        "provider_transport.native_target_required",
+        antecedent_core::reason_details::provider_transport::NATIVE_TARGET_REQUIRED,
     );
     assert_eq!(refusals[0].supplied.as_deref(), Some("transported_claim"));
 }
@@ -536,7 +540,7 @@ fn a_claim_without_its_identity_or_outside_the_target_is_refused() {
     check(
         &refusals[0],
         "interface_contract_invalid",
-        "provider_transport.transport_identity_incomplete",
+        antecedent_core::reason_details::provider_transport::TRANSPORT_IDENTITY_INCOMPLETE,
     );
 
     let mut target_is_source = offer();
@@ -546,7 +550,7 @@ fn a_claim_without_its_identity_or_outside_the_target_is_refused() {
     check(
         &refusals[0],
         "interface_contract_invalid",
-        "provider_transport.transport_identity_incomplete",
+        antecedent_core::reason_details::provider_transport::TRANSPORT_IDENTITY_INCOMPLETE,
     );
 
     let mut native_coordinate = offer();
@@ -556,14 +560,18 @@ fn a_claim_without_its_identity_or_outside_the_target_is_refused() {
     check(
         &refusals[0],
         "interface_contract_quantity_mismatch",
-        "provider_transport.claim_not_in_target",
+        antecedent_core::reason_details::provider_transport::CLAIM_NOT_IN_TARGET,
     );
 
     let mut no_evidence = offer();
     no_evidence.evidence.clear();
     let refusals =
         hand_to_callback(&no_evidence, &callback, "effect", policy).expect_err("no evidence");
-    check(&refusals[0], "interface_contract_invalid", "provider_transport.evidence_missing");
+    check(
+        &refusals[0],
+        "interface_contract_invalid",
+        antecedent_core::reason_details::provider_transport::EVIDENCE_MISSING,
+    );
 }
 
 #[test]
@@ -611,7 +619,7 @@ fn the_connection_refuses_a_different_population_and_a_callback_input_but_serves
     check(
         &refusals[0],
         "interface_contract_assumption_mismatch",
-        "provider_transport.input_not_external",
+        antecedent_core::reason_details::provider_transport::INPUT_NOT_EXTERNAL,
     );
 
     // An unknown consumed port is reported by the connection check.

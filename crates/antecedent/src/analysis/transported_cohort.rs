@@ -78,15 +78,20 @@ pub const COHORT_TRANSPORT_ROUTE: &str = "cohort_effect";
 pub const COHORT_TRANSPORT_SUPPORT: &str = "extrapolative";
 
 /// A declaration that the retained model is not a portable analysis result.
-pub const DETAIL_MODEL_NOT_PORTABLE: &str = "transported_effect.model_not_portable";
+pub const DETAIL_MODEL_NOT_PORTABLE: &str =
+    antecedent_core::reason_details::transported_effect::MODEL_NOT_PORTABLE;
 /// A cohort feature that is not a finite numeric column.
-pub const DETAIL_COHORT_NOT_NUMERIC: &str = "transported_effect.cohort_not_numeric";
+pub const DETAIL_COHORT_NOT_NUMERIC: &str =
+    antecedent_core::reason_details::transported_effect::COHORT_NOT_NUMERIC;
 /// Outcome units were not declared.
-pub const DETAIL_UNITS_REQUIRED: &str = "transported_effect.outcome_units_required";
+pub const DETAIL_UNITS_REQUIRED: &str =
+    antecedent_core::reason_details::transported_effect::OUTCOME_UNITS_REQUIRED;
 /// The retained identity is not the recomputed one.
-pub const DETAIL_IDENTITY_MISMATCH: &str = "transported_effect.identity_mismatch";
+pub const DETAIL_IDENTITY_MISMATCH: &str =
+    antecedent_core::reason_details::transported_effect::IDENTITY_MISMATCH;
 /// The decision source's mean is not the transported mean.
-pub const DETAIL_DECISION_MEAN_MISMATCH: &str = "transported_effect.decision_source_mismatch";
+pub const DETAIL_DECISION_MEAN_MISMATCH: &str =
+    antecedent_core::reason_details::transported_effect::DECISION_SOURCE_MISMATCH;
 
 fn invalid(
     detail: &'static str,

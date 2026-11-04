@@ -39,12 +39,14 @@ record_sha256 = "aa6960eab89d60175f532e5da512f993caeb808eded97d363770edddb1c2fe2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_link.rs"
-sha256 = "6006f8c19d102bdb214ff77cf92b9cdf0db11233e7356538191f18c399cb9be0"
+items = ["enum TemporalOutcomeLink", "enum TrajectoryDependence", "fn binary_outcomes", "fn column_is_ones", "fn column_value", "fn default", "fn delta_method_se", "fn family", "fn finite_column", "fn fit", "fn kernel", "fn mean_contrast", "fn new", "fn observed_eta", "fn refuse_series", "fn regime_coefficients", "fn regime_eta", "fn shape", "fn stats", "fn try_new", "struct BayesianTemporalLink", "struct FrequentistLinkContrast", "struct FrequentistTemporalLink", "struct RegimeColumn", "struct TemporalContrastDesign"]
+sha256 = "f452d7bd7392b4e7fef1c475ed6028327bc361dcc6b59b37417139fbadb6904e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_link_reference.rs"
-sha256 = "76baf8162ab2747afb7dd9d14aaf96a2297f34b8abd1cef5fa80090b3ddf852a"
+items = ["fn close", "fn design", "fn fixture", "fn floats", "fn frequentist_contrast_and_fisher_delta_se_match_the_multiprecision_fit", "fn laplace_mode_contrast_and_posterior_mean_match_the_exact_gaussian_integral", "fn link", "fn text"]
+sha256 = "14515eaa016abce9fa9cac9aa26ad0ff25b7f8a564f609d90e1a21f9d0a43557"
 
 [[method_review.artifacts]]
 role = "reference"

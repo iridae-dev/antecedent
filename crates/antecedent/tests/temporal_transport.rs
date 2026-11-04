@@ -294,12 +294,20 @@ fn a_new_period_or_a_changed_window_needs_a_new_preparation() {
     let (code, message) =
         refused(prepared.refresh(ExactTransportData::try_new(all, 4096).unwrap(), &ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
     // Dropping a source history experiment is a history outside support, not a new window.
     let (code, message) =
         refused(prepared.refresh(laws(&source_scm(), &target_scm(), &[(1, 1, 1)]), &ctx()));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     // A different measurement window (no source experiments at all) needs a new preparation.
     let target_only = ExactTransportData::try_new(
         full.laws().iter().filter(|l| l.population() == "target").cloned().collect::<Vec<_>>(),
@@ -308,7 +316,10 @@ fn a_new_period_or_a_changed_window_needs_a_new_preparation() {
     .unwrap();
     let (code, message) = refused(prepared.refresh(target_only, &ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
     // A longer horizon never prepares at all.
     let mut three = sequence(1.0, 0.0);
     three.push(Value::f64(1.0));
@@ -322,7 +333,10 @@ fn a_new_period_or_a_changed_window_needs_a_new_preparation() {
     );
     let (code, message) = refused(error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
 }
 
 #[test]
@@ -331,7 +345,12 @@ fn an_interval_request_refuses_with_estimator_inference_mismatch() {
     match prepared.interval() {
         Err(IoError::Refused { code, message }) => {
             assert_eq!(code, "estimator_inference_mismatch");
-            assert!(message.starts_with("temporal_transport.interval_requested"), "{message}");
+            assert!(
+                message.starts_with(
+                    antecedent_core::reason_details::temporal_transport::INTERVAL_REQUESTED
+                ),
+                "{message}"
+            );
         }
         other => panic!("expected estimator_inference_mismatch, got {other:?}"),
     }
@@ -435,7 +454,10 @@ fn a_refresh_that_moves_the_fixed_initial_state_needs_a_new_preparation() {
     moved.exo_p[0] = 0.5;
     let (code, message) = refused(prepared.refresh(laws(&source_scm(), &moved, &[]), &ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
     assert!(message.contains("initial-state"), "{message}");
     // The same initial state with other target mechanisms is a same-window refresh.
     let mut later = target_scm();

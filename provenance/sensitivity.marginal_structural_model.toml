@@ -57,12 +57,14 @@ record_sha256 = "090665e5df51ae028307d8801ec01e14ba97783d0a3e35ac6b7170b42d6d41c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/msm_sensitivity.rs"
-sha256 = "c49c84c50b4da61e7331956c61f7dc8df8141e19de6db890746db774cd9a689a"
+items = ["const MSM_ASSUMPTION_RANGE_CLAIM", "const MSM_FAMILY", "const MSM_INTERPRETATION", "const MSM_INTERVAL_WITHHELD", "const MSM_MAX_BISECTIONS", "const MSM_MAX_GRID_POINTS", "const MSM_MAX_LAMBDA", "const MSM_MAX_LAW_CELLS", "const MSM_MAX_OUTCOME_ATOMS", "const MSM_MAX_STRATA", "const MSM_MAX_TOLERANCE", "const MSM_MAX_WORK", "const MSM_METHOD", "const MSM_MIN_TOLERANCE", "const MSM_NORMALIZATION", "const MSM_PERTURBATION_SCALE", "const MSM_SAMPLING_STATEMENT", "const MSM_TARGET", "const MSM_UNIT_MASS_TOLERANCE", "enum MsmTippingDirection", "fn arm_bounds", "fn ate_bounds", "fn check_lambda", "fn detail", "fn grid_of", "fn invalid_law", "fn mass_sum", "fn msm_ate_bounds_at", "fn msm_ate_sensitivity", "fn msm_dirichlet_posterior", "fn name", "fn new", "fn prepare", "fn prepare_arm", "fn reason_code", "fn refuse", "fn tipping_of", "fn validate_spec", "fn with_threshold", "fn withheld", "struct Arm", "struct MsmOutcomeLaw", "struct MsmPoint", "struct MsmSensitivityError", "struct MsmSensitivityResult", "struct MsmSensitivitySpec", "struct MsmSensitivityUncertainty", "struct MsmStratum", "struct MsmTipping", "struct Prepared"]
+sha256 = "0a1e1bb4f086f2b87b1636a342422ef11c9a8976d0b50e9e553cf836cdc9b95b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/msm_sensitivity_reference.rs"
-sha256 = "4e2c311391c7f9e45d0339e8ff905932b1ee08083f47ca61a53a192d9d8832ce"
+items = ["fn close", "fn declarations_the_range_cannot_honour_are_refused_not_ignored", "fn designs", "fn floats", "fn law", "fn sharp_bounds_equal_the_vertex_enumeration_at_every_lambda", "fn strata", "fn the_grid_and_the_identified_value_are_the_same_bounds", "fn the_tipping_bracket_contains_the_exact_crossing"]
+sha256 = "7d2468334388a7a7f488876564c17f18702379710308870d819ff8bbe1269926"
 
 [[method_review.artifacts]]
 role = "reference"

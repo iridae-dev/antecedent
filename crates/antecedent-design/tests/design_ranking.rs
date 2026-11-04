@@ -293,7 +293,10 @@ fn altered_signal_update_source_cost_or_contract_changes_identity_and_refuses_re
         Err(RankingError::ContractMismatch)
     );
     let refusal = RankingError::CostMappingMismatch.to_refusal();
-    assert_eq!(refusal.detail, "design_ranking.cost_units_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH
+    );
     assert_eq!(refusal.code, "design_cost_units_mismatch");
 
     // A different cost mapping or source digest also changes the identity of the value.
@@ -314,7 +317,7 @@ fn overlapping_source_data_and_incompatible_cost_units_refuse_before_ranking() {
     overlapping[0].reused_observation_ids = vec!["obs-prior".into()];
     let error = evaluate(&request(overlapping, Some(utility_map()))).unwrap_err();
     assert_eq!(error, EvsiError::SourceOverlap(vec!["obs-prior".into()]));
-    assert_eq!(error.to_refusal().detail, "evsi.source_overlap");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::SOURCE_OVERLAP);
 
     let mut currency = frozen_candidates();
     currency[1].cost.unit = "usd".into();

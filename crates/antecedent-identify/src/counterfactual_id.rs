@@ -168,19 +168,31 @@ impl CounterfactualIdRefusal {
     /// `counterfactual_id.invalid_query`).
     #[must_use]
     pub fn invalid_query(message: impl Into<String>) -> Self {
-        Self::plain("invalid_argument", "counterfactual_id.invalid_query", message.into())
+        Self::plain(
+            "invalid_argument",
+            antecedent_core::reason_details::counterfactual_id::INVALID_QUERY,
+            message.into(),
+        )
     }
 
     /// A conditional the functional evaluates is on a zero-mass event.
     #[must_use]
     pub fn positivity(message: impl Into<String>) -> Self {
-        Self::plain("invalid_argument", "counterfactual_id.positivity_violation", message.into())
+        Self::plain(
+            "invalid_argument",
+            antecedent_core::reason_details::counterfactual_id::POSITIVITY_VIOLATION,
+            message.into(),
+        )
     }
 
     /// A declared bound is exceeded.
     #[must_use]
     pub fn bounds(message: impl Into<String>) -> Self {
-        Self::plain("route_not_supported", "counterfactual_id.bounds_exceeded", message.into())
+        Self::plain(
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED,
+            message.into(),
+        )
     }
 
     /// A structure outside the graph contract.
@@ -188,7 +200,7 @@ impl CounterfactualIdRefusal {
     pub fn graph(message: impl Into<String>) -> Self {
         Self::plain(
             "route_not_supported",
-            "counterfactual_id.graph_outside_contract",
+            antecedent_core::reason_details::counterfactual_id::GRAPH_OUTSIDE_CONTRACT,
             message.into(),
         )
     }
@@ -198,7 +210,7 @@ impl CounterfactualIdRefusal {
     pub fn interval_requested() -> Self {
         Self::plain(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "counterfactual_id.interval_requested",
+            antecedent_core::reason_details::counterfactual_id::INTERVAL_REQUESTED,
             "the counterfactual identification cell is a point claim; no interval or posterior \
              is published"
                 .into(),
@@ -208,7 +220,7 @@ impl CounterfactualIdRefusal {
     fn outside_contract(message: impl Into<String>) -> Self {
         Self::plain(
             antecedent_core::reason_code!("route_not_supported"),
-            "counterfactual_id.query_outside_contract",
+            antecedent_core::reason_details::counterfactual_id::QUERY_OUTSIDE_CONTRACT,
             message.into(),
         )
     }
@@ -216,7 +228,7 @@ impl CounterfactualIdRefusal {
     fn path_specific() -> Self {
         Self::plain(
             antecedent_core::reason_code!("route_not_supported"),
-            "counterfactual_id.path_specific_not_supported",
+            antecedent_core::reason_details::counterfactual_id::PATH_SPECIFIC_NOT_SUPPORTED,
             "a world routes edges: path-specific and recanting-district effects on ADMGs are \
              outside this identification route"
                 .into(),
@@ -226,7 +238,7 @@ impl CounterfactualIdRefusal {
     fn conflict(obstruction: CounterfactualObstruction) -> Self {
         Self {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "counterfactual_id.conflicting_subscripts",
+            detail: antecedent_core::reason_details::counterfactual_id::CONFLICTING_SUBSCRIPTS,
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
             receipt: None,
@@ -236,7 +248,7 @@ impl CounterfactualIdRefusal {
     fn hedge(obstruction: CounterfactualObstruction) -> Self {
         Self {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "counterfactual_id.counterfactual_hedge",
+            detail: antecedent_core::reason_details::counterfactual_id::COUNTERFACTUAL_HEDGE,
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
             receipt: None,
@@ -246,7 +258,7 @@ impl CounterfactualIdRefusal {
     fn budget(receipt: SearchReceipt) -> Self {
         Self {
             code: antecedent_core::reason_code!("transport_budget_cancel"),
-            detail: "counterfactual_id.budget",
+            detail: antecedent_core::reason_details::counterfactual_id::BUDGET,
             message: format!(
                 "{} stopped the counterfactual identification search; this is not a \
                  nonidentification verdict",
@@ -1793,7 +1805,7 @@ mod tests {
         let err =
             CounterfactualIdProblem::new(vec![vec![0.0, 1.0]; 2], &[], &[(0, 0)]).unwrap_err();
         assert_eq!(err.code, "invalid_argument");
-        assert_eq!(err.detail, "counterfactual_id.invalid_query");
+        assert_eq!(err.detail, antecedent_core::reason_details::counterfactual_id::INVALID_QUERY);
         assert!(CounterfactualIdProblem::new(vec![vec![0.0, 1.0]; 2], &[], &[(0, 1)]).is_ok());
     }
 
@@ -1820,7 +1832,10 @@ mod tests {
         let refusal = CounterfactualIdRefusal::hedge(obstruction.clone());
         assert_eq!(
             (refusal.code, refusal.detail),
-            ("route_not_supported", "counterfactual_id.counterfactual_hedge")
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::counterfactual_id::COUNTERFACTUAL_HEDGE
+            )
         );
         // A tampered hedge fails the definition check.
         let mut tampered = obstruction;
@@ -1935,7 +1950,10 @@ mod tests {
         assert!((under(NullExtension::Level(1)) - 0.25).abs() < 1e-12);
         let ctx = ExecutionContext::for_tests(1);
         let refusal = TermEvaluator::new(&joint).term(&term, &HashMap::new(), &ctx).unwrap_err();
-        assert_eq!(refusal.detail, "counterfactual_id.positivity_violation");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::counterfactual_id::POSITIVITY_VIOLATION
+        );
     }
 
     #[test]
@@ -1983,7 +2001,7 @@ mod tests {
             let receipt = refusal.receipt.expect("a receipt");
             assert_eq!(receipt.stop, SearchStop::Cancelled);
             assert_eq!(receipt.operations_consumed, Some(after));
-            assert_eq!(refusal.detail, "counterfactual_id.budget");
+            assert_eq!(refusal.detail, antecedent_core::reason_details::counterfactual_id::BUDGET);
         }
     }
 }

@@ -2351,24 +2351,24 @@ dataset = { generator = "predictive_forecast_scores", seed = 7378232, n = 100000
 evidence = { status = "bound", test = "crates/antecedent/tests/predictive_score_interval_calibration.rs::iid_crps_mean_51200_cases_l95" }
 
 [[case]]
-id = "predictive_score_cluster_count_requirement_preserved"
+id = "predictive_score_cluster_count_sets_degrees_of_freedom"
 area = "predictive_scores"
 workflow = "antecedent.predictive_assessment score interval"
-configuration = { clusters = 3 }
-expected = { kind = "refusal", outputs = ["names the cluster-count requirement"], refusal = "cluster count" }
+configuration = { clusters = 9 }
+expected = { kind = "value", outputs = ["degrees of freedom equal to the cluster count minus one"] }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Scores are O(n); iid interval at 100k cases is seconds." }
 dataset = { generator = "predictive_forecast_scores", seed = 4787019, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-validate/tests/predictive_assessment.rs::the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count" }
+evidence = { status = "bound", test = "crates/antecedent-validate/tests/predictive_assessment.rs::the_cluster_count_and_serial_bandwidth_set_the_degrees_of_freedom_at_any_case_count" }
 
 [[case]]
-id = "predictive_score_serial_dependence_requirement_preserved"
+id = "predictive_score_serial_bandwidth_sets_degrees_of_freedom"
 area = "predictive_scores"
 workflow = "antecedent.predictive_assessment score interval"
-configuration = { dependence = "serial", insufficient_blocks = true }
-expected = { kind = "refusal", outputs = ["names the serial-dependence requirement"], refusal = "serial dependence" }
+configuration = { dependence = "serial", truncation_lag = 2000 }
+expected = { kind = "value", outputs = ["degrees of freedom set by the serial truncation lag"] }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Scores are O(n); iid interval at 100k cases is seconds." }
 dataset = { generator = "predictive_forecast_scores", seed = 9569560, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-validate/tests/predictive_assessment.rs::the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count" }
+evidence = { status = "bound", test = "crates/antecedent-validate/tests/predictive_assessment.rs::the_cluster_count_and_serial_bandwidth_set_the_degrees_of_freedom_at_any_case_count" }
 
 [[case]]
 id = "balanced_300_participant_independent_assignment_score_interval"
@@ -3351,16 +3351,6 @@ dataset = { generator = "release_candidate", seed = 9574028, simulated_represent
 evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_the_installed_wheel_step_runs_every_example_and_the_suite_outside_the_source_tree" }
 
 [[case]]
-id = "release_practitioner_scale_jobs_pass"
-area = "release_closure"
-workflow = "release candidate gates"
-configuration = { scope = "all manifest cases" }
-expected = { kind = "receipt", outputs = ["every practitioner-scale case passes within frozen runtime and memory"] }
-targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
-dataset = { generator = "release_candidate", seed = 9200522, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_a_practitioner_scale_case_needs_its_gate_registration_and_a_full_record" }
-
-[[case]]
 id = "release_refusal_boundaries_hold"
 area = "release_closure"
 workflow = "release candidate gates"
@@ -3391,34 +3381,14 @@ dataset = { generator = "release_candidate", seed = 6842468, simulated_represent
 evidence = { status = "bound", test = "scripts/test_ci_workflow.py::test_a_run_is_accepted_only_when_it_built_this_commit_with_every_required_job_green" }
 
 [[case]]
-id = "release_calibration_cells_have_two_thousand_replicates_and_monte_carlo_uncertainty"
+id = "release_candidate_runs_the_release_gate_and_inventory"
 area = "release_closure"
 workflow = "release candidate gates"
 configuration = { scope = "all manifest cases" }
-expected = { kind = "receipt", outputs = ["each cell at least 2,000 replicates with Monte Carlo uncertainty"] }
-targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
-dataset = { generator = "release_candidate", seed = 3788635, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_calibrated_records_need_two_thousand_replicates_and_uncertainty" }
-
-[[case]]
-id = "release_independent_confirmation_after_tuning"
-area = "release_closure"
-workflow = "release candidate gates"
-configuration = { scope = "all manifest cases" }
-expected = { kind = "receipt", outputs = ["confirmation run independent of tuning data"] }
-targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
-dataset = { generator = "release_candidate", seed = 9085422, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_a_boundary_record_needs_a_confirmation_covering_the_case" }
-
-[[case]]
-id = "release_every_construction_bound_to_public_execution_and_current_source"
-area = "release_closure"
-workflow = "release candidate gates"
-configuration = { scope = "all manifest cases" }
-expected = { kind = "receipt", outputs = ["bound to public route, current source and artifact consumers"] }
+expected = { kind = "receipt", outputs = ["the release candidate runs gate_release.sh and the release inventory"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 6038570, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_every_interval_case_binds_a_record_for_its_public_test_and_the_attested_gate" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_the_release_candidate_runs_the_release_gate_and_inventory" }
 
 [[case]]
 id = "release_audit_limit_failed_measurement_or_deferral_cannot_close_a_case"

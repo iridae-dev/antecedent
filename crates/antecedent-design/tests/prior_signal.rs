@@ -228,12 +228,18 @@ fn incompatible_or_unknown_artifacts_refuse() {
     let sources = vec![source("wrong", &[0.1, 0.2], 1.0, &["obs-w"])];
     let error = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 4)).unwrap_err();
     assert!(matches!(error, PriorSignalError::IncompatibleArtifact { .. }), "{error:?}");
-    assert_eq!(refusal_detail(&error), "prior_signal.incompatible_artifact");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::prior_signal::INCOMPATIBLE_ARTIFACT
+    );
 
     let sources = vec![source("ghost", &[0.1, 0.2], 1.0, &["obs-g"])];
     let error = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 4)).unwrap_err();
     assert_eq!(error, PriorSignalError::ArtifactNotInCatalog("ghost".into()));
-    assert_eq!(refusal_detail(&error), "prior_signal.artifact_not_in_catalog");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::prior_signal::ARTIFACT_NOT_IN_CATALOG
+    );
 }
 
 #[test]
@@ -242,13 +248,19 @@ fn a_coefficient_prior_or_unlock_list_alone_is_not_a_signal() {
     req.signal = CandidateSignalSource::CoefficientPriorOnly;
     let error = adapt_prior_to_signal(&catalog(), &target(), &req).unwrap_err();
     assert_eq!(error, PriorSignalError::CoefficientPriorNotSignal);
-    assert_eq!(refusal_detail(&error), "prior_signal.coefficient_prior_not_signal");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::prior_signal::COEFFICIENT_PRIOR_NOT_SIGNAL
+    );
 
     let mut req = request(two_sources(), 4);
     req.signal = CandidateSignalSource::UnlockListOnly(vec!["z".into(), "w".into()]);
     let error = adapt_prior_to_signal(&catalog(), &target(), &req).unwrap_err();
     assert_eq!(error, PriorSignalError::UnlockListNotSignal(2));
-    assert_eq!(refusal_detail(&error), "prior_signal.unlock_list_not_signal");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::prior_signal::UNLOCK_LIST_NOT_SIGNAL
+    );
 }
 
 #[test]
@@ -258,7 +270,10 @@ fn prior_data_overlap_refuses() {
     req.candidate_observation_ids = vec!["future-1".into(), "obs-a2".into()];
     let error = adapt_prior_to_signal(&catalog(), &target(), &req).unwrap_err();
     assert_eq!(error, PriorSignalError::ObservationReuse(vec!["obs-a2".into()]));
-    assert_eq!(refusal_detail(&error), "prior_signal.observation_reuse");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::prior_signal::OBSERVATION_REUSE
+    );
 
     // Two prior sources fit on the same observation would count it twice.
     let sources = vec![
@@ -267,7 +282,10 @@ fn prior_data_overlap_refuses() {
     ];
     let error = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 4)).unwrap_err();
     assert_eq!(error, PriorSignalError::PriorSourcesOverlap(vec!["obs-shared".into()]));
-    assert_eq!(refusal_detail(&error), "prior_signal.prior_sources_overlap");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::prior_signal::PRIOR_SOURCES_OVERLAP
+    );
 
     // A source that cannot show which observations it used cannot exclude reuse.
     let sources = vec![source("A", &[0.2, 0.4], 1.0, &[])];
@@ -282,7 +300,10 @@ fn population_change_needs_a_declared_transport_policy() {
     let error =
         adapt_prior_to_signal(&catalog(), &target(), &request(sources.clone(), 4)).unwrap_err();
     assert_eq!(error, PriorSignalError::TransportPolicyRequired("A".into()));
-    assert_eq!(error.to_refusal().detail, "prior_signal.transport_policy_required");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::prior_signal::TRANSPORT_POLICY_REQUIRED
+    );
 
     let mut req = request(sources, 4);
     req.transport = Some(TransportPolicyDecl { policy_id: "policy:reweight".into() });

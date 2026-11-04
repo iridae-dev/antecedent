@@ -130,7 +130,7 @@ fn refusal(code: &'static str, detail: &'static str, message: &str) -> TierDiagn
 fn not_tiered() -> TierDiagnosticsError {
     refusal(
         reason_code!("invalid_argument"),
-        "tier_diagnostics.not_a_tiered_average_result",
+        antecedent_core::reason_details::tier_diagnostics::NOT_A_TIERED_AVERAGE_RESULT,
         "the result is not a single-treatment tiered average-effect result: it records neither a \
          CoDetermined tier-closure identification nor the Unknown two-scenario identification \
          with scenario effects (a joint-cell or non-tiered result has no tier diagnostics)",
@@ -142,7 +142,7 @@ fn observe(ctx: &ExecutionContext) -> Result<(), TierDiagnosticsError> {
     if ctx.cancellation.is_cancelled() {
         return Err(refusal(
             reason_code!("cancelled_no_claim"),
-            "tier_diagnostics.cancelled",
+            antecedent_core::reason_details::tier_diagnostics::CANCELLED,
             "reading the tier diagnostics was cancelled; none is reported and the stop is not a \
              verdict on the result",
         ));
@@ -181,7 +181,7 @@ pub fn tier_diagnostics(
         let overlap = effect.diagnostics.overlap_report.clone().map_or_else(
             || {
                 Availability::Unavailable(unavailable(
-                    "tier_diagnostics.overlap_not_carried",
+                    antecedent_core::reason_details::tier_diagnostics::OVERLAP_NOT_CARRIED,
                     "the executed estimator fitted no propensity score, so the result carries no \
                      overlap report; none is refit here because a refit would be a design the \
                      estimate did not use",
@@ -211,14 +211,14 @@ pub fn tier_diagnostics(
         return Ok(TierDiagnostics {
             design: TierDesign::UnknownScenarios { scenarios },
             overlap: Availability::Unavailable(unavailable(
-                "tier_diagnostics.unknown_scenarios_no_overlap",
+                antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_OVERLAP,
                 "the Unknown-tier cell is a linear adjustment under two declared orientation \
                  scenarios: it fits no propensity score, so no overlap is carried; none is refit \
                  here and no within-tier edge is assumed to build one",
             )),
             evalue: TierEvalue {
                 point: Availability::Unavailable(unavailable(
-                    "tier_diagnostics.unknown_scenarios_no_evalue",
+                    antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_EVALUE,
                     "the Unknown-tier headline effect is NaN by design and the two scenario \
                      effects rest on different orientation assumptions over the same data; one \
                      E-value would be a statement across structural scenarios, so none is formed",
@@ -234,7 +234,7 @@ pub fn tier_diagnostics(
 fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
     let Some(effect) = result.estimate.as_effect() else {
         return Availability::Unavailable(unavailable(
-            "tier_diagnostics.evalue_not_computed",
+            antecedent_core::reason_details::tier_diagnostics::EVALUE_NOT_COMPUTED,
             "the result carries no effect estimate to put an E-value on",
         ));
     };
@@ -249,14 +249,14 @@ fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
             Availability::Available(TierPointEvalue { value, method })
         }
         (Some(_), Some(_), _) => Availability::Unavailable(unavailable(
-            "tier_diagnostics.evalue_embeds_interval_limit",
+            antecedent_core::reason_details::tier_diagnostics::EVALUE_EMBEDS_INTERVAL_LIMIT,
             "the E-value on this result came from the E-value refuter, which reports the smaller \
              of a point and a converted effect-interval-limit E-value as one number; it embeds a \
              converted endpoint and is not reported as a point E-value (run without the E-value \
              refuter to have the tier cell attach its point value)",
         )),
         _ => Availability::Unavailable(unavailable(
-            "tier_diagnostics.evalue_not_computed",
+            antecedent_core::reason_details::tier_diagnostics::EVALUE_NOT_COMPUTED,
             "the tier cell attached no point E-value to this result (a non-finite effect, an \
              outcome with no usable spread, or a quantile functional, which carries no E-value)",
         )),
@@ -266,7 +266,7 @@ fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
 /// The always-present reason no interval-limit E-value is reported.
 fn interval_withheld() -> Unavailable {
     unavailable(
-        "tier_diagnostics.no_evalue_interval_method",
+        antecedent_core::reason_details::tier_diagnostics::NO_EVALUE_INTERVAL_METHOD,
         "an E-value for the effect-interval limit needs that endpoint converted to a risk \
          ratio; the conversion (outcome-SD plug-in, RR ~ exp(0.91 d)) is an approximation \
          whose own uncertainty is excluded and no coverage record measures the converted \

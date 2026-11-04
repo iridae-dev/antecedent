@@ -410,7 +410,10 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
     let known = session.identities().clone();
     session.set_request_support(RequestSupport::Unsupported { supported_route: None });
     let plan = refused_plan(execute_with_receipt(&mut session, &base, &ctx(SEED)).unwrap_err());
-    assert_eq!(plan.first_refusal().unwrap().1.detail(), "recalc.unsupported_request");
+    assert_eq!(
+        plan.first_refusal().unwrap().1.detail(),
+        antecedent_core::reason_details::recalc::UNSUPPORTED_REQUEST
+    );
     assert!(session.is_live());
     assert_eq!(session.identities(), &known);
     session.set_request_support(RequestSupport::OnGrid);
@@ -565,7 +568,7 @@ fn recalc_failed_refresh_law_and_decision_preserve_successful_state() {
     for (bad, want) in [
         (bad_refresh, "invalid argument: AIPW cross-fit fold is missing a treatment arm"),
         (bad_law, "invalid argument: weights have no positive mass"),
-        (bad_decision, "recalc.invalid_request"),
+        (bad_decision, antecedent_core::reason_details::recalc::INVALID_REQUEST),
     ] {
         let refused = execute_with_receipt(&mut session, &bad, &ctx(SEED)).unwrap_err().to_string();
         assert_eq!(refused, want);

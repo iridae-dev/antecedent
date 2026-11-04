@@ -47,6 +47,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -90,11 +92,11 @@ _INTERPRETATION = "descriptive_not_causal_decomposition"
 # (registered reason code, detail) of the typed absences carried as data.
 _GAP_INTERVAL_UNAVAILABLE = (
     "route_not_supported",
-    "descriptive_comparison.gap_interval_unavailable",
+    _reason_details.descriptive_comparison.GAP_INTERVAL_UNAVAILABLE,
 )
 _JOINT_COVARIANCE_UNAVAILABLE = (
     "required_option_missing",
-    "descriptive_comparison.joint_covariance_unavailable",
+    _reason_details.descriptive_comparison.JOINT_COVARIANCE_UNAVAILABLE,
 )
 
 
@@ -439,7 +441,9 @@ def raw_reporting_transform(
         level=None if level is None else float(level),
         cancel=execution.cancel,
     )
-    return _transform(names, raw, ("invalid_argument", "descriptive_comparison.arm_too_small"))
+    return _transform(
+        names, raw, ("invalid_argument", _reason_details.descriptive_comparison.ARM_TOO_SMALL)
+    )
 
 
 def _bad(why: str) -> CausalSerializationError:

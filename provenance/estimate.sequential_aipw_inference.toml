@@ -40,17 +40,20 @@ record_sha256 = "b3bc4384abc8a1785c8839bc6b617d8417ffd003244831b644280b69698da84
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/sequential_aipw_inference.rs"
-sha256 = "5efd6be42fca0a9b3c726b0eff723d64f7117a46648daf5419b54199e66d8916"
+items = ["fn bayesian_sequential_contrast", "fn sequential_contrast_wald_interval", "struct SequentialContrastInterval", "struct SequentialContrastPosterior"]
+sha256 = "71be51fa29aca5e57b7b6145ca79ff95402fbfb80183065d263bc020faa23730"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/score_posterior.rs"
-sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
+items = ["struct ScorePosteriorOptions"]
+sha256 = "b2784ca05bb3d620a8beaa98d25e021bae828e42c85bdbda5f7776a981ccb05f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/sequential_contrast_reference.rs"
-sha256 = "1fb73f46fa7b70e5a0a1a0a28e57487830ac4693923f9e5f245b7da39bcbc65d"
+items = ["const DRAWS", "fn contrast", "fn floats", "fn reference", "fn the_posterior_laws_of_both_regimes_and_the_shared_weight_contrast_match_the_exact_laws", "fn the_wald_interval_matches_the_exact_standard_error_and_normal_quantile"]
+sha256 = "b99a18fa6dc195f869984a9e9b366b1a022ca5484f718345ed3d7ea7d1f698a6"
 
 [[method_review.artifacts]]
 role = "reference"

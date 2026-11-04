@@ -13,6 +13,7 @@ import math
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import compact_export as ce
 from antecedent.compact_export import (
     Categorical,
@@ -120,14 +121,14 @@ def test_compact_one_hot_terms_select_the_level_with_hand_values() -> None:
 def test_compact_out_of_support_queries_refuse_with_exact_details() -> None:
     export = one_hot()
     expected = [
-        ({"x": 10.5, "g": "a"}, "compact_export.out_of_support", "x"),
-        ({"x": -0.001, "g": "a"}, "compact_export.out_of_support", "x"),
-        ({"x": 1.0, "g": "d"}, "compact_export.out_of_support", "g"),
-        ({"x": 1.0}, "compact_export.missing_quantity", "g"),
-        ({"x": 1.0, "g": "a", "z": 3.0}, "compact_export.unknown_quantity", "z"),
-        ({"x": float("nan"), "g": "a"}, "compact_export.non_finite_input", "x"),
-        ({"x": float("inf"), "g": "a"}, "compact_export.non_finite_input", "x"),
-        ({"x": "a", "g": "a"}, "compact_export.query_type_mismatch", "x"),
+        ({"x": 10.5, "g": "a"}, reason_details.compact_export.OUT_OF_SUPPORT, "x"),
+        ({"x": -0.001, "g": "a"}, reason_details.compact_export.OUT_OF_SUPPORT, "x"),
+        ({"x": 1.0, "g": "d"}, reason_details.compact_export.OUT_OF_SUPPORT, "g"),
+        ({"x": 1.0}, reason_details.compact_export.MISSING_QUANTITY, "g"),
+        ({"x": 1.0, "g": "a", "z": 3.0}, reason_details.compact_export.UNKNOWN_QUANTITY, "z"),
+        ({"x": float("nan"), "g": "a"}, reason_details.compact_export.NON_FINITE_INPUT, "x"),
+        ({"x": float("inf"), "g": "a"}, reason_details.compact_export.NON_FINITE_INPUT, "x"),
+        ({"x": "a", "g": "a"}, reason_details.compact_export.QUERY_TYPE_MISMATCH, "x"),
     ]
     for query, detail, subject in expected:
         error = refused(export, query)
@@ -145,7 +146,7 @@ def test_compact_masked_region_refuses_even_inside_the_support() -> None:
     export = one_hot()
     for x in (8.0, 9.0, 10.0):
         error = refused(export, {"x": x, "g": "c"})
-        assert error.detail == "compact_export.masked_region"
+        assert error.detail == reason_details.compact_export.MASKED_REGION
         assert error.offending == "high_dose_group_c"
         assert error.reason_code == "invalid_argument"
     export.evaluate({"x": 7.999, "g": "c"})
@@ -159,9 +160,9 @@ def test_compact_evaluate_many_returns_refusals_without_raising() -> None:
     )
     assert isinstance(answers[0], PointEstimate)
     assert isinstance(answers[1], CompactExportRefusal)
-    assert answers[1].detail == "compact_export.masked_region"
+    assert answers[1].detail == reason_details.compact_export.MASKED_REGION
     assert isinstance(answers[2], CompactExportRefusal)
-    assert answers[2].detail == "compact_export.out_of_support"
+    assert answers[2].detail == reason_details.compact_export.OUT_OF_SUPPORT
 
 
 def test_compact_verifier_round_trip_matches_the_producer() -> None:
@@ -180,8 +181,14 @@ def test_compact_verifier_round_trip_matches_the_producer() -> None:
         ({"x": 7.5, "g": "c"}, 15.0),  # 1 + 15 - 1
     ):
         assert consumed.evaluate(query).point == pytest.approx(hand, abs=1e-12), query
-    assert refused(consumed, {"x": 9.0, "g": "c"}).detail == "compact_export.masked_region"
-    assert refused(consumed, {"x": 11.0, "g": "a"}).detail == "compact_export.out_of_support"
+    assert (
+        refused(consumed, {"x": 9.0, "g": "c"}).detail
+        == reason_details.compact_export.MASKED_REGION
+    )
+    assert (
+        refused(consumed, {"x": 11.0, "g": "a"}).detail
+        == reason_details.compact_export.OUT_OF_SUPPORT
+    )
 
 
 def test_compact_wrong_expected_identity_is_refused() -> None:
@@ -189,7 +196,7 @@ def test_compact_wrong_expected_identity_is_refused() -> None:
     with pytest.raises(CompactExportRefusal) as wrong:
         require_success(CompactExport.consume(bytes(export.export()), expected_identity="deadbeef"))
     assert wrong.value.reason_code == "invalid_argument"
-    assert wrong.value.detail == "compact_export.identity_unexpected"
+    assert wrong.value.detail == reason_details.compact_export.IDENTITY_UNEXPECTED
     assert wrong.value.offending == "deadbeef"
     # A different model has a different identity and is refused under the first.
     other = CompactExport.build(
@@ -204,7 +211,7 @@ def test_compact_wrong_expected_identity_is_refused() -> None:
         require_success(
             CompactExport.consume(bytes(other.export()), expected_identity=export.identity)
         )
-    assert swapped.value.detail == "compact_export.identity_unexpected"
+    assert swapped.value.detail == reason_details.compact_export.IDENTITY_UNEXPECTED
     # An export that evaluates under a swapped artifact keeps refusing: the retained identity
     # binds every evaluation.
     forged = CompactExport(
@@ -212,7 +219,7 @@ def test_compact_wrong_expected_identity_is_refused() -> None:
     )
     with pytest.raises(CompactExportRefusal) as evaluated:
         forged.evaluate({"x": 2.0})
-    assert evaluated.value.detail == "compact_export.identity_unexpected"
+    assert evaluated.value.detail == reason_details.compact_export.IDENTITY_UNEXPECTED
 
 
 def test_compact_corrupt_or_truncated_artifact_is_refused() -> None:
@@ -251,23 +258,35 @@ def test_compact_malformed_specs_refuse_at_build() -> None:
     cases = [
         (
             {"covariance": [[0.04, 0.0, 0.0], [0.0, 0.01, 0.0]]},
-            "compact_export.dimension_mismatch",
+            reason_details.compact_export.DIMENSION_MISMATCH,
         ),
-        ({"covariance": [[0.04, 0.05], [0.0, 0.01]]}, "compact_export.covariance_asymmetric"),
-        ({"covariance": [[-0.04, 0.0], [0.0, 0.01]]}, "compact_export.covariance_not_psd"),
-        ({"covariance": [[0.04, 0.1], [0.1, 0.01]]}, "compact_export.covariance_not_psd"),
-        ({"terms": [Intercept(), Linear("q")]}, "compact_export.unknown_quantity"),
-        ({"terms": [Intercept(), Power("x", 9)]}, "compact_export.invalid_degree"),
-        ({"terms": [Intercept(), Intercept()]}, "compact_export.duplicate_term"),
-        ({"terms": [Intercept(), OneHot("x", "a")]}, "compact_export.term_support_mismatch"),
-        ({"inputs": [Numeric("x", 5.0, 1.0)]}, "compact_export.invalid_support"),
+        (
+            {"covariance": [[0.04, 0.05], [0.0, 0.01]]},
+            reason_details.compact_export.COVARIANCE_ASYMMETRIC,
+        ),
+        (
+            {"covariance": [[-0.04, 0.0], [0.0, 0.01]]},
+            reason_details.compact_export.COVARIANCE_NOT_PSD,
+        ),
+        (
+            {"covariance": [[0.04, 0.1], [0.1, 0.01]]},
+            reason_details.compact_export.COVARIANCE_NOT_PSD,
+        ),
+        ({"terms": [Intercept(), Linear("q")]}, reason_details.compact_export.UNKNOWN_QUANTITY),
+        ({"terms": [Intercept(), Power("x", 9)]}, reason_details.compact_export.INVALID_DEGREE),
+        ({"terms": [Intercept(), Intercept()]}, reason_details.compact_export.DUPLICATE_TERM),
+        (
+            {"terms": [Intercept(), OneHot("x", "a")]},
+            reason_details.compact_export.TERM_SUPPORT_MISMATCH,
+        ),
+        ({"inputs": [Numeric("x", 5.0, 1.0)]}, reason_details.compact_export.INVALID_SUPPORT),
         (
             {"mask": [MaskRegion("r", {"q": (0.0, 1.0)})]},
-            "compact_export.unknown_quantity",
+            reason_details.compact_export.UNKNOWN_QUANTITY,
         ),
         (
             {"coefficients": [1.0, float("nan")]},
-            "compact_export.non_finite_value",
+            reason_details.compact_export.NON_FINITE_VALUE,
         ),
     ]
     for overrides, detail in cases:

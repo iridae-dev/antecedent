@@ -151,7 +151,10 @@ fn initial_state_posterior_refuses_a_mapped_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("initial_state_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -244,12 +247,18 @@ fn source_state_only_refuses_a_source_law_and_a_point_state() {
     let (code, message) =
         refused(MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(source)).unwrap_err());
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 
     let (code, message) =
         refused(MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Point(1)).unwrap_err());
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 }
 
 #[test]
@@ -264,11 +273,17 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     let query = MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(gap)).unwrap();
     let (code, message) = refused(query.effect(&panel()).unwrap_err());
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("initial_state.support_gap"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::SUPPORT_GAP),
+        "{message}"
+    );
     let (_, message) = refused(
         FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 7 }.effect(&panel()).unwrap_err(),
     );
-    assert!(message.contains("initial_state.support_gap"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::SUPPORT_GAP),
+        "{message}"
+    );
 
     let many = (0..=INITIAL_STATE_MAX_STATES as u32)
         .map(|s| (s, 1.0 / (INITIAL_STATE_MAX_STATES + 1) as f64))
@@ -276,7 +291,10 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     let (code, message) =
         refused(InitialStateLaw::new(InitialStatePopulation::Target, "many", many).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("initial_state.too_many_states"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TOO_MANY_STATES),
+        "{message}"
+    );
     let at_cap = (0..INITIAL_STATE_MAX_STATES as u32)
         .map(|s| (s, 1.0 / INITIAL_STATE_MAX_STATES as f64))
         .collect();

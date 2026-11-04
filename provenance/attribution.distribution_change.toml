@@ -35,17 +35,20 @@ record_sha256 = "b4a1f8cf39efa04cf75c5cbbe952ce7e4be06a205d8a440ea9d88fafc217748
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/distribution_change.rs"
-sha256 = "b0901c07eb2d2651dfcbf29085b5aeb156fad90867c899f1bd4dfb7664d15752"
+items = ["enum PlayerKind", "fn baseline", "fn baseline_law", "fn comparison", "fn default", "fn distribution_change", "fn distribution_change_on_populations", "fn distribution_change_with_mechanisms", "fn joint_players", "fn law_memo", "fn measure", "fn parts", "fn validate_distribution_change_query", "fn value", "struct DistributionChangeOptions", "struct MechanismSwapPayoff"]
+sha256 = "c048663e9c4df51d0911234593a323a99ac400376e6b66a47af834c1d44fd34e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/change_common.rs"
-sha256 = "76e7d8f17f3de3c7e4b1133ad557800e1d58c5feb58383cf904dc58a872d410b"
+items = ["enum DifferenceMeasure", "fn new", "fn total_change"]
+sha256 = "e87cb627c4c308e80404606f12065edf96c0a8646f4235ab86eac14c27c0ca32"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
-sha256 = "e74e9ff0de986390749c68155e621a28faf4c1462569053372665a9b7a8fea0f"
+items = ["fn close", "fn f", "fn query", "fn reference", "fn registry_fits_equal_least_squares_with_the_unbiased_residual_variance", "fn regression_hybrid_path_equals_the_exact_mean_shapley_values", "fn rows_of", "fn sampling_path_matches_the_exact_laws_within_its_sampling_error", "fn setup", "fn table"]
+sha256 = "a6199c10d951d6d53aee41b7e3dcf454410b984a9ad11bd8a5662a68da60ea5d"
 
 [[method_review.artifacts]]
 role = "reference"

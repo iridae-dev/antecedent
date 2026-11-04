@@ -93,7 +93,7 @@ fn check_identity(identity: &DataIdentityWire, rows: usize) -> PyResult<()> {
         || identity.datum_ids.iter().any(|id| id.trim().is_empty())
     {
         return Err(invalid(
-            "recalc.joint_bayesian_invalid_data",
+            antecedent_core::reason_details::recalc::JOINT_BAYESIAN_INVALID_DATA,
             "observation identity must name every unit once",
         ));
     }
@@ -108,7 +108,10 @@ fn request(specification: &str) -> PyResult<JointBayesianRequest> {
         )
     };
     if wire.names.len() > 64 {
-        return Err(invalid("recalc.limits_exceeded", "joint transport variable count exceeds 64"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            "joint transport variable count exceeds 64",
+        ));
     }
     let locate = |name: &str| -> PyResult<VariableId> {
         let Some(i) = wire.names.iter().position(|n| n == name) else {
@@ -184,7 +187,10 @@ fn request(specification: &str) -> PyResult<JointBayesianRequest> {
         || wire.draws > limits.max_draws
         || wire.draws.saturating_mul(width) > limits.max_draw_cells
     {
-        return Err(invalid("recalc.limits_exceeded", "joint transport exceeds consumer bounds"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            "joint transport exceeds consumer bounds",
+        ));
     }
     let sources = wire
         .sources
@@ -303,9 +309,14 @@ impl PyJointBayesianSession {
                     }),
                 )
             }
-            Err(error) => {
-                Ok((None, None, Some(run_error(&error, "recalc.joint_bayesian_refused"))))
-            }
+            Err(error) => Ok((
+                None,
+                None,
+                Some(run_error(
+                    &error,
+                    antecedent_core::reason_details::recalc::JOINT_BAYESIAN_REFUSED,
+                )),
+            )),
         }
     }
     #[pyo3(signature=(*,seed=1,threads=None,cancel=None))]
@@ -321,7 +332,13 @@ impl PyJointBayesianSession {
         let _ = (seed, threads, cancel);
         match py.detach(|| self.inner.export_result()) {
             Ok(bytes) => (Some(bytes), None),
-            Err(error) => (None, Some(run_error(&error, "recalc.joint_bayesian_refused"))),
+            Err(error) => (
+                None,
+                Some(run_error(
+                    &error,
+                    antecedent_core::reason_details::recalc::JOINT_BAYESIAN_REFUSED,
+                )),
+            ),
         }
     }
 }

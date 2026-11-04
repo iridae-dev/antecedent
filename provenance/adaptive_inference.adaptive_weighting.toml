@@ -39,12 +39,14 @@ record_sha256 = "efe21c6e0cba0c3ca249848b7f152bab0bd592e2af814f4bdf6a6ae2aaf3b73
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/weighting.rs"
-sha256 = "fcd7c7ebd9252996df191f61b6e28a50409e1db90c40256ae2342c6a61afb482"
+items = ["const CANCEL_STRIDE", "const MAX_ADAPTIVE_UNITS", "const MAX_WEIGHTED_ARMS", "const PROBABILITY_ROW_TOLERANCE", "enum Estimand", "enum WeightScheme", "fn adaptive_scores", "fn check_history", "fn weighted_estimate", "struct AdaptiveEstimate", "struct OutcomeModelPrior"]
+sha256 = "f9a6afdb5f4fa78ecf4f5ac65fb15d4d07848988e94bceb0ef59b38998226c90"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_weighting_reference.rs"
-sha256 = "33c914c4f9ea9fbc2046a3726cea0e514709148f0ddeaf25d2273d99622ab51d"
+items = ["fn close", "fn expected_weighted_sum", "fn never", "fn number", "fn numbers", "fn policy", "fn reference", "fn scores_and_weighted_estimates_match_the_reference", "fn the_weighted_score_sum_is_a_martingale_under_an_adaptive_policy"]
+sha256 = "78b31e9691fa3c70da89d74054067324523308243340488695765b20f9cf4727"
 
 [[method_review.artifacts]]
 role = "reference"

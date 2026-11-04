@@ -15,7 +15,7 @@
 //!   forwarded dataset; the bootstrap resamples the joint once per replicate and
 //!   projects the margin from it.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

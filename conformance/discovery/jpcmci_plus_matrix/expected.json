@@ -52,7 +52,17 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/jpcmci_plus_oracle_matrix.rs",
-          "sha256": "dd1aa851dba7c7b69b3ac5f6e623da33a0d7085810a4ea76afa7fee3dcddbc92"
+          "items": [
+            "fn canonical",
+            "fn fixture",
+            "fn jpcmci_plus_fixture_records_retained_harness_and_historical_pins",
+            "fn jpcmci_plus_tigramite_matrix_is_reproducible",
+            "fn multi_data",
+            "fn reference_links",
+            "fn schema",
+            "type LinkKey"
+          ],
+          "sha256": "7d226df6a22884f92f07aaea6843c5c8cfaee885b6a6ce3ec5aa1684f8b1101c"
         },
         {
           "role": "comparison_helper",

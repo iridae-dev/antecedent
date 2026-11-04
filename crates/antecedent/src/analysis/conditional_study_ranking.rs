@@ -65,8 +65,9 @@ pub struct ConditionalRankingError {
     pub detail: &'static str,
 }
 fn refuse(detail: &'static str) -> ConditionalRankingError {
-    let code = if detail == "conditional_study_ranking.source_unavailable"
-        || detail == "conditional_study_ranking.action_not_unique"
+    let code = if detail
+        == antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE
+        || detail == antecedent_core::reason_details::conditional_study_ranking::ACTION_NOT_UNIQUE
     {
         antecedent_core::reason_code!("route_not_supported")
     } else {
@@ -142,13 +143,16 @@ fn counts(c: super::recalc_receipt::StageCounts) -> CountsWire {
     }
 }
 fn source(session: &CompositeSession) -> Result<Source, ConditionalRankingError> {
-    let publication = session
-        .publication()
-        .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?;
-    let decision =
-        session.decision().ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?;
+    let publication = session.publication().ok_or_else(|| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE)
+    })?;
+    let decision = session.decision().ok_or_else(|| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE)
+    })?;
     let SupportedVerdict::Compared(Verdict::UniquelyOptimal(selected)) = &decision.verdict else {
-        return Err(refuse("conditional_study_ranking.action_not_unique"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::ACTION_NOT_UNIQUE,
+        ));
     };
     Ok(Source {
         contract_identity: decision.contract_identity.clone(),
@@ -161,18 +165,18 @@ fn source(session: &CompositeSession) -> Result<Source, ConditionalRankingError>
                 session
                     .native()
                     .producing_context()
-                    .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?,
+                    .ok_or_else(|| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))?,
             )
-            .map_err(|_| refuse("conditional_study_ranking.source_unavailable"))?,
+            .map_err(|_| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))?,
         callback_claims: publication
             .branches
             .iter()
             .map(|b| {
                 session
                     .callback(*b)
-                    .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?
+                    .ok_or_else(|| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))?
                     .export_output()
-                    .map_err(|_| refuse("conditional_study_ranking.source_unavailable"))
+                    .map_err(|_| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))
             })
             .collect::<Result<Vec<_>, _>>()?,
         actions: decision
@@ -198,7 +202,9 @@ fn validate(
 ) -> Result<(), ConditionalRankingError> {
     let valid_name = |s: &str| !s.trim().is_empty() && s.len() <= 256;
     if !valid_name(&policy.policy_id) || policy.branches.is_empty() {
-        return Err(refuse("conditional_study_ranking.invalid_policy"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+        ));
     }
     // The policy is sealed into the payload, so its identifiers alone already cost this many
     // bytes of the artifact budget; refuse before any per-candidate work when they cannot fit.
@@ -211,7 +217,9 @@ fn validate(
             })
             .sum::<usize>();
     if identifier_bytes > limits.max_bytes {
-        return Err(refuse("conditional_study_ranking.resource_limit"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+        ));
     }
     let expected: BTreeSet<_> = source.actions.iter().map(|a| a.id.as_str()).collect();
     let mut actual = BTreeSet::new();
@@ -220,7 +228,9 @@ fn validate(
             || !actual.insert(branch.action.as_str())
             || branch.candidates.is_empty()
         {
-            return Err(refuse("conditional_study_ranking.invalid_policy"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+            ));
         }
         let mut candidates = BTreeSet::new();
         if branch
@@ -228,11 +238,15 @@ fn validate(
             .iter()
             .any(|c| !valid_name(&c.semantic_id) || !candidates.insert(c.semantic_id.as_str()))
         {
-            return Err(refuse("conditional_study_ranking.invalid_policy"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+            ));
         }
     }
     if actual != expected {
-        return Err(refuse("conditional_study_ranking.invalid_policy"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+        ));
     }
     Ok(())
 }
@@ -242,11 +256,10 @@ fn rank(
     limits: ConditionalRankingLimits,
 ) -> Result<Vec<ConditionalRankingEntry>, ConditionalRankingError> {
     validate(policy, source, limits)?;
-    let branch = policy
-        .branches
-        .iter()
-        .find(|b| b.action == source.selected_action)
-        .ok_or_else(|| refuse("conditional_study_ranking.invalid_policy"))?;
+    let branch =
+        policy.branches.iter().find(|b| b.action == source.selected_action).ok_or_else(|| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY)
+        })?;
     let candidates: Vec<_> = branch
         .candidates
         .iter()
@@ -257,8 +270,9 @@ fn rank(
             sample_budget: c.sample_budget,
         })
         .collect();
-    let result = rank_structural(&candidates)
-        .map_err(|_| refuse("conditional_study_ranking.original_ranking_refused"))?;
+    let result = rank_structural(&candidates).map_err(|_| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::ORIGINAL_RANKING_REFUSED)
+    })?;
     Ok(result
         .structural
         .into_iter()
@@ -302,10 +316,13 @@ fn identity(
         entries: &payload.entries,
         identity: "",
     };
-    let bytes = serde_json::to_vec(&view)
-        .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+    let bytes = serde_json::to_vec(&view).map_err(|_| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+    })?;
     if bytes.len() > limits.max_bytes {
-        return Err(refuse("conditional_study_ranking.resource_limit"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+        ));
     }
     Ok(antecedent_core::blake3_hex(&bytes))
 }
@@ -315,15 +332,20 @@ fn retained_payload(
     limits: ConditionalRankingLimits,
 ) -> Result<Payload, ConditionalRankingError> {
     if bytes.len() > limits.max_bytes {
-        return Err(refuse("conditional_study_ranking.resource_limit"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+        ));
     }
-    let payload: Payload = serde_json::from_slice(bytes)
-        .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+    let payload: Payload = serde_json::from_slice(bytes).map_err(|_| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+    })?;
     if payload.version != 1
         || payload.identity != identity(&payload, limits)?
         || expected_identity.is_some_and(|e| e != payload.identity)
     {
-        return Err(refuse("conditional_study_ranking.artifact_invalid"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID,
+        ));
     }
     Ok(payload)
 }
@@ -348,9 +370,9 @@ impl ConditionalStudyRanking {
     ) -> Result<Self, ConditionalRankingError> {
         let source = source(session)?;
         let entries = rank(&policy, &source, limits)?;
-        let publication = session
-            .publication()
-            .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?;
+        let publication = session.publication().ok_or_else(|| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE)
+        })?;
         let count_map: BTreeMap<_, _> =
             publication.receipt.entries().iter().map(|e| (e.stage, counts(e.counts))).collect();
         let receipt = RecalcReceiptArtifact::seal(
@@ -359,10 +381,12 @@ impl ConditionalStudyRanking {
             &publication.capabilities,
             &count_map,
         )
-        .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-        let historical_receipt = receipt
-            .to_bytes("conditional-study-source")
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+        .map_err(|_| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+        })?;
+        let historical_receipt = receipt.to_bytes("conditional-study-source").map_err(|_| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+        })?;
         let mut payload = Payload {
             version: 1,
             source,
@@ -403,10 +427,13 @@ impl ConditionalStudyRanking {
         &self,
         limits: ConditionalRankingLimits,
     ) -> Result<Vec<u8>, ConditionalRankingError> {
-        let bytes = serde_json::to_vec(&self.payload)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+        let bytes = serde_json::to_vec(&self.payload).map_err(|_| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+        })?;
         if bytes.len() > limits.max_bytes {
-            return Err(refuse("conditional_study_ranking.resource_limit"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+            ));
         }
         Ok(bytes)
     }
@@ -438,11 +465,15 @@ impl ConditionalStudyRanking {
     ) -> Result<Self, ConditionalRankingError> {
         let payload = retained_payload(bytes, expected_identity, limits)?;
         let receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+            .map_err(|_| {
+                refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+            })?;
         if receipt.meta().requested != payload.source.requested
             || payload.entries != rank(&payload.policy, &payload.source, limits)?
         {
-            return Err(refuse("conditional_study_ranking.artifact_invalid"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID,
+            ));
         }
         Ok(Self { payload })
     }
@@ -475,14 +506,20 @@ impl ConditionalStudyRanking {
     ) -> Result<Self, ConditionalRankingError> {
         let payload = retained_payload(bytes, expected_identity, limits)?;
         let receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+            .map_err(|_| {
+                refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+            })?;
         let receipt_meta = receipt.meta();
         let current = source(session)?;
         if payload.source != current || receipt_meta.requested != current.requested {
-            return Err(refuse("conditional_study_ranking.source_mismatch"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::SOURCE_MISMATCH,
+            ));
         }
         if payload.entries != rank(&payload.policy, &current, limits)? {
-            return Err(refuse("conditional_study_ranking.artifact_invalid"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID,
+            ));
         }
         Ok(Self { payload })
     }
@@ -572,7 +609,7 @@ mod tests {
             ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 240) };
         assert_eq!(
             validate(&heavy, &source, limits).unwrap_err().detail,
-            "conditional_study_ranking.resource_limit"
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT
         );
         // A caller-declared budget replaces the default: the heavy policy fits a larger one.
         let larger = ConditionalRankingLimits { max_bytes: 64 * 1024 * 1024 };

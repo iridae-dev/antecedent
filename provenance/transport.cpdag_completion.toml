@@ -47,9 +47,11 @@ record_sha256 = "bc4033eafc02c332f80ff9d86c3d51b3932943b98eb00f9250548b749249d9d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/cpdag_completion.rs"
-sha256 = "ce7c2437a2e4def6bf338765ca3c1e6340838d749dbcd266d7a42e0253f9df6a"
+items = ["const CPDAG_NOT_A_CPDAG_DETAIL", "const CPDAG_SELECTION_OR_LATENT_DETAIL", "fn admissible", "fn check_maximally_oriented", "fn completion", "fn completion_bytes", "fn cpdag_identity", "fn directed_edge_ids", "fn enumerate_cpdag_completions", "fn finish", "fn from_input", "fn hash_variables", "fn is_exportable", "fn new", "fn node", "fn not_a_cpdag", "fn orient", "fn reaches", "fn run_walk", "fn start", "fn total", "fn unsupported", "fn walk", "struct CompletionDag", "struct CpdagCompletionInput", "struct CpdagEnumeration", "struct Orienter", "struct Skeleton", "struct Walk", "type Charge"]
+sha256 = "44c7d7325f9b451bbcf11001505a1df2598f371a4562181cbc09dbb719524d49"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/cpdag_class_exhaustive.rs"
-sha256 = "090fead17d1ff9cafb55f8de7f603e71a4684ca00e80ddac418cfff3ba165822"
+items = ["const BIG", "fn acyclic", "fn all_dags", "fn essential", "fn every_four_node_partially_directed_graph_is_a_cpdag_or_refused", "fn every_three_node_partially_directed_graph_is_a_cpdag_or_refused", "fn id", "fn invariant", "fn pairs", "fn run", "type Arcs", "type Invariant"]
+sha256 = "a8b5fcf74d29b5ee5b8255dcaba9365a287843b35aade44975ccf521f7b5f856"

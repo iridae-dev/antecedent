@@ -37,12 +37,14 @@ record_sha256 = "97290f05304ae914f2bdbf2c7a9f5b5c4d118fd4b20a8edcbc1d655c3026583
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_scores.rs"
-sha256 = "4ec7214a2b9352a7bbd38a68f85b25dbee301f978114d1bd4491676df6300ac8"
+items = ["const MIN_ACTION_PROBABILITY_FOR_INTERVAL", "const MIN_ACTION_ROWS_FOR_INTERVAL", "const MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL", "const MIN_ROWS_FOR_INTERVAL", "fn cuped_ht_effect", "fn independent_action_contrast", "struct CupedHtEffect", "struct IndependentActionContrast"]
+sha256 = "6c46c7c242eef3efe0fc9cc07325fdeb98ce748b55f16751f3d486bd93f5b4b6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs"
-sha256 = "9bb3d9de86777d43221fe3a712fca5e34c9a5ea7dd5bac2392915f74bf40c549"
+items = ["fn close", "fn floats", "fn history_means_and_covariance_match_every_realization", "fn independent_score_contrast_matches_every_realization", "fn multi_arm_matches_every_realization_of_the_assignment", "fn reference", "fn switchback_itt_matches_every_realization_including_unequal_sequences"]
+sha256 = "56bfe01289928809ae72ed7172c81d7683d4038460d411c42f711afbf7c2776d"
 
 [[method_review.artifacts]]
 role = "reference"

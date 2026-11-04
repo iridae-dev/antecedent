@@ -327,8 +327,23 @@ class Fingerprinter:
             parts["test"] = tree_digest(r, [test, *conftests, *config])
         return parts
 
-    def fingerprint(self, row: dict) -> str:
-        return _sha(json.dumps(self.parts(row), sort_keys=True))
+    def test_digest(self, row: dict) -> str | None:
+        """Digest of the test-side files of a Rust row (`None` for Python): what a coverage
+        capture of the row is valid for."""
+        info = locate(self.root, row)
+        if info["lang"] != "rust":
+            return None
+        return tree_digest(self.root, self.rust_test_files(row["evidence_test"], info["crate"]))
+
+    def fingerprint(self, row: dict, executed: list[str] | None = None) -> str:
+        """The row's fingerprint. With `executed` (repo-relative source files a coverage capture
+        saw the Rust test run) the crate closure is replaced by those files' normalized source."""
+        parts = self.parts(row)
+        if executed is not None and "crates" in parts and "python" not in parts:
+            del parts["crates"]
+            parts["mode"] = "executed"
+            parts["executed"] = {rel: file_digest(self.root / rel) for rel in sorted(set(executed))}
+        return _sha(json.dumps(parts, sort_keys=True))
 
 
 def coverage_row(spec: str, dgp: str = "") -> dict:

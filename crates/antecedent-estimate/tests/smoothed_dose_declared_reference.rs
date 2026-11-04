@@ -241,7 +241,8 @@ fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
     zeroed.sampling_weights = Some(w);
     let error = validate_smoothed_dose(&id, &query, &zeroed, &options).unwrap_err().to_string();
     assert!(
-        error.contains("sampling_weights.invalid") && error.contains("without_zero_weight_rows"),
+        error.contains(antecedent_core::reason_details::sampling_weights::INVALID)
+            && error.contains("without_zero_weight_rows"),
         "{error}"
     );
     let (kept, deleted) = zeroed.without_zero_weight_rows().unwrap();
@@ -255,19 +256,19 @@ fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
     };
     assert!(
         refuse(&|r| r.sampling_weights = Some(vec![1.0; n - 1]))
-            .contains("sampling_weights.invalid")
+            .contains(antecedent_core::reason_details::sampling_weights::INVALID)
     );
     assert!(
         refuse(&|r| r.sampling_weights.as_mut().unwrap()[4] = f64::NAN)
-            .contains("sampling_weights.invalid")
+            .contains(antecedent_core::reason_details::sampling_weights::INVALID)
     );
     assert!(
         refuse(&|r| r.sampling_weights.as_mut().unwrap()[4] = -1.0)
-            .contains("sampling_weights.invalid")
+            .contains(antecedent_core::reason_details::sampling_weights::INVALID)
     );
     assert!(
         refuse(&|r| r.cluster = Some(vec![0; n - 1]))
-            .contains("dose_response.invalid_declared_rows")
+            .contains(antecedent_core::reason_details::dose_response::INVALID_DECLARED_ROWS)
     );
     assert!(
         refuse(&|r| {
@@ -278,19 +279,20 @@ fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
     );
     for lag in [0u32, u32::try_from(n).unwrap(), u32::try_from(n).unwrap() + 4] {
         assert!(
-            refuse(&|r| r.serial_lag = Some(lag)).contains("dose_response.invalid_declared_rows"),
+            refuse(&|r| r.serial_lag = Some(lag))
+                .contains(antecedent_core::reason_details::dose_response::INVALID_DECLARED_ROWS),
             "lag {lag}"
         );
     }
     // Fewer clusters than folds, or clusters that leave a fold without a role, cannot be cross-fitted.
     assert!(
         refuse(&|r| r.cluster = Some((0..n as u32).map(|i| i % 2).collect()))
-            .contains("dose_response.declared_folds_unbalanced")
+            .contains(antecedent_core::reason_details::dose_response::DECLARED_FOLDS_UNBALANCED)
     );
     assert!(
         refuse(&|r| r.cluster =
             Some((0..n as u32).map(|i| u32::from(!r.source[i as usize])).collect()))
-        .contains("dose_response.declared_folds_unbalanced")
+        .contains(antecedent_core::reason_details::dose_response::DECLARED_FOLDS_UNBALANCED)
     );
 }
 

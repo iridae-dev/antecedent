@@ -38,12 +38,14 @@ record_sha256 = "436039856b77591342b8e050fac191d322a88b932b38cdac45a119602af3306
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/lagged_instrument.rs"
-sha256 = "2bdebdcb0d6952408593fa7119ce2518b406dc2632c718a68ba2aedbab9cbb43"
+items = ["const MIN_ALIGNED_ROWS", "const POSTERIOR_MODEL", "const WALD_MODEL", "fn align", "fn fit_lagged_instrument", "fn fit_lagged_instrument_posterior", "fn quantile", "fn ratio_posterior", "fn require_threshold", "fn residual_weight", "fn wald", "struct AlignedSeries", "struct LaggedInstrumentContrast", "struct LaggedInstrumentPosterior", "struct LaggedInstrumentSample"]
+sha256 = "5c40d65a34bbdb92140c06dcbf399b8d6778add723f897e3ff5b324b703139cd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/lagged_instrument_wald_reference.rs"
-sha256 = "db91c1305f19da017cdeb523c4cfc8ca1e1e991c8ed3734beb969aac3785c2a3"
+items = ["fn close", "fn fixture", "fn floats", "fn text", "fn the_weak_instrument_threshold_refuses_a_finite_f_below_it_and_accepts_one_at_it", "fn wald_effect_first_stage_standard_error_and_f_match_the_multiprecision_fit"]
+sha256 = "a750bdc92b43959e839738b767af3bfbc3228df2cff40f4e3572ed1db049c2ea"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -310,7 +310,7 @@ impl PropensityCoefficientPosterior {
 pub fn weighting_effect_posterior_refusal() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "penalized_propensity.effect_posterior",
+        antecedent_core::reason_details::penalized_propensity::EFFECT_POSTERIOR,
         "a posterior of the propensity coefficients is not a posterior of the weighting \
          effect: the outcome law is unmodelled, and under a factorised likelihood the \
          propensity is ancillary for the average effect, so propensity draws pushed through \
@@ -392,7 +392,11 @@ mod tests {
     fn the_weighting_effect_has_no_posterior_from_propensity_draws() {
         let posterior = fit(2.0);
         let message = posterior.weighting_effect_posterior().unwrap_err().to_string();
-        assert!(message.contains("penalized_propensity.effect_posterior"), "{message}");
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::penalized_propensity::EFFECT_POSTERIOR),
+            "{message}"
+        );
         assert!(message.contains("ancillary"), "{message}");
         assert!(message.contains("Next attempt"), "{message}");
     }

@@ -23,6 +23,11 @@ exact = [
   "scripts/run_optional_doc_example.py",
   # Names the acceptance area `dowhy_comparison`, which freezes the pinned-comparison cases.
   "scripts/check_acceptance_manifest.py",
+  # The pinned comparison against the upstream library and the test that runs it.
+  "scripts/run_dowhy_comparison.py",
+  "scripts/test_evidence_audit.py",
+  # Generated from provenance/*.toml, which may name the packages.
+  "crates/antecedent-io-core/data/method_provenance.json",
 ]
 
 prefix = [
@@ -34,6 +39,11 @@ prefix = [
 # a named oracle appears in the cited fixture.
 prefix = "parity/"
 suffix = ".toml"
+
+[[match]]
+# Retained reference scripts regenerate a fixture through the upstream library's public API.
+prefix = "conformance/"
+suffix = "/reference.py"
 
 [[match]]
 # Recorded oracle fixtures may name the baseline in reference blocks.

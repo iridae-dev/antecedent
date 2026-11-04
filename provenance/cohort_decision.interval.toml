@@ -33,12 +33,14 @@ record_sha256 = "c1aedde0dcdd44d50ef27bfad950efb9046879439853e6b1a28487304f8fedb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/cohort_linear_effect.rs"
-sha256 = "38d56e67c1b7cd8b2ab40ba5cea33ca0aacc8831d55c69c644372178864e3b01"
+items = ["const DETAIL_LEVEL_INVALID", "const DETAIL_NOT_SUPPORTED", "const DETAIL_REQUIRES_NATIVE_FIT", "const FIT_DIGEST_VARIABLE", "const FIT_PROCEDURE_ID", "const FIT_PROCEDURE_VARIABLE", "const FIT_ROWS_VARIABLE", "const FIT_WIDTH_VARIABLE", "const MIN_LEVERAGE_COMPLEMENT", "fn declared_export_refusal", "fn digest", "fn export", "fn fit", "fn fit_cohort_linear_effect", "fn native_cohort_interval", "fn native_cohort_interval_for", "fn native_fit_conditioning", "fn refusal", "fn replay", "fn rows", "fn size", "fn spd_inverse", "fn to_compact_export", "fn unsupported", "struct CohortIntervalRefusal", "struct CohortLinearFit", "struct CohortMeanInterval", "struct NativeCohortFit", "struct NativeFitRows", "struct NativeFitSize"]
+sha256 = "3c7fc18335f1a42fb0ff7b30fa67051f9e09b35dc93ca7462c895d0ac3d71a38"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
-sha256 = "a5ff3a70a645483ceb5d0cae6e5c98eeffb450230995e0f71b41110adf7b535f"
+items = ["fn a_declared_export_cannot_claim_a_native_fit", "fn a_fit_with_too_few_rows_or_a_singular_design_is_refused", "fn a_shifted_cohort_stays_point_only", "fn coefficients_and_hc3_covariance_equal_the_multiprecision_fit_with_zero_one_and_two_modifiers", "fn cohort_of", "fn column", "fn lcg", "fn native_of", "fn noiseless_data_recover_the_effect_coefficients_exactly", "fn one_modifier", "fn reference", "fn rel_close", "fn response", "fn student_t_critical_values_equal_the_inverted_incomplete_beta", "fn the_cohort_mean_interval_equals_the_reference_point_standard_error_and_bands", "fn the_fit_matches_the_two_group_closed_form_for_the_sandwich", "fn the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standard_error", "fn wire"]
+sha256 = "3e1a3d0415ef9ee632daa904a480d9f1326de21b76715b6b4f39a36603d13ecf"
 
 [[method_review.artifacts]]
 role = "reference"

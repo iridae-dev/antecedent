@@ -24,17 +24,20 @@ record_sha256 = "611855fdf39d2bac2d2f28531035cf470670b3ac7efc5d2cd47335b6988d4aa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/mediation.rs"
-sha256 = "b2ac0b86b4513e213ace42f293131bb7642666a2b2f44f9e3ddb13372638547d"
+items = ["fn refute_static_mediation", "fn report"]
+sha256 = "1d65c1691ee199c6fbb3a3875cd066be30d04f447d64d10b5fd8c1fedc90dd4e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "a3b7a83f837448185b84106af86340b716dd51e00db12901963d443ecac540c6"
+items = ["const REPORT_ALL", "const REPORT_COMPARISON", "const REPORT_FAILURE", "const REPORT_INFORMATIVE", "const REPORT_ORIGINAL", "const REPORT_PASSED", "const REPORT_REFUTED", "const REPORT_REPLICATES", "enum RefutationScope", "fn build", "fn builder", "fn comparison", "fn failure_condition", "fn informative", "fn new", "fn original_ate", "fn passed", "fn refuted_ate", "fn replicates", "struct RefutationReport", "struct RefutationReportBuilder"]
+sha256 = "e4f050a688879a5146a70d42bc8da681dd72e92250e6f556c8686fd2362d02ce"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/static_mediation_reference.rs"
-sha256 = "0a0279cfa7588e7b38603dcd83429a6e76641456ccf87c1c49b5b9338b0f783d"
+items = ["const PLACEBO", "const RCC", "const REPS", "const SEED", "const SUBSET", "fn build", "fn check", "fn contrast", "fn emit", "fn floats", "fn frozen_perturbations_are_the_library_streams", "fn noise", "fn perturbations", "fn query", "fn reference", "fn same", "fn suite_equals_the_exact_reference"]
+sha256 = "507e3fad2d5b807c240bd9d7360ac601bff94afd4a119fa77683245a6e3ba350"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -39,12 +39,14 @@ record_sha256 = "bc25f4e2001fb1b3c59a9aec5c72daed592d03743b2edf095a0eb01e194ec23
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/survival_posterior.rs"
-sha256 = "9b00d79a60d7a66d29164177951c57158c8c61b54f09397eda6748d54fa21e6c"
+items = ["const MAX_HAZARD_POSTERIOR_DRAWS", "const MIN_HAZARD_POSTERIOR_DRAWS", "fn arm_posteriors", "fn draw_curve", "fn interval_area", "fn randomized_piecewise_survival_posterior", "fn rmst_mean", "fn stay_factor", "fn survival_mean", "fn validate", "struct HazardGammaPrior", "struct IntervalHazardPosterior", "struct PiecewiseSurvivalPosterior"]
+sha256 = "47d86e1c47620f097c6d2b71e735cbe2fc9ac6c4eb5a898af74bd2e6a738a3fa"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/survival_posterior_reference.rs"
-sha256 = "69225072be56048c20c6dc5f0d6d68cff05008501518ae13d228e8ffdb2a18e8"
+items = ["const DRAWS", "fn close", "fn conjugate_updates_means_and_draw_moments_match_the_exact_reference", "fn floats", "fn mean_sd"]
+sha256 = "c02e453de125ebd6a631ae8854cb77e8c09ab9a375a915037d099ba38207e340"
 
 [[method_review.artifacts]]
 role = "reference"

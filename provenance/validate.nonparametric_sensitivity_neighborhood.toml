@@ -43,12 +43,14 @@ record_sha256 = "1cbb4553d23077f9143d807ec8bfe2350429367e021c5cfe0c36c4f7503eddd
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/sensitivity.rs"
-sha256 = "69c95682d80842e03ddb157989dfcdf779d64b13a2b3a29d550e6834e38357d3"
+items = ["const NEIGHBORHOOD_CELL_CHUNK", "fn adjustment_design", "fn default", "fn fill_bounded", "fn len", "fn neighborhood_loo_predict_pair", "fn new", "fn orthogonalize_confounder", "fn residual_sd_given_design", "fn residual_sd_pair_on_adjustment", "fn rows_of", "fn valid_partial_r2_count", "fn validate_partial_r2_grid", "struct CovariateCells", "struct NeighborhoodSensitivity"]
+sha256 = "d39d71eec72a28bbd1cb3c5e83b40a35f3e2897e64a314dd5da044b7e9746b77"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/src/nonparametric_sensitivity_neighborhood_reference_tests.rs"
-sha256 = "2ea20f96cf6af3e15339ea62a3e89f5eab8f1fbb3d7b70f73a708a58a8bd8081"
+items = ["fn floats", "fn one_row_has_nothing_to_smooth_over", "fn reference", "fn the_neighbour_count_changes_the_answer", "fn truncated_smoother_equals_the_brute_force_reference"]
+sha256 = "3fc0359c34fb2293edcf1e27c33f445c71859f4e16f06522c5208acfe5dbab40"
 
 [[method_review.artifacts]]
 role = "reference"

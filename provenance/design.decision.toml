@@ -54,17 +54,20 @@ record_sha256 = "9950b993e08dde7880df26262c91d11944ace1c93cc589762844531da41bbbd
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision.rs"
-sha256 = "e9b1a0bd25db9861a3486bd1e76cf6fcc658b888fab43c4557fd613d9d2e84a5"
+items = ["fn affine_in_state", "fn bayes_action", "fn build", "fn coefficients", "fn evaluate_batch", "fn evaluate_decision", "fn new", "fn utility", "struct AffineUtility", "struct DecisionEvaluation", "struct DecisionProblem", "struct DecisionTable", "trait DecisionConstraint", "trait Utility"]
+sha256 = "a46a164b796f1343166e744dbbc96f9ab89fd34bcbb31425a562036f2f35f76c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/preposterior.rs"
-sha256 = "f7af3a81df1ff33379d6b0bb4e00e84aefdc44c7e55b1bf50737086a5bd371c9"
+items = ["enum DecisionPrior", "enum Model", "fn bayes_action", "fn best_gap", "fn evaluation", "fn exact_evsi", "fn expected_max_affine", "fn expected_value_of_perfect_information", "fn finite_max", "fn finite_state", "fn finite_support", "fn gaussian_noise_variance", "fn log_likelihood", "fn name", "fn new", "fn new_weighted", "fn noise_variance", "fn prior_expected_utility", "fn require_observations", "fn sample_size", "fn sample_statistic", "fn signal", "fn update_finite_belief", "struct BinomialSignal", "struct PreposteriorAnalysis", "trait DecisionSignal"]
+sha256 = "44aef0dae40c857073312aec5974b8f4797c476a988c01b3fcdafee587b4750f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_exact_reference.rs"
-sha256 = "5d099160b9326a0e1d6ab70faacb39cedbfd1d09a10b61e149c18a8551eacb2a"
+items = ["fn close", "fn decisions_and_binomial_evsi_match_the_exact_rational_reference", "fn floats", "fn intercepts_len", "fn intercepts_tie", "struct Cutoffs"]
+sha256 = "ce204277f47742451dbf33dc7d343d08ddd5d1b3689adf33c02dd5a3ed594e46"
 
 [[method_review.artifacts]]
 role = "reference"

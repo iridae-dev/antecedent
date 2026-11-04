@@ -38,17 +38,20 @@ record_sha256 = "c3b8c88d9551acfeed31e515f5f2d839c42db0a3a00ed2d45183967f0bf3193
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/policy_value_posterior.rs"
-sha256 = "20f87e32556fac1d3758bec89329d380036548ba668c02e251ee1555e9d062bf"
+items = ["fn bayesian_binary_policy_value", "fn bayesian_sequential_regime_value", "struct BinaryPolicyValuePosterior", "struct SequentialRegimeValuePosterior"]
+sha256 = "83058652c7ae2e1257381c9b6bfa6d60db9132bd6c75bcdef6d60c15d0689ce0"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/score_posterior.rs"
-sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
+items = ["struct ScorePosteriorOptions"]
+sha256 = "b2784ca05bb3d620a8beaa98d25e021bae828e42c85bdbda5f7776a981ccb05f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/policy_value_posterior_reference.rs"
-sha256 = "2d9db84b9e8cb0c060ab68f8549be56737471321be7d6b7ecbd86a6a5dcf8dd4"
+items = ["const DRAWS", "fn bools", "fn empirical", "fn floats", "fn the_policy_reference_and_paired_difference_laws_match_the_exact_distribution_functions"]
+sha256 = "5fb342b297e86bb00612404cd29efe41ca2c51519b0ee605f83d9cd3b9ea8eee"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -40,32 +40,38 @@ record_sha256 = "df902de56e79ea3fac8b4d3f8dcc27b3c286f94f1bc995ec5fc13d6b4d64db0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/placebo.rs"
-sha256 = "2534112a47140c6ef5c70189ac1c09f7b764b8d84f88e32c15d1e4947ec49f21"
+items = ["enum PlaceboMode", "fn default", "fn new", "fn refute", "fn refute_permute", "struct PlaceboTreatment"]
+sha256 = "bc46b60714797100d7c73270c31f812d7fdc418ba6d1d325028a917689058766"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/dummy_outcome.rs"
-sha256 = "a8a5f27d0c09030064f123be7a1b6bbfb239a81e154854b3cc8ccd1d3f10b5c2"
+items = ["fn default", "fn new", "fn refute", "struct DummyOutcome"]
+sha256 = "c96bb33f0999ec3b31130047e66d83b24b7e72b978b7a18bda06e127ea7179db"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/rcc.rs"
-sha256 = "a6806c8d806a346be8ff98b1f81bb19d730d842413536f0c36c6f4d68fad07ea"
+items = ["fn default", "fn extend_adjustment", "fn new", "fn refute", "struct RandomCommonCause"]
+sha256 = "d60e0ed8f30409a93082e9cbf06e3453fc76384b6f6c1dd8f44cf456e0da6f93"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/data_subset.rs"
-sha256 = "1c0f03a4e448bdb4258cf56634428f7d80fd64d8e95940936593f24d786be57e"
+items = ["fn default", "fn new", "fn refute", "struct DataSubsetRefuter"]
+sha256 = "e1e6c9f778c1636d502c195979a16d0fbb7d17828951b75873ee1bb913141a73"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "a3b7a83f837448185b84106af86340b716dd51e00db12901963d443ecac540c6"
+items = ["const RELATIVE_ROUNDOFF", "const REPORT_ALL", "const REPORT_COMPARISON", "const REPORT_FAILURE", "const REPORT_INFORMATIVE", "const REPORT_ORIGINAL", "const REPORT_PASSED", "const REPORT_REFUTED", "const REPORT_REPLICATES", "enum NoiseReplaceTarget", "enum RefutationScope", "fn admit_replicate_results", "fn build", "fn builder", "fn check_cancelled", "fn check_replicate_count", "fn comparison", "fn compile_replicate_plan", "fn failure_condition", "fn fill_gaussian", "fn finish_p_report", "fn fit_once", "fn fmt", "fn forced_refit_estimator", "fn informative", "fn map_problem_replicates", "fn map_replicates", "fn new", "fn noise_replace_refute", "fn original_ate", "fn outcome", "fn panel_prepare_with_extras", "fn passed", "fn prepare_aligned", "fn prepare_aligned_windows", "fn refit_effect_shared", "fn refuted_ate", "fn replicate_mean", "fn replicate_p_value", "fn replicates", "fn shared", "fn shared_for_replicates", "fn static_bootstrap_uses_witness_columns", "fn treatment", "fn with_replaced_float", "fn with_row_subset", "struct AlignedRefit", "struct NoiseReplaceSpec", "struct RefutationProblem", "struct RefutationReport", "struct RefutationReportBuilder", "struct SharedProblem", "struct TemporalRefitContext", "trait EffectRefit", "type AlignedRowEstimate", "type WindowCompleteness"]
+sha256 = "1bf81656eb765da82adbf3a278011fadf7eb485e5575b8615b6c1af128f6bb0f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/robustness_refuters_reference.rs"
-sha256 = "aaafbce4b8f809b67d431eefa31d6631569e7c84a6197f9089ef3d25344f0d7d"
+items = ["const DUMMY", "const FRACTIONS", "const MAX_REPS", "const PLACEBO", "const PLACEBO_SHUFFLE", "const RCC", "const SEED", "const SUBSET", "fn build", "fn check", "fn emit", "fn floats", "fn frozen_perturbations_are_the_library_streams", "fn normal", "fn perturbations", "fn reference", "fn replicate_count_alpha_and_fraction_are_honoured", "fn replicate_refuters_equal_the_exact_reference", "fn same"]
+sha256 = "a3aaf8fe35b77e8a0291f82f95f08655d2199c40bb3874088f454bcbc55962d4"
 
 [[method_review.artifacts]]
 role = "reference"

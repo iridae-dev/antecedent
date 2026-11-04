@@ -37,12 +37,14 @@ record_sha256 = "0b536a7117f707ce814ff1bdab84b0c3082dbf2aed25a75a777641daf481daa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/continuous_dose.rs"
-sha256 = "4374d6384a98e2670ee0bec5670e44faecdc9d8792e69082053cf973ca8f7876"
+items = ["fn conditional_dose_response", "fn fixed_dose_policy_value", "struct DosePolicyValue", "struct DoseResponsePoint", "struct DoseRows", "struct DoseRules", "struct DoseWindow"]
+sha256 = "bbdba53da1ddb049c77b72b93354101ca46a329861a027a8063d038184dce346"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_policy_continuous_dose_reference.rs"
-sha256 = "85e6370b25b9880aa0d21ea4a9c5f09a9108e872f60ca62f81bbbdeaa646128f"
+items = ["fn a_rule_that_misnames_a_group_or_a_window_with_too_little_support_is_refused", "fn cases", "fn close", "fn num", "fn nums", "fn rule", "fn the_dose_response_and_fixed_policy_match_the_exact_rational_reference"]
+sha256 = "2a5d1bbdc4b3d2c6effec052309db670d0dc57a166cea29d09134c1aa558d05a"
 
 [[method_review.artifacts]]
 role = "reference"

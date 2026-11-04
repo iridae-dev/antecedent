@@ -44,9 +44,11 @@ record_sha256 = "f3e0cf7a746bf01fc02c78d76acfa25471df4f1ae7933a0bf244da5b91a2986
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
-sha256 = "ee224c8d45fc1d55b8ab9600a294d76c2ee1ae75f85b648be7971fe09e7e15de"
+items = ["const ARTIFACT_KIND", "const MAX_RECALC_RECEIPT_ARTIFACT_BYTES", "const MAX_RECALC_RECEIPT_STAGES", "const MAX_ROUTE_BYTES", "const META_SECTION", "const RECALC_RECEIPT_ARTIFACT_FEATURE", "const RECALC_RECEIPT_ARTIFACT_VERSION", "fn capabilities", "fn check", "fn compute_receipt_identity", "fn counts_consistent", "fn decode_parts", "fn decode_parts_within", "fn encode_parts", "fn encode_parts_impl", "fn from_bytes", "fn from_bytes_within", "fn from_capabilities", "fn identities_from_wire", "fn identities_to_wire", "fn malformed", "fn merged", "fn meta", "fn mismatch", "fn owned_route", "fn plan", "fn plan_from_wire", "fn plan_identity", "fn plan_to_wire", "fn receipt_identity", "fn refusal", "fn refuse_fresh_reuse", "fn seal", "fn sorted_declared", "fn stage", "fn stage_from_label", "fn status_parts", "fn to_bytes", "fn to_bytes_within", "fn to_capabilities", "fn total", "struct CapabilitiesWire", "struct CountsWire", "struct DeclaredStageWire", "struct PlanEntryWire", "struct PlanWire", "struct RecalcReceiptArtifact", "struct RecalcReceiptMeta", "struct ReceiptEntryWire", "struct ResumeWire"]
+sha256 = "826ec3269942bd5193a2e9981d38fa2449f5e6f2b9d24d205f5dd0225aa88896"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs"
-sha256 = "3f5fdbad2416ff3b52d64a817278664b0c2a7577cb1f4f110681983b277dd263"
+items = ["const ID", "fn artifact_a_consistently_resealed_other_run_is_refused_against_a_retained_identity", "fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process", "fn artifact_identity_is_order_independent", "fn artifact_is_bounded_and_versioned", "fn artifact_model_fits_are_bound_and_legacy_counts_remain_unchanged", "fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities", "fn artifact_resealed_mutation_is_refused", "fn artifact_round_trip_preserves_table_counts_and_identities", "fn consume", "fn counts", "fn decided", "fn digest", "fn external_invocations_bind_branch_work_and_preserve_zero_extension_identity", "fn factor_work_counts_bind_identity_and_refuse_incomplete_or_mixed_families", "fn in_process", "fn many_distinct_custom_routes_remain_owned_and_do_not_exhaust_process_state", "fn oracle_identity", "fn posterior_draw_counts_preserve_legacy_identity_and_enforce_stage_family", "fn reseal", "fn table", "fn utility_only", "fn workflow"]
+sha256 = "e08b3e17140081bfa86f8c6133a467f483ab9f8a9da80d76d1e4152aa9aec52c"

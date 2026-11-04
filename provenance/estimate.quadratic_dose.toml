@@ -28,12 +28,14 @@ record_sha256 = "fed4d86875b7e1088eb86ec713ee0323c6606d0c3723eaef9e3d53612e17e78
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
-sha256 = "f19376dd096f3b311e9b007630307dd25e1f88a42d67d439cd780693c3833b72"
+items = ["const MINIMUM_ESS_FLOOR", "const Z_95", "enum DoseDesign", "enum DoseFunctional", "enum IntervalCalibration", "enum RowDependence", "fn build_report", "fn contrast_row", "fn count_clusters", "fn declaration_refusal", "fn declared_rows", "fn estimate_dose_grid_functional", "fn estimate_dose_grid_functional_declared", "fn estimate_dose_grid_functional_with_context", "fn estimate_dose_grid_quadratic_mean", "fn estimate_dose_grid_quadratic_mean_declared", "fn estimate_dose_grid_quadratic_mean_with_context", "fn evaluate_prepared", "fn evaluation_points", "fn fit_at", "fn grid_rows", "fn interval", "fn interval_quantile", "fn is_plain", "fn kernel_ess", "fn label_points", "fn observed_range", "fn prepare_rows", "fn refuse", "fn refuse_unsupported", "fn score_standard_error", "fn validate_claims", "fn validate_inputs", "struct ClaimSet", "struct DeclaredRows", "struct DoseContrast", "struct DoseDerivative", "struct DoseGridRequest", "struct DoseGridRow", "struct DoseLevel", "struct NumericalReport", "struct PointwiseInterval", "struct PreparedRows", "struct RowDeclaration", "struct SimultaneousBand"]
+sha256 = "0f5337e72e36e5b844c69bba35b22db36114e91d0569275b9dc1ff6cb4d0f799"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/quadratic_dose_reproduction.rs"
-sha256 = "a9e18bb2df97bf594709ba510651745ffbfc3a8c35edbc7992184a791eba0505"
+items = ["fn floats", "fn noisy_level_and_derivative_equal_the_multiprecision_unpenalised_fit", "fn request", "fn text"]
+sha256 = "6018f8faaf9079aa5c9eed2a028248c8f4d8820e0cc2643f7d7cbbaf087c4401"
 
 [[method_review.artifacts]]
 role = "reference"

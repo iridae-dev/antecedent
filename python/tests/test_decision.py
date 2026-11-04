@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import (
@@ -126,7 +127,7 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
         require_success(_contract().evaluate(_source(alignment="independent_marginals")))
     assert marginals.value.reason_code == "joint_law_required"
     assert isinstance(marginals.value, decision.DecisionRefusal)
-    assert marginals.value.detail == "decision_evaluation.joint_law_required"
+    assert marginals.value.detail == reason_details.decision_evaluation.JOINT_LAW_REQUIRED
     assert marginals.value.supplied == "independent_marginals"
     assert marginals.value.expected == "joint"
 
@@ -145,7 +146,7 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
     with pytest.raises(decision.DecisionRefusal) as missing:
         require_success(other.evaluate(_source()))
     assert missing.value.reason_code == "quantity_semantics_mismatch"
-    assert missing.value.detail == "decision_evaluation.quantity_not_found"
+    assert missing.value.detail == reason_details.decision_evaluation.QUANTITY_NOT_FOUND
     assert missing.value.stage == "evaluate"
 
     with pytest.raises(decision.DecisionRefusal) as structure:
@@ -156,7 +157,7 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
         require_success(_contract(actions=_contract().actions[:1]).evaluate(_source()))
     # The Python bridge keeps the typed Rust refusal, not a generic declaration error.
     assert invalid.value.reason_code == "invalid_argument"
-    assert invalid.value.detail == "decision_contract.invalid_declaration"
+    assert invalid.value.detail == reason_details.decision_contract.INVALID_DECLARATION
     assert invalid.value.stage == "declare"
 
 

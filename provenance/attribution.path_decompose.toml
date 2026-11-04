@@ -35,12 +35,14 @@ record_sha256 = "c3c4bb2245d55fe453b139af8b738933b1e5a0b5810b9093af58658de478126
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/path.rs"
-sha256 = "d0b347582482c0a7f9a6b46ac66533623240ac4ceec80bb92b4c41fd5bcbb444"
+items = ["fn edge_strength_map", "fn path_decompose", "fn path_shares"]
+sha256 = "f6406bdf42f5398973b2fadedb5b2b1c47dc70f883e532dc80a549c522ca40a6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/path_reference.rs"
-sha256 = "39bac453cb855aca69cdfffe6cee4e09f2c9ea511c3b281acfb8c1b660ca4fb5"
+items = ["fn path_products_match_exact_total_effects", "struct Case", "struct Expected", "struct Fixture"]
+sha256 = "56f88fa585a104a455f7a7374149e1ce97e9e086aca74ae03e33e37efd5ffdc5"
 
 [[method_review.artifacts]]
 role = "reference"

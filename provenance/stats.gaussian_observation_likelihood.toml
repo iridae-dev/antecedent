@@ -45,17 +45,20 @@ record_sha256 = "e62c727b680a15aa5f6cf8c7e382aea62699f7e7fc61239c8352e77481f1dda
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/observation.rs"
-sha256 = "7784fdd67924fd1f2cce59a2e096806299f487bc75d429aa25a21b48ee6b9af5"
+items = ["const NARROW", "const NODES", "const WEIGHTS", "enum GaussianObservation", "fn gaussian_observation_log_likelihood", "fn ln_one_minus_exp", "fn log_interval_mass", "fn log_upper_tail_interval_mass", "fn require_finite", "fn require_ordered"]
+sha256 = "978f6c8edc4889b3d7fcb84c3e85c1814ee05ec2e14fefabdde0ce64c9484d37"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/special.rs"
-sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
+items = ["const CODY_A", "const CODY_B", "const CODY_C", "const CODY_D", "const CODY_P", "const CODY_Q", "const CODY_THRESH", "const CODY_XBIG", "const FRAC_1_SQRT_2_HI", "const FRAC_1_SQRT_2_LO", "const SQRT_PI_INV", "fn erf", "fn erfc", "fn erfc_split", "fn exp_neg_square_split", "fn exp_neg_square_split_shifted", "fn norm_cdf", "fn over_sqrt_2"]
+sha256 = "0680084c00567521d5af4a90a35650fd01ae590f3388476a43de6fee9cb4f039"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/gaussian_observation_reference.rs"
-sha256 = "bfa5c9a69f1ba3564a10366d5ee2fe9e65e72495c00c5baf4d1d407ab2b3420b"
+items = ["fn assert_close", "fn interval_masses_keep_precision_for_narrow_straddling_and_tail_intervals", "fn one"]
+sha256 = "85480947bf0d3dc9a4e46e48d743b35e3c2df72d3773943b402f89d12b43a10e"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -65,4 +68,4 @@ sha256 = "15de9bdb2749a3d5e68fb813bbb3caabe298f6f301a14ea798ec457793e22c38"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/observation_primitives/expected.json"
-sha256 = "f4e46271c0e6ebf3f04cf5989737ad4bbfbe27b1ec0a2725b11d7aedc85610db"
+sha256 = "ac37d83b47e82a185bb981346ca75c74f2e9034480052edddede3a9677d08e94"

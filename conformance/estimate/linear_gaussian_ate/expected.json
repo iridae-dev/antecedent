@@ -77,7 +77,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/estimate_linear_gaussian_ate.rs",
-          "sha256": "a17009762f583786fb67a1681a60dfcb401b5d4b923bc64959dc9c245936fff6"
+          "items": [
+            "fn estimate_linear_gaussian_ate_stable_float",
+            "fn fixture_dir",
+            "fn load_csv"
+          ],
+          "sha256": "1dd5ab5f734c65029aa5602f2d16b418d05b71b1c5403777df27359595003bc0"
         },
         {
           "role": "input_fixture",

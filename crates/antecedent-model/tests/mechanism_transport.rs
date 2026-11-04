@@ -126,7 +126,9 @@ fn a_latent_loading_mechanism_needs_the_explicit_invariance_the_diagram_does_not
     let err = transport_linear_gaussian(&req).unwrap_err();
     assert_eq!(
         details(&err),
-        vec!["mechanism_composition.population_latent_blocks_selection_admissibility"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POPULATION_LATENT_BLOCKS_SELECTION_ADMISSIBILITY
+        ]
     );
 
     // A selection node into the latent cause itself is refused with its own
@@ -214,8 +216,9 @@ fn a_failed_carry_leaves_the_request_and_a_later_valid_carry_unaffected() {
     let first = transport_linear_gaussian(&ok).unwrap();
     let refused = transport_linear_gaussian(&request(Selection::OutcomeSelected)).unwrap_err();
     assert!(
-        format!("{refused:?}")
-            .contains("mechanism_composition.population_selection_arrow_into_mechanism"),
+        format!("{refused:?}").contains(
+            antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        ),
         "{refused:?}"
     );
     let second = transport_linear_gaussian(&ok).unwrap();
@@ -243,7 +246,9 @@ fn contrast_uncertainty_is_the_source_fit_variance_and_says_what_it_omits() {
     let carried = transport_linear_gaussian(&req).unwrap();
     let err = carried.mean_contrast_uncertainty(&effect_of_x()).unwrap_err();
     assert!(
-        details(&err).contains(&"mechanism_composition.posterior_dependence_unknown"),
+        details(&err).contains(
+            &antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN
+        ),
         "{err:?}"
     );
 

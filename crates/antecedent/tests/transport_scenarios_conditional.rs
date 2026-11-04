@@ -244,15 +244,26 @@ fn an_s_hedge_scenario_carries_its_checked_record_and_only_a_witness_proves() {
     let detail = row(&report, "shifted").detail.clone().unwrap();
     match &shifted.outcome {
         ScenarioOutcome::ConditionalNotCertified { obligations, candidate } => {
-            assert_eq!(&*obligations[0], "admg_transport.not_certified");
+            assert_eq!(
+                &*obligations[0],
+                antecedent_core::reason_details::admg_transport::NOT_CERTIFIED
+            );
             let candidate = candidate.as_ref().expect("the reduced joint's s-hedge is kept");
             candidate.recheck(&shifted.scenario.diagram, question, &ctx).unwrap();
-            assert!(detail.starts_with("admg_transport.not_certified"), "{detail}");
+            assert!(
+                detail.starts_with(antecedent_core::reason_details::admg_transport::NOT_CERTIFIED),
+                "{detail}"
+            );
             assert!(detail.contains("inspection-only candidate (not a proof)"), "{detail}");
         }
         ScenarioOutcome::ConditionalProvenNonTransportable(proof) => {
             proof.recheck(&shifted.scenario.diagram, question, &ctx).unwrap();
-            assert!(detail.starts_with("admg_transport.proven_non_transportable"), "{detail}");
+            assert!(
+                detail.starts_with(
+                    antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE
+                ),
+                "{detail}"
+            );
         }
         other => panic!("an s-hedge scenario is never {}", other.status()),
     }
@@ -434,7 +445,11 @@ fn a_zero_mass_conditioning_event_is_a_scenario_local_support_failure() {
     .unwrap();
     assert_eq!(row(&report, "chain").status, "support_failure");
     assert!(
-        row(&report, "chain").detail.clone().unwrap().contains("admg_transport.support_failure")
+        row(&report, "chain")
+            .detail
+            .clone()
+            .unwrap()
+            .contains(antecedent_core::reason_details::admg_transport::SUPPORT_FAILURE)
     );
     assert_eq!(row(&report, "parent").status, "identified");
     assert_eq!(report.envelope.as_ref().unwrap().scenarios.len(), 1);
@@ -459,7 +474,10 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
         BUDGET,
     ));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("admg_transport.invalid_request"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::admg_transport::INVALID_REQUEST),
+        "{message}"
+    );
     // A conditioned variable outside the shared schema.
     let mut outside = query(&[1], &[0], &[2]);
     outside.conditioned_on = Arc::from([VariableId::from_raw(9)]);
@@ -474,7 +492,10 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
     );
     let (code, message) = refused(result);
     assert_eq!(code, "schema_mismatch");
-    assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH),
+        "{message}"
+    );
     // Counted laws are not supported for a conditional question; a development build runs them.
     #[cfg(not(feature = "development"))]
     {
@@ -502,7 +523,12 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
             BUDGET,
         ));
         assert_eq!(code, "not_supported");
-        assert!(message.contains("admg_transport.counted_laws_unsupported"), "{message}");
+        assert!(
+            message.contains(
+                antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED
+            ),
+            "{message}"
+        );
     }
 }
 

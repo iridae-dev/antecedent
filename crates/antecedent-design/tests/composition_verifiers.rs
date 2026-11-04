@@ -506,7 +506,10 @@ fn verifiers_changed_mean_value_fails_the_point_only_result() {
     assert_eq!(failed_stage(&consumed, "result"), BundleStage::TamperedQuantity);
     assert_eq!(consumed.value("result", "treat.expected_utility"), None);
     let refusal = consumed.require_verified().unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.tampered_quantity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::TAMPERED_QUANTITY
+    );
 }
 
 #[test]
@@ -526,7 +529,10 @@ fn verifiers_joint_requirement_over_a_mean_only_claim_fails_unsupported_law() {
     assert_eq!(failed_stage(&consumed, "result"), BundleStage::UnsupportedLaw);
     assert_eq!(consumed.node("result").unwrap().claim_label, None);
     let refusal = consumed.require_verified().unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.unsupported_law");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::UNSUPPORTED_LAW
+    );
     assert_eq!(refusal.code, "joint_law_required");
 }
 
@@ -873,7 +879,8 @@ fn sensitivity_parts() -> SensitivityParts {
             identified_bound: None,
             sampling: SamplingStatus::Withheld {
                 reason_code: "uncertainty_representation_insufficient".into(),
-                detail: "joint_sensitivity.no_interval_method".into(),
+                detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+                    .into(),
             },
         },
         provenance: SensitivityProvenance {

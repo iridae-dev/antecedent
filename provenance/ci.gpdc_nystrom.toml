@@ -43,17 +43,20 @@ record_sha256 = "52ea36850d55f5cebd99db11cf01231ffded68be07d35056dbf7e9ce30ecf75
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/advanced/nystrom.rs"
-sha256 = "858cb26e97d59cbbd6e79f8016f08a7b5746a28a4bfe8f875f34f3fde87ceadc"
+items = ["const NYSTROM_JITTER", "const NYSTROM_MAX_ROW_BLOCKS", "const NYSTROM_MIN_BLOCK_ROWS", "fn inducing_points", "fn inducing_seed", "fn kernel_row", "fn length_scale", "fn new", "fn nystrom_blocks", "fn nystrom_bytes", "fn nystrom_fit", "fn nystrom_inducing_rows", "fn nystrom_residuals", "fn rbf_row", "fn ridge", "struct GpdcNystrom", "struct NystromFit"]
+sha256 = "40c1962cb4e9547c1af2a7e129cde42d1b2ddd9b8840f4907af3c66f1576413f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/advanced/gpdc.rs"
-sha256 = "6c21de57862b55c2808b9286cbff40573ecb3d012aca34e47a5a68b483efb1d8"
+items = ["fn length_scale", "fn new", "fn ridge", "fn standardized_z"]
+sha256 = "f562d29a0ece09f97aa57bca9067482b11f81095c53264dc39bf5910698d25e1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/src/ci/advanced/nystrom_reference_tests.rs"
-sha256 = "d6bddcfaa10e54c8149c55638dbac32acd724f1fdefdde4a8781662986d714ee"
+items = ["fn cases", "fn floats", "fn nystrom_residuals_match_the_fifty_digit_reference"]
+sha256 = "76c9a0030c7dda27a51931126f2899ae5b5692a44648e5ba6ce090afc828c465"
 
 [[method_review.artifacts]]
 role = "reference"

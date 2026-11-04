@@ -37,9 +37,11 @@ record_sha256 = "d8344b6b59e13d3025f3d625860070bb1d0f8189411c49cdf74ed93b1d8532e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_scores.rs"
-sha256 = "4ec7214a2b9352a7bbd38a68f85b25dbee301f978114d1bd4491676df6300ac8"
+items = ["const MIN_ACTION_PROBABILITY_FOR_INTERVAL", "const MIN_ACTION_ROWS_FOR_INTERVAL", "const MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL", "const MIN_ROWS_FOR_INTERVAL", "fn complier_wald_effect", "fn independent_action_contrast", "struct ComplierWaldEffect", "struct IndependentActionContrast"]
+sha256 = "61c21d0c2962897cf317f11ad88a0d3152c191a50afd040bdd43041ebd267fb9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs"
-sha256 = "7a2fd401d9bbf9a7b7a1d0e99694897a8add449f2e548168f54204756f87312c"
+items = ["const Y", "fn close", "fn three_action_contrast_selects_the_right_columns_and_stays_unbiased", "fn two_action_contrast_is_unbiased_and_its_sandwich_slack_is_the_effect_variation", "fn wald_ratio_components_are_unbiased_and_the_variance_is_the_delta_method"]
+sha256 = "200e530745cdf7d3480f72317a0502d89ab262227b596e2ffc95292270d968b3"

@@ -41,14 +41,17 @@ record_sha256 = "7b5060d4ac2dde5dede540a22b11eb244d001c06dcf37c5454c3b5a93281da2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/idc.rs"
-sha256 = "b384693e8ba8f7d9eed4b66c82361fe1fd6d3b5c105b5b3c162679b60ad74495"
+items = ["enum IdcOk", "fn distribution_query_from_sets", "fn drop_outgoing_from", "fn idc_recurse", "fn identify", "fn identify_conditional", "fn identify_conditional_with", "fn intern_bitset_vars", "fn mutilate_bar_x", "fn new", "fn prepare", "fn y_separated_from", "struct ConditionalRequest", "struct IdcIdentifier", "struct IdcProblem", "struct IdcRun"]
+sha256 = "6eba0e977b8b3ab46c3e5b5fef8b61e0cd6911876c1a84b79571a194f1314b69"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/id.rs"
-sha256 = "6447e4ae8f4880d42031e3bc2c1b174491b7d3f9fb63d1665ffbbd4fc3f43be8"
+items = ["enum DistCtx", "enum Factor", "enum IdOutcome", "fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn enter", "fn expectation_contrast", "fn get", "fn id_body", "fn id_lines_5_to_7", "fn id_recurse", "fn id_recurse_shared", "fn identify", "fn identify_ate", "fn identify_ate_impl", "fn identify_response", "fn identify_sets", "fn insert", "fn intern_nodes", "fn intervention_for_factor", "fn intervention_value", "fn leave", "fn len", "fn marginal_conditionals", "fn marginalize", "fn markov_product", "fn new", "fn not_identified_with_hedge", "fn observational_marginal", "fn prepare", "fn prepare_with_assumptions", "fn product_of", "fn q_component_product", "fn require_disjoint", "fn subproblem_hash", "fn sum_out_if_any", "fn unmetered", "fn validate_distribution_query", "fn var", "fn with_causal_markov", "struct IdIdentifier", "struct IdMemo", "struct IdMeter", "struct IdQuery", "struct IdRun", "struct Law", "struct SubproblemKey", "type Assign"]
+sha256 = "70a470c64c5c423eb3d69107d89f27ace57f2691712fd55e06f7176f538c139e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/idc_rule2_enumeration.rs"
-sha256 = "3235394ab234a9dfa23914a0dab07548438366ba6764bd8a38afa34456174565"
+items = ["fn admg", "fn ancestors_of", "fn closures", "fn connected", "fn d", "fn edges", "fn extend", "fn from_masks", "fn idc_matches_the_rule_two_closure_on_every_three_node_admg", "fn idc_matches_the_rule_two_closure_on_sampled_four_node_admgs", "fn members", "fn mutilated", "fn run", "fn separated", "fn set_query", "fn the_reference_separation_recovers_textbook_cases", "fn v", "struct Graph"]
+sha256 = "f7e52cd650853adedeb8e42ad5f6dca9b47a552dbe22f1a8393a7ee3bdd53f79"

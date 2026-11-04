@@ -900,7 +900,10 @@ mod tests {
         for needed in [ExternalCapability::Cdf, ExternalCapability::Quantile] {
             let refusal = law.negotiate(&request(needed)).unwrap_err().to_refusal();
             assert_eq!(refusal.code, "external_capability_missing");
-            assert_eq!(refusal.detail, "provider_capability_negotiation.capability_missing");
+            assert_eq!(
+                refusal.detail,
+                antecedent_core::reason_details::provider_capability_negotiation::CAPABILITY_MISSING
+            );
             assert_eq!(refusal.capability, Some(needed));
             assert!(refusal.remedy.is_some_and(|r| r.contains("replicate receipt")));
         }

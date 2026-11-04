@@ -277,7 +277,10 @@ fn latent_weak_class_weight_refuses() {
     cfg.min_class_weight = 0.5; // the smaller class has weight 0.4
     let (code, message) = refusal(fit(&data, &cfg));
     assert_eq!(code, "population_not_estimable");
-    assert!(message.contains("latent_class.weak_class"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::WEAK_CLASS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -322,7 +325,10 @@ fn latent_single_class_is_degenerate() {
     one.classes = 1;
     let (code, message) = refusal(fit(&data, &one));
     assert_eq!(code, "population_not_estimable");
-    assert!(message.contains("latent_class.degenerate_class"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::DEGENERATE_CLASS),
+        "{message}"
+    );
 
     // A single exact regime (no noise): every start collapses a class onto a perfect fit.
     let mut single = Data { y: vec![], a: vec![], x: vec![vec![]], class: vec![] };
@@ -338,7 +344,10 @@ fn latent_single_class_is_degenerate() {
     }
     let (code, message) = refusal(fit(&single, &config(1)));
     assert_eq!(code, "population_not_estimable");
-    assert!(message.contains("latent_class.degenerate_class"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::DEGENERATE_CLASS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -347,13 +356,19 @@ fn latent_premise_and_configuration_refusals() {
     let undeclared = LatentClassConfig::new(2, 1);
     let (code, message) = refusal(fit(&data, &undeclared));
     assert_eq!(code, "required_option_missing");
-    assert!(message.contains("latent_class.randomization_not_declared"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::RANDOMIZATION_NOT_DECLARED),
+        "{message}"
+    );
 
     let mut many = config(1);
     many.classes = 100_000;
     let (code, message) = refusal(fit(&data, &many));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("latent_class.too_few_rows"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::TOO_FEW_ROWS),
+        "{message}"
+    );
 
     for (restarts, max_iterations) in [(usize::MAX, 500), (10, usize::MAX)] {
         let mut heavy = config(1);
@@ -361,14 +376,20 @@ fn latent_premise_and_configuration_refusals() {
         heavy.max_iterations = max_iterations;
         let (code, message) = refusal(fit(&data, &heavy));
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("latent_class.invalid_config"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::latent_class::INVALID_CONFIG),
+            "{message}"
+        );
     }
 
     let mut constant = build();
     constant.a = vec![1.0; constant.a.len()];
     let (code, message) = refusal(fit(&constant, &config(1)));
     assert_eq!(code, "effect_not_identified");
-    assert!(message.contains("latent_class.treatment_constant"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::TREATMENT_CONSTANT),
+        "{message}"
+    );
 
     let mut not_converged = config(1);
     not_converged.initial_labels = Some(
@@ -382,7 +403,10 @@ fn latent_premise_and_configuration_refusals() {
     not_converged.max_iterations = 1;
     let (code, message) = refusal(fit(&data, &not_converged));
     assert_eq!(code, "mechanism_fit_not_converged");
-    assert!(message.contains("latent_class.not_converged"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::NOT_CONVERGED),
+        "{message}"
+    );
 }
 
 #[test]
@@ -412,7 +436,12 @@ fn latent_class_posterior_refuses_an_external_power_prior() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("latent_class_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::latent_class_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -436,7 +465,10 @@ fn latent_class_posterior_consumer_replays_the_class_design() {
     let EstimationError::Refused { message, .. } = empty else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("latent_class_posterior.empty_design"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class_posterior::EMPTY_DESIGN),
+        "{message}"
+    );
 }
 
 #[test]
@@ -450,5 +482,8 @@ fn a_cancelled_context_stops_the_fit_without_a_claim() {
         &ctx,
     )
     .unwrap_err();
-    assert!(error.to_string().contains("latent_class.cancelled"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::latent_class::CANCELLED),
+        "{error}"
+    );
 }

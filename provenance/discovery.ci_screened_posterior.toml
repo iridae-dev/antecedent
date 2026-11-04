@@ -40,12 +40,14 @@ record_sha256 = "3758a4a4fd0ad4a28060ad3f57f5619138d00624c95ba7f650d989160941bd9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/ci_screened_posterior.rs"
-sha256 = "87ab28af59eade8393f85fefddf5fa834b5c7218b9aae0ed887527088605ba7f"
+items = ["enum CiSoftWeight", "fn apply_screened_out_floor", "fn default", "fn merge_screening_constraints", "fn new", "fn pc_skeleton_pairs", "fn run", "fn screened_out_note", "fn soft_weight_note", "fn with_ci", "fn with_constraints", "fn with_mcmc", "struct CiScreenedPosterior"]
+sha256 = "e5530af4b1a435f29f15a332ccf8082394ca2efecd8f1a215636fe9382a0050c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/ci_screened_posterior_reference.rs"
-sha256 = "b45cddeeceb2d36b0dc9908b248c456eef80bf107a7bd6768010ced1a91ab062"
+items = ["const N", "fn constraints", "fn link", "fn note_value", "fn retained_pairs_marginals_and_floor_equal_the_restricted_enumeration", "fn run", "fn the_default_benjamini_hochberg_screen_keeps_the_same_pairs_on_decisive_data"]
+sha256 = "03424312ff3c11eadd4c04e185e4f95af32d5e48699fcd8cf55dde3c528584f8"
 
 [[method_review.artifacts]]
 role = "reference"

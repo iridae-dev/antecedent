@@ -50,7 +50,7 @@ STATUSES = (
 )
 UNCERTAINTY_KINDS = ("analytic", "design_aware_resampling", "posterior", "enclosure", "none")
 BASES = (
-    "measured_record",
+    "construction_fixture",
     "point_only_cell",
     "asserted_in_test",
     "estimator_records",

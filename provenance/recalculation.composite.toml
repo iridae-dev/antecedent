@@ -19,9 +19,11 @@ record_sha256 = "8ac59f7c496846985f009bad2aca46bd5d3813d478e2b8812be4b8783b68537
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_composite.rs"
-sha256 = "1099adbba1f096a00ef420a34b59012e700439fb780ffc2a352661daac16148a"
+items = ["const MAX_UTILITY_DEPTH", "enum CompositeError", "fn add_receipt", "fn checked_native", "fn decision", "fn decision_bounded", "fn decision_inputs", "fn execute", "fn from_native", "fn inputs", "fn native", "fn plan", "fn publication", "fn terminal_fields", "struct CompositeOutcome", "struct CompositePublication", "struct CompositeRequest", "struct CompositeSession"]
+sha256 = "6ea2498128513164edde005a85f70f8142b5bcacf8d2366c99ecb9c7fa9af7da"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_composite.rs"
-sha256 = "5dd0f1b3dac2c81263f33f3aadf99d64e0316271633f9615e15c36c35e5cb619"
+items = ["fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_consumption", "fn callback_failure_preserves_combined_native_and_foreign_success", "fn conditional_policy", "fn decision_contract", "fn declared_source_preference_selects_all_three_actual_sources_and_is_terminal_only", "fn execute", "fn fixture", "fn native_data_refresh_counts_real_factors_and_retains_both_providers", "fn native_proof_substitution_refuses_purely_and_preserves_shared_state", "fn native_two_provider_shared_receipt_and_selective_mutation", "fn seal_receipt"]
+sha256 = "239c407bc4776749b6b9a84dcd46e61bc9892091ef0f67a44d434f2ca9b4d04a"

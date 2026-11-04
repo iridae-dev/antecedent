@@ -33,9 +33,11 @@ record_sha256 = "914e7ef96a3be0171d5411a50eaf89d3fe3ad50da11f58aa5744e24c7b5de23
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/whole_path_uncertainty.rs"
-sha256 = "42505e5e3bafbc7ea024b0c228cb1217b84c0e5c333b85996245180c91344bf3"
+items = ["const WHOLE_PATH_UNCERTAINTY_VERSION", "enum SourceTreatment", "enum UncertaintySource", "enum UnitSampling", "fn derive_whole_path_uncertainty", "fn mismatch", "fn name", "fn realized_mean_standard_error", "fn rule_failure", "fn source", "struct SourceAccount", "struct UnitSpread", "struct WholePathUncertainty"]
+sha256 = "925cf8ca263866951748880b42949c3a6a5524ccec65934f0a421689b13135b2"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/whole_path_uncertainty.rs"
-sha256 = "3bb7f49b05dce5964132085253f9694287fead48c228029b15d17d38a3e1b9e6"
+items = ["const TOL", "fn a_cancelled_context_produces_no_spread", "fn a_cross_world_spread_uses_the_shared_exogenous_joint_law", "fn a_result_of_another_request_is_refused_even_at_an_unchanged_shape", "fn atom", "fn ctx", "fn do_x", "fn execute", "fn fixed_units_have_no_sampling_variance_and_one_unit_has_no_between_unit_variance", "fn refusal", "fn request", "fn response_types", "fn the_identity_changes_with_every_input_and_replays_for_the_same_pair", "fn the_spread_is_the_enumerated_posterior_variance_and_the_unit_sampling_variance", "fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused", "fn unit"]
+sha256 = "1d97d5d3c359a40a2d0ca725030c9d37f7ecfd2d35103cc329de116d6cfeab2e"

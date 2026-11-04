@@ -88,12 +88,18 @@ impl CohortIntervalArtifactWire {
     ) -> Result<Vec<u8>, IoError> {
         let export = native.export();
         let rows = native.rows();
-        let export_bytes = export
-            .to_bytes("cohort_interval_model")
-            .map_err(|e| invalid("cohort_decision.fitted_model_invalid", &e.to_string()))?;
-        let source_bytes = source
-            .to_bytes("cohort_interval_source")
-            .map_err(|e| invalid("cohort_decision.source_invalid", &e.to_string()))?;
+        let export_bytes = export.to_bytes("cohort_interval_model").map_err(|e| {
+            invalid(
+                antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
+                &e.to_string(),
+            )
+        })?;
+        let source_bytes = source.to_bytes("cohort_interval_source").map_err(|e| {
+            invalid(
+                antecedent_core::reason_details::cohort_decision::SOURCE_INVALID,
+                &e.to_string(),
+            )
+        })?;
         crate::to_cbor(&Self {
             version: 1,
             export: export_bytes,
@@ -119,19 +125,24 @@ impl CohortIntervalArtifactWire {
         let wire: Self = crate::from_cbor(bytes)?;
         if wire.version != 1 || crate::to_cbor(&wire)? != bytes {
             return Err(invalid(
-                "measured_inference.artifact_mismatch",
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                 "cohort interval source is not canonical version 1",
             ));
         }
         let export =
             CompactExport::consume(&wire.export, &ExportLimits::default(), &wire.export_identity)
-                .map_err(|e| invalid("cohort_decision.fitted_model_invalid", &e.to_string()))?;
+                .map_err(|e| {
+                invalid(
+                    antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
+                    &e.to_string(),
+                )
+            })?;
         if wire.fit_rows.outcome.len() > MAX_FIT_ROWS
             || wire.fit_rows.features.len() > MAX_FIT_FEATURES
         {
             return Err(refused(
                 antecedent_core::reason_code!("route_not_supported"),
-                "measured_inference.bounds_exceeded",
+                antecedent_core::reason_details::measured_inference::BOUNDS_EXCEEDED,
                 "fit rows exceed bounds",
             ));
         }
@@ -149,7 +160,7 @@ impl CohortIntervalArtifactWire {
         .map_err(|_| {
             refused(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cohort_decision.interval_requires_native_fit",
+                antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT,
                 "the retained rows do not reproduce the export; a declared export is point-only",
             )
         })?;
@@ -213,7 +224,7 @@ impl CohortIntervalArtifactWire {
             != crate::identity::digest_canonical(IdentityDomain::Claim, &wire.source).to_hex()
         {
             return Err(invalid(
-                "measured_inference.artifact_mismatch",
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                 "retained source digest differs from the envelope source",
             ));
         }

@@ -38,17 +38,20 @@ record_sha256 = "1f97ebf91d38f80c91bb069f6eb39db54cbcc9559a4699412c11c46fd9c301e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/advanced/symbolic.rs"
-sha256 = "4ed2aea5c05703bdec8dc098cd730a38502783865054b0bb916dfa84c0d0b17a"
+items = ["fn new", "struct SymbolicCmi"]
+sha256 = "fd103936794a570fafb607c26f36d30284522dab58dcb4d3cf4d6e38d4be8866"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/block_shuffle.rs"
-sha256 = "49abbb5e641ca4e86c4409a5c83fb00b19fd42479b9ddf4104a8c2e6b86d55f0"
+items = ["fn default", "fn null_reaches_observed"]
+sha256 = "4aff21e81bb2a67a4961ba405391368ab5b4b615eca77e8f268dca07e5e444de"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/symbolic_cmi_reference.rs"
-sha256 = "7e13304d8fda9bbf23f1d0b553da43684d03cac451c61982d55a213bf53960e7"
+items = ["const REPLICATES", "fn check", "fn floats", "fn g_squared_permutation_p_value_counts_tied_tables_like_the_enumerated_null", "fn symbolic_statistic_and_permutation_p_value_match_the_enumerated_null"]
+sha256 = "e861f990aba9c97822d77d5d42821a155184f251fa4c09d2e939afb2b3ff88ee"
 
 [[method_review.artifacts]]
 role = "reference"

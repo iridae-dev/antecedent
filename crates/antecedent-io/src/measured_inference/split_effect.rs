@@ -77,7 +77,10 @@ pub(super) fn discovery_refusal(error: &SelectiveDiscoveryError) -> IoError {
         SelectiveDiscoveryError::Refused { code, detail, remedy } => {
             IoError::Refused { code, message: format!("{detail}: {remedy}") }
         }
-        other => malformed("split_effect.discovery_failed", &other.to_string()),
+        other => malformed(
+            antecedent_core::reason_details::split_effect::DISCOVERY_FAILED,
+            &other.to_string(),
+        ),
     }
 }
 
@@ -143,7 +146,7 @@ impl SplitEffectSource {
         let source: Self = crate::from_cbor(bytes)?;
         if crate::to_cbor(&source)? != bytes {
             return Err(malformed(
-                "split_effect.source_not_canonical",
+                antecedent_core::reason_details::split_effect::SOURCE_NOT_CANONICAL,
                 "the source bytes are not the canonical encoding",
             ));
         }
@@ -154,33 +157,33 @@ impl SplitEffectSource {
         let k = self.columns.len();
         if self.version != FORMAT_VERSION || self.names.len() != k {
             return Err(malformed(
-                "split_effect.source_invalid",
+                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
                 "unknown format version or names and columns of different counts",
             ));
         }
         if k < 3 {
             return Err(malformed(
-                "split_effect.source_invalid",
+                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
                 "a treatment, an outcome and at least one more searched variable are needed",
             ));
         }
         let rows = self.columns[0].len();
         if !(8..=MAX_ROWS).contains(&rows) || self.columns.iter().any(|c| c.len() != rows) {
             return Err(malformed(
-                "split_effect.source_invalid",
+                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
                 "columns must have one length between 8 and 2^20 rows",
             ));
         }
         if self.columns.iter().flatten().any(|v| !v.is_finite()) {
             return Err(malformed(
-                "split_effect.source_invalid",
+                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
                 "missing or non-finite values are not supported",
             ));
         }
         let (t, y) = (self.treatment as usize, self.outcome as usize);
         if t >= k || y >= k || t == y {
             return Err(malformed(
-                "split_effect.source_invalid",
+                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
                 "treatment and outcome must be two distinct columns",
             ));
         }
@@ -191,7 +194,12 @@ impl SplitEffectSource {
         TabularData::from_f64_columns(
             self.names.iter().map(String::as_str).zip(self.columns.iter().map(Vec::as_slice)),
         )
-        .map_err(|error| malformed("split_effect.source_invalid", &error.to_string()))
+        .map_err(|error| {
+            malformed(
+                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
+                &error.to_string(),
+            )
+        })
     }
 }
 
@@ -257,7 +265,7 @@ fn directed_parents(
     if structure.class() != StructureClass::Cpdag {
         return Err(refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "split_effect.structure_class",
+            antecedent_core::reason_details::split_effect::STRUCTURE_CLASS,
             "only a completed partially directed graph over static variables is accepted",
         ));
     }
@@ -271,7 +279,7 @@ fn directed_parents(
         {
             return Err(refused(
                 antecedent_core::reason_code!("invalid_argument"),
-                "split_effect.structure_class",
+                antecedent_core::reason_details::split_effect::STRUCTURE_CLASS,
                 "a node is not a static searched variable",
             ));
         }
@@ -281,7 +289,7 @@ fn directed_parents(
             _ => {
                 return Err(refused(
                     antecedent_core::reason_code!("discovered_structure_unresolved"),
-                    "split_effect.structure_unresolved",
+                    antecedent_core::reason_details::split_effect::STRUCTURE_UNRESOLVED,
                     "an edge is not definitely directed",
                 ));
             }
@@ -371,9 +379,12 @@ pub fn adjusted_effect(
     level: f64,
 ) -> Result<AdjustedEffect, IoError> {
     let column = |index: u32| {
-        frame
-            .float64_values(VariableId::from_raw(index))
-            .map_err(|error| malformed("split_effect.source_invalid", &error.to_string()))
+        frame.float64_values(VariableId::from_raw(index)).map_err(|error| {
+            malformed(
+                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
+                &error.to_string(),
+            )
+        })
     };
     let y = column(outcome)?;
     let x = column(treatment)?;
@@ -384,7 +395,7 @@ pub fn adjusted_effect(
     if n < k + 2 || x.len() != n || covariates.iter().any(|c| c.len() != n) {
         return Err(refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "split_effect.too_few_rows",
+            antecedent_core::reason_details::split_effect::TOO_FEW_ROWS,
             "the analysis rows do not exceed the regression parameters",
         ));
     }
@@ -394,7 +405,7 @@ pub fn adjusted_effect(
     let (point, rss, inverse_treatment) = centred_least_squares(&y, &slopes).ok_or_else(|| {
         refused(
             antecedent_core::reason_code!("design_rank_deficient"),
-            "split_effect.design_singular",
+            antecedent_core::reason_details::split_effect::DESIGN_SINGULAR,
             "the adjusted regression design is singular",
         )
     })?;
@@ -404,7 +415,7 @@ pub fn adjusted_effect(
     if !(variance.is_finite() && variance > 0.0) {
         return Err(refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "split_effect.degenerate_variance",
+            antecedent_core::reason_details::split_effect::DEGENERATE_VARIANCE,
             "the coefficient has no positive sampling variance",
         ));
     }
@@ -446,7 +457,7 @@ pub fn effect_on_structure(
             .join("; ");
         return Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "split_effect.structure_unresolved",
+            antecedent_core::reason_details::split_effect::STRUCTURE_UNRESOLVED,
             &format!(
                 "the discovered structure has unresolved edges ({unresolved}); no completion is \
                  part of the measured construction"
@@ -457,7 +468,7 @@ pub fn effect_on_structure(
     if parents.contains(&outcome) {
         return Err(refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "split_effect.outcome_precedes_treatment",
+            antecedent_core::reason_details::split_effect::OUTCOME_PRECEDES_TREATMENT,
             "the discovered structure orients the outcome into the treatment",
         ));
     }
@@ -533,12 +544,15 @@ pub fn run(source: &SplitEffectSource, ctx: &ExecutionContext) -> Result<SplitEf
         .run(&contract, &split.discovery, &run_ctx)
         .map_err(|error| discovery_refusal(&error))?;
     let outcome = adapter.outcome().ok_or_else(|| {
-        malformed("split_effect.discovery_failed", "the discovery run retained no outcome")
+        malformed(
+            antecedent_core::reason_details::split_effect::DISCOVERY_FAILED,
+            "the discovery run retained no outcome",
+        )
     })?;
     if outcome.search_incomplete || outcome.orientation_conflict {
         return Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "split_effect.search_not_finished",
+            antecedent_core::reason_details::split_effect::SEARCH_NOT_FINISHED,
             "the discovery search exhausted a bound or met conflicting orientation evidence",
         ));
     }

@@ -38,17 +38,20 @@ record_sha256 = "c4e98736b5f1a05d0ad1703cdf97ff1c31c986acea2b73c2c38a06d1ef7ddf3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/adjustment.rs"
-sha256 = "f8429f52ce2ed77e66ca6c0c0e310893835a183498d12c2defe737cc975c48da"
+items = ["enum LinearFitKind", "fn coefficient_se_and_influence", "fn default", "fn fit", "fn fit_coefficients", "fn fit_point", "fn fit_point_with_ols_residuals", "fn fit_point_with_ols_residuals_unobserved", "fn new", "fn prepare", "fn prepare_unchecked", "fn prepare_with_backend", "fn refuse_non_finite_cells", "fn refuse_unweighted_routes", "fn with_sampling_weights", "struct EstimationWorkspace", "struct LinearAdjustmentAte", "struct PreparedEstimationProblem"]
+sha256 = "4f513fe28b9349a76243a851f60e0a0f3d4b8484d12c0d2276c84de6584b84b1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/adjustment/solve.rs"
-sha256 = "9f274bb250914fc82cd82ffa119e0bf80bd93cc6612591fd85b03ad636f371db"
+items = ["module"]
+sha256 = "0916eb5658a2134cf247d454146b8b4b1390f7fb593f90e9edfc72093eaa886c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/linear_adjustment_reference.rs"
-sha256 = "82252101069fad0cf264846ccb54d40650613a464dfb8499b2217054518bb498"
+items = ["fn close", "fn estimator", "fn floats", "fn huber_effect_and_homoskedastic_form_standard_error_match_the_fixed_point_reference", "fn ols_effect_standard_errors_and_influence_match_the_exact_reference", "fn problem", "fn problem_for", "fn reference", "fn ridge_effect_and_influence_match_and_no_analytic_standard_error_is_published"]
+sha256 = "d173cb9ba0360adc9c6c5a7655d1005f4c4e5d0e9f311a1932f4d58119df5909"
 
 [[method_review.artifacts]]
 role = "reference"

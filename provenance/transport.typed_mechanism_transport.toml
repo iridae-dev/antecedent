@@ -44,12 +44,14 @@ record_sha256 = "764f25d35b3b7a6042df11875c623a903ef8375a75e41eca77c7178cb2c8819
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/typed_mechanism_transport.rs"
-sha256 = "163107cfa36dde2845150df2c4e72c04e79681c678d34985365214110cab4d69"
+items = ["const DETAIL_DESIGN_NOT_SHARED", "const DETAIL_TARGET_SPEC_DIFFERS", "const MAX_EXPRESSION_PARAMETERS", "const MAX_POLYNOMIAL_DEGREE", "const MAX_TYPED_PARENTS", "enum Link", "enum MeanSpec", "enum ResponseFamily", "enum TypedFitError", "fn as_str", "fn check_support", "fn column", "fn context", "fn covariance", "fn eta", "fn eta_with", "fn fit_heteroscedastic", "fn fit_mean", "fn fit_mechanism", "fn fit_mechanism_polled", "fn invariance_check", "fn jacobian", "fn logistic", "fn matvec", "fn mean", "fn n_obs", "fn new", "fn objective", "fn parameters", "fn polynomial_features", "fn polynomial_width", "fn provenance", "fn refit_in_target", "fn refit_in_target_polled", "fn scale_dim", "fn scaling", "fn score_and_weight", "fn single", "fn softplus", "fn spec", "fn standardize", "fn target", "fn validate_spec", "fn variable", "struct FittedMechanism", "struct InvarianceCheck", "struct MeanProblem", "struct MechanismSpec"]
+sha256 = "4b9d31d5df8ab0023b52ff9002f2547c645911d71dcb95bd1eb0c1718699c809"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/typed_mechanism_transport_reference.rs"
-sha256 = "b7c69d7a4aeb7cdef81fadd1db3a0a85180857989b375c10aabb8b18a6e6f354"
+items = ["fn check_fit", "fn columns", "fn context", "fn fits_and_wald_comparison_match_the_fifty_digit_reference", "fn near", "fn num", "fn provenance", "fn the_same_sample_is_exactly_invariant_and_a_foreign_design_is_refused", "fn vec_of"]
+sha256 = "a674746ec431cc202ff299379f4a0a53fd29490cf3269e56d46b999acd1f4c7f"
 
 [[method_review.artifacts]]
 role = "reference"

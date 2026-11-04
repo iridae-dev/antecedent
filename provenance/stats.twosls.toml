@@ -34,17 +34,20 @@ record_sha256 = "8ee54999f9a3dea19e8894b0fe8b59838f17a501fa91a4fe2ea76d302f7f1bd
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/twosls.rs"
-sha256 = "9a6cee219922a60432ba686a27a0b1fcf9ce97f7732c2ca279faab91fd0d7814"
+items = ["const DISCRIMINANT_REL_EPS", "const QUADRATIC_REL_EPS", "enum QuadraticAcceptance", "fn anderson_rubin_confidence_set", "fn anderson_rubin_statistic", "fn check", "fn classify_quadratic_le_zero", "fn entry", "fn f_cdf", "fn f_critical", "fn first_stage_f_test", "fn fit_2sls", "fn fit_2sls_from_moments", "fn fit_joint_2sls", "fn rank_deficient", "fn residualize_on_exogenous", "fn solve_small", "fn submatrix", "fn width", "struct FirstStageDiagnostics", "struct IvBlocks", "struct IvMoments", "struct JointTwoSlsFit", "struct QuadraticScales", "struct TwoSlsFit", "struct TwoSlsMomentFit", "type ArConfidenceSet"]
+sha256 = "f4e0354e07a165126e65b541662f6b1d559b1ba7a15f65ce2c0d71f864bef21b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/special.rs"
-sha256 = "f74f5f296f1b3e2c87723a0772ced07801a5e8f35f1f1bb5d5c16b5d55399696"
+items = ["module"]
+sha256 = "28ae178322b8cd99a4819a0902f80b10c441b6937f9e93d1b4d5239122bfbe3f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/twosls_reference.rs"
-sha256 = "dd7363bce16c40b33c1e27af63ef3bff8701f954b769bc32b53cbf37c42b1cc8"
+items = ["const REFERENCE", "fn anderson_rubin_statistic_critical_value_and_set_match_exact_arithmetic", "fn floats", "fn normwise", "fn rel", "fn two_stage_least_squares_matches_exact_arithmetic"]
+sha256 = "989fbc3dfb69b2e011be076bd2b7f843f6abf2226d3cabb39906347a968228ee"
 
 [[method_review.artifacts]]
 role = "reference"

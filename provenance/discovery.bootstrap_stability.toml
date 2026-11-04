@@ -42,17 +42,20 @@ record_sha256 = "3c0717c8aac0d99a1efb885713a498741f68b480e43266bc3c2aaddb83b3210
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/stability.rs"
-sha256 = "8a72da3e80c5455e94da48cc13c55f9fea3a45aedf2f10d595ebfe8937bcd6d1"
+items = ["const MIN_SUCCESS_SHARE", "fn signature", "fn tabulate", "struct EdgeSelection", "struct MarkSelection", "struct StructureSelection", "struct StructureStability", "type PairTally", "type Signature"]
+sha256 = "5f0a74083d04f8b13dbf03b5619ac44bfd6281aee28a77fb108f59ddf841971c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/structure_stability.rs"
-sha256 = "2d552f0f042e76ab478ea75f91c45c34d9754a9017ad58c6e7e3d5e8357b9371"
+items = ["module"]
+sha256 = "40d9c996be7c9e3f58baf72320166e9ed57387b521dbacb6d0f5ed7d6592f427"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/bootstrap_stability_reference.rs"
-sha256 = "a70e37cf968085d419826ad86d633b1bdb5a4e43e4dc957bdb1ad113609aa3c9"
+items = ["fn endpoint", "fn fraction", "fn mark", "fn node", "fn signature_of", "fn structure", "fn tabulated_frequencies_equal_exact_counting_in_every_regime", "type Signature"]
+sha256 = "1cb7bdd095526c3bbecaee17330870f945612054d22d237a05cc79bc066bc1fc"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 
 from _repo_text import REPO_ROOT, read_text
@@ -96,9 +97,15 @@ def test_a_masked_weighted_split_keeps_masks_weights_and_original_row_identity()
     other_mask = keep.copy()
     other_mask[int(np.flatnonzero(keep)[0])] = False
     for kwargs, detail in (
-        ({"weights": weights, "mask": other_mask}, "selective_discovery.split_mask_mismatch"),
-        ({"weights": weights}, "selective_discovery.split_mask_mismatch"),
-        ({"weights": np.ones(N), "mask": keep}, "selective_discovery.split_weights_mismatch"),
+        (
+            {"weights": weights, "mask": other_mask},
+            reason_details.selective_discovery.SPLIT_MASK_MISMATCH,
+        ),
+        ({"weights": weights}, reason_details.selective_discovery.SPLIT_MASK_MISMATCH),
+        (
+            {"weights": np.ones(N), "mask": keep},
+            reason_details.selective_discovery.SPLIT_WEIGHTS_MISMATCH,
+        ),
     ):
         with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
             split.verify_source(data, **kwargs)
@@ -107,7 +114,9 @@ def test_a_masked_weighted_split_keeps_masks_weights_and_original_row_identity()
     split.check_analysis_table(split.analysis, weights=weights[analysis_ids])
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         split.check_analysis_table(split.analysis, weights=np.ones(len(analysis_ids)))
-    assert refused.value.detail == "selective_discovery.analysis_rows_not_the_split_part"
+    assert (
+        refused.value.detail == reason_details.selective_discovery.ANALYSIS_ROWS_NOT_THE_SPLIT_PART
+    )
     unmasked = sd.discover_on_split(
         contract(), data, discovery_fraction=0.5, split_seed=7, weights=weights
     )
@@ -169,7 +178,7 @@ def test_filtering_happens_before_the_split_and_the_order_is_declared_and_reprod
             weights=weights,
             mask=keep,
         )
-    assert refused.value.detail == "selective_discovery.split_row_excluded"
+    assert refused.value.detail == reason_details.selective_discovery.SPLIT_ROW_EXCLUDED
 
 
 def test_the_split_receipt_lists_every_exclusion_by_its_reason():
@@ -238,9 +247,9 @@ def test_replaying_the_split_reproduces_the_receipt():
     changed["v3"][int(split.analysis_row_ids[0])] += 1e-9
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         split.verify_source(changed, weights=weights, mask=keep)
-    assert refused.value.detail == "selective_discovery.split_source_mismatch"
+    assert refused.value.detail == reason_details.selective_discovery.SPLIT_SOURCE_MISMATCH
     nudged = weights.copy()
     nudged[int(split.analysis_row_ids[0])] *= 1.0 + 1e-9
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         split.verify_source(data, weights=nudged, mask=keep)
-    assert refused.value.detail == "selective_discovery.split_weights_mismatch"
+    assert refused.value.detail == reason_details.selective_discovery.SPLIT_WEIGHTS_MISMATCH

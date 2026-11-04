@@ -42,7 +42,24 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/numeric_identification_cases.rs",
-          "sha256": "e4e4df5bbc972a0379cf083d27931142445b51821642600900c60d6b2f701486"
+          "items": [
+            "fn bit",
+            "fn case",
+            "fn constraints",
+            "fn d",
+            "fn discriminating_joint",
+            "fn discriminating_path_visibility_matches_enumerated_effect",
+            "fn evaluate_constant",
+            "fn fixture",
+            "fn insert_pag_edges",
+            "fn level",
+            "fn mag",
+            "fn mass",
+            "fn outcome",
+            "fn v",
+            "struct JointProvider"
+          ],
+          "sha256": "1f7225fe46496d4e1c4b19479870ca05b51ee2ab3ae996916bf963d242ec1412"
         }
       ],
       "fixture_payload_sha256": "92993992508efc7b0e1069073c13a6482f36cfb915464544a9f583013736989e"

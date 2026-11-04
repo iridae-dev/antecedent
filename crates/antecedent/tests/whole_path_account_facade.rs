@@ -143,7 +143,10 @@ fn an_account_of_other_units_is_refused_rather_than_annotated() {
     .unwrap();
     let error = account.verify_against(&other, &ctx()).unwrap_err();
     let refusal = error.refusal().unwrap();
-    assert_eq!(refusal.detail, "cross_world_uncertainty.account_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::cross_world_uncertainty::ACCOUNT_MISMATCH
+    );
     assert_eq!(refusal.code, "invalid_argument");
     assert!(refusal.remedy.is_some());
 }
@@ -154,7 +157,10 @@ fn undeclared_unit_sampling_is_refused_with_its_remedy() {
     let error = sealed.whole_path_uncertainty(UnitSampling::Undeclared, &ctx()).unwrap_err();
     let refusal = error.refusal().unwrap();
     assert_eq!(refusal.code, "sampling_dependence_unknown");
-    assert_eq!(refusal.detail, "cross_world_uncertainty.unit_sampling_undeclared");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::cross_world_uncertainty::UNIT_SAMPLING_UNDECLARED
+    );
     assert!(refusal.remedy.is_some());
 }
 

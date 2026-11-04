@@ -116,17 +116,19 @@ pub const ADMG_CONDITIONAL_DEFAULT_LIMITS: SearchLimits =
 pub(crate) const ADMG_CONDITIONAL_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A declared bound: graph size, treatments, conditioned set or search limits.
-const BOUNDS_EXCEEDED: &str = "admg_transport.bounds_exceeded";
+const BOUNDS_EXCEEDED: &str = antecedent_core::reason_details::admg_transport::BOUNDS_EXCEEDED;
 /// The reduced joint was not certified.
-const NOT_CERTIFIED: &str = "admg_transport.not_certified";
+const NOT_CERTIFIED: &str = antecedent_core::reason_details::admg_transport::NOT_CERTIFIED;
 /// An exactly verified two-model witness proves non-transportability.
-const PROVEN_NON_TRANSPORTABLE: &str = "admg_transport.proven_non_transportable";
+const PROVEN_NON_TRANSPORTABLE: &str =
+    antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE;
 /// A certified joint whose searched formulas do not bind to the catalog.
-const MISSING_EVIDENCE: &str = "admg_transport.missing_evidence";
+const MISSING_EVIDENCE: &str = antecedent_core::reason_details::admg_transport::MISSING_EVIDENCE;
 /// A limit or cancellation stopped the decision.
-const BUDGET: &str = "admg_transport.budget";
+const BUDGET: &str = antecedent_core::reason_details::admg_transport::BUDGET;
 /// A stored derivation or candidate does not check.
-const INVALID_DERIVATION: &str = "admg_transport.invalid_derivation";
+const INVALID_DERIVATION: &str =
+    antecedent_core::reason_details::admg_transport::INVALID_DERIVATION;
 
 /// Stage names, in evaluation order.
 const STAGES: [&str; 3] = ["rule_two_reduction", "classical_sid", "catalog_binding"];
@@ -149,14 +151,22 @@ pub fn admg_conditional_refusal(
             Some((reason_code!("route_not_supported"), BOUNDS_EXCEEDED))
         }
         IdentificationError::InvalidInput { message }
-            if message.starts_with("admg_transport.invalid_query") =>
+            if message
+                .starts_with(antecedent_core::reason_details::admg_transport::INVALID_QUERY) =>
         {
-            Some((reason_code!("invalid_argument"), "admg_transport.invalid_query"))
+            Some((
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::admg_transport::INVALID_QUERY,
+            ))
         }
         IdentificationError::InvalidCatalog { message }
-            if message.starts_with("admg_transport.invalid_catalog") =>
+            if message
+                .starts_with(antecedent_core::reason_details::admg_transport::INVALID_CATALOG) =>
         {
-            Some((reason_code!("invalid_argument"), "admg_transport.invalid_catalog"))
+            Some((
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::admg_transport::INVALID_CATALOG,
+            ))
         }
         IdentificationError::InvalidDerivation { code } if *code == INVALID_DERIVATION => {
             Some((reason_code!("transport_not_certified"), INVALID_DERIVATION))
@@ -1396,7 +1406,10 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let limits = SearchLimits { operations: 64, depth: 4 };
         let fresh = || SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
-        let invalid = Some(("transport_not_certified", "admg_transport.invalid_derivation"));
+        let invalid = Some((
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
+        ));
         // The honest reduction (W is a descendant of Y and stays) checks, and the
         // check charges its one maximality test.
         let mut search = fresh();

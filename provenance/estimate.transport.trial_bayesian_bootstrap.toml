@@ -55,12 +55,14 @@ record_sha256 = "1aed0c95558fc227dbf62a5742c5eb36f24780ffcbd871320f8c4f3920f2e0b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/transport.rs"
-sha256 = "415ca5b17cad401b182cc7646e2d0bc1d9673953f63182b5b023451a2266ac6c"
+items = ["fn require_dahabreh_compatible_formula", "fn trial_to_target_bayesian_bootstrap", "fn trial_to_target_bayesian_bootstrap_blocks", "fn validate_trial_to_target_inputs"]
+sha256 = "8de6c6dddea15fc911405db4f7fe8efc43b03ab5aa3d72dbb22d933e5eb5e0ae"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/trial_bayesian_bootstrap_reference.rs"
-sha256 = "5668f59ab87f7b0e200bfa42a25a6bd0f4f1afd98e054f179c913de7536c9411"
+items = ["fn draws_follow_the_exact_dirichlet_law_free_and_blocked", "fn flags", "fn floats", "fn identification", "fn text"]
+sha256 = "b17f481ddd2280b45fd619be0906fbe16fc456de68dee91cbbf0a3c22b52246c"
 
 [[method_review.artifacts]]
 role = "reference"

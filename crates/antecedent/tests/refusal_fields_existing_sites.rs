@@ -365,7 +365,10 @@ fn failed_batch_members_carry_the_claim_as_subject_and_only_what_they_measured()
 
     let spiked = report.claims[1].outcome.as_ref().unwrap_err();
     assert!(spiked.support_refused);
-    assert_eq!(spiked.detail.as_deref(), Some("batch_retarget.weighted_overlap_failed"));
+    assert_eq!(
+        spiked.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::WEIGHTED_OVERLAP_FAILED)
+    );
     assert_eq!(spiked.reason_code.as_deref(), Some("positivity_violated"));
     let fields = spiked.fields.as_deref().expect("a failed member carries fields");
     assert_eq!(fields.stage.as_deref(), Some("batch_retarget"));
@@ -378,19 +381,28 @@ fn failed_batch_members_carry_the_claim_as_subject_and_only_what_they_measured()
     assert!(fields.remedy.is_some());
 
     let short = report.claims[2].outcome.as_ref().unwrap_err();
-    assert_eq!(short.detail.as_deref(), Some("batch_retarget.incompatible_target"));
+    assert_eq!(
+        short.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET)
+    );
     assert_eq!(short.reason_code.as_deref(), Some("invalid_argument"));
     let fields = short.fields.as_deref().unwrap();
     assert_eq!(fields.stage.as_deref(), Some("batch_retarget"));
     assert_eq!(fields.subject.as_deref(), Some("short"));
-    assert_eq!(fields.reason.as_deref(), Some("batch_retarget.incompatible_target"));
+    assert_eq!(
+        fields.reason.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET)
+    );
     assert!(fields.remedy.is_some());
     absent(fields, "malformed weights");
 
     let contrast = report.contrasts[0].outcome.as_ref().unwrap_err();
     let fields = contrast.fields.as_deref().unwrap();
     assert_eq!(fields.subject.as_deref(), Some("good_minus_spiked"));
-    assert_eq!(fields.reason.as_deref(), Some("batch_retarget.contrast_member_failed"));
+    assert_eq!(
+        fields.reason.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::CONTRAST_MEMBER_FAILED)
+    );
     absent(fields, "failed contrast member");
 }
 
@@ -414,11 +426,14 @@ fn a_malformed_family_declaration_names_its_subject() {
         contrasts: vec![],
         expected_snapshot: None,
     });
-    assert_eq!(duplicate.detail, "batch_retarget.duplicate_name");
+    assert_eq!(duplicate.detail, antecedent_core::reason_details::batch_retarget::DUPLICATE_NAME);
     let fields = duplicate.refusal_fields();
     assert_eq!(fields.stage.as_deref(), Some("batch_retarget"));
     assert_eq!(fields.subject.as_deref(), Some("a"));
-    assert_eq!(fields.reason.as_deref(), Some("batch_retarget.duplicate_name"));
+    assert_eq!(
+        fields.reason.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::DUPLICATE_NAME)
+    );
     assert!(fields.remedy.is_some());
 
     let ghost = refuse(BatchRetargetRequest {
@@ -429,12 +444,12 @@ fn a_malformed_family_declaration_names_its_subject() {
         }],
         expected_snapshot: None,
     });
-    assert_eq!(ghost.detail, "batch_retarget.unknown_claim");
+    assert_eq!(ghost.detail, antecedent_core::reason_details::batch_retarget::UNKNOWN_CLAIM);
     assert_eq!(ghost.refusal_fields().subject.as_deref(), Some("c"));
 
     // A refusal about the whole family names no subject.
     let empty = refuse(BatchRetargetRequest::default());
-    assert_eq!(empty.detail, "batch_retarget.empty_family");
+    assert_eq!(empty.detail, antecedent_core::reason_details::batch_retarget::EMPTY_FAMILY);
     assert!(empty.refusal_fields().subject.is_none());
 }
 

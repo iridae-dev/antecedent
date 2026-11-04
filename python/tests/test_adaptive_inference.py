@@ -28,6 +28,7 @@ from pathlib import Path
 import antecedent
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
 from antecedent.outcomes import require_success
@@ -379,12 +380,15 @@ def test_an_enumerated_thompson_tree_has_a_martingale_posterior():
 
 
 MISSING = [
-    ("policy_history", "adaptive_inference.policy_history_missing"),
-    ("assignment_probabilities", "adaptive_inference.assignment_probabilities_missing"),
-    ("exposure", "adaptive_inference.exposure_history_missing"),
-    ("availability", "adaptive_inference.outcome_availability_missing"),
-    ("interim_analyses", "adaptive_inference.interim_analyses_missing"),
-    ("stopping_rule", "adaptive_inference.stopping_rule_missing"),
+    ("policy_history", reason_details.adaptive_inference.POLICY_HISTORY_MISSING),
+    (
+        "assignment_probabilities",
+        reason_details.adaptive_inference.ASSIGNMENT_PROBABILITIES_MISSING,
+    ),
+    ("exposure", reason_details.adaptive_inference.EXPOSURE_HISTORY_MISSING),
+    ("availability", reason_details.adaptive_inference.OUTCOME_AVAILABILITY_MISSING),
+    ("interim_analyses", reason_details.adaptive_inference.INTERIM_ANALYSES_MISSING),
+    ("stopping_rule", reason_details.adaptive_inference.STOPPING_RULE_MISSING),
 ]
 
 
@@ -406,7 +410,7 @@ def test_fixed_sample_inference_of_adaptive_data_is_refused_but_the_posterior_ru
     assert session.is_adaptive
     error = refused(session.fixed_sample)
     assert error.reason_code == "adaptive_design_ignored"
-    assert error.detail == "adaptive_inference.fixed_sample_on_adaptive_data"
+    assert error.detail == reason_details.adaptive_inference.FIXED_SAMPLE_ON_ADAPTIVE_DATA
     assert require_success(session.analyse(ai.BayesianPosterior(look=1)))._wire_values
 
 
@@ -414,7 +418,7 @@ def test_no_interval_is_supported_for_any_route():
     session = prepare(thompson_design())
     error = refused(session.interval)
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert error.detail == "adaptive_inference.interval_names_no_quantity"
+    assert error.detail == reason_details.adaptive_inference.INTERVAL_NAMES_NO_QUANTITY
 
 
 def test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells():
@@ -436,9 +440,9 @@ def test_a_paradigm_the_cell_is_not_supported_for_is_refused():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "adaptive_inference.paradigm_not_supported_for_cell"
+    assert error.detail == reason_details.adaptive_inference.PARADIGM_NOT_SUPPORTED_FOR_CELL
     error = refused(lambda: require_success(session.analyse(ai.GroupSequential(look=1))))
-    assert error.detail == "adaptive_inference.paradigm_not_supported_for_cell"
+    assert error.detail == reason_details.adaptive_inference.PARADIGM_NOT_SUPPORTED_FOR_CELL
 
 
 def test_noncompliance_and_outcome_dependent_delay_are_refused_before_any_number():
@@ -448,7 +452,7 @@ def test_noncompliance_and_outcome_dependent_delay_are_refused_before_any_number
     session = prepare(replace(design, exposure=exposure))
     error = refused(lambda: require_success(session.analyse(ai.BayesianPosterior(look=1))))
     assert error.reason_code == "adaptive_assumption_violated"
-    assert error.detail == "adaptive_inference.exposure_differs_from_assignment"
+    assert error.detail == reason_details.adaptive_inference.EXPOSURE_DIFFERS_FROM_ASSIGNMENT
     delayed = replace(
         design,
         availability=ai.Availability(
@@ -456,7 +460,7 @@ def test_noncompliance_and_outcome_dependent_delay_are_refused_before_any_number
         ),
     )
     error = refused(lambda: require_success(prepare(delayed).analyse(ai.BayesianPosterior(look=1))))
-    assert error.detail == "adaptive_inference.delay_not_ignorable"
+    assert error.detail == reason_details.adaptive_inference.DELAY_NOT_IGNORABLE
 
 
 def test_cancellation_is_a_refusal_not_a_verdict():
@@ -507,7 +511,7 @@ def test_a_probability_below_the_floor_is_refused_not_clipped():
         )
     )
     assert error.reason_code == "adaptive_assumption_violated"
-    assert error.detail == "adaptive_inference.positivity_floor"
+    assert error.detail == reason_details.adaptive_inference.POSITIVITY_FLOOR
 
 
 def test_repeated_measures_use_the_subject_mean_as_the_unit():
@@ -558,7 +562,7 @@ def test_the_hierarchical_cluster_cell_is_not_delivered():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "adaptive_inference.cell_not_delivered"
+    assert error.detail == reason_details.adaptive_inference.CELL_NOT_DELIVERED
 
 
 # --------------------------------------------------------------------------- confidence sequence
@@ -622,7 +626,7 @@ def test_group_sequential_with_adaptive_assignment_is_a_pairing_not_supported():
         stopping_rule=ai.StoppingRule.alpha_spending("pocock_type", 0.05, "two_sided_symmetric"),
     )
     error = refused(lambda: require_success(prepare(design).analyse(ai.BayesianPosterior(look=1))))
-    assert error.detail == "adaptive_inference.pairing_not_supported"
+    assert error.detail == reason_details.adaptive_inference.PAIRING_NOT_SUPPORTED
 
 
 # --------------------------------------------------------------------------- evidence ledger
@@ -637,7 +641,7 @@ def test_interim_looks_count_each_observation_once_and_are_never_pooled():
     assert evidence.repeated_slots == 30
     assert evidence.independent_pooling_refusal == (
         "evidence_double_counted",
-        "adaptive_inference.looks_share_observations",
+        reason_details.adaptive_inference.LOOKS_SHARE_OBSERVATIONS,
     )
 
 
@@ -733,7 +737,7 @@ def test_a_monitoring_contract_is_refused_under_another_identity_and_when_damage
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "adaptive_inference.wrong_contract"
+    assert error.detail == reason_details.adaptive_inference.WRONG_CONTRACT
     assert consumed.identity != "0" * 64
     damaged = bytearray(artifact)
     damaged[len(damaged) // 2] ^= 0xFF
@@ -781,7 +785,7 @@ def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_exp
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "adaptive_inference.wrong_contract"
+    assert error.detail == reason_details.adaptive_inference.WRONG_CONTRACT
     # A corrupted container is refused, not partially read.
     damaged = bytearray(artifact)
     damaged[len(damaged) // 2] ^= 0xFF

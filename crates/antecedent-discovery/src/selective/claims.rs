@@ -42,7 +42,7 @@ pub fn request_recovery_claim(
 ) -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("discovered_structure_unresolved"),
-        "selective_discovery.recovery_claim_not_supported",
+        antecedent_core::reason_details::selective_discovery::RECOVERY_CLAIM_NOT_SUPPORTED,
         "no recovery, false-discovery or error-control statement can be supported for the graph \
          discovered on one dataset: faithfulness and causal sufficiency are not testable from \
          the data discovery ran on. Report the structure as an estimate with its unresolved \
@@ -62,7 +62,7 @@ pub fn request_downstream_interval(
 ) -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("selection_inference_not_supported"),
-        "selective_discovery.downstream_interval_not_supported",
+        antecedent_core::reason_details::selective_discovery::DOWNSTREAM_INTERVAL_NOT_SUPPORTED,
         "an interval for an estimate that rests on a discovered graph cannot be supported on \
          the rows discovery used: selecting the graph and estimating on the same rows is not \
          a construction with a measured coverage. Use disjoint discovery and analysis rows \
@@ -80,7 +80,7 @@ pub fn request_downstream_interval(
 pub fn request_score_search_reuse() -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("route_not_supported"),
-        "selective_discovery.score_search_not_supported",
+        antecedent_core::reason_details::selective_discovery::SCORE_SEARCH_NOT_SUPPORTED,
         "selective reuse covers constraint-based discovery (PC, FCI, PCMCI, PCMCI+). \
          Score-based search recomputes its local scores each run; use PC with a retained \
          statistic store, or run the score-based algorithm directly",

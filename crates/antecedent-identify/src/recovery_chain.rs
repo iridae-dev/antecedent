@@ -109,13 +109,21 @@ impl ChainRecoveryDetail {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::NonrecoverableWitness => "recovery_chain.nonrecoverable_witness",
-            Self::UnsupportedMechanism => "recovery_chain.unsupported_mechanism",
-            Self::InvalidQuery => "recovery_chain.invalid_query",
-            Self::Positivity => "recovery_chain.positivity",
-            Self::InvalidObservedLaw => "recovery_chain.invalid_observed_law",
-            Self::InvalidDerivation => "recovery_chain.invalid_derivation",
-            Self::Budget => "recovery_chain.budget",
+            Self::NonrecoverableWitness => {
+                antecedent_core::reason_details::recovery_chain::NONRECOVERABLE_WITNESS
+            }
+            Self::UnsupportedMechanism => {
+                antecedent_core::reason_details::recovery_chain::UNSUPPORTED_MECHANISM
+            }
+            Self::InvalidQuery => antecedent_core::reason_details::recovery_chain::INVALID_QUERY,
+            Self::Positivity => antecedent_core::reason_details::recovery_chain::POSITIVITY,
+            Self::InvalidObservedLaw => {
+                antecedent_core::reason_details::recovery_chain::INVALID_OBSERVED_LAW
+            }
+            Self::InvalidDerivation => {
+                antecedent_core::reason_details::recovery_chain::INVALID_DERIVATION
+            }
+            Self::Budget => antecedent_core::reason_details::recovery_chain::BUDGET,
         }
     }
 

@@ -106,13 +106,18 @@ fn nested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellatio
     fractional.regimes[0].cells[0] += 0.5;
     let err =
         nested_markov_fisher_internal(&fractional, &FitOptions::default(), 0.95, &ctx).unwrap_err();
-    assert!(err.to_string().contains("nested_markov.fisher_sampling_design"));
+    assert!(
+        err.to_string()
+            .contains(antecedent_core::reason_details::nested_markov::FISHER_SAMPLING_DESIGN)
+    );
     let mut sparse = input(16_000.);
     sparse.regimes[0].cells[0] = 0.;
     let sparse_err =
         nested_markov_fisher_internal(&sparse, &FitOptions::default(), 0.95, &ctx).unwrap_err();
     assert!(
-        sparse_err.to_string().contains("nested_markov.fisher_sampling_design"),
+        sparse_err
+            .to_string()
+            .contains(antecedent_core::reason_details::nested_markov::FISHER_SAMPLING_DESIGN),
         "{sparse_err}"
     );
     for level in [0., 1., 0.80, 0.99, f64::NAN] {

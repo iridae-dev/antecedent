@@ -19,6 +19,7 @@ transported_bridge}.rs`` and ``crates/antecedent/tests/transported_constructors_
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent import evidence_ledger as el
 from antecedent import measurement_models as mm
@@ -34,8 +35,8 @@ from _refusal import assert_registered_refusal
 TOL = 1e-12
 INSPECT, SHIP, HOLD = 0, 1, 2
 IDENTITY = ((1.0, 0.0), (0.0, 1.0))
-NOT_IN_TARGET = "transported_decision.coordinate_not_in_target"
-NOT_TRANSPORTED = "transported_decision.not_transported"
+NOT_IN_TARGET = reason_details.transported_decision.COORDINATE_NOT_IN_TARGET
+NOT_TRANSPORTED = reason_details.transported_decision.NOT_TRANSPORTED
 
 
 def quantity(variable: str, population: str) -> ScientificQuantity:
@@ -59,7 +60,10 @@ def refused(call) -> TransportedResponseRefusal:
     with pytest.raises(TransportedResponseRefusal) as caught:
         call()
     assert_registered_refusal(caught.value)
-    assert caught.value.remedy or caught.value.detail == "transported_decision.invalid_value"
+    assert (
+        caught.value.remedy
+        or caught.value.detail == reason_details.transported_decision.INVALID_VALUE
+    )
     return caught.value
 
 
@@ -184,15 +188,15 @@ def test_a_policy_route_refusal_is_the_routes_own_and_a_source_coordinate_is_ref
 
     error = refused(lambda: build(diagram=None))
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_policy.selection_diagram_missing"
+    assert error.detail == reason_details.transported_policy.SELECTION_DIAGRAM_MISSING
 
     shifted = dict(MECHANISMS, **{"transition[0]": "shifted"})
     error = refused(lambda: build(diagram=diagram(mechanisms=shifted)))
-    assert error.detail == "transported_policy.mechanism_not_invariant"
+    assert error.detail == reason_details.transported_policy.MECHANISM_NOT_INVARIANT
 
     partial = {k: v for k, v in MECHANISMS.items() if k != "observation[0]"}
     error = refused(lambda: build(diagram=diagram(mechanisms=partial)))
-    assert error.detail == "transported_policy.mechanism_status_missing"
+    assert error.detail == reason_details.transported_policy.MECHANISM_STATUS_MISSING
 
     error = refused(lambda: build(coordinate=quantity("value", "plant_a")))
     assert error.detail == NOT_IN_TARGET
@@ -288,7 +292,7 @@ def test_a_target_native_utility_is_evaluated_bound_into_the_identity_and_replay
                 m, policy(m), built, target_utility=tampered, **kwargs
             )
         )
-        assert error.detail == "transported_policy.value_mismatch"
+        assert error.detail == reason_details.transported_policy.VALUE_MISMATCH
 
 
 def test_a_target_utility_refusals_name_the_declaration_that_is_wrong():
@@ -308,21 +312,21 @@ def test_a_target_utility_refusals_name_the_declaration_that_is_wrong():
 
     error = refused(lambda: build(target_utility=None))
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_policy.target_utility_missing"
+    assert error.detail == reason_details.transported_policy.TARGET_UTILITY_MISSING
 
     error = refused(lambda: build(diagram=diagram()))
-    assert error.detail == "transported_policy.utility_declared_invariant"
+    assert error.detail == reason_details.transported_policy.UTILITY_DECLARED_INVARIANT
 
     shifted = dict(MECHANISMS, utility="shifted", **{"observation[0]": "shifted"})
     error = refused(lambda: build(diagram=diagram(mechanisms=shifted)))
-    assert error.detail == "transported_policy.mechanism_not_invariant"
+    assert error.detail == reason_details.transported_policy.MECHANISM_NOT_INVARIANT
 
     error = refused(lambda: build(target_utility=target_utility(digest="not-a-digest")))
-    assert error.detail == "transported_policy.target_utility_digest"
+    assert error.detail == reason_details.transported_policy.TARGET_UTILITY_DIGEST
     error = refused(lambda: build(target_utility=target_utility(source=" ")))
-    assert error.detail == "transported_policy.target_utility_provenance_missing"
+    assert error.detail == reason_details.transported_policy.TARGET_UTILITY_PROVENANCE_MISSING
     error = refused(lambda: build(target_utility=target_utility(terminal=(0.0, 0.0, 0.0))))
-    assert error.detail == "transported_policy.target_utility_support"
+    assert error.detail == reason_details.transported_policy.TARGET_UTILITY_SUPPORT
     with pytest.raises(CausalTypeError):
         build(target_utility="plant_b")
 
@@ -394,10 +398,10 @@ def test_a_time_varying_mechanism_and_a_missing_declaration_are_refused():
     )
     error = refused(lambda: build(varying))
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "temporal_policy_transport.mechanism_time_varying"
+    assert error.detail == reason_details.temporal_policy_transport.MECHANISM_TIME_VARYING
 
     error = refused(lambda: build(None))
-    assert error.detail == "temporal_policy_transport.time_invariance_missing"
+    assert error.detail == reason_details.temporal_policy_transport.TIME_INVARIANCE_MISSING
 
     # A shifted utility is a population-route allowance; across periods it stays refused.
     shifted_utility = tc.InvarianceDeclaration(
@@ -405,7 +409,7 @@ def test_a_time_varying_mechanism_and_a_missing_declaration_are_refused():
     )
     error = refused(lambda: build(shifted_utility))
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "temporal_policy_transport.mechanism_time_varying"
+    assert error.detail == reason_details.temporal_policy_transport.MECHANISM_TIME_VARYING
 
 
 # --------------------------------------------------------------------------- adaptive trial
@@ -494,7 +498,7 @@ def test_an_adaptive_trial_mean_and_contrast_carry_the_trial_and_diagram_identit
 def test_adaptive_refusals_are_the_routes_and_a_source_coordinate_is_refused():
     error = refused(lambda: build_trial(design=None))
     assert error.reason_code == "adaptive_contract_incomplete"
-    assert error.detail == "adaptive_transport.assignment_monitoring_contract_missing"
+    assert error.detail == reason_details.adaptive_transport.ASSIGNMENT_MONITORING_CONTRACT_MISSING
 
     shifted = trial_diagram(
         mechanisms={
@@ -503,10 +507,10 @@ def test_adaptive_refusals_are_the_routes_and_a_source_coordinate_is_refused():
         }
     )
     error = refused(lambda: build_trial(diagram=shifted))
-    assert error.detail == "adaptive_transport.outcome_mechanism_not_invariant"
+    assert error.detail == reason_details.adaptive_transport.OUTCOME_MECHANISM_NOT_INVARIANT
 
     error = refused(lambda: build_trial(target_stratum_law=None))
-    assert error.detail == "adaptive_transport.target_stratum_law_missing"
+    assert error.detail == reason_details.adaptive_transport.TARGET_STRATUM_LAW_MISSING
 
     error = refused(lambda: build_trial(coordinate=quantity("contrast", "trial_sites")))
     assert error.detail == NOT_IN_TARGET
@@ -601,10 +605,10 @@ def test_synthesis_refusals_are_the_routes_and_carry_no_interval():
         lambda: build([tc.Contribution(cohort, 1.0, 1.0), tc.Contribution(carried, 2.0, 1.0)])
     )
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_synthesis.transport_variance_undeclared"
+    assert error.detail == reason_details.transported_synthesis.TRANSPORT_VARIANCE_UNDECLARED
 
     error = refused(lambda: build(both, native_population="clinic"))
-    assert error.detail == "transported_synthesis.target_population_mismatch"
+    assert error.detail == reason_details.transported_synthesis.TARGET_POPULATION_MISMATCH
 
 
 # --------------------------------------------------------------------------- surrogate bridge
@@ -678,7 +682,9 @@ def test_bridge_refusals_are_the_bridges_and_a_native_bridge_is_not_transported(
         )
     )
     assert error.reason_code == "bridge_assumption_missing"
-    assert error.detail == ("scientific_bridge.transport_premise_contradicted_by_selection_diagram")
+    assert error.detail == (
+        reason_details.scientific_bridge.TRANSPORT_PREMISE_CONTRADICTED_BY_SELECTION_DIAGRAM
+    )
 
     native = bridge("adults", ["survival"])
     error = refused(

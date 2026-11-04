@@ -40,17 +40,20 @@ record_sha256 = "299307101951fc4b20d26c257ff98d33783382faff156a3797cd0d3aadae29f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_enumeration.rs"
-sha256 = "f05350502d26f8a364fd713dece746e90faa73ba186a124944db459f146004af"
+items = ["const MAX_ENUM_NODES", "fn default", "fn enumerate_unique_dags", "fn grow_dags", "fn new", "fn run", "fn sample_instead", "struct ExactDagPosterior"]
+sha256 = "7673a1a6a5799ab55b473fdc2ee312dc2853493dbd9021fc00defb632632a196"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
+items = ["enum GraphScoreFamily", "fn bic_from_rss", "fn centered_column", "fn col", "fn compensated_sum", "fn content_fingerprint", "fn equilibrated_spd", "fn fingerprint", "fn new", "fn refined_rss", "fn rss_from_joint_gram", "fn solve_spd", "struct GraphScoreData"]
+sha256 = "5a7d9accaab4bc3e84e7326059b10cc0ba6c14a21209a5a3b8c47af9e3910573"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
-sha256 = "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"
+items = ["fn case_data", "fn case_data_permuted", "fn ci_screened_structure_mcmc_against_exact_restricted_targets", "fn exact_enumeration_matches_the_independent_stdlib_enumeration_to_rounding", "fn expected", "fn fixture", "fn graph_mcmc_fixture_records_exact_target_and_the_retained_generator", "fn graph_mcmc_marginals_against_exact_exhaustive_targets", "fn max_error", "fn named_marginals", "fn order_mcmc_named_marginals_invariant_to_column_relabeling", "fn schedule"]
+sha256 = "1aefab5a98510a914041368f17688492202530f25869725408714e4c320477e0"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -70,4 +73,4 @@ sha256 = "f594b55f602cc09de7a5400219125fdff71e7fcfd6720cb952e430b6cc9fe50f"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/graph_mcmc_exact/expected.json"
-sha256 = "6dbac279f2aa37d25f725d6943d3b7c561123d5000aa1a48cf63a381232c7569"
+sha256 = "161236e1acb8748bbbbf7bd2c0941ba8d180b10a8b7c7724c7c78c796c068c0a"

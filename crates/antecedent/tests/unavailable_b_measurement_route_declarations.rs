@@ -425,7 +425,11 @@ fn unavailable_b_weights_and_policies_the_design_cannot_read_stay_refused() {
     recorded[10] = f64::NAN;
     let error = run(builder(table(&recorded), query(&p, false)))
         .expect_err("a missing recorded outcome with no policy is refused, not dropped");
-    assert_refusal(&error, "missing_policy_required", "missing_data.policy_required");
+    assert_refusal(
+        &error,
+        "missing_policy_required",
+        antecedent_core::reason_details::missing_data::POLICY_REQUIRED,
+    );
     assert!(error.to_string().contains("complete_case"), "{error}");
     // Inverse-probability weighting needs an observation model and multiple imputation a pooled
     // estimator; neither is built for this design.
@@ -441,7 +445,7 @@ fn unavailable_b_weights_and_policies_the_design_cannot_read_stay_refused() {
         assert_refusal(
             &error,
             "missing_policy_not_applicable",
-            "missing_data.policy_not_applicable",
+            antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE,
         );
     }
     // A table whose weights leave no decision, or a negative one, is invalid rather than ignored.
@@ -480,7 +484,11 @@ fn unavailable_b_the_dependent_series_and_policies_are_refused_by_designs_that_c
     let error = run(builder(table(&p.recorded), two_arm.clone())
         .missing(MissingDeclaration::new(MissingPolicy::CompleteCase)))
     .expect_err("the quantile design reads no missing-data policy");
-    assert_refusal(&error, "missing_policy_not_applicable", "missing_data.policy_not_applicable");
+    assert_refusal(
+        &error,
+        "missing_policy_not_applicable",
+        antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE,
+    );
     let error = run(builder(table(&p.recorded), two_arm)
         .sampling_design(DeclaredSamplingDesign::DependentTimeSeries))
     .expect_err("the quantile design reads no dependent series");

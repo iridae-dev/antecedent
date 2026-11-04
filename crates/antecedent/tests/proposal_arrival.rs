@@ -275,7 +275,7 @@ fn arrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes() 
                 )
                 .unwrap_err()
             )
-            .contains("proposal_arrival.replay_mismatch")
+            .contains(antecedent_core::reason_details::proposal_arrival::REPLAY_MISMATCH)
         );
     }
     assert!(
@@ -309,7 +309,10 @@ fn arrival_count_snapshot_population_assignment_and_sampling_refusals() {
     }
     let ctx = ExecutionContext::for_tests(3);
     ctx.cancellation.cancel();
-    assert!(detail(execute(&original, &ctx).unwrap_err()).contains("proposal_arrival.cancelled"));
+    assert!(
+        detail(execute(&original, &ctx).unwrap_err())
+            .contains(antecedent_core::reason_details::proposal_arrival::CANCELLED)
+    );
 }
 
 #[test]

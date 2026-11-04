@@ -43,14 +43,17 @@ record_sha256 = "a9b9eba556a0061c825f2dad53ff4be9bfafe7387a2c4cb8d4cf1d6a8b84a4a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/sigma_separation.rs"
-sha256 = "199addf6ad780854e1a6d0b6dd623928a29f80d7d4c13e51ef1d6573cf1bf25f"
+items = ["const PROCEDURE", "const READING", "enum OrdinaryDSeparationOnCycles", "enum SigmaSeparationStatus", "fn acyclification_connects", "fn condensation_covers", "fn fill_bidirected", "fn fill_directed", "fn finish", "fn is_separated", "fn known", "fn link_bidirected", "fn link_directed", "fn new", "fn prepare", "fn rebuild_acyclification", "fn reset_rows", "fn same_graph", "fn separated", "fn sigma_separates", "fn status_from_connection", "fn trivial_status", "struct CachedAcyclification", "struct QueryEnds", "struct SigmaSeparation", "struct SigmaSeparationAssumptions", "struct SigmaSeparationWorkspace"]
+sha256 = "0389d1acfe091e939eaa8b5c1bc8c194f247e8b34867217f4c1044dfda9e9e32"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cyclic.rs"
-sha256 = "c28a67840ce29f27c9e1bc50227b867d9ed796507becb1edd6421da7edb6e4a3"
+items = ["const NEXT", "fn add_node", "fn empty", "fn fresh", "fn insert_bidirected", "fn insert_directed", "fn node_count", "fn nodes", "fn reject_self_loop", "fn revision", "fn with_variables", "struct CyclicDigraph", "struct CyclicMixedGraph", "struct Revision"]
+sha256 = "4465da554b7783ac14b1a549971dab7852c17feefa5badb48521b293261bd9ce"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/sigma_separation_walk_reference.rs"
-sha256 = "d40ce738ed82e10970e9d0375412083100b25fe39fc522f1e2e39e7465656c19"
+items = ["fn ancestor_of_set", "fn compare", "fn five_node_mixed_graphs_match_the_walk_definition_beyond_the_product_oracle_bound", "fn four_node_mixed_graphs_match_the_walk_definition_on_a_stride", "fn id", "fn leaves_component", "fn new", "fn ordered_pairs", "fn pick", "fn product_graph", "fn separated", "fn unordered_pairs", "struct Reference", "struct Step"]
+sha256 = "51530ca5ea79e97c0f9774c5f108c5ddca1ded3702abdaa9ea02dc94cb2dc9f6"

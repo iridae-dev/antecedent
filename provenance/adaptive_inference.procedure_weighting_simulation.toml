@@ -37,17 +37,20 @@ record_sha256 = "e56ea36634939fe548fbfc09f8788aa2ccc9048547bc7ebe8f0fa80eeba9ff8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs"
-sha256 = "d271cccb17bb82581e7aad0eba0f59165a50533930311f1ee1fbb1b8b35f2d54"
+items = ["const CACHES", "const CACHE_ENTRY_BYTES", "const MAX_SIMULATION_REPLICATIONS", "const SIMULATION_CACHE_ENTRIES", "const STREAM_MIX", "fn draw", "fn effective_row", "fn mean_enrolled", "fn rule_stop_fraction", "fn simulate_procedure", "fn simulate_procedure_within", "fn summarize", "struct SimulatedLaw", "struct SimulatedReplicate", "struct SimulationRequest", "struct SimulationSummary", "struct Unit"]
+sha256 = "49c3f71beb8e5f214b3c13f6beb76d8b467de0b82ee87c9048ef00cbc1cf4cab"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_weighting_simulation_reference.rs"
-sha256 = "2cee1a0f77a63cd4b597087e97ded6f9b0357750465345c5c466fc1f3934c92d"
+items = ["fn a_seed_replays_exactly_and_another_seed_does_not", "fn proportion", "fn reference", "fn request", "fn the_simulated_law_agrees_with_the_exact_law_of_the_procedure", "fn within_sigmas"]
+sha256 = "20d09c00deeb33c0c448f4f64bcf92f1188e3cad95c00e86c92bb0a49416fe92"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
+items = ["module"]
+sha256 = "571c1ccdbb1afe316020f1abae7a2567cdbf424d29355e0b9da9c809ddf610b6"
 
 [[method_review.artifacts]]
 role = "reference"

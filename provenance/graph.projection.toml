@@ -39,9 +39,11 @@ record_sha256 = "5895af7860964f2324fa0dbfc45d07efde6deb5249d946bdb71d82faba0907b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/projection.rs"
-sha256 = "703dbd13834af5b53cff2ec183594d7d763671cac3089ce7e99797e4dd4dace9"
+items = ["fn latent_project", "fn observed_reachable_via_latents", "fn projection_preserves_msep_sample"]
+sha256 = "14ef9032374aaa4d69a12e12ba2faf1065c66a3375392bcc1de4ac53a766c388"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/admg_msep_exhaustive.rs"
-sha256 = "d452def347b2994b9781c54deb59ee67406c239de299e1b2951a250520415400"
+items = ["fn build", "fn check_graph", "fn connects", "fn dag_arcs", "fn edges_of", "fn every_four_node_admg_matches_the_path_definition", "fn id", "fn new", "fn projection_agrees", "fn projection_preserves_separation_for_every_four_node_dag_and_observed_subset", "fn projection_preserves_separation_on_a_stride_of_the_five_node_dags_and_every_observed_subset", "fn separated", "fn set_form_agrees_with_the_pairwise_oracle_on_every_four_node_admg", "fn strided_five_node_admgs_match_the_path_definition", "fn the_oracle_distinguishes_the_known_cases", "struct Oracle", "type Edges"]
+sha256 = "131f5cc9af1e29ecaa9365adb2db7dd5c07dc9c196d94ea4899776014634a66d"

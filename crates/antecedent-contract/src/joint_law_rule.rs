@@ -1359,7 +1359,10 @@ mod tests {
         );
         let (code, reason) = detail(&independent_but_shared);
         assert_eq!(code, "evidence_double_counted");
-        assert_eq!(reason, "joint_law_propagation.shared_evidence_declared_independent");
+        assert_eq!(
+            reason,
+            antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        );
 
         let distinct = request(
             PropagationOperation::WeightedSum,
@@ -1402,13 +1405,13 @@ mod tests {
             );
             assert_eq!(
                 detail(&independent).1,
-                "joint_law_propagation.shared_evidence_declared_independent"
+                antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
             );
             let ledger = EvidenceLedger::new();
             let refusal = check_propagation_with_ledger(&independent, &ledger).unwrap_err();
             assert_eq!(
                 refusal.detail,
-                "joint_law_propagation.shared_evidence_declared_independent"
+                antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
             );
             let mut covariance = request(
                 PropagationOperation::Sum,
@@ -1465,7 +1468,10 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&mismatched).1, "joint_law_propagation.alignment_mismatch");
+        assert_eq!(
+            detail(&mismatched).1,
+            antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+        );
 
         // Unrelated marginal draws asked to be paired by index.
         let index_paired = request(
@@ -1479,7 +1485,10 @@ mod tests {
         );
         let (code, name) = detail(&index_paired);
         assert_eq!(code, "joint_law_required");
-        assert_eq!(name, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
 
         // The same inputs with nothing declared name the index pairing too.
         let undeclared = request(
@@ -1488,7 +1497,10 @@ mod tests {
             PropagationDependence::Unknown,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&undeclared).1, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            detail(&undeclared).1,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
 
         // A covariance does not determine a nonlinear functional.
         let covariance_only = request(
@@ -1499,7 +1511,7 @@ mod tests {
         );
         assert_eq!(
             detail(&covariance_only).1,
-            "joint_law_propagation.covariance_insufficient_for_nonlinear"
+            antecedent_core::reason_details::joint_law_propagation::COVARIANCE_INSUFFICIENT_FOR_NONLINEAR
         );
 
         let summaries = request(
@@ -1538,7 +1550,10 @@ mod tests {
         );
         let (code, name) = detail(&unknown);
         assert_eq!(code, "invalid_argument");
-        assert_eq!(name, "joint_law_propagation.mixture_weights_unknown");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::MIXTURE_WEIGHTS_UNKNOWN
+        );
     }
 
     #[test]
@@ -1572,7 +1587,10 @@ mod tests {
             );
             let (code, reason) = detail(&malformed);
             assert_eq!(code, "invalid_argument");
-            assert_eq!(reason, "joint_law_propagation.invalid_request");
+            assert_eq!(
+                reason,
+                antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+            );
         }
         let as_point = request(
             PropagationOperation::Sum,
@@ -1582,7 +1600,10 @@ mod tests {
         );
         let (code, name) = detail(&as_point);
         assert_eq!(code, "uncertainty_representation_insufficient");
-        assert_eq!(name, "joint_law_propagation.envelope_is_not_a_point");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::ENVELOPE_IS_NOT_A_POINT
+        );
         let mixture = request(
             PropagationOperation::Mixture,
             marginals,
@@ -1591,16 +1612,22 @@ mod tests {
         );
         let (code, name) = detail(&mixture);
         assert_eq!(code, "route_not_supported");
-        assert_eq!(name, "joint_law_propagation.envelope_not_available");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::ENVELOPE_NOT_AVAILABLE
+        );
     }
 
     #[test]
     fn interval_and_posterior_readings_are_not_supported() {
         for (reading, expected) in [
-            (RequestedReading::Interval, "joint_law_propagation.no_interval_construction"),
+            (
+                RequestedReading::Interval,
+                antecedent_core::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION,
+            ),
             (
                 RequestedReading::Posterior,
-                "joint_law_propagation.no_posterior_for_fixed_law_inputs",
+                antecedent_core::reason_details::joint_law_propagation::NO_POSTERIOR_FOR_FIXED_LAW_INPUTS,
             ),
         ] {
             let closed = request(
@@ -1639,7 +1666,10 @@ mod tests {
             let composed = PropagationRequest { reading, ..composed };
             let (code, name) = detail(&composed);
             assert_eq!(code, "joint_law_required");
-            assert_eq!(name, "joint_law_propagation.transported_dependence_required");
+            assert_eq!(
+                name,
+                antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+            );
         }
         let with_covariance = request(
             PropagationOperation::Sum,
@@ -1668,21 +1698,30 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&single).1, "joint_law_propagation.invalid_request");
+        assert_eq!(
+            detail(&single).1,
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
         let duplicate = request(
             PropagationOperation::Sum,
             vec![aligned("x", "s", "j"), aligned("x", "t", "j")],
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&duplicate).1, "joint_law_propagation.invalid_request");
+        assert_eq!(
+            detail(&duplicate).1,
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
         let blank_cov = request(
             PropagationOperation::Sum,
             vec![aligned("x", "s", "j"), aligned("y", "t", "j")],
             PropagationDependence::Covariance { id: " ".into() },
             RequestedReading::Point,
         );
-        assert_eq!(detail(&blank_cov).1, "joint_law_propagation.invalid_request");
+        assert_eq!(
+            detail(&blank_cov).1,
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
     }
 
     #[test]
@@ -1726,7 +1765,10 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Spread,
         );
-        assert_eq!(detail(&unpaired).1, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            detail(&unpaired).1,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
 
         // An envelope dependence is not a spread.
         let envelope = request(
@@ -1740,7 +1782,10 @@ mod tests {
         );
         let (code, name) = detail(&envelope);
         assert_eq!(code, "uncertainty_representation_insufficient");
-        assert_eq!(name, "joint_law_propagation.spread_needs_supported_dependence");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::SPREAD_NEEDS_SUPPORTED_DEPENDENCE
+        );
     }
 
     #[test]
@@ -1764,7 +1809,10 @@ mod tests {
         let refusal = check_propagation(&incomplete).expect_err("incomplete");
         refusal.validate().expect("well-formed refusal");
         assert_eq!(refusal.code, "joint_law_required");
-        assert_eq!(refusal.detail, "joint_law_propagation.transport_pieces_incomplete");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORT_PIECES_INCOMPLETE
+        );
         assert_eq!(refusal.offending.as_deref(), Some("transport_functional"));
         // The point value of the same pieces is not a spread claim.
         let point = PropagationRequest { reading: RequestedReading::Point, ..incomplete.clone() };
@@ -1783,14 +1831,20 @@ mod tests {
         // Pieces whose draws carry different alignment identities are not paired.
         three[2] = piece("functional", InputRole::TransportFunctional, "joint_10");
         let unpaired = PropagationRequest { inputs: three, ..complete.clone() };
-        assert_eq!(detail(&unpaired).1, "joint_law_propagation.alignment_mismatch");
+        assert_eq!(
+            detail(&unpaired).1,
+            antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+        );
 
         // Independence is never assumed for the pieces.
         let independent = PropagationRequest {
             dependence: PropagationDependence::DeclaredIndependent,
             ..complete
         };
-        assert_eq!(detail(&independent).1, "joint_law_propagation.transported_dependence_required");
+        assert_eq!(
+            detail(&independent).1,
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+        );
     }
 
     #[test]
@@ -1827,7 +1881,10 @@ mod tests {
             PropagationDependence::Unknown,
             RequestedReading::Spread,
         );
-        assert_eq!(detail(&sum).1, "joint_law_propagation.transported_dependence_required");
+        assert_eq!(
+            detail(&sum).1,
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+        );
     }
 
     #[test]
@@ -1876,14 +1933,17 @@ mod tests {
         };
         assert_eq!(
             reason(&wrong_coordinate, construction),
-            "joint_law_propagation.coverage_record_coordinate_mismatch"
+            antecedent_core::reason_details::joint_law_propagation::COVERAGE_RECORD_COORDINATE_MISMATCH
         );
         assert_eq!(
             reason(&record, "normal_approximation"),
-            "joint_law_propagation.coverage_record_construction_mismatch"
+            antecedent_core::reason_details::joint_law_propagation::COVERAGE_RECORD_CONSTRUCTION_MISMATCH
         );
         let bad_level = CoverageRecord { nominal_level: 1.0, ..record };
-        assert_eq!(reason(&bad_level, construction), "joint_law_propagation.invalid_request");
+        assert_eq!(
+            reason(&bad_level, construction),
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
 
         // The dependence route is checked before any record is consulted.
         let unpaired = request(
@@ -1896,12 +1956,15 @@ mod tests {
             RequestedReading::Interval,
         );
         let refusal = check_composed_interval(&unpaired, None, construction).expect_err("refusal");
-        assert_eq!(refusal.detail, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
         // A non-interval reading is not this function's.
         let point = PropagationRequest { reading: RequestedReading::Point, ..composed };
         assert_eq!(
             check_composed_interval(&point, None, construction).expect_err("reading").detail,
-            "joint_law_propagation.invalid_request"
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
         );
     }
 

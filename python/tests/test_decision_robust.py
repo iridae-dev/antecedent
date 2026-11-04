@@ -12,6 +12,7 @@ import json
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision, decision_robust
 from antecedent.errors import (
     CausalSerializationError,
@@ -172,14 +173,14 @@ def test_invalid_rules_refuse_with_registered_code_and_detail() -> None:
         _ = decision_robust.admissible_contract(_base(), ghost).identity
     assert isinstance(unknown.value, CausalUnsupportedError)
     assert unknown.value.reason_code == "invalid_argument"
-    assert unknown.value.detail == "decision_admissibility.unknown_action"
+    assert unknown.value.detail == reason_details.decision_admissibility.UNKNOWN_ACTION
     assert unknown.value.offending == "ghost"
     bad_input = decision_robust.AdmissibilityRules(
         support_rules=(decision_robust.SupportRule("A", 7, "supported"),)
     )
     with pytest.raises(decision.DecisionRefusal) as missing:
         _ = decision_robust.admissible_contract(_base(), bad_input).identity
-    assert missing.value.detail == "decision_admissibility.unknown_input"
+    assert missing.value.detail == reason_details.decision_admissibility.UNKNOWN_INPUT
     assert missing.value.offending == "A[7]"
     with pytest.raises(CausalValueError):
         decision_robust.AdmissibilityRules(uncertainty="sometimes")  # type: ignore[arg-type]
@@ -344,7 +345,7 @@ def test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weigh
     ]
     with pytest.raises(decision.DecisionRefusal) as refused:
         require_success(decision_robust.weighted_atoms(bayes, counts))
-    assert refused.value.detail == "decision_adapters.completion_count_not_probability"
+    assert refused.value.detail == reason_details.decision_adapters.COMPLETION_COUNT_NOT_PROBABILITY
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     # Under another policy they are retained and never used as weights.
     kept = require_success(decision_robust.weighted_atoms(_contract(), counts))
@@ -358,7 +359,7 @@ def test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weigh
                 _contract(), _claims((5.0, 3.0), (1.0, 4.0), probabilities=(0.5, 0.5))
             )
         )
-    assert graph.value.detail == "decision_adapters.graph_claims_carry_no_probability"
+    assert graph.value.detail == reason_details.decision_adapters.GRAPH_CLAIMS_CARRY_NO_PROBABILITY
 
     # Unidentified mass stays unidentified: the Bayes choice is not made on the rest.
     partial = [
@@ -394,12 +395,12 @@ def test_unresolved_structures_leave_invariance_unchecked() -> None:
                 ],
             )
         )
-    assert no_reason.value.detail == "decision_adapters.unevaluated_needs_reason"
+    assert no_reason.value.detail == reason_details.decision_adapters.UNEVALUATED_NEEDS_REASON
     with pytest.raises(decision.DecisionRefusal) as two:
         require_success(
             decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0)), kind="point")
         )
-    assert two.value.detail == "decision_adapters.point_claim_is_single"
+    assert two.value.detail == reason_details.decision_adapters.POINT_CLAIM_IS_SINGLE
 
 
 def test_identified_sets_partial_identification_reports_an_interval_per_action() -> None:
@@ -445,18 +446,18 @@ def test_identified_sets_partial_identification_reports_an_interval_per_action()
     # An identified set has no probability law.
     with pytest.raises(decision.DecisionRefusal) as bayes:
         decide((2.0, 5.0), (3.0, 6.0), _contract("bayes_over_structures"))
-    assert bayes.value.detail == "decision_adapters.bayes_over_identified_set"
+    assert bayes.value.detail == reason_details.decision_adapters.BAYES_OVER_IDENTIFIED_SET
     assert bayes.value.reason_code == "decision_contract_unsatisfied"
     with pytest.raises(decision.DecisionRefusal) as inverted:
         decide((5.0, 2.0), (3.0, 6.0))
-    assert inverted.value.detail == "decision_adapters.invalid_interval"
+    assert inverted.value.detail == reason_details.decision_adapters.INVALID_INTERVAL
     with pytest.raises(decision.DecisionRefusal) as missing:
         require_success(
             decision_robust.identified_sets(
                 contract, [decision_robust.IdentifiedUtility("A", 2.0, 5.0)]
             )
         )
-    assert missing.value.detail == "decision_adapters.missing_action"
+    assert missing.value.detail == reason_details.decision_adapters.MISSING_ACTION
 
 
 def test_identified_sets_apply_support_hard_exclusions_and_interval_arithmetic() -> None:
@@ -513,7 +514,7 @@ def test_identified_sets_apply_support_hard_exclusions_and_interval_arithmetic()
     assert (treat.lower, treat.upper) == (0.0, 4.0)
     with pytest.raises(decision.DecisionRefusal) as unknown:
         decision_robust.IdentifiedUtility.from_inputs(wrapped, "ghost", [(0.0, 1.0)])
-    assert unknown.value.detail == "decision_adapters.unknown_action"
+    assert unknown.value.detail == reason_details.decision_adapters.UNKNOWN_ACTION
 
 
 def test_external_callback_receipt_is_retained_and_never_labelled_native() -> None:

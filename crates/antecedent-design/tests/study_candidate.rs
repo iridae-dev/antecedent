@@ -118,7 +118,8 @@ fn joint_candidate_validates_and_matches_the_joint_obligation() {
 
 #[test]
 fn candidate_observing_separate_regimes_cannot_claim_the_joint_factor() {
-    let wrong = ("design_signal_invalid", "study_candidate.wrong_contract");
+    let wrong =
+        ("design_signal_invalid", antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
     // The study does not observe (Y, Z) together yet claims one joint law.
     let mut separate = candidate_c();
     separate.joint_measurement = false;
@@ -138,7 +139,8 @@ fn candidate_observing_separate_regimes_cannot_claim_the_joint_factor() {
 
 #[test]
 fn missing_unit_timing_or_cost_semantics_refuse() {
-    let wrong = ("design_signal_invalid", "study_candidate.wrong_contract");
+    let wrong =
+        ("design_signal_invalid", antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
     let mut free = candidate_c();
     free.cost.units = 0;
     assert_eq!(refusal(&free), wrong);
@@ -235,7 +237,7 @@ fn design_action_bridges_to_the_existing_planners() {
     increase.expected_evidence = Arc::from([evidence(1.0, &[Y, Z], true)]);
     let error = increase.validate().unwrap_err();
     assert_eq!(error.code, "design_signal_invalid");
-    assert_eq!(error.detail, "study_candidate.wrong_contract");
+    assert_eq!(error.detail, antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
     assert_eq!(error.message, "a sample increase delivers no new regime");
 }
 
@@ -265,7 +267,8 @@ fn observational(kind: StudyKind, measured: &[u32], joint: bool) -> DurableStudy
 fn instrument_natural_experiment_and_panel_studies_validate_their_own_shapes() {
     // An instrument study measures the instrument, the treatment and the outcome jointly.
     observational(StudyKind::Instrument, &[A, Y, Z], true).validate().unwrap();
-    let wrong = ("design_signal_invalid", "study_candidate.wrong_contract");
+    let wrong =
+        ("design_signal_invalid", antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
     assert_eq!(refusal(&observational(StudyKind::Instrument, &[A, Y], true)), wrong);
     assert_eq!(refusal(&observational(StudyKind::Instrument, &[A, Y, Z], false)), wrong);
     // A natural experiment sets nothing and measures at least the exposure and outcome.

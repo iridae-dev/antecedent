@@ -58,7 +58,7 @@ pub(crate) fn run_error(error: &RecalcRunError, fallback: &'static str) -> Strin
         RecalcRunError::NoLiveState(stage) => refusal_json(
             antecedent_core::reason_code!("score_table_unavailable"),
             &stage.label(),
-            "recalc.no_live_state",
+            antecedent_core::reason_details::recalc::NO_LIVE_STATE,
             Some(&stage.label()),
             None,
             &error.to_string(),
@@ -67,52 +67,54 @@ pub(crate) fn run_error(error: &RecalcRunError, fallback: &'static str) -> Strin
         RecalcRunError::Request(detail) => {
             let detail = detail.as_str();
             let (code, stage) = match detail {
-                "recalc.cancelled" => {
+                antecedent_core::reason_details::recalc::CANCELLED => {
                     (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
                 }
-                "recalc.bayesian_invalid_inference" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_INFERENCE => {
                     (antecedent_core::reason_code!("invalid_argument"), "learner_folds_rng")
                 }
-                "recalc.bayesian_fit_refused" | "recalc.joint_bayesian_refused" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_FIT_REFUSED
+                | antecedent_core::reason_details::recalc::JOINT_BAYESIAN_REFUSED => {
                     (antecedent_core::reason_code!("route_not_supported"), "score_artifact")
                 }
-                "recalc.bayesian_inference_unsupported"
-                | "recalc.bayesian_basis_prior_unsupported" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_INFERENCE_UNSUPPORTED
+                | antecedent_core::reason_details::recalc::BAYESIAN_BASIS_PRIOR_UNSUPPORTED => {
                     (antecedent_core::reason_code!("route_not_supported"), "learner_folds_rng")
                 }
-                "recalc.bayesian_external_compose_unsupported"
-                | "recalc.bayesian_prior_source_unverified"
-                | "recalc.bayesian_prior_source_unsupported" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_EXTERNAL_COMPOSE_UNSUPPORTED
+                | antecedent_core::reason_details::recalc::BAYESIAN_PRIOR_SOURCE_UNVERIFIED
+                | antecedent_core::reason_details::recalc::BAYESIAN_PRIOR_SOURCE_UNSUPPORTED => {
                     (antecedent_core::reason_code!("route_not_supported"), "prior.0")
                 }
-                "recalc.bayesian_prior_source_conflict"
-                | "recalc.bayesian_prior_invalid"
-                | "recalc.bayesian_prior_likelihood_double_use" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_PRIOR_SOURCE_CONFLICT
+                | antecedent_core::reason_details::recalc::BAYESIAN_PRIOR_INVALID
+                | antecedent_core::reason_details::recalc::BAYESIAN_PRIOR_LIKELIHOOD_DOUBLE_USE => {
                     (antecedent_core::reason_code!("invalid_argument"), "prior.0")
                 }
-                "recalc.bayesian_invalid_graph" | "recalc.invalid_graph" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_GRAPH
+                | antecedent_core::reason_details::recalc::INVALID_GRAPH => {
                     (antecedent_core::reason_code!("invalid_argument"), "graph")
                 }
-                "recalc.bayesian_invalid_query"
-                | "recalc.invalid_temporal_window"
-                | "recalc.invalid_evidence" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_QUERY
+                | antecedent_core::reason_details::recalc::INVALID_TEMPORAL_WINDOW
+                | antecedent_core::reason_details::recalc::INVALID_EVIDENCE => {
                     (antecedent_core::reason_code!("invalid_argument"), "query")
                 }
-                "recalc.bayesian_invalid_data" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_DATA => {
                     (antecedent_core::reason_code!("invalid_argument"), "data_snapshot")
                 }
-                "recalc.invalid_initial_state_law" => {
+                antecedent_core::reason_details::recalc::INVALID_INITIAL_STATE_LAW => {
                     (antecedent_core::reason_code!("invalid_argument"), "target_population")
                 }
-                "recalc.bayesian_invalid_summary" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_SUMMARY => {
                     (antecedent_core::reason_code!("invalid_argument"), "law")
                 }
-                "recalc.bayesian_effect_unavailable"
-                | "recalc.bayesian_workspace_limit"
-                | "recalc.memory_budget_exceeded"
-                | "recalc.invalid_temporal_provider"
-                | "recalc.temporal_artifact_mismatch"
-                | "recalc.temporal_artifact_seed_mismatch" => {
+                antecedent_core::reason_details::recalc::BAYESIAN_EFFECT_UNAVAILABLE
+                | antecedent_core::reason_details::recalc::BAYESIAN_WORKSPACE_LIMIT
+                | antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED
+                | antecedent_core::reason_details::recalc::INVALID_TEMPORAL_PROVIDER
+                | antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_MISMATCH
+                | antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_SEED_MISMATCH => {
                     (antecedent_core::reason_code!("invalid_argument"), "score_artifact")
                 }
                 _ => (antecedent_core::reason_code!("invalid_argument"), "score_artifact"),
@@ -125,12 +127,12 @@ pub(crate) fn run_error(error: &RecalcRunError, fallback: &'static str) -> Strin
             let (code, detail, stage) = match cause.peeled() {
                 CausalError::NotIdentified { .. } => (
                     antecedent_core::reason_code!("effect_not_identified"),
-                    "recalc.family_not_identified",
+                    antecedent_core::reason_details::recalc::FAMILY_NOT_IDENTIFIED,
                     "identification",
                 ),
                 CausalError::Estimate(EstimationError::Data(_) | EstimationError::Query(_)) => (
                     antecedent_core::reason_code!("invalid_argument"),
-                    "recalc.family_model_data_invalid",
+                    antecedent_core::reason_details::recalc::FAMILY_MODEL_DATA_INVALID,
                     "data_snapshot",
                 ),
                 CausalError::Estimate(
@@ -138,7 +140,7 @@ pub(crate) fn run_error(error: &RecalcRunError, fallback: &'static str) -> Strin
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "cancelled_no_claim" => (
                     antecedent_core::reason_code!("cancelled_no_claim"),
-                    "recalc.cancelled",
+                    antecedent_core::reason_details::recalc::CANCELLED,
                     "score_artifact",
                 ),
                 _ => (
@@ -152,7 +154,7 @@ pub(crate) fn run_error(error: &RecalcRunError, fallback: &'static str) -> Strin
         RecalcRunError::Receipt(_) => refusal_json(
             antecedent_core::reason_code!("invalid_argument"),
             "score_artifact",
-            "recalc.family_receipt_invalid",
+            antecedent_core::reason_details::recalc::FAMILY_RECEIPT_INVALID,
             None,
             None,
             &error.to_string(),

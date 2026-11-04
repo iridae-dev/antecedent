@@ -11,8 +11,12 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 use std::collections::BTreeMap;
 fn field<'py>(dict: &Bound<'py, PyDict>, name: &str) -> PyResult<Bound<'py, PyAny>> {
-    dict.get_item(name)?
-        .ok_or_else(|| invalid("composite_recalc.invalid_request", format!("missing{name}")))
+    dict.get_item(name)?.ok_or_else(|| {
+        invalid(
+            antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            format!("missing{name}"),
+        )
+    })
 }
 /// One declared text field of a composite recalculation request.
 const MAX_TEXT_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
@@ -21,21 +25,31 @@ fn bounded_text(dict: &Bound<'_, PyDict>, name: &str) -> PyResult<String> {
     let value = field(dict, name)?;
     let value = value.cast::<PyString>()?;
     if value.len()? > MAX_TEXT_BYTES || value.to_str()?.len() > MAX_TEXT_BYTES {
-        return Err(invalid("composite_recalc.invalid_request", "text exceeds byte bound"));
+        return Err(invalid(
+            antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            "text exceeds byte bound",
+        ));
     }
     Ok(value.to_str()?.to_owned())
 }
 fn bounded_names(value: &Bound<'_, PyAny>, limit: usize) -> PyResult<Vec<String>> {
-    let len = sequence_len(value, "composite_recalc.invalid_request")?;
+    let len =
+        sequence_len(value, antecedent_core::reason_details::composite_recalc::INVALID_REQUEST)?;
     if len > limit {
-        return Err(invalid("composite_recalc.invalid_request", "too many columns"));
+        return Err(invalid(
+            antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            "too many columns",
+        ));
     }
     let mut names = Vec::with_capacity(len);
     for index in 0..len {
         let name = sequence_item(value, index)?;
         let name = name.cast::<PyString>()?;
         if name.len()? > 256 || name.to_str()?.len() > 256 {
-            return Err(invalid("composite_recalc.invalid_request", "column name exceeds bound"));
+            return Err(invalid(
+                antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+                "column name exceeds bound",
+            ));
         }
         names.push(name.to_str()?.to_owned());
     }
@@ -46,12 +60,22 @@ fn native_request(
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<antecedent::analysis::recalc_static::StaticResponseRequest> {
     let names = field(payload, "names")?;
-    if sequence_len(&names, "composite_recalc.invalid_request")? > 12 {
-        return Err(invalid("composite_recalc.invalid_request", "too many native columns"));
+    if sequence_len(&names, antecedent_core::reason_details::composite_recalc::INVALID_REQUEST)?
+        > 12
+    {
+        return Err(invalid(
+            antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            "too many native columns",
+        ));
     }
     let columns = field(payload, "columns")?;
-    if sequence_len(&columns, "composite_recalc.invalid_request")? > 12 {
-        return Err(invalid("composite_recalc.invalid_request", "too many native columns"));
+    if sequence_len(&columns, antecedent_core::reason_details::composite_recalc::INVALID_REQUEST)?
+        > 12
+    {
+        return Err(invalid(
+            antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            "too many native columns",
+        ));
     }
     let names = bounded_names(&names, 12)?;
     let columns: Vec<NumericColumn<'_>> = columns.extract()?;
@@ -69,8 +93,13 @@ fn request(
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<CompositeRequest> {
     let callbacks = field(payload, "externals")?;
-    if sequence_len(&callbacks, "composite_recalc.invalid_request")? != 2 {
-        return Err(invalid("composite_recalc.invalid_request", "exactly two callbacks required"));
+    if sequence_len(&callbacks, antecedent_core::reason_details::composite_recalc::INVALID_REQUEST)?
+        != 2
+    {
+        return Err(invalid(
+            antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            "exactly two callbacks required",
+        ));
     }
     let mut externals = Vec::new();
     for i in 0..2 {
@@ -78,10 +107,17 @@ fn request(
         let item = item.cast::<PyDict>()?;
         let names = field(item, "names")?;
         let columns = field(item, "columns")?;
-        if sequence_len(&names, "composite_recalc.invalid_request")? > 64
-            || sequence_len(&columns, "composite_recalc.invalid_request")? > 64
+        if sequence_len(&names, antecedent_core::reason_details::composite_recalc::INVALID_REQUEST)?
+            > 64
+            || sequence_len(
+                &columns,
+                antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            )? > 64
         {
-            return Err(invalid("composite_recalc.invalid_request", "too many callback columns"));
+            return Err(invalid(
+                antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+                "too many callback columns",
+            ));
         }
         let names = bounded_names(&names, 64)?;
         let columns: Vec<NumericColumn<'_>> = columns.extract()?;
@@ -95,13 +131,21 @@ fn request(
     let binding = bounded_text(payload, "program")?;
     let contract = bounded_text(payload, "contract")?;
     if contract.len() > 1024 * 1024 {
-        return Err(invalid("composite_recalc.invalid_request", "contract exceeds byte bound"));
+        return Err(invalid(
+            antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+            "contract exceeds byte bound",
+        ));
     }
     let decision_contract = contract_from_json(&contract).map_err(crate::py_msg)?;
     let policy = match bounded_text(payload, "policy")?.as_str() {
         "compare_supported" => UnsupportedActionPolicy::CompareSupported,
         "require_all" => UnsupportedActionPolicy::RequireAllActions,
-        _ => return Err(invalid("composite_recalc.invalid_request", "unknown support policy")),
+        _ => {
+            return Err(invalid(
+                antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+                "unknown support policy",
+            ));
+        }
     };
     Ok(CompositeRequest {
         native: native_request(payload, ctx)?,
@@ -129,7 +173,7 @@ fn error(error: &CompositeError) -> PyResult<String> {
         _ => {
             let detail = match error {
                 CompositeError::Request(detail) => *detail,
-                _ => "composite_recalc.receipt_invalid",
+                _ => antecedent_core::reason_details::composite_recalc::RECEIPT_INVALID,
             };
             Ok(refusal_json(
                 error
@@ -180,7 +224,10 @@ impl PyCompositeSession {
             CompositeSession::from_native(native.clone_native(), &native_request, &ctx)
                 .map(|inner| Self { inner })
                 .map_err(|cause| {
-                    invalid("composite_recalc.native_state_mismatch", format!("{cause:?}"))
+                    invalid(
+                        antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+                        format!("{cause:?}"),
+                    )
                 })
         })
     }
@@ -224,13 +271,19 @@ impl PyCompositeSession {
             let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
             let request = request(payload, &ctx)?;
             if providers.len() > 2 {
-                return Err(invalid("composite_recalc.invalid_request", "too many providers"));
+                return Err(invalid(
+                    antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+                    "too many providers",
+                ));
             }
             let mut actual = Vec::new();
             for (branch, provider) in providers.iter() {
                 let branch: u8 = branch.extract()?;
                 let branch = Branch::new(branch).ok_or_else(|| {
-                    invalid("composite_recalc.invalid_request", "branch exceeds bound")
+                    invalid(
+                        antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+                        "branch exceeds bound",
+                    )
                 })?;
                 let provider = provider
                     .extract::<PyRef<'_, crate::recalc_external_api::PyCallbackProvider>>()?;
@@ -263,13 +316,16 @@ impl PyCompositeSession {
             };
             if policy_json.len() > 256 * 1024 {
                 return Err(invalid(
-                    "conditional_study_ranking.invalid_policy",
+                    antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
                     "policy exceeds byte bound",
                 ));
             }
             let policy: ConditionalStudyPolicy =
                 serde_json::from_str(policy_json).map_err(|_| {
-                    invalid("conditional_study_ranking.invalid_policy", "invalid policy schema")
+                    invalid(
+                        antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+                        "invalid policy schema",
+                    )
                 })?;
             conditional_payload(ConditionalStudyRanking::execute(&self.inner, policy), true)
         })
@@ -312,20 +368,36 @@ impl PyCompositeSession {
     fn export_native(&self) -> PyResult<Vec<u8>> {
         crate::catch_ffi(|| {
             self.inner.native().export_result(&context(1, None)).map_err(|cause| {
-                invalid("composite_recalc.native_state_mismatch", format!("{cause:?}"))
+                invalid(
+                    antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
+                    format!("{cause:?}"),
+                )
             })
         })
     }
     fn export_callback(&self, branch: u8) -> PyResult<Vec<u8>> {
         crate::catch_ffi(|| {
             let branch = Branch::new(branch).ok_or_else(|| {
-                invalid("composite_recalc.invalid_request", "branch exceeds bound")
+                invalid(
+                    antecedent_core::reason_details::composite_recalc::INVALID_REQUEST,
+                    "branch exceeds bound",
+                )
             })?;
             self.inner
                 .callback(branch)
-                .ok_or_else(|| invalid("external_recalc.output_unavailable", "no issued callback"))?
+                .ok_or_else(|| {
+                    invalid(
+                        antecedent_core::reason_details::external_recalc::OUTPUT_UNAVAILABLE,
+                        "no issued callback",
+                    )
+                })?
                 .export_output()
-                .map_err(|cause| invalid("external_recalc.artifact_invalid", cause.to_string()))
+                .map_err(|cause| {
+                    invalid(
+                        antecedent_core::reason_details::external_recalc::ARTIFACT_INVALID,
+                        cause.to_string(),
+                    )
+                })
         })
     }
 }

@@ -1009,7 +1009,10 @@ fn repeated_measures_refuses_one_measurement_and_reduces_to_independence_at_zero
     let refusals = RepeatedMeasuresProcedure::declare(repeated_measures(1, 0.0))
         .expect_err("a single measurement per unit has no within-unit dependence to declare");
     assert_eq!(refusals[0].code, antecedent_core::reason_code!("invalid_argument"));
-    assert_eq!(refusals[0].detail, "adaptive_inference.measurements_invalid");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID
+    );
 
     let procedure = RepeatedMeasuresProcedure::declare(repeated_measures(2, 0.0))
         .expect("uncorrelated pairs are a valid declaration");
@@ -1992,9 +1995,8 @@ const NOT_YET_ESTABLISHED: &[&str] = &[];
 /// (or is supported), it is a statistical method rather than an audit over records, and its
 /// static twin is a route and not a theory-based "does not denote".
 fn owes_obligation(family: &InventoryFamily) -> bool {
-    let executes = |status: &Option<String>| {
-        matches!(status.as_deref(), Some("supported" | "not_supported"))
-    };
+    let executes =
+        |status: &Option<String>| matches!(status.as_deref(), Some("supported" | "not_supported"));
     executes(&family.temporal_status)
         && executes(&family.static_status)
         && !family.temporal_sampling_design.starts_with("none:")

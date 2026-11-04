@@ -250,7 +250,10 @@ fn reliability_at_or_below_the_floor_refuses_with_a_registered_code() {
     let err = correct_classical_linear_effect(&m, &data_binding(), &linear_data(&sim), &ctx())
         .unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
-    assert_eq!(err.detail, "measurement_model.reliability_too_small");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::RELIABILITY_TOO_SMALL
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -319,7 +322,10 @@ fn too_few_replicated_units_refuse_with_measurement_not_identified() {
         correct_repeated_linear_effect(&few, &data_binding(), &y, &values, &counts, &[], 0, &ctx())
             .unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
-    assert_eq!(err.detail, "measurement_model.insufficient_replicates");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +398,7 @@ fn binary_risk_difference_recovers_truth_and_pooling_differential_error_fails() 
         RiskDifferenceInput { exposed_arm_id: "treated", unexposed_arm_id: "placebo", table };
     let err = correct_binary_risk_difference(&differential, &data_binding(), &unknown, &ctx())
         .unwrap_err();
-    assert_eq!(err.detail, "measurement_model.arm_mismatch");
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::ARM_MISMATCH);
 }
 
 #[test]
@@ -428,7 +434,10 @@ fn youden_index_at_or_below_the_minimum_refuses() {
         );
         let err = correct_binary_prevalence(&m, &data_binding(), 40, 100, &ctx()).unwrap_err();
         assert_eq!(err.code, "measurement_not_identified");
-        assert_eq!(err.detail, "measurement_model.youden_too_small");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::measurement_model::YOUDEN_TOO_SMALL
+        );
     }
 }
 
@@ -494,7 +503,7 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
     assert_eq!(record.model_identity, m.identities().model);
     let unknown = out.functional(&CategoricalFunctional::Proportion("absent")).unwrap_err();
     assert_eq!(unknown.code, "invalid_argument");
-    assert_eq!(unknown.detail, "measurement_model.unknown_level");
+    assert_eq!(unknown.detail, antecedent_core::reason_details::measurement_model::UNKNOWN_LEVEL);
 
     // A confusion matrix worse conditioned than declared refuses.
     let singular = model(
@@ -513,7 +522,10 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
         ObservedClassSummary { count: 50, mean: 0.0, variance: 1.0 },
     ];
     let err = correct_categorical(&singular, &data_binding(), &two, &ctx()).unwrap_err();
-    assert_eq!(err.detail, "measurement_model.confusion_ill_conditioned");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::CONFUSION_ILL_CONDITIONED
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -612,7 +624,7 @@ fn posterior_mean_substitution_recovers_the_slope_that_a_single_draw_attenuates(
     let few = PosteriorLinearData { draw_count: 10, draws: &marginal[..10 * n], ..data };
     let err =
         correct_latent_posterior_linear_effect(&m, &data_binding(), &few, &ctx()).unwrap_err();
-    assert_eq!(err.detail, "measurement_model.insufficient_draws");
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::INSUFFICIENT_DRAWS);
 }
 
 #[test]
@@ -679,17 +691,26 @@ fn a_latent_posterior_needs_an_exactly_matching_provider_object() {
     // Metadata cannot confer native trust.
     let refusal =
         check_latent_posterior(&m, &good, &ExternalTrustState::NativeSupported).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_native_trust");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_NATIVE_TRUST
+    );
     // Another request fingerprint is another object.
     let mut other_identity = identity.clone();
     other_identity.request_id = "req-2".into();
     let other = object(other_identity, "cohort");
     let refusal = check_latent_posterior(&m, &other, &attested).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_identity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+    );
     // The posterior must declare the construct in the model's population.
     let wrong_population = object(identity, "other-cohort");
     let refusal = check_latent_posterior(&m, &wrong_population, &attested).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_quantity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_QUANTITY
+    );
     assert_eq!(refusal.validate(), Ok(()));
 }
 
@@ -715,14 +736,17 @@ fn a_proxy_offered_as_the_construct_is_refused_before_any_number() {
         let err = correct_classical_linear_effect(&m, &data_binding(), &linear_data(&sim), &ctx())
             .unwrap_err();
         assert_eq!(err.code, "proxy_offered_as_construct");
-        assert_eq!(err.detail, "measurement_model.proxy_as_construct");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::measurement_model::PROXY_AS_CONSTRUCT
+        );
     }
     let mut observed = classical_model(0.6, 0.0);
     observed.indicator.kind = MeasurementKind::Observed;
     let err =
         correct_classical_linear_effect(&observed, &data_binding(), &linear_data(&sim), &ctx())
             .unwrap_err();
-    assert_eq!(err.detail, "measurement_model.indicator_observed");
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::INDICATOR_OBSERVED);
 }
 
 #[test]
@@ -734,20 +758,32 @@ fn population_regime_arm_and_representation_must_match_the_data() {
     };
     let mut other = data_binding();
     other.population_id = "elsewhere".into();
-    assert_eq!(run(&m, &other).detail, "measurement_model.population_mismatch");
+    assert_eq!(
+        run(&m, &other).detail,
+        antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
+    );
     let mut other = data_binding();
     other.regime_id = "do(a=1)".into();
-    assert_eq!(run(&m, &other).detail, "measurement_model.regime_mismatch");
+    assert_eq!(
+        run(&m, &other).detail,
+        antecedent_core::reason_details::measurement_model::REGIME_MISMATCH
+    );
     let mut arm_model = classical_model(0.6, 0.0);
     arm_model.binding.arm = ArmBinding::Arm("treated".into());
     let mut other = data_binding();
     other.arm_id = Some("control".into());
-    assert_eq!(run(&arm_model, &other).detail, "measurement_model.arm_mismatch");
+    assert_eq!(
+        run(&arm_model, &other).detail,
+        antecedent_core::reason_details::measurement_model::ARM_MISMATCH
+    );
     let mut other = data_binding();
     other.representation.version = 2;
     let err = run(&m, &other);
     assert_eq!(err.code, "representation_mapping_required");
-    assert_eq!(err.detail, "measurement_model.representation_unmapped");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::REPRESENTATION_UNMAPPED
+    );
 }
 
 #[test]

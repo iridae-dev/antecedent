@@ -91,7 +91,7 @@ fn the_ledger_refuses_a_transport_without_assumptions() {
         .add_source(claim_declaration(transport(&["trial_a"], "target", &[])))
         .expect_err("no assumption supports nothing");
     assert_eq!(error.code, "invalid_argument");
-    assert_eq!(error.detail, "evidence_ledger.invalid_declaration");
+    assert_eq!(error.detail, antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION);
     // The same identity with one assumption registers.
     ledger
         .add_source(claim_declaration(transport(&["trial_a"], "target", &[INVARIANT])))
@@ -105,7 +105,7 @@ fn the_ledger_refuses_a_target_that_is_one_of_its_sources() {
         .add_source(claim_declaration(transport(&["trial_a", "target"], "target", &[INVARIANT])))
         .expect_err("a population is not transported to itself");
     assert_eq!(error.code, "invalid_argument");
-    assert_eq!(error.detail, "evidence_ledger.invalid_declaration");
+    assert_eq!(error.detail, antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION);
     assert!(error.message.contains("source populations"), "{}", error.message);
 }
 
@@ -125,7 +125,10 @@ fn a_provider_of_another_population_is_not_connected_to_the_transport() {
     let refusals =
         connect_bound_provider_source(&admitted, &identity, &consumer, TRANSPORT_SOURCE_PORT)
             .expect_err("population not a source");
-    assert_eq!(refusals[0].detail, "provider_transport.population_not_a_source");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::provider_transport::POPULATION_NOT_A_SOURCE
+    );
     assert_eq!(refusals[0].expected.as_deref(), Some("trial_a,trial_b"));
     assert_eq!(refusals[0].supplied.as_deref(), Some("trial_c"));
 
@@ -141,7 +144,10 @@ fn a_provider_of_another_population_is_not_connected_to_the_transport() {
     let refusals =
         connect_bound_provider_source(&uncarried, &identity, &consumer_a, TRANSPORT_SOURCE_PORT)
             .expect_err("assumption not carried");
-    assert_eq!(refusals[0].detail, "provider_transport.assumptions_not_carried");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::provider_transport::ASSUMPTIONS_NOT_CARRIED
+    );
     assert_eq!(refusals[0].offending.as_deref(), Some("treatment effect homogeneous"));
 
     // Correct population and assumptions cannot replace missing evidence.
@@ -151,7 +157,10 @@ fn a_provider_of_another_population_is_not_connected_to_the_transport() {
     let refused =
         connect_bound_provider_source(&empty, &identity, &consumer_a, TRANSPORT_SOURCE_PORT)
             .expect_err("empty evidence cannot satisfy the transport input");
-    assert_eq!(refused[0].detail, "interface_contract.dependence_unknown");
+    assert_eq!(
+        refused[0].detail,
+        antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN
+    );
 
     // A matching provider with declared evidence connects.
     let bound = provider("trial_a", INVARIANT).admit().expect("admits");
@@ -193,5 +202,8 @@ fn a_handoff_names_only_providers_of_its_transport() {
         TransportedInputPolicy::AcceptsTransported,
     )
     .expect_err("a provider of another population stands behind no claim of this transport");
-    assert_eq!(refusals[0].detail, "provider_transport.population_not_a_source");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::provider_transport::POPULATION_NOT_A_SOURCE
+    );
 }

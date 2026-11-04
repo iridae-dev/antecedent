@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-GATE = Path(__file__).resolve().with_name("gate_release_candidate_2.py")
+GATE = Path(__file__).resolve().with_name("check_installed_wheel_import.py")
 
 
 class WheelImportPath(unittest.TestCase):

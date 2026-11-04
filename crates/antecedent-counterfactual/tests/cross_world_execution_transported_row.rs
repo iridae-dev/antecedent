@@ -84,7 +84,7 @@ fn every_transported_cell_is_not_supported_except_the_static_additive_theorem_ro
                                     assert_eq!(refusal.code, "route_not_supported");
                                     assert_eq!(
                                         refusal.detail,
-                                        "cross_world_execution.no_transported_row_derivation"
+                                        antecedent_core::reason_details::cross_world_execution::NO_TRANSPORTED_ROW_DERIVATION
                                     );
                                     assert_eq!(
                                         refusal.subject,
@@ -177,7 +177,8 @@ fn a_different_target_population_refuses_before_any_work_and_the_declared_one_ex
         let refusal = err.refusal().unwrap();
         assert_eq!(refusal.code, "route_not_supported", "{target:?}");
         assert_eq!(
-            refusal.detail, "cross_world_execution.no_transported_row_derivation",
+            refusal.detail,
+            antecedent_core::reason_details::cross_world_execution::NO_TRANSPORTED_ROW_DERIVATION,
             "{target:?}"
         );
         assert!(err.missing().iter().any(|m| m == "target_population_abduction_receipt"));

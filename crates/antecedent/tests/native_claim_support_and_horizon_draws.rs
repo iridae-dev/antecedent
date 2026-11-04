@@ -218,7 +218,7 @@ fn multi_horizon_bayesian_responses_supply_no_aligned_joint_law() {
         .expect_err("a horizon grid is not the program's dose grid");
     assert!(refusal.validate().is_ok());
     assert_eq!(refusal.code, "quantity_semantics_mismatch");
-    assert_eq!(refusal.detail, "program_binding.dose_grid_changed");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED);
     assert_eq!(refusal.expected.as_deref(), Some("1,2"));
     assert_eq!(refusal.supplied.as_deref(), Some("0,1"));
 }

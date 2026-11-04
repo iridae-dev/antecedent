@@ -42,12 +42,14 @@ record_sha256 = "37a41d4d33e6a1d2d27e068f9c2bd9d1fc24aaefbae4e8abb245390a3e0a3a3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+items = ["const CALIBRATION_STATUS", "const CANCEL_STRIDE", "const MASS_TOLERANCE", "const MAX_COMPONENTS", "const MAX_LATTICE_CHECKS", "const MAX_MARGINAL_ATOMS", "const MIXTURE_EQUAL_TAIL_CONSTRUCTION", "const NORMAL_APPROXIMATION_CONSTRUCTION", "const STRUCTURE_RELATIVE_SLACK", "enum DecisionVerdict", "enum JointLawError", "enum PairStructure", "enum ValueFunctional", "fn as_str", "fn atoms", "fn check_cancel", "fn check_level", "fn composed_exceedance_decision", "fn correlation_range_envelope", "fn coupled_expectation", "fn covariance_envelope", "fn difference_cdf_envelope", "fn draw_spread", "fn exceedance_verdict", "fn frechet_expectation_envelope", "fn from_weighted", "fn functional_envelope", "fn linear_combination_moments", "fn linear_variance_envelope", "fn marginal_interval_candidate", "fn mass_at_most", "fn mass_below", "fn mean", "fn mixture_exceedance", "fn mixture_marginal", "fn mixture_moments", "fn monotone_couplings", "fn negated", "fn normal_interval_candidate", "fn ordered", "fn product_moment_envelope", "fn quantile", "fn require_finite", "fn structure", "fn sum_cdf_envelope", "fn value", "fn variance", "fn verify_structure", "struct CorrelationRangeEnvelope", "struct DrawSpread", "struct ExceedanceDecision", "struct IntervalCandidate", "struct LinearMoments", "struct Marginal", "struct MixtureMoments", "struct MomentSummary", "struct ValueBounds"]
+sha256 = "edea0ea2041db0f925bf25bb0251ed85a5ce739e24e27bf55791845c7b24c40b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/joint_law_reference.rs"
-sha256 = "6498ca7f851ccabf6c73ac1869aff99cb3b18ac93765a3cfb4c0ac7886fb5c08"
+items = ["fn bounds", "fn coupling_extremes_match_exhaustive_table_enumeration", "fn draw_spread_exceedance_band_and_normal_interval_match_definitions", "fn f", "fn fs", "fn linear_mixture_and_correlation_moments_match_definitions", "fn marginals", "fn mixture_marginal_quantile_interval_and_exceedance_match_enumeration", "fn near", "fn reference"]
+sha256 = "e54ddba90db8b51dd671cd52df733894e219b2f36a655482fdf76d97b1cd62cf"
 
 [[method_review.artifacts]]
 role = "reference"

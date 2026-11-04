@@ -41,14 +41,17 @@ record_sha256 = "54995d61c84e793dddf248cea2015438908579a8877d4687ebd3233129c9c36
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/cell_aipw.rs"
-sha256 = "37b75c4012b83c3737324b0e3747f9b1394e1a6dd784fb1c5fa490348b98cf05"
+items = ["const CELL_MODEL_FITS", "const POINT_CDE_UNSUPPORTED", "fn cell_minus_control_coefficients", "fn cell_minus_control_contrast", "fn contrast_from_summary", "fn contrast_named", "fn crossfit_cell_scores", "fn default", "fn family_cell_contrast", "fn fit_scores_core", "fn fit_scores_inner", "fn fit_scores_with_assignment", "fn interaction_coefficients", "fn interaction_contrast", "fn multinomial_poll", "fn multinomial_propensity", "fn multinomial_workspace_cells", "fn nearest_index", "fn new", "fn note_cell_model_fit", "fn parse_coefficients", "fn prepare_cells", "struct CellFoldNuisance", "struct CellSaturatedAipw", "struct CellScoreSpec", "struct ContinuousCellSpec", "struct DesignRows", "struct PreparedCells", "struct SharedCellInputs"]
+sha256 = "d6c9d295ee25bb98106d3a675171656173f84dc2c61c612a60f7b6e66ba7cc34"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/scores.rs"
-sha256 = "3f49a2dd51d60f020c87550208ee8c8803467224ce26750e54fa8cf18d0893c6"
+items = ["fn column", "fn n_columns", "struct ScoreTable"]
+sha256 = "e136cad3ddfa6ad8d6160ca1f0a9d01ae0b6f12d24806317e0016eb8c61d51af"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/cell_aipw_oracle_tests.rs"
-sha256 = "9e1b52a0d9657a9a5869a8a999a8a1ab12b6327e8b6fa69eab7848875b2d1db1"
+items = ["const FOLDS", "const N", "const SCORE_TOLERANCE", "fn cell_minus_control_and_interaction_match_the_scores_and_their_standard_errors", "fn data", "fn fit", "fn fit_adjusted", "fn mean_and_variance_of_mean", "fn reference_column", "fn scores_equal_the_closed_form_for_mean_and_exceedance_functionals", "fn scores_with_a_binary_covariate_equal_the_stratified_closed_form"]
+sha256 = "5faeec03cba9413c55ac744689a83e6994a2263cf670a648bbdee79c61bc5688"

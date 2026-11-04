@@ -21,6 +21,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
 from antecedent import decision, external
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -338,7 +339,7 @@ def test_joint_requirement_over_a_mean_only_claim_is_unsupported_law() -> None:
     with pytest.raises(cb.UnsupportedLawRefusal) as refused:
         consumed.require_verified()
     assert refused.value.reason_code == "joint_law_required"
-    assert refused.value.detail == "composition_bundle.unsupported_law"
+    assert refused.value.detail == reason_details.composition_bundle.UNSUPPORTED_LAW
 
 
 def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() -> None:
@@ -515,7 +516,7 @@ def test_consumer_bounds_refuse_a_bundle_beyond_them_before_any_node_is_verified
         with pytest.raises(cb.OversizedRefusal) as caught:
             require_success(cb.consume_bundle(data, expected_identity=bundle.identity, **bound))
         assert caught.value.bundle_stage == "oversized", bound
-        assert caught.value.detail == "composition_bundle.oversized"
+        assert caught.value.detail == reason_details.composition_bundle.OVERSIZED
         assert_registered_refusal(caught.value)
     with pytest.raises(CausalValueError):
         cb.consume_bundle(data, expected_identity=bundle.identity, max_nodes=0)

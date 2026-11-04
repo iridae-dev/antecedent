@@ -38,7 +38,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs",
-          "sha256": "7ead8122e5322676fc33a8683c77bd1021bc49f8c327d870e43ecf9fb40989b4"
+          "items": [
+            "fn id_hedge_fixture_every_case_status_and_hedge_certificate_match",
+            "fn index_of",
+            "fn strings"
+          ],
+          "sha256": "2c519773f2931e48646c5b02709cef092380716eca02f1b9bd028be2a9aac0e9"
         }
       ],
       "fixture_payload_sha256": "a0f5a652d809a2019efef78b28884cf83cd85a7a2882ded5ff5d0bc26e27585c"

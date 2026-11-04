@@ -30,9 +30,11 @@ record_sha256 = "3f888148cd86e7f3afa2e26d0c6aae6475bc1f33844980ac11cbc3ff63c9379
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/inverse_observational_scenarios.rs"
-sha256 = "b6e97bbc4823f5eba3c281191cf5fef0d59e1b61ac3dc718ebd79527fdadd568"
+items = ["const DETAIL_CONDITIONS_ON_OUTCOME", "const DETAIL_COORDINATE_MISSING", "const DETAIL_COORDINATE_UNSUPPORTED", "const DETAIL_DRAWS", "const DETAIL_EVENT_MASS", "const DETAIL_JOINT_LAW", "const DETAIL_MEANING", "const DETAIL_PARAMETER", "const DETAIL_REPLAY", "const DETAIL_SCENARIOS", "const OBSERVATIONAL_SCENARIO_SCOPE_NOTE", "const OBSERVATIONAL_SCENARIO_VERSION", "const STAGE", "const TAG", "enum ObservationalScenarioError", "enum OutcomeEvent", "fn accumulate_rows", "fn code", "fn column_of", "fn detail", "fn evaluate_observational_scenarios", "fn holds", "fn identity_of", "fn meaning_label", "fn scenario_columns", "fn scenario_reports", "fn tag", "fn threshold", "fn to_refusal", "fn validate", "fn verify_observational_scenarios", "struct ObservationalScenarioQuery", "struct ObservationalScenarioResult", "struct RowAccumulation", "struct RowLayout", "struct ScenarioCell", "struct ScenarioCondition", "struct ScenarioReport", "struct ScenarioTotals", "struct Values", "type ScenarioConditions"]
+sha256 = "d534ce8891125c56e0e73341af214d81c9dc0d3b5d925084baa01f11ecc68522"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/inverse_observational_scenarios.rs"
-sha256 = "6ed7954d4f29a5a51a9765f4751ecc3fd8c525793eb4ba2b017d6f9c04a69534"
+items = ["const X", "const Y", "const Z", "fn an_at_most_event_inverts_the_tail", "fn cell", "fn condition", "fn covariate", "fn default", "fn law", "fn malformed_declarations_are_refused_before_the_law_is_read", "fn outcome", "fn query", "fn scenario_values_match_the_hand_enumeration", "fn the_identity_follows_the_numbers_at_an_unchanged_shape", "fn weights_and_a_zero_weight_row_follow_the_oracle", "fn what_the_law_cannot_answer_is_refused_with_a_typed_reason", "struct Build"]
+sha256 = "ffb71562c31930aa6a36a100e9a9e41f475de0f86d74d31c61ca381c20eb82a6"

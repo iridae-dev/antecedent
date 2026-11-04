@@ -219,7 +219,7 @@ def source_replay_problems(root, route, body):
 def shared_evidence_problems(routes):
     cited_by = {}
     for route in routes:
-        if route.get("status") == "supported":
+        if route.get("status") == "supported" and route.get("evidence_test"):
             key = (route.get("evidence_test", ""), route.get("evidence_assertion", ""))
             cited_by.setdefault(key, []).append(route.get("route", "?"))
     return [

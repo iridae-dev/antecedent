@@ -40,7 +40,35 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_redundancy.rs",
-          "sha256": "155a4d12e1b89ba3e679bac18ea31274e3cb9950daf61df081e578b3b356bfdd"
+          "items": [
+            "fn assert_ate",
+            "fn assert_identified_estimand",
+            "fn assert_study_used_ident",
+            "fn bayesian_horizon_support_matches_frequentist_geometry",
+            "fn confounded_columns",
+            "fn confounded_fixture",
+            "fn confounded_multi_horizon_identifies_per_horizon_not_at_max",
+            "fn confounded_pulse_and_sustained_match_structural_contrast",
+            "fn confounded_pulse_recovers_structural_surface_and_unadjusted_does_not",
+            "fn definition_cells",
+            "fn expected_named_adjustment",
+            "fn f64s",
+            "fn horizon_support_fixture",
+            "fn horizon_support_is_per_cell_not_union",
+            "fn ident_key",
+            "fn mean_curve_query",
+            "fn mean_curve_query_horizons",
+            "fn named_adjustment",
+            "fn names",
+            "fn parse_id_status",
+            "fn parse_status",
+            "fn prepare_then_estimate",
+            "fn run_temporal",
+            "fn series",
+            "fn surface_mean",
+            "fn var_id"
+          ],
+          "sha256": "822f31678e96cc8ddd8a20c01c928c532cb10d1b94037d1cd2d72b3fbda669a1"
         }
       ],
       "fixture_payload_sha256": "f72f9c8e9f1fa7aa5dd2823d853abbb3780345a01da218d225be0fdd73bd53a3"

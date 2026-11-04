@@ -272,7 +272,7 @@ impl ScenarioCovariance {
 fn unknown_dependence(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "scenario_covariance.unknown_dependence",
+        antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE,
         message,
     )
 }
@@ -293,7 +293,7 @@ fn check_cancel(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     if ctx.cancellation.is_cancelled() {
         return Err(refuse(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "scenario_covariance.cancelled",
+            antecedent_core::reason_details::scenario_covariance::CANCELLED,
             "cancellation was observed; no covariance is claimed",
         ));
     }
@@ -330,13 +330,16 @@ struct FamilyIdentity {
 /// declared [`RowDependence::SharedRows`].
 fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity, EstimationError> {
     let Some(first) = scenarios.first() else {
-        return Err(invalid("scenario_covariance.no_scenarios", "no scenario estimators"));
+        return Err(invalid(
+            antecedent_core::reason_details::scenario_covariance::NO_SCENARIOS,
+            "no scenario estimators",
+        ));
     };
     let mut seen = HashSet::new();
     for s in scenarios {
         if !seen.insert(s.id()) {
             return Err(invalid(
-                "scenario_covariance.duplicate_scenario_id",
+                antecedent_core::reason_details::scenario_covariance::DUPLICATE_SCENARIO_ID,
                 &format!("scenario id '{}' appears more than once", s.id()),
             ));
         }
@@ -378,7 +381,7 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
     let n = first.unit_ids.len();
     if n < MIN_ROWS {
         return Err(invalid(
-            "scenario_covariance.too_few_rows",
+            antecedent_core::reason_details::scenario_covariance::TOO_FEW_ROWS,
             &format!("{n} rows; at least {MIN_ROWS} are needed to resample"),
         ));
     }
@@ -571,7 +574,7 @@ fn finish(
     let kept_mass: f64 = tally.weights.iter().sum();
     if tally.weights.len() < 2 || kept_mass.is_nan() || kept_mass <= 0.0 {
         return Err(numerical(
-            "scenario_covariance.too_many_failed_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
             "fewer than two replicates survived joint dropping",
         ));
     }
@@ -591,7 +594,7 @@ fn finish(
         || !is_psd(&covariance, k)
     {
         return Err(numerical(
-            "scenario_covariance.not_positive_semidefinite",
+            antecedent_core::reason_details::scenario_covariance::NOT_POSITIVE_SEMIDEFINITE,
             "the estimated covariance is not finite and positive semidefinite within tolerance",
         ));
     }
@@ -652,13 +655,13 @@ pub fn shared_row_bootstrap_covariance(
 ) -> Result<ScenarioCovariance, EstimationError> {
     if options.replicates < MIN_REPLICATES {
         return Err(invalid(
-            "scenario_covariance.too_few_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_FEW_REPLICATES,
             &format!("{} replicates; at least {MIN_REPLICATES} are needed", options.replicates),
         ));
     }
     if !(0.0..=1.0).contains(&options.max_failure_fraction) {
         return Err(invalid(
-            "scenario_covariance.invalid_failure_bound",
+            antecedent_core::reason_details::scenario_covariance::INVALID_FAILURE_BOUND,
             "max_failure_fraction must lie in [0, 1]",
         ));
     }
@@ -696,7 +699,7 @@ pub fn shared_row_bootstrap_covariance(
     }
     if tally.failed_mass / tally.total_mass > options.max_failure_fraction {
         return Err(numerical(
-            "scenario_covariance.too_many_failed_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
             &format!(
                 "{} of {} replicates failed in at least one scenario estimator, above the \
                  declared fraction {}",
@@ -821,7 +824,7 @@ pub fn exact_enumeration_covariance(
 ) -> Result<ScenarioCovariance, EstimationError> {
     if !(0.0..=1.0).contains(&options.max_failure_mass) {
         return Err(invalid(
-            "scenario_covariance.invalid_failure_bound",
+            antecedent_core::reason_details::scenario_covariance::INVALID_FAILURE_BOUND,
             "max_failure_mass must lie in [0, 1]",
         ));
     }
@@ -831,7 +834,7 @@ pub fn exact_enumeration_covariance(
     let total = if n <= MAX_EXACT_ROWS { composition_count(n) } else { None };
     let Some(total) = total.filter(|t| *t <= u128::from(cap)) else {
         return Err(over_bound(
-            "scenario_covariance.exact_enumeration_cap",
+            antecedent_core::reason_details::scenario_covariance::EXACT_ENUMERATION_CAP,
             &format!(
                 "{n} rows have more multinomial count vectors than the cap {cap} (rows at most \
                  {MAX_EXACT_ROWS}); use the shared-row bootstrap"
@@ -865,7 +868,7 @@ pub fn exact_enumeration_covariance(
     let Enumerator { tally, digest, .. } = walker;
     if tally.failed_mass / tally.total_mass > options.max_failure_mass {
         return Err(numerical(
-            "scenario_covariance.too_many_failed_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
             &format!(
                 "estimator failures cover {} of the resampling mass, above the declared {}",
                 tally.failed_mass / tally.total_mass,

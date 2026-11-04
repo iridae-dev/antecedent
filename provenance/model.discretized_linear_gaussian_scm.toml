@@ -35,12 +35,14 @@ record_sha256 = "53ef64f106a9453260c8be924f8658350d72a226ea98415b5b542f232c96a8e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/discretized_scm.rs"
-sha256 = "bca3f8458557632d2f29d68db569e38347f01fb9cbf1b08822cfd71c697a3b2e"
+items = ["const BRIDGE_CALIBRATION", "const BRIDGE_ERROR_SCOPE", "const BRIDGE_INFERENCE", "const DETAIL_CANCELLED", "const DETAIL_COMPOSITION_INCOHERENT", "const DETAIL_INTERVENTION_INVALID", "const DETAIL_NON_GAUSSIAN", "const DETAIL_NUMERICAL", "enum DiscretizationMethod", "fn as_str", "fn cell_edges", "fn finite_order_indices", "fn finite_spec", "fn from_composition", "fn from_spec", "fn invalid", "fn level_names", "fn level_values", "fn mean_contrast", "fn mean_error_bound", "fn mechanism_mean_error", "fn method", "fn new", "fn node", "fn poll", "fn position", "fn resolve", "fn unsupported", "struct ArmDiagnostic", "struct BridgeNode", "struct BridgeRefusal", "struct DiscreteArm", "struct DiscreteContrast", "struct DiscretizationPlan", "struct DiscretizedContrast", "struct DiscretizedLinearGaussian"]
+sha256 = "7075bcf5d34032ab9d697ef4a00fb1e141f786c3d4194ecf284804ea889f35f3"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/discretized_scm_reference.rs"
-sha256 = "47767d4c578fc4fd08828d90a767085ba6c38c40ee6a36de6c0231baf04e4e38"
+items = ["fn binding", "fn close", "fn ctx", "fn f", "fn grid_tables_contrasts_and_bound_match_the_high_precision_reference", "fn lg", "fn provenance", "fn spec_of"]
+sha256 = "c94ed2eec7e0e0029e16cc4c4212283135e3f4f186319b386c5507fc076ef7f9"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -41,14 +41,16 @@ record_sha256 = "4d70cf1cd69173205e09a396f29789f76115d69d5ffc6943680e7122b6fd28a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rpcmci.rs"
-sha256 = "de1de101e1a1fdb4582ae791818f5b5ed7fde7a549555137a180391d198afabe"
+items = ["const DEFAULT_SWITCH_PENALTY", "fn at", "fn default", "fn discover_regimes", "fn get", "fn indexes_for", "fn is_empty", "fn len", "fn min_cost_label_path", "fn new", "fn reassign_by_lagged_residual", "fn regime_window_mask", "fn run", "fn try_new", "fn unique_regimes", "fn with_alternating_iters", "fn with_min_regime_len", "fn with_pcmci_plus", "struct RegimeAssignment", "struct RegimeEquation", "struct RegimeGraphCollection", "struct RegimeModel", "struct Rpcmci", "struct RpcmciDiscoveryResult", "type LaggedParents"]
+sha256 = "482f1edf27adc399caa98ec1a25ee205504cb622590d132d12a5393e5628f8c7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs"
-sha256 = "5546059ed8f3e1b8a3bdda3d0ea4a950e5416a83cda6c57b5114da638c1feaf6"
+items = ["fn canonical", "fn case_data", "fn fixed_label_rpcmci_matches_independent_per_regime_tigramite", "fn fixture", "fn reference_links", "type LinkKey"]
+sha256 = "0857d22f5d856f6bac0f5a86b9c691fc5cddbf1545a9e86e059543c9dce2f4b5"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/rpcmci_fixed_regime_matrix/expected.json"
-sha256 = "43ce7e9d3ffae492f230e15c2f57a71211b3e704ab2e84dc694da6e173634785"
+sha256 = "1d1c853c39b1b1a21d33121faa52327b6a751fe64725249eba2646376fd12c70"

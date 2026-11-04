@@ -39,7 +39,20 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-validate/src/riesz.rs",
-          "sha256": "ccc051da54df936f647a2f0616ca1cdf879166f8c9ec814daf0856fc574c030b"
+          "items": [
+            "fn default",
+            "fn default_delta_grid",
+            "fn new",
+            "fn refute",
+            "fn refute_with_propensity",
+            "fn representer_and_ipw",
+            "fn riesz_tipping_is_invariant_to_outcome_units_and_refuses_zero_spread",
+            "fn stable_outcome_sd",
+            "fn toy",
+            "struct Representer",
+            "struct RieszSensitivity"
+          ],
+          "sha256": "d218459f806f54eafae0068030f4404bafa271ceb1832ca1d9f293a3efe19834"
         }
       ],
       "fixture_payload_sha256": "c7830bd0a1bae692424b5a903e54059f6f6b9d4fe0440c91ce18827b9550fc50"

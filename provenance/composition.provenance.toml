@@ -28,9 +28,11 @@ record_sha256 = "876629f1395332e248b8698d721e8640ea5f64055fda4f4af95181abed9d26a
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/composition_provenance.rs"
-sha256 = "0a3689cd737b63b2222a6b544107d4ad8734703fdd8d615989eef147720ac5fb"
+items = ["enum CompositionStage", "enum ProvenanceChainError", "fn digest_of", "fn lineage", "fn link_digest", "fn links", "fn new", "fn refusal", "fn require_stages", "fn stages_behind", "fn to_refusal", "fn verify_digest", "struct CompositionLink", "struct ProvenanceChain"]
+sha256 = "f9f4c94f52e8a51070a2f3e269e51994d2e2eff10d0a3ef453a3b4045d07d43e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/composition_provenance.rs"
-sha256 = "f550e88dbdc9d5ae2b81b58a2e095d7c8fa6342b75deb864428492c632020fcf"
+items = ["const ROWS", "fn declared_from", "fn every_score_traces_contract_snapshot_provider_artifact_transform_and_decision_in_order", "fn expected_digest", "fn fresh_reader_reconstructs_the_lineage_from_digests_not_labels", "fn links", "fn missing_or_changed_predecessor_digest_refuses_chain_validation", "fn producer", "fn text", "type Row"]
+sha256 = "a810a5bba810320b56fd48081097ef7683c5f44968bac6f82e7675b25631f732"

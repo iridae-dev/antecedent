@@ -728,12 +728,24 @@ fn out_of_scope_factors_and_budget_coupling_refuse_by_detail() {
     coupled.total_budget = Some(0.15);
     assert_eq!(
         refusal(run(&model, &coupled)),
-        ("route_not_supported", "joint_sensitivity.budget_coupling")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET_COUPLING
+        )
     );
     for (factor, detail) in [
-        (JointFactor::FixedGraphParentMechanism, "joint_sensitivity.fixed_graph_parent"),
-        (JointFactor::FixedGraphConditionalMechanism, "joint_sensitivity.fixed_graph_conditional"),
-        (JointFactor::SourceTargetDiscrepancy, "joint_sensitivity.source_target_discrepancy"),
+        (
+            JointFactor::FixedGraphParentMechanism,
+            antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_PARENT,
+        ),
+        (
+            JointFactor::FixedGraphConditionalMechanism,
+            antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_CONDITIONAL,
+        ),
+        (
+            JointFactor::SourceTargetDiscrepancy,
+            antecedent_core::reason_details::joint_sensitivity::SOURCE_TARGET_DISCREPANCY,
+        ),
     ] {
         let mut declared = spec(Some(0.1), None);
         declared.factors.push(JointFactorBound { factor, max_fraction: 0.1 });
@@ -742,7 +754,7 @@ fn out_of_scope_factors_and_budget_coupling_refuse_by_detail() {
     let none = JointDeviationSpec::new(Vec::new());
     assert_eq!(
         refusal(run(&model, &none)),
-        ("route_not_supported", "joint_sensitivity.factor_count")
+        ("route_not_supported", antecedent_core::reason_details::joint_sensitivity::FACTOR_COUNT)
     );
     // The cap is two: both factors of the formula are admitted, and a third
     // declaration of any kind (a duplicate or an out-of-scope factor) refuses
@@ -760,7 +772,10 @@ fn out_of_scope_factors_and_budget_coupling_refuse_by_detail() {
         three.factors.push(JointFactorBound { factor: third, max_fraction: 0.1 });
         assert_eq!(
             refusal(run(&model, &three)),
-            ("route_not_supported", "joint_sensitivity.factor_count"),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::FACTOR_COUNT
+            ),
             "third factor {third:?}"
         );
     }
@@ -775,7 +790,7 @@ fn invalid_fractions_thresholds_and_duplicates_refuse() {
         .push(JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.2 });
     assert_eq!(
         refusal(run(&model, &duplicate)),
-        ("invalid_argument", "joint_sensitivity.duplicate_factor")
+        ("invalid_argument", antecedent_core::reason_details::joint_sensitivity::DUPLICATE_FACTOR)
     );
     let mut treatment = spec(Some(0.1), None);
     treatment
@@ -783,12 +798,15 @@ fn invalid_fractions_thresholds_and_duplicates_refuse() {
         .push(JointFactorBound { factor: JointFactor::TreatmentMechanism, max_fraction: 0.1 });
     assert_eq!(
         refusal(run(&model, &treatment)),
-        ("invalid_argument", "joint_sensitivity.treatment_factor")
+        ("invalid_argument", antecedent_core::reason_details::joint_sensitivity::TREATMENT_FACTOR)
     );
     for bad in [1.0 + 1e-12, -1e-12, f64::NAN, f64::INFINITY] {
         assert_eq!(
             refusal(run(&model, &spec(Some(0.1), Some(bad)))),
-            ("invalid_argument", "joint_sensitivity.invalid_fraction")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::joint_sensitivity::INVALID_FRACTION
+            )
         );
     }
     for good in [0.0, 1.0] {
@@ -797,7 +815,10 @@ fn invalid_fractions_thresholds_and_duplicates_refuse() {
     for bad in [f64::NAN, f64::NEG_INFINITY] {
         assert_eq!(
             refusal(run(&model, &spec(Some(0.1), None).with_threshold(bad))),
-            ("invalid_argument", "joint_sensitivity.invalid_threshold")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::joint_sensitivity::INVALID_THRESHOLD
+            )
         );
     }
     for (tolerance, ok) in
@@ -811,7 +832,10 @@ fn invalid_fractions_thresholds_and_duplicates_refuse() {
                 assert!(!ok, "tolerance {tolerance} refused");
                 assert_eq!(
                     (error.reason_code(), error.detail()),
-                    ("invalid_argument", "joint_sensitivity.invalid_tolerance")
+                    (
+                        "invalid_argument",
+                        antecedent_core::reason_details::joint_sensitivity::INVALID_TOLERANCE
+                    )
                 );
             }
         }
@@ -826,7 +850,10 @@ fn declared_bounds_admit_the_cap_and_refuse_one_more() {
         mutate(&mut declared);
         run(&model, &declared)
     };
-    let exceeded = ("route_not_supported", "joint_sensitivity.bounds_exceeded");
+    let exceeded = (
+        "route_not_supported",
+        antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
+    );
     let widest = JOINT_SENSITIVITY_MAX_FRONTIER_POINTS;
     assert_eq!(bounded(&|s| s.frontier_points = widest).unwrap().frontier.len(), widest);
     assert_eq!(refusal(bounded(&|s| s.frontier_points = widest + 1)), exceeded);
@@ -873,7 +900,10 @@ fn law_bounds_refuse_before_the_charged_read_of_the_law() {
     ] {
         assert_eq!(
             refusal(run(&model, &one)),
-            ("route_not_supported", "joint_sensitivity.bounds_exceeded")
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED
+            )
         );
     }
     // Cancellation is observed when the budget is created, before the shape is
@@ -887,7 +917,7 @@ fn law_bounds_refuse_before_the_charged_read_of_the_law() {
             &ctx
         ))
         .1,
-        "joint_sensitivity.budget"
+        antecedent_core::reason_details::joint_sensitivity::BUDGET
     );
 }
 
@@ -904,7 +934,10 @@ fn a_non_surrogate_formula_or_wrong_provider_refuses() {
     );
     assert_eq!(
         refusal(wrong),
-        ("transport_missing_provider", "joint_sensitivity.provider_mismatch")
+        (
+            "transport_missing_provider",
+            antecedent_core::reason_details::joint_sensitivity::PROVIDER_MISMATCH
+        )
     );
     // A checked z formula that is not the surrogate factorization: Z -> X -> Y
     // with no shared parent has no confounder factor.
@@ -934,7 +967,10 @@ fn a_non_surrogate_formula_or_wrong_provider_refuses() {
     );
     assert_eq!(
         refusal(result),
-        ("transport_not_certified", "joint_sensitivity.formula_incompatible")
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::joint_sensitivity::FORMULA_INCOMPATIBLE
+        )
     );
     // The surrogate proof replayed against another diagram fails its input identity.
     let result = z_transport_joint_mechanism_sensitivity(
@@ -946,7 +982,10 @@ fn a_non_surrogate_formula_or_wrong_provider_refuses() {
     );
     assert_eq!(
         refusal(result),
-        ("transport_not_certified", "joint_sensitivity.formula_incompatible")
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::joint_sensitivity::FORMULA_INCOMPATIBLE
+        )
     );
 }
 
@@ -954,22 +993,49 @@ fn a_non_surrogate_formula_or_wrong_provider_refuses() {
 fn every_joint_sensitivity_detail_pairs_with_its_recorded_reason_code() {
     let model = fixed_model();
     let recorded = [
-        ("route_not_supported", "joint_sensitivity.factor_count"),
-        ("route_not_supported", "joint_sensitivity.budget_coupling"),
-        ("route_not_supported", "joint_sensitivity.fixed_graph_parent"),
-        ("route_not_supported", "joint_sensitivity.fixed_graph_conditional"),
-        ("route_not_supported", "joint_sensitivity.source_target_discrepancy"),
-        ("route_not_supported", "joint_sensitivity.bounds_exceeded"),
-        ("route_not_supported", "joint_sensitivity.unsupported_domain"),
-        ("invalid_argument", "joint_sensitivity.duplicate_factor"),
-        ("invalid_argument", "joint_sensitivity.invalid_fraction"),
-        ("invalid_argument", "joint_sensitivity.treatment_factor"),
-        ("invalid_argument", "joint_sensitivity.invalid_threshold"),
-        ("invalid_argument", "joint_sensitivity.invalid_tolerance"),
-        ("transport_not_certified", "joint_sensitivity.formula_incompatible"),
-        ("transport_missing_provider", "joint_sensitivity.provider_mismatch"),
-        ("transport_support_failure", "joint_sensitivity.incomplete_kernel"),
-        ("transport_budget_cancel", "joint_sensitivity.budget"),
+        ("route_not_supported", antecedent_core::reason_details::joint_sensitivity::FACTOR_COUNT),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET_COUPLING,
+        ),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_PARENT,
+        ),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_CONDITIONAL,
+        ),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::SOURCE_TARGET_DISCREPANCY,
+        ),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
+        ),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::UNSUPPORTED_DOMAIN,
+        ),
+        ("invalid_argument", antecedent_core::reason_details::joint_sensitivity::DUPLICATE_FACTOR),
+        ("invalid_argument", antecedent_core::reason_details::joint_sensitivity::INVALID_FRACTION),
+        ("invalid_argument", antecedent_core::reason_details::joint_sensitivity::TREATMENT_FACTOR),
+        ("invalid_argument", antecedent_core::reason_details::joint_sensitivity::INVALID_THRESHOLD),
+        ("invalid_argument", antecedent_core::reason_details::joint_sensitivity::INVALID_TOLERANCE),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::joint_sensitivity::FORMULA_INCOMPATIBLE,
+        ),
+        (
+            "transport_missing_provider",
+            antecedent_core::reason_details::joint_sensitivity::PROVIDER_MISMATCH,
+        ),
+        (
+            "transport_support_failure",
+            antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
+        ),
+        ("transport_budget_cancel", antecedent_core::reason_details::joint_sensitivity::BUDGET),
     ];
     let mut observed = Vec::new();
     let mut push = |result| observed.push(refusal(result));
@@ -1059,7 +1125,10 @@ fn an_operation_budget_leaves_the_frontier_unresolved_and_the_range_exact() {
     assert_eq!(stopped.range, full.range, "the range is exact whatever the frontier budget");
     assert_eq!(stopped.receipt.stop, Some(SearchStop::Operations));
     assert_eq!(stopped.receipt.operations_consumed, 5);
-    assert_eq!(stopped.unresolved_detail, Some("joint_sensitivity.budget"));
+    assert_eq!(
+        stopped.unresolved_detail,
+        Some(antecedent_core::reason_details::joint_sensitivity::BUDGET)
+    );
     assert_eq!(stopped.receipt.explored, ["range"]);
     assert_eq!(stopped.receipt.unevaluated.len(), 18);
     assert!(stopped.frontier.iter().all(|p| p.status == TippingStatus::Unevaluated));
@@ -1087,7 +1156,10 @@ fn depth_and_memory_stops_are_receipts_checked_on_every_charge() {
     assert_eq!(stopped.receipt.stop, Some(SearchStop::Depth));
     assert_eq!(stopped.receipt.depth_reached, 4);
     assert_eq!(stopped.receipt.limits.depth, 3);
-    assert_eq!(stopped.unresolved_detail, Some("joint_sensitivity.budget"));
+    assert_eq!(
+        stopped.unresolved_detail,
+        Some(antecedent_core::reason_details::joint_sensitivity::BUDGET)
+    );
     // Memory: the range fits, the cumulative frontier state does not.
     let full = run(&model, &spec(Some(0.5), Some(0.5)).with_threshold(baseline + 0.4)).unwrap();
     let mut wider = spec(Some(0.5), Some(0.5)).with_threshold(baseline + 0.4);
@@ -1144,7 +1216,10 @@ fn cancellation_stops_the_bracketing_loop_with_a_receipt() {
     assert_eq!(stopped.receipt.unevaluated.len(), 17);
     assert_eq!(stopped.frontier[0].status, TippingStatus::Bracketed);
     assert_eq!(stopped.frontier[1].status, TippingStatus::Unevaluated);
-    assert_eq!(stopped.unresolved_detail, Some("joint_sensitivity.budget"));
+    assert_eq!(
+        stopped.unresolved_detail,
+        Some(antecedent_core::reason_details::joint_sensitivity::BUDGET)
+    );
     // Cancelled before entry: a refusal with its receipt.
     let ctx = ExecutionContext::for_tests(1);
     ctx.cancellation.cancel();
@@ -1241,7 +1316,10 @@ fn factor_normalization_is_enforced_and_every_stage_reads_one_scale() {
         for declared in [spec(Some(0.2), Some(0.3)), spec(Some(0.2), None), spec(None, Some(0.3))] {
             assert_eq!(
                 refusal(run_on(&unnormalized, &declared)),
-                ("transport_support_failure", "joint_sensitivity.incomplete_kernel"),
+                (
+                    "transport_support_failure",
+                    antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL
+                ),
                 "parent marginal of mass {scale}"
             );
         }
@@ -1317,7 +1395,10 @@ fn the_range_is_an_assumption_range_and_the_interval_is_withheld() {
     assert_eq!(result.inference_claim, "assumption_range");
     assert!(result.interpretation.contains("not a confidence interval"));
     assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
-    assert_eq!(result.uncertainty.detail, "joint_sensitivity.no_interval_method");
+    assert_eq!(
+        result.uncertainty.detail,
+        antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+    );
     assert_eq!(result.uncertainty.method, "conservative_endpoint_percentile_bootstrap");
     assert!(result.uncertainty.coverage_target.starts_with("one_sided"));
 }
@@ -1369,9 +1450,10 @@ fn the_endpoint_bootstrap_runs_behind_calibration_internal_and_dominates_the_poi
     // Deterministic under its seed.
     assert_eq!(interval(&spec(Some(0.1), Some(0.1)), 60).unwrap().unwrap(), wide);
     // Replicates and level are bounded; exact laws withhold the interval.
-    for (replicates, detail) in
-        [(1, "joint_sensitivity.bounds_exceeded"), (2001, "joint_sensitivity.bounds_exceeded")]
-    {
+    for (replicates, detail) in [
+        (1, antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED),
+        (2001, antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED),
+    ] {
         let error = interval(&spec(Some(0.1), None), replicates).unwrap_err();
         assert_eq!((error.reason_code(), error.detail()), ("route_not_supported", detail));
     }

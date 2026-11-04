@@ -256,7 +256,7 @@ fn invalid(field: &str) -> ExternalRefusal {
     ExternalRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
         stage: "bind",
-        detail: "program_binding.invalid_binding".to_owned(),
+        detail: antecedent_core::reason_details::program_binding::INVALID_BINDING.to_owned(),
         offending: Some(field.to_owned()),
         expected: None,
         supplied: None,
@@ -268,7 +268,7 @@ fn invalid(field: &str) -> ExternalRefusal {
 fn substitution(offending: &str, expected: &str, supplied: &str) -> ExternalRefusal {
     refuse(
         antecedent_core::reason_code!("external_binding_mismatch"),
-        "program_binding.treatment_outcome_substitution",
+        antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION,
         Some(offending.to_owned()),
         expected.to_owned(),
         supplied.to_owned(),
@@ -279,7 +279,7 @@ fn substitution(offending: &str, expected: &str, supplied: &str) -> ExternalRefu
 fn population(offending: &str, expected: &str, supplied: &str) -> ExternalRefusal {
     refuse(
         antecedent_core::reason_code!("quantity_semantics_mismatch"),
-        "program_binding.population_mismatch",
+        antecedent_core::reason_details::program_binding::POPULATION_MISMATCH,
         Some(offending.to_owned()),
         expected.to_owned(),
         supplied.to_owned(),
@@ -290,7 +290,7 @@ fn population(offending: &str, expected: &str, supplied: &str) -> ExternalRefusa
 fn grid_changed(offending: &str, expected: String, supplied: String) -> ExternalRefusal {
     refuse(
         antecedent_core::reason_code!("quantity_semantics_mismatch"),
-        "program_binding.dose_grid_changed",
+        antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED,
         Some(offending.to_owned()),
         expected,
         supplied,
@@ -301,7 +301,7 @@ fn grid_changed(offending: &str, expected: String, supplied: String) -> External
 fn identity_mismatch(offending: &str, expected: &str, supplied: &str) -> ExternalRefusal {
     refuse(
         antecedent_core::reason_code!("external_binding_mismatch"),
-        "program_binding.contract_identity_mismatch",
+        antecedent_core::reason_details::program_binding::CONTRACT_IDENTITY_MISMATCH,
         Some(offending.to_owned()),
         expected.to_owned(),
         supplied.to_owned(),
@@ -341,7 +341,7 @@ fn check_identity(
     if graph_only(binding, claim) {
         return Err(refuse(
             antecedent_core::reason_code!("external_binding_mismatch"),
-            "program_binding.graph_only_identity",
+            antecedent_core::reason_details::program_binding::GRAPH_ONLY_IDENTITY,
             Some("declared_identity".to_owned()),
             binding.identity(),
             claim.declared_identity.clone(),
@@ -427,7 +427,7 @@ fn check_quantity(
     expected.require_same_coordinate(supplied).map_err(|mismatch| {
         refuse(
             antecedent_core::reason_code!("quantity_semantics_mismatch"),
-            "program_binding.quantities_override_mismatch",
+            antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH,
             Some(at.clone()),
             format!("{expected:?}"),
             format!("{mismatch:?}: {supplied:?}"),

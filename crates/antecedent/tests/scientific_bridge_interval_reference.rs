@@ -386,6 +386,6 @@ fn rates_outside_the_measured_range_are_reported_and_degenerate_lines_are_refuse
         construct_bridged_claim_interval(exact.bridged(), Some(0.0), 0.95)
             .expect_err("refused")
             .detail,
-        "scientific_bridge.interval_scope_outside_measured"
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED
     );
 }

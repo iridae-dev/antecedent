@@ -211,14 +211,14 @@ impl ObservationalPolicyValue {
         let spec = &request.spec;
         let Some(support) = spec.support.clone() else {
             return Err(missing(
-                "policy_value.support_missing",
+                antecedent_core::reason_details::policy_value::SUPPORT_MISSING,
                 "the treatment support must be declared: the actions the policy may take and whose propensity must be positive",
             ));
         };
         let objective = match spec.objective.as_deref() {
             None => {
                 return Err(missing(
-                    "policy_value.objective_missing",
+                    antecedent_core::reason_details::policy_value::OBJECTIVE_MISSING,
                     "declare whether a larger (maximize) or smaller (minimize) outcome is better",
                 ));
             }
@@ -226,7 +226,7 @@ impl ObservationalPolicyValue {
             Some("minimize") => PolicyObjective::Minimize,
             Some(other) => {
                 return Err(invalid(
-                    "policy_value.objective_unknown",
+                    antecedent_core::reason_details::policy_value::OBJECTIVE_UNKNOWN,
                     &format!("unknown objective {other:?}; use maximize or minimize"),
                 ));
             }
@@ -234,21 +234,21 @@ impl ObservationalPolicyValue {
         let evaluation = match spec.evaluation.as_deref() {
             None => {
                 return Err(missing(
-                    "policy_value.evaluation_missing",
+                    antecedent_core::reason_details::policy_value::EVALUATION_MISSING,
                     "declare the evaluation: prespecified, held_out or cross_fitted_learning",
                 ));
             }
             Some("prespecified") => {
                 let Some(actions) = spec.policy_actions.clone() else {
                     return Err(missing(
-                        "policy_value.policy_actions_missing",
+                        antecedent_core::reason_details::policy_value::POLICY_ACTIONS_MISSING,
                         "a prespecified evaluation needs the action the policy takes at each row",
                     ));
                 };
                 let origin = match spec.policy_origin.as_deref() {
                     None => {
                         return Err(missing(
-                            "policy_value.policy_origin_missing",
+                            antecedent_core::reason_details::policy_value::POLICY_ORIGIN_MISSING,
                             "declare where the policy came from: prespecified, or learned_on_evaluation_rows (which is refused)",
                         ));
                     }
@@ -256,7 +256,7 @@ impl ObservationalPolicyValue {
                     Some("learned_on_evaluation_rows") => PolicyOrigin::LearnedOnEvaluationRows,
                     Some(other) => {
                         return Err(invalid(
-                            "policy_value.policy_origin_unknown",
+                            antecedent_core::reason_details::policy_value::POLICY_ORIGIN_UNKNOWN,
                             &format!(
                                 "unknown policy origin {other:?}; use prespecified or learned_on_evaluation_rows"
                             ),
@@ -268,7 +268,7 @@ impl ObservationalPolicyValue {
             Some("held_out") => {
                 let Some(evaluation_fraction) = spec.evaluation_fraction else {
                     return Err(missing(
-                        "policy_value.evaluation_fraction_missing",
+                        antecedent_core::reason_details::policy_value::EVALUATION_FRACTION_MISSING,
                         "a held-out evaluation needs the fraction of rows held out to score the learned policy",
                     ));
                 };
@@ -277,7 +277,7 @@ impl ObservationalPolicyValue {
             Some("cross_fitted_learning") => PolicyEvaluation::CrossFitted,
             Some(other) => {
                 return Err(invalid(
-                    "policy_value.evaluation_unknown",
+                    antecedent_core::reason_details::policy_value::EVALUATION_UNKNOWN,
                     &format!(
                         "unknown evaluation {other:?}; use prespecified, held_out or cross_fitted_learning"
                     ),
@@ -292,7 +292,7 @@ impl ObservationalPolicyValue {
             || names.windows(2).any(|pair| pair[0] == pair[1])
         {
             return Err(invalid(
-                "policy_value.invalid_data",
+                antecedent_core::reason_details::policy_value::INVALID_DATA,
                 "adjustment columns must match the rows and have distinct, non-empty names",
             ));
         }
@@ -307,7 +307,7 @@ impl ObservationalPolicyValue {
             )),
             (Some(_), Some(_)) => {
                 return Err(invalid(
-                    "policy_value.invalid_known_propensity",
+                    antecedent_core::reason_details::policy_value::INVALID_KNOWN_PROPENSITY,
                     "declare known propensities either as one constant per action or as per-row columns, not both",
                 ));
             }

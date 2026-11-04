@@ -69,20 +69,20 @@ fn graph_selection_imputation_run(
         };
         if names.len() != columns.len() || names.is_empty() {
             return invalid(
-                "graph_selection_imputation.columns",
+                antecedent_core::reason_details::graph_selection_imputation::COLUMNS,
                 "names and columns must be non-empty and of equal length".to_owned(),
             );
         }
         let position = |name: &str| names.iter().position(|n| n == name);
         let (Some(t), Some(y)) = (position(&treatment), position(&outcome)) else {
             return invalid(
-                "graph_selection_imputation.variables",
+                antecedent_core::reason_details::graph_selection_imputation::VARIABLES,
                 format!("treatment `{treatment}` and outcome `{outcome}` must be data columns"),
             );
         };
         let Some(model) = ImputationModel::from_name(&model) else {
             return invalid(
-                "graph_selection_imputation.model",
+                antecedent_core::reason_details::graph_selection_imputation::MODEL,
                 format!("unknown imputation model `{model}`"),
             );
         };
@@ -90,7 +90,12 @@ fn graph_selection_imputation_run(
             names.iter().zip(&columns).map(|(name, column)| (name.as_str(), column.as_slice())),
         ) {
             Ok(table) => table,
-            Err(error) => return invalid("graph_selection_imputation.data", error.to_string()),
+            Err(error) => {
+                return invalid(
+                    antecedent_core::reason_details::graph_selection_imputation::DATA,
+                    error.to_string(),
+                );
+            }
         };
         let raw = |i: usize| VariableId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
         let variables: Vec<VariableId> = (0..names.len()).map(raw).collect();
@@ -107,7 +112,7 @@ fn graph_selection_imputation_run(
                 "continuous" => ImputationDomain::Continuous,
                 _ => {
                     return invalid(
-                        "graph_selection_imputation.domain",
+                        antecedent_core::reason_details::graph_selection_imputation::DOMAIN,
                         format!("unknown domain {domain:?}"),
                     );
                 }
@@ -139,14 +144,14 @@ fn graph_selection_imputation_run(
         };
         let Some(effect) = result.estimate().as_effect() else {
             return invalid(
-                "graph_selection_imputation.result",
+                antecedent_core::reason_details::graph_selection_imputation::RESULT,
                 "the pooled answer is not a scalar effect".to_owned(),
             );
         };
         let Some(report) = result.missing_data().as_ref().and_then(|m| m.imputation.as_ref())
         else {
             return invalid(
-                "graph_selection_imputation.result",
+                antecedent_core::reason_details::graph_selection_imputation::RESULT,
                 "the pooled result carries no imputation report".to_owned(),
             );
         };
@@ -194,7 +199,7 @@ struct PyCompiledGraphImputation {
 fn compiled_py_error(message: impl std::fmt::Display) -> PyErr {
     crate::errors::value_error_of(&refusal(
         reason_code!("invalid_argument"),
-        "graph_imputation.compiled",
+        antecedent_core::reason_details::graph_imputation::COMPILED,
         &message.to_string(),
     ))
 }
@@ -205,29 +210,39 @@ fn compiled_runtime_error(
     use antecedent::analysis::graph_imputation::GraphImputationError;
     use antecedent_core::search::SearchStop;
     let (code, detail, message) = match error {
-        GraphImputationError::PointUnavailable | GraphImputationError::IntervalUnavailable => {
-            (reason_code!("route_not_supported"), "graph_imputation.unsupported", error.to_string())
-        }
+        GraphImputationError::PointUnavailable | GraphImputationError::IntervalUnavailable => (
+            reason_code!("route_not_supported"),
+            antecedent_core::reason_details::graph_imputation::UNSUPPORTED,
+            error.to_string(),
+        ),
         GraphImputationError::SearchStopped(receipt) => {
             let code = if receipt.stop == SearchStop::Cancelled {
                 reason_code!("cancelled_no_claim")
             } else {
                 reason_code!("execution_resource_limit")
             };
-            (code, "graph_imputation.search_stopped", receipt.summary())
+            (
+                code,
+                antecedent_core::reason_details::graph_imputation::SEARCH_STOPPED,
+                receipt.summary(),
+            )
         }
-        GraphImputationError::Engine(CausalError::Cancelled { stage }) => {
-            (reason_code!("cancelled_no_claim"), "graph_imputation.cancelled", stage.to_owned())
-        }
-        GraphImputationError::Engine(CausalError::Resource { message }) => {
-            (reason_code!("execution_resource_limit"), "graph_imputation.resource_limit", message)
-        }
+        GraphImputationError::Engine(CausalError::Cancelled { stage }) => (
+            reason_code!("cancelled_no_claim"),
+            antecedent_core::reason_details::graph_imputation::CANCELLED,
+            stage.to_owned(),
+        ),
+        GraphImputationError::Engine(CausalError::Resource { message }) => (
+            reason_code!("execution_resource_limit"),
+            antecedent_core::reason_details::graph_imputation::RESOURCE_LIMIT,
+            message,
+        ),
         GraphImputationError::Engine(error) => {
             return crate::errors::value_error_of(&error_refusal(&error));
         }
         other => (
             reason_code!("invalid_argument"),
-            "graph_imputation.execution_refused",
+            antecedent_core::reason_details::graph_imputation::EXECUTION_REFUSED,
             other.to_string(),
         ),
     };

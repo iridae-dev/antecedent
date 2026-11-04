@@ -26,7 +26,7 @@
 //!   BMA interval against `θ_{g*}`. Scoring it against the aggregate 2.625
 //!   instead would over-cover by construction.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -332,7 +332,7 @@ fn bayesian_coverage(conditional: bool, test: &'static str) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
     frequentist_coverage(
         false,
@@ -342,7 +342,7 @@ fn static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage() {
     frequentist_coverage(
         true,
@@ -352,13 +352,13 @@ fn static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn static_graph_posterior_bayesian_ate_bma_nominal_90_coverage() {
     bayesian_coverage(false, "static_graph_posterior_bayesian_ate_bma_nominal_90_coverage");
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn static_graph_posterior_bayesian_cate_bma_nominal_90_coverage() {
     bayesian_coverage(true, "static_graph_posterior_bayesian_cate_bma_nominal_90_coverage");
 }

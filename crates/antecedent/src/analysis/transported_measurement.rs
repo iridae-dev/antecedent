@@ -83,49 +83,50 @@ use super::measurement_model::{
 };
 
 /// Detail of a retained receipt identity that is not the recomputed one.
-pub const DETAIL_TRANSPORT_RECEIPT_MISMATCH: &str = "measurement_model.transport_receipt_mismatch";
+pub const DETAIL_TRANSPORT_RECEIPT_MISMATCH: &str =
+    antecedent_core::reason_details::measurement_model::TRANSPORT_RECEIPT_MISMATCH;
 
 fn remedy_of(detail: &str) -> Option<&'static str> {
     Some(match detail {
-        "measurement_model.invariance_premise_required" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_PREMISE_REQUIRED => {
             "declare that the error parameters are invariant from a named source population, \
              declare the error differential by population, or establish a validation sample in \
              the target population"
         }
-        "measurement_model.invariance_not_declared" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_NOT_DECLARED => {
             "name every error parameter the correction uses as invariant; a premise about one \
              parameter does not support a correction that uses another"
         }
-        "measurement_model.invariance_target_mismatch" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_TARGET_MISMATCH => {
             "declare the invariance between the source population and the analysis population"
         }
-        "measurement_model.invariance_source_unknown" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_SOURCE_UNKNOWN => {
             "name a source population that has an established measurement model"
         }
-        "measurement_model.differential_population_unestablished" => {
+        antecedent_core::reason_details::measurement_model::DIFFERENTIAL_POPULATION_UNESTABLISHED => {
             "establish a validation sample in the target population; another population's \
              rates are not borrowed under a differential structure"
         }
-        "measurement_model.differential_axis_unsupported" => {
+        antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED => {
             "an error declared to depend on population or time is not carried by an \
              invariance premise; establish a model for the target"
         }
-        "measurement_model.regime_mismatch" => {
+        antecedent_core::reason_details::measurement_model::REGIME_MISMATCH => {
             "the premise covers the population only; supply a model established for the \
              analysis regime"
         }
-        "measurement_model.arm_mismatch" => {
+        antecedent_core::reason_details::measurement_model::ARM_MISMATCH => {
             "the premise covers the population only; supply a model established for the \
              analysis arm"
         }
-        "measurement_model.nothing_to_transport" => {
+        antecedent_core::reason_details::measurement_model::NOTHING_TO_TRANSPORT => {
             "correct the target data with its own replicates instead of carrying parameters"
         }
-        "measurement_model.posterior_bound_to_snapshot" => {
+        antecedent_core::reason_details::measurement_model::POSTERIOR_BOUND_TO_SNAPSHOT => {
             "an external posterior is bound to its source snapshot; request a posterior for \
              the target population from the provider"
         }
-        "measurement_model.no_model" => {
+        antecedent_core::reason_details::measurement_model::NO_MODEL => {
             "supply the measurement model established for a source population"
         }
         _ => return None,
@@ -374,7 +375,7 @@ pub fn transport_measurement_estimate(
     if ctx.cancellation.is_cancelled() {
         return Err(MeasurementModelRefusal {
             code: antecedent_core::reason_code!("cancelled_no_claim"),
-            detail: "measurement_model.cancelled".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::CANCELLED.to_owned(),
             message: "cancelled before a corrected functional was formed; this is not a \
                       verdict on the data"
                 .to_owned(),

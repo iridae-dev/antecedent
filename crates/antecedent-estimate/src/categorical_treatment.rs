@@ -279,28 +279,28 @@ pub(crate) fn validate_spec(
     if order.iter().any(String::is_empty) || distinct.len() != order.len() {
         return Err(refuse(
             invalid,
-            "categorical_treatment.invalid_level",
+            antecedent_core::reason_details::categorical_treatment::INVALID_LEVEL,
             "declared levels must be non-empty and distinct",
         ));
     }
     if order.len() < 2 {
         return Err(refuse(
             invalid,
-            "categorical_treatment.too_few_levels",
+            antecedent_core::reason_details::categorical_treatment::TOO_FEW_LEVELS,
             "a categorical treatment needs at least two declared levels",
         ));
     }
     if !distinct.contains(spec.reference.as_str()) {
         return Err(refuse(
             invalid,
-            "categorical_treatment.unknown_reference",
+            antecedent_core::reason_details::categorical_treatment::UNKNOWN_REFERENCE,
             &format!("the reference level `{}` is not a declared level", spec.reference),
         ));
     }
     if spec.min_level_rows == 0 {
         return Err(refuse(
             invalid,
-            "categorical_treatment.invalid_min_level_rows",
+            antecedent_core::reason_details::categorical_treatment::INVALID_MIN_LEVEL_ROWS,
             "min_level_rows must be at least one",
         ));
     }
@@ -309,14 +309,14 @@ pub(crate) fn validate_spec(
         if !distinct.contains(from.as_str()) || !distinct.contains(to.as_str()) {
             return Err(refuse(
                 invalid,
-                "categorical_treatment.unknown_level",
+                antecedent_core::reason_details::categorical_treatment::UNKNOWN_LEVEL,
                 &format!("the pairwise contrast `{from}` -> `{to}` names an undeclared level"),
             ));
         }
         if from == to || !pairs.insert((from.as_str(), to.as_str())) {
             return Err(refuse(
                 invalid,
-                "categorical_treatment.invalid_pair",
+                antecedent_core::reason_details::categorical_treatment::INVALID_PAIR,
                 &format!("the pairwise contrast `{from}` -> `{to}` is trivial or repeated"),
             ));
         }
@@ -324,7 +324,7 @@ pub(crate) fn validate_spec(
     if spec.monotonicity.is_some() && spec.scale == LevelScale::Unordered {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "categorical_treatment.monotonicity_requires_ordered",
+            antecedent_core::reason_details::categorical_treatment::MONOTONICITY_REQUIRES_ORDERED,
             "a monotonicity test needs ordered levels; unordered levels have no scale",
         ));
     }
@@ -343,7 +343,7 @@ pub(crate) fn count_levels(
     if input.levels.len() != input.outcome.len() {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "categorical_treatment.row_count_mismatch",
+            antecedent_core::reason_details::categorical_treatment::ROW_COUNT_MISMATCH,
             "the level labels do not have one entry per outcome row",
         ));
     }
@@ -352,7 +352,7 @@ pub(crate) fn count_levels(
         let Some(slot) = counts.get_mut(label.as_str()) else {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "categorical_treatment.undeclared_level",
+                antecedent_core::reason_details::categorical_treatment::UNDECLARED_LEVEL,
                 &format!("a row carries the undeclared level `{label}`"),
             ));
         };
@@ -364,14 +364,14 @@ pub(crate) fn count_levels(
         if rows == 0 {
             return Err(refuse(
                 reason_code!("arm_not_populated"),
-                "categorical_treatment.absent_level",
+                antecedent_core::reason_details::categorical_treatment::ABSENT_LEVEL,
                 &format!("declared level `{level}` has no rows"),
             ));
         }
         if rows < spec.min_level_rows {
             return Err(refuse(
                 reason_code!("arm_not_populated"),
-                "categorical_treatment.sparse_level",
+                antecedent_core::reason_details::categorical_treatment::SPARSE_LEVEL,
                 &format!(
                     "declared level `{level}` has {rows} rows, fewer than the declared minimum {}",
                     spec.min_level_rows
@@ -534,7 +534,7 @@ fn prepare_rows<'a>(
     let mismatch = |what: &str| {
         refuse(
             reason_code!("route_not_supported"),
-            "categorical_treatment.row_count_mismatch",
+            antecedent_core::reason_details::categorical_treatment::ROW_COUNT_MISMATCH,
             &format!("the {what} do not have one entry per outcome row"),
         )
     };
@@ -803,7 +803,7 @@ fn check_summary(
     let inconsistent = |message: &str| {
         refuse(
             reason_code!("invalid_argument"),
-            "categorical_treatment.summary_inconsistent",
+            antecedent_core::reason_details::categorical_treatment::SUMMARY_INCONSISTENT,
             message,
         )
     };
@@ -816,14 +816,14 @@ fn check_summary(
         if entry.rows == 0 {
             return Err(refuse(
                 reason_code!("arm_not_populated"),
-                "categorical_treatment.absent_level",
+                antecedent_core::reason_details::categorical_treatment::ABSENT_LEVEL,
                 &format!("declared level `{}` has no rows", entry.level),
             ));
         }
         if entry.rows < spec.min_level_rows {
             return Err(refuse(
                 reason_code!("arm_not_populated"),
-                "categorical_treatment.sparse_level",
+                antecedent_core::reason_details::categorical_treatment::SPARSE_LEVEL,
                 &format!(
                     "declared level `{}` has {} rows, fewer than the declared minimum {}",
                     entry.level, entry.rows, spec.min_level_rows

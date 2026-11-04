@@ -56,10 +56,12 @@ fn grid() -> DecisionInput {
             rng_id: "none:mean_grid".into(),
             estimate: MeanEstimate::Frequentist,
         },
-        &[SupportStatus::Supported, SupportStatus::OutsideEmpiricalSupport, SupportStatus::Supported],
-        &TrustEvidence::External(ExternalTrustState::ExternallyAttested {
-            attestor: "lab".into(),
-        }),
+        &[
+            SupportStatus::Supported,
+            SupportStatus::OutsideEmpiricalSupport,
+            SupportStatus::Supported,
+        ],
+        &TrustEvidence::External(ExternalTrustState::ExternallyAttested { attestor: "lab".into() }),
         TrustRequirement::Unrestricted,
     )
     .unwrap()
@@ -125,12 +127,17 @@ fn a_mixed_composition_scores_exactly_the_valid_actions_and_reports_the_predicte
         statuses,
         vec![
             ("wait", &ActionStatus::Evaluated),
-            ("treat", &reason(0, CoordinateIssue::BelowSupport(SupportStatus::OutsideEmpiricalSupport))),
+            (
+                "treat",
+                &reason(0, CoordinateIssue::BelowSupport(SupportStatus::OutsideEmpiricalSupport))
+            ),
             ("extend", &ActionStatus::Evaluated),
             ("ghost", &reason(0, CoordinateIssue::NotInSource)),
             (
                 "square",
-                &ActionStatus::Unevaluated { reason: UnevaluatedReason::NonAffineUtilityNeedsJointLaw }
+                &ActionStatus::Unevaluated {
+                    reason: UnevaluatedReason::NonAffineUtilityNeedsJointLaw
+                }
             ),
         ]
     );
@@ -151,7 +158,10 @@ fn requiring_every_action_refuses_with_exactly_the_three_unscored_actions_named(
     let refusal = error.to_refusal();
     assert_eq!(refusal.stage, "compose");
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
-    assert_eq!(refusal.detail, "composition_boundary.unsupported_action_not_comparable");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_boundary::UNSUPPORTED_ACTION_NOT_COMPARABLE
+    );
     assert_eq!(refusal.offending.as_deref(), Some("treat,ghost,square"));
     assert!(refusal.remedy.is_some());
     assert_eq!(refusal.validate(), Ok(()));

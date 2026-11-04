@@ -48,12 +48,14 @@ record_sha256 = "9d8da51376bf53a12fd60c6a2b9bad623465d83e7a0cde95e6329dab5b22538
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/effect_constancy.rs"
-sha256 = "ef3407e387b26de7357f71a961dd910eb0991c04223a9d9df9a3a7977f121b0f"
+items = ["const COVARIANCE_TOLERANCE", "const EFFECT_CONSTANCY_INFERENCE_CLAIM", "const EFFECT_CONSTANCY_NULL", "const NON_REJECTION_CAVEAT", "const POWER_CAVEAT", "enum CalibrationStatus", "enum ConstancyConclusion", "enum ContrastFamily", "enum HeterogeneityStatistic", "enum PartitionDependence", "enum PartitionSupport", "fn canonical_order", "fn cochran_q", "fn contrast_pairs", "fn contrast_reports", "fn holm_adjust", "fn quadratic_form", "fn test_effect_constancy", "fn validate_comparability", "fn validate_covariance", "fn validate_inputs", "fn wald_statistic", "struct ContrastReport", "struct EffectConstancyResult", "struct EffectEstimandIdentity", "struct HeterogeneityTest", "struct PartitionEstimate", "struct PartitionReport"]
+sha256 = "5acd77a2436910e2e72694451715c0b60199a82f3188f0255444b699d5c68fb4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/effect_constancy_reference.rs"
-sha256 = "f5f478a877fe96d055ac9db071e70409371825b7f84206e2bfe87e043f876503"
+items = ["fn agree", "fn estimand", "fn statistics_tails_and_holm_values_match_the_exact_definitions"]
+sha256 = "185e726e5727377c04af9934af65ac96c617f37956b0b9e4c8dcc06d294c7fd6"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -194,7 +194,7 @@ fn chain_zero_cell_is_a_positivity_refusal() {
     let error = evaluate_chain_recovery(&plan(IDS, &IDS, 0, true), &broken).unwrap_err();
     assert_eq!(error.detail, ChainRecoveryDetail::Positivity);
     assert_eq!(error.reason_code(), "transport_support_failure");
-    assert_eq!(error.detail.detail(), "recovery_chain.positivity");
+    assert_eq!(error.detail.detail(), antecedent_core::reason_details::recovery_chain::POSITIVITY);
 }
 
 #[test]
@@ -289,7 +289,10 @@ fn chain_posterior_refuses_a_mapped_prior() {
     let antecedent_estimate::EstimationError::Refused { message, .. } = error else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("chain_recovery_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::chain_recovery_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

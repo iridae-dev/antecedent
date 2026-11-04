@@ -184,7 +184,10 @@ fn an_unregistered_inner_callback_is_refused_and_registration_then_supports_the_
     // and is never assumed absent.
     let refused = run_outer(&mut f, &outer).expect_err("unregistered inner callbacks");
     assert_eq!(refused.refusal.code, antecedent_core::reason_code!("sampling_dependence_unknown"));
-    assert_eq!(refused.refusal.detail, "callback_protocol.nested_input_unregistered");
+    assert_eq!(
+        refused.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUT_UNREGISTERED
+    );
     assert_eq!(refused.refusal.offending.as_deref(), Some("left"));
     assert!(refused.refusal.remedy.is_some());
     assert_eq!(refused.invocations, 0);
@@ -195,7 +198,10 @@ fn an_unregistered_inner_callback_is_refused_and_registration_then_supports_the_
     // Registering only the first still leaves the second unnamed in the ledger.
     f.session.register(&left).expect("registers");
     let refused = run_outer(&mut f, &outer).expect_err("one inner callback unregistered");
-    assert_eq!(refused.refusal.detail, "callback_protocol.nested_input_unregistered");
+    assert_eq!(
+        refused.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUT_UNREGISTERED
+    );
     assert_eq!(refused.refusal.offending.as_deref(), Some("right"));
     assert_eq!(f.outer_calls.get(), 0);
 
@@ -224,7 +230,10 @@ fn one_inner_callback_feeding_two_inputs_counts_its_evidence_twice() {
 
     let refused = run_outer(&mut f, &outer).expect_err("the same inner callback twice");
     assert_eq!(refused.refusal.code, antecedent_core::reason_code!("evidence_double_counted"));
-    assert_eq!(refused.refusal.detail, "callback_protocol.nested_inputs_share_evidence");
+    assert_eq!(
+        refused.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUTS_SHARE_EVIDENCE
+    );
     assert_eq!(refused.refusal.offending.as_deref(), Some("left, right"));
     assert_eq!(refused.refusal.supplied.as_deref(), Some("1 shared observation(s)"));
     assert!(refused.refusal.remedy.is_some());
@@ -245,7 +254,10 @@ fn inner_callbacks_with_undeclared_evidence_are_unknown_overlap_not_independence
 
     let refused = run_outer(&mut f, &outer).expect_err("overlap of undeclared evidence is unknown");
     assert_eq!(refused.refusal.code, antecedent_core::reason_code!("sampling_dependence_unknown"));
-    assert_eq!(refused.refusal.detail, "callback_protocol.nested_input_overlap_unknown");
+    assert_eq!(
+        refused.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUT_OVERLAP_UNKNOWN
+    );
     assert_eq!(refused.refusal.offending.as_deref(), Some("left, right"));
     assert!(refused.refusal.remedy.is_some());
     assert_eq!(refused.invocations, 0);

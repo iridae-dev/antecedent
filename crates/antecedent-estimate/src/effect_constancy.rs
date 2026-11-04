@@ -251,12 +251,16 @@ fn quadratic_form(lower: &[f64], n: usize, x: &[f64]) -> f64 {
 fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), EstimationError> {
     let invalid = reason_code!("invalid_argument");
     if !(alpha > 0.0 && alpha < 1.0) {
-        return Err(refuse(invalid, "effect_constancy.invalid_alpha", "alpha must lie in (0, 1)"));
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::effect_constancy::INVALID_ALPHA,
+            "alpha must lie in (0, 1)",
+        ));
     }
     if partitions.len() < 2 {
         return Err(refuse(
             invalid,
-            "effect_constancy.too_few_partitions",
+            antecedent_core::reason_details::effect_constancy::TOO_FEW_PARTITIONS,
             "a constancy test needs at least two partitions",
         ));
     }
@@ -264,7 +268,7 @@ fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), E
         if !p.effect.is_finite() || !p.standard_error.is_finite() {
             return Err(refuse(
                 invalid,
-                "effect_constancy.non_finite_estimate",
+                antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE,
                 "an effect or standard error is not finite",
             ));
         }
@@ -272,7 +276,7 @@ fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), E
         if p.standard_error <= 0.0 || !variance.is_finite() || variance <= 0.0 {
             return Err(refuse(
                 invalid,
-                "effect_constancy.invalid_standard_error",
+                antecedent_core::reason_details::effect_constancy::INVALID_STANDARD_ERROR,
                 "a partition standard error is not positive",
             ));
         }
@@ -290,14 +294,14 @@ fn validate_comparability(partitions: &[PartitionEstimate]) -> Result<(), Estima
     {
         return Err(refuse(
             incompatible,
-            "effect_constancy.incompatible_partitions",
+            antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS,
             "partition and estimand identities must not be blank",
         ));
     }
     if partitions.iter().any(|p| &p.estimand != first) {
         return Err(refuse(
             incompatible,
-            "effect_constancy.incompatible_partitions",
+            antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS,
             "partitions estimate different effects (estimand, units, regime or population \
              differ); the global test is refused",
         ));
@@ -306,14 +310,14 @@ fn validate_comparability(partitions: &[PartitionEstimate]) -> Result<(), Estima
     if !partitions.iter().all(|p| labels.insert(p.label.as_str())) {
         return Err(refuse(
             incompatible,
-            "effect_constancy.incompatible_partitions",
+            antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS,
             "partition labels are not unique",
         ));
     }
     if partitions.iter().any(|p| p.support == PartitionSupport::Unsupported) {
         return Err(refuse(
             incompatible,
-            "effect_constancy.unsupported_partition",
+            antecedent_core::reason_details::effect_constancy::UNSUPPORTED_PARTITION,
             "a partition's coordinate is unsupported and cannot enter the test",
         ));
     }
@@ -327,7 +331,13 @@ fn validate_covariance(
 ) -> Result<(), EstimationError> {
     let invalid = reason_code!("invalid_argument");
     let k = partitions.len();
-    let bad = |message: &str| refuse(invalid, "effect_constancy.invalid_covariance", message);
+    let bad = |message: &str| {
+        refuse(
+            invalid,
+            antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE,
+            message,
+        )
+    };
     if covariance.len() != k * k {
         return Err(bad("the covariance is not k x k for the supplied partitions"));
     }
@@ -380,7 +390,7 @@ fn wald_statistic(effects: &[f64], covariance: &[f64]) -> Result<f64, Estimation
     let lower = antecedent_stats::cholesky_spd(&v, m).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
-            "effect_constancy.invalid_covariance",
+            antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE,
             "the covariance of the contrasts is not positive definite",
         )
     })?;
@@ -410,7 +420,7 @@ fn contrast_pairs(
             let at = labels.iter().position(|l| *l == reference.as_str()).ok_or_else(|| {
                 refuse(
                     reason_code!("invalid_argument"),
-                    "effect_constancy.unknown_reference",
+                    antecedent_core::reason_details::effect_constancy::UNKNOWN_REFERENCE,
                     "the reference partition is not among the declared partitions",
                 )
             })?;
@@ -434,7 +444,7 @@ fn contrast_reports(
         if !(variance.is_finite() && variance > 0.0) {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "effect_constancy.invalid_covariance",
+                antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE,
                 "a contrast has a non-positive variance",
             ));
         }
@@ -444,7 +454,7 @@ fn contrast_reports(
         if !difference.is_finite() || !z.is_finite() {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "effect_constancy.non_finite_estimate",
+                antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE,
                 "a contrast overflows at the supplied scale",
             ));
         }
@@ -531,7 +541,7 @@ pub fn test_effect_constancy(
     if !statistic.is_finite() || pooled_effect.is_some_and(|p| !p.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "effect_constancy.non_finite_estimate",
+            antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE,
             "the statistic overflows at the supplied scale",
         ));
     }

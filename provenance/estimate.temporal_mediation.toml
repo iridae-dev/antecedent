@@ -42,12 +42,14 @@ record_sha256 = "d7c7638f1c92c72fa5ef229879ca7e65db56283d0f505d5469a7c4ff575caf3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_mediation.rs"
-sha256 = "555740063b966d7c92b3ad5ac652589a9c27ec0bf9ed81b91df069dc4737b8a1"
+items = ["fn coefficient_covariance", "fn coefficient_variance", "fn column", "fn default", "fn estimate", "fn estimate_from_fit", "fn estimate_with_adjustment", "fn estimate_with_extras", "fn fit_design", "fn iid_se", "fn mediation_design", "fn new", "fn ols_fit_with_residuals", "fn ols_mechanism", "fn ols_two_col", "fn outcome_fit", "fn prepare_design_with_gaps", "fn reduced_fit", "fn treatment_lag", "fn validate", "fn with_allow_gaps", "fn with_allow_iid_sobel_se", "struct ContrastFit", "struct MediationDesign", "struct TemporalMediationEstimate", "struct TemporalMediationEstimator", "type OlsColumns", "type OlsFit"]
+sha256 = "8ac2b5be2d3155b91e63455c2ac54e9f7423e47de344918e96dd3207e69d9507"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_mediation_reference.rs"
-sha256 = "b898c648b72fd0eba72d6ed1a041b2b105cc18a16bd202d58bd3efab511efec0"
+items = ["fn a_declared_target_population_is_refused_and_extra_horizons_read_the_first", "fn close", "fn floats", "fn mediation_effects_and_standard_errors_match_the_exact_reference"]
+sha256 = "bd15578f3cf89e9d5be73210471a4a24f8c755634725b43fcd58c8288b4c96b4"
 
 [[method_review.artifacts]]
 role = "reference"

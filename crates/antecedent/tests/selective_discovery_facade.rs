@@ -254,7 +254,10 @@ fn a_resolved_structure_is_accepted_and_a_class_needs_a_declared_completion() {
     let acceptance = GraphAcceptance { declared_by: "reviewer".to_owned(), completion: None };
     let refusal = accepted_graph_stage_identity(&class.outcome, &acceptance).unwrap_err();
     assert_eq!(refusal.code, "discovered_structure_unresolved");
-    assert_eq!(refusal.detail, "selective_discovery.unresolved_structure");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::UNRESOLVED_STRUCTURE
+    );
     assert_eq!(refusal.unresolved_edges.len(), 3);
 
     // A declared completion is accepted, and its identity and label are part of the result.
@@ -274,7 +277,10 @@ fn a_resolved_structure_is_accepted_and_a_class_needs_a_declared_completion() {
     bounded.search_incomplete = true;
     bounded.bounded_search_receipts = vec![("pc.depth_budget".to_owned(), "exhausted".to_owned())];
     let refusal = accepted_graph_stage_identity(&bounded, &acceptance).unwrap_err();
-    assert_eq!(refusal.detail, "selective_discovery.search_incomplete");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::SEARCH_INCOMPLETE
+    );
     assert_eq!(refusal.bounded_search_receipts.len(), 1);
 }
 
@@ -513,7 +519,10 @@ fn a_discovered_structure_transport_request_returns_the_unresolved_edges() {
     let external = discovered_structure_refusal(&refusal);
     external.validate().unwrap();
     assert_eq!(external.code, "discovered_structure_unresolved");
-    assert_eq!(external.detail, "selective_discovery.unresolved_structure");
+    assert_eq!(
+        external.detail,
+        antecedent_core::reason_details::selective_discovery::UNRESOLVED_STRUCTURE
+    );
     let offending = external.offending.as_deref().unwrap();
     assert_eq!(offending.split(';').count(), 3);
     assert!(offending.contains("undirected_in_equivalence_class"));
@@ -541,7 +550,10 @@ fn a_fresh_process_resumes_from_the_artifact_only_with_the_raw_data() {
     // Fresh consumer: bytes and retained identity only, then the raw data.
     let artifact = SelectiveDiscoveryArtifact::from_bytes(&bytes, Some(&retained)).unwrap();
     let missing = StaticSelectiveDiscovery::resume(&contract, None, artifact.state(), &ctx());
-    assert_eq!(missing.unwrap_err().detail(), Some("selective_discovery.raw_data_missing"));
+    assert_eq!(
+        missing.unwrap_err().detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RAW_DATA_MISSING)
+    );
     let (resumed, report) =
         StaticSelectiveDiscovery::resume(&contract, Some(&data), artifact.state(), &ctx()).unwrap();
     assert_eq!(report.work.ci_tests_attempted, 0);
@@ -554,7 +566,10 @@ fn a_fresh_process_resumes_from_the_artifact_only_with_the_raw_data() {
     let other = table(250, 11);
     let err = StaticSelectiveDiscovery::resume(&contract, Some(&other), artifact.state(), &ctx())
         .unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.data_mismatch"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::DATA_MISMATCH)
+    );
 
     // A semantic mutation, resealed so the container is consistent: each statistic is a valid
     // statistic, and the replay reaches another graph than the recorded one.
@@ -567,7 +582,10 @@ fn a_fresh_process_resumes_from_the_artifact_only_with_the_raw_data() {
     let edited = SelectiveDiscoveryArtifact::from_bytes(&edited_bytes, None).unwrap();
     let err = StaticSelectiveDiscovery::resume(&contract, Some(&data), edited.state(), &ctx())
         .unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.replay_diverged"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::REPLAY_DIVERGED)
+    );
     // And a consumer that retained the identity refuses the resealed artifact outright.
     assert!(SelectiveDiscoveryArtifact::from_bytes(&edited_bytes, Some(&retained)).is_err());
 }

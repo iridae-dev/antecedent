@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import recalc_cell as rc
 from antecedent.errors import CausalError, CausalSerializationError
 from antecedent.execution import Execution
@@ -326,7 +327,7 @@ def test_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
     # An unsupported route cannot be exported either.
     with pytest.raises(RecalcRefusal) as info:
         session.export_frozen_scores()
-    assert info.value.detail == "recalc.retarget_not_supported"
+    assert info.value.detail == reason_details.recalc.RETARGET_NOT_SUPPORTED
     assert_registered_refusal(info.value)
 
 
@@ -338,7 +339,7 @@ def test_cell_refusals_run_no_work_and_leave_the_session_usable() -> None:
     cold = CellSession()
     with pytest.raises(RecalcRefusal) as info:
         require_success(cold.execute(bad, execution=Execution(seed=SEED)))
-    assert info.value.detail == "recalc.invalid_adjustment_set"
+    assert info.value.detail == reason_details.recalc.INVALID_ADJUSTMENT_SET
     assert_registered_refusal(info.value)
     assert not cold.is_live
     assert Stage.GRAPH not in cold.identities
@@ -350,7 +351,7 @@ def test_cell_refusals_run_no_work_and_leave_the_session_usable() -> None:
                 replace(base, adjustment=("z", "y")), execution=Execution(seed=SEED)
             )
         )
-    assert info.value.detail == "recalc.invalid_adjustment_set"
+    assert info.value.detail == reason_details.recalc.INVALID_ADJUSTMENT_SET
 
     # Nothing is exportable before a run.
     with pytest.raises(RecalcNoLiveState):
@@ -539,7 +540,7 @@ def test_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None:
         with pytest.raises(ScoreResumeUnavailable) as info:
             resumed.retarget(**arguments)  # type: ignore[arg-type]
         error = info.value
-        assert error.detail == "recalc.unavailable_data", what
+        assert error.detail == reason_details.recalc.UNAVAILABLE_DATA, what
         assert error.missing == "data", what
         assert error.reason_code == "score_table_unavailable", what
         assert error.stage == "data_snapshot", what
@@ -569,15 +570,15 @@ def test_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None:
     swapped[[0, 1]] = swapped[[1, 0]]
     with pytest.raises(ScoreResumeRefusal) as info:
         resumed.retarget(TargetWeights(ones, ("z",)), row_ids=swapped)
-    assert info.value.detail == "recalc.row_ids_mismatch"
+    assert info.value.detail == reason_details.recalc.ROW_IDS_MISMATCH
     with pytest.raises(ScoreResumeRefusal) as info:
         resumed.retarget(TargetWeights(np.ones(10), ("z",)))
-    assert info.value.detail == "recalc.row_count_mismatch"
+    assert info.value.detail == reason_details.recalc.ROW_COUNT_MISMATCH
 
     # A derived stage cannot be declared as a changed input.
     with pytest.raises(ScoreResumeRefusal) as info:
         resumed.retarget(declared_changes={Stage.LAW: "cheat"})
-    assert info.value.detail == "recalc.invalid_changed_input"
+    assert info.value.detail == reason_details.recalc.INVALID_CHANGED_INPUT
 
     # Weights that depend on a treatment are refused by the estimator's own gate, and the
     # session returns to the artifact.
@@ -611,7 +612,7 @@ def test_cell_resume_refuses_resealed_foreign_or_corrupt_artifact_bytes() -> Non
     assert rc.resume_from_scores(foreign, **resume).identity == foreign.identity
     with pytest.raises(ScoreResumeRefusal) as info:
         rc.resume_from_scores(foreign, expected_identity=frozen.identity, **resume)
-    assert info.value.detail == "frozen_scores.identity_mismatch"
+    assert info.value.detail == reason_details.frozen_scores.IDENTITY_MISMATCH
     assert_registered_refusal(info.value)
     with pytest.raises(ScoreResumeRefusal):
         rc.FrozenScores.load(bytes(foreign.export()), expected_identity=frozen.identity)

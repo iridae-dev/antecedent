@@ -185,7 +185,7 @@ impl CrossWorldExecution {
         Err(closed_reading(
             antecedent_core::reason_code!("sampling_dependence_unknown"),
             "interval",
-            "cross_world_execution.no_interval_method",
+            antecedent_core::reason_details::cross_world_execution::NO_INTERVAL_METHOD,
         ))
     }
 
@@ -202,7 +202,7 @@ impl CrossWorldExecution {
         Err(closed_reading(
             antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             "posterior",
-            "cross_world_execution.no_posterior_method",
+            antecedent_core::reason_details::cross_world_execution::NO_POSTERIOR_METHOD,
         ))
     }
 }
@@ -268,7 +268,7 @@ impl WholePathAccount {
                 refusal: antecedent_contract::StructuredRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
                     "cross_world_uncertainty",
-                    "cross_world_uncertainty.account_mismatch",
+                    antecedent_core::reason_details::cross_world_uncertainty::ACCOUNT_MISMATCH,
                 )
                 .with_remedy(
                     "derive the account from the consumed execution; a stored account is \

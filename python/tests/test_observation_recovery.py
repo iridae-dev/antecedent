@@ -14,6 +14,7 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
@@ -195,7 +196,7 @@ def test_refresh_rebinds_the_snapshot_law_and_re_executes_the_retained_plan():
     with pytest.raises(CausalUnsupportedError) as refused:
         require_success(prepared.refresh(observed_law(snapshot="snap-2")))
     assert refused.value.reason_code == "invalid_argument"
-    assert "recovery.invalid_observed_law" in str(refused.value)
+    assert reason_details.recovery.INVALID_OBSERVED_LAW in str(refused.value)
 
 
 def test_export_binds_names_and_the_consumer_recomputes_after_builder_disposal():
@@ -243,12 +244,14 @@ def test_self_censoring_is_nonrecoverable_with_a_verified_witness():
     with pytest.raises(CausalUnsupportedError) as refused:
         stage.prepare_exact(observed_law(self_censoring=True))
     assert refused.value.reason_code == "transport_proven_non_transportable"
-    assert "recovery.nonrecoverable_witness" in str(refused.value)
+    assert reason_details.recovery.NONRECOVERABLE_WITNESS in str(refused.value)
 
 
 def test_counted_laws_are_not_supported_on_the_recovery_route():
     stage = decide()
-    with pytest.raises(CausalUnsupportedError, match="recovery.empirical_not_supported") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.recovery.EMPIRICAL_NOT_SUPPORTED
+    ) as refused:
         stage.prepare_empirical(observed_law(), REQUESTS)
     assert refused.value.reason_code == "route_not_supported"
 
@@ -257,7 +260,7 @@ def test_separate_marginals_refuse_as_a_missing_margin():
     with pytest.raises(CausalUnsupportedError) as refused:
         decide(catalog=catalog(distribution="separate_marginals"))
     assert refused.value.reason_code == "transport_missing_evidence"
-    assert "recovery.missing_margin" in str(refused.value)
+    assert reason_details.recovery.MISSING_MARGIN in str(refused.value)
 
 
 def test_proxy_relabelling_is_refused_never_aligned():
@@ -270,14 +273,14 @@ def test_proxy_relabelling_is_refused_never_aligned():
             graph=graph(), query=query(swapped), catalog=catalog()
         )
     assert refused.value.reason_code == "invalid_argument"
-    assert "recovery.invalid_query" in str(refused.value)
+    assert reason_details.recovery.INVALID_QUERY in str(refused.value)
 
 
 def test_budget_stop_is_a_receipt_never_a_verdict():
     with pytest.raises(CausalUnsupportedError) as refused:
         decide(max_operations=3)
     assert refused.value.reason_code == "transport_budget_cancel"
-    assert "recovery.budget" in str(refused.value)
+    assert reason_details.recovery.BUDGET in str(refused.value)
 
 
 def test_python_values_are_validated():

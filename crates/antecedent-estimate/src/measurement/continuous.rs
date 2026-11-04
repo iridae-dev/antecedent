@@ -335,7 +335,7 @@ pub struct CorrectedContinuousEffect {
 fn invalid(message: impl Into<String>) -> MeasurementError {
     MeasurementError::new(
         antecedent_core::reason_code!("invalid_argument"),
-        "measurement_model.input_invalid",
+        antecedent_core::reason_details::measurement_model::INPUT_INVALID,
         message,
     )
 }
@@ -343,7 +343,7 @@ fn invalid(message: impl Into<String>) -> MeasurementError {
 fn not_identified(message: &str) -> MeasurementError {
     MeasurementError::new(
         antecedent_core::reason_code!("measurement_not_identified"),
-        "measurement_model.error_variance_not_identified",
+        antecedent_core::reason_details::measurement_model::ERROR_VARIANCE_NOT_IDENTIFIED,
         SUPPLY_REPLICATES_OR_VALIDATION.append_to(message),
     )
 }
@@ -351,7 +351,7 @@ fn not_identified(message: &str) -> MeasurementError {
 fn cancelled() -> MeasurementError {
     MeasurementError::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "measurement_model.cancelled",
+        antecedent_core::reason_details::measurement_model::CANCELLED,
         "cancelled before a corrected functional was formed; this is not a verdict on the data",
     )
 }
@@ -360,7 +360,7 @@ fn continuous_error(error: &MeasurementErrorError) -> MeasurementError {
     match error {
         MeasurementErrorError::OutcomeModelNotFitted(why) => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.outcome_model_not_fitted",
+            antecedent_core::reason_details::measurement_model::OUTCOME_MODEL_NOT_FITTED,
             format!("the corrected outcome model could not be fitted: {why}"),
         ),
         other => stats_error(other),
@@ -375,7 +375,7 @@ fn admit(ctx: &ExecutionContext, bytes: Option<usize>) -> Result<AdmissionLease,
         AdmissionError::Cancelled => cancelled(),
         other => MeasurementError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "measurement_model.admission_refused",
+            antecedent_core::reason_details::measurement_model::ADMISSION_REFUSED,
             format!(
                 "the admission pool cannot fund {bytes} bytes of correction and bootstrap buffers: {other}; nothing was allocated"
             ),
@@ -620,7 +620,7 @@ fn error_source(model: &MeasurementModel, cols: &Columns) -> Result<Source, Meas
             if replicated < needed {
                 return Err(MeasurementError::new(
                     antecedent_core::reason_code!("measurement_not_identified"),
-                    "measurement_model.insufficient_replicates",
+                    antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES,
                     SUPPLY_REPLICATES_OR_VALIDATION.append_to(&format!(
                         "{replicated} units carry two or more replicates; the model declares at least {needed}"
                     )),
@@ -732,7 +732,7 @@ pub fn correct_continuous_error(
     match (spec.location, spec.link) {
         (ErrorLocation::Outcome, OutcomeLink::Logit) => Err(MeasurementError::new(
             antecedent_core::reason_code!("route_not_supported"),
-            "measurement_model.binary_outcome_continuous_error",
+            antecedent_core::reason_details::measurement_model::BINARY_OUTCOME_CONTINUOUS_ERROR,
             USE_BINARY_MISCLASSIFICATION.append_to(
                 "a logit outcome model has a 0/1 outcome, which cannot carry additive continuous error",
             ),
@@ -968,7 +968,7 @@ fn bootstrapped(
     if f64::from(failed) > allowed || estimates.len() < 2 {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.bootstrap_unstable",
+            antecedent_core::reason_details::measurement_model::BOOTSTRAP_UNSTABLE,
             format!(
                 "{failed} of {requested} bootstrap replicates of the correction failed (a reliability at or below the floor or an outcome model that does not fit in a resample); the procedure is too unstable on these data to report a variance"
             ),

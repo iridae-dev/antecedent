@@ -59,7 +59,28 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/src/cox_ipcw.rs",
-          "sha256": "e44f70cf91cc03751b47c9497ad1d703517f39725b6f48667551329b4234b0b4"
+          "items": [
+            "enum Stopping",
+            "fn baseline_at",
+            "fn baseline_before",
+            "fn breslow_converges_on_a_large_exponential_sample_with_discrete_covariates",
+            "fn breslow_fit_agrees_with_the_censoring_fit_it_generalizes",
+            "fn covariate_free_breslow_baseline_is_nelson_aalen",
+            "fn cox_breslow",
+            "fn cox_ipcw",
+            "fn evaluate",
+            "fn executing_survival_oracle",
+            "fn fit_standardized",
+            "fn invalid",
+            "fn linear_predictor",
+            "fn new",
+            "fn reset_accumulators",
+            "struct CoxBreslowFit",
+            "struct CoxIpcwFit",
+            "struct CoxScratch",
+            "struct StandardizedCox"
+          ],
+          "sha256": "a9f47e16657ffbe35c3b2a1d760392c49744798e3720cb04493d6dc818b0e243"
         }
       ],
       "fixture_payload_sha256": "233775ed640dbd84449a1cdebbaa6d5bf1cc4124071a796d8e7ea2169fb29949"

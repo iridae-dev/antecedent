@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cohort_decision as cd
 from antecedent import decision
 from antecedent import inverse_query as iq
@@ -137,7 +138,7 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
         lambda: require_success(source.evaluate(query(arms, [iq.target_quantile(0.5, 1.0)])))
     )
     assert quantile.reason_code == "decision_contract_unsatisfied"
-    assert quantile.detail == "inverse_forward_source.composed_law_not_materialized"
+    assert quantile.detail == reason_details.inverse_forward_source.COMPOSED_LAW_NOT_MATERIALIZED
     assert quantile.remedy
 
     interval = refusal_of(
@@ -146,7 +147,7 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
         )
     )
     assert interval.reason_code == "uncertainty_representation_insufficient"
-    assert interval.detail == "inverse_forward_source.interval_not_supported"
+    assert interval.detail == reason_details.inverse_forward_source.INTERVAL_NOT_SUPPORTED
 
     # A finite-distribution query of a linear-Gaussian composition is refused by the composition.
     wrong = [contrast_action("0")]
@@ -154,7 +155,7 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
         lambda: require_success(src.derive_composed_source(compose(finite_chain()), wrong))
     )
     assert wrong_family.reason_code == "route_not_supported"
-    assert wrong_family.detail == "mechanism_composition.request_unsupported"
+    assert wrong_family.detail == reason_details.mechanism_composition.REQUEST_UNSUPPORTED
 
 
 def uncertain_chain() -> list[mc.Mechanism]:
@@ -217,8 +218,8 @@ def test_a_mean_contrast_action_keeps_the_compositions_own_typed_refusal() -> No
         )
     )
     assert error.reason_code == "joint_law_required"
-    assert error.detail == "mechanism_composition.posterior_dependence_unknown"
-    assert error.detail != "inverse_forward_source.origin_invalid"
+    assert error.detail == reason_details.mechanism_composition.POSTERIOR_DEPENDENCE_UNKNOWN
+    assert error.detail != reason_details.inverse_forward_source.ORIGIN_INVALID
     assert error.remedy
 
     # Mechanisms that report no parameter law at all refuse the same contrast with the
@@ -232,7 +233,7 @@ def test_a_mean_contrast_action_keeps_the_compositions_own_typed_refusal() -> No
     )
     assert bare.detail.startswith("mechanism_composition.")
     assert bare.reason_code in {"joint_law_required", "mechanism_composition_incoherent"}
-    assert bare.detail != "inverse_forward_source.origin_invalid"
+    assert bare.detail != reason_details.inverse_forward_source.ORIGIN_INVALID
 
     # The intervention-law query of the same mechanisms is a replayed point:
     # E[Y | do(X = 1)] = 7 and E[Y | do(X = 2)] = 13.5 against a target of 10.
@@ -263,7 +264,7 @@ def test_a_contrast_of_a_finite_composition_is_an_unsupported_request() -> None:
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "mechanism_composition.request_unsupported"
+    assert error.detail == reason_details.mechanism_composition.REQUEST_UNSUPPORTED
     assert error.remedy
     assert "x0" in (error.offending or "")
 
@@ -300,7 +301,7 @@ def test_a_finite_composition_supplies_the_exact_law_of_each_action() -> None:
     # Each action is its own intervention: no single claim exists to seal, so each action is
     # sealed separately and bound to its own claim.
     unsealable = refusal_of(lambda: require_success(source.seal(mean)))
-    assert unsealable.detail == "inverse_forward_source.per_action_not_sealable"
+    assert unsealable.detail == reason_details.inverse_forward_source.PER_ACTION_NOT_SEALABLE
     sealed = require_success(source.seal_per_action(mean))
     assert set(sealed) == {"x0", "x1"}
     assert sealed["x0"].identity != sealed["x1"].identity
@@ -313,7 +314,7 @@ def test_an_uncoded_finite_outcome_is_refused_with_its_level_coding() -> None:
         lambda: require_success(src.derive_composed_source(composition, finite_actions({"1": 1.0})))
     )
     assert error.reason_code == "mechanism_composition_incoherent"
-    assert error.detail == "inverse_forward_source.composed_level_coding"
+    assert error.detail == reason_details.inverse_forward_source.COMPOSED_LEVEL_CODING
 
 
 # --------------------------------------------------------------------------- admitted
@@ -357,7 +358,7 @@ def test_a_composition_with_admitted_mechanisms_is_a_transported_claim() -> None
             src.derive_composed_source(composition, gaussian_actions(), accepts_transported=True)
         )
     )
-    assert missing.detail == "inverse_forward_source.composed_response_invalid"
+    assert missing.detail == reason_details.inverse_forward_source.COMPOSED_RESPONSE_INVALID
 
     # A consumer that accepts only native target data refuses it.
     native = refusal_of(
@@ -368,7 +369,7 @@ def test_a_composition_with_admitted_mechanisms_is_a_transported_claim() -> None
         )
     )
     assert native.reason_code == "decision_contract_unsatisfied"
-    assert native.detail == "inverse_forward_source.transported_not_accepted"
+    assert native.detail == reason_details.inverse_forward_source.TRANSPORTED_NOT_ACCEPTED
 
     source = require_success(
         src.derive_composed_source(
@@ -409,7 +410,7 @@ def test_a_transported_response_is_read_only_when_accepted_and_carries_its_recei
     response = action_response()
     # A consumer that accepts only native target data refuses it.
     native = refusal_of(lambda: src.transported_forward_source(response))
-    assert native.detail == "inverse_forward_source.transported_not_accepted"
+    assert native.detail == reason_details.inverse_forward_source.TRANSPORTED_NOT_ACCEPTED
 
     source = src.transported_forward_source(response, accepts_transported=True)
     assert source.origin.kind == "transported_response"
@@ -430,11 +431,11 @@ def test_a_transported_response_is_read_only_when_accepted_and_carries_its_recei
     quantile = refusal_of(
         lambda: require_success(source.evaluate(query(("a", "b"), [iq.target_quantile(0.5, 1.0)])))
     )
-    assert quantile.detail == "inverse_forward_source.point_only_law_requested"
+    assert quantile.detail == reason_details.inverse_forward_source.POINT_ONLY_LAW_REQUESTED
     interval = refusal_of(
         lambda: require_success(source.evaluate(contract_query, interval_region=True))
     )
-    assert interval.detail == "inverse_forward_source.interval_not_supported"
+    assert interval.detail == reason_details.inverse_forward_source.INTERVAL_NOT_SUPPORTED
 
     # The sealed artifact binds the whole receipt: another transport at the same values is
     # another artifact.
@@ -542,7 +543,7 @@ def test_observational_scenarios_are_associational_and_re_derive() -> None:
     # A stored result of another law does not replay.
     other = observed_law(outcome=[1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0])
     mismatch = refusal_of(lambda: result.verify(other))
-    assert mismatch.detail == "inverse_observational_scenarios.result_mismatch"
+    assert mismatch.detail == reason_details.inverse_observational_scenarios.RESULT_MISMATCH
 
 
 def test_an_observational_result_is_not_an_inverse_source() -> None:
@@ -617,14 +618,14 @@ def test_a_cohort_contrast_is_a_point_source_with_its_own_law_refusal() -> None:
     refused = refusal_of(
         lambda: require_success(source.evaluate(cohort_query(cohort, iq.target_quantile(0.5, 1.0))))
     )
-    assert refused.detail == "inverse_forward_source.point_only_law_requested"
+    assert refused.detail == reason_details.inverse_forward_source.POINT_ONLY_LAW_REQUESTED
 
 
 def test_a_shifted_cohort_is_a_transported_source_only_when_accepted() -> None:
     cohort = cohort_source(shifted=True)
     unaccepted = refusal_of(lambda: src.cohort_forward_source(cohort))
     assert unaccepted.reason_code == "decision_contract_unsatisfied"
-    assert unaccepted.detail == "inverse_forward_source.transported_not_accepted"
+    assert unaccepted.detail == reason_details.inverse_forward_source.TRANSPORTED_NOT_ACCEPTED
     source = src.cohort_forward_source(cohort, accepts_transported=True)
     assert source.origin.transported
     assert source.origin.support == "extrapolative"
@@ -640,4 +641,4 @@ def test_a_shifted_cohort_is_a_transported_source_only_when_accepted() -> None:
     with pytest.raises(tr.TransportedResponseRefusal) as native:
         tr.TransportedResponse.from_shifted_cohort(cohort_source())
     assert_registered_refusal(native.value)
-    assert native.value.detail == "transported_decision.not_transported"
+    assert native.value.detail == reason_details.transported_decision.NOT_TRANSPORTED

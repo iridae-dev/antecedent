@@ -23,32 +23,38 @@ record_sha256 = "1f9c4c36e31996a3de1449670678fa42c4bccf2fbc85b3087b115edc96ce040
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_sequential.rs"
-sha256 = "a86133283adae44ddb93ab3afb9728dd3bbcda2d8e3343d7ab379841567e4dd4"
+items = ["const SEQUENTIAL_BLOCK_STREAM", "enum SequentialEval", "fn append_design_columns", "fn assigned", "fn block_bootstrap_estimate", "fn block_length", "fn build_with_gaps", "fn coefficients_of", "fn dependence_block_length_with", "fn estimate", "fn estimate_sequence_mechanisms", "fn estimate_sequential", "fn estimate_sequential_with_gaps", "fn estimate_sustained_window", "fn estimate_sustained_window_gaps_if", "fn estimate_sustained_window_gaps_if_within", "fn estimate_sustained_window_with_gaps", "fn estimate_sustained_window_with_validation", "fn evaluate", "fn evaluate_into", "fn extend_mechanism_design", "fn fit_full", "fn fit_ols", "fn from", "fn gradient", "fn influence", "fn influence_from", "fn linear_natural", "fn marginal_parent_slope", "fn mean_target_assumption", "fn modifier_mean", "fn normal_equation_scores_of", "fn propagate", "fn propagate_linear_level", "fn root_mean_gradient", "fn root_mean_scores", "fn sustained_contrast_overlays", "fn weight_sequential_windows", "struct BayesianComposition", "struct FullFit", "struct SequenceTarget", "struct SequentialBayesianMechanism", "struct SequentialContrastDesign", "struct SequentialInference", "struct SequentialMechanismOverlay", "struct SequentialNodeOverlay", "struct SequentialProblem", "struct SequentialSetup", "struct SustainedOverlays"]
+sha256 = "68b351959c2d64ad6fe885fdcfeeddcb8ee075fa1f508f14b32c6d1e9e682081"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_block.rs"
-sha256 = "3222a823c1a808cd53c2b150b5b6a06b0e3244bd1bed8b05a0b9984523ea8392"
+items = ["fn tag"]
+sha256 = "41bf65d7af532f41f639c0d782d013216242e1ca1e9ca34a41fcbada0d6aff49"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/ar_kernel.rs"
-sha256 = "381a1302fab997dd660a7b1bc765dcffaf5735b655db181b6b0e75f95b4db30d"
+items = ["module"]
+sha256 = "b332d46916cec856f140a27a41d20091f8322270bbec071d10cb07ee4f0aae7c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/serial_dependence.rs"
-sha256 = "e850fdc3a51c51e1f4249736e986f336589f6afd9ba641c224ea66efa69adb5f"
+items = ["const DELTA_STEP", "const DEPENDENCE_NOTE_PREFIX", "const EXACT_FIT_RELATIVE_SS", "const MAX_PARTIAL_AUTOCORRELATION", "const NEWTON_POLISH_SLACK", "const NEWTON_POLISH_STEPS", "const NEWTON_POLISH_TOL", "const Q", "const SIMPLEX_F_TOL", "const SIMPLEX_ITERATIONS_PER_DIM", "const SIMPLEX_STEP", "const SIMPLEX_X_TOL", "fn block", "fn cholesky", "fn cholesky_into", "fn cholesky_solve", "fn coefficients", "fn correlate", "fn effective_rows", "fn from_coefficients", "fn from_z", "fn information_matrix", "fn nelder_mead", "fn new", "fn newey_west_bandwidth", "fn newton_polish", "fn note", "fn observed_information", "fn order", "fn pacf_to_phi", "fn pacf_to_phi_into", "fn projected_trace", "fn recolour", "fn recolour_any", "fn recolour_transpose", "fn recolour_transpose_any", "fn reml_autoregression", "fn reml_kernel_bytes", "fn reml_log_likelihood", "fn reml_poll", "fn solve_into", "fn solve_transpose_into", "fn tempering_kappa_from_notes", "fn whitened_gram", "fn z_to_phi", "struct ArErrorModel", "struct RemlKernel", "struct Whitener", "type Vertex"]
+sha256 = "95f6a0424835fd88ffa0aa17a0ae9e90c40e5a4c7dd1a5a36b7eced9ce4afe6d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
+items = ["module"]
+sha256 = "f4749add3cb784e1c14c23880b7e8acf318e66443e5da22d6a34c5f37a88ab92"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_sequential_reference.rs"
-sha256 = "0e8aa0153d96045871ca1b4ccee9ff8f3f21cf18b2f5caa4f944c8f748ec7d6f"
+items = ["const A", "const BLOCK_STREAM", "const CTX_SEED", "const DRAWS", "const M", "const PRIOR_SCALE", "const REPLICATES", "const Y", "const Z", "fn bayes_estimator", "fn bayes_run", "fn ctx", "fn estimate_case", "fn floats", "fn graph", "fn identify_contrast", "fn identify_schedule", "fn inference", "fn kappas_by_rows", "fn overlays_of", "fn point_case", "fn problem", "fn reference", "fn regenerated_rows", "fn schedule_of", "fn series", "fn series_with", "fn temporal_sequential_dump_reference_inputs", "fn window_query", "fn window_query_over", "struct Identified"]
+sha256 = "54f8b492d4f3659f7d0109e1911453aac376ef39b8616d5a371aa5107f9432c7"
 
 [[method_review.artifacts]]
 role = "reference"

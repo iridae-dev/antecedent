@@ -134,7 +134,7 @@ fn replicate(rep: u64, levels: usize) -> Replicate {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn categorical_conjugate_contrast_prior_predictive_interval() {
     let runs: Vec<Vec<Replicate>> = map_replicates(n_sim(), |rep| {
         (MIN_LEVELS..=MAX_LEVELS).map(|levels| replicate(rep, levels)).collect()

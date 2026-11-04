@@ -30,7 +30,33 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/src/idc.rs",
-          "sha256": "b384693e8ba8f7d9eed4b66c82361fe1fd6d3b5c105b5b3c162679b60ad74495"
+          "items": [
+            "enum IdcOk",
+            "fn conditional_records_causal_markov",
+            "fn distribution_query_from_sets",
+            "fn drop_outgoing_from",
+            "fn idc_fixture_cases_drive_the_identifier",
+            "fn idc_recurse",
+            "fn identify",
+            "fn identify_conditional",
+            "fn identify_conditional_with",
+            "fn independent_in_mutilated",
+            "fn intern_bitset_vars",
+            "fn mutilate_bar_x",
+            "fn mutilate_bar_x_underline_z",
+            "fn new",
+            "fn prepare_dag",
+            "fn review_intervention_cuts_latent_parent_arrowheads",
+            "fn review_three_node_surgery_matches_explicit_latent_dags",
+            "fn surgical_candidate_matches_rebuilding_it",
+            "fn unconditional_matches_id",
+            "fn y_separated_from",
+            "struct ConditionalRequest",
+            "struct IdcIdentifier",
+            "struct IdcProblem",
+            "struct IdcRun"
+          ],
+          "sha256": "d57498d9051d79a55ca20ea113f97f6e8ec4dadb52968a22da40d387803823df"
         }
       ],
       "sources": [],

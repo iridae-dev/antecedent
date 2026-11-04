@@ -42,9 +42,11 @@ record_sha256 = "ba196d5a11a0c5e09768b8bc0ac56933d3fe26f343cc6512856a0e5f553de2b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/ranker.rs"
-sha256 = "6f050d88acea6d04166adb1169e850e88cf9c93b0d9954c9f2c30f88edffe0e3"
+items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn baseline_treatment_se", "fn check_constraints", "fn critical_value", "fn default", "fn draw", "fn evaluation", "fn exact_expectation", "fn exact_gain", "fn filter_active_candidates", "fn gram_side_len", "fn likelihood", "fn model_distinguish_score", "fn model_pair_rows", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn posterior_entropy", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn score", "fn treatment_se", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_channel_context", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DecisionScoring", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
+sha256 = "75e48eb6a11b1d0b6af355a30761af0a3f6dcb54f4d6f29cfb76a3453dd86f75"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/model_distinguish_reference.rs"
-sha256 = "43750b9d8d71e5687fb723d3ec528f18c9bf294edefb58221ec66a105931cfd0"
+items = ["const TABLE", "fn contexts_that_cannot_be_scored_are_refused", "fn graphs", "fn measure", "fn rank", "fn reliability_measure", "fn score_is_reliability_times_mean_pairwise_gap_over_the_table", "fn table"]
+sha256 = "ef3184f5969d2b3c9ccda53b30d81541c2346a8a02fa51a0bc8bf03a44c7b212"

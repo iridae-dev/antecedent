@@ -124,7 +124,36 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/lag_zero_average_effect_truth.rs",
-          "sha256": "ade6b93255ffb8693c22300848a0ca45cfe9e46a46c2064f7a0c6e9db93b1e16"
+          "items": [
+            "const FIXTURE",
+            "const N",
+            "enum Class",
+            "enum Structure",
+            "fn assert_cell",
+            "fn bare",
+            "fn bayesian",
+            "fn dag",
+            "fn ends",
+            "fn inference_name",
+            "fn lag_bit",
+            "fn lag_zero_average_effect_cells_execute_from_the_retained_plan_with_the_builder_dropped",
+            "fn lag_zero_average_effect_is_the_explicit_pulse_and_the_adjustment_matters",
+            "fn lag_zero_average_effect_matches_the_structural_coefficient_on_every_temporal_cell",
+            "fn lag_zero_pulse",
+            "fn normals",
+            "fn pag",
+            "fn posterior",
+            "fn query",
+            "fn run",
+            "fn series",
+            "fn suite_name",
+            "fn truth",
+            "fn x",
+            "fn y",
+            "fn z",
+            "struct Truth"
+          ],
+          "sha256": "85a46fdffcb33845d4aed33390344cf9d1989624bfd0629f2ea2b1356df525b6"
         }
       ],
       "fixture_payload_sha256": "d29755e882019a29f2e68a2d3cfe7dc259fd65d5d2145f99620b030b2196d698"

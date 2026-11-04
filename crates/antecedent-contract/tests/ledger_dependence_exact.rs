@@ -20,11 +20,9 @@ use antecedent_contract::{
 
 fn source(ledger: &mut EvidenceLedger, label: &str, rows: &[u8]) -> SourceId {
     ledger
-        .add_source(
-            SourceDeclaration::new(label, SourceKind::ObservationSet).with_observations(
-                rows.iter().copied().map(|r| ObservationId::from_key("trial", &[r])),
-            ),
-        )
+        .add_source(SourceDeclaration::new(label, SourceKind::ObservationSet).with_observations(
+            rows.iter().copied().map(|r| ObservationId::from_key("trial", &[r])),
+        ))
         .expect("source")
 }
 
@@ -105,7 +103,10 @@ fn declared_independence_is_accepted_only_for_the_row_disjoint_inputs() {
             &w.ledger,
         )
         .expect_err("a row is shared");
-        assert_eq!(error.detail, "joint_law_propagation.shared_evidence_declared_independent");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        );
     }
     // Three-way: a, c and d are pairwise row-disjoint, so independence holds for the triple.
     let triple = check_propagation_with_ledger(
@@ -134,7 +135,10 @@ fn q(name: &str) -> ScientificQuantity {
     }
 }
 
-fn pooled_pair(first: SourceId, second: SourceId) -> (Vec<InterfaceContract>, Vec<ComponentConnection>) {
+fn pooled_pair(
+    first: SourceId,
+    second: SourceId,
+) -> (Vec<InterfaceContract>, Vec<ComponentConnection>) {
     let producer = |name: &str, evidence: SourceId| InterfaceContract {
         component: name.into(),
         produces: vec![

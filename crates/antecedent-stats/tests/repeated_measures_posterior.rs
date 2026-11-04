@@ -248,20 +248,29 @@ fn unobserved_dependence_missing_structure_and_unobserved_arms_are_refused() {
         SelectionMechanism::DependsOnUnobserved,
     ))
     .unwrap_err();
-    assert_eq!(detail(error), "adaptive_inference.selection_not_ignorable");
+    assert_eq!(
+        detail(error),
+        antecedent_core::reason_details::adaptive_inference::SELECTION_NOT_IGNORABLE
+    );
 
     let undeclared =
         OutcomeStructure::RepeatedMeasures { measurements: 3, variance: 2.0, correlation: None };
     let error =
         repeated_measures_posterior(&request(&undeclared, &data, SelectionMechanism::Fixed))
             .unwrap_err();
-    assert_eq!(detail(error), "adaptive_inference.structure_incomplete");
+    assert_eq!(
+        detail(error),
+        antecedent_core::reason_details::adaptive_inference::STRUCTURE_INCOMPLETE
+    );
 
     let only_arm_one: Vec<UnitRecord<'static>> = units(0.5).into_iter().skip(3).collect();
     let error =
         repeated_measures_posterior(&request(&structure, &only_arm_one, SelectionMechanism::Fixed))
             .unwrap_err();
-    assert_eq!(detail(error), "adaptive_inference.arm_not_observed");
+    assert_eq!(
+        detail(error),
+        antecedent_core::reason_details::adaptive_inference::ARM_NOT_OBSERVED
+    );
 
     let short = [1.0, 2.0];
     let wrong_length =

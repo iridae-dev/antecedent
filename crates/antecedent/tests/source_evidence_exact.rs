@@ -135,7 +135,8 @@ fn the_native_means_and_projected_action_utilities_follow_the_hand_derivation() 
     assert!(near(mean[1], 2.0), "{}", mean[1]);
 
     let contract = contract(&c);
-    let snapshot = antecedent_core::to_hex(&original.contract.as_ref().unwrap().identities.data_snapshot);
+    let snapshot =
+        antecedent_core::to_hex(&original.contract.as_ref().unwrap().identities.data_snapshot);
     let means = MeanSource {
         coordinates: c.clone(),
         means: mean.clone(),
@@ -153,10 +154,7 @@ fn the_native_means_and_projected_action_utilities_follow_the_hand_derivation() 
 
     // The source vouches for exactly these means, and for no other bits.
     let projected = source
-        .project(
-            &contract_to_json(&contract).unwrap(),
-            &["a0".into(), "a1".into(), "a2".into()],
-        )
+        .project(&contract_to_json(&contract).unwrap(), &["a0".into(), "a1".into(), "a2".into()])
         .unwrap();
     projected.require_mean_source(&means).unwrap();
     projected.require_quantity_binding(&c, &snapshot).unwrap();
@@ -164,7 +162,7 @@ fn the_native_means_and_projected_action_utilities_follow_the_hand_derivation() 
     shifted.means[1] += 1e-9;
     assert_eq!(
         projected.require_mean_source(&shifted).unwrap_err().detail,
-        "source_evidence.point_binding_mismatch"
+        antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH
     );
 }
 
@@ -205,7 +203,8 @@ fn the_provenance_chain_has_the_hand_listed_links_before_and_after_projection() 
     let c = source.coordinates().to_vec();
     let before = source.provenance_chain().unwrap();
     assert_eq!(before.links().len(), 5);
-    let stages: BTreeSet<CompositionStage> = before.stages_behind("claim").unwrap().into_iter().collect();
+    let stages: BTreeSet<CompositionStage> =
+        before.stages_behind("claim").unwrap().into_iter().collect();
     assert_eq!(
         stages,
         BTreeSet::from([
@@ -216,12 +215,12 @@ fn the_provenance_chain_has_the_hand_listed_links_before_and_after_projection() 
         ])
     );
 
-    let projected = source
-        .project(&contract_to_json(&contract(&c)).unwrap(), &["a0".into()])
-        .unwrap();
+    let projected =
+        source.project(&contract_to_json(&contract(&c)).unwrap(), &["a0".into()]).unwrap();
     let after = projected.provenance_chain().unwrap();
     assert_eq!(after.links().len(), 7);
-    let stages: BTreeSet<CompositionStage> = after.stages_behind("claim").unwrap().into_iter().collect();
+    let stages: BTreeSet<CompositionStage> =
+        after.stages_behind("claim").unwrap().into_iter().collect();
     assert_eq!(
         stages,
         BTreeSet::from([
@@ -233,11 +232,8 @@ fn the_provenance_chain_has_the_hand_listed_links_before_and_after_projection() 
             CompositionStage::Data
         ])
     );
-    let projection = after
-        .links()
-        .iter()
-        .find(|l| l.stage == CompositionStage::Transformation)
-        .unwrap();
+    let projection =
+        after.links().iter().find(|l| l.stage == CompositionStage::Transformation).unwrap();
     assert_eq!(projection.parents.len(), 2);
     let parent_stages: BTreeSet<CompositionStage> = projection
         .parents

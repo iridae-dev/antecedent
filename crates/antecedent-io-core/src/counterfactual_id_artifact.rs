@@ -100,8 +100,14 @@ impl CounterfactualIdArtifactError {
     #[must_use]
     pub const fn reason(&self) -> (&'static str, &'static str) {
         match self {
-            Self::LimitsExceeded(_) => ("route_not_supported", "counterfactual_id.bounds_exceeded"),
-            _ => ("invalid_argument", "counterfactual_id.invalid_artifact"),
+            Self::LimitsExceeded(_) => (
+                "route_not_supported",
+                antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED,
+            ),
+            _ => (
+                "invalid_argument",
+                antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT,
+            ),
         }
     }
 }
@@ -615,11 +621,17 @@ mod tests {
         output.check_digests(None).unwrap();
         assert_eq!(
             CounterfactualIdArtifactError::LimitsExceeded("x").reason(),
-            ("route_not_supported", "counterfactual_id.bounds_exceeded")
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED
+            )
         );
         assert_eq!(
             CounterfactualIdArtifactError::PointMismatch.reason(),
-            ("invalid_argument", "counterfactual_id.invalid_artifact")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT
+            )
         );
     }
 }

@@ -23,7 +23,7 @@
 //! binary-treatment adjustment law `common::static_dgp::linear_ate_data`, the
 //! same law the default Bayesian record is measured on.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -115,7 +115,7 @@ fn run(data: TabularData, bootstrap: Option<u32>, seed: u64) -> Option<(Study, S
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn glm_adjustment_binary_outcome_nominal_coverage() {
     const TEST: &str = "glm_adjustment_binary_outcome_nominal_coverage";
     let truth = glm_truth();
@@ -211,7 +211,7 @@ const N_DEFAULT_ATE: usize = 500;
 /// study resolves `linear.adjustment.ate` and reports the bootstrap-SE
 /// interval at its default replicate count. Scored at 0.95 (reported) and 0.90.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_dag_frequentist_default_nominal_coverage() {
     const TEST: &str = "average_effect_dag_frequentist_default_nominal_coverage";
     let mut tallies = [

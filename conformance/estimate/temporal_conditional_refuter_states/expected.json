@@ -101,7 +101,38 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_conditional_validation_truth.rs",
-          "sha256": "5bf67963746df89401e5f7d0993e2fa912649a2d46056c9d1b2e57c3bab57cd2"
+          "items": [
+            "const FIXTURE",
+            "const N",
+            "enum Class",
+            "fn assert_cell",
+            "fn bare",
+            "fn bayesian",
+            "fn builder",
+            "fn dag",
+            "fn effect_ends",
+            "fn inference_name",
+            "fn normal",
+            "fn pag",
+            "fn posterior",
+            "fn query",
+            "fn series",
+            "fn series_seeded",
+            "fn suite_name",
+            "fn temporal_conditional_cells_execute_from_the_retained_plan_with_the_builder_dropped",
+            "fn temporal_conditional_cheap_and_full_pass_on_the_clean_law_at_the_marginal_effect",
+            "fn temporal_conditional_graph_posterior_cells_match_the_marginal_effect",
+            "fn temporal_conditional_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped",
+            "fn temporal_conditional_graph_posterior_results_encode_and_are_consumed",
+            "fn temporal_conditional_lead_and_control_checks_across_seeds",
+            "fn temporal_conditional_pre_trend_detects_planted_anticipation",
+            "fn truth",
+            "fn uniform",
+            "fn var",
+            "struct Stream",
+            "struct Truth"
+          ],
+          "sha256": "8bad1ff3b1f4f034cf90b60cbea764a7d1c2ce0299b384d69b09d84b78b73573"
         }
       ],
       "fixture_payload_sha256": "5429e5a117cb27ea96f0f06a59935c0ebd7f1c7b49a464d70a9dc0732a3ea49b"

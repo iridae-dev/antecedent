@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.transport._temporal_extensions import (
     _temporal_dependent_interval_candidate as temporal_dependent_interval,
@@ -173,10 +174,10 @@ def test_temporal_changed_panel_refuses_retained_identity(change):
 def test_temporal_candidate_keeps_unknown_units_and_incompatible_history_refusals():
     with pytest.raises(CausalUnsupportedError) as caught:
         temporal_dependent_interval(TemporalUnitPanel("no-map", None), sequence=(0, 0))
-    assert caught.value.detail == "temporal_interval.unknown_units"
+    assert caught.value.detail == reason_details.temporal_interval.UNKNOWN_UNITS
     with pytest.raises(CausalUnsupportedError) as caught:
         temporal_dependent_interval(panel(), sequence=(7, 7))
-    assert caught.value.detail == "temporal_interval.unsupported_history"
+    assert caught.value.detail == reason_details.temporal_interval.UNSUPPORTED_HISTORY
 
 
 @pytest.mark.parametrize("method", ["percentile", "basic"])

@@ -649,7 +649,12 @@ fn binary_posterior_refuses_an_external_power_prior() {
     let antecedent_estimate::EstimationError::Refused { message, .. } = error else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("binary_recovery_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::binary_recovery_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]

@@ -126,7 +126,10 @@ fn the_coordinate_without_a_value_is_kept_at_its_requested_position() {
     assert_eq!(check_static_point_labels(&labels, SupportStatus::MissingEvidence, 2), Ok(()));
     let relabeled =
         check_static_point_labels(&labels, SupportStatus::OutsideEmpiricalSupport, 2).unwrap_err();
-    assert_eq!(relabeled.detail, "coordinate_support.missing_evidence_relabeled");
+    assert_eq!(
+        relabeled.detail,
+        antecedent_core::reason_details::coordinate_support::MISSING_EVIDENCE_RELABELED
+    );
     // The executable coordinate carries the hand-derived mean E[y | do(x = 1)] = 0.7.
     let mean = result.points()[1].distribution().unwrap().mean(v(1)).unwrap();
     assert!((mean - 0.7).abs() < 1e-12, "{mean}");

@@ -30,14 +30,17 @@ record_sha256 = "ae96b76611ad5e5ff324a35c7e9cb7a98614ad404b4cc974ab21750d597202a
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/study_planning.rs"
-sha256 = "b3048bd87dab843072587f7a3fb865448be3671a33ad5e75600d89a047d7baf4"
+items = ["const BOUNDS_EXCEEDED", "const BUDGET", "const INVALID_CANDIDATE", "const INVALID_QUERY", "const NO_FAILURE", "const PLACEHOLDER_SNAPSHOT_PREFIX", "const STUDY_PLAN_DEFAULT_LIMITS", "const STUDY_PLAN_MAX_CANDIDATES", "const STUDY_PLAN_MAX_COST_UNITS", "const STUDY_PLAN_MAX_PROPOSALS", "const STUDY_PLAN_MEMORY_BYTES", "const THEOREM_LIMITED", "enum BaseEnd", "enum Identified", "enum Preview", "enum StudyPlanRoute", "enum StudyPlanStop", "enum StudyProposalDerivation", "enum StudySubsetOutcome", "fn base_failure", "fn bound_leaves", "fn bounds_exceeded", "fn budget", "fn canonical", "fn certified_minimal", "fn check_bounds", "fn classify_identified", "fn conclusive", "fn decide_preview", "fn decision_operations", "fn default", "fn for_route", "fn infeasible", "fn invalid_candidate", "fn invalid_query", "fn label", "fn leaf_regimes", "fn max_candidates", "fn max_depth", "fn next_combination", "fn no_failure", "fn plan_study_additions", "fn plan_with_caps", "fn preview_bytes", "fn proposal", "fn raw", "fn reads", "fn receipt", "fn recheck_mz_citations", "fn require_base_lineage", "fn rerun_named", "fn route_refusal", "fn sources", "fn stage_facts", "fn status", "fn stop_error", "fn subset_label", "fn subset_size_limit", "fn subsets", "fn target", "fn valid_id", "fn validate_candidates", "struct BoundLeaf", "struct Found", "struct PlanCaps", "struct StudyBaseFailure", "struct StudyFactor", "struct StudyPlan", "struct StudyPlanCandidate", "struct StudyPlanLimits", "struct StudyPlanRefusal", "struct StudyProposal", "struct StudyRepair", "struct StudySubsetRecord"]
+sha256 = "08c89b5e375d106a69b0094674f37dc22a88551e732aea4da8c10d559e58b31e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/study_planner.rs"
-sha256 = "f61a7477842df4cd3029a0326d2152a23e9e707b085c35225bb9c5124cb028db"
+items = ["fn candidates", "fn catalog", "fn delta", "fn from", "fn plan", "struct StudyCandidate", "struct StudyCost"]
+sha256 = "42f68060998495e3a5347cf838033b40e577d65a2605b6dd3c15876030391474"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/study_planning_search.rs"
-sha256 = "cde2b68a93350905d057cab7c00503a0e0bbe4292f63b773e88d3f512a21e390"
+items = ["const X", "const Y", "const Z1", "const Z2", "fn a_base_regime_without_provider_lineage_is_refused_before_any_work", "fn a_base_that_already_identifies_has_no_failure_to_repair", "fn a_replayed_obstruction_is_theorem_limited", "fn a_stopped_plan_keeps_verified_proposals_and_names_unevaluated_subsets", "fn a_truncated_plan_keeps_its_minimality_when_every_cheaper_subset_was_decided", "fn base", "fn bounds_and_impossible_designs_refuse_by_detail", "fn candidate", "fn catalog", "fn complementary_sources_are_sufficient_only_as_a_pair", "fn default_plan", "fn depth_memory_and_cancellation_stop_the_one_plan_budget", "fn equal_cost_proposals_rank_by_sample_budget_before_ids", "fn fig_1_candidates", "fn fig_1_graph", "fn fig_1_sources", "fn full_operations", "fn memory_plan", "fn mz", "fn no_sufficient_subset_is_none_certified_never_impossible", "fn one_budget_is_shared_by_the_base_and_every_subset_decision", "fn plan", "fn proposed", "fn regime", "fn retained_proposals_stay_charged_under_every_later_subset", "fn smallest_completing_cap", "fn source", "fn statuses", "fn the_plan_memory_bound_accepts_512_mib_and_refuses_one_byte_more", "fn thirty_two_sufficient_pairs_reach_the_proposal_cap", "fn ties_rank_deterministically_and_declaration_order_is_irrelevant", "fn v", "struct CancelAfter"]
+sha256 = "331c51f372c51ad3b1e97a0f96a6317e9ace58d4817b5be0f9b927d5cc9f1ad9"

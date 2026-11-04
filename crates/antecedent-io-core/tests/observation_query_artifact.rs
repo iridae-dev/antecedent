@@ -488,7 +488,10 @@ fn a_measured_signal_is_inverted_through_its_model_and_a_swapped_model_changes_t
     match error {
         ObservationQueryArtifactError::Refused { refusals } => {
             assert_eq!(refusals[0].code, "measurement_binding_mismatch");
-            assert_eq!(refusals[0].detail, "observation_query.construct_mismatch");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::CONSTRUCT_MISMATCH
+            );
         }
         other => panic!("unexpected {other:?}"),
     }
@@ -513,7 +516,10 @@ fn an_unreachable_level_cannot_be_sealed_and_states_the_supremum() {
     match error {
         ObservationQueryArtifactError::Refused { refusals } => {
             assert_eq!(refusals[0].code, "evidence_cannot_reach_level");
-            assert_eq!(refusals[0].detail, "observation_query.level_unreachable");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::LEVEL_UNREACHABLE
+            );
             let supremum: f64 = refusals[0].supplied.as_deref().unwrap().parse().unwrap();
             assert!((supremum - 0.78).abs() <= TOL);
         }
@@ -565,7 +571,10 @@ fn declared_bayes_queries_replay_and_a_zero_probability_observation_is_refused()
     .unwrap_err()
     {
         ObservationQueryArtifactError::Refused { refusals } => {
-            assert_eq!(refusals[0].detail, "observation_query.zero_probability_evidence");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::ZERO_PROBABILITY_EVIDENCE
+            );
         }
         other => panic!("unexpected {other:?}"),
     }
@@ -835,7 +844,10 @@ fn a_gaussian_query_on_a_finite_model_and_a_set_and_seen_variable_are_refused() 
     .unwrap_err();
     match both {
         ObservationQueryArtifactError::Refused { refusals } => {
-            assert_eq!(refusals[0].detail, "observation_query.mixed_conditioning_and_intervention");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION
+            );
         }
         other => panic!("unexpected {other:?}"),
     }
@@ -900,7 +912,10 @@ fn observation_after_intervention_on_a_finite_model_replays_to_the_hand_value() 
     .unwrap_err();
     match measured {
         ObservationQueryArtifactError::Refused { refusals } => {
-            assert_eq!(refusals[0].detail, "observation_query.mixed_conditioning_and_intervention");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION
+            );
         }
         other => panic!("unexpected {other:?}"),
     }
@@ -1048,7 +1063,10 @@ fn a_redraw_refuses_a_draw_count_outside_its_range_and_oversized_data() {
     match error {
         ObservationQueryArtifactError::Refused { refusals } => {
             assert_eq!(refusals[0].code, "invalid_argument");
-            assert_eq!(refusals[0].detail, "observation_query.invalid_declaration");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION
+            );
             assert!(
                 refusals[0].offending.as_deref().is_some_and(|text| text.contains("draw count")),
                 "{:?}",

@@ -3,6 +3,8 @@
 
     scientific_records.py status [--check]   owed versus current records
     scientific_records.py run [--all]        run the owed assertions, record passes
+    scientific_records.py capture [--all]    run Rust assertions under coverage, record the
+                                             source each executes
 
 `parity/scientific_records.toml` holds one row per scientific assertion that
 passed: its exact selector, roles, the commit it passed at, a fingerprint of
@@ -20,6 +22,13 @@ default engineering lanes exclude these assertions, so nothing else runs them.
 A recorded pass is evidence for support only. It is not a calibration
 measurement and no coverage or support claim reads it as one.
 
+A Rust assertion that has been captured is fingerprinted over the source files it
+executed (from `cargo llvm-cov`, which needs the `llvm-tools-preview` rustup component), not
+over its crate-dependency closure: the row stores `executed` and `capture_test`, the digest of
+its test-side files at capture time. An edit to a crate the test never reaches leaves the row
+current. A row without a capture, or whose test files changed since it, uses the closure
+fingerprint until `capture` is run again. Python rows always use the closure.
+
 The fingerprint is `scripts/evidence_fingerprint.py`: one implementation shared with the
 calibration flow.
 """
@@ -29,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -36,7 +46,7 @@ import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
-from _repo import REPO_ROOT, read_text
+from _repo import REPO_ROOT, cargo_target_feature_args, read_text
 from evidence_fingerprint import Fingerprinter, locate
 
 RECORDS = "parity/scientific_records.toml"
@@ -60,7 +70,11 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 # passed       always true; failures are reported, never recorded
 # commit       HEAD when the pass was recorded
 # dirty        whether the working tree differed from that commit
-# fingerprint  sha256 over the assertion's dependency closure
+# fingerprint  sha256 over the assertion's dependency closure, or over the source files
+#              it executed when `executed` is present
+# executed     source files the assertion ran under coverage (written by `capture`)
+# capture_test digest of the test-side files when `executed` was captured; a different
+#              digest voids the capture
 # recorded_at  UTC time of the pass
 """
 
@@ -86,6 +100,12 @@ def write_records(root: Path, records: dict[str, dict]) -> None:
             f"dirty = {'true' if r.get('dirty') else 'false'}\n"
             f"fingerprint = {json.dumps(r['fingerprint'])}\n"
             f"recorded_at = {json.dumps(r['recorded_at'])}\n"
+            + (
+                f"capture_test = {json.dumps(r['capture_test'])}\n"
+                f"executed = {json.dumps(list(r['executed']))}\n"
+                if r.get("executed") is not None and r.get("capture_test")
+                else ""
+            )
         )
     (root / RECORDS).parent.mkdir(parents=True, exist_ok=True)
     (root / RECORDS).write_text("".join(out), encoding="utf-8", newline="\n")
@@ -102,13 +122,29 @@ def is_current(records: dict[str, dict], selector: str, fingerprint: str) -> boo
     return bool(rec and rec.get("passed") is True and rec.get("fingerprint") == fingerprint)
 
 
+def valid_capture(rec: dict | None, fp: Fingerprinter, row: dict) -> list[str] | None:
+    """The executed-source list of a record whose test files are unchanged since its capture."""
+    if not rec or rec.get("executed") is None or not rec.get("capture_test"):
+        return None
+    if fp.test_digest(row) != rec["capture_test"]:
+        return None
+    return list(rec["executed"])
+
+
 def classify(root: Path, rows: list[dict], fp: Fingerprinter) -> tuple[list[dict], list[dict]]:
     """(owed, current) rows, each annotated with selector and fingerprint."""
     records = load_records(root)
     owed, current = [], []
     for row in rows:
         info = locate(root, row)
-        item = {**row, "selector": info["selector"], "fingerprint": fp.fingerprint(row)}
+        executed = valid_capture(records.get(info["selector"]), fp, row)
+        item = {
+            **row,
+            "selector": info["selector"],
+            "fingerprint": fp.fingerprint(row, executed),
+            "executed": executed,
+            "capture_test": fp.test_digest(row) if executed is not None else None,
+        }
         (current if is_current(records, item["selector"], item["fingerprint"]) else owed).append(item)
     return owed, current
 
@@ -127,6 +163,11 @@ def record_passes(root: Path, items: list[dict]) -> int:
             "dirty": dirty,
             "fingerprint": item["fingerprint"],
             "recorded_at": now,
+            **(
+                {"executed": item["executed"], "capture_test": item["capture_test"]}
+                if item.get("executed") is not None and item.get("capture_test")
+                else {}
+            ),
         }
     write_records(root, records)
     return len(items)
@@ -136,6 +177,91 @@ def all_scientific_rows(root: Path) -> list[dict]:
     import evidence_audit
 
     return evidence_audit.scientific_rows(evidence_audit.build_report(root)["claims"])
+
+
+# --------------------------------------------------------------------------
+# Execution capture
+# --------------------------------------------------------------------------
+
+PASSED_ONE = re.compile(r"test result: ok\. 1 passed")
+NOT_SOURCE = re.compile(r"(^|/)(tests|benches|examples|target)/|/\.cargo/|/rustc/")
+
+
+def executed_files(export: dict, root: Path) -> list[str]:
+    """Repo-relative source files with at least one covered line in an llvm-cov export."""
+    root = root.resolve()
+    found: set[str] = set()
+    for block in export.get("data", []):
+        for entry in block.get("files", []):
+            if entry.get("summary", {}).get("lines", {}).get("covered", 0) <= 0:
+                continue
+            try:
+                rel = Path(entry["filename"]).resolve().relative_to(root).as_posix()
+            except (ValueError, KeyError, OSError):
+                continue
+            if rel.endswith(".rs") and not NOT_SOURCE.search(rel):
+                found.add(rel)
+    return sorted(found)
+
+
+def capture_command(root: Path, info: dict, out: Path) -> list[str]:
+    """`cargo llvm-cov` for exactly one libtest case of the row's crate and target."""
+    libtest = info["selector"].split("::", 2)[2]
+    features = cargo_target_feature_args(root / "crates" / info["crate"] / "Cargo.toml", info["target"])
+    return [
+        "cargo", "llvm-cov", "--json", "--output-path", str(out), "-p", info["crate"],
+        *info["target"], *features, "--", "--exact", libtest, "--include-ignored",
+    ]
+
+
+def capture_one(root: Path, info: dict, run=subprocess.run) -> list[str] | None:
+    """Run one Rust assertion under coverage; its executed source files, or `None` on failure."""
+    with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
+        out = Path(tmp) / "export.json"
+        env = {
+            **os.environ,
+            "CARGO_PROFILE_TEST_OPT_LEVEL": os.environ.get("CARGO_PROFILE_TEST_OPT_LEVEL", "2"),
+            "CARGO_PROFILE_TEST_DEBUG": os.environ.get("CARGO_PROFILE_TEST_DEBUG", "line-tables-only"),
+        }
+        done = run(capture_command(root, info, out), cwd=root, env=env, text=True, capture_output=True)
+        if done.returncode != 0 or not PASSED_ONE.search((done.stdout or "") + (done.stderr or "")):
+            print(f"FAIL: {info['selector']}: not captured\n{(done.stderr or '')[-400:]}")
+            return None
+        if not out.is_file():
+            print(f"FAIL: {info['selector']}: llvm-cov wrote no export")
+            return None
+        return executed_files(json.loads(out.read_text(encoding="utf-8")), root)
+
+
+def cmd_capture(root: Path, args: argparse.Namespace, run=subprocess.run) -> int:
+    fp = Fingerprinter(root)
+    records = load_records(root)
+    todo = []
+    for row in all_scientific_rows(root):
+        info = locate(root, row)
+        if info["lang"] != "rust":
+            continue
+        if force_all(args) or valid_capture(records.get(info["selector"]), fp, row) is None:
+            todo.append((row, info))
+    print(f"scientific records: capturing {len(todo)} Rust assertion(s)", flush=True)
+    items, failed = [], 0
+    for row, info in todo:
+        executed = capture_one(root, info, run)
+        if executed is None:
+            failed += 1
+            continue
+        items.append(
+            {
+                **row,
+                "selector": info["selector"],
+                "executed": executed,
+                "capture_test": fp.test_digest(row),
+                "fingerprint": fp.fingerprint(row, executed),
+            }
+        )
+    recorded = record_passes(root, items)
+    print(f"scientific records: captured {recorded}; {failed} failed")
+    return int(bool(failed))
 
 
 # --------------------------------------------------------------------------
@@ -150,7 +276,12 @@ def force_all(args: argparse.Namespace | None = None) -> bool:
 def cmd_status(root: Path, args: argparse.Namespace) -> int:
     rows = all_scientific_rows(root)
     owed, current = classify(root, rows, Fingerprinter(root))
-    print(f"scientific records: {len(current)} current, {len(owed)} owed of {len(rows)}")
+    records = load_records(root)
+    captured = sum(1 for i in rows if records.get(locate(root, i)["selector"], {}).get("executed") is not None)
+    print(
+        f"scientific records: {len(current)} current, {len(owed)} owed of {len(rows)} "
+        f"({captured} with an execution capture)"
+    )
     for item in owed:
         print(f"  owed: {item['selector']}")
     return int(args.check and bool(owed))
@@ -215,8 +346,10 @@ def main() -> int:
     status.add_argument("--check", action="store_true", help="exit 1 when any assertion is owed")
     run = sub.add_parser("run")
     run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (release candidate)")
+    capture = sub.add_parser("capture")
+    capture.add_argument("--all", action="store_true", help="re-capture every Rust assertion")
     args = parser.parse_args()
-    return {"status": cmd_status, "run": cmd_run}[args.command](REPO_ROOT, args)
+    return {"status": cmd_status, "run": cmd_run, "capture": cmd_capture}[args.command](REPO_ROOT, args)
 
 
 if __name__ == "__main__":

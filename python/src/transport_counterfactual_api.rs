@@ -153,7 +153,7 @@ fn obstruction_json(
     serde_json::json!({
         "outcome": "proven_non_transportable",
         "reason": "transport_proven_non_transportable",
-        "detail": "counterfactual_transport.checked_obstruction",
+        "detail": antecedent_core::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION,
         "explanation": obstruction.reason,
         "witness": witness,
         "witness_clique": obstruction.witness.clique.iter()
@@ -634,7 +634,7 @@ fn identify_counterfactual_transport_native(
                     status: "proven_non_transportable",
                     refusal: Some((
                         antecedent_core::reason_code!("transport_proven_non_transportable"),
-                        "counterfactual_transport.checked_obstruction".to_string(),
+                        antecedent_core::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION.to_string(),
                         report.reason().to_string(),
                     )),
                     payload,
@@ -674,7 +674,7 @@ fn identify_counterfactual_transport_native(
                         let payload = serde_json::json!({
                             "outcome": "exhausted",
                             "reason": code,
-                            "detail": "counterfactual_transport.budget",
+                            "detail": antecedent_core::reason_details::counterfactual_transport::BUDGET,
                             "message": message,
                             "limits_receipt": {
                                 "operations_limit": search.operations,
@@ -686,7 +686,8 @@ fn identify_counterfactual_transport_native(
                             payload,
                             refusal: Some((
                                 code,
-                                "counterfactual_transport.budget".to_string(),
+                                antecedent_core::reason_details::counterfactual_transport::BUDGET
+                                    .to_string(),
                                 message,
                             )),
                             prepared: None,
@@ -799,7 +800,7 @@ fn consume_counterfactual_transport_artifact_native(
                     payload,
                     refusal: Some((
                         antecedent_core::reason_code!("transport_proven_non_transportable"),
-                        "counterfactual_transport.checked_obstruction".to_string(),
+                        antecedent_core::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION.to_string(),
                         report.reason().to_string(),
                     )),
                     prepared: None,

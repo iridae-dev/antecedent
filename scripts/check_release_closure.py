@@ -76,7 +76,7 @@ def installed_wheel_problems(candidate: str) -> list[str]:
     if "maturin build" not in candidate or "uv pip install --python" not in candidate:
         problems.append("the gate does not build and install a wheel into a fresh venv")
     for label, needle in (
-        ("proves the wheel is the imported package", "gate_release_candidate_2.py"),
+        ("proves the wheel is the imported package", "check_installed_wheel_import.py"),
         ("runs the Python suite (every shipped example and notebook)", "-m pytest"),
         ("executes the documented snippets and embedded examples", "run_doc_examples.py"),
     ):

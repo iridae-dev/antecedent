@@ -58,14 +58,19 @@ fn request(
         || names.len() != columns.len()
         || names.iter().enumerate().any(|(i, n)| n.trim().is_empty() || names[..i].contains(n))
     {
-        return Err(invalid("recalc.invalid_data", "unique named columns required"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_DATA,
+            "unique named columns required",
+        ));
     }
-    let position =
-        |name: &str| -> PyResult<u32> {
-            names.iter().position(|n| n == name).and_then(|i| u32::try_from(i).ok()).ok_or_else(
-                || invalid("recalc.unknown_variable", format!("no column named `{name}`")),
+    let position = |name: &str| -> PyResult<u32> {
+        names.iter().position(|n| n == name).and_then(|i| u32::try_from(i).ok()).ok_or_else(|| {
+            invalid(
+                antecedent_core::reason_details::recalc::UNKNOWN_VARIABLE,
+                format!("no column named `{name}`"),
             )
-        };
+        })
+    };
     let model = match wire.model {
         ModelWire::Iv { instrument } => DesignModel::Iv2Sls { instrument: position(&instrument)? },
         ModelWire::Rd { running_variable, cutoff, bandwidth } => {
@@ -109,7 +114,7 @@ fn design_error(error: &DesignRunError) -> String {
             let mut wire = refusal_value(
                 antecedent_core::reason_code!("route_not_supported"),
                 "decision",
-                "recalc.iv_decision_unavailable",
+                antecedent_core::reason_details::recalc::IV_DECISION_UNAVAILABLE,
                 None,
                 None,
                 &error.to_string(),
@@ -126,7 +131,7 @@ fn design_error(error: &DesignRunError) -> String {
         DesignRunError::Recalc(RecalcRunError::NoLiveState(stage)) => refusal_json(
             antecedent_core::reason_code!("score_table_unavailable"),
             &stage.label(),
-            "recalc.no_live_state",
+            antecedent_core::reason_details::recalc::NO_LIVE_STATE,
             Some(&stage.label()),
             None,
             &error.to_string(),
@@ -135,33 +140,34 @@ fn design_error(error: &DesignRunError) -> String {
         DesignRunError::Recalc(RecalcRunError::Request(detail)) => {
             let detail = detail.as_str();
             let (code, stage) = match detail {
-                "recalc.cancelled" => {
+                antecedent_core::reason_details::recalc::CANCELLED => {
                     (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
                 }
-                "recalc.invalid_data" => {
+                antecedent_core::reason_details::recalc::INVALID_DATA => {
                     (antecedent_core::reason_code!("invalid_argument"), "data_snapshot")
                 }
-                "recalc.invalid_graph" => {
+                antecedent_core::reason_details::recalc::INVALID_GRAPH => {
                     (antecedent_core::reason_code!("invalid_argument"), "graph")
                 }
-                "recalc.invalid_design_roles" | "recalc.invalid_rd_window" => {
+                antecedent_core::reason_details::recalc::INVALID_DESIGN_ROLES
+                | antecedent_core::reason_details::recalc::INVALID_RD_WINDOW => {
                     (antecedent_core::reason_code!("invalid_argument"), "query")
                 }
-                "recalc.design_not_checked" => {
+                antecedent_core::reason_details::recalc::DESIGN_NOT_CHECKED => {
                     (antecedent_core::reason_code!("effect_not_identified"), "identification")
                 }
-                "recalc.design_data_unavailable" => {
+                antecedent_core::reason_details::recalc::DESIGN_DATA_UNAVAILABLE => {
                     (antecedent_core::reason_code!("score_table_unavailable"), "data_snapshot")
                 }
-                "recalc.design_artifact_unverified" => {
+                antecedent_core::reason_details::recalc::DESIGN_ARTIFACT_UNVERIFIED => {
                     (antecedent_core::reason_code!("route_not_supported"), "score_artifact")
                 }
-                "recalc.design_artifact_mismatch"
-                | "recalc.invalid_design_artifact"
-                | "recalc.design_point_unavailable"
-                | "recalc.iv_diagnostics_unavailable"
-                | "recalc.design_effect_unavailable"
-                | "recalc.memory_budget_exceeded" => {
+                antecedent_core::reason_details::recalc::DESIGN_ARTIFACT_MISMATCH
+                | antecedent_core::reason_details::recalc::INVALID_DESIGN_ARTIFACT
+                | antecedent_core::reason_details::recalc::DESIGN_POINT_UNAVAILABLE
+                | antecedent_core::reason_details::recalc::IV_DIAGNOSTICS_UNAVAILABLE
+                | antecedent_core::reason_details::recalc::DESIGN_EFFECT_UNAVAILABLE
+                | antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
                     (antecedent_core::reason_code!("invalid_argument"), "score_artifact")
                 }
                 _ => (antecedent_core::reason_code!("invalid_argument"), "score_artifact"),
@@ -175,19 +181,19 @@ fn design_error(error: &DesignRunError) -> String {
             let (code, detail, stage) = match cause.peeled() {
                 CausalError::NotIdentified { .. } => (
                     antecedent_core::reason_code!("effect_not_identified"),
-                    "recalc.design_not_identified",
+                    antecedent_core::reason_details::recalc::DESIGN_NOT_IDENTIFIED,
                     "identification",
                 ),
                 CausalError::Estimate(EstimationError::Data(_) | EstimationError::Query(_)) => (
                     antecedent_core::reason_code!("invalid_argument"),
-                    "recalc.design_model_data_invalid",
+                    antecedent_core::reason_details::recalc::DESIGN_MODEL_DATA_INVALID,
                     "data_snapshot",
                 ),
                 CausalError::Estimate(EstimationError::Stats(StatsError::RankDeficient {
                     ..
                 })) => (
                     antecedent_core::reason_code!("design_rank_deficient"),
-                    "recalc.design_rank_deficient",
+                    antecedent_core::reason_details::recalc::DESIGN_RANK_DEFICIENT,
                     "score_artifact",
                 ),
                 CausalError::Estimate(
@@ -195,7 +201,7 @@ fn design_error(error: &DesignRunError) -> String {
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "cancelled_no_claim" => (
                     antecedent_core::reason_code!("cancelled_no_claim"),
-                    "recalc.cancelled",
+                    antecedent_core::reason_details::recalc::CANCELLED,
                     "score_artifact",
                 ),
                 CausalError::Estimate(
@@ -203,12 +209,12 @@ fn design_error(error: &DesignRunError) -> String {
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "invalid_argument" => (
                     antecedent_core::reason_code!("invalid_argument"),
-                    "recalc.design_model_data_invalid",
+                    antecedent_core::reason_details::recalc::DESIGN_MODEL_DATA_INVALID,
                     "data_snapshot",
                 ),
                 _ => (
                     antecedent_core::reason_code!("route_not_supported"),
-                    "recalc.design_fit_refused",
+                    antecedent_core::reason_details::recalc::DESIGN_FIT_REFUSED,
                     "score_artifact",
                 ),
             };
@@ -217,7 +223,7 @@ fn design_error(error: &DesignRunError) -> String {
         DesignRunError::Recalc(RecalcRunError::Receipt(_)) => refusal_json(
             antecedent_core::reason_code!("invalid_argument"),
             "score_artifact",
-            "recalc.design_receipt_invalid",
+            antecedent_core::reason_details::recalc::DESIGN_RECEIPT_INVALID,
             None,
             None,
             &error.to_string(),
@@ -353,7 +359,10 @@ impl PyDesignSession {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<ReplayPayload> {
         if artifact.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
-            return Err(invalid("recalc.limits_exceeded", "design artifact exceeds byte bound"));
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                "design artifact exceeds byte bound",
+            ));
         }
         let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
         let request = match (names, columns.as_ref(), specification) {
@@ -361,7 +370,7 @@ impl PyDesignSession {
             (None, None, None) => None,
             _ => {
                 return Err(invalid(
-                    "recalc.invalid_data",
+                    antecedent_core::reason_details::recalc::INVALID_DATA,
                     "complete supplied design data required",
                 ));
             }

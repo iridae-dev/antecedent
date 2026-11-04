@@ -195,7 +195,7 @@ fn the_declared_mapping_uncertainty_dependence_and_estimand_bridge_are_carried_a
     let error = ScientificBridgeArtifact::from_meta(&reseal(moved), None).expect_err("target");
     assert_eq!(
         error.refusal().map(|(_, detail, _)| detail).as_deref(),
-        Some("scientific_bridge.estimand_bridge_mismatch")
+        Some(antecedent_core::reason_details::scientific_bridge::ESTIMAND_BRIDGE_MISMATCH)
     );
 }
 

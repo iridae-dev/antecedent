@@ -40,12 +40,14 @@ record_sha256 = "286fe4ec17556a26d2359b245afafa33eb25188d0520e82200bf3e977638261
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/adjustment_resume.rs"
-sha256 = "ee0075b670facec6a05cf2322b3d731163fdeb76b648356cc05f3540c15ff655"
+items = ["fn contrast", "fn covariance", "fn from_linear", "fn glm", "fn in_support", "fn linear", "fn support", "struct AdjustedFit"]
+sha256 = "e9a2db39148ab44a8379df5424fd22395a93772fd22d9210c050f253f91f6ded"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/adjusted_contrast_reference.rs"
-sha256 = "5201cd8e0aea95b3dd5af2472a98a4b43a2afe5dbafc04cd6e7e9d89f346f6e8"
+items = ["fn close", "fn contrast_effect_and_delta_se_match_the_multiprecision_reference", "fn contrast_refuses_a_mismatched_dimension_and_invalid_target_weights", "fn floats", "fn input"]
+sha256 = "bac4174eea7e349b7e4d57a0a41bdaddda087c0fd8905927e3eff4e49d427f39"
 
 [[method_review.artifacts]]
 role = "reference"

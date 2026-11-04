@@ -40,9 +40,11 @@ record_sha256 = "1c279c806df0406dacbb0cbdd38e22c58646454529b22766106612591f1b4b0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/ges.rs"
-sha256 = "31e8f7bc6104122d63de42cb33634680228a4cd3e1239b3061383cd8b4317f81"
+items = ["const ALGORITHM", "const GES_SCHEDULE", "enum SearchPhase", "fn assemble", "fn contains", "fn default", "fn empty_cpdag", "fn ges_score_data", "fn get", "fn has_edge", "fn local_score_or_degenerate", "fn new", "fn orient_by_knowledge", "fn pc_skeleton_pairs", "fn pdag_to_dag", "fn run", "fn run_ges_schedule", "fn score_family_label", "fn score_gain_tolerance", "fn seed_required_edges", "fn validate_request", "fn with_ci", "fn with_constraints", "fn with_fdr_adjustment", "struct Footprint", "struct Ges", "struct GesDeltaCache", "struct GesSearch", "struct InsertPairCache", "struct PairInsert", "struct ReverseCache", "struct ReverseInsert"]
+sha256 = "5095bbe77f139cf6103d03825fb859eae56aba2162180e1aae5085dd8001b379"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/ges_oracle_tests.rs"
-sha256 = "6a8bf231079660f9bb7efee2e719a582fe42e1909a77b7a875365f6b91e5dd29"
+items = ["fn acyclic", "fn adjacent", "fn ancestors", "fn assert_class", "fn class_edges", "fn clearly_faithful", "fn columns", "fn covariance", "fn d_separated", "fn edges", "fn exact_covariance_columns_reproduce_the_population_covariance", "fn known_classes_are_recovered_from_population_scores", "fn model", "fn next", "fn orthonormal_noise", "fn partial_correlation", "fn random_model", "fn random_models_recover_their_markov_equivalence_class", "fn run_ges", "fn unit", "fn unshielded_colliders", "struct Lcg", "struct Model", "type ClassEdge"]
+sha256 = "72fe1b0ca4c931a4f458c9f7512d9e84d468c15eaeeb449d36090916a68871cf"

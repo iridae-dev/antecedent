@@ -36,17 +36,20 @@ record_sha256 = "5f17b1472c5ce08dd0cfc73597ce779e3e16d0fb55cd396b3740ba1e8f33724
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/functional.rs"
-sha256 = "7437ad67413ed4c4987596ec3d337fbffa3ee67a926719b83078d02327499dc4"
+items = ["const SPLIT_HALF_REPLICATES", "fn max_conditional_tv", "fn refute_distribution", "fn refute_path", "fn refute_window_contrast", "fn rotate_columns", "fn row_range", "fn split_half", "fn subset_stream"]
+sha256 = "4be76d339558b237a940cc53171cb1be299b31c35226ab99fd9cad26133942ee"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "a3b7a83f837448185b84106af86340b716dd51e00db12901963d443ecac540c6"
+items = ["const RELATIVE_ROUNDOFF", "const REPORT_ALL", "const REPORT_COMPARISON", "const REPORT_FAILURE", "const REPORT_INFORMATIVE", "const REPORT_ORIGINAL", "const REPORT_PASSED", "const REPORT_REFUTED", "const REPORT_REPLICATES", "enum RefutationScope", "fn build", "fn builder", "fn comparison", "fn failure_condition", "fn finish_p_report", "fn informative", "fn new", "fn original_ate", "fn passed", "fn refuted_ate", "fn replicate_mean", "fn replicate_p_value", "fn replicates", "fn slice_float_column_window", "fn slice_validity_window", "fn with_contiguous_row_window", "fn with_row_subset", "struct RefutationReport", "struct RefutationReportBuilder"]
+sha256 = "b5b0416ca78c2b4b58dbb3ae53c6677b0f84b821c762a8e37817410174e49733"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/functional_reference.rs"
-sha256 = "e35ce2fef18c4049300cce6022f05658a19181b53e68544982ba4b6d5b0e61ab"
+items = ["const REPS", "const SEED", "const SHIFT", "const SPLIT_HALF_REPLICATES", "const STRETCH_50", "const STRETCH_80", "const SUBSET_DISTRIBUTION", "const SUBSET_PATH", "fn backdoor_dag", "fn case_table", "fn close", "fn compare", "fn ctx", "fn dag", "fn distribution_query", "fn expect", "fn first_draw", "fn floats", "fn functional_distribution_table_refuters_equal_the_exact_reference", "fn functional_emit", "fn functional_frozen_perturbations_are_the_library_streams", "fn functional_path_subset_refuters_equal_the_exact_reference", "fn functional_window_contrast_refuters_equal_the_exact_reference", "fn half_blocks", "fn half_se", "fn identify_distribution", "fn identify_effect", "fn identify_path", "fn mask", "fn path_query", "fn perturbations", "fn reference", "fn same", "fn table", "fn v"]
+sha256 = "dbfb52de23de35d37d89e13925b75da34b2d11d60ecde97ed2e91b05d296f22c"
 
 [[method_review.artifacts]]
 role = "reference"

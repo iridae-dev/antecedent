@@ -204,7 +204,9 @@ fn unbounded_nonlinear_growth_is_refused_with_a_typed_reason() {
         boundaries: vec![],
     };
     match system.compile() {
-        Err(SdeError::Unsupported { code, .. }) => assert_eq!(code, "sde.unbounded_growth"),
+        Err(SdeError::Unsupported { code, .. }) => {
+            assert_eq!(code, antecedent_core::reason_details::sde::UNBOUNDED_GROWTH)
+        }
         other => panic!("{other:?}"),
     }
     // The same nonlinearity on a declared box is certified.
@@ -240,7 +242,9 @@ fn milstein_is_refused_when_a_diffusion_depends_on_another_state() {
     let mut policy = epidemic_policy();
     policy.scheme = SdeScheme::Milstein;
     match simulate_sde(&compiled, None, &[950.0, 50.0, 0.0], &policy, &[], &[], &ctx()) {
-        Err(SdeError::Unsupported { code, .. }) => assert_eq!(code, "sde.milstein_noncommutative"),
+        Err(SdeError::Unsupported { code, .. }) => {
+            assert_eq!(code, antecedent_core::reason_details::sde::MILSTEIN_NONCOMMUTATIVE)
+        }
         other => panic!("{other:?}"),
     }
 }
@@ -270,7 +274,10 @@ fn forged_input_envelopes_refuse_outside_values_in_base_and_world() {
     base.inputs[0].values[0] = 5.0;
     assert!(matches!(
         base.compile(),
-        Err(SdeError::Unsupported { code: "sde.input_outside_certified_envelope", .. })
+        Err(SdeError::Unsupported {
+            code: antecedent_core::reason_details::sde::INPUT_OUTSIDE_CERTIFIED_ENVELOPE,
+            ..
+        })
     ));
 
     let compiled = epidemic().compile().unwrap();
@@ -287,7 +294,10 @@ fn forged_input_envelopes_refuse_outside_values_in_base_and_world() {
             &[],
             &ctx()
         ),
-        Err(SdeError::Unsupported { code: "sde.input_outside_certified_envelope", .. })
+        Err(SdeError::Unsupported {
+            code: antecedent_core::reason_details::sde::INPUT_OUTSIDE_CERTIFIED_ENVELOPE,
+            ..
+        })
     ));
     // Values exactly at the declared closed endpoints remain valid.
     assert!(epidemic().compile().is_ok());
@@ -302,14 +312,19 @@ fn input_and_action_declarations_are_checked_against_the_certificate_and_the_gri
     wide.inputs[0].envelope = Some([-1.0, 2.0]);
     match simulate_sde(&compiled, None, &initial, &epidemic_policy(), &[wide], &[], &ctx()) {
         Err(SdeError::Unsupported { code, .. }) => {
-            assert_eq!(code, "sde.input_outside_certified_envelope");
+            assert_eq!(
+                code,
+                antecedent_core::reason_details::sde::INPUT_OUTSIDE_CERTIFIED_ENVELOPE
+            );
         }
         other => panic!("{other:?}"),
     }
     let mut off_grid = suppress();
     off_grid.actions[0].times = vec![5.013];
     match simulate_sde(&compiled, None, &initial, &epidemic_policy(), &[off_grid], &[], &ctx()) {
-        Err(SdeError::Unsupported { code, .. }) => assert_eq!(code, "sde.action_time_off_grid"),
+        Err(SdeError::Unsupported { code, .. }) => {
+            assert_eq!(code, antecedent_core::reason_details::sde::ACTION_TIME_OFF_GRID)
+        }
         other => panic!("{other:?}"),
     }
     let mut outside = suppress();

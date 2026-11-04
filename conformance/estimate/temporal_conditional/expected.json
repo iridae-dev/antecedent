@@ -36,7 +36,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_conditional_effect.rs",
-          "sha256": "e208c0c395ee4405d3fbfd757f83175db1992ceb1c77869b0894df3fcddd1627"
+          "items": [
+            "fn graph",
+            "fn multi_step_sustained_effect_uses_a_named_modifier",
+            "fn query",
+            "fn series",
+            "fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+          ],
+          "sha256": "a475bf816b3dfccaf8feafdc45bcc0b15802ce284f277e41edcdd57ae0b93781"
         }
       ],
       "fixture_payload_sha256": "a46d6af621207913b2ac82c014ac0521bdfa7f5977054c7a1f3abd7e1ebf714f"

@@ -81,7 +81,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     FrozenScoresArtifactError {
         noun: "frozen scores",
-        identity: "frozen_scores.identity_mismatch",
+        identity: antecedent_core::reason_details::frozen_scores::IDENTITY_MISMATCH,
         variants {}
         display(f) {}
     }
@@ -98,7 +98,7 @@ impl FrozenScoresArtifactError {
         match self {
             Self::IdentityMismatch { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "frozen_scores.identity_mismatch",
+                antecedent_core::reason_details::frozen_scores::IDENTITY_MISMATCH,
                 explanation,
             )),
             _ => None,

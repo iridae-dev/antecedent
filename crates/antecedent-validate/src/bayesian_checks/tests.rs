@@ -579,7 +579,7 @@ mod calibration_gate {
     use super::*;
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
     fn sbc_conjugate_gaussian_ranks_are_uniform() {
         use antecedent_prob::InvGammaPrior;
         let (data, estimand, query) = toy();

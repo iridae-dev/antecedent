@@ -82,21 +82,24 @@ pub const MZ_TRANSPORT_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A request outside a declared bound: source count, observed variables,
 /// controllables per source, candidate regimes, or search limits.
-const BOUNDS_EXCEEDED: &str = "mz_transport.bounds_exceeded";
+const BOUNDS_EXCEEDED: &str = antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED;
 /// The bounded search ended without a formula or a checked obstruction.
-const SEARCH_INCOMPLETE: &str = "mz_transport.search_incomplete";
+const SEARCH_INCOMPLETE: &str = antecedent_core::reason_details::mz_transport::SEARCH_INCOMPLETE;
 /// Completing a factor needs a joint over two sources' interventions.
-const FABRICATED_JOINT: &str = "mz_transport.fabricated_joint";
+const FABRICATED_JOINT: &str = antecedent_core::reason_details::mz_transport::FABRICATED_JOINT;
 /// A certified formula cites a joint regime (or level) the catalog lacks.
-const MISSING_JOINT_REGIME: &str = "mz_transport.missing_joint_regime";
+const MISSING_JOINT_REGIME: &str =
+    antecedent_core::reason_details::mz_transport::MISSING_JOINT_REGIME;
 /// A checked structural obstruction for the declared controllable sets.
-const CHECKED_OBSTRUCTION: &str = "mz_transport.checked_obstruction";
+const CHECKED_OBSTRUCTION: &str =
+    antecedent_core::reason_details::mz_transport::CHECKED_OBSTRUCTION;
 /// A limit or cancellation stopped the search.
-const BUDGET: &str = "mz_transport.budget";
+const BUDGET: &str = antecedent_core::reason_details::mz_transport::BUDGET;
 /// A derivation or its record does not check.
-const INVALID_DERIVATION: &str = "mz_transport.invalid_derivation";
+const INVALID_DERIVATION: &str = antecedent_core::reason_details::mz_transport::INVALID_DERIVATION;
 /// An obstruction does not check.
-const INVALID_OBSTRUCTION: &str = "mz_transport.invalid_obstruction";
+const INVALID_OBSTRUCTION: &str =
+    antecedent_core::reason_details::mz_transport::INVALID_OBSTRUCTION;
 
 /// The frozen `(reason code, mz_transport.* detail)` pair of an error raised by
 /// the mz-transport route, as the route declares them:
@@ -113,14 +116,22 @@ pub fn mz_transport_refusal(error: &IdentificationError) -> Option<(&'static str
             Some((reason_code!("route_not_supported"), BOUNDS_EXCEEDED))
         }
         IdentificationError::InvalidInput { message }
-            if message.starts_with("mz_transport.invalid_query") =>
+            if message
+                .starts_with(antecedent_core::reason_details::mz_transport::INVALID_QUERY) =>
         {
-            Some((reason_code!("invalid_argument"), "mz_transport.invalid_query"))
+            Some((
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::mz_transport::INVALID_QUERY,
+            ))
         }
         IdentificationError::InvalidCatalog { message }
-            if message.starts_with("mz_transport.invalid_catalog") =>
+            if message
+                .starts_with(antecedent_core::reason_details::mz_transport::INVALID_CATALOG) =>
         {
-            Some((reason_code!("invalid_argument"), "mz_transport.invalid_catalog"))
+            Some((
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::mz_transport::INVALID_CATALOG,
+            ))
         }
         IdentificationError::InvalidDerivation { code }
             if [INVALID_DERIVATION, INVALID_OBSTRUCTION, FABRICATED_JOINT].contains(code) =>
@@ -1571,10 +1582,14 @@ mod tests {
         for on in [&[0][..], &[0, 2][..]] {
             assert_eq!(
                 check_leaves(&one_leaf("a", on, combined())).unwrap_err(),
-                IdentificationError::invalid_derivation("mz_transport.fabricated_joint")
+                IdentificationError::invalid_derivation(
+                    antecedent_core::reason_details::mz_transport::FABRICATED_JOINT
+                )
             );
         }
-        let invalid = IdentificationError::invalid_derivation("mz_transport.invalid_derivation");
+        let invalid = IdentificationError::invalid_derivation(
+            antecedent_core::reason_details::mz_transport::INVALID_DERIVATION,
+        );
         for derivation in [
             one_leaf("a", &[], combined()),
             one_leaf("target", &[1], combined()),
@@ -1636,7 +1651,9 @@ mod tests {
             derivation.root = wrap(&mut derivation.arena, derivation.root);
             assert_eq!(
                 check_leaves(&derivation).unwrap_err(),
-                IdentificationError::invalid_derivation("mz_transport.fabricated_joint")
+                IdentificationError::invalid_derivation(
+                    antecedent_core::reason_details::mz_transport::FABRICATED_JOINT
+                )
             );
         }
     }

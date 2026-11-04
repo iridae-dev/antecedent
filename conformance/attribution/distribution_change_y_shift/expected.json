@@ -44,7 +44,18 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/attribution.rs",
-          "sha256": "f2f7d85f9ca9c867c8b1e6f7bdca181f11169cc31cfceb887160a96a43e963cb"
+          "items": [
+            "fn claims_03_distribution_change_y_shift_recovers_the_exact_five",
+            "fn distribution_change_y_shift_conformance",
+            "fn fixture",
+            "fn mechanism_change_change_point_conformance",
+            "fn mechanism_change_detect_conformance",
+            "fn mechanism_change_kernel_conformance",
+            "fn parent_swap_graphs",
+            "fn structure_change_parent_swap_conformance",
+            "fn two_period_chain"
+          ],
+          "sha256": "ec3318d97aedf95c1fae53ac910698cb32e7ee0c3546e7f22abb289353dacff6"
         }
       ],
       "fixture_payload_sha256": "b4cfc25b0688689db3c563e114eeb767f09d5ec3a0e666e5b6cf60ac77f3907c"

@@ -1622,12 +1622,62 @@
         {
           "role": "assertion_source",
           "path": "python/tests/test_posterior_moments.py",
-          "sha256": "8583f968c41a605993620940ba80426cbb17749291de87a577180aefaae31ee1"
+          "items": [
+            "const FIXTURE",
+            "fn check_moments",
+            "fn prepare",
+            "fn test_posterior_moments_and_artifact"
+          ],
+          "sha256": "afdbfda11345941b9b48c9e170fb3b7bea46ee67c96e3c77c80a68a40007ec18"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_temporal.rs",
-          "sha256": "dc222f017c4ceb8d5c6543c8a8422b12adccc33209cf8eb4c5177bea77711b29"
+          "items": [
+            "const BETA1",
+            "const BETA2",
+            "const DRAWS",
+            "const IID_TREATMENT_RHO",
+            "const LEVEL",
+            "const MED_A",
+            "const MED_B",
+            "const MED_C",
+            "const RHO05_N160",
+            "const RHO09_N400",
+            "enum Noise",
+            "fn arma",
+            "fn arma_noise",
+            "fn at_grid",
+            "fn bayes",
+            "fn bayesian_multi_step_bootstrap_refuter_resamples_aligned_rows",
+            "fn bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
+            "fn bayesian_temporal_mediation_tempers_both_mechanisms",
+            "fn beta2",
+            "fn credible_interval",
+            "fn credible_interval_at",
+            "fn graph",
+            "fn lag12_dag",
+            "fn lag1_dag",
+            "fn mediation_dag",
+            "fn multi_sustained",
+            "fn posterior_dependent_pulse_moments_and_tempering_match_the_reference",
+            "fn posterior_mediation_moments_and_tempering_match_the_reference",
+            "fn pulse",
+            "fn query",
+            "fn residual",
+            "fn run",
+            "fn run_mediation",
+            "fn run_mediation_study",
+            "fn series_mediation",
+            "fn series_tyz",
+            "fn series_xy",
+            "fn single_sustained",
+            "fn stream",
+            "fn treatment",
+            "fn tyz_cpdag",
+            "struct Regime"
+          ],
+          "sha256": "6f62e6d8f5aeffd6b8cb87586fa91eed2001faa49d187267ba6b6d023968dffb"
         }
       ],
       "fixture_payload_sha256": "60d5b8e111b58f1532481fc28728bde89042107c7d912843bc0a15ac485562d6"

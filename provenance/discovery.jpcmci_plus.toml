@@ -45,22 +45,26 @@ record_sha256 = "edb3c5210212ab485ade3ceb3d7f5e5dfcfec9f467ae22bee490610a599928c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
-sha256 = "fa5b218ec04f05ff27d67a3eb79678c6c521071e04d3c301df248438ffbed7ff"
+items = ["fn cpdag_from_jpcmci_links", "fn default", "fn directed_exogenous_links", "fn exogenous_parents_from_scored", "fn force_orient_exogenous", "fn logical_exogenous_ids", "fn new", "fn orient_exogenous_links", "fn remap_dummy_block_links", "fn replace_exogenous_parents", "fn run", "struct JpcmciPlus", "type JpcmciPlusDiscoveryResult"]
+sha256 = "c0a8e17180923185db2963f8355ad23baae50a0c55bb26cb56dcd5f8b235e4e9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/pooled_frame.rs"
-sha256 = "2e4dd7007d27e25b514ef8b3e26149c50cbfa75735a38e3852c895a3a2343010"
+items = ["const DEFAULT_MAX_TIME_ONE_HOT_LEVELS", "enum TimeDummyEncoding", "fn default", "fn effective_raw_times", "fn next_synthetic_id", "fn pool_impl", "fn pool_multi_env_lagged_frame", "struct DummyOptions", "struct PooledLaggedFrame"]
+sha256 = "ed16078ca5058d8d946ccb06bffd0502986fa966eb957e41fc071c8108145d3d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/jpcmci_plus_dsep_oracle.rs"
-sha256 = "d5f4d9f6c1604cb33a280fb8157ef222732155e27faf317520c6678ba44ad1db"
+items = ["const MAX_LAG", "const NOW", "const STEPS", "enum Key", "fn ancestors_or_self", "fn chance", "fn context", "fn d_separated", "fn dummy", "fn jpcmci_plus_under_a_dsep_oracle_recovers_context_and_dummy_links_together", "fn jpcmci_plus_under_a_dsep_oracle_recovers_dummy_links_and_sound_orientations", "fn key_of", "fn next", "fn node", "fn random_case", "fn run_cases", "fn series", "struct Lcg", "struct PooledOracle", "struct Unrolled", "type Case", "type Lagged"]
+sha256 = "2baba02d65123101952a5ebab7a80a19e273e3ba46a455059cf496b18f3f7668"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs"
-sha256 = "a6598a9f1c4950725f164681332a9af0f5a25fd89234ba67fbf6716efdb7081f"
+items = ["fn environment", "fn the_pooled_frame_equals_its_definition_with_every_dummy_encoding"]
+sha256 = "a7506892de6a58b22186bb6ecea94cf769942f3dab02296a0d8522fe9b3504a7"
 
 [[method_review.artifacts]]
 role = "reference"

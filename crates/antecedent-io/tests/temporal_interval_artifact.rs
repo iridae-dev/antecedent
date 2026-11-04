@@ -205,19 +205,28 @@ fn dependent_interval_reseal_refuses_ill_formed_units_through_the_core() {
     duplicate.panel.units[1].unit_id = duplicate.panel.units[0].unit_id;
     let (code, message) = refused(consume(&reseal(duplicate)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let mut unordered = artifact();
     unordered.panel.units[0].histories[1].time_id = 0;
     let (code, message) = refused(consume(&reseal(unordered)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let mut few = artifact();
     few.panel.units.truncate(5);
     let (code, message) = refused(consume(&reseal(few)));
     assert_eq!(code, "too_few_clusters");
-    assert!(message.contains("temporal_interval.too_few_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::TOO_FEW_UNITS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -265,7 +274,10 @@ fn dependent_interval_reseal_refuses_a_source_law_and_over_limit_replays() {
     source.estimator.law.as_mut().unwrap().population = "source".into();
     let (code, message) = refused(consume(&reseal(source)));
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 
     let small = TemporalIntervalConsumeLimits { max_replicates: 10, ..limits() };
     let bytes = artifact().export().unwrap();
@@ -329,7 +341,11 @@ fn dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
     forged.refresh_receipt.as_mut().unwrap().proof_id = "forged".into();
     let (code, message) = refused(consume(&reseal(forged)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_refresh.receipt_digest_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_DIGEST_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]

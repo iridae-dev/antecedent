@@ -15,6 +15,8 @@ from typing import Any
 
 from numpy.typing import ArrayLike
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -93,7 +95,7 @@ class DesignWeakInstrument(RecalcRefusal):
 
 
 def _design_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
-    if wire["detail"] == "recalc.iv_decision_unavailable":
+    if wire["detail"] == _reason_details.recalc.IV_DECISION_UNAVAILABLE:
         return DesignWeakInstrument
     return _refusal_type(wire)
 

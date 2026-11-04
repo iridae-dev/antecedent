@@ -417,20 +417,29 @@ fn a_failed_member_is_reported_and_the_family_is_never_complete() {
     assert!(report.claims[0].outcome.is_ok());
     let spiked = report.claims[1].outcome.as_ref().unwrap_err();
     assert!(spiked.support_refused);
-    assert_eq!(spiked.detail.as_deref(), Some("batch_retarget.weighted_overlap_failed"));
+    assert_eq!(
+        spiked.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::WEIGHTED_OVERLAP_FAILED)
+    );
     assert_eq!(spiked.reason_code.as_deref(), Some("positivity_violated"));
     let short = report.claims[2].outcome.as_ref().unwrap_err();
-    assert_eq!(short.detail.as_deref(), Some("batch_retarget.incompatible_target"));
+    assert_eq!(
+        short.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET)
+    );
     assert_eq!(short.reason_code.as_deref(), Some("invalid_argument"));
     let bad_contrast = report.contrasts[0].outcome.as_ref().unwrap_err();
-    assert_eq!(bad_contrast.detail.as_deref(), Some("batch_retarget.contrast_member_failed"));
+    assert_eq!(
+        bad_contrast.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::CONTRAST_MEMBER_FAILED)
+    );
     assert!(report.contrasts[1].outcome.is_ok(), "a contrast of surviving members survives");
     assert_eq!(report.failed_members(), ["spiked", "short", "good_minus_spiked"]);
 
     // The surviving member keeps its covariance, but the family is not a complete claim.
     assert_eq!(report.covariance.as_ref().unwrap().names, ["good"]);
     let refusal = report.complete_family().unwrap_err();
-    assert_eq!(refusal.detail, "batch_retarget.partial_family");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::batch_retarget::PARTIAL_FAMILY);
     assert_eq!(refusal.code, "route_not_supported");
     assert!(refusal.message.contains("spiked") && refusal.message.contains("short"));
 
@@ -449,7 +458,10 @@ fn a_failed_member_is_reported_and_the_family_is_never_complete() {
     assert_eq!(row("spiked").status, "failed");
     assert_eq!(row("spiked").support_status, "not_supported");
     assert_eq!(row("spiked").refusal_code.as_deref(), Some("positivity_violated"));
-    assert_eq!(row("short").refusal_detail.as_deref(), Some("batch_retarget.incompatible_target"));
+    assert_eq!(
+        row("short").refusal_detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET)
+    );
     assert_eq!(row("good_minus_spiked").kind, TidyKind::Contrast);
     assert_eq!(row("good_minus_spiked").status, "failed");
     assert_eq!(row("good_only").status, "ok");
@@ -470,31 +482,46 @@ fn a_malformed_family_is_refused_with_a_typed_reason() {
     };
 
     let empty = refuse(family(vec![], vec![]));
-    assert_eq!((empty.code, empty.detail), ("invalid_argument", "batch_retarget.empty_family"));
+    assert_eq!(
+        (empty.code, empty.detail),
+        ("invalid_argument", antecedent_core::reason_details::batch_retarget::EMPTY_FAMILY)
+    );
     let duplicate =
         refuse(family(vec![claim("a", 0, w.clone()), claim("a", 0, w.clone())], vec![]));
-    assert_eq!(duplicate.detail, "batch_retarget.duplicate_name");
+    assert_eq!(duplicate.detail, antecedent_core::reason_details::batch_retarget::DUPLICATE_NAME);
     let clash = refuse(family(vec![claim("a", 0, w.clone())], vec![contrast("a", &[("a", 1.0)])]));
-    assert_eq!(clash.detail, "batch_retarget.duplicate_name");
+    assert_eq!(clash.detail, antecedent_core::reason_details::batch_retarget::DUPLICATE_NAME);
     let unknown_query = refuse(family(vec![claim("a", 3, w.clone())], vec![]));
-    assert_eq!(unknown_query.detail, "batch_retarget.unknown_claim");
+    assert_eq!(
+        unknown_query.detail,
+        antecedent_core::reason_details::batch_retarget::UNKNOWN_CLAIM
+    );
     let unknown_claim =
         refuse(family(vec![claim("a", 0, w.clone())], vec![contrast("c", &[("zzz", 1.0)])]));
-    assert_eq!(unknown_claim.detail, "batch_retarget.unknown_claim");
+    assert_eq!(
+        unknown_claim.detail,
+        antecedent_core::reason_details::batch_retarget::UNKNOWN_CLAIM
+    );
     for bad in [
         contrast("c", &[]),
         contrast("c", &[("a", f64::NAN)]),
         contrast("c", &[("a", 1.0), ("a", -1.0)]),
     ] {
         let invalid = refuse(family(vec![claim("a", 0, w.clone())], vec![bad]));
-        assert_eq!(invalid.detail, "batch_retarget.invalid_contrast");
+        assert_eq!(
+            invalid.detail,
+            antecedent_core::reason_details::batch_retarget::INVALID_CONTRAST
+        );
     }
     let mut declared = family(vec![claim("a", 0, w.clone())], vec![]);
     declared.expected_snapshot = Some("not-this-snapshot".into());
     let moved = refuse(declared);
     assert_eq!(
         (moved.code, moved.detail),
-        ("row_weights_bound_to_snapshot", "batch_retarget.mixed_snapshot")
+        (
+            "row_weights_bound_to_snapshot",
+            antecedent_core::reason_details::batch_retarget::MIXED_SNAPSHOT
+        )
     );
     // Undeclared nonconstant weights are a typed member failure, not a silent reweighting.
     let report = retarget(
@@ -563,7 +590,7 @@ fn retarget_after_estimate_reweights_that_estimates_rows() {
         expected_snapshot: Some(prepared_snapshot),
     };
     let moved = retarget(&prepared, &later, &declared_before).unwrap_err();
-    assert_eq!(moved.detail, "batch_retarget.mixed_snapshot");
+    assert_eq!(moved.detail, antecedent_core::reason_details::batch_retarget::MIXED_SNAPSHOT);
     let stale = retarget(
         &prepared,
         &later,
@@ -571,7 +598,10 @@ fn retarget_after_estimate_reweights_that_estimates_rows() {
     )
     .unwrap();
     let failure = stale.claims[0].outcome.as_ref().unwrap_err();
-    assert_eq!(failure.detail.as_deref(), Some("batch_retarget.incompatible_target"));
+    assert_eq!(
+        failure.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET)
+    );
     let rows = later.common_rows().unwrap().unwrap();
     assert_eq!(rows.len(), 430);
     let aligned = retarget(
@@ -606,13 +636,19 @@ fn a_plan_without_scores_refuses_instead_of_losing_the_retarget_silently() {
     let none_prepared = retarget(&prepared, &prepared.prepared_scores(), &request).unwrap();
     let failure = none_prepared.claims[0].outcome.as_ref().unwrap_err();
     assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
-    assert_eq!(failure.detail.as_deref(), Some("batch_retarget.scores_unavailable"));
+    assert_eq!(
+        failure.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE)
+    );
 
     let (_, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
     let after = retarget(&prepared, &estimated, &request).unwrap();
     let failure = after.claims[0].outcome.as_ref().unwrap_err();
     assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
-    assert_eq!(failure.detail.as_deref(), Some("batch_retarget.scores_unavailable_after_estimate"));
+    assert_eq!(
+        failure.detail.as_deref(),
+        Some(antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE_AFTER_ESTIMATE)
+    );
     let rows = after.tidy_rows();
     assert_eq!(rows[0].status, "failed");
     assert_eq!(rows[0].family_failed, 1);
@@ -677,7 +713,10 @@ fn a_cancelled_retarget_is_a_stop_never_a_verdict() {
     let ctx = ExecutionContext::for_tests(71);
     ctx.cancellation.cancel();
     let stopped = prepared.retarget(&scores, &request, &ctx).unwrap_err();
-    assert_eq!((stopped.code, stopped.detail), ("cancelled_no_claim", "batch_retarget.cancelled"));
+    assert_eq!(
+        (stopped.code, stopped.detail),
+        ("cancelled_no_claim", antecedent_core::reason_details::batch_retarget::CANCELLED)
+    );
     // The same family then completes under a live context.
     assert!(retarget(&prepared, &scores, &request).unwrap().complete_family().is_ok());
 }
@@ -767,6 +806,6 @@ fn the_simultaneous_interval_is_the_max_t_band_of_a_complete_family() {
     let refused = partial.simultaneous_interval(0.95, 9, 20_000, &ctx).unwrap_err();
     assert_eq!(
         (refused.code, refused.detail),
-        ("route_not_supported", "batch_retarget.partial_family")
+        ("route_not_supported", antecedent_core::reason_details::batch_retarget::PARTIAL_FAMILY)
     );
 }

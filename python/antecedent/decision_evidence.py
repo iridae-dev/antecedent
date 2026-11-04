@@ -5,7 +5,7 @@ cost) while the decision turns on a quantity built from all of them. This module
 step from estimate to decision may say:
 
 * :class:`JointEvidence` holds several effects of *one* experiment with the covariance of the
-  arm-mean estimators, or states that only marginals exist; marginals are never promoted to a
+  arm-mean estimators, or states that only marginals exist; marginals are never combined into a
   joint law.
 * :class:`DerivedQuantity` is a function of those outcomes (a nonlinear margin, say). Its
   inputs are measured components, values bounded by a declared assumption, or declared missing.

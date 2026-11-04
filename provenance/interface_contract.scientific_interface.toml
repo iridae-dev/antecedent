@@ -38,24 +38,29 @@ record_sha256 = "8d67af81ff462a0592004f6776262a5855a91a56717c1a2d5d454d40f75e053
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
-sha256 = "02ad8067d3d110f8a9fa88a0b082190ef4b28230edff94ce14b94f5d4d68dd6f"
+items = ["const ALL_MEANINGS", "const INTERFACE_CONTRACT_VERSION", "const TAG_CONTRACT", "enum CalibrationRequirement", "enum CalibrationStatus", "enum ContractOperation", "enum DependenceRequirement", "enum EvidenceBasis", "enum SupportDomain", "enum UncertaintyParadigm", "fn accepts", "fn canonical_identity", "fn carries_uncertainty", "fn check_common", "fn check_models", "fn check_stages", "fn check_text", "fn check_uncertainty", "fn consumed", "fn from_capability", "fn from_name", "fn interval", "fn is_lower_hex_digest", "fn is_well_formed", "fn kind", "fn label", "fn name", "fn new", "fn operations_of_capabilities", "fn paradigm", "fn produced", "fn sources", "fn tag", "fn uncertainty_ops", "fn validate", "fn with_calibration", "fn with_dependence", "fn with_evidence", "fn with_measurement_models", "fn with_provenance", "fn with_uncertainty", "fn write_consumed", "fn write_operations", "fn write_produced", "fn write_set", "fn write_support", "fn write_uncertainty", "struct ConsumedPort", "struct InterfaceContract", "struct PortFacts", "struct ProducedPort", "struct UncertaintyMeaning"]
+sha256 = "8760a00a16c6778402b3a306a790ce6f133246fd2a584ee16ac1ca77ed24f143"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/composition.rs"
-sha256 = "2485edc3fda18948107f42b5b0abc504444a36923c9cf7143d5dd7f5241a2d96"
+items = ["const TAG_COMPOSITION", "fn check_composition", "fn check_composition_inner", "fn check_composition_with_ledger", "fn check_disjoint", "fn compose", "fn decide_connections", "fn disjoint_requirements_without_ledger", "fn feed_forward_order", "fn ledger_overlap", "fn new", "fn order_components", "fn resolve_connections", "fn resolve_inherited_calibration", "fn validate_components", "struct ComponentConnection", "struct ComposedInterfaces", "type Edges"]
+sha256 = "87b3feb03bd296d16f37dc5c56439143b7ac24f128194886922968cf5b9d0f3e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/connection.rs"
-sha256 = "608a617aa3499a0027b3052d3f682bd3177132e128798c2fcb6cdbec31bc8a50"
+items = ["const TAG_CONNECTION", "fn check_connection", "fn check_ports", "fn compare_quantities", "fn compare_uncertainty", "fn conditioning_text", "fn operation_remedy", "fn set_text", "struct Connection"]
+sha256 = "afad2cdecdefcb2caa1f7dca27d7b06cb19c267ec7f3fa962f2b50a51606ca8b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_adapters.rs"
-sha256 = "25a98a6e337990efd4eaa7cbab513a550fea3836ace1d7b7d41033a42647d72b"
+items = ["const MODEL_B", "fn a_bridge_consuming_a_mean_is_not_fed_by_a_law", "fn a_cycle_through_a_mechanism_a_bridge_and_a_callback_is_refused_with_its_path", "fn a_declared_independence_is_decided_from_ledger_rows_not_evidence_strings", "fn a_measurement_assumption_mismatch_is_refused_between_a_mechanism_and_a_bridge", "fn a_measurement_model_is_produced_under_its_identity_and_consumers_state_the_model_they_rely_on", "fn a_measurement_model_refuses_quantities_it_does_not_bind", "fn a_mechanism_a_bridge_and_a_callback_compose_through_the_one_check", "fn bridge", "fn bridge_contract", "fn callback", "fn clinic_model", "fn details", "fn disease", "fn distinct_sources_that_share_rows_are_not_disjoint_and_unknown_overlap_is_not_disjoint", "fn estimate", "fn feed_forward", "fn matching_names_units_and_support_but_another_population_is_refused", "fn measurement_basis", "fn mechanism", "fn mechanism_contract", "fn mechanisms_declared_independent_are_checked_against_the_ledger_rows", "fn observation", "fn observed", "fn q", "fn row_pairing_across_inputs_compares_their_real_alignment_identities", "fn two_consumers_requiring_disjoint", "fn undeclared"]
+sha256 = "2ba129a0491c486e9007d748247dd9cd10d3f0ef1e4ce387b3c6671b8b188ea7"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_contract.rs"
-sha256 = "ae134c95560270c8c079c2a95071d7e5abab4b782e8712fa0cdbaa00574e1986"
+items = ["const MODEL_A", "const MODEL_B", "fn a_composition_with_a_pairwise_defect_is_refused_with_the_defect", "fn a_cycle_is_refused_before_execution_with_its_path_named", "fn a_feed_forward_composition_is_ordered_producers_first", "fn check", "fn compatible_pair_connects_and_carries_what_the_producer_holds", "fn consumed", "fn consumer_of", "fn details", "fn empty_evidence_never_satisfies_a_dependence_requirement", "fn every_quantity_dimension_is_reported_separately", "fn fan_in", "fn identity_ignores_port_order_and_binds_every_declared_field", "fn inherited_calibration_does_not_cross_changed_quantity", "fn inherited_calibration_resolves_against_the_upstream_that_holds_it", "fn inherited_calibration_uses_the_actual_source_and_preserves_forwarding", "fn inputs_that_must_be_disjoint_cannot_share_an_evidence_source", "fn link", "fn malformed_declarations_are_refused_with_their_own_detail", "fn matching_names_units_and_shape_but_another_population_and_a_mean_for_a_law_refuse", "fn measured_calibration_is_carried_never_raised", "fn measurement_assumptions_must_agree_as_sets_of_model_identities", "fn passthrough", "fn point_only_stays_point_only_across_a_connection", "fn posterior_and_sampling_uncertainty_are_not_interchangeable", "fn produced", "fn producer_of", "fn provider_capabilities_disclose_operations_one_to_one", "fn quantity", "fn source", "fn support_containment_is_decided_by_declared_domains", "fn undeclared_dependence_is_refused_where_the_consumer_needs_it_declared", "fn unknown_names_and_a_doubly_fed_port_are_refused"]
+sha256 = "3dda43ef98f458a2b0ceda7d1d47c6287fcc84b5909cbe1c317b2aca0860e88c"

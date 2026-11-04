@@ -43,7 +43,17 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
-          "sha256": "2d9f9ecbaff5f92720b46a2766930a57f0bdcc17fe3729afbeed85ceb287242e"
+          "items": [
+            "const DRAWS",
+            "const REPS",
+            "fn bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth",
+            "fn bayesian_rd_executes_staged_and_checks_bandwidth_conditioning",
+            "fn iv_joint_fixed_loading_public_intervals_calibrate_under_declared_law",
+            "fn rd_graph",
+            "fn rd_posterior_intervals_calibrate_under_declared_local_linear_law",
+            "fn table"
+          ],
+          "sha256": "d388daf2c270924e473547071550d3e37ef76eae3eefc5c08410a57231a7448c"
         }
       ],
       "fixture_payload_sha256": "bbc078a0bb4323d00c9db52933f2437a5cb869c6c02c3fb721cb9f968d4247f2"

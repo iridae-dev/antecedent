@@ -40,12 +40,14 @@ record_sha256 = "b3abf9dd36eb49ff1dc601521b4869ea0aed7d989a26452b93e1b6f7e76b776
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/causal_forest.rs"
-sha256 = "baf7cc214c67b394542733ba7b75095c6661f39c57aec87f51ddb89b3f73c8e2"
+items = ["const MIN_CUTS", "const SUBSAMPLE_FRACTION", "enum Node", "fn aggregate_forest_cate", "fn arm_slot", "fn best_split", "fn candidate_thresholds", "fn choose_features", "fn cluster_subsample", "fn fill_cate", "fn fit", "fn grow_from", "fn grow_tree", "fn ix", "fn leaf", "fn leaf_dispersion_from_leaf_ses", "fn leaf_stat", "fn len", "fn marginal", "fn new", "fn partition_rows", "fn physical_rows", "fn portable_forest", "fn portable_nodes", "fn predict_leaf", "fn prepare", "fn presorted", "fn require_row_units", "fn split", "fn subsample", "fn tau_from_sums", "fn with_cluster_dml", "fn with_cluster_ids", "fn with_honesty", "fn with_max_cuts", "fn with_max_depth", "fn with_min_leaf", "fn with_n_trees", "fn with_source_cluster_ids", "struct CausalForest", "struct ForestCate", "struct ForestData", "struct LeafEstimate", "struct NodeRows", "struct Split", "struct TreeShape", "type Row"]
+sha256 = "bf52ee1c83b33da1fc3d8d2ef531c6b0435d9f44a38a06028ed1de712082cfa7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_causal_forest_reference.rs"
-sha256 = "f76d2a0b70b8872d5dc5a5fcca0b002bbdfd7e64f2494656348f9a442b7d50d0"
+items = ["fn a_table_of_two_minimum_leaves_without_honesty_does_not_depend_on_the_seed", "fn assert_refused", "fn cases", "fn close", "fn close_with_floor", "fn floats", "fn forest_of", "fn portable", "fn problem", "fn settings_and_declarations_the_forest_cannot_honour_are_refused", "fn the_library_stream_equals_the_frozen_reference_draws", "fn trees_effects_and_dispersion_match_the_exact_reference", "struct Problem"]
+sha256 = "ff8663ac91a47a01af520cdbb150822ab040140c1acd30d1529bc832e1418d15"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -39,19 +39,23 @@ record_sha256 = "ce26e8221e1360a9b51fc211efb4a4cb6e3d8a4d261a31b62fd40c95257b3f6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/generalized.rs"
-sha256 = "93f3da9e8b07381357bc9577172655830af74e8e879eda7742ced87f31495a2d"
+items = ["fn budget", "fn check_completion_stop", "fn completion_search", "fn cpdag_envelope_with", "fn cpdag_undirected_features", "fn default", "fn identify_cpdag_envelope", "fn new", "struct AdjustmentBudget", "struct GeneralizedAdjustmentConfig", "struct GeneralizedAdjustmentIdentifier"]
+sha256 = "4b424cc9aba29718ff5c595a18a6fb4dd6e6139948a8b61f5c8484e1bfad869b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/envelope.rs"
-sha256 = "d266a984997c5b4c32e94be24e6c2d2182337fa920bb1c5a14800f1eed691f8d"
+items = ["module"]
+sha256 = "caaee0baf9f7ccb698c588ea735c0fe3615dd01b622a3a91c75666b1f343b96f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cpdag_completion.rs"
-sha256 = "1f4c0132f8a5f2d85bfa5eb59a42c1db0b0569e8e6fc3af90990b7a836a4a48d"
+items = ["fn max_completions", "fn new", "fn with_budget"]
+sha256 = "d45a418db61caf9a2ebb4d1ab3c079726e6dc1033797bbd880475af967a26972"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs"
-sha256 = "9f9f31d0fe3a346f43d0975fd587b5421d9f505a8f5e94a64557c35592d5fd16"
+items = ["fn acyclic", "fn all_dags", "fn backdoor_valid", "fn cpdag_envelope_counts_members_with_a_valid_back_door_set_on_four_nodes", "fn cpdag_envelope_counts_members_with_a_valid_back_door_set_on_three_nodes", "fn d_separated", "fn id", "fn invariant", "fn reach", "fn run", "fn valid_sets", "type Arcs", "type Invariant"]
+sha256 = "deb9f0886cdbe6d8b542c10cf54272a0d197766df991cb18f6f4a1f47e56f113"

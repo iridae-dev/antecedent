@@ -36,12 +36,14 @@ record_sha256 = "c2363bb3e9b1d14a951f1f4c19923ebf252cd132eca73b2d621560741ec069f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/graph_refute.rs"
-sha256 = "4617669540a1db9df2f66d7bf9a87a9bfccf376e67610372bf67eb388045dc27"
+items = ["fn default", "fn drop_adjustment_at", "fn new", "fn refute", "struct GraphRefuter"]
+sha256 = "5ca03261b6bc36590a9782fe847bf193f7127ea89c7dea6e9705e7da5565afab"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/graph_refute_reference.rs"
-sha256 = "b9165c357ae9143abfc550e4437c5edf67d27a63662e907807d621b3d69a09d9"
+items = ["fn build", "fn close", "fn empty_adjustment_set_has_nothing_to_drop", "fn floats", "fn leave_one_out_equals_the_exact_reference", "fn original", "fn reference"]
+sha256 = "1cb590c35ed0e222174485ecdd9cd559f3db0dfa6fbda0e3f7bdb59a30296864"
 
 [[method_review.artifacts]]
 role = "reference"

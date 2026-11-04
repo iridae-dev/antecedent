@@ -1706,7 +1706,10 @@ mod request_code_tests {
         let spellings: BTreeSet<_> = RecalcRequestCode::ALL.iter().map(|c| c.as_str()).collect();
         assert_eq!(spellings.len(), RecalcRequestCode::ALL.len());
         assert!(spellings.iter().all(|s| s.starts_with("recalc.")));
-        assert_eq!(RecalcRequestCode::Cancelled.to_string(), "recalc.cancelled");
+        assert_eq!(
+            RecalcRequestCode::Cancelled.to_string(),
+            antecedent_core::reason_details::recalc::CANCELLED
+        );
     }
 
     fn table(columns: &[(&str, &[f64])]) -> Columns {

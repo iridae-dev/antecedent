@@ -101,112 +101,134 @@ record_sha256 = "30ece2957918d26cbc258b2769f5ac2be7898865c82d7e3458280e8bf8a3519
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/mod.rs"
-sha256 = "33aa0f53568b5b7c3b65ec51097b559bdbb7a1f3ca7fa66306dfb4e5b80009f2"
+items = ["enum MechanismFamily", "enum MechanismTyping", "enum SelectionPolicy", "fn assign_and_fit", "fn assign_and_fit_polled", "fn assign_and_fit_with", "fn assign_and_fit_with_polled", "fn default", "fn id", "fn mechanism_family_id", "fn refit_frequency_weighted_polled", "fn refit_weighted", "fn refit_weighted_polled", "fn refit_with_weights", "fn select", "fn standard", "fn validate_constraints", "fn with_bayesian_families", "struct MechanismAssignment", "struct MechanismCandidate", "struct MechanismRegistry"]
+sha256 = "56575682470db14dbe3ae4b6a48a42b4d34418c64c8742d3982f3a2a98f1acd9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/cv.rs"
-sha256 = "24b11623124a724921663e7a625a82827f8bf2f12b2a45b22b95f0857c5ccf3a"
+items = ["fn column_major", "fn n_parents"]
+sha256 = "39934270e9dfa1e3567542ddf74b03ff941890cbecc84060d5cc50a875a7334a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/select.rs"
-sha256 = "912b74d4ce1c198ec734719aed4385731c2fa48a5971fa7fefdfa0e9fe823c04"
+items = ["module"]
+sha256 = "571bfc48abd9923a077306902f5f2e4b4d0ca1b6dc4f2e8e51d5f37c74f703cc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/selection.rs"
-sha256 = "d0973a6f3bdd0764b55ed87616434c72fb7ba498efe545f5e7cc6906dc08c4f8"
+items = ["enum SelectionRule", "enum ValidationSplits", "fn id", "struct NodeFamilyConstraint", "struct SelectionOptions"]
+sha256 = "2f832f03d841a4497470ebf9abea7d0800b4a4a02c0091238f121803959e23c1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/mod.rs"
-sha256 = "2df4b2779d9b452e8a8ee3a0ee23bc7d57f772658ada6f3d6b5c3cd8e97047aa"
+items = ["module"]
+sha256 = "9b65837b0617f7d6085cd48d1914626dbeb4e37a6dd4f994602ae46847e959d8"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/linear.rs"
-sha256 = "5fc86bc23616dbd01cc57549c42e46c9b97f469af4f3baa0f7869f7d9cce2837"
+items = ["module"]
+sha256 = "ec5190df2d93945940c765e303f160a36108d71c544e7e5d0c7d3692af1a4e4c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/hierarchical.rs"
-sha256 = "dddfe340402a37fc3e8665972195bf9d20455a56fe2623566f1e4db22b55b6c4"
+items = ["module"]
+sha256 = "3067051cdc381de61c9e3c60744e6c1ea0188b36d9a0f4e3bd9a7f9c85b5afd5"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/basis.rs"
-sha256 = "2bb3b3e65615c2d9e65e78749a67e4c15f2ca4063ed800586493818521dd9e6c"
+items = ["module"]
+sha256 = "5fd9e1b9b5fd5a4ed95e7edaea6564ca71ac7406c065659269dddb2f32a21ae1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/state_space.rs"
-sha256 = "3eb350a1afe0086cb415b0cd4f13735ed3b687ad6177fa3a3d198564ee56a381"
+items = ["module"]
+sha256 = "4cb99e1f50b18580c70bf2e618c011b33b7e1bd5ff3acacb146eaed736e9500c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/gp.rs"
-sha256 = "976a50ebfaa0ebce41a9e90e3707930f75b557f262482dbc5e509eb04bde92b2"
+items = ["module"]
+sha256 = "402455cd5253e289032622cefdf2aa30e90700786ee409c6bb50af0085cf04e3"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/tree.rs"
-sha256 = "51f93f6e6d09fab1c6683b773086a3def63a8f936117e3a79177f0c2843e4cfd"
+items = ["const BOOSTED", "const FOREST_CLASSIFICATION", "const FOREST_REGRESSION", "fn spec"]
+sha256 = "4233bace6b97b4d4f5657705c341b03e58b08f1888893926c672b6ffa30ededd"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/lgssm.rs"
-sha256 = "564f1f0732b187f5417c997d3d22d9490582049df62610f3871c85e42f2ab615"
+items = ["fn kalman_filter", "fn rts_smooth"]
+sha256 = "a5a7a134088a520938d5a1b8eb3e49691fef5419a80db6c665a4b8283702bdc4"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/tree.rs"
-sha256 = "a068abf548606e8496ed56115ffef626e7cf07459cdc28f33aa38cd360626395"
+items = ["fn learner", "fn n_parents", "fn new", "fn predict_column", "fn predictor", "struct TreeEnsemble"]
+sha256 = "93fc5aed0b98c084b93ea8f37e90c202b8bb7ded193f97c8d8ea29e766e0d85d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/basis.rs"
-sha256 = "69290bd804e229b4d0af439e9fb110cfb03e52d0708acdcc9d138bc6aad15a3f"
+items = ["enum BasisTerm", "fn centers", "fn expand_row", "fn expand_standardized", "fn is_empty", "fn knots", "fn n_parents", "fn n_terms", "fn new", "fn scales", "fn standardize", "fn terms"]
+sha256 = "0856fe08dffdcbf2dfcda194a05b9ecc5aff1670f6ffd0c117d1af66dbe6e713"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_weighted_refit_reference.rs"
-sha256 = "91baf98561e231f93694fff12c08e2ed04f72cc98e94e1772f6f3658aa03e878"
+items = ["fn close", "fn floats", "fn table", "fn weighted_linear_gaussian_refits_match_exact_weighted_least_squares"]
+sha256 = "911ef7645c3942fa4e4d4f794d8b08145468e9d21bb7de044f17aab34c78afe6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_glm_reference.rs"
-sha256 = "98a083bffa61a5abd06397362fc730ae48c31caf0bd06fdeae8afea008ecc14f"
+items = ["fn floats", "fn registry_glm_reference_hierarchical_glm_refuses_a_declared_unit_structure", "fn required"]
+sha256 = "62ff31a607af32acc84918f4cda5f7dc70c04b81ab1691ac5b9a2f0b2b6a831b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_linear_families_reference.rs"
-sha256 = "0a5de6682a04a51ed7e023e31b91eed2356eec59d0f3227909e05f379ba26b8a"
+items = ["fn close", "fn fit", "fn floats", "fn registry_linear_families_reference_penalised_and_expanded_fits_match_exact_solves", "fn required", "fn table"]
+sha256 = "97a356809da99c2050c5e232cade1c88838572d9db792fcefcd53222821d181c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_state_space_reference.rs"
-sha256 = "c1d85cca3ef0d03fd392e306f3092a95eafe521d635f065b8541950689b9f982"
+items = ["fn all_close", "fn close", "fn floats", "fn registry_state_space_reference_em_fit_matches_joint_law_em", "fn registry_state_space_reference_filter_and_smoother_match_exact_rational_recursions", "fn registry_state_space_reference_predictive_density_is_unit_free", "fn table"]
+sha256 = "7795b90196d8f1431aa47efc78bb8ca04501bb51b0ed6cc703abea8bc675dab9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_gaussian_process_reference.rs"
-sha256 = "8f54f1c4b3069db2dc636f924c0b28c2d136fb53b2853abfa8a88329fdec0b73"
+items = ["fn close", "fn floats", "fn registry_gaussian_process_reference_selects_the_exact_marginal_likelihood_cell", "fn table"]
+sha256 = "9d0c4fb29204c55c2840dc5e0b2634467eb86c575686e143adfa3485dd873984"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_tree_ensemble_reference.rs"
-sha256 = "4ec28f5ee071d46324ad3e7fd6b92de50d2a5ac3e94ce6448caad4e36a708c8d"
+items = ["fn close", "fn column_major", "fn ensemble", "fn floats", "fn registry_tree_ensemble_reference_maps_densities_and_class_probabilities_match_exact_values"]
+sha256 = "6fee180f7cb66ef41ee662ba2c6d7f87af5d32b4414ed97ba10f6d6d381cfa8b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_tree_fit_wiring_reference.rs"
-sha256 = "d36bd958688322f24c89dc11abfa10956409c0ed5e9845c60d664964063fce61"
+items = ["const SEED", "fn direct", "fn fit", "fn predict", "fn registry_tree_fit_wiring_reference_additive_fits_use_the_documented_settings_and_folds", "fn registry_tree_fit_wiring_reference_classifiers_fit_the_indicator_of_each_level", "fn series", "fn table"]
+sha256 = "b001eeddda3e6de15d414a98202a1b2b4a83d38e4f8faeb3f20009ad59ec1e28"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_family_selection_reference.rs"
-sha256 = "1d21aafd849b0e1e296d29de63c10f9ff58f75e723e3a45adc39e9a77cbdfc0a"
+items = ["const CV_FOLD_SEED", "fn assert_score", "fn check_candidates", "fn floats", "fn model3", "fn registry", "fn registry_family_selection_reference_scores_and_ranking_match_exact_refits", "fn roots_linear", "fn table"]
+sha256 = "4f1298a568b1a78527c63a9fba60f71327adc747ee6c333460ed3b1b5c360328"
 
 [[method_review.artifacts]]
 role = "reference"

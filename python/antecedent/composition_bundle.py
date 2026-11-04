@@ -60,6 +60,8 @@ from dataclasses import asdict, dataclass, field
 from inspect import signature as _signature
 from typing import Any, Literal, TypeAlias
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ArtifactAcceptance,
@@ -182,19 +184,19 @@ STAGES: tuple[str, ...] = (
 # --------------------------------------------------------------------------- refusals
 
 
-_INVALID = "composition_bundle.invalid_container"
+_INVALID = _reason_details.composition_bundle.INVALID_CONTAINER
 _STAGE_DETAILS: dict[str, str] = {
-    "tampered_quantity": "composition_bundle.tampered_quantity",
-    "swapped_evidence": "composition_bundle.swapped_evidence",
-    "graph_or_snapshot_mismatch": "composition_bundle.graph_or_snapshot_mismatch",
-    "unsupported_law": "composition_bundle.unsupported_law",
-    "provider_request_changed": "composition_bundle.provider_request_changed",
-    "callback_unavailable": "composition_bundle.callback_unavailable",
-    "incompatible_version": "composition_bundle.incompatible_version",
-    "oversized": "composition_bundle.oversized",
-    "unknown_node_kind": "composition_bundle.unknown_node_kind",
-    "edge_digest_mismatch": "composition_bundle.edge_digest_mismatch",
-    "expected_identity_mismatch": "composition_bundle.expected_identity_mismatch",
+    "tampered_quantity": _reason_details.composition_bundle.TAMPERED_QUANTITY,
+    "swapped_evidence": _reason_details.composition_bundle.SWAPPED_EVIDENCE,
+    "graph_or_snapshot_mismatch": _reason_details.composition_bundle.GRAPH_OR_SNAPSHOT_MISMATCH,
+    "unsupported_law": _reason_details.composition_bundle.UNSUPPORTED_LAW,
+    "provider_request_changed": _reason_details.composition_bundle.PROVIDER_REQUEST_CHANGED,
+    "callback_unavailable": _reason_details.composition_bundle.CALLBACK_UNAVAILABLE,
+    "incompatible_version": _reason_details.composition_bundle.INCOMPATIBLE_VERSION,
+    "oversized": _reason_details.composition_bundle.OVERSIZED,
+    "unknown_node_kind": _reason_details.composition_bundle.UNKNOWN_NODE_KIND,
+    "edge_digest_mismatch": _reason_details.composition_bundle.EDGE_DIGEST_MISMATCH,
+    "expected_identity_mismatch": _reason_details.composition_bundle.EXPECTED_IDENTITY_MISMATCH,
 }
 
 
@@ -540,7 +542,7 @@ class BundleBuilder:
                     {
                         "code": "invalid_argument",
                         "stage": "build",
-                        "detail": "composition_bundle.node_not_found",
+                        "detail": _reason_details.composition_bundle.NODE_NOT_FOUND,
                         "offending": node_id,
                         "message": f"no node `{node_id}` has been added to this builder",
                         "remedy": f"add `{node_id}` first; nodes so far: {sorted(self._ids)}",
@@ -932,7 +934,7 @@ class ConsumedBundle(ScientificResult):
                     {
                         "code": "external_capability_missing",
                         "stage": "bind",
-                        "detail": "composition_bundle.callback_unavailable",
+                        "detail": _reason_details.composition_bundle.CALLBACK_UNAVAILABLE,
                         "offending": node.id,
                         "supplied": "a node needs a provider or data source that was not supplied",
                     }

@@ -61,6 +61,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from antecedent import _reason_details
+
 from . import _native
 from ._columns import coerce_fields
 from ._refusal import raise_refusal
@@ -540,7 +542,7 @@ class ObservationalScenarioResult(ScientificResult):
             {
                 "code": "invalid_argument",
                 "stage": "inverse_observational_scenarios",
-                "detail": "inverse_observational_scenarios.unknown_scenario",
+                "detail": _reason_details.inverse_observational_scenarios.UNKNOWN_SCENARIO,
                 "message": f"unknown scenario {id!r}",
                 "offending": id,
                 "remedy": "name a declared scenario",

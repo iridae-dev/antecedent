@@ -422,7 +422,12 @@ fn a_graph_posterior_without_a_justified_pooling_rule_is_refused_with_its_own_de
         .build()
         .unwrap_err();
     let text = refusal(&frequentist);
-    assert!(text.contains("multiple_imputation.graph_posterior_frequentist"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::multiple_imputation::GRAPH_POSTERIOR_FREQUENTIST
+        ),
+        "{text}"
+    );
     assert!(text.contains("next attempt: declare `complete_case`"), "{text}");
 
     // A mediation contrast over the mixture is answered atom by atom.
@@ -435,7 +440,10 @@ fn a_graph_posterior_without_a_justified_pooling_rule_is_refused_with_its_own_de
         .build()
         .unwrap_err();
     let text = refusal(&by_atom);
-    assert!(text.contains("multiple_imputation.graph_posterior_query"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::multiple_imputation::GRAPH_POSTERIOR_QUERY),
+        "{text}"
+    );
 }
 
 // ------------------------------------------------------------------ static mediation
@@ -625,9 +633,9 @@ fn graph_selection_is_rerun_on_every_completed_table_and_the_posteriors_are_stac
     assert!(result.interval().is_none(), "the composite interval is not supported");
     let interval_refusal = GraphSelectionPerImputation::interval().unwrap_err();
     assert_eq!(interval_refusal.reason_code(), Some("not_supported"));
-    assert!(
-        interval_refusal.to_string().contains("graph_selection_imputation.interval_unmeasured")
-    );
+    assert!(interval_refusal.to_string().contains(
+        antecedent_core::reason_details::graph_selection_imputation::INTERVAL_UNMEASURED
+    ));
     let effect = result.estimate().as_effect().unwrap();
     let pooled_mean = effect.ate;
     let pooled_sd = effect.uncertainty.analytic.se;

@@ -324,7 +324,10 @@ fn malformed_and_pooled_requests_refuse_by_name_and_leave_the_report_untouched()
     // One population is the single-population route.
     let one = [PopulationRows { population: "north", data: &north }];
     let err = driver.run(&contract(), &one, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.populations_missing"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::POPULATIONS_MISSING)
+    );
     assert_eq!(err.code(), Some("invalid_argument"));
 
     // A blank label.
@@ -333,7 +336,10 @@ fn malformed_and_pooled_requests_refuse_by_name_and_leave_the_report_untouched()
         PopulationRows { population: "  ", data: &south },
     ];
     let err = driver.run(&contract(), &blank, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.population_missing"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::POPULATION_MISSING)
+    );
 
     // A repeated label.
     let repeated = [
@@ -341,7 +347,10 @@ fn malformed_and_pooled_requests_refuse_by_name_and_leave_the_report_untouched()
         PopulationRows { population: "north", data: &south },
     ];
     let err = driver.run(&contract(), &repeated, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.population_repeated"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::POPULATION_REPEATED)
+    );
 
     // The same rows under two labels are one dataset, not two populations.
     let relabelled = [
@@ -349,13 +358,19 @@ fn malformed_and_pooled_requests_refuse_by_name_and_leave_the_report_untouched()
         PopulationRows { population: "north_copy", data: &north },
     ];
     let err = driver.run(&contract(), &relabelled, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.pooled_population_data"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_DATA)
+    );
 
     // A pooled search declaration is not this route.
     let mut pooled = contract();
     pooled.additional_populations.push("west".to_owned());
     let err = driver.run(&pooled, &good, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.pooled_population_search"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_SEARCH)
+    );
     assert_eq!(err.code(), Some("route_not_supported"));
 
     // Every refusal left the last committed report in place.
@@ -438,7 +453,8 @@ fn forged_receipts_are_refused_by_name() {
         SplitRule::SeededPermutation { seed: 9, discovery_fraction: 0.5 },
     )
     .unwrap();
-    let mismatch = Some("selective_discovery.split_receipt_mismatch");
+    let mismatch =
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_RECEIPT_MISMATCH);
 
     let mut sizes = split.receipt.clone();
     sizes.n_discovery += 1;
@@ -463,7 +479,10 @@ fn forged_receipts_are_refused_by_name() {
     // A receipt whose rule no longer assigns both parts is refused as the rule's own defect.
     let mut empty = split.receipt.clone();
     empty.rule = SplitRule::Explicit { discovery_rows: (0..40).collect() };
-    assert_eq!(empty.verify().unwrap_err().detail(), Some("selective_discovery.split_part_empty"));
+    assert_eq!(
+        empty.verify().unwrap_err().detail(),
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_PART_EMPTY)
+    );
 }
 
 #[test]
@@ -477,7 +496,9 @@ fn analysis_table_check_accepts_only_the_recorded_analysis_part() {
     .unwrap();
     split.receipt.check_analysis_table(&split.analysis, &vars()).unwrap();
 
-    let not_part = Some("selective_discovery.analysis_rows_not_the_split_part");
+    let not_part = Some(
+        antecedent_core::reason_details::selective_discovery::ANALYSIS_ROWS_NOT_THE_SPLIT_PART,
+    );
     // The discovery rows, the unsplit table and a same-shape table with one value moved.
     assert_eq!(
         split.receipt.check_analysis_table(&split.discovery, &vars()).unwrap_err().detail(),
@@ -504,7 +525,7 @@ fn analysis_table_check_accepts_only_the_recorded_analysis_part() {
     forged.n_analysis += 1;
     assert_eq!(
         forged.check_analysis_table(&split.analysis, &vars()).unwrap_err().detail(),
-        Some("selective_discovery.split_receipt_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_RECEIPT_MISMATCH)
     );
 }
 
@@ -514,19 +535,19 @@ fn split_refuses_rules_that_cannot_assign_both_parts() {
     let detail = |rule: SplitRule| split_rows(&data, &vars(), rule).unwrap_err().detail();
     assert_eq!(
         detail(SplitRule::SeededPermutation { seed: 1, discovery_fraction: 0.0 }),
-        Some("selective_discovery.split_fraction_invalid")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_FRACTION_INVALID)
     );
     assert_eq!(
         detail(SplitRule::Explicit { discovery_rows: vec![2, 2] }),
-        Some("selective_discovery.split_rows_repeated")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_ROWS_REPEATED)
     );
     assert_eq!(
         detail(SplitRule::Explicit { discovery_rows: vec![20] }),
-        Some("selective_discovery.split_row_out_of_range")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_ROW_OUT_OF_RANGE)
     );
     assert_eq!(
         detail(SplitRule::Explicit { discovery_rows: (0..20).collect() }),
-        Some("selective_discovery.split_part_empty")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_PART_EMPTY)
     );
 }
 
@@ -625,7 +646,10 @@ fn an_explicit_rule_may_not_name_an_excluded_row() {
     let data = with_rows(&collider_table(20, 22, 0.9), None, Some(&keep));
     let refused =
         split_rows(&data, &vars(), SplitRule::Explicit { discovery_rows: vec![3, 4] }).unwrap_err();
-    assert_eq!(refused.detail(), Some("selective_discovery.split_row_excluded"));
+    assert_eq!(
+        refused.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_ROW_EXCLUDED)
+    );
     let split =
         split_rows(&data, &vars(), SplitRule::Explicit { discovery_rows: vec![4, 5] }).unwrap();
     assert_eq!(split.discovery_row_ids, vec![4, 5]);
@@ -672,7 +696,10 @@ fn a_part_without_positive_weight_is_refused() {
     let data = with_rows(&collider_table(6, 24, 0.9), Some(weights), None);
     let error =
         split_rows(&data, &vars(), SplitRule::Explicit { discovery_rows: vec![4, 5] }).unwrap_err();
-    assert_eq!(error.detail(), Some("selective_discovery.split_part_weight_invalid"));
+    assert_eq!(
+        error.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_PART_WEIGHT_INVALID)
+    );
 }
 
 #[test]
@@ -694,33 +721,33 @@ fn replay_and_verify_detect_tampering_with_the_mask_weights_and_row_ids() {
     let other_mask = with_rows(&base, Some(weights.clone()), Some(&other_keep));
     assert_eq!(
         split.receipt.verify_against_source(&other_mask, &vars()).unwrap_err().detail(),
-        Some("selective_discovery.split_mask_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_MASK_MISMATCH)
     );
     let no_mask = with_rows(&base, Some(weights.clone()), None);
     assert_eq!(
         split.receipt.verify_against_source(&no_mask, &vars()).unwrap_err().detail(),
-        Some("selective_discovery.split_mask_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_MASK_MISMATCH)
     );
     let mut other_weights = weights.clone();
     other_weights[4] += 0.5;
     let reweighted = with_rows(&base, Some(other_weights), Some(&keep));
     assert_eq!(
         split.receipt.verify_against_source(&reweighted, &vars()).unwrap_err().detail(),
-        Some("selective_discovery.split_weights_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_WEIGHTS_MISMATCH)
     );
     let no_weights = with_rows(&base, None, Some(&keep));
     assert_eq!(
         split.receipt.verify_against_source(&no_weights, &vars()).unwrap_err().detail(),
-        Some("selective_discovery.split_weights_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_WEIGHTS_MISMATCH)
     );
     let edited = with_rows(&with_cell(&base, 2, 9, 123.0), Some(weights.clone()), Some(&keep));
     assert_eq!(
         split.receipt.verify_against_source(&edited, &vars()).unwrap_err().detail(),
-        Some("selective_discovery.split_source_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_SOURCE_MISMATCH)
     );
 
     // -- the parts: row ids and weights --
-    let mismatch = Some("selective_discovery.split_rows_mismatch");
+    let mismatch = Some(antecedent_core::reason_details::selective_discovery::SPLIT_ROWS_MISMATCH);
     let mut moved = split.clone();
     moved.analysis_row_ids[0] += 1;
     assert_eq!(moved.verify(&vars()).unwrap_err().detail(), mismatch);
@@ -734,11 +761,12 @@ fn replay_and_verify_detect_tampering_with_the_mask_weights_and_row_ids() {
     tampered.analysis = with_rows(&split.analysis, Some(vec![1.0; rows]), Some(&vec![true; rows]));
     assert_eq!(
         tampered.verify(&vars()).unwrap_err().detail(),
-        Some("selective_discovery.split_weights_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_WEIGHTS_MISMATCH)
     );
 
     // -- the receipt: exclusions, mask identity, weights --
-    let receipt_mismatch = Some("selective_discovery.split_receipt_mismatch");
+    let receipt_mismatch =
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_RECEIPT_MISMATCH);
     let mut unexcluded = split.receipt.clone();
     unexcluded.masked_out_rows.clear();
     assert_eq!(unexcluded.verify().unwrap_err().detail(), receipt_mismatch);
@@ -759,7 +787,9 @@ fn replay_and_verify_detect_tampering_with_the_mask_weights_and_row_ids() {
     let same_values = with_rows(&split.analysis, Some(vec![2.0; rows]), None);
     assert_eq!(
         split.receipt.check_analysis_table(&same_values, &vars()).unwrap_err().detail(),
-        Some("selective_discovery.analysis_rows_not_the_split_part")
+        Some(
+            antecedent_core::reason_details::selective_discovery::ANALYSIS_ROWS_NOT_THE_SPLIT_PART
+        )
     );
 }
 

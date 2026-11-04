@@ -209,7 +209,7 @@ impl ObservationalSurvival {
         if self.folds > n {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "survival_effect.invalid_folds",
+                antecedent_core::reason_details::survival_effect::INVALID_FOLDS,
                 "cross-fitting folds cannot exceed the complete-case rows",
             ));
         }
@@ -229,7 +229,7 @@ impl ObservationalSurvival {
             if ctx.cancellation.is_cancelled() {
                 return Err(refuse(
                     antecedent_core::reason_code!("cancelled_no_claim"),
-                    "survival_effect.cancelled",
+                    antecedent_core::reason_details::survival_effect::CANCELLED,
                     "the cross-fitted survival fit was cancelled before every fold was fit; no estimate is reported",
                 ));
             }
@@ -247,19 +247,19 @@ impl ObservationalSurvival {
             || self.active.partial_cmp(&self.control) == Some(std::cmp::Ordering::Equal)
         {
             return Err(invalid(
-                "survival_effect.invalid_levels",
+                antecedent_core::reason_details::survival_effect::INVALID_LEVELS,
                 "the active and control treatment levels must be distinct finite values",
             ));
         }
         if !self.horizon.is_finite() || self.horizon <= 0.0 {
             return Err(invalid(
-                "survival_effect.invalid_horizon",
+                antecedent_core::reason_details::survival_effect::INVALID_HORIZON,
                 "the horizon must be finite and positive",
             ));
         }
         if self.folds < 2 {
             return Err(invalid(
-                "survival_effect.invalid_folds",
+                antecedent_core::reason_details::survival_effect::INVALID_FOLDS,
                 "cross-fitting requires at least two folds",
             ));
         }
@@ -269,7 +269,7 @@ impl ObservationalSurvival {
             || !(0.0..1.0).contains(&self.min_censoring_survival)
         {
             return Err(invalid(
-                "survival_effect.invalid_floor",
+                antecedent_core::reason_details::survival_effect::INVALID_FLOOR,
                 "the propensity floor must lie in [0, 0.5) and the censoring survival floor in [0, 1)",
             ));
         }
@@ -349,7 +349,7 @@ impl ObservationalSurvival {
         if !events.contains(&true) || rows.len() <= p + 1 {
             return Err(refuse(
                 antecedent_core::reason_code!("arm_not_populated"),
-                "survival_effect.training_fold_without_events",
+                antecedent_core::reason_details::survival_effect::TRAINING_FOLD_WITHOUT_EVENTS,
                 &format!(
                     "a cross-fit training fold has {} rows and no observed event in the arm at treatment level {level}, so its outcome model cannot be fitted; use fewer folds or a larger sample",
                     rows.len()
@@ -386,7 +386,7 @@ impl ObservationalSurvival {
             if lowest.is_nan() || lowest < self.min_propensity {
                 return Err(refuse(
                     antecedent_core::reason_code!("positivity_violated"),
-                    "survival_effect.treatment_positivity",
+                    antecedent_core::reason_details::survival_effect::TREATMENT_POSITIVITY,
                     &format!(
                         "the propensity of treatment level {level} falls to {lowest:.6} on a row, below the declared floor {}; the doubly robust score weights by its inverse. Restrict the population or the covariates, or lower the floor knowingly",
                         self.min_propensity
@@ -399,7 +399,7 @@ impl ObservationalSurvival {
             if lowest.is_nan() || lowest < self.min_censoring_survival {
                 return Err(refuse(
                     antecedent_core::reason_code!("positivity_violated"),
-                    "survival_effect.censoring_support",
+                    antecedent_core::reason_details::survival_effect::CENSORING_SUPPORT,
                     &format!(
                         "in the arm at treatment level {level} the probability of remaining uncensored through the horizon {} falls to {lowest:.6}, below the declared floor {}; the censoring weights are unbounded. Shorten the horizon or declare a smaller floor knowingly",
                         self.horizon, self.min_censoring_survival
@@ -637,7 +637,7 @@ impl Prepared {
             || data.covariates.iter().any(|c| c.len() != rows)
         {
             return Err(invalid(
-                "survival_effect.invalid_data",
+                antecedent_core::reason_details::survival_effect::INVALID_DATA,
                 "duration, event, treatment and covariates must be non-empty and of equal length",
             ));
         }
@@ -647,13 +647,16 @@ impl Prepared {
             || infinite(data.treatment)
             || data.covariates.iter().any(|c| infinite(c))
         {
-            return Err(invalid("survival_effect.invalid_data", "no value may be infinite"));
+            return Err(invalid(
+                antecedent_core::reason_details::survival_effect::INVALID_DATA,
+                "no value may be infinite",
+            ));
         }
         if request.censoring == CensoringAssumption::AtRandomGivenCovariates
             && data.covariates.is_empty()
         {
             return Err(invalid(
-                "survival_effect.censoring_covariates_missing",
+                antecedent_core::reason_details::survival_effect::CENSORING_COVARIATES_MISSING,
                 "censoring at random given covariates needs declared covariates; with none, declare independent censoring within each arm",
             ));
         }
@@ -669,7 +672,7 @@ impl Prepared {
         let ncols = 1 + data.covariates.len();
         if n <= 4 * ncols {
             return Err(invalid(
-                "survival_effect.too_few_rows",
+                antecedent_core::reason_details::survival_effect::TOO_FEW_ROWS,
                 "the complete-case rows cannot support the nuisance models",
             ));
         }
@@ -687,7 +690,7 @@ impl Prepared {
             } else {
                 return Err(refuse(
                     antecedent_core::reason_code!("treatment_level_undeclared"),
-                    "survival_effect.undeclared_level",
+                    antecedent_core::reason_details::survival_effect::UNDECLARED_LEVEL,
                     &format!(
                         "row {i} has treatment {}, which is neither the active level {} nor the control level {}",
                         data.treatment[i], request.active, request.control
@@ -696,7 +699,7 @@ impl Prepared {
             };
             if data.duration[i] < 0.0 || (data.event[i] != 0.0 && data.event[i] != 1.0) {
                 return Err(invalid(
-                    "survival_effect.invalid_event",
+                    antecedent_core::reason_details::survival_effect::INVALID_EVENT,
                     &format!("row {i} needs a nonnegative duration and an event code of 0 or 1"),
                 ));
             }
@@ -711,14 +714,14 @@ impl Prepared {
             if rows_by_arm[a] == 0 {
                 return Err(refuse(
                     antecedent_core::reason_code!("arm_not_populated"),
-                    "survival_effect.arm_not_populated",
+                    antecedent_core::reason_details::survival_effect::ARM_NOT_POPULATED,
                     &format!("no complete-case row has treatment level {level}"),
                 ));
             }
             if follow_up[a] < request.horizon {
                 return Err(refuse(
                     antecedent_core::reason_code!("positivity_violated"),
-                    "survival_effect.horizon_beyond_follow_up",
+                    antecedent_core::reason_details::survival_effect::HORIZON_BEYOND_FOLLOW_UP,
                     &format!(
                         "no unit in the arm at treatment level {level} is followed to the horizon {}: the longest follow-up is {}. Survival at the horizon cannot be estimated without extrapolating; choose a horizon within follow-up",
                         request.horizon, follow_up[a]

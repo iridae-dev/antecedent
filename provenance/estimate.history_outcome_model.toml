@@ -37,17 +37,20 @@ record_sha256 = "ee2e8a994e38f36950938515e9c49404daaa12fb6fecc2292f3050f3177feac
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/history_outcome_model.rs"
-sha256 = "3898c3c7d40a185746cfeec7917a5caaeffd403ee0708983ca45e1e9f27eb50a"
+items = ["fn period_design_matrix", "fn periods_with_both_arms", "fn prepare_history_outcome_model", "struct HistoryOutcomeProblem"]
+sha256 = "6979ac1fd305b8208895afc53e045dccc0b0f7095fec47631bb16c97013f7bba"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
+items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
+sha256 = "81480e7cac5f4ca97855d646a708ed4e96bc6043c32c4099dedb383a4798b9e2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/history_outcome_model_reference.rs"
-sha256 = "b477d8d80764fde6eca7dcd5d7f7ffc4bf20f6ac9ecbd587c6572b839328d497"
+items = ["const DRAWS", "fn reference", "fn the_effect_on_the_treated_matches_the_exact_posterior", "fn unequal_sampling_weights_and_ragged_histories_are_refused", "fn units"]
+sha256 = "161065809b0272b2f57e08c0dcb0ce2fd393349d6c0c5c8592ad9acd53aaa378"
 
 [[method_review.artifacts]]
 role = "reference"

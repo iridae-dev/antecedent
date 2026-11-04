@@ -321,7 +321,10 @@ fn a_weighted_series_is_refused_rather_than_fit_unweighted() {
             study.run(&ExecutionContext::for_tests(83)).map_err(|error| error.to_string())
         });
     let error = outcome.expect_err("a weighted series cannot be fit without its weights");
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }
 
 #[test]

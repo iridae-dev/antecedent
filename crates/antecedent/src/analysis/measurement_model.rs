@@ -176,13 +176,15 @@ impl MeasurementModelRefusal {
         match error {
             IoError::Refused { message, .. } => Self {
                 code: antecedent_core::reason_code!("measurement_binding_mismatch"),
-                detail: "measurement_model.artifact_refused".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ARTIFACT_REFUSED
+                    .to_owned(),
                 message: message.clone(),
                 remedy: None,
             },
             other => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "measurement_model.artifact_invalid".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ARTIFACT_INVALID
+                    .to_owned(),
                 message: other.to_string(),
                 remedy: None,
             },
@@ -192,7 +194,7 @@ impl MeasurementModelRefusal {
     fn cancelled() -> Self {
         Self {
             code: antecedent_core::reason_code!("cancelled_no_claim"),
-            detail: "measurement_model.cancelled".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::CANCELLED.to_owned(),
             message: "cancelled before a corrected functional was formed; this is not a verdict on the data"
                 .to_owned(),
             remedy: None,
@@ -507,7 +509,8 @@ fn check_provider(
     match (model.route, provider) {
         (MeasurementRoute::ExternalLatentPosterior, None) => Err(MeasurementModelRefusal {
             code: antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-            detail: "measurement_model.posterior_identity".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+                .to_owned(),
             message: "the model names an external provider posterior and none was supplied; \
                       supply the exact provider object with an attestation or verification receipt"
                 .to_owned(),
@@ -621,7 +624,7 @@ impl PreparedMeasurementModel {
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
         Err(MeasurementModelRefusal {
             code: antecedent_core::reason_code!("uncertainty_representation_insufficient"),
-            detail: "measurement_model.interval_requires_estimate".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::INTERVAL_REQUIRES_ESTIMATE.to_owned(),
             message: "a prepared measurement model carries no corrected functional; request the interval from the estimate".to_owned(),
             remedy: None,
         })
@@ -772,7 +775,9 @@ impl PreparedMeasurementModel {
                     _ => {
                         return Err(MeasurementModelRefusal {
                             code: antecedent_core::reason_code!("invalid_argument"),
-                            detail: "measurement_model.input_invalid".to_owned(),
+                            detail:
+                                antecedent_core::reason_details::measurement_model::INPUT_INVALID
+                                    .to_owned(),
                             message: "the posterior route returned no replayable inputs".to_owned(),
                             remedy: None,
                         });
@@ -812,7 +817,8 @@ impl PreparedMeasurementModel {
         if !self.input.same_question(&input) {
             return Err(MeasurementModelRefusal {
                 code: antecedent_core::reason_code!("route_not_supported"),
-                detail: "measurement_model.route_mismatch".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH
+                    .to_owned(),
                 message: "refresh keeps the question: new data of another route family, \
                           functional or arm pair is a different request and needs a new preparation"
                     .to_owned(),
@@ -852,7 +858,8 @@ impl PreparedMeasurementModel {
         if parameters.route() != self.model.route {
             return Err(MeasurementModelRefusal {
                 code: antecedent_core::reason_code!("route_not_supported"),
-                detail: "measurement_model.route_mismatch".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH
+                    .to_owned(),
                 message: format!(
                     "the model declares route `{}`; the supplied parameters belong to `{}`",
                     self.model.route.as_str(),
@@ -869,7 +876,8 @@ impl PreparedMeasurementModel {
             if old != new {
                 return Err(MeasurementModelRefusal {
                     code: antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                    detail: "measurement_model.posterior_identity".to_owned(),
+                    detail: antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+                        .to_owned(),
                     message: format!(
                         "the provider object changed from `{}/{}` to `{}/{}`; the new object needs \
                          its own attestation or verification through a new preparation",
@@ -1013,7 +1021,8 @@ impl MeasurementEstimate {
                 if weights.len() != d || weights.iter().any(|w| !w.is_finite()) {
                     return Err(MeasurementModelRefusal {
                         code: antecedent_core::reason_code!("invalid_argument"),
-                        detail: "measurement_model.input_invalid".to_owned(),
+                        detail: antecedent_core::reason_details::measurement_model::INPUT_INVALID
+                            .to_owned(),
                         message: "functional weights do not match the design".to_owned(),
                         remedy: None,
                     });
@@ -1029,7 +1038,8 @@ impl MeasurementEstimate {
             }
             _ => Err(MeasurementModelRefusal {
                 code: antecedent_core::reason_code!("route_not_supported"),
-                detail: "measurement_model.operation_not_supported".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::OPERATION_NOT_SUPPORTED
+                    .to_owned(),
                 message: "this route has no coefficient vector to take a functional of".to_owned(),
                 remedy: None,
             }),

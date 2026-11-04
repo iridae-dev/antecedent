@@ -22,7 +22,7 @@
 //! from the runtime by binding every scored execution
 //! (`common::calibration_bind`).
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -296,7 +296,7 @@ fn coverage_on(
 /// (its analytic SE is NaN), so the reported interval is `ate ± z·se_boot`
 /// at the Study's default 199 replicates.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_admg_frontdoor_frequentist_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -322,7 +322,7 @@ fn average_effect_admg_frontdoor_frequentist_nominal_coverage() {
 /// Bayesian `functional.effect` posterior (Bayesian-bootstrap Dirichlet row
 /// law over the identified CPT factors): the published `q025` / `q975`.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_admg_frontdoor_bayesian_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -350,7 +350,7 @@ fn average_effect_admg_frontdoor_bayesian_nominal_coverage() {
 /// column is the binary mean, the `Y = 1` atom (checked in replicate 0 of the
 /// shape test).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn interventional_distribution_admg_frontdoor_bayesian_nominal_coverage() {
     let cell = Cell {
         query: "InterventionalDistribution",
@@ -381,7 +381,7 @@ fn interventional_distribution_admg_frontdoor_bayesian_nominal_coverage() {
 /// The same Frequentist `functional.effect` average effect under a graph
 /// posterior whose single atom is the front-door ADMG.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_admg_graph_posterior_frequentist_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -408,7 +408,7 @@ fn average_effect_admg_graph_posterior_frequentist_nominal_coverage() {
 /// The same Bayesian `functional.effect` posterior under a graph posterior
 /// whose single atom is the front-door ADMG.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_admg_graph_posterior_bayesian_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",

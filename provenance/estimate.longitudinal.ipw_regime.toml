@@ -38,12 +38,14 @@ record_sha256 = "385ca8ad0c413c0e1bbcda11df25cd6bf4f4f14f75ab9f302f4104daba86164
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/longitudinal_regime.rs"
-sha256 = "de3915dd1fa8c2edee56056b2ca3ef1b5a94715ea79d9980df0cc606c86e9a33"
+items = ["fn evaluate_g_formula_value", "fn evaluate_regime_value", "fn evaluate_sequential_dr_value_with_subject_scores", "fn from_message", "fn message", "fn route", "struct RegimeKernelError", "struct RegimeValueSummary", "struct SequentialDrInputs", "struct SubjectHistories"]
+sha256 = "e4883f3338b84a4fb04688ee05a8fdebbfa7a116f999ae9e05dfa8c95862e237"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/longitudinal_regime_reference.rs"
-sha256 = "caad40abcc9918306d545cbd13759726964ad6e32fafba251536c3b84b2d6b3c"
+items = ["fn bools", "fn close", "fn floats", "fn regime_values_match_the_exact_rational_references"]
+sha256 = "03ed4a3b385e751c60d1d4c89a57e75e8f5e659ad019188d610c8500c1768484"
 
 [[method_review.artifacts]]
 role = "reference"

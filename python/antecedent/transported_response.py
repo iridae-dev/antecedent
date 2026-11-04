@@ -56,6 +56,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from antecedent import _reason_details
+
 from . import _native
 from ._columns import coerce_fields
 from ._refusal import raise_refusal
@@ -354,7 +356,7 @@ class TransportedResponse(ScientificResult):
             {
                 "code": "not_supported",
                 "stage": "transported_decision",
-                "detail": "transported_decision.interval_not_supported",
+                "detail": _reason_details.transported_decision.INTERVAL_NOT_SUPPORTED,
                 "message": "a transported value is a point under a declared transport",
                 "offending": None,
                 "remedy": "decide on native target evidence of the required representation",

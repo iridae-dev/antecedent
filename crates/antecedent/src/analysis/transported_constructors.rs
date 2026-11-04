@@ -275,7 +275,7 @@ pub fn adaptive_trial_response(
         return Err(ExternalRefusal::new(
             antecedent_core::reason_code!("transport_missing_evidence"),
             STAGE,
-            "adaptive_transport.selection_diagram_missing",
+            antecedent_core::reason_details::adaptive_transport::SELECTION_DIAGRAM_MISSING,
         )
         .with_remedy("supply a selection diagram marking the stratum law and the outcome mechanism invariant or shifted"));
     };

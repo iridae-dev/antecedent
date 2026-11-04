@@ -37,12 +37,14 @@ record_sha256 = "c92caf5b47ff7a17de6b147db7f515f6b6ab74e624fb3009f74aa806982dbc1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/regularized.rs"
-sha256 = "f5f238f49ffcf5ee1fc44288e92f23f547f7889f1997226b045be560cf4b72cc"
+items = ["const MIN_REL_SCALE", "enum RidgeIntercept", "fn default", "fn fit_lasso", "fn fit_ridge_with", "fn predict_lasso", "fn ridge_gram_inverse", "fn ridge_gram_inverse_with", "fn ridge_penalized_gram", "fn sniff", "fn soft_threshold", "struct LassoFit", "struct LassoOptions"]
+sha256 = "0aefceaa40b336ad66c27b20fe51d49a73c7d2639cf804b1b547e70f63016026"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/regularized_reference.rs"
-sha256 = "0ccb64ff852279e232fdbff9bcbf782a783e102c5405d808d0351df75d032d62"
+items = ["fn cols", "fn default_tolerance_holds_fitted_values_near_the_exact_solution_on_correlated_designs", "fn elastic_net_converged_to_tight_tolerance_matches_the_exact_active_set_solution", "fn f", "fn fixture", "fn flatten", "fn ridge_matches_the_rational_normal_equations", "fn soft_threshold_is_the_proximal_operator_of_the_l1_norm", "fn us", "fn vec_f"]
+sha256 = "48f718ceb983e331295aab015b13d945002284eeb4715f94faa30a02115ab202"
 
 [[method_review.artifacts]]
 role = "reference"

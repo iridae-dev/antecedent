@@ -574,7 +574,7 @@ pub(crate) fn columns_of(
 fn invalid_evidence(message: String) -> DiscoveredTransportError {
     DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "discovered_transport.evidence_invalid",
+        detail: antecedent_core::reason_details::discovered_transport::EVIDENCE_INVALID,
         unresolved: Vec::new(),
         exhausted_search_bounds: 0,
         unknown_selection_targets: Vec::new(),
@@ -1274,7 +1274,7 @@ pub(crate) fn estimate_class(
     };
     if status == EnvelopeStatus::Partial {
         return Err(refuse(
-            "discovered_transport.class_enumeration_partial",
+            antecedent_core::reason_details::discovered_transport::CLASS_ENUMERATION_PARTIAL,
             Vec::new(),
             "the enumeration of the class did not finish, so no class-wide answer is made"
                 .to_owned(),
@@ -1364,13 +1364,13 @@ pub(crate) fn estimate_class(
                 members.iter().any(|m| matches!(m, MemberOutcome::Unidentified { .. }));
             let (detail, remedy) = if unidentified {
                 (
-                    "discovered_transport.class_not_identified",
+                    antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED,
                     "the effect is not identified in every member of the class; the members it \
                      is not identified in are named, and no point or range is offered",
                 )
             } else {
                 (
-                    "discovered_transport.member_not_estimable",
+                    antecedent_core::reason_details::discovered_transport::MEMBER_NOT_ESTIMABLE,
                     "a member is identified but the evidence cannot supply a factor its formula \
                      needs",
                 )

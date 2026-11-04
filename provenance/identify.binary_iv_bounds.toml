@@ -40,17 +40,19 @@ record_sha256 = "4871ab2886495f9a31806d1b623786e87b45d810fb68ed391a44d7a1f3c1145
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/bounds.rs"
-sha256 = "688e600fa78776a81ccac34dc17530d2ef73d8e558bee87ba5a56762329c92e9"
+items = ["const RANK", "const TOL", "const TYPES", "fn binary_iv_ate_bounds", "fn cell_index", "fn constraint_system", "fn decode_type", "fn enumerate_bases", "fn feasible_ate_bounds", "fn matches_observed", "fn solve", "fn validate", "struct BinaryIvLaw"]
+sha256 = "08e19dd893a4f2636fa05d5ff83524e3d3d577e7a23322e3cc59b13f610988d0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/binary_iv_lp_oracle.rs"
-sha256 = "17e76feee1a8f9f09105eb4701aea3abd8ff43ec95d12b56228003272e8e9e4e"
+items = ["fn law_of", "fn matches_independent_linear_program_cases"]
+sha256 = "542092fe52bb8883c9a228e5e816050035d7490ce9f63550c21308ad312c46b6"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/identify/binary_iv_lp/expected.json"
-sha256 = "f215d25856c371df60c980b5c3ffbe528f8c59e980a58522bcd7c298e4459b35"
+sha256 = "9be09fec84e3861b13fe04be3dd207ef4c394173e7ec4efb155aa834d1e19477"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -65,4 +67,4 @@ sha256 = "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/binary_iv_balke_pearl_table1/expected.json"
-sha256 = "ee0bab97c2bf53f39d81b0ef9985c29dbfde002069a6f6d0d6298b109ab30645"
+sha256 = "37cceaf4a730ca360e971502c966d4a1ebdfa87fab5b5b925a8049103ab4eefa"

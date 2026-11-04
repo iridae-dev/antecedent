@@ -198,7 +198,10 @@ fn an_expected_loss_threshold_equal_to_the_exact_loss_does_not_stop() {
     // history of this procedure.
     match spec(0.05).read_history(&history, &never) {
         Err(Error::PremiseFailed { detail, .. }) => {
-            assert_eq!(detail, "adaptive_inference.stopping_not_replayed");
+            assert_eq!(
+                detail,
+                antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED
+            );
         }
         other => panic!("a loss equal to the threshold must not stop the procedure: {other:?}"),
     }

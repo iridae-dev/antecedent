@@ -11,6 +11,7 @@ is not a descendant of ``b``.
 import antecedent
 import pytest
 from antecedent import Admg, Cpdag
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -131,7 +132,7 @@ def test_enumerated_truth_effects_and_envelope():
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         result.aggregate_interval()
     assert refused.value.reason_code == "scenario_aggregate_not_supported"
-    assert refused.value.detail == "scenarios.shared_data_aggregate"
+    assert refused.value.detail == reason_details.scenarios.SHARED_DATA_AGGREGATE
     assert isinstance(refused.value, CausalUnsupportedError)
 
 
@@ -267,7 +268,7 @@ def test_cancelled_report_is_not_exportable():
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         bytes(cancelled.export())
     assert refused.value.reason_code == "cancelled_no_claim"
-    assert refused.value.detail == "cpdag_scenarios.cancelled_not_exportable"
+    assert refused.value.detail == reason_details.cpdag_scenarios.CANCELLED_NOT_EXPORTABLE
 
 
 def test_export_and_fresh_consume_reproduce_the_report():
@@ -344,13 +345,13 @@ def test_tampered_artifacts_refuse_with_typed_details():
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         transport.consume_cpdag_scenarios_artifact(_frame(names, changed))
     assert refused.value.reason_code == "invalid_argument"
-    assert refused.value.detail == "cpdag_scenarios.data_identity_mismatch"
+    assert refused.value.detail == reason_details.cpdag_scenarios.DATA_IDENTITY_MISMATCH
     # The question is a premise: the premises digest refuses.
     premises = _frame(names, bytes(inner).replace(b"src_pop", b"src_poq"))
     assert premises != artifact
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         transport.consume_cpdag_scenarios_artifact(premises)
-    assert refused.value.detail == "cpdag_scenarios.premises_mismatch"
+    assert refused.value.detail == reason_details.cpdag_scenarios.PREMISES_MISMATCH
     # Damaged or foreign bytes are serialization failures, not refusals.
     with pytest.raises(
         CausalSerializationError, match=r"cbor error: 2 trailing bytes after the CBOR item"
@@ -383,10 +384,13 @@ def test_refusals_carry_exact_code_and_detail():
 
     # A graph that is not maximally oriented: a -> b - c compels b -> c.
     compelled = Cpdag.from_directed_undirected(NAMES, [("a", "b")], [("b", "c")])
-    assert refusal(lambda: run(compelled)) == ("invalid_argument", "cpdag_scenarios.not_a_cpdag")
+    assert refusal(lambda: run(compelled)) == (
+        "invalid_argument",
+        reason_details.cpdag_scenarios.NOT_A_CPDAG,
+    )
     # Evidence for a completion this CPDAG does not have (a collider), or twice for one.
     collider = bind([("a", "b"), ("c", "b")], "ev-collider")
-    mismatch = ("invalid_argument", "cpdag_scenarios.evidence_identity_mismatch")
+    mismatch = ("invalid_argument", reason_details.cpdag_scenarios.EVIDENCE_IDENTITY_MISMATCH)
     assert refusal(lambda: run(evidence=[collider])) == mismatch
     twice = [bind(sorted(FORWARD), "ev-1"), bind(sorted(FORWARD), "ev-2")]
     assert refusal(lambda: run(evidence=twice)) == mismatch
@@ -400,7 +404,9 @@ def test_refusals_carry_exact_code_and_detail():
 
 def test_inputs_are_checked_before_any_search():
     graph = Admg.from_edges(NAMES, [("a", "b"), ("b", "c")], [("a", "c")])
-    with pytest.raises(CausalUnsupportedError, match="cpdag_scenarios.selection_or_latent") as e:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.cpdag_scenarios.SELECTION_OR_LATENT
+    ) as e:
         run(graph)
     assert e.value.reason_code == "route_not_supported"
     with pytest.raises(
@@ -419,6 +425,6 @@ def test_inputs_are_checked_before_any_search():
         run(evidence=[shared()])
     # A coordinate schema naming an unknown variable is a schema mismatch.
     bad = [*coordinates(), transport.VariableCoordinate("q", "binary")]
-    with pytest.raises(CausalValueError, match="scenarios.coordinate_mismatch") as e:
+    with pytest.raises(CausalValueError, match=reason_details.scenarios.COORDINATE_MISMATCH) as e:
         run(coordinates=bad)
     assert e.value.reason_code == "schema_mismatch"

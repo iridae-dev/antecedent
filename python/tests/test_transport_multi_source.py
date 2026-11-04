@@ -14,6 +14,7 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -656,7 +657,10 @@ def test_a_fabricated_cross_source_joint_is_refused():
     assert {"stage": "multi_source", "outcome": "not_certified"} in decision["stages"]
     with pytest.raises(CausalUnsupportedError, match="transport_not_certified") as raised:
         stage.prepare_exact((), {"x": 1.0})
-    assert _pair(raised) == ("transport_not_certified", "mz_transport.fabricated_joint")
+    assert _pair(raised) == (
+        "transport_not_certified",
+        reason_details.mz_transport.FABRICATED_JOINT,
+    )
 
 
 def test_model_artifact_and_selected_sample_regimes_never_satisfy_a_factor():
@@ -700,7 +704,10 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
     )
     with pytest.raises(CausalUnsupportedError) as raised:
         missing.prepare_exact(laws(omit=("b_z1_0",)), {"x": 1.0})
-    assert _pair(raised) == ("transport_missing_evidence", "mz_transport.missing_joint_regime")
+    assert _pair(raised) == (
+        "transport_missing_evidence",
+        reason_details.mz_transport.MISSING_JOINT_REGIME,
+    )
     obstruction = transport.identify_multi_source_z_transport(
         graph=graph(), query=query(source_a(), unhelpful()), catalog=catalog()
     )
@@ -708,12 +715,12 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
         obstruction.prepare_exact(laws(), {"x": 1.0})
     assert _pair(raised) == (
         "transport_proven_non_transportable",
-        "mz_transport.checked_obstruction",
+        reason_details.mz_transport.CHECKED_OBSTRUCTION,
     )
     exhausted = transport.identify_multi_source_z_transport(
         graph=graph(), query=query(source_a(), source_b()), catalog=catalog(), max_operations=3
     )
-    with pytest.raises(Exception, match="mz_transport.budget") as raised:
+    with pytest.raises(Exception, match=reason_details.mz_transport.BUDGET) as raised:
         exhausted.prepare_exact(laws(), {"x": 1.0})
     assert raised.value.reason_code == "transport_budget_cancel"
     # A bound: route_not_supported.
@@ -724,7 +731,7 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
             catalog=catalog(),
             max_operations=4097,
         )
-    assert _pair(raised) == ("route_not_supported", "mz_transport.bounds_exceeded")
+    assert _pair(raised) == ("route_not_supported", reason_details.mz_transport.BOUNDS_EXCEEDED)
     # An invalid catalog (the target supplies an experiment): invalid_argument.
     bad = catalog()
     experimental = transport.EvidenceRegime(
@@ -748,13 +755,15 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
             ),
         ),
     )
-    with pytest.raises(Exception, match="mz_transport.invalid_catalog") as raised:
+    with pytest.raises(Exception, match=reason_details.mz_transport.INVALID_CATALOG) as raised:
         transport.identify_multi_source_z_transport(
             graph=graph(), query=query(source_a(), source_b()), catalog=bad
         )
-    assert _pair(raised) == ("invalid_argument", "mz_transport.invalid_catalog")
+    assert _pair(raised) == ("invalid_argument", reason_details.mz_transport.INVALID_CATALOG)
     # Empirical preparation over laws without counts.
-    with pytest.raises(Exception, match="mz_transport.empirical_counts_required") as raised:
+    with pytest.raises(
+        Exception, match=reason_details.mz_transport.EMPIRICAL_COUNTS_REQUIRED
+    ) as raised:
         identified_stage().prepare_empirical(laws(), {"x": 1.0})
     assert raised.value.reason_code == "transport_missing_provider"
 

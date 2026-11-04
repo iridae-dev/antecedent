@@ -101,7 +101,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/discovery_vector_vars_pcmci.rs",
-          "sha256": "155d768036de41e78846893c4cfa0c47fe9ee8f6321e99b1132d0345982793a2"
+          "items": [
+            "fn fixture_dir",
+            "fn load_series",
+            "fn name_to_id",
+            "fn parent_set",
+            "fn vector_vars_pcmci_exact_logical_parents"
+          ],
+          "sha256": "eab800a59e8756585d14060be2cb3efdbf9ff89bcf0a27ed740cac4ea6328201"
         }
       ],
       "fixture_payload_sha256": "6f509f86be4eadc425e2c23a3f48b43eec2a3ebcdd1d86b2c65abbbd669c74dc"

@@ -253,7 +253,10 @@ fn claims_are_separate_typed_fields_and_band_is_not_supported() {
         band,
     ));
     assert!(refused.is_err());
-    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.no_simultaneous_band_method");
+    assert_eq!(
+        reason(&refused.unwrap_err()),
+        antecedent_core::reason_details::dose_grid::NO_SIMULTANEOUS_BAND_METHOD
+    );
 }
 
 #[test]
@@ -268,7 +271,10 @@ fn derivative_without_derivative_claim_is_refused() {
         claims(true, false),
     ));
     assert!(refused.is_err());
-    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.derivative_without_claim");
+    assert_eq!(
+        reason(&refused.unwrap_err()),
+        antecedent_core::reason_details::dose_grid::DERIVATIVE_WITHOUT_CLAIM
+    );
     // A derivative claim does not support a level.
     let refused = estimate_dose_grid_functional(&request(
         &dose,
@@ -278,7 +284,10 @@ fn derivative_without_derivative_claim_is_refused() {
         claims(false, true),
     ));
     assert!(refused.is_err());
-    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.level_without_claim");
+    assert_eq!(
+        reason(&refused.unwrap_err()),
+        antecedent_core::reason_details::dose_grid::LEVEL_WITHOUT_CLAIM
+    );
 }
 
 #[test]
@@ -302,7 +311,10 @@ fn dose_outside_support_is_labelled_and_refused() {
         claims(true, false),
     ));
     assert!(refused.is_err());
-    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.unsupported_dose");
+    assert_eq!(
+        reason(&refused.unwrap_err()),
+        antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE
+    );
 }
 
 #[test]
@@ -315,7 +327,10 @@ fn insufficient_local_weight_is_labelled_and_refused() {
     assert_eq!(report.status, SupportStatus::WeakOverlap);
     let refused = estimate_dose_grid_functional(&asked);
     assert!(refused.is_err());
-    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.insufficient_local_weight");
+    assert_eq!(
+        reason(&refused.unwrap_err()),
+        antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT
+    );
 }
 
 #[test]
@@ -326,11 +341,11 @@ fn support_report_uses_the_same_local_ess_floor_as_estimation() {
         asked.minimum_local_ess = minimum;
         assert_eq!(
             reason(&dose_support_report(&dose, &GRID, 0.4, minimum).unwrap_err()),
-            "dose_grid.invalid_request"
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST
         );
         assert_eq!(
             reason(&estimate_dose_grid_functional(&asked).unwrap_err()),
-            "dose_grid.invalid_request"
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST
         );
     }
 }
@@ -343,7 +358,10 @@ fn bandwidth_outside_declared_range_is_refused() {
         asked.bandwidth = bandwidth;
         let refused = estimate_dose_grid_functional(&asked);
         assert!(refused.is_err());
-        assert_eq!(reason(&refused.unwrap_err()), "dose_grid.bandwidth_outside_range");
+        assert_eq!(
+            reason(&refused.unwrap_err()),
+            antecedent_core::reason_details::dose_grid::BANDWIDTH_OUTSIDE_RANGE
+        );
     }
 }
 
@@ -354,7 +372,10 @@ fn observational_dose_is_not_certified() {
     asked.design = DoseDesign::Observational;
     let refused = estimate_dose_grid_functional(&asked);
     assert!(refused.is_err());
-    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.graph_not_certified");
+    assert_eq!(
+        reason(&refused.unwrap_err()),
+        antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED
+    );
 }
 
 #[test]

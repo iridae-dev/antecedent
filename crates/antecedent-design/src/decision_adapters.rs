@@ -151,47 +151,47 @@ impl AdapterError {
         let build = |code, detail: &str| RefusalBuilder::new(code, "adapt", detail);
         match self {
             Self::InvalidClaims(why) => {
-                build(invalid, "decision_adapters.invalid_claims").expected(*why).build()
+                build(invalid, antecedent_core::reason_details::decision_adapters::INVALID_CLAIMS).expected(*why).build()
             }
             Self::CompletionCountNotProbability(id) => {
-                build(unsatisfied, "decision_adapters.completion_count_not_probability")
+                build(unsatisfied, antecedent_core::reason_details::decision_adapters::COMPLETION_COUNT_NOT_PROBABILITY)
                     .offending(id.clone())
                     .remedy("supply genuine structure probabilities, not completion counts")
                     .build()
             }
-            Self::ProbabilitiesRequired => build(unsatisfied, "decision_adapters.probabilities_required")
+            Self::ProbabilitiesRequired => build(unsatisfied, antecedent_core::reason_details::decision_adapters::PROBABILITIES_REQUIRED)
                 .remedy("supply genuine structure probabilities for Bayes over structures")
                 .build(),
             Self::GraphClaimsCarryNoProbability(id) => {
-                build(invalid, "decision_adapters.graph_claims_carry_no_probability")
+                build(invalid, antecedent_core::reason_details::decision_adapters::GRAPH_CLAIMS_CARRY_NO_PROBABILITY)
                     .offending(id.clone())
                     .remedy("adapt probability-weighted graphs as weighted graph-posterior atoms")
                     .build()
             }
-            Self::PolicyMismatch => build(unsatisfied, "decision_adapters.policy_mismatch")
+            Self::PolicyMismatch => build(unsatisfied, antecedent_core::reason_details::decision_adapters::POLICY_MISMATCH)
                 .remedy("adapt the claims under the contract's declared structural policy")
                 .build(),
-            Self::InvalidInterval(id) => build(invalid, "decision_adapters.invalid_interval")
+            Self::InvalidInterval(id) => build(invalid, antecedent_core::reason_details::decision_adapters::INVALID_INTERVAL)
                 .offending(id.clone())
                 .build(),
             Self::UnknownAction(id) => {
-                build(invalid, "decision_adapters.unknown_action").offending(id.clone()).build()
+                build(invalid, antecedent_core::reason_details::decision_adapters::UNKNOWN_ACTION).offending(id.clone()).build()
             }
             Self::DuplicateAction(id) => {
-                build(invalid, "decision_adapters.duplicate_action").offending(id.clone()).build()
+                build(invalid, antecedent_core::reason_details::decision_adapters::DUPLICATE_ACTION).offending(id.clone()).build()
             }
             Self::MissingAction(id) => {
-                build(invalid, "decision_adapters.missing_action").offending(id.clone()).build()
+                build(invalid, antecedent_core::reason_details::decision_adapters::MISSING_ACTION).offending(id.clone()).build()
             }
             Self::BayesOverIdentifiedSet => {
-                build(unsatisfied, "decision_adapters.bayes_over_identified_set")
+                build(unsatisfied, antecedent_core::reason_details::decision_adapters::BAYES_OVER_IDENTIFIED_SET)
                     .remedy(
                         "an identified set has no probability law; use a worst-case or invariance policy",
                     )
                     .build()
             }
             Self::CriterionNotSupportedForSet => {
-                build(unsatisfied, "decision_adapters.criterion_not_supported_for_set")
+                build(unsatisfied, antecedent_core::reason_details::decision_adapters::CRITERION_NOT_SUPPORTED_FOR_SET)
                     .remedy(
                         "an identified set supports expected-utility, loss, worst-case and minimax regret criteria only",
                     )

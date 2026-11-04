@@ -117,10 +117,10 @@ const REPLAY_ROWS: &str = "rows";
 const BUDGET: BudgetDetails = BudgetDetails {
     cancelled: (
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "categorical_treatment.cancelled",
+        antecedent_core::reason_details::categorical_treatment::CANCELLED,
     ),
-    memory: "categorical_treatment.memory_budget_exceeded",
-    export: "categorical_treatment.export_budget_exceeded",
+    memory: antecedent_core::reason_details::categorical_treatment::MEMORY_BUDGET_EXCEEDED,
+    export: antecedent_core::reason_details::categorical_treatment::EXPORT_BUDGET_EXCEEDED,
 };
 
 crate::sectioned_artifact_error!(
@@ -1323,7 +1323,7 @@ fn reject_posterior_of_declared_rows(decl: &Decl) -> Result<(), CategoricalTreat
     if decl.declared.is_some() {
         return Err(CategoricalTreatmentArtifactError::refused(
             antecedent_core::reason_code!("route_not_supported"),
-            "categorical_treatment.posterior_declared_rows",
+            antecedent_core::reason_details::categorical_treatment::POSTERIOR_DECLARED_ROWS,
             "the conjugate Gaussian posterior assumes independent homoskedastic errors and \
              no sampling design, which declared sampling weights, clusters or serial \
              dependence contradict. Next attempt: read the frequentist weighted, \
@@ -1771,7 +1771,7 @@ impl CategoricalTreatmentArtifact {
             Some(_) => Err(CategoricalTreatmentArtifactError::IdentityMismatch { field: "data" }),
             None => Err(CategoricalTreatmentArtifactError::refused(
                 antecedent_core::reason_code!("route_not_supported"),
-                "categorical_treatment.data_not_bound",
+                antecedent_core::reason_details::categorical_treatment::DATA_NOT_BOUND,
                 "this artifact embeds its rows and records no data digest",
             )),
         }
@@ -2100,7 +2100,10 @@ mod number_section_tests {
             assert_eq!(legacy.fit(), summary.fit(), "{covariance:?}");
             // Embedded rows need no digest; asking to verify against one says so.
             let error = legacy.verify_data(&request).unwrap_err();
-            assert_eq!(error.refusal().unwrap().1, "categorical_treatment.data_not_bound");
+            assert_eq!(
+                error.refusal().unwrap().1,
+                antecedent_core::reason_details::categorical_treatment::DATA_NOT_BOUND
+            );
         }
     }
 

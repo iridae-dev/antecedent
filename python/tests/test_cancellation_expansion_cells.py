@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import antecedent
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.descriptive import raw_reporting_transform, raw_vs_adjusted
 from antecedent.errors import CausalUnsupportedError
 from antecedent.matched import matched_case_control_odds_ratio
@@ -48,7 +49,7 @@ def test_a_cancelled_descriptive_comparison_is_a_stop_never_a_contrast():
         )
     )
     assert error.reason_code == "cancelled_no_claim"
-    assert "descriptive_comparison.cancelled" in str(error)
+    assert reason_details.descriptive_comparison.CANCELLED in str(error)
     live = raw_vs_adjusted(
         outcome=OUTCOME,
         treatment=TREATMENT,
@@ -69,7 +70,7 @@ def test_a_cancelled_raw_reporting_transform_is_a_stop_never_a_transform():
         )
     )
     assert error.reason_code == "cancelled_no_claim"
-    assert "descriptive_comparison.cancelled" in str(error)
+    assert reason_details.descriptive_comparison.CANCELLED in str(error)
     live = raw_reporting_transform(
         outcome=BINARY_OUTCOME,
         treatment=TREATMENT,
@@ -95,4 +96,4 @@ def test_a_cancelled_matched_solve_stops_before_the_tally_even_when_no_set_is_in
         )
     )
     assert error.reason_code == "transport_budget_cancel"
-    assert "matched_case_control.budget" in str(error)
+    assert reason_details.matched_case_control.BUDGET in str(error)

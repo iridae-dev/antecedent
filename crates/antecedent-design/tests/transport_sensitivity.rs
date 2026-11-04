@@ -171,7 +171,10 @@ fn every_scalar_route_states_a_range_and_the_structural_route_refuses_with_a_rem
             let refusal = result.unwrap_err();
             assert_eq!(refusal, TransportSensitivityRefusal::NoScalarFamily { route });
             assert_eq!(refusal.reason_code(), antecedent_core::reason_code!("route_not_supported"));
-            assert_eq!(refusal.detail(), "transport_sensitivity.no_scalar_family");
+            assert_eq!(
+                refusal.detail(),
+                antecedent_core::reason_details::transport_sensitivity::NO_SCALAR_FAMILY
+            );
             assert!(refusal.remedy().contains("transported effect"));
         } else {
             let range = result.unwrap();
@@ -215,7 +218,10 @@ fn malformed_requests_are_refused_with_typed_details() {
     s.quantity = quantity("effect", "elsewhere");
     let refusal = refused(s);
     assert_eq!(refusal.reason_code(), antecedent_core::reason_code!("quantity_semantics_mismatch"));
-    assert_eq!(refusal.detail(), "transport_sensitivity.quantity_not_in_target");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::transport_sensitivity::QUANTITY_NOT_IN_TARGET
+    );
 
     let mut s = base();
     s.query_binding = "  ".into();
@@ -232,7 +238,10 @@ fn artifact_refuses_a_reference_in_another_population_and_a_non_finite_reference
     .unwrap();
     let refusal = range.to_artifact(&quantity("status_quo", "elsewhere"), 0.0).unwrap_err();
     assert!(matches!(refusal, TransportSensitivityRefusal::Surface { .. }));
-    assert_eq!(refusal.detail(), "transport_sensitivity.surface_refused");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::transport_sensitivity::SURFACE_REFUSED
+    );
     assert_eq!(
         range.to_artifact(&quantity("status_quo", "target"), f64::NAN).unwrap_err(),
         TransportSensitivityRefusal::NonFinitePoint

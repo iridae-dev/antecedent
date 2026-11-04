@@ -73,7 +73,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     CrossWorldExecutionArtifactError {
         noun: "cross-world execution",
-        identity: "cross_world_execution.artifact_changed",
+        identity: antecedent_core::reason_details::cross_world_execution::ARTIFACT_CHANGED,
         variants {
             /// A stored value, state set or digest differs from the recomputed one.
             ResultMismatch(&'static str),
@@ -101,7 +101,8 @@ impl CrossWorldExecutionArtifactError {
             Self::IdentityMismatch { field } => Some(CrossWorldExecutionRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
-                detail: "cross_world_execution.artifact_changed".to_owned(),
+                detail: antecedent_core::reason_details::cross_world_execution::ARTIFACT_CHANGED
+                    .to_owned(),
                 offending: Some((*field).to_owned()),
                 remedy: Some(
                     "consume the artifact the producer exported, or retain the identity of the \

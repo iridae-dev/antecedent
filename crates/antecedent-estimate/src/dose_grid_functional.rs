@@ -404,14 +404,14 @@ fn validate_claims(request: &DoseGridRequest<'_>) -> Result<(), EstimationError>
     if request.design == DoseDesign::Observational {
         return Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "dose_grid.graph_not_certified",
+            antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED,
             "this row does not adjust; it requires a randomized dose",
         ));
     }
     if request.claims.simultaneous_band {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "dose_grid.no_simultaneous_band_method",
+            antecedent_core::reason_details::dose_grid::NO_SIMULTANEOUS_BAND_METHOD,
             "a simultaneous band is a separate claim: without a smoothing-bias bound it would \
              exclude the bias. Next attempt: estimate_dose_grid_bias_aware, or a sealed \
              request that declares bias_aware with a curvature bound",
@@ -420,7 +420,7 @@ fn validate_claims(request: &DoseGridRequest<'_>) -> Result<(), EstimationError>
     match request.functional {
         DoseFunctional::Derivative if !request.claims.derivative => Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
-            "dose_grid.derivative_without_claim",
+            antecedent_core::reason_details::dose_grid::DERIVATIVE_WITHOUT_CLAIM,
             "a derivative was requested without declaring a derivative claim",
         )),
         DoseFunctional::Level | DoseFunctional::Contrast { .. }
@@ -428,7 +428,7 @@ fn validate_claims(request: &DoseGridRequest<'_>) -> Result<(), EstimationError>
         {
             Err(refuse(
                 antecedent_core::reason_code!("option_not_applicable"),
-                "dose_grid.level_without_claim",
+                antecedent_core::reason_details::dose_grid::LEVEL_WITHOUT_CLAIM,
                 "a level or contrast was requested without declaring a pointwise level claim",
             ))
         }
@@ -441,7 +441,7 @@ fn validate_inputs(request: &DoseGridRequest<'_>, points: &[f64]) -> Result<(), 
     let invalid = |message: &str| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.invalid_request",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
             message,
         )
     };
@@ -466,7 +466,7 @@ fn validate_inputs(request: &DoseGridRequest<'_>, points: &[f64]) -> Result<(), 
     if !request.bandwidth.is_finite() || request.bandwidth < low || request.bandwidth > high {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.bandwidth_outside_range",
+            antecedent_core::reason_details::dose_grid::BANDWIDTH_OUTSIDE_RANGE,
             "the bandwidth is not inside the declared bandwidth range",
         ));
     }
@@ -589,7 +589,7 @@ pub fn dose_support_report(
     let invalid = |message: &str| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.invalid_request",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
             message,
         )
     };
@@ -619,7 +619,7 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             SupportStatus::WeakOverlap => {
                 return Err(refuse(
                     antecedent_core::reason_code!("positivity_violated"),
-                    "dose_grid.insufficient_local_weight",
+                    antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
                     &format!(
                         "dose {at} has local effective sample size below the declared minimum"
                     ),
@@ -628,7 +628,7 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             _ => {
                 return Err(refuse(
                     antecedent_core::reason_code!("positivity_violated"),
-                    "dose_grid.unsupported_dose",
+                    antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE,
                     &format!("dose {at} is outside the observed dose support"),
                 ));
             }
@@ -681,7 +681,7 @@ fn fit_at(
     .map_err(|error| {
         refuse(
             antecedent_core::reason_code!("positivity_violated"),
-            "dose_grid.insufficient_local_weight",
+            antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
             &format!("the local quadratic could not be fitted at dose {at}: {error}"),
         )
     })
@@ -706,7 +706,7 @@ fn score_standard_error(
     if !(variance.is_finite() && variance >= 0.0) {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.non_finite_result",
+            antecedent_core::reason_details::dose_grid::NON_FINITE_RESULT,
             "the declared-dependence variance of the local scores is not finite and non-negative",
         ));
     }
@@ -915,14 +915,14 @@ fn prepare_rows(
     let n = request.dose.len();
     if request.outcome.len() != n {
         return Err(declaration_refusal(
-            "dose_grid.invalid_request",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
             "rows must be aligned, finite and at least three",
         ));
     }
     if let Some(weights) = declared.sampling_weights {
         if weights.len() != n {
             return Err(declaration_refusal(
-                "dose_grid.invalid_request",
+                antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
                 &format!("{} sampling weights were declared for {n} rows", weights.len()),
             ));
         }
@@ -930,7 +930,7 @@ fn prepare_rows(
     if let RowDependence::Clustered(groups) = declared.dependence {
         if groups.len() != n {
             return Err(declaration_refusal(
-                "dose_grid.invalid_request",
+                antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
                 &format!("{} cluster ids were declared for {n} rows", groups.len()),
             ));
         }
@@ -987,7 +987,7 @@ fn declared_rows(
             if groups < 2 {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "dose_grid.too_few_clusters",
+                    antecedent_core::reason_details::dose_grid::TOO_FEW_CLUSTERS,
                     "a cluster-robust variance needs at least two clusters among the analysed rows",
                 ));
             }
@@ -997,7 +997,7 @@ fn declared_rows(
             if lag == 0 || lag >= rows {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "dose_grid.invalid_lag",
+                    antecedent_core::reason_details::dose_grid::INVALID_LAG,
                     &format!(
                         "the serial-dependence lag must be at least one and below the {rows} \
                          analysed rows; it is never silently capped"
@@ -1306,7 +1306,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
     if !(curvature_bound.is_finite() && curvature_bound >= 0.0) {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.invalid_request",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
             "the curvature bound must be finite and non-negative",
         ));
     }
@@ -1341,7 +1341,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
     if request.claims.simultaneous_band && (contrast || points.len() < 2) {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "dose_grid.no_simultaneous_band_method",
+            antecedent_core::reason_details::dose_grid::NO_SIMULTANEOUS_BAND_METHOD,
             "a simultaneous band covers a level or derivative grid of two or more doses. Next \
              attempt: request a grid, or drop the band claim",
         ));
@@ -1366,7 +1366,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
         .ok_or_else(|| {
             refuse(
                 antecedent_core::reason_code!("positivity_violated"),
-                "dose_grid.insufficient_local_weight",
+                antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
                 &format!("the local quadratic is singular at dose {at}"),
             )
         })?;
@@ -1426,7 +1426,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
         if band_replicates < 2 {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "dose_grid.invalid_request",
+                antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
                 "a simultaneous band needs at least two multiplier replicates",
             ));
         }

@@ -41,17 +41,20 @@ record_sha256 = "78e9d54cda875d51a1a5874e22232b42d1fdc8083d2bd485f95a3c81f526bec
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/glm_adjustment.rs"
-sha256 = "18a1313f49f25838f3b49dff2e8874e0e528a2260aa41d858b7867d44c6df676"
+items = ["fn attach_bootstrap", "fn bootstrap_se", "fn default", "fn fit", "fn fit_point", "fn new", "fn prepare", "fn with_sampling_weights", "struct GlmAdjustmentAte", "struct GlmAdjustmentWorkspace", "struct PreparedGlmProblem"]
+sha256 = "bee714843ee71b7e877660c1f7880dd32bb3578fa08e2b068b031d4b3b3b6993"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/glm_adjustment/variance.rs"
-sha256 = "03ebc09317a5d4a8dc2b45e1d4c943f3724a27cffbcd4d6edcfa782dcfdfffd4"
+items = ["module"]
+sha256 = "79881c17e7f8fb03da1e0b183d75329b8411a5ebfb7bcc11785793baa0e0d9dc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/glm_adjustment_reference.rs"
-sha256 = "b981fd7cd92f586e9df5f4e752c044c239c9a201a44d38e51747185206cf2509"
+items = ["fn contrast_and_delta_method_standard_error_match_the_exact_reference", "fn floats"]
+sha256 = "62ab4b059addbe5d563d5c4763f84673cfc48a4bb6b05dfca0170d3d71393916"
 
 [[method_review.artifacts]]
 role = "reference"

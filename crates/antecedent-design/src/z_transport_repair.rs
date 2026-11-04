@@ -38,7 +38,7 @@ impl ZTransportRepairFamily {
     ) -> Result<Self, RepairError> {
         let invalid = |message: String| RepairError {
             code: reason_code!("invalid_argument"),
-            detail: "identification_repair.invalid_request",
+            detail: antecedent_core::reason_details::identification_repair::INVALID_REQUEST,
             message,
             receipt: None,
         };

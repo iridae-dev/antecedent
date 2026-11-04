@@ -40,14 +40,17 @@ record_sha256 = "a303adc87709506302ac24180df5cdcb6ad8ec37fbed341c5551494635ce38a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/iv.rs"
-sha256 = "a38be948d40e6b91fc1befb1aa16b5e33ebdbfbf4a042c1a183feebacf296ba0"
+items = ["const IV_EFFECT_RESTRICTION_ID", "fn default", "fn identify", "fn identify_ate", "fn is_valid_instrument", "fn iv_default", "fn new", "fn prepare", "fn prepare_with_assumptions", "fn wald_effect_restriction", "struct InstrumentSearchConfig", "struct InstrumentalVariableIdentifier"]
+sha256 = "8339f6d1a88c7a9583385787e632ca01e50991345cd54681ba6f207b72226354"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/backdoor.rs"
-sha256 = "0826af864daae96696f0b87f8a5945189a9a4580455262c07feb28e810566647"
+items = ["const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE", "fn charge_examination", "fn dag", "fn declared_assumptions", "fn default", "fn dense_costs", "fn dense_first_wins", "fn enumerate", "fn exceeds_lag", "fn graph", "fn identify", "fn identify_ate", "fn is_backdoor_adjustment", "fn is_mandatory_fork_set", "fn lag_exceeds", "fn new", "fn node_map", "fn order_by_cost", "fn outcome", "fn prepare", "fn prepare_with_assumptions", "fn remove_outgoing", "fn remove_outgoing_set", "fn screen", "fn screen_ancestor_candidates", "fn total_cost", "fn validate", "fn validate_costs", "fn with_assumptions", "fn wrap", "struct AdjustmentProblem", "struct AdjustmentSearchConfig", "struct PreparedIdentificationGraph", "struct Screening", "struct SearchOutcome"]
+sha256 = "d9c6c46484a1ed0e16cf59715d1c02349ab524c30d63e0ba11f7eadfb31438d3"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/iv_enumeration_tests.rs"
-sha256 = "ec1e559303000c0c65e10ef82ab506a21b927ce09858a70846225d9193a7fbda"
+items = ["const N", "fn acyclic", "fn dag_of", "fn expected_instruments", "fn reported_instruments", "fn search_agrees_with_the_common_ancestor_criterion_on_every_four_node_dag", "fn share_ancestor"]
+sha256 = "5aa9224f102e4bb15826ffac8ec59aa9fa7d368d06ea1e4ef205f9e2cc410a08"

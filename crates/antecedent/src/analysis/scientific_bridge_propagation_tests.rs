@@ -277,11 +277,17 @@ fn an_affine_map_publishes_the_hand_delta_variance_beside_the_plug_in_value() {
         components.iter().any(|(_, target, omitted)| !omitted && target == "source_standard_error")
     );
     let unscoped = result.interval().unwrap_err();
-    assert_eq!(unscoped.detail, "scientific_bridge.interval_not_supported");
+    assert_eq!(
+        unscoped.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED
+    );
     // An affine map with declared uncertainty is no exact transform of the source interval.
     let scoped = result.bridged_interval(0.95).unwrap_err();
     assert_eq!(scoped.code, "route_not_supported");
-    assert_eq!(scoped.detail, "scientific_bridge.interval_scope_outside_measured");
+    assert_eq!(
+        scoped.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED
+    );
 }
 
 #[test]
@@ -292,14 +298,20 @@ fn a_declared_dependence_on_the_mapping_is_refused_an_interval_on_every_route() 
     let result = derive(&contract, 0.5, Some(0.05), None).unwrap();
     let refused = result.bridged_interval(0.95).unwrap_err();
     assert_eq!(refused.code, "route_not_supported");
-    assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED
+    );
     let direct = antecedent_io::bridge_interval::construct_bridged_claim_interval(
         result.bridged(),
         Some(0.05),
         0.95,
     )
     .unwrap_err();
-    assert_eq!(direct.detail, "scientific_bridge.interval_scope_outside_measured");
+    assert_eq!(
+        direct.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED
+    );
 }
 
 #[test]
@@ -327,7 +339,10 @@ fn the_declared_covariance_sign_moves_the_variance_and_the_mean() {
         evidence: "shared-rows".into(),
     };
     let error = derive(&affine_contract(Some(impossible)), 0.5, Some(0.05), None).unwrap_err();
-    assert_eq!(error.detail, "scientific_bridge.dependence_not_a_covariance");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::scientific_bridge::DEPENDENCE_NOT_A_COVARIANCE
+    );
 }
 
 #[test]
@@ -350,7 +365,10 @@ fn a_nonlinear_square_reports_the_second_moment_expectation_not_the_square_of_th
     let error =
         derive(&affine_contract(Some(independent())), 0.5, None, Some(NonlinearMap::Square))
             .unwrap_err();
-    assert_eq!(error.detail, "scientific_bridge.nonlinear_mean_not_expectation");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::scientific_bridge::NONLINEAR_MEAN_NOT_EXPECTATION
+    );
     let error = derive(
         &affine_contract(Some(independent())),
         0.5,
@@ -358,7 +376,10 @@ fn a_nonlinear_square_reports_the_second_moment_expectation_not_the_square_of_th
         Some(NonlinearMap::Exponential),
     )
     .unwrap_err();
-    assert_eq!(error.detail, "scientific_bridge.nonlinear_law_insufficient");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::scientific_bridge::NONLINEAR_LAW_INSUFFICIENT
+    );
 }
 
 #[test]
@@ -366,7 +387,10 @@ fn an_undeclared_dependence_is_refused_with_a_typed_next_attempt_never_assumed_i
     // A declared affine uncertainty with no declared dependence refuses at the derivation.
     let error = derive(&affine_contract(None), 0.5, Some(0.05), None).unwrap_err();
     assert_eq!(error.code, "sampling_dependence_unknown");
-    assert_eq!(error.detail, "scientific_bridge.source_dependence_missing");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
+    );
     assert!(error.remedy.is_some());
     // The same bridge without a standard error is the plug-in derivation, and the propagated
     // uncertainty it was asked for refuses by naming the missing standard error.
@@ -374,7 +398,7 @@ fn an_undeclared_dependence_is_refused_with_a_typed_next_attempt_never_assumed_i
     assert!(plain.propagation().is_none() && plain.propagated_variance().is_none());
     assert_eq!(
         plain.propagated_uncertainty().unwrap_err().detail,
-        "scientific_bridge.source_variance_invalid"
+        antecedent_core::reason_details::scientific_bridge::SOURCE_VARIANCE_INVALID
     );
     // A trial-level line with a standard error and no declared dependence keeps its measured
     // interval route and carries no propagated variance; asking for it refuses.
@@ -382,7 +406,7 @@ fn an_undeclared_dependence_is_refused_with_a_typed_next_attempt_never_assumed_i
     assert!(line.propagation().is_none());
     assert_eq!(
         line.propagated_uncertainty().unwrap_err().detail,
-        "scientific_bridge.source_dependence_missing"
+        antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
     );
     // A correction has no slope estimator: only independence can be declared.
     let covariance = SourceMappingDependence::SlopeCovariance {
@@ -390,7 +414,10 @@ fn an_undeclared_dependence_is_refused_with_a_typed_next_attempt_never_assumed_i
         evidence: "validation-sample".into(),
     };
     let error = derive(&correction_contract(Some(covariance)), 0.31, Some(0.02), None).unwrap_err();
-    assert_eq!(error.detail, "scientific_bridge.source_dependence_invalid");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_INVALID
+    );
 }
 
 #[test]

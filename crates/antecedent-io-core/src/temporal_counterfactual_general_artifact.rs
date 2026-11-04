@@ -55,7 +55,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq)]
     GeneralTemporalCounterfactualArtifactError {
         noun: "general temporal counterfactual",
-        identity: "temporal_counterfactual.artifact_changed",
+        identity: antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED,
         variants {
             /// A stored outcome, mean or receipt differs from the recomputed one.
             ResultMismatch(&'static str),
@@ -89,7 +89,8 @@ impl GeneralTemporalCounterfactualArtifactError {
             Self::IdentityMismatch { field } => Some(TemporalCounterfactualRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
-                detail: "temporal_counterfactual.artifact_changed".to_owned(),
+                detail: antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED
+                    .to_owned(),
                 offending: Some((*field).to_owned()),
                 remedy: Some(
                     "consume the artifact the producer exported, or retain the identity of the \
@@ -881,6 +882,9 @@ mod tests {
             GeneralTemporalCounterfactualArtifact::seal(&bad, &ExecutionContext::for_tests(1))
                 .unwrap_err();
         let refusal = error.refusal().expect("a structured refusal");
-        assert_eq!(refusal.detail, "temporal_counterfactual.unpaired_histories");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES
+        );
     }
 }

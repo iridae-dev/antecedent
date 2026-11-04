@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 from _repo import REPO_ROOT
+from review_items import artifact_problem
 
 
 def method_review_digest(record: dict) -> str:
@@ -73,8 +74,8 @@ def method_review_problems(root: Path, record: dict) -> list[str]:
         path = (root / rel).resolve()
         if not path.is_relative_to(root.resolve()) or not path.is_file():
             problems.append(f"method_review missing artifact: {rel}")
-        elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
-            problems.append(f"method_review stale artifact: {rel}")
+        elif problem := artifact_problem(root, artifact, "method_review"):
+            problems.append(problem)
     if not {"implementation", "assertion"}.issubset(roles):
         problems.append(
             "method_review must bind implementation and executing assertions"
@@ -117,7 +118,8 @@ def non_algorithm_review_problems(
     The mapping states that a record without a primary paper is a wrapper, contract, derivation
     or closed variant rather than a method needing a source: which records carry the numerics,
     which module files were read, and why no independent algorithm remains.  Digests bind the
-    mapping to the record text and to the mapped implementation, so a change to either stales it.
+    mapping to the record text and to the mapped implementation items, so a change to either
+    stales it.
     """
     review = record.get("non_algorithm_review")
     if review is None:
@@ -179,8 +181,8 @@ def non_algorithm_review_problems(
         path = (root / rel).resolve()
         if not path.is_relative_to(root.resolve()) or not path.is_file():
             problems.append(f"non_algorithm_review missing artifact: {rel}")
-        elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
-            problems.append(f"non_algorithm_review stale artifact: {rel}")
+        elif problem := artifact_problem(root, artifact, "non_algorithm_review"):
+            problems.append(problem)
     if "implementation" not in roles:
         problems.append("non_algorithm_review must map at least one implementation module")
     inline = review.get("inline_tests") is True

@@ -552,7 +552,10 @@ fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.memory_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::MEMORY_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains("10000-byte"), "{text}");
     let mut roomy = ExecutionContext::production(0, 1);
@@ -563,7 +566,10 @@ fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
     cancelled.cancellation.cancel();
     let error = VectorTreatmentArtifact::seal_with(&request, &cancelled).unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
-    assert_eq!((code, detail.as_str()), ("cancelled_no_claim", "vector_treatment.cancelled"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("cancelled_no_claim", antecedent_core::reason_details::vector_treatment::CANCELLED)
+    );
 
     // Export: an artifact above its budget refuses and names the bytes; the fit survives.
     let bytes = artifact.to_bytes("fit").unwrap();
@@ -572,14 +578,20 @@ fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.export_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::EXPORT_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains(&format!("{} bytes", bytes.len())), "{text}");
     assert_eq!(artifact.fit().n_rows, 2_000);
 
     // Replay runs under the same kind of context.
     let error = VectorTreatmentArtifact::from_bytes_with(&bytes, None, &cancelled).unwrap_err();
-    assert_eq!(error.refusal().unwrap().1, "vector_treatment.cancelled");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::vector_treatment::CANCELLED
+    );
     assert!(VectorTreatmentArtifact::from_bytes_with(&bytes, None, &roomy).is_ok());
 }
 
@@ -591,7 +603,10 @@ fn vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
         VectorTreatmentArtifact::seal(&other_set).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.adjustment_set_mismatch")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::ADJUSTMENT_SET_MISMATCH
+        )
     );
 
     let mut other_snapshot = request();
@@ -600,13 +615,16 @@ fn vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
         VectorTreatmentArtifact::seal(&other_snapshot).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.row_snapshot_mismatch")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::ROW_SNAPSHOT_MISMATCH
+        )
     );
 
     let mut short = request();
     short.treatments[1].values.pop();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&short).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.row_count_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::ROW_COUNT_MISMATCH);
 
     let mut constant = request();
     constant.treatments[1].values = vec![1.0; 6];
@@ -614,28 +632,34 @@ fn vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
         VectorTreatmentArtifact::seal(&constant).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("design_rank_deficient", "vector_treatment.treatment_without_variation")
+        (
+            "design_rank_deficient",
+            antecedent_core::reason_details::vector_treatment::TREATMENT_WITHOUT_VARIATION
+        )
     );
 
     let mut collinear = request();
     collinear.treatments[1].values = X1.iter().map(|v| 2.0 * v).collect();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&collinear).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.collinear_treatments");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::COLLINEAR_TREATMENTS);
 
     let mut single = request();
     single.treatments.truncate(1);
     let (_, detail, _) = VectorTreatmentArtifact::seal(&single).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.too_few_treatments");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::TOO_FEW_TREATMENTS);
 
     let mut unknown = request();
     unknown.contrasts[0].weights[0].0 = "zzz".into();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&unknown).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.unknown_contrast_coefficient");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::vector_treatment::UNKNOWN_CONTRAST_COEFFICIENT
+    );
 
     let mut bad_kind = request();
     bad_kind.covariance = "cluster".into();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&bad_kind).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.invalid_request");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::INVALID_REQUEST);
 }
 
 /// Seal `mutated` as a consumer-consistent artifact and consume it against the identity of
@@ -653,7 +677,7 @@ fn resealed_mutation_refuses(
     assert_eq!(error, VectorTreatmentArtifactError::IdentityMismatch { field }, "{field}");
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "vector_treatment.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::WRONG_CONTRACT);
 }
 
 #[test]
@@ -837,7 +861,9 @@ where
     let shown = format!("{over_budget:?}");
     assert!(
         shown.contains("route_not_supported")
-            && shown.contains("vector_treatment.export_budget_exceeded"),
+            && shown.contains(
+                antecedent_core::reason_details::vector_treatment::EXPORT_BUDGET_EXCEEDED
+            ),
         "{shown}"
     );
     A::from_bytes(&bytes, None).unwrap();

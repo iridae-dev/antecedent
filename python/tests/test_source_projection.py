@@ -8,6 +8,7 @@ import sys
 from dataclasses import replace
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision, program_claims
 from antecedent.composition_bundle import Bundle, Failed, consume_bundle
 from antecedent.outcomes import require_success
@@ -79,7 +80,10 @@ def test_source_projection_native_original_engine_affine_truth_and_unresolved_im
     )
     assert not imported.all_verified
     assert isinstance(imported.node("source").status, Failed)
-    assert imported.node("source").status.reason == "composition_bundle.callback_unavailable"
+    assert (
+        imported.node("source").status.reason
+        == reason_details.composition_bundle.CALLBACK_UNAVAILABLE
+    )
     resolved = require_success(
         consume_bundle(
             bytes(bundle.export()),
@@ -121,7 +125,9 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
                 actual_claims={claim.source_evidence.source_artifact_digest: {"verified": True}},
             )
         )
-    with pytest.raises(ValueError, match="source_projection.source_binding_mismatch") as failure:
+    with pytest.raises(
+        ValueError, match=reason_details.source_projection.SOURCE_BINDING_MISMATCH
+    ) as failure:
         require_success(
             consume_bundle(
                 bytes(bundle.export()),
@@ -132,7 +138,7 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
     assert failure.value.reason_code == "invalid_argument"
     changed_view = _native_view(bayesian=True)
     changed_claim = program_claims.native_claim(changed_view, _native_program(changed_view))
-    with pytest.raises(ValueError, match="source_projection.source_binding_mismatch"):
+    with pytest.raises(ValueError, match=reason_details.source_projection.SOURCE_BINDING_MISMATCH):
         require_success(
             consume_bundle(
                 bytes(bundle.export()),
@@ -141,7 +147,7 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
             )
         )
     missing_support = _spec().bind(_response())
-    with pytest.raises(ValueError, match="source_projection.unsupported_coordinate"):
+    with pytest.raises(ValueError, match=reason_details.source_projection.UNSUPPORTED_COORDINATE):
         SourceProjectionArtifact.produce(
             bytes(missing_support.export()),
             "transformation",
@@ -149,7 +155,7 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
         )
     contract = _contract(claim.coordinates)
     wrong = replace(claim.coordinates[0], units="unconverted_units")
-    with pytest.raises(ValueError, match="source_projection.coordinate_mismatch"):
+    with pytest.raises(ValueError, match=reason_details.source_projection.COORDINATE_MISMATCH):
         SourceProjectionArtifact.produce(
             claim.source_evidence,
             "transformation",
@@ -158,7 +164,7 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
                 actions=(replace(contract.actions[0], inputs=(wrong,)), contract.actions[1]),
             ),
         )
-    with pytest.raises(ValueError, match="source_projection.affine_contract_refused"):
+    with pytest.raises(ValueError, match=reason_details.source_projection.AFFINE_CONTRACT_REFUSED):
         SourceProjectionArtifact.produce(
             claim.source_evidence,
             "transformation",
@@ -171,7 +177,7 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
             ),
         )
     artifact = SourceProjectionArtifact.produce(claim.source_evidence, "quantity_coordinates")
-    with pytest.raises(ValueError, match="source_projection.identity_mismatch"):
+    with pytest.raises(ValueError, match=reason_details.source_projection.IDENTITY_MISMATCH):
         consume_source_projection(bytes(artifact.export()), expected_identity="changed-identity")
 
 
@@ -227,6 +233,8 @@ def test_source_projection_bounds_refuse_before_copy_or_actual_source_execution(
                 actual_claims={str(index): claim for index in range(65)},
             )
         )
-    with pytest.raises(ValueError, match="source_projection.limits_exceeded") as failure:
+    with pytest.raises(
+        ValueError, match=reason_details.source_projection.LIMITS_EXCEEDED
+    ) as failure:
         consume_source_projection(b"x" * (18 * 1024 * 1024 + 1), expected_identity="oversized")
     assert failure.value.reason_code == "invalid_argument"

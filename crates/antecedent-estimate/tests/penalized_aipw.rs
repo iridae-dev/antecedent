@@ -1051,7 +1051,10 @@ fn penalized_posterior_refuses_a_mapped_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("penalized_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::penalized_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -1099,7 +1102,12 @@ fn batch_retarget_posterior_refuses_an_unmeasured_band() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("batch_retarget_posterior.band_not_constructed"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::batch_retarget_posterior::BAND_NOT_CONSTRUCTED
+        ),
+        "{message}"
+    );
 }
 
 #[test]

@@ -104,11 +104,21 @@ impl ExternalMechanismRefusal {
     #[must_use]
     pub const fn detail_id(&self) -> &'static str {
         match self.kind {
-            ExternalRefusalKind::DeclarationInvalid => "external_mechanism.declaration_invalid",
-            ExternalRefusalKind::ResolverMissing => "external_mechanism.resolver_missing",
-            ExternalRefusalKind::Unavailable => "external_mechanism.implementation_unavailable",
-            ExternalRefusalKind::Changed => "external_mechanism.implementation_changed",
-            ExternalRefusalKind::ResolverFailed => "external_mechanism.resolver_failed",
+            ExternalRefusalKind::DeclarationInvalid => {
+                antecedent_core::reason_details::external_mechanism::DECLARATION_INVALID
+            }
+            ExternalRefusalKind::ResolverMissing => {
+                antecedent_core::reason_details::external_mechanism::RESOLVER_MISSING
+            }
+            ExternalRefusalKind::Unavailable => {
+                antecedent_core::reason_details::external_mechanism::IMPLEMENTATION_UNAVAILABLE
+            }
+            ExternalRefusalKind::Changed => {
+                antecedent_core::reason_details::external_mechanism::IMPLEMENTATION_CHANGED
+            }
+            ExternalRefusalKind::ResolverFailed => {
+                antecedent_core::reason_details::external_mechanism::RESOLVER_FAILED
+            }
         }
     }
     fn declaration(detail: impl Into<String>) -> Self {

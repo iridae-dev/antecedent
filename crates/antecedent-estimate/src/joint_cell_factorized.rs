@@ -152,7 +152,7 @@ impl FactorizedJointConfig {
         let bad = |message: &str| {
             Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "joint_cells.config",
+                antecedent_core::reason_details::joint_cells::CONFIG,
                 message,
             ))
         };
@@ -177,7 +177,7 @@ impl FactorizedJointConfig {
             if matches!(spec, LearnerSpec::Auto) || spec.validate().is_err() {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "joint_cells.learner",
+                    antecedent_core::reason_details::joint_cells::LEARNER,
                     "declare an explicit learner with valid hyperparameters; auto is refused \
                      because it hides the learner actually fit",
                 ));
@@ -205,14 +205,14 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
         "gradient_boosted_trees" => Ok(Some(LearnerSpec::GradientBoostedTrees(GbtSpec::default()))),
         "lasso" => Err(refuse(
             antecedent_core::reason_code!("selection_inference_not_supported"),
-            "penalized_propensity.selection_not_supported",
+            antecedent_core::reason_details::penalized_propensity::SELECTION_NOT_SUPPORTED,
             "a lasso conditional propensity is not a declared joint-cell nuisance: the \
              prefix-stratum selections are not cross-fitted per cell, so the option is closed; \
              declare ridge_logistic, random_forest or gradient_boosted_trees",
         )),
         "ml" | "gradient_boosting" | "neural_network" | "forest" | "boosting" => Err(refuse(
             antecedent_core::reason_code!("ml_nuisance_not_supported"),
-            "joint_cells.ml_learner_not_declared",
+            antecedent_core::reason_details::joint_cells::ML_LEARNER_NOT_DECLARED,
             &format!(
                 "{provider} is not a declared joint-cell learner; declare random_forest or \
                  gradient_boosted_trees (point only), or ridge_logistic"
@@ -220,7 +220,7 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
         )),
         other => Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_cells.nuisance_provider",
+            antecedent_core::reason_details::joint_cells::NUISANCE_PROVIDER,
             &format!(
                 "unknown joint-cell nuisance provider {other:?}; declare ridge_logistic, \
                  random_forest or gradient_boosted_trees"
@@ -237,7 +237,7 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
 pub fn refuse_joint_inference() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("penalized_interval_not_supported"),
-        "joint_cells.no_interval_method",
+        antecedent_core::reason_details::joint_cells::NO_INTERVAL_METHOD,
         "factorized joint cells publish point estimates and an aligned score table only; no \
          interval or joint covariance is supported for penalized conditional propensities",
     )
@@ -252,7 +252,7 @@ pub fn refuse_joint_inference() -> EstimationError {
 pub fn refuse_joint_learner_inference() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("ml_nuisance_not_supported"),
-        "joint_cells.no_ml_interval_method",
+        antecedent_core::reason_details::joint_cells::NO_ML_INTERVAL_METHOD,
         "learner-supplied joint cells publish point estimates and an aligned score table only; \
          an interval or joint covariance over machine-learning nuisances needs a nuisance \
          remainder and coverage support that no record grants",
@@ -337,7 +337,11 @@ fn permutations(items: &mut Vec<usize>, start: usize, out: &mut Vec<Vec<usize>>)
 }
 
 fn ordering_error(message: &str) -> EstimationError {
-    refuse(antecedent_core::reason_code!("invalid_argument"), "joint_cells.ordering", message)
+    refuse(
+        antecedent_core::reason_code!("invalid_argument"),
+        antecedent_core::reason_details::joint_cells::ORDERING,
+        message,
+    )
 }
 
 fn check_permutation(k: usize, ordering: &[usize]) -> Result<(), EstimationError> {
@@ -345,7 +349,7 @@ fn check_permutation(k: usize, ordering: &[usize]) -> Result<(), EstimationError
     if k == 0 || k > 31 {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_cells.component_count",
+            antecedent_core::reason_details::joint_cells::COMPONENT_COUNT,
             "factorized joint cells need 1 to 31 binary components",
         ));
     }
@@ -537,7 +541,7 @@ impl FactorizedJointFit {
 fn contrast_refusal(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("joint_cell_unsupported"),
-        "joint_cells.contrast_cell_unsupported",
+        antecedent_core::reason_details::joint_cells::CONTRAST_CELL_UNSUPPORTED,
         message,
     )
 }
@@ -575,7 +579,7 @@ fn prepare_problem(
     for (i, id) in ids.iter().enumerate() {
         if ids[..i].contains(id) {
             return Err(invalid(
-                "joint_cells.columns",
+                antecedent_core::reason_details::joint_cells::COLUMNS,
                 "treatment, outcome and adjustment columns must be distinct",
             ));
         }
@@ -586,7 +590,10 @@ fn prepare_problem(
         data.float64_selected(outcome, &mask).map_err(EstimationError::from)?.into_owned();
     let n = outcome_values.len();
     if n == 0 {
-        return Err(invalid("joint_cells.no_rows", "no complete-case rows for joint cells"));
+        return Err(invalid(
+            antecedent_core::reason_details::joint_cells::NO_ROWS,
+            "no complete-case rows for joint cells",
+        ));
     }
     let mut cell = vec![0u32; n];
     for (j, &id) in treatments.iter().enumerate() {
@@ -596,7 +603,7 @@ fn prepare_problem(
                 *code |= 1 << j;
             } else if value.abs() > 1e-12 {
                 return Err(invalid(
-                    "joint_cells.not_binary",
+                    antecedent_core::reason_details::joint_cells::NOT_BINARY,
                     "factorized joint cells require binary 0/1 treatment components",
                 ));
             }
@@ -638,7 +645,7 @@ fn is_cancelled(error: &EstimationError) -> bool {
 fn cancelled() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "joint_cells.cancelled",
+        antecedent_core::reason_details::joint_cells::CANCELLED,
         "the factorized joint-cell fit was cancelled; no estimate is reported",
     )
 }
@@ -659,7 +666,7 @@ impl LearnedNuisance {
         let unavailable = |error: antecedent_learn::LearnError| {
             refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "joint_cells.learner_unavailable",
+                antecedent_core::reason_details::joint_cells::LEARNER_UNAVAILABLE,
                 &format!(
                     "the {} learner cannot be resolved for joint-cell nuisances: {error}",
                     spec.name()
@@ -1031,19 +1038,25 @@ fn evaluate_cell(
     if rows == 0 {
         return Err(CellRefusal {
             code: antecedent_core::reason_code!("arm_not_populated"),
-            detail: "joint_cells.cell_empty",
+            detail: antecedent_core::reason_details::joint_cells::CELL_EMPTY,
             message: format!("cell {cell} has no complete-case rows"),
         });
     }
-    let mu = mu
-        .as_ref()
-        .map_err(|why| unsupported("joint_cells.outcome_model_unsupported", why.clone()))?;
-    let e = propensity
-        .as_ref()
-        .map_err(|why| unsupported("joint_cells.conditional_unsupported", why.clone()))?;
+    let mu = mu.as_ref().map_err(|why| {
+        unsupported(
+            antecedent_core::reason_details::joint_cells::OUTCOME_MODEL_UNSUPPORTED,
+            why.clone(),
+        )
+    })?;
+    let e = propensity.as_ref().map_err(|why| {
+        unsupported(
+            antecedent_core::reason_details::joint_cells::CONDITIONAL_UNSUPPORTED,
+            why.clone(),
+        )
+    })?;
     if e.iter().any(|v| !v.is_finite()) {
         return Err(unsupported(
-            "joint_cells.conditional_unsupported",
+            antecedent_core::reason_details::joint_cells::CONDITIONAL_UNSUPPORTED,
             format!("cell {cell} has a non-finite fitted propensity"),
         ));
     }
@@ -1063,7 +1076,7 @@ fn evaluate_cell(
     let ess = sum_w * sum_w / sum_w2;
     if ess < config.min_cell_ess {
         return Err(unsupported(
-            "joint_cells.cell_ess_below_minimum",
+            antecedent_core::reason_details::joint_cells::CELL_ESS_BELOW_MINIMUM,
             format!(
                 "cell {cell}: in-cell weights have effective sample size {ess:.3}, below the \
                  declared minimum {}",
@@ -1107,7 +1120,7 @@ fn normalization(
     if max_row_sum > 1.0 + tolerance || (complete && max_error > tolerance) {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "joint_cells.normalization_failed",
+            antecedent_core::reason_details::joint_cells::NORMALIZATION_FAILED,
             &format!(
                 "under ordering {ordering:?} the enumerated cell propensities sum to at most \
                  {max_row_sum} with deviation {max_error} from one, beyond the tolerance \
@@ -1231,7 +1244,7 @@ fn fit_with_nuisance(
     if k > MAX_FACTORIZED_COMPONENTS && n_cells as usize > n {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_cells.component_count",
+            antecedent_core::reason_details::joint_cells::COMPONENT_COUNT,
             "more than three components need at least as many complete-case rows as joint cells",
         ));
     }
@@ -1370,7 +1383,7 @@ fn fit_with_nuisance(
             .collect();
         return Err(refuse(
             antecedent_core::reason_code!("joint_cell_unsupported"),
-            "joint_cells.no_supported_cell",
+            antecedent_core::reason_details::joint_cells::NO_SUPPORTED_CELL,
             &format!("no cell of the family is supported ({})", reasons.join("; ")),
         ));
     }
@@ -1543,7 +1556,10 @@ mod tests {
     }
 
     fn refused() -> Result<(CellEstimate, Vec<f64>), CellRefusal> {
-        Err(unsupported("joint_cells.cell_ess_below_minimum", "thin".to_string()))
+        Err(unsupported(
+            antecedent_core::reason_details::joint_cells::CELL_ESS_BELOW_MINIMUM,
+            "thin".to_string(),
+        ))
     }
 
     /// Hand-computed: cell 0 estimates 1.00, 1.02, 0.99 spread by 0.03; cell 1 is refused under
@@ -1807,7 +1823,10 @@ mod tests {
         for (index, report) in fit.cells.iter().enumerate() {
             match (&report.status, index) {
                 (CellStatus::Unsupported(refusal), 3) => {
-                    assert_eq!(refusal.detail, "joint_cells.outcome_model_unsupported");
+                    assert_eq!(
+                        refusal.detail,
+                        antecedent_core::reason_details::joint_cells::OUTCOME_MODEL_UNSUPPORTED
+                    );
                     assert!(refusal.message.contains("outcome learner failed"), "{refusal:?}");
                 }
                 (CellStatus::Supported(_), 0..=2) => {}
@@ -1825,7 +1844,10 @@ mod tests {
         for (index, report) in fit.cells.iter().enumerate() {
             match (&report.status, index) {
                 (CellStatus::Unsupported(refusal), 1 | 3) => {
-                    assert_eq!(refusal.detail, "joint_cells.conditional_unsupported");
+                    assert_eq!(
+                        refusal.detail,
+                        antecedent_core::reason_details::joint_cells::CONDITIONAL_UNSUPPORTED
+                    );
                     assert!(refusal.message.contains("the learner failed"), "{refusal:?}");
                 }
                 (CellStatus::Supported(_), 0 | 2) => {}
@@ -1841,6 +1863,9 @@ mod tests {
         else {
             panic!("expected a refusal")
         };
-        assert!(message.contains("joint_cells.no_supported_cell"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::joint_cells::NO_SUPPORTED_CELL),
+            "{message}"
+        );
     }
 }

@@ -67,7 +67,7 @@ const SEARCH_LATENT_LEVELS: [usize; 3] = [3, 5, 2];
 const SEARCH_SEEDS: u64 = 2;
 
 /// Stable failure text of a witness that does not verify.
-const NOT_VERIFIED: &str = "admg_transport.invalid_derivation";
+const NOT_VERIFIED: &str = antecedent_core::reason_details::admg_transport::INVALID_DERIVATION;
 
 /// One latent variable: the bidirected edge it realizes and its law.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -141,7 +141,10 @@ pub struct ConditionalWitnessCheck {
 }
 
 fn rejected(_why: &str) -> IdentificationError {
-    debug_assert_eq!(NOT_VERIFIED, "admg_transport.invalid_derivation");
+    debug_assert_eq!(
+        NOT_VERIFIED,
+        antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+    );
     invalid_derivation()
 }
 

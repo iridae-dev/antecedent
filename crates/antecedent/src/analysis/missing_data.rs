@@ -241,7 +241,7 @@ pub(crate) fn validate_declaration(
     if !declaration.imputation_domains.is_empty() && declaration.policy.imputation().is_none() {
         return Err(CausalError::Estimate(antecedent_estimate::EstimationError::refused_detail(
             antecedent_core::reason_code!("invalid_argument"),
-            "multiple_imputation.variable_domain",
+            antecedent_core::reason_details::multiple_imputation::VARIABLE_DOMAIN,
             "imputation variable domains require the multiple-imputation policy",
         )));
     }
@@ -360,7 +360,7 @@ fn graph_posterior_pooling(
     };
     if !matches!(context.data, DataInput::Tabular(_)) {
         return refuse(
-            "multiple_imputation.graph_posterior_series",
+            antecedent_core::reason_details::multiple_imputation::GRAPH_POSTERIOR_SERIES,
             "a series graph posterior is answered by dynamic-network and class executors whose \
              per-table answers are per-horizon and per-atom structures with no single effect \
              posterior to stack, and the dependent series has no exchangeable units for a \
@@ -369,14 +369,14 @@ fn graph_posterior_pooling(
     }
     if !context.inference.is_bayesian() {
         return refuse(
-            "multiple_imputation.graph_posterior_frequentist",
+            antecedent_core::reason_details::multiple_imputation::GRAPH_POSTERIOR_FREQUENTIST,
             "a mixture over structures has no frequentist point and variance; only effect \
              posteriors can be mixed",
         );
     }
     if !matches!(query, CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_)) {
         return refuse(
-            "multiple_imputation.graph_posterior_query",
+            antecedent_core::reason_details::multiple_imputation::GRAPH_POSTERIOR_QUERY,
             "this query is answered atom by atom (responses, mediation, counterfactuals, \
              transport, attribution), and its per-table answer is not one equal-weight \
              mixture of effect draws",

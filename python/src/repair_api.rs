@@ -129,7 +129,7 @@ pub(crate) fn obligation_json(
 fn outcome_name(report: &RepairReport) -> &'static str {
     match report.status() {
         None => "repaired",
-        Some((_, "identification_repair.budget")) => "exhausted",
+        Some((_, antecedent_core::reason_details::identification_repair::BUDGET)) => "exhausted",
         Some(_) => "none_certified",
     }
 }

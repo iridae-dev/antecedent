@@ -139,7 +139,11 @@ fn constituent_and_descendant_leakage_needs_a_declared_exclusion() {
     let t = table(500, 2);
     let leaking = names(&["age", "t1"]);
     let error = check_derived_treatment(&t.data, &joint(), "y", &leaking, &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_constituent_in_adjustment");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_CONSTITUENT_IN_ADJUSTMENT,
+    );
     assert_eq!(implicated(&error), names(&["t1"]));
 
     let mut declared = joint();
@@ -154,7 +158,11 @@ fn constituent_and_descendant_leakage_needs_a_declared_exclusion() {
 
     let descendant = names(&["age", "post"]);
     let error = check_derived_treatment(&t.data, &joint(), "y", &descendant, &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_descendant_in_adjustment");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_DESCENDANT_IN_ADJUSTMENT,
+    );
     assert_eq!(implicated(&error), names(&["post"]));
     let mut declared = joint();
     declared.exclusions.push(exclusion(
@@ -167,7 +175,11 @@ fn constituent_and_descendant_leakage_needs_a_declared_exclusion() {
 
     let error =
         check_derived_treatment(&t.data, &joint(), "y", &names(&["age", "y"]), &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_outcome_in_adjustment");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_OUTCOME_IN_ADJUSTMENT,
+    );
 }
 
 /// An exclusion needs a rule that matches the column's role and a justification; none excludes an
@@ -188,25 +200,41 @@ fn exclusions_are_refused_unless_they_carry_a_matching_causal_rule() {
         declared.exclusions.push(attempt);
         let error =
             check_derived_treatment(&t.data, &declared, "y", &adjustment, &ctx()).unwrap_err();
-        refusal(&error, "derived_treatment_invalid", "joint_cells.derived_exclusion_rule_mismatch");
+        refusal(
+            &error,
+            "derived_treatment_invalid",
+            antecedent_core::reason_details::joint_cells::DERIVED_EXCLUSION_RULE_MISMATCH,
+        );
     }
     let mut blank = joint();
     blank.exclusions.push(exclusion("t1", ExclusionRule::ConstituentOfTreatment, "  "));
     let error = check_derived_treatment(&t.data, &blank, "y", &adjustment, &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_declaration_invalid");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_DECLARATION_INVALID,
+    );
 
     let mut twice = joint();
     for _ in 0..2 {
         twice.exclusions.push(exclusion("t1", ExclusionRule::ConstituentOfTreatment, "component"));
     }
     let error = check_derived_treatment(&t.data, &twice, "y", &adjustment, &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_exclusion_rule_mismatch");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_EXCLUSION_RULE_MISMATCH,
+    );
 
     let mut stale = joint();
     stale.exclusions.push(exclusion("post", ExclusionRule::PostTreatmentDescendant, "descendant"));
     let error =
         check_derived_treatment(&t.data, &stale, "y", &names(&["age"]), &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_exclusion_not_in_adjustment");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_EXCLUSION_NOT_IN_ADJUSTMENT,
+    );
 }
 
 /// Declarations that contradict themselves are refused before any data is read.
@@ -231,15 +259,27 @@ fn contradictory_declarations_are_refused() {
         attempt(&|d| d.legal_values = vec![0.0, 4.0]),
         attempt(&|d| d.legal_values = vec![0.0, f64::NAN]),
     ] {
-        refusal(&error, "derived_treatment_invalid", "joint_cells.derived_declaration_invalid");
+        refusal(
+            &error,
+            "derived_treatment_invalid",
+            antecedent_core::reason_details::joint_cells::DERIVED_DECLARATION_INVALID,
+        );
     }
     let error = attempt(&|d| d.transformation = Transformation::Product);
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_intervention_not_defined");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_INTERVENTION_NOT_DEFINED,
+    );
     // A joint cell addresses at most the 31 binary components a cell code holds.
     let error = attempt(&|d| {
         d.sources.extend((0..31).map(|k| component(&format!("extra{k}"))));
     });
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_declaration_invalid");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_DECLARATION_INVALID,
+    );
 }
 
 /// Exact duplicate treatment components, an undeclared exact copy of a component in the
@@ -257,7 +297,11 @@ fn duplicated_and_tracking_constituents_are_refused() {
     let data = named(&[("t0", &t0), ("t1", &t0), ("age", &age), ("y", &y)]);
     let error =
         check_derived_treatment(&data, &joint(), "y", &names(&["age"]), &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_duplicate_constituents");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_DUPLICATE_CONSTITUENTS,
+    );
     assert_eq!(implicated(&error), names(&["t0", "t1"]));
 
     let t1 = coin(n, &mut rng);
@@ -267,7 +311,7 @@ fn duplicated_and_tracking_constituents_are_refused() {
     refusal(
         &error,
         "derived_treatment_invalid",
-        "joint_cells.derived_constituent_copy_in_adjustment",
+        antecedent_core::reason_details::joint_cells::DERIVED_CONSTITUENT_COPY_IN_ADJUSTMENT,
     );
     assert!(implicated(&error).contains(&"t0_copy".to_string()));
 
@@ -278,7 +322,7 @@ fn duplicated_and_tracking_constituents_are_refused() {
     refusal(
         &error,
         "derived_treatment_invalid",
-        "joint_cells.derived_treatment_tracked_by_covariates",
+        antecedent_core::reason_details::joint_cells::DERIVED_TREATMENT_TRACKED_BY_COVARIATES,
     );
     assert!(implicated(&error).contains(&"t0".to_string()));
 }
@@ -308,7 +352,11 @@ fn a_rank_deficient_adjustment_design_is_refused_not_repaired() {
 
     let error = check_derived_treatment(&data, &joint(), "y", &names(&["z1", "z2", "z3"]), &ctx())
         .unwrap_err();
-    refusal(&error, "design_rank_deficient", "joint_cells.derived_rank_deficient");
+    refusal(
+        &error,
+        "design_rank_deficient",
+        antecedent_core::reason_details::joint_cells::DERIVED_RANK_DEFICIENT,
+    );
     assert_eq!(implicated(&error), names(&["z3"]));
     let fields = error.refusal_fields().unwrap();
     assert_eq!((fields.numerical_rank, fields.design_columns), (Some(3), Some(4)));
@@ -316,7 +364,11 @@ fn a_rank_deficient_adjustment_design_is_refused_not_repaired() {
 
     let error = check_derived_treatment(&data, &joint(), "y", &names(&["z1", "z1_copy"]), &ctx())
         .unwrap_err();
-    refusal(&error, "design_rank_deficient", "joint_cells.derived_rank_deficient");
+    refusal(
+        &error,
+        "design_rank_deficient",
+        antecedent_core::reason_details::joint_cells::DERIVED_RANK_DEFICIENT,
+    );
     assert_eq!(implicated(&error), names(&["z1_copy"]));
 
     // The same design without the dependent column is accepted unchanged.
@@ -340,19 +392,31 @@ fn illegal_values_unknown_columns_and_cancellation_are_refused() {
     let mut narrow = joint();
     narrow.legal_values = vec![0.0, 1.0, 2.0];
     let error = check_derived_treatment(&data, &narrow, "y", &names(&["age"]), &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_illegal_value");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_ILLEGAL_VALUE,
+    );
     assert!(error.to_string().contains("derived value 3"), "{error}");
 
     t1[3] = 2.0;
     let data = named(&[("t0", &t0), ("t1", &t1), ("age", &age), ("y", &y)]);
     let error =
         check_derived_treatment(&data, &joint(), "y", &names(&["age"]), &ctx()).unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_illegal_value");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_ILLEGAL_VALUE,
+    );
     assert!(error.to_string().contains("component value 2"), "{error}");
 
     let error =
         check_derived_treatment(&data, &joint(), "y", &names(&["missing"]), &ctx()).unwrap_err();
-    refusal(&error, "invalid_argument", "joint_cells.derived_unknown_column");
+    refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::joint_cells::DERIVED_UNKNOWN_COLUMN,
+    );
 
     let cancelled = ExecutionContext::for_tests(5);
     cancelled.cancellation.cancel();
@@ -383,7 +447,11 @@ fn a_sum_is_a_derived_level_and_is_not_a_joint_cell() {
         &ctx(),
     )
     .unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_not_a_joint_cell");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_NOT_A_JOINT_CELL,
+    );
 }
 
 fn law_sample(n: usize, seed: u64, law: &[Vec<f64>]) -> TabularData {
@@ -465,7 +533,11 @@ fn a_declared_joint_cell_is_estimated_on_a_known_law() {
         &ctx(),
     )
     .unwrap_err();
-    refusal(&error, "derived_treatment_invalid", "joint_cells.derived_constituent_in_adjustment");
+    refusal(
+        &error,
+        "derived_treatment_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_CONSTITUENT_IN_ADJUSTMENT,
+    );
 }
 
 /// A family with one unsupported cell keeps the rest: with joint cell (1, 1) never observed the

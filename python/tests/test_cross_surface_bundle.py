@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
 from antecedent.outcomes import require_success
 
@@ -81,7 +82,7 @@ def test_xsurface_rust_built_bundle_refuses_another_identity_and_changed_bytes()
     identity = bundle_gen.build_bundle().identity
     with pytest.raises(cb.ExpectedIdentityMismatchRefusal) as wrong:
         require_success(cb.consume_bundle(data, expected_identity="0" * 64))
-    assert wrong.value.detail == "composition_bundle.expected_identity_mismatch"
+    assert wrong.value.detail == reason_details.composition_bundle.EXPECTED_IDENTITY_MISMATCH
     with pytest.raises(cb.CompositionBundleRefusal):
         require_success(cb.consume_bundle(_flip_middle_byte(data), expected_identity=identity))
 

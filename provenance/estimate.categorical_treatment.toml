@@ -45,17 +45,20 @@ record_sha256 = "4b0c363442283904a6aebd56a181c516c28bc1b501a9ba4656dba312016e517
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/categorical_treatment.rs"
-sha256 = "2005c8b20001ca65962887913ce6f0c6094205b893b68f369bda4764034689ea"
+items = ["const MONOTONICITY_NON_DECREASING_NULL", "const MONOTONICITY_NON_INCREASING_NULL", "enum LevelScale", "enum MonotonicityDirection", "fn assemble_categorical", "fn count_levels", "fn declared_contrasts", "fn dummy_columns", "fn dummy_name", "fn fit_categorical_treatment", "fn monotonicity_result", "fn pair_contrast", "fn validate_spec", "struct AdjacentStep", "struct CategoricalTreatmentFit", "struct CategoricalTreatmentInput", "struct CategoricalTreatmentSpec", "struct LevelContrast", "struct LevelCount", "struct MonotonicityResult", "struct PairContrast"]
+sha256 = "8460976f30c032d3c4338332b14f64933c22bfd83c8045838f188f0baf318729"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
-sha256 = "e1a4c389bd34f5adf822ca6ada553810ccf7b97c363e10f1b9eb48ca78fd5ec6"
+items = ["const LEVERAGE_TOLERANCE", "const RANK_TOLERANCE", "const VECTOR_TREATMENT_INTERCEPT", "const VECTOR_TREATMENT_NULL", "enum VectorCovariance", "fn apply_weights", "fn as_str", "fn assemble", "fn build_design", "fn check_design", "fn check_row_structure", "fn degenerate", "fn dependent_meat", "fn evaluate_contrasts", "fn first_dependent_column", "fn fit_joint", "fn fit_joint_retained", "fn fit_joint_retained_declared", "fn fit_ols", "fn full_covariance", "fn joint_gram_addressable", "fn matmul", "fn new", "fn quadratic_form", "fn robust_meat", "fn row_of", "fn sandwich", "fn scores_of", "fn validate_input", "fn validate_shared", "fn wald_rows", "fn weight_vector", "struct CoefficientEstimate", "struct Contrast", "struct ContrastEstimate", "struct Design", "struct JointWald", "struct NamedColumn", "struct Ols", "struct RowStructure", "struct Solved", "struct TreatmentColumn", "struct VectorTreatmentFit", "struct VectorTreatmentInput", "struct VectorTreatmentOptions"]
+sha256 = "e58da90906a4993ebcd3277992df16e06c2a37f8a11ee9aceb968562553c8f61"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/categorical_regression_reference.rs"
-sha256 = "1c10dcc1cf9fec83b2eadb69da183c6054f77cdb72998f308fefaef03cf3cde0"
+items = ["fn categorical_fit_matches_the_exact_regression_for_every_covariance", "fn close", "fn close_scaled", "fn floats"]
+sha256 = "a517dfbfa88dabbdc4782b7eccd7b4c9c675e14f07200748b70c76e9fee00875"
 
 [[method_review.artifacts]]
 role = "reference"

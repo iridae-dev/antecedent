@@ -28,7 +28,7 @@ fn normalize_distribution_metadata(metadata_json: &str) -> PyResult<String> {
     match parsed {
         ProviderTrust::NativeSupported => {
             return Err(crate::recalc_api::invalid(
-                "native_distribution.authority_required",
+                antecedent_core::reason_details::native_distribution::AUTHORITY_REQUIRED,
                 "native trust requires retained producer-issued execution state",
             ));
         }

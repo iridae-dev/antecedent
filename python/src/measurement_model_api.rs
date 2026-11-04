@@ -712,7 +712,7 @@ fn trust_of(
             }
             None => Err(declaration_refusal(
                 antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                "measurement_model.posterior_receipt",
+                antecedent_core::reason_details::measurement_model::POSTERIOR_RECEIPT,
                 "exact-request verification needs the verification receipt the library issued; \
                  a label is not a receipt",
             )),
@@ -722,7 +722,7 @@ fn trust_of(
             ExternalTrustState::attest(&provider.object, attestor).map_err(|error| {
                 declaration_refusal(
                     antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                    "measurement_model.posterior_declaration",
+                    antecedent_core::reason_details::measurement_model::POSTERIOR_DECLARATION,
                     &format!("the provider declaration cannot be attested: {error:?}"),
                 )
             })
@@ -730,7 +730,7 @@ fn trust_of(
         "native_supported" => Ok(ExternalTrustState::NativeSupported),
         _ => Err(declaration_refusal(
             antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-            "measurement_model.posterior_declaration",
+            antecedent_core::reason_details::measurement_model::POSTERIOR_DECLARATION,
             "a provider posterior is externally attested or exact-request verified; \
              nothing else is a trust state a caller can state",
         )),

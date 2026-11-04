@@ -78,12 +78,14 @@ record_sha256 = "a46aee4107e9fb42007cb2b4319f0ea7c1594fc12a2cc277adadc0921c1ad23
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/envelope.rs"
-sha256 = "6641dba757acd8ff9b22c76fd262b163e04e363d1fd635dbda2415d676e67461"
+items = ["const PSD_TOLERANCE", "fn aggregate_effect_envelope", "fn aggregate_mixture_functional_envelope", "fn couple_mixture_functional_draws", "fn moment_matched", "struct EnvelopeOptions", "struct GraphEffectDraws"]
+sha256 = "a75503c59293d17e3c9e4db218e0053bfd5997ac8c8e84be89597f9289271efb"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/envelope_reference.rs"
-sha256 = "21e288e449e9e9156dd3aa00a6f0008cc06fe5d0aa8285541001aca60c002f5f"
+items = ["fn cases", "fn renormalizing_over_positive_unidentified_mass_is_refused", "fn run", "fn the_envelope_does_not_depend_on_the_atom_order", "fn the_published_moments_are_the_exact_mixture_moments"]
+sha256 = "982c0d6ed2789a781df2f290f5c045f55027eca6c481a34e1d216c637c254ba9"
 
 [[method_review.artifacts]]
 role = "reference"

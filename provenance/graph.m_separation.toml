@@ -45,14 +45,17 @@ record_sha256 = "2cf0ae9371f8174c151e1588e3a221318ba26711bbdbdb5c0d29ffdda30f8f9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/msep.rs"
-sha256 = "2f452a4feb05a87059acf5991a934e8a9660cfd1eff5b7ffbbabdfb7f77e23d0"
+items = ["fn bayes_m_connected", "fn build_moral_ancestral", "fn build_moral_of_seeds", "fn is_m_separated", "fn is_m_separated_sets", "fn m_sep_active_path", "fn m_separation", "fn moralize_ancestral_set"]
+sha256 = "1607de5f36813efde91580df37ddd28e9a316b986f407ea29f5b819eecf62f76"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/dsep.rs"
-sha256 = "354cadc168387afa5e95cebc2b842af31cac5b1ccae069363d523e115ea970a0"
+items = ["enum SeparationResult", "struct DSeparationWorkspace", "struct PathStep", "struct SeparationCertificate"]
+sha256 = "6f827b4510517127b60d272d0634fdb7c71fe8e71dd414f3f22ab84cb76405e4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/admg_msep_exhaustive.rs"
-sha256 = "d452def347b2994b9781c54deb59ee67406c239de299e1b2951a250520415400"
+items = ["fn build", "fn check_graph", "fn connects", "fn dag_arcs", "fn edges_of", "fn every_four_node_admg_matches_the_path_definition", "fn id", "fn new", "fn projection_agrees", "fn projection_preserves_separation_for_every_four_node_dag_and_observed_subset", "fn projection_preserves_separation_on_a_stride_of_the_five_node_dags_and_every_observed_subset", "fn separated", "fn set_form_agrees_with_the_pairwise_oracle_on_every_four_node_admg", "fn strided_five_node_admgs_match_the_path_definition", "fn the_oracle_distinguishes_the_known_cases", "struct Oracle", "type Edges"]
+sha256 = "131f5cc9af1e29ecaa9365adb2db7dd5c07dc9c196d94ea4899776014634a66d"

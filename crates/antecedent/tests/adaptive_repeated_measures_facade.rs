@@ -115,7 +115,10 @@ fn a_missing_within_unit_correlation_is_refused_with_its_own_detail_and_remedy()
     .expect_err("the correlation is not declared");
     assert_eq!(refusals.len(), 1);
     assert_eq!(refusals[0].code, antecedent_core::reason_code!("adaptive_contract_incomplete"));
-    assert_eq!(refusals[0].detail, "adaptive_inference.within_unit_correlation_missing");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::WITHIN_UNIT_CORRELATION_MISSING
+    );
     assert!(refusals[0].message.contains("within-unit correlation"));
 }
 
@@ -129,7 +132,10 @@ fn an_invalid_element_is_refused_as_invalid_argument() {
     ))
     .expect_err("rho = 1 is singular");
     assert_eq!(refusals[0].code, antecedent_core::reason_code!("invalid_argument"));
-    assert_eq!(refusals[0].detail, "adaptive_inference.correlation_invalid");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
+    );
 }
 
 #[test]
@@ -287,7 +293,10 @@ fn a_fixed_sample_analysis_after_adaptive_assignment_is_refused_by_the_facade() 
     ] {
         let refusal = refused(&procedure, &request);
         assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
-        assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_design_adaptive");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE
+        );
         assert!(refusal.message.contains("remedy"), "{}", refusal.message);
     }
 }
@@ -304,7 +313,7 @@ fn an_independence_assumption_for_dependent_measurements_is_refused() {
     assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
     assert_eq!(
         refusal.detail,
-        "adaptive_inference.independence_assumed_for_dependent_measurements"
+        antecedent_core::reason_details::adaptive_inference::INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS
     );
 }
 
@@ -322,7 +331,10 @@ fn a_paradigm_that_is_not_derived_for_this_cell_is_refused() {
         },
     );
     assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
-    assert_eq!(refusal.detail, "adaptive_inference.repeated_measures_paradigm_not_derived");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_PARADIGM_NOT_DERIVED
+    );
 }
 
 #[test]
@@ -361,7 +373,11 @@ fn a_guarantee_is_not_paired_across_cells() {
             },
         );
         assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
-        assert_eq!(refusal.detail, "adaptive_inference.guarantee_not_transferable", "{cell_id}");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE,
+            "{cell_id}"
+        );
     }
 }
 

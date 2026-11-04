@@ -133,7 +133,10 @@ mod tests {
         let error = refuse_unread_series_weights(&data, "temporal mediation")
             .expect_err("a route without a weighted construction refuses")
             .to_string();
-        assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+        assert!(
+            error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+            "{error}"
+        );
         assert!(error.contains("temporal mediation"), "{error}");
         assert!(error.contains("Next attempt:"), "{error}");
         assert!(error.contains("refute(None)"), "{error}");
@@ -149,6 +152,9 @@ mod tests {
         .expect_err("refused")
         .to_string();
         assert!(error.contains("centres at unweighted means"), "{error}");
-        assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+        assert!(
+            error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+            "{error}"
+        );
     }
 }

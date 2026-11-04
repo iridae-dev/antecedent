@@ -42,7 +42,28 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
-          "sha256": "33ae454edd7c6568a1aede971105c4f78317d568bdf15215969324d67a355ad5"
+          "items": [
+            "fn accepted_dag_attribution_known_truth",
+            "fn anomaly_attribution_known_truth",
+            "fn bayesian_attribution_shared_row_weight_known_truth",
+            "fn bayesian_interference_fixed_network_posterior_matches_known_truth",
+            "fn change_attribution_known_truth",
+            "fn ctx",
+            "fn design_cells_bind_calibration_under_the_harness_key",
+            "fn interference_bernoulli_neighbor_count_known_truth",
+            "fn interference_click_executes_on_the_clicked_outcomes",
+            "fn interference_is_stated_under_every_static_structure_class_with_the_design_identification",
+            "fn interference_outside_the_supported_construction_is_refused",
+            "fn interference_validation_checks_the_assignment_the_overlap_and_the_randomization",
+            "fn outlier_chain",
+            "fn rebind_estimate",
+            "fn refused_with",
+            "fn transport_direct_trial_ipw_known_truth",
+            "fn transport_outside_the_supported_construction_is_refused",
+            "fn two_period_chain",
+            "fn two_unit_interference"
+          ],
+          "sha256": "a1100ef42108ad44de5a36aaa067d14f153d26432c351c36829b3f3acafaf331"
         }
       ],
       "fixture_payload_sha256": "2222f728dadd67a3c662d0e6b3a470fecf342db1d4df86bdbcd2f90fc7803548"

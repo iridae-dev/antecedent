@@ -153,7 +153,10 @@ fn the_posterior_rule_stops_when_its_threshold_is_met() {
     // Decision-theoretic stopping is supported only for the Thompson cell with
     // a decision-theoretic rule; the efficacy cell refuses it.
     let refused = compute_adaptive_result(&contract(thompson()), &spec, &ctx()).unwrap_err();
-    assert_eq!(refused.detail, "adaptive_inference.paradigm_not_supported_for_cell");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     let mut declaration = thompson();
     declaration.cell.stopping = StoppingRuleKind::DecisionTheoretic;
     declaration.stopping_rule = Some(StoppingRuleDeclaration {
@@ -214,7 +217,7 @@ fn a_probability_floor_failure_is_a_typed_refusal_not_a_clip() {
     };
     let error = compute_adaptive_result(&contract(declaration), &spec, &ctx()).unwrap_err();
     assert_eq!(error.code, "adaptive_assumption_violated");
-    assert_eq!(error.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(error.detail, antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR);
 }
 
 #[test]
@@ -230,12 +233,18 @@ fn a_paradigm_of_another_cell_is_refused_before_any_number() {
     };
     let error = compute_adaptive_result(&contract(thompson()), &weighting, &ctx()).unwrap_err();
     assert_eq!(error.code, "route_not_supported");
-    assert_eq!(error.detail, "adaptive_inference.paradigm_not_supported_for_cell");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     let error = compute_adaptive_result(&contract(weighted()), &posterior(1), &ctx()).unwrap_err();
-    assert_eq!(error.detail, "adaptive_inference.paradigm_not_supported_for_cell");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     // A look the contract does not have.
     let error = compute_adaptive_result(&contract(thompson()), &posterior(5), &ctx()).unwrap_err();
-    assert_eq!(error.detail, "adaptive_inference.input_invalid");
+    assert_eq!(error.detail, antecedent_core::reason_details::adaptive_inference::INPUT_INVALID);
 }
 
 #[test]
@@ -244,7 +253,7 @@ fn cancellation_is_a_refusal_not_a_verdict() {
     ctx.cancellation.cancel();
     let error = compute_adaptive_result(&contract(thompson()), &posterior(1), &ctx).unwrap_err();
     assert_eq!(error.code, "cancelled_no_claim");
-    assert_eq!(error.detail, "adaptive_inference.cancelled");
+    assert_eq!(error.detail, antecedent_core::reason_details::adaptive_inference::CANCELLED);
 }
 
 // -- the artifact ----------------------------------------------------------------------------
@@ -328,7 +337,9 @@ fn every_resealed_semantic_mutation_is_refused() {
     match outcome.unwrap_err() {
         Error::Refused { code, detail, .. } => {
             assert_eq!(code, "adaptive_contract_incomplete");
-            assert!(detail.starts_with("adaptive_inference.exposure_history_missing"));
+            assert!(detail.starts_with(
+                antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING
+            ));
         }
         other => panic!("{other}"),
     }
@@ -345,5 +356,5 @@ fn a_consumer_that_retained_the_identity_refuses_another_experiment() {
     assert!(matches!(error, Error::IdentityMismatch { field: "retained_identity" }));
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "adaptive_inference.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT);
 }

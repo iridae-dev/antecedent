@@ -11,6 +11,8 @@ from collections.abc import Mapping, Sequence
 from functools import partial
 from typing import Any, Literal
 
+from antecedent import _reason_details
+
 from .. import _native
 from .._measured_inference import MeasuredInference
 from .._native import learned_joint_transport_closed as _learned_joint_transport_closed
@@ -39,7 +41,7 @@ Varying = Literal["intercept", "intercept_and_covariates"]
 Sharing = Literal["independent_varying_blocks", "shared_varying_block"]
 _GRAPH_CLASSES = ("fixed_dag", "admg", "graph_posterior")
 _ROUTE = "antecedent.transport.learned_joint"
-_ROUTE_MISSING = "learned_joint_transport.identification_required"
+_ROUTE_MISSING = _reason_details.learned_joint_transport.IDENTIFICATION_REQUIRED
 
 
 #: What a caller can do to obtain the interval.
@@ -125,7 +127,8 @@ def learned_joint_transport(
     ):
         if declared != "fixed_dag":
             raise CausalUnsupportedError(
-                "learned_joint_transport.unsupported_graph", reason_code="route_not_supported"
+                _reason_details.learned_joint_transport.UNSUPPORTED_GRAPH,
+                reason_code="route_not_supported",
             )
         if graph is not None:
             raise CausalValueError(

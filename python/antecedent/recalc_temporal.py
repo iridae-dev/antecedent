@@ -15,6 +15,8 @@ from typing import Any, Literal, cast
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -612,7 +614,7 @@ class CheckedTemporalIntervalCandidate:
             raise RecalcRefusal(
                 {
                     "code": "route_not_supported",
-                    "detail": "temporal_interval.consumer_unavailable",
+                    "detail": _reason_details.temporal_interval.CONSUMER_UNAVAILABLE,
                     "stage": "inference",
                     "message": "the checked temporal interval consumer is unavailable in this build",
                 }

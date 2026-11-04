@@ -11,7 +11,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
- "Supported means a design contract, estimator and uncertainty method exist; every interval and guarantee route is closed pending whole-procedure measurement.",
+ "Supported means a design contract, estimator and uncertainty method exist; every interval route is reported with a calibration annotation pending whole-procedure measurement, and a guarantee no construction yields is an unsupported claim.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -21,17 +21,19 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "The matrix of assignment policy, outcome structure, monitoring strategy and stopping rule, with the status the engine gives each cell (supported, closed or carried forward)."
+rationale = "The matrix of assignment policy, outcome structure, monitoring strategy and stopping rule, with the status the engine gives each cell (supported, incoherent, pairing not supported or not delivered)."
 no_independent_algorithm = "A status table over enumerated combinations; no numerical procedure."
 covered_by = ["adaptive_inference.analysis_contract"]
-record_sha256 = "30a91aefab40696431859947c4bf53e1152de4c4c0c74b1f28f94e0d37d85f97"
+record_sha256 = "e366f260908492d8420d59dfe0e7a16aed4048824fdda68ba54ca456d67f7a8e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/matrix.rs"
-sha256 = "06452b3d93cb1383d2dd3c89c9fb00d976b03bb84654870abe76b58510103eef"
+items = ["const ALL", "const BAYES_AND_DECISION", "const BAYES_AND_SEQUENCE", "const BAYES_DECISION_AND_SEQUENCE", "const BAYES_ONLY", "const FIXED_SAMPLE_ONLY", "const GROUP_SEQUENTIAL_ONLY", "const WEIGHTING_AND_SEQUENCE", "const WEIGHTING_ONLY", "enum CellStatus", "fn as_str", "fn identifier", "fn is_adaptive", "fn procedure_cells", "fn procedure_status", "fn supported_routes", "struct ProcedureCell"]
+sha256 = "396d871710cabbdc22561796c847faba674d391e8a4d7b42ec6e7ddfe7e2701d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/adaptive_design.rs"
-sha256 = "99dead6a461c4f4dc11cc675c0cd0433cbff5615becbf55814ee5b9ef8dfbb0e"
+items = ["fn a_choice_outcome_has_no_assignment_among_arms", "fn a_complete_declaration_is_accepted", "fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_identity", "fn a_paradigm_never_transfers_to_a_cell_it_is_not_supported_for", "fn cell", "fn declaration", "fn delayed_outcomes_enter_the_analysis_only_when_observed", "fn delays_change_the_accounting_by_the_sizes_of_the_nested_looks", "fn details", "fn digest", "fn every_missing_element_is_its_own_typed_refusal", "fn exactly_the_delivered_cells_are_supported_with_their_own_paradigms", "fn fixed_sample_inference_of_adaptive_data_is_refused", "fn futility_declaration", "fn identity_is_deterministic_and_sensitive_to_every_element", "fn incoherent_undelivered_and_unpaired_cells_are_refused_with_their_own_details", "fn inconsistent_records_are_refused_with_distinct_details", "fn interim_looks_count_each_observation_once", "fn noncompliance_and_outcome_dependent_delay_are_refused_before_any_number", "fn observation_identities_are_stable_per_contract_and_unit", "fn registry_rows", "fn rule_for", "fn the_looks_are_never_pooled_as_independent_evidence", "fn the_matrix_lists_every_combination_once_and_classifies_each", "fn the_registry_table_and_the_executable_matrix_agree_cell_by_cell", "fn thompson", "fn thompson_cell", "type Strip"]
+sha256 = "29fcc1fb36f8c2a1b642e417bb1b016b89480d475990286c1ed148d1b5890026"

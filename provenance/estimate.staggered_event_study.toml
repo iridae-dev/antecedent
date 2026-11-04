@@ -37,12 +37,14 @@ record_sha256 = "2e3ab0fcc4e40a12399e5da3c566fb39dbc63610bc871b4913819de66b803e6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/staggered_event_study.rs"
-sha256 = "2c90afef14ecb536b0743f9f35f5b9c303d8b89f39d955f7094f050d5c5004bc"
+items = ["fn estimate", "fn estimate_with", "fn group_time_att", "fn pointwise_interval_95", "fn pretrend_falsification_statistic", "struct EventTimeEffect", "struct GroupTimeAtt", "struct PretrendFalsificationStatistic"]
+sha256 = "55d4dda3e2a37d0607ee8e0c7e64030bffcdfe729b35df809d67ac82949162ee"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/staggered_did_reference.rs"
-sha256 = "ce5b4347ca671f8c5c56587534037126881dc09cf9741fee7288b8b347d4de4c"
+items = ["fn a_missing_unit_period_refuses_without_available_case_and_one_cluster_group_refuses", "fn cases", "fn close", "fn event_time_contrasts_match_the_exact_rational_reference", "fn group_time_cells_match_the_exact_rational_reference", "fn panel", "struct Panel"]
+sha256 = "6cf625501f307b34f28b607fd3dfeda7deb97369580443d55b19f2a5600cc63b"
 
 [[method_review.artifacts]]
 role = "reference"

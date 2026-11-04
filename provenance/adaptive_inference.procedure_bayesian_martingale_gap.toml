@@ -39,17 +39,20 @@ record_sha256 = "932876a2e3aaaa83e1cd586474c6f9fc63f9a7a0785998c1c7269deafc356c7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-sha256 = "112bab3fcbbca77119c10c1fa4e4cdbfea93744d0568048389b4cc82978b5f1d"
+items = ["const DERIVED_UNMEASURED", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn as_str", "fn bayesian_report", "fn check_paradigm", "fn posterior_mean_gaps", "fn premise", "struct BayesianReport", "struct PosteriorMeanGap"]
+sha256 = "1384027a6ad36d2e8c57c460dc2fcef1e927a7454292135cbe11b2202a24edfc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_bayesian_martingale_gap_reference.rs"
-sha256 = "d46f7235404ce3032a966e0b81b9bdb3ff7ec4c80a7117b3bd9df1ceb3c673fd"
+items = ["fn posterior_mean_gaps_match_the_exact_prior_predictive_expectation", "fn posterior_reports_match_the_exact_beta_values", "fn priors", "fn reference"]
+sha256 = "1c75992b6d2813a4ec39cb8aa686fb83bd627f0e6508151857735964a39cd902"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
+items = ["module"]
+sha256 = "571c1ccdbb1afe316020f1abae7a2567cdbf424d29355e0b9da9c809ddf610b6"
 
 [[method_review.artifacts]]
 role = "reference"

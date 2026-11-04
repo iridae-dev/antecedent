@@ -14,6 +14,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import recalc
 from antecedent.errors import CausalSerializationError, CausalValueError
 from antecedent.execution import Execution
@@ -411,7 +412,10 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
         require_success(session.execute(base, execution=Execution(seed=SEED)))
     refusal = caught.value
     assert_registered_refusal(refusal)
-    assert (refusal.stage, refusal.detail) == ("treatment_grid", "recalc.off_grid_request")
+    assert (refusal.stage, refusal.detail) == (
+        "treatment_grid",
+        reason_details.recalc.OFF_GRID_REQUEST,
+    )
     assert refusal.reason_code == "route_not_supported"
     assert refusal.remedy is not None and "transport.smoothed_dose" in refusal.remedy
     assert refusal.plan is not None
@@ -420,7 +424,9 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     )
     for stage in (Stage.SCORE_ARTIFACT, Stage.LAW, Stage.DECISION):
         status = refusal.plan.status(stage)
-        assert status.refused and status.detail.startswith("recalc.blocked_by_refused_dependency")
+        assert status.refused and status.detail.startswith(
+            reason_details.recalc.BLOCKED_BY_REFUSED_DEPENDENCY
+        )
     assert not session.is_live
     assert session.identities == {}
 
@@ -431,7 +437,7 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     session.set_request_support("unsupported")
     with pytest.raises(RecalcRefusal) as caught:
         require_success(session.execute(base, execution=Execution(seed=SEED)))
-    assert caught.value.detail == "recalc.unsupported_request"
+    assert caught.value.detail == reason_details.recalc.UNSUPPORTED_REQUEST
     assert_registered_refusal(caught.value)
     assert session.is_live and session.identities == known
     session.set_request_support("on_grid")
@@ -445,7 +451,7 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     changed = replace(base, target=z_weights(base))
     with pytest.raises(RecalcRefusal) as caught:
         require_success(session.execute(changed, execution=Execution(seed=SEED)))
-    assert caught.value.detail == "recalc.retarget_incompatible"
+    assert caught.value.detail == reason_details.recalc.RETARGET_INCOMPATIBLE
     assert caught.value.reason_code == "construction_not_supported"
     assert caught.value.plan is not None
     assert caught.value.plan.status(Stage.LAW).text == "refused(recalc.retarget_incompatible)"
@@ -493,7 +499,7 @@ def test_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> None:
                 base, execution=Execution(seed=SEED)
             )
         )
-    assert caught_live.value.detail == "recalc.no_live_state"
+    assert caught_live.value.detail == reason_details.recalc.NO_LIVE_STATE
     assert caught_live.value.stage == "score_artifact"
     assert_registered_refusal(caught_live.value)
 
@@ -563,7 +569,7 @@ def test_the_receipt_is_portable_canonical_and_refuses_edits() -> None:
                 bytes(first.receipt.export()), expected_identity=second.receipt.identity
             )
         )
-    assert caught.value.detail == "recalc_receipt.identity_mismatch"
+    assert caught.value.detail == reason_details.recalc_receipt.IDENTITY_MISMATCH
     assert_registered_refusal(caught.value)
 
     # Corruption is a serialization error, never a refusal or a receipt.
@@ -713,5 +719,5 @@ def test_session_controls_live_on_the_execution_alone():
     token.cancel()
     with pytest.raises(RecalcRefusal) as stopped:
         require_success(session.execute(req, execution=Execution(cancel=token)))
-    assert stopped.value.detail == "recalc.cancelled"
+    assert stopped.value.detail == reason_details.recalc.CANCELLED
     assert not session.is_live

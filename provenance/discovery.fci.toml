@@ -45,14 +45,17 @@ record_sha256 = "195f576d6a14245a1c408e98ac2007ff703fc3d6f57d90e45ed288395f5456b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/fci.rs"
-sha256 = "eabb72d28197b8c6b4714ab203c75e5e38e24e8f12f13efef1d3e17a0c94b39f"
+items = ["const ALGORITHM", "const DEFAULT_PDS_MAX_NODES", "fn apply_background_marks", "fn build_pag_circle_skeleton", "fn default", "fn load_sepsets_into_state", "fn new", "fn pds_budget_err", "fn run", "fn with_ci", "fn with_fdr", "struct Fci", "type StaticPagDiscoveryResult"]
+sha256 = "da42a957e9efeedd86a82a7d92010fd9d4f337a889c882b147316628b9f204e6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/possible_d_sep.rs"
-sha256 = "f81fd648526f76344682e8379031dcc1390a991e56d89c57573c776f0083dc1f"
+items = ["fn arrow_into", "fn is_collider_on_path", "fn pds_triple_ok", "fn possible_d_sep", "struct PossibleDSepBudget"]
+sha256 = "068eedacaef562a18003aea2fdac4a6d604011d732e6993cd7315fe22f86f544"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/fci_latent_oracle_tests.rs"
-sha256 = "82285a1d5ad036fd73eef6fc386a36ab65880e099860f0b3fc675b86162ece67"
+items = ["fn ancestor_matrix", "fn d_separated", "fn fci_under_a_dsep_oracle_recovers_the_mag_skeleton_and_colliders_with_sound_marks", "fn mark_at", "fn next", "fn random_case", "fn subsets_of", "struct Dag", "struct DsepOracle", "struct Lcg"]
+sha256 = "b25ca5ef8542450b4ed51ab21bd04bec37244659a1d888d6f092a0485d25e411"

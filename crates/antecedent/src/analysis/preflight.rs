@@ -1978,7 +1978,12 @@ mod tests {
             let error =
                 verify_span_preserved(&input, &plan(recorded_rank), &[ia], &ctx).unwrap_err();
             assert_eq!(error.reason_code(), Some("rank_drop_not_supported"), "{error}");
-            assert!(error.to_string().contains("rank_drop_estimate.span_not_preserved"), "{error}");
+            assert!(
+                error.to_string().contains(
+                    antecedent_core::reason_details::rank_drop_estimate::SPAN_NOT_PRESERVED
+                ),
+                "{error}"
+            );
         }
         // Keeping both columns spans the original space exactly.
         let kept_all = verify_span_preserved(&input, &plan(3), &[ia, ib], &ctx).unwrap();

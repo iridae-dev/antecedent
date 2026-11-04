@@ -52,7 +52,17 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/scm_oracle.rs",
-          "sha256": "3885ff9133184e08a56e35fdd0b7552bfb24b4bc3ceaa5794bdb1f20ac9d8658"
+          "items": [
+            "fn chain_model",
+            "fn discrete_and_hierarchical_glm_match_their_independent_oracles",
+            "fn fixture",
+            "fn idx_f64",
+            "fn json_usize",
+            "fn kalman_filter_and_rts_smoother_match_clean_room_recursion",
+            "fn minnesota_bvar_matches_independent_standardized_ridge_solve",
+            "fn table"
+          ],
+          "sha256": "a242d4160d88d56ce72524a18108e6158718df99a5207a10b0bf1b65dfb00520"
         }
       ],
       "fixture_payload_sha256": "25add928e65bd643641243b436e71fed45a550f1721714c2b0eb9a172b099db5"

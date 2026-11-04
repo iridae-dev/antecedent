@@ -50,17 +50,20 @@ record_sha256 = "db9060329d9108b22f18da7d90b6074d2f2ca6174bfd8665bbcf39558e3c151
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_missing.rs"
-sha256 = "e5449c8a5a1259a34cc47bf136474fe7543ad08101460d6a314c79a8e6ec6dc9"
+items = ["const OBSERVATION_PROBABILITY_FLOOR", "fn observation_probabilities", "fn responder_pseudo_outcomes", "fn responder_weighted_itt", "fn score_terms", "fn solve_symmetric", "fn weighted_arm", "struct ResponderWeightedArm", "struct ResponderWeightedItt"]
+sha256 = "66618f12ece77e275c97aaa73a9d2ccbf24fd35caf6f171632466bef9e1a3a18"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/observation.rs"
-sha256 = "7784fdd67924fd1f2cce59a2e096806299f487bc75d429aa25a21b48ee6b9af5"
+items = ["fn fit_observation_logistic", "fn fit_observation_logistic_admitting", "struct ObservationProbabilityFit"]
+sha256 = "9256d8c6f8c6910cee7a5190653bf4fe03d0bff9fc1330387d96838c403567e1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/responder_weighted_reference.rs"
-sha256 = "49f04d051100d2be3cb2ea50707781626d474ed4eb37e1e053c79e1e3ee551a9"
+items = ["fn close", "fn fitted_probabilities_above_the_upper_clip_are_not_clipped", "fn means_variances_and_weight_diagnostics_match_the_exact_stacked_estimator"]
+sha256 = "5efa874d478ffa9e527ad765a61e9483b3782cc0e5151e5dbf2a58b1c3723024"
 
 [[method_review.artifacts]]
 role = "reference"

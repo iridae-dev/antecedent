@@ -28,6 +28,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.measurement_models import MeasurementModelRefusal
@@ -148,7 +149,11 @@ def test_binary_prevalence_inverts_the_misclassification_algebra():
     # There is no coefficient vector to take a functional of.
     with pytest.raises(MeasurementModelRefusal) as caught:
         require_success(estimate.downstream_linear_functional([1.0]))
-    assert_refusal(caught.value, "route_not_supported", "measurement_model.operation_not_supported")
+    assert_refusal(
+        caught.value,
+        "route_not_supported",
+        reason_details.measurement_model.OPERATION_NOT_SUPPORTED,
+    )
 
 
 def test_risk_difference_keeps_the_arm_covariance_that_split_rates_miss():
@@ -180,7 +185,9 @@ def test_a_differential_model_applies_each_arms_own_rates_and_is_never_pooled():
     with pytest.raises(MeasurementModelRefusal) as caught:
         mm.prepare_measurement_model(differential, analysis(), table)
     assert_refusal(
-        caught.value, "differential_error_not_pooled", "measurement_model.differential_declared"
+        caught.value,
+        "differential_error_not_pooled",
+        reason_details.measurement_model.DIFFERENTIAL_DECLARED,
     )
 
     right = require_success(
@@ -210,7 +217,7 @@ def test_a_differential_model_applies_each_arms_own_rates_and_is_never_pooled():
                 differential, analysis(assumed_structure="differential_arm"), unknown
             ).estimate()
         )
-    assert caught.value.detail == "measurement_model.arm_mismatch"
+    assert caught.value.detail == reason_details.measurement_model.ARM_MISMATCH
 
     # Differential by time has no bounded route: refused, not pooled.
     by_time = classical_model(0.6, structure="differential_time")
@@ -230,7 +237,11 @@ def test_a_youden_index_at_or_below_the_minimum_refuses(se, sp):
     )
     with pytest.raises(MeasurementModelRefusal) as caught:
         require_success(prepared.estimate())
-    assert_refusal(caught.value, "measurement_not_identified", "measurement_model.youden_too_small")
+    assert_refusal(
+        caught.value,
+        "measurement_not_identified",
+        reason_details.measurement_model.YOUDEN_TOO_SMALL,
+    )
     assert caught.value.remedy is None or isinstance(caught.value.remedy, str)
 
 
@@ -302,7 +313,7 @@ def test_categorical_inversion_recovers_proportions_and_outcome_means():
                 mm.CategoricalData(classes, mm.CategoricalTarget.proportion("absent")),
             ).estimate()
         )
-    assert_refusal(caught.value, "invalid_argument", "measurement_model.unknown_level")
+    assert_refusal(caught.value, "invalid_argument", reason_details.measurement_model.UNKNOWN_LEVEL)
     assert isinstance(caught.value, ValueError)  # an invalid argument is also a ValueError
 
 
@@ -405,7 +416,9 @@ def test_an_error_variance_that_leaves_no_latent_variance_refuses():
     with pytest.raises(MeasurementModelRefusal) as caught:
         require_success(prepared.estimate())
     assert_refusal(
-        caught.value, "measurement_not_identified", "measurement_model.reliability_too_small"
+        caught.value,
+        "measurement_not_identified",
+        reason_details.measurement_model.RELIABILITY_TOO_SMALL,
     )
 
 
@@ -460,7 +473,9 @@ def test_repeated_measurements_estimate_the_icc_and_recover_the_coefficient():
             ).estimate()
         )
     assert_refusal(
-        caught.value, "measurement_not_identified", "measurement_model.insufficient_replicates"
+        caught.value,
+        "measurement_not_identified",
+        reason_details.measurement_model.INSUFFICIENT_REPLICATES,
     )
 
 
@@ -520,7 +535,7 @@ def test_a_posterior_route_needs_the_exact_attested_provider_object():
     assert_refusal(
         caught.value,
         "measurement_posterior_not_trusted",
-        "measurement_model.posterior_native_trust",
+        reason_details.measurement_model.POSTERIOR_NATIVE_TRUST,
     )
     # A verified claim without the receipt the library issues is not a receipt.
     with pytest.raises(MeasurementModelRefusal) as caught:
@@ -537,7 +552,9 @@ def test_a_posterior_route_needs_the_exact_attested_provider_object():
             posterior_model(False), analysis(), data, provider=provider("req-2")
         )
     assert_refusal(
-        caught.value, "measurement_posterior_not_trusted", "measurement_model.posterior_identity"
+        caught.value,
+        "measurement_posterior_not_trusted",
+        reason_details.measurement_model.POSTERIOR_IDENTITY,
     )
     # An attestation without an attestor names no one.
     with pytest.raises(MeasurementModelRefusal):
@@ -552,7 +569,9 @@ def test_a_posterior_route_needs_the_exact_attested_provider_object():
     # A learned representation's coordinates are not intervenable.
     with pytest.raises(MeasurementModelRefusal) as caught:
         prepared.check_operation("intervene_on_representation")
-    assert caught.value.detail == "measurement_model.learned_coordinates_not_intervenable"
+    assert (
+        caught.value.detail == reason_details.measurement_model.LEARNED_COORDINATES_NOT_INTERVENABLE
+    )
 
 
 def test_posterior_substitution_and_rubins_rules_replay_independently():
@@ -623,7 +642,7 @@ def test_posterior_substitution_and_rubins_rules_replay_independently():
                 provider=provider(),
             ).estimate()
         )
-    assert caught.value.detail == "measurement_model.insufficient_draws"
+    assert caught.value.detail == reason_details.measurement_model.INSUFFICIENT_DRAWS
 
 
 # --------------------------------------------------------------------------- prepare checks
@@ -642,28 +661,42 @@ def test_population_regime_arm_and_representation_are_checked_before_estimation(
         return caught.value
 
     error = refuse(m, analysis(population_id="elsewhere"))
-    assert_refusal(error, "measurement_binding_mismatch", "measurement_model.population_mismatch")
+    assert_refusal(
+        error, "measurement_binding_mismatch", reason_details.measurement_model.POPULATION_MISMATCH
+    )
     assert error.remedy is not None or error.message
 
-    assert refuse(m, analysis(regime_id="do(a=1)")).detail == "measurement_model.regime_mismatch"
+    assert (
+        refuse(m, analysis(regime_id="do(a=1)")).detail
+        == reason_details.measurement_model.REGIME_MISMATCH
+    )
 
     arm_model = classical_model(0.6, arm_id="treated")
-    assert refuse(arm_model, analysis(arm_id="control")).detail == "measurement_model.arm_mismatch"
+    assert (
+        refuse(arm_model, analysis(arm_id="control")).detail
+        == reason_details.measurement_model.ARM_MISMATCH
+    )
 
     error = refuse(m, analysis(representation=mm.RepresentationVersion("scalar", 2)))
     assert_refusal(
-        error, "representation_mapping_required", "measurement_model.representation_unmapped"
+        error,
+        "representation_mapping_required",
+        reason_details.measurement_model.REPRESENTATION_UNMAPPED,
     )
 
     # A proxy is never the construct: the measured column named as the construct, and a proxy kind
     # declared as the construct.
     error = refuse(m, analysis(construct_id=INDICATOR))
-    assert_refusal(error, "proxy_offered_as_construct", "measurement_model.indicator_as_construct")
+    assert_refusal(
+        error, "proxy_offered_as_construct", reason_details.measurement_model.INDICATOR_AS_CONSTRUCT
+    )
     proxy = classical_model(
         0.6, construct=mm.MeasurementVariable(CONSTRUCT, "learned_vector_representation", "unit")
     )
     error = refuse(proxy, analysis())
-    assert_refusal(error, "proxy_offered_as_construct", "measurement_model.proxy_as_construct")
+    assert_refusal(
+        error, "proxy_offered_as_construct", reason_details.measurement_model.PROXY_AS_CONSTRUCT
+    )
 
     # An observed column is given no error model.
     observed = classical_model(0.6, indicator=mm.MeasurementVariable(INDICATOR, "observed", "unit"))
@@ -692,7 +725,9 @@ def test_the_route_supports_only_its_own_operations():
         with pytest.raises(MeasurementModelRefusal) as caught:
             prepared.check_operation(refused)
         assert_refusal(
-            caught.value, "route_not_supported", "measurement_model.operation_not_supported"
+            caught.value,
+            "route_not_supported",
+            reason_details.measurement_model.OPERATION_NOT_SUPPORTED,
         )
         assert caught.value.remedy is not None
     assert prepared.route_card["route"] == "classical_continuous_error"
@@ -724,20 +759,24 @@ def test_a_mapping_carries_values_and_intervention_meaning_only_when_declared():
     assert_refusal(
         caught.value,
         "representation_mapping_required",
-        "measurement_model.intervention_meaning_not_carried",
+        reason_details.measurement_model.INTERVENTION_MEANING_NOT_CARRIED,
     )
     # A mapping between other versions is refused outright.
     wrong = mm.RepresentationMapping(mm.RepresentationVersion("scalar", 7), v2, "map-relabel")
     with pytest.raises(MeasurementModelRefusal) as caught:
         mm.prepare_measurement_model(m, analysis(representation=v2, mapping=wrong), data)
-    assert caught.value.detail == "measurement_model.mapping_endpoints"
+    assert caught.value.detail == reason_details.measurement_model.MAPPING_ENDPOINTS
     # Declared evidence of intervention preservation supports the meaning; the route itself
     # still refuses an intervention on the recorded indicator.
     preserving = mm.RepresentationMapping(SCALAR, v2, "map-relabel", "ev:trial-9")
     ok = mm.prepare_measurement_model(m, analysis(representation=v2, mapping=preserving), data)
     with pytest.raises(MeasurementModelRefusal) as caught:
         ok.check_operation("intervene_on_representation")
-    assert_refusal(caught.value, "route_not_supported", "measurement_model.operation_not_supported")
+    assert_refusal(
+        caught.value,
+        "route_not_supported",
+        reason_details.measurement_model.OPERATION_NOT_SUPPORTED,
+    )
 
 
 # --------------------------------------------------------------------------- lifecycle
@@ -868,7 +907,7 @@ def test_the_artifact_replays_independently_and_refuses_semantic_mutation():
     consumed.check_use(analysis(), "linear_adjusted_effect")
     with pytest.raises(MeasurementModelRefusal) as caught:
         consumed.check_use(analysis(population_id="elsewhere"), "linear_adjusted_effect")
-    assert caught.value.detail == "measurement_model.population_mismatch"
+    assert caught.value.detail == reason_details.measurement_model.POPULATION_MISMATCH
 
     # Semantic mutations are different identities: a result carried by a mutated model is refused
     # by a consumer that retained the original identity.

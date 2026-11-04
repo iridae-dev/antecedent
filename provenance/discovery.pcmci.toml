@@ -39,14 +39,17 @@ record_sha256 = "d216d14c321157f2ab4c211b96c2b388eed1778d4d99336fc315abf30d86729
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/pcmci.rs"
-sha256 = "044ebd837f49974183e1376c1e40e59f3638bdfd696e0b0e3d79303e230baacc"
+items = ["fn check_background_knowledge", "fn default", "fn new", "fn run", "fn run_with", "struct Pcmci"]
+sha256 = "97e08b2e94c8ac9523bc166e4a8cc02bcc00f6a8bfdf7bc3c4a65721195d141a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/engine.rs"
-sha256 = "b9724761f53ccb550298d12d18707f3bbce7fd0df8d6037cc38f5005925fa7f4"
+items = ["fn default", "fn insert", "fn new", "fn with_ci", "fn with_constraints", "struct ColumnViewScratch", "struct DiscoveryWorkspace"]
+sha256 = "2de5f78173131073f45e6c84e700ad37e6a120b48e37f60d4ef2c686b4ce11bc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/pcmci_oracle_tests.rs"
-sha256 = "1b4facb8f9b8e13342510913d7df3f7fb8987bcf0d13ba41e7889d089217624c"
+items = ["const MAX_LAG", "const NOW", "const STEPS", "fn ancestors_or_self", "fn chance", "fn constraints", "fn d_separated", "fn key_of", "fn next", "fn node", "fn pcmci_plus_under_a_dsep_oracle_recovers_adjacencies_and_sound_orientations", "fn pcmci_under_a_dsep_oracle_returns_exactly_the_lagged_parents", "fn random_case", "fn series", "struct Lcg", "struct TemporalDsepOracle", "struct Unrolled", "type Case"]
+sha256 = "60981e4471cc5f39f3bf26ed53634ba2f6c4af9650dce2d425dc7708db291a83"

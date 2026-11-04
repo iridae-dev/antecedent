@@ -61,6 +61,7 @@ from antecedent import (
     repair,
     scenario_decision,
 )
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent import choice_inference as chi
 from antecedent import cohort_decision as cd
@@ -1373,7 +1374,7 @@ def _check_native_decision(o: Objs) -> None:
     ):
         with pytest.raises(ExternalRefusal) as refused:
             o.native.as_decision_source(_native_contract(criterion))
-        assert refused.value.detail == "native_claims.source_not_supplied"
+        assert refused.value.detail == reason_details.native_claims.SOURCE_NOT_SUPPLIED
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert refused.value.expected == "joint_draws,marginal_draws"
         assert refused.value.supplied == "mean"
@@ -1384,7 +1385,7 @@ def _check_native_decision(o: Objs) -> None:
         program_claims.native_claim(
             _native_view(estimand=ac.AverageEffect("a", "y")), o.native_program
         )
-    assert estimate.value.detail == "native_claims.unsupported_estimand"
+    assert estimate.value.detail == reason_details.native_claims.UNSUPPORTED_ESTIMAND
     assert estimate.value.reason_code == "route_not_supported"
     assert estimate.value.expected == "mean_curve"
 
@@ -1409,7 +1410,7 @@ def _check_native_inverse(o: Objs) -> None:
             require_success(
                 iq.InverseQuery(contract, ("A", "B"), (constraint,)).evaluate(mean_claim)
             )
-        assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+        assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert_registered_refusal(refused.value)
     retained = require_success(
@@ -1430,7 +1431,7 @@ def _check_claim_decision(o: Objs) -> None:
     assert decided.evpi is None, "regret needs state-aligned draws; a mean grid has none"
     with pytest.raises(decision.DecisionRefusal) as export:
         bytes(decided.export())
-    assert export.value.detail == "decision_evaluation.mean_source_not_replayable"
+    assert export.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE
     assert export.value.reason_code == "route_not_supported"
 
     attested = comp.DecisionInput.from_claim("claim", o.claim)
@@ -1449,7 +1450,9 @@ def _check_claim_decision(o: Objs) -> None:
     for functional in (comp.Functional.probability(2.0, "upper"), comp.Functional.quantile(0.5)):
         with pytest.raises(comp.SupportRefusal) as refused:
             require_success(comp.evaluate_functional(contract, "wait", functional, attested))
-        assert refused.value.detail == "composition_boundary.mean_is_not_a_distribution"
+        assert (
+            refused.value.detail == reason_details.composition_boundary.MEAN_IS_NOT_A_DISTRIBUTION
+        )
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert_registered_refusal(refused.value)
 
@@ -1464,7 +1467,7 @@ def _check_claim_inverse(o: Objs) -> None:
     refused_query = iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 5.0),))
     with pytest.raises(iq.InverseQueryRefusal) as refused:
         require_success(refused_query.evaluate(o.claim))
-    assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+    assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
 
 
 def _check_claim_bundle(o: Objs) -> None:
@@ -1498,7 +1501,7 @@ def _check_claim_bundle(o: Objs) -> None:
     )
     with pytest.raises(cb.UnsupportedLawRefusal) as insufficient:
         cb.mean_decision(squared, o.claim)
-    assert insufficient.value.detail == "composition_bundle.unsupported_law"
+    assert insufficient.value.detail == reason_details.composition_bundle.UNSUPPORTED_LAW
     assert_registered_refusal(insufficient.value)
 
 
@@ -1625,7 +1628,7 @@ def _check_scenarios_decision(o: Objs) -> None:
                 ],
             )
         )
-    assert refused.value.detail == "decision_adapters.bayes_over_identified_set"
+    assert refused.value.detail == reason_details.decision_adapters.BAYES_OVER_IDENTIFIED_SET
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     # The transport stage is not itself a decision source.
     with pytest.raises(CausalTypeError):
@@ -1663,7 +1666,7 @@ def _check_scenarios_scenario(o: Objs) -> None:
     # Weights are the set's own; none were declared, so Bayes is refused, not defaulted.
     with pytest.raises(scenario_decision.ScenarioDecisionRefusal) as bayes:
         _decide_scenarios(o.stage, 0.2, "bayes_over_structures")
-    assert bayes.value.detail == "decision_claims.probabilities_not_declared"
+    assert bayes.value.detail == reason_details.decision_claims.PROBABILITIES_NOT_DECLARED
     assert bayes.value.reason_code == "decision_contract_unsatisfied"
 
 
@@ -1789,7 +1792,7 @@ def _check_ranking_design(o: Objs) -> None:
             )
         )
     assert refused.value.reason_code == "design_cost_units_mismatch"
-    assert refused.value.detail == "design_ranking.cost_units_mismatch"
+    assert refused.value.detail == reason_details.design_ranking.COST_UNITS_MISMATCH
 
 
 def _check_ranking_bundle(o: Objs) -> None:
@@ -1995,7 +1998,7 @@ def _check_declared_decision(declared: Declared, *, act: float, hold: float, sel
     assert any("means only" in line for line in decided.assumptions)
     with pytest.raises(decision.DecisionRefusal) as export:
         bytes(decided.export())
-    assert export.value.detail == "decision_evaluation.mean_source_not_replayable"
+    assert export.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE
     assert export.value.reason_code == "route_not_supported"
 
     # The support-aware evaluator takes the same means as a caller-written input.
@@ -2017,7 +2020,7 @@ def _check_declared_decision(declared: Declared, *, act: float, hold: float, sel
         require_success(
             declared.contract(decision.Criterion.quantile(0.5)).evaluate(declared.source())
         )
-    assert quantile.value.detail == "decision_evaluation.mean_source_insufficient"
+    assert quantile.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
     assert quantile.value.reason_code == "decision_contract_unsatisfied"
     assert_registered_refusal(quantile.value)
     with pytest.raises(comp.SupportRefusal) as probability:
@@ -2026,7 +2029,9 @@ def _check_declared_decision(declared: Declared, *, act: float, hold: float, sel
                 contract, "act", comp.Functional.probability(0.5, "upper"), adapted
             )
         )
-    assert probability.value.detail == "composition_boundary.mean_is_not_a_distribution"
+    assert (
+        probability.value.detail == reason_details.composition_boundary.MEAN_IS_NOT_A_DISTRIBUTION
+    )
 
 
 def _check_declared_inverse(
@@ -2049,7 +2054,7 @@ def _check_declared_inverse(
                     declared.claim()
                 )
             )
-        assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+        assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert_registered_refusal(refused.value)
 
@@ -2085,7 +2090,7 @@ def _declared_measurement(o: Objs) -> Declared:
     with pytest.raises(MeasurementModelRefusal) as unsupported:
         o.measurement_prepared.check_operation("condition_on_construct")
     assert unsupported.value.reason_code == "route_not_supported"
-    assert unsupported.value.detail == "measurement_model.operation_not_supported"
+    assert unsupported.value.detail == reason_details.measurement_model.OPERATION_NOT_SUPPORTED
     # The estimate reports its Wald interval with a calibration slot; a prepared model holds no
     # corrected value to put an interval around.
     reported = estimate.interval()
@@ -2100,7 +2105,7 @@ def _declared_measurement(o: Objs) -> Declared:
     with pytest.raises(MeasurementModelRefusal) as interval:
         o.measurement_prepared.interval()
     assert interval.value.reason_code == "uncertainty_representation_insufficient"
-    assert interval.value.detail == "measurement_model.interval_requires_estimate"
+    assert interval.value.detail == reason_details.measurement_model.INTERVAL_REQUIRES_ESTIMATE
     quantity = _declared_quantity(
         "construct:latent", "observational", units="unit", population="cohort"
     )
@@ -2153,7 +2158,9 @@ def _declared_composition(o: Objs) -> Declared:
         composition.interval(mc.MeanContrast.ate("Y", "X", 1.0, 0.0))
     # The interval needs the joint law of the mechanisms' parameters; it is never assumed.
     assert closed.value.reason_code == "joint_law_required"
-    assert closed.value.details == ("mechanism_composition.posterior_dependence_unknown",)
+    assert closed.value.details == (
+        reason_details.mechanism_composition.POSTERIOR_DEPENDENCE_UNKNOWN,
+    )
     treated_q = _declared_quantity("Y", "do(X=1)", units="u", population="pop")
     control_q = _declared_quantity("Y", "do(X=0)", units="u", population="pop")
     return Declared(
@@ -2389,7 +2396,7 @@ def _check_cohort_decision(o: Objs) -> None:
     with pytest.raises(cd.CohortDecisionRefusal) as closed:
         source.interval()
     assert closed.value.reason_code == "route_not_supported"
-    assert closed.value.detail == "cohort_decision.interval_requires_native_fit"
+    assert closed.value.detail == reason_details.cohort_decision.INTERVAL_REQUIRES_NATIVE_FIT
     # The support-aware evaluator does not take the raw source.
     with pytest.raises(CausalTypeError):
         _feed_support(source)
@@ -2421,7 +2428,7 @@ def _check_cohort_inverse(o: Objs) -> None:
                     source.forward_claim()
                 )
             )
-        assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+        assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
     _check_raw_rejected(source, feeders=_INVERSE_FEEDERS)
 
 
@@ -2649,10 +2656,13 @@ def _declared_observation(o: Objs) -> Declared:
     with pytest.raises(oq.ObservationQueryRefusal) as closed:
         claim.interval()
     assert closed.value.reason_code == "uncertainty_representation_insufficient"
-    assert closed.value.detail == "observation_query.declared_model_has_no_sampling_interval"
+    assert (
+        closed.value.detail
+        == reason_details.observation_query.DECLARED_MODEL_HAS_NO_SAMPLING_INTERVAL
+    )
     with pytest.raises(oq.ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
-    assert calibrated.value.detail == "observation_query.no_calibrated_probability"
+    assert calibrated.value.detail == reason_details.observation_query.NO_CALIBRATED_PROBABILITY
     observed_q = _declared_quantity("Y", "observed(S=1)", units="probability", population="pop")
     set_q = _declared_quantity("Y", "do(S=1)", units="probability", population="pop")
     return Declared(
@@ -2926,11 +2936,11 @@ def _declared_bridge() -> Declared:
         with pytest.raises(sb.ScientificBridgeRefusal) as wrong:
             claim.require_value_kind(needed)
         assert wrong.value.reason_code == "bridge_substitution_refused"
-        assert wrong.value.detail == "scientific_bridge.value_kind_substitution"
+        assert wrong.value.detail == reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION
     with pytest.raises(sb.ScientificBridgeRefusal) as closed:
         require_success(claim.interval())
     assert closed.value.reason_code == "route_not_supported"
-    assert closed.value.detail == "scientific_bridge.interval_not_supported"
+    assert closed.value.detail == reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED
     assert_registered_refusal(closed.value)
     # The bridge carries no estimand for a decision: the caller declares the quantity.
     quantity = _declared_quantity(
@@ -2998,11 +3008,11 @@ def _declared_sequential(o: Objs) -> Declared:
     with pytest.raises(seqeval.SequentialEvaluationRefusal) as closed:
         seqeval.request_interval()
     assert closed.value.reason_code == "uncertainty_representation_insufficient"
-    assert closed.value.detail == "sequential_evaluation.interval_not_supported"
+    assert closed.value.detail == reason_details.sequential_evaluation.INTERVAL_NOT_SUPPORTED
     with pytest.raises(seqeval.SequentialEvaluationRefusal) as table:
         seqeval.evaluate(sequential.model, seqeval.ReweightedStaticScores((1.0, 0.0), (0.5, 0.5)))
     assert table.value.reason_code == "route_not_supported"
-    assert table.value.detail == "sequential_evaluation.static_score_table"
+    assert table.value.detail == reason_details.sequential_evaluation.STATIC_SCORE_TABLE
     quantity = _declared_quantity(
         "policy_value",
         f"policy:{sequential.policy.version}",
@@ -3260,7 +3270,7 @@ def _check_carried_decision(o: Objs) -> None:
     # The default policy refuses the extrapolative label; a law and an interval are refused.
     with pytest.raises(decision.DecisionRefusal) as unaccepted:
         require_success(contract.evaluate_transported(response, analysis=_analysis()))
-    assert unaccepted.value.detail == "transported_decision.transported_not_accepted"
+    assert unaccepted.value.detail == reason_details.transported_decision.TRANSPORTED_NOT_ACCEPTED
     assert_registered_refusal(unaccepted.value)
     with pytest.raises(decision.DecisionRefusal) as law:
         require_success(
@@ -3271,7 +3281,7 @@ def _check_carried_decision(o: Objs) -> None:
                 support_policy=comp.SupportPolicy.require_all("extrapolative"),
             )
         )
-    assert law.value.detail == "transported_decision.law_not_supplied"
+    assert law.value.detail == reason_details.transported_decision.LAW_NOT_SUPPLIED
     # The raw response is no source of the other entry points.
     _check_raw_rejected(response, feeders=_DECISION_FEEDERS)
 
@@ -3288,7 +3298,7 @@ def _check_carried_inverse(o: Objs) -> None:
     assert answered.origin.transported and answered.origin.support == "extrapolative"
     with pytest.raises(iq.InverseQueryRefusal) as native:
         isrc.transported_forward_source(response)
-    assert native.value.detail == "inverse_forward_source.transported_not_accepted"
+    assert native.value.detail == reason_details.inverse_forward_source.TRANSPORTED_NOT_ACCEPTED
     assert_registered_refusal(native.value)
     with pytest.raises(iq.InverseQueryRefusal) as quantile:
         require_success(
@@ -3296,7 +3306,7 @@ def _check_carried_inverse(o: Objs) -> None:
                 iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 0.5),))
             )
         )
-    assert quantile.value.detail == "inverse_forward_source.point_only_law_requested"
+    assert quantile.value.detail == reason_details.inverse_forward_source.POINT_ONLY_LAW_REQUESTED
     _check_raw_rejected(response, feeders=_INVERSE_FEEDERS)
 
 
@@ -3368,7 +3378,7 @@ def _check_discretized_is_a_point(o: Objs) -> None:
         with pytest.raises(dcomp.DiscretizedCompositionRefusal) as closed:
             discretized.uncertainty(paradigm)
         assert closed.value.reason_code == "uncertainty_representation_insufficient"
-        assert closed.value.detail == "discretized_scm.point_only"
+        assert closed.value.detail == reason_details.discretized_scm.POINT_ONLY
     _check_raw_rejected(discretized, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
 
 
@@ -3729,7 +3739,7 @@ def test_producer_consumer_matrix_a_classification_is_not_a_decision_source() ->
     with pytest.raises(cvm.CompositionVerificationRefusal) as stale:
         result.require_valid("decision_claim")
     assert stale.value.reason_code == "claim_revalidation_required"
-    assert stale.value.detail == "composition_verification.recompute_required"
+    assert stale.value.detail == reason_details.composition_verification.RECOMPUTE_REQUIRED
     assert_registered_refusal(stale.value)
     assert result.require_valid("other").klass == "still_valid"
     with pytest.raises(CausalTypeError):
@@ -3758,9 +3768,9 @@ def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> Non
     replayed = pa.consume_predictive_assessment_artifact(bytes(result.export()), result.identity)
     assert replayed.report == result.report
     for detail, call in (
-        ("predictive_assessment.interval_not_supported", result.score_interval),
-        ("predictive_assessment.not_a_causal_claim", result.causal_validity),
-        ("predictive_assessment.score_not_probability", result.score_as_probability),
+        (reason_details.predictive_assessment.INTERVAL_NOT_SUPPORTED, result.score_interval),
+        (reason_details.predictive_assessment.NOT_A_CAUSAL_CLAIM, result.causal_validity),
+        (reason_details.predictive_assessment.SCORE_NOT_PROBABILITY, result.score_as_probability),
     ):
         with pytest.raises(pa.PredictiveAssessmentRefusal) as closed:
             call()

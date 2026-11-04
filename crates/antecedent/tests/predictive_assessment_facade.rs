@@ -151,7 +151,7 @@ fn training_rows_among_the_assessed_ones_are_in_sample_and_can_be_refused() {
     strict.overlap_policy = OverlapPolicy::RequireHeldOut;
     let refusal = PreparedPredictiveAssessment::assess(&strict, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "predictive_assessment.in_sample");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::predictive_assessment::IN_SAMPLE);
 }
 
 #[test]
@@ -183,7 +183,10 @@ fn an_undeclared_fit_set_is_unverified_never_held_out() {
     // An unknown source id and an undeclared observation source are refusals.
     let stranger = SourceId::from_digest(antecedent_core::SemanticDigest::from_bytes([7; 32]));
     let error = fit_declaration_from_ledger(&l.ledger, &[stranger]).unwrap_err();
-    assert_eq!(error.detail, "predictive_assessment.unknown_source");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::predictive_assessment::UNKNOWN_SOURCE
+    );
     let error = observation_keys_from_ledger(&l.ledger, model).unwrap_err();
     assert_eq!(error.code, "evidence_overlap_unknown");
 }
@@ -199,12 +202,21 @@ fn the_interval_causal_and_probability_routes_are_not_supported() {
     .unwrap();
     let interval = prepared.request_score_interval().unwrap_err();
     assert_eq!(interval.code, "quantity_semantics_mismatch");
-    assert_eq!(interval.detail, "predictive_assessment.interval_not_supported");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::predictive_assessment::INTERVAL_NOT_SUPPORTED
+    );
     let causal = prepared.request_causal_validity().unwrap_err();
     assert_eq!(causal.code, "route_not_supported");
-    assert_eq!(causal.detail, "predictive_assessment.not_a_causal_claim");
+    assert_eq!(
+        causal.detail,
+        antecedent_core::reason_details::predictive_assessment::NOT_A_CAUSAL_CLAIM
+    );
     let probability = prepared.request_score_as_probability().unwrap_err();
-    assert_eq!(probability.detail, "predictive_assessment.score_not_probability");
+    assert_eq!(
+        probability.detail,
+        antecedent_core::reason_details::predictive_assessment::SCORE_NOT_PROBABILITY
+    );
 
     // Asking for an interval in the specification is refused before anything is scored.
     let mut requested = spec_over(keys, FitDeclaration::NotFitted);
@@ -256,5 +268,8 @@ fn a_fresh_consumer_rescores_the_exported_assessment() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "predictive_assessment.wrong_contract");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::predictive_assessment::WRONG_CONTRACT
+    );
 }

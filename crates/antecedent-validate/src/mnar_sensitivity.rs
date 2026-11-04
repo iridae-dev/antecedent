@@ -198,7 +198,7 @@ impl MnarEstimator {
         Self::ALL.into_iter().find(|estimator| estimator.name() == name).ok_or_else(|| {
             refuse(
                 reason_code!("route_not_supported"),
-                "mnar_sensitivity.unsupported_estimator",
+                antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_ESTIMATOR,
                 format!(
                     "the supported estimators are {:?}; `{name}` has no completed-table form to re-run across the grid (it needs a model of the outcome law the departure cannot shift)",
                     Self::ALL.map(Self::name)
@@ -619,7 +619,7 @@ fn make_arm(observed: Vec<f64>, missing: usize, label: &str) -> Result<Arm, Mnar
     if observed.len() < 2 {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.insufficient_observed",
+            antecedent_core::reason_details::mnar_sensitivity::INSUFFICIENT_OBSERVED,
             format!(
                 "the {label} arm has {} observed outcome(s); at least 2 are needed to report a sampling interval",
                 observed.len()
@@ -641,14 +641,14 @@ fn prepare(
     if rows != data.outcome.len() {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_data",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA,
             format!("{rows} treatments but {} outcomes", data.outcome.len()),
         ));
     }
     if rows == 0 || rows > MNAR_MAX_ROWS {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "mnar_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::mnar_sensitivity::BOUNDS_EXCEEDED,
             format!("{rows} rows; 1 to {MNAR_MAX_ROWS} are admitted"),
         ));
     }
@@ -662,7 +662,7 @@ fn prepare(
         } else {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "mnar_sensitivity.invalid_data",
+                antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA,
                 format!("treatment {t} is not 0 or 1 (a missing treatment is not admitted)"),
             ));
         };
@@ -671,7 +671,7 @@ fn prepare(
             Some(v) => {
                 return Err(refuse(
                     reason_code!("invalid_argument"),
-                    "mnar_sensitivity.invalid_data",
+                    antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA,
                     format!("outcome {v} is not finite; a missing outcome is `None`"),
                 ));
             }
@@ -682,28 +682,28 @@ fn prepare(
     if !estimator.uses_covariates() && !covariates.is_empty() {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.covariates_not_used",
+            antecedent_core::reason_details::mnar_sensitivity::COVARIATES_NOT_USED,
             "the difference in means reads no covariates; choose an adjusted estimator or drop them",
         ));
     }
     if estimator.uses_covariates() && covariates.is_empty() {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.covariates_required",
+            antecedent_core::reason_details::mnar_sensitivity::COVARIATES_REQUIRED,
             format!("`{}` adjusts for covariates and none were declared", estimator.name()),
         ));
     }
     if covariates.len() > MNAR_MAX_COVARIATES {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "mnar_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::mnar_sensitivity::BOUNDS_EXCEEDED,
             format!("{} covariates; at most {MNAR_MAX_COVARIATES} are admitted", covariates.len()),
         ));
     }
     if covariates.iter().any(|c| c.len() != rows || c.iter().any(|v| !v.is_finite())) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_data",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA,
             "every covariate needs one finite value per row",
         ));
     }
@@ -715,7 +715,7 @@ fn prepare(
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.insufficient_observed",
+            antecedent_core::reason_details::mnar_sensitivity::INSUFFICIENT_OBSERVED,
             format!(
                 "each arm needs more than {width} observed outcomes to fit the outcome regression"
             ),
@@ -736,7 +736,7 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "mnar_sensitivity.composition_not_supported",
+            antecedent_core::reason_details::mnar_sensitivity::COMPOSITION_NOT_SUPPORTED,
             format!(
                 "composing a sampling interval with the assumption range by `{method}` is not supported"
             ),
@@ -745,7 +745,7 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     let Some(mechanism) = spec.mechanism else {
         return Err(refuse(
             reason_code!("required_option_missing"),
-            "mnar_sensitivity.mechanism_not_declared",
+            antecedent_core::reason_details::mnar_sensitivity::MECHANISM_NOT_DECLARED,
             "the outcome-missingness mechanism is not declared: name the departure model and the arm loading, because the departure from missing at random cannot be inferred from the data",
         ));
     };
@@ -754,14 +754,14 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     if !loading_ok(loading.treated) || !loading_ok(loading.control) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_loading",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_LOADING,
             "arm loadings must be finite and in [-1, 1]",
         ));
     }
     if loading.treated == 0.0 && loading.control == 0.0 {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_loading",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_LOADING,
             "both arm loadings are zero, so the parameter changes nothing",
         ));
     }
@@ -773,7 +773,7 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.unbounded_range",
+            antecedent_core::reason_details::mnar_sensitivity::UNBOUNDED_RANGE,
             format!(
                 "the parameter range [{}, {}] must be finite with magnitude at most {cap}: a sensitivity analysis needs a declared bounded range",
                 spec.lower, spec.upper
@@ -783,7 +783,7 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     if spec.lower > 0.0 || spec.upper < 0.0 || spec.lower >= spec.upper {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.range_excludes_mar",
+            antecedent_core::reason_details::mnar_sensitivity::RANGE_EXCLUDES_MAR,
             format!(
                 "the range [{}, {}] must contain zero (missing at random) and have positive width",
                 spec.lower, spec.upper
@@ -793,21 +793,21 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     if !(2..=MNAR_MAX_GRID_POINTS).contains(&spec.grid_points) {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "mnar_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::mnar_sensitivity::BOUNDS_EXCEEDED,
             format!("{} grid points; 2 to {MNAR_MAX_GRID_POINTS} are admitted", spec.grid_points),
         ));
     }
     if !(spec.level > 0.0 && spec.level < 1.0) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_level",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_LEVEL,
             format!("sampling interval level {} must be inside (0, 1)", spec.level),
         ));
     }
     if spec.decisions.len() > MNAR_MAX_DECISIONS {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "mnar_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::mnar_sensitivity::BOUNDS_EXCEEDED,
             format!(
                 "{} decisions; at most {MNAR_MAX_DECISIONS} are admitted",
                 spec.decisions.len()
@@ -817,7 +817,7 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     if spec.decisions.iter().any(|d| !d.threshold.is_finite() || d.name.is_empty()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_decision",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_DECISION,
             "a decision needs a name and a finite threshold",
         ));
     }
@@ -826,7 +826,7 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_tolerance",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_TOLERANCE,
             format!("tolerance {} is outside [1e-14, 1e-3]", spec.tolerance),
         ));
     }
@@ -835,7 +835,7 @@ fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivi
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_bootstrap",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_BOOTSTRAP,
             format!(
                 "{} bootstrap replicates; {MNAR_MIN_BOOTSTRAP} to {MNAR_MAX_BOOTSTRAP} are admitted",
                 spec.bootstrap_replicates
@@ -866,7 +866,7 @@ impl Context<'_> {
             let singular = || {
                 refuse(
                     reason_code!("invalid_argument"),
-                    "mnar_sensitivity.design_singular",
+                    antecedent_core::reason_details::mnar_sensitivity::DESIGN_SINGULAR,
                     format!(
                         "`{}` could not be fitted at parameter {parameter}: a singular covariate design, a propensity outside (0, 1) or a propensity model that did not converge",
                         estimator.name()
@@ -904,7 +904,7 @@ impl Context<'_> {
                 .ok_or_else(|| {
                     refuse(
                         reason_code!("invalid_argument"),
-                        "mnar_sensitivity.design_singular",
+                        antecedent_core::reason_details::mnar_sensitivity::DESIGN_SINGULAR,
                         format!(
                             "the bootstrap of `{}` could not be fitted at parameter {parameter}",
                             estimator.name()
@@ -1143,7 +1143,7 @@ pub fn mnar_shift_delta_calibration_candidate(
     let interval = result.grid.last().and_then(|point| point.sampling).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
-            "mnar_sensitivity.invalid_data",
+            antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA,
             "the calibration candidate did not produce its fixed endpoint",
         )
     })?;
@@ -1194,7 +1194,7 @@ fn mnar_sensitivity_impl(
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "mnar_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::mnar_sensitivity::BOUNDS_EXCEEDED,
             format!(
                 "{} rows over the grid and tipping searches exceed the work budget",
                 prepared.rows

@@ -85,7 +85,7 @@ pub(crate) fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
     match error {
         NumericError::Positivity { unit, arm, probability, floor } => AdaptiveInferenceError::new(
             antecedent_core::reason_code!("adaptive_assumption_violated"),
-            "adaptive_inference.positivity_floor",
+            antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR,
             format!(
                 "arm {arm} had assignment probability {probability} below the declared floor {floor} at unit {unit}: its inverse-probability score is not supported; declare a clipping policy as its own route or analyse with a route that does not weight by assignment probability"
             ),
@@ -93,12 +93,12 @@ pub(crate) fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
         NumericError::Cancelled => cancelled(),
         NumericError::Numerical(what) => AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.numerical_failure",
+            antecedent_core::reason_details::adaptive_inference::NUMERICAL_FAILURE,
             format!("{what}; no value is reported"),
         ),
         other => AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             other.to_string(),
         ),
     }
@@ -107,7 +107,7 @@ pub(crate) fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
 fn cancelled() -> AdaptiveInferenceError {
     AdaptiveInferenceError::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "adaptive_inference.cancelled",
+        antecedent_core::reason_details::adaptive_inference::CANCELLED,
         "cancelled before a result was formed; this is not a verdict on the data",
     )
 }
@@ -139,7 +139,8 @@ pub struct UnsupportedClaim {
 fn stopping_reliability_unsupported() -> UnsupportedClaim {
     UnsupportedClaim {
         code: antecedent_core::reason_code!("estimator_inference_mismatch"),
-        detail: "adaptive_inference.no_stopping_reliability_procedure",
+        detail:
+            antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE,
         reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
     }
 }
@@ -315,7 +316,7 @@ pub fn expected_loss_stopping(
     if !valid || posterior.arms.is_empty() {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             "a posterior rule needs a probability threshold in (0.5, 1) or a positive loss threshold",
         ));
     }
@@ -482,7 +483,7 @@ pub fn anytime_valid_arm_sequences(
     if values_by_arm.iter().flatten().any(|x| !(x.is_finite() && (0.0..=1.0).contains(x))) {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.outcome_invalid",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID,
             "the confidence sequence is defined for outcomes bounded in [0, 1]; rescale a known-bounded outcome or use a route for unbounded outcomes",
         ));
     }
@@ -491,7 +492,7 @@ pub fn anytime_valid_arm_sequences(
     }) {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             "a contrast needs two different declared arms",
         ));
     }
@@ -580,7 +581,7 @@ pub fn group_sequential_decision(
     {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             "one finite standardized statistic per performed look, at most the planned looks",
         ));
     }
@@ -596,7 +597,7 @@ pub fn group_sequential_decision(
         statistics: statistics.to_vec(),
         stopped_at,
         guarantee: UnsupportedClaim::unsupported(
-            "adaptive_inference.no_stagewise_adjustment_procedure",
+            antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE,
         ),
     })
 }
@@ -614,7 +615,7 @@ pub fn standardized_difference(
     let invalid = |message: &'static str| {
         AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             message,
         )
     };

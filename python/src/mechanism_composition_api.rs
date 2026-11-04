@@ -86,7 +86,7 @@ fn refusal_json(refusal: &MechanismCompositionRefusal) -> String {
         json!({
             "code": refusal.code(),
             "stage": "compose",
-            "detail": "mechanism_composition.request_unsupported",
+            "detail": antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             "message": "mechanism composition refused",
             "offending": Json::Null,
             "expected": Json::Null,

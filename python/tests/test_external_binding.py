@@ -11,6 +11,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import external
 from antecedent.errors import (
     CausalSerializationError,
@@ -179,13 +180,13 @@ def test_verified_trust_is_recomputed_from_independent_probes():
     with pytest.raises(CausalUnsupportedError) as missing:
         _spec().bind(_response(attested_by=None, probes=probes[:2]))
     assert missing.value.reason_code == "external_verification_failed"
-    assert missing.value.detail == "external_object_verification.missing_probe"
+    assert missing.value.detail == reason_details.external_object_verification.MISSING_PROBE
     assert missing.value.offending == "known_truth"
 
     failing = (*probes[:3], external.VerificationProbe("known_truth", 1.5, 1.0, 1e-9))
     with pytest.raises(CausalUnsupportedError) as failed:
         _spec().bind(_response(attested_by=None, probes=failing))
-    assert failed.value.detail == "external_object_verification.failed_probe"
+    assert failed.value.detail == reason_details.external_object_verification.FAILED_PROBE
 
 
 def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
@@ -196,7 +197,7 @@ def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
     with pytest.raises(CausalUnsupportedError) as units:
         spec.bind(_response(quantities=wrong_units))
     assert units.value.reason_code == "quantity_semantics_mismatch"
-    assert units.value.detail == "external_response_binding.coordinate_units"
+    assert units.value.detail == reason_details.external_response_binding.COORDINATE_UNITS
     assert (units.value.offending, units.value.expected, units.value.supplied) == (
         "coordinate[1]",
         "mmHg",
@@ -207,7 +208,7 @@ def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
     with pytest.raises(CausalUnsupportedError) as graph:
         spec.bind(_response(graph_id="graph:other"))
     assert graph.value.reason_code == "external_binding_mismatch"
-    assert graph.value.detail == "external_response_binding.graph"
+    assert graph.value.detail == reason_details.external_response_binding.GRAPH
 
     with pytest.raises(CausalUnsupportedError) as evidence:
         spec.bind(_response(evidence=()))
@@ -216,7 +217,7 @@ def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
 
     with pytest.raises(CausalUnsupportedError) as short:
         spec.bind(_response(values=[1.0, 3.0]))
-    assert short.value.detail == "external_response_binding.dimension"
+    assert short.value.detail == reason_details.external_response_binding.DIMENSION
 
     with pytest.raises(CausalUnsupportedError) as unattested:
         spec.bind(_response(attested_by=None))
@@ -246,7 +247,9 @@ def test_observational_law_is_refused_without_a_checked_equivalence():
     }
     with pytest.raises(CausalUnsupportedError) as refused:
         spec.bind(_response(**offered))
-    assert refused.value.detail == "external_response_binding.unchecked_observational_law"
+    assert (
+        refused.value.detail == reason_details.external_response_binding.UNCHECKED_OBSERVATIONAL_LAW
+    )
     assert refused.value.remedy
 
     other_graph = external.Equivalence("graph:other", "do(a=1)", "backdoor:x")
@@ -270,7 +273,9 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     with pytest.raises(CausalUnsupportedError) as unsupported:
         base.bind(_response(quantities=offered))
     # Without any equivalence the first observed difference is the conditioning.
-    assert unsupported.value.detail == "external_response_binding.coordinate_conditioning"
+    assert (
+        unsupported.value.detail == reason_details.external_response_binding.COORDINATE_CONDITIONING
+    )
     assert (unsupported.value.expected, unsupported.value.supplied) == ("", "a=0")
     assert unsupported.value.offending == "coordinate[0]"
     assert "checked equivalence" in unsupported.value.remedy
@@ -290,7 +295,9 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     )
     with pytest.raises(CausalUnsupportedError) as wrong:
         dataclasses.replace(spec, equivalences=(crossed,)).bind(_response(quantities=offered))
-    assert wrong.value.detail == "external_response_binding.unchecked_observational_law"
+    assert (
+        wrong.value.detail == reason_details.external_response_binding.UNCHECKED_OBSERVATIONAL_LAW
+    )
     assert wrong.value.offending == "coordinate[1]"
 
     # Nothing else about the coordinate is rescued by the support.
@@ -302,7 +309,7 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     with pytest.raises(CausalUnsupportedError) as population:
         spec.bind(_response(quantities=wrong_population))
     assert population.value.reason_code == "quantity_semantics_mismatch"
-    assert population.value.detail == "external_response_binding.coordinate_population"
+    assert population.value.detail == reason_details.external_response_binding.COORDINATE_POPULATION
 
 
 def test_equivalence_names_exactly_one_scope():
@@ -324,7 +331,7 @@ def test_unknown_capability_names_are_refused_not_ignored():
     with pytest.raises(CausalUnsupportedError) as unknown:
         _spec().bind(_response(provider=_provider(capabilities=("mean", "teleport"))))
     assert unknown.value.reason_code == "invalid_argument"
-    assert unknown.value.detail == "external_response_binding.malformed_capability"
+    assert unknown.value.detail == reason_details.external_response_binding.MALFORMED_CAPABILITY
 
 
 def test_fresh_process_consumer_loads_only_under_its_own_identity(tmp_path: Path):
@@ -436,7 +443,7 @@ def test_a_column_is_checked_like_a_response_and_never_supported_by_default():
     with pytest.raises(CausalUnsupportedError) as support:
         spec.bind(wrong_length)
     assert support.value.reason_code == "invalid_argument"
-    assert support.value.detail == "external_response_binding.column_support_length"
+    assert support.value.detail == reason_details.external_response_binding.COLUMN_SUPPORT_LENGTH
     with pytest.raises(CausalValueError, match="finite"):
         _column(values=[1.0, float("nan")])
     with pytest.raises(CausalValueError, match="one-dimensional"):
@@ -444,6 +451,6 @@ def test_a_column_is_checked_like_a_response_and_never_supported_by_default():
     # A column answers one coordinate; a three-point grid contract refuses it.
     with pytest.raises(CausalUnsupportedError) as grid:
         _spec().bind(_column())
-    assert grid.value.detail == "external_response_binding.column_quantity"
+    assert grid.value.detail == reason_details.external_response_binding.COLUMN_QUANTITY
     assert grid.value.reason_code == "external_binding_mismatch"
     assert (grid.value.expected, grid.value.supplied) == ("1", "3")

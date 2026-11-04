@@ -41,7 +41,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
-          "sha256": "2d9f9ecbaff5f92720b46a2766930a57f0bdcc17fe3729afbeed85ceb287242e"
+          "items": [
+            "fn bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth",
+            "fn table"
+          ],
+          "sha256": "78f305511b9202e6d453f16348cd2db2358d98ac6988b91e49ad91b3d69b7b3f"
         }
       ],
       "fixture_payload_sha256": "b59765d1ec38a9e9d13c9457d2e19dc4be34fc5f9c4245f6aa12251eb3add3b1"

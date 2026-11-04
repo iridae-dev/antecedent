@@ -150,7 +150,7 @@ observations from the evidence ledger (derivation lineage applied) with
 | --- | --- |
 | `held_out_verified` | the declared fit set is disjoint from the assessed observations |
 | `in_sample` | some assessed observations were used to fit the law; labelled, or refused when held-out observations are required |
-| `unverified` | what the law was fitted on is not declared (the usual case of a provider law); never promoted to held out |
+| `unverified` | what the law was fitted on is not declared (the usual case of a provider law); never treated as held out |
 | `not_fitted` | the law was fixed without data |
 
 ## Exact finite-law scoring

@@ -166,7 +166,10 @@ fn a_reduced_joint_s_hedge_is_proven_by_a_verified_witness() {
     let q = query(&[1], &[0], &[2]);
     let decision = decide(&diagram, &q, &full_catalog(3, &[]));
     assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
-    assert_eq!(decision.detail_code(), Some("admg_transport.proven_non_transportable"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE)
+    );
     assert_eq!(
         decision.identification_status(),
         antecedent_core::TransportOutcomeKind::ProvenNonTransportable
@@ -216,7 +219,10 @@ fn a_reduced_joint_s_hedge_without_a_witness_is_not_certified_never_proven() {
     let q = query(&[1], &[0], &[2]);
     let decision = decide(&diagram, &q, &full_catalog(6, &[]));
     assert_eq!(decision.reason_code(), Some("transport_not_certified"));
-    assert_eq!(decision.detail_code(), Some("admg_transport.not_certified"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::admg_transport::NOT_CERTIFIED)
+    );
     let ConditionalTransportDecision::NotCertified(inspection) = decision else {
         panic!("not certified");
     };
@@ -259,7 +265,10 @@ fn witness_mutations_fail_verification() {
             let error = verify_conditional_witness(d, q, w, &ctx).expect_err("mutated witness");
             assert_eq!(
                 admg_conditional_refusal(&error),
-                Some(("transport_not_certified", "admg_transport.invalid_derivation")),
+                Some((
+                    "transport_not_certified",
+                    antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+                )),
                 "{error:?}"
             );
         };
@@ -354,7 +363,10 @@ fn candidate_mutations_fail_verification() {
     let invalid = |error: IdentificationError| {
         assert_eq!(
             admg_conditional_refusal(&error),
-            Some(("transport_not_certified", "admg_transport.invalid_derivation")),
+            Some((
+                "transport_not_certified",
+                antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+            )),
             "{error:?}"
         );
     };
@@ -411,7 +423,10 @@ fn a_missing_source_experiment_is_missing_evidence_naming_the_leaf() {
     let catalog = full_catalog(3, &[1, 3, 5, 7]);
     let decision = decide(&diagram, &q, &catalog);
     assert_eq!(decision.reason_code(), Some("transport_missing_evidence"));
-    assert_eq!(decision.detail_code(), Some("admg_transport.missing_evidence"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::admg_transport::MISSING_EVIDENCE)
+    );
     let ConditionalTransportDecision::MissingEvidence { derivation, obligations } = decision else {
         panic!("missing evidence");
     };
@@ -425,7 +440,10 @@ fn a_missing_source_experiment_is_missing_evidence_naming_the_leaf() {
 #[test]
 fn only_limit_bounds_refuse_as_bounds_exceeded() {
     let ctx = ExecutionContext::for_tests(1);
-    let bounds = Some(("route_not_supported", "admg_transport.bounds_exceeded"));
+    let bounds = Some((
+        "route_not_supported",
+        antecedent_core::reason_details::admg_transport::BOUNDS_EXCEEDED,
+    ));
     let chain = |n: u32| {
         let edges: Vec<_> = (0..n - 1).map(|i| (i, i + 1)).collect();
         SelectionDiagram::try_new(graph(n, &edges, &[]), []).unwrap()
@@ -458,7 +476,8 @@ fn invalid_queries_and_catalogs_refuse_by_name() {
     let ctx = ExecutionContext::for_tests(1);
     let diagram = SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[]), [v(2)]).unwrap();
     let catalog = full_catalog(3, &[]);
-    let invalid = Some(("invalid_argument", "admg_transport.invalid_query"));
+    let invalid =
+        Some(("invalid_argument", antecedent_core::reason_details::admg_transport::INVALID_QUERY));
     let mut same_population = query(&[2], &[0], &[1]);
     same_population.base.source = Arc::from("target");
     for bad in [
@@ -511,7 +530,10 @@ fn invalid_queries_and_catalogs_refuse_by_name() {
     .unwrap_err();
     assert_eq!(
         admg_conditional_refusal(&error),
-        Some(("invalid_argument", "admg_transport.invalid_catalog"))
+        Some((
+            "invalid_argument",
+            antecedent_core::reason_details::admg_transport::INVALID_CATALOG
+        ))
     );
 }
 
@@ -519,7 +541,10 @@ fn invalid_queries_and_catalogs_refuse_by_name() {
 fn a_tampered_record_fails_the_independent_checker() {
     let ctx = ExecutionContext::for_tests(1);
     let limits = ADMG_CONDITIONAL_DEFAULT_LIMITS;
-    let invalid = Some(("transport_not_certified", "admg_transport.invalid_derivation"));
+    let invalid = Some((
+        "transport_not_certified",
+        antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
+    ));
     // Movable case: W(2) -> Y(1) <- X(0), X <-> Y, selection on W.
     let diagram =
         SelectionDiagram::try_new(graph(3, &[(0, 1), (2, 1)], &[(0, 1)]), [v(2)]).unwrap();
@@ -1036,7 +1061,10 @@ fn depth_and_memory_stops_are_receipts_and_memory_is_checked_on_every_charge() {
 fn forged_reductions_with_valid_joints_fail_the_independent_checker() {
     use antecedent_identify::ConditionalTransportRecord;
     let ctx = ExecutionContext::for_tests(1);
-    let invalid = Some(("transport_not_certified", "admg_transport.invalid_derivation"));
+    let invalid = Some((
+        "transport_not_certified",
+        antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
+    ));
     let q = query(&[1], &[0], &[2]);
     let forge =
         |diagram: &SelectionDiagram, outcomes: &[u32], treatments: &[u32], moves, remaining| {

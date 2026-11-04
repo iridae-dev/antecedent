@@ -537,67 +537,89 @@ impl SignalError {
         match self {
             Self::InvalidRequest(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "signal_provider.invalid_request",
+                antecedent_core::reason_details::signal_provider::INVALID_REQUEST,
             )
             .offending(*what)
             .build(),
-            Self::MissingLineage => at(signal, "signal_provider.missing_lineage").build(),
-            Self::ConditionalIndependenceMissing => {
-                at(signal, "signal_provider.conditional_independence_missing").build()
+            Self::MissingLineage => {
+                at(signal, antecedent_core::reason_details::signal_provider::MISSING_LINEAGE)
+                    .build()
             }
-            Self::SampleSizeInvalid => at(signal, "signal_provider.sample_size_invalid").build(),
+            Self::ConditionalIndependenceMissing => at(
+                signal,
+                antecedent_core::reason_details::signal_provider::CONDITIONAL_INDEPENDENCE_MISSING,
+            )
+            .build(),
+            Self::SampleSizeInvalid => {
+                at(signal, antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_INVALID)
+                    .build()
+            }
             Self::ComputationalLimit(what) => {
-                at(signal, "signal_provider.computational_limit").offending(*what).build()
+                at(signal, antecedent_core::reason_details::signal_provider::COMPUTATIONAL_LIMIT)
+                    .offending(*what)
+                    .build()
             }
             Self::InvalidObject => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.invalid_object",
+                antecedent_core::reason_details::signal_provider::INVALID_OBJECT,
             )
             .build(),
             Self::InvalidTable(what) => {
-                at(signal, "signal_provider.invalid_table").offending(*what).build()
+                at(signal, antecedent_core::reason_details::signal_provider::INVALID_TABLE)
+                    .offending(*what)
+                    .build()
             }
             Self::RequestFingerprintMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.request_fingerprint_mismatch",
+                antecedent_core::reason_details::signal_provider::REQUEST_FINGERPRINT_MISMATCH,
             )
             .build(),
-            Self::CandidateMismatch => at(signal, "signal_provider.candidate_mismatch").build(),
-            Self::PriorMismatch => at(signal, "signal_provider.prior_mismatch").build(),
+            Self::CandidateMismatch => {
+                at(signal, antecedent_core::reason_details::signal_provider::CANDIDATE_MISMATCH)
+                    .build()
+            }
+            Self::PriorMismatch => {
+                at(signal, antecedent_core::reason_details::signal_provider::PRIOR_MISMATCH).build()
+            }
             Self::SampleSizeMismatch { declared, requested } => {
-                at(signal, "signal_provider.sample_size_mismatch")
+                at(signal, antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_MISMATCH)
                     .expected(requested.to_string())
                     .supplied(declared.to_string())
                     .build()
             }
             Self::ObservationQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
-                "signal_provider.observation_quantity_mismatch",
+                antecedent_core::reason_details::signal_provider::OBSERVATION_QUANTITY_MISMATCH,
             )
             .build(),
             Self::PosteriorQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
-                "signal_provider.posterior_quantity_mismatch",
+                antecedent_core::reason_details::signal_provider::POSTERIOR_QUANTITY_MISMATCH,
             )
             .build(),
             Self::CapabilityMissing(capability) => at(
                 antecedent_core::reason_code!("external_capability_missing"),
-                "signal_provider.capability_missing",
+                antecedent_core::reason_details::signal_provider::CAPABILITY_MISSING,
             )
             .capability(*capability)
             .build(),
             Self::TrustNativeClaimed => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.trust_native_claimed",
+                antecedent_core::reason_details::signal_provider::TRUST_NATIVE_CLAIMED,
             )
             .build(),
             Self::TrustMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.trust_mismatch",
+                antecedent_core::reason_details::signal_provider::TRUST_MISMATCH,
             )
             .build(),
-            Self::LawIncoherent => at(signal, "signal_provider.law_incoherent").build(),
-            Self::PosteriorIncoherent => at(signal, "signal_provider.posterior_incoherent").build(),
+            Self::LawIncoherent => {
+                at(signal, antecedent_core::reason_details::signal_provider::LAW_INCOHERENT).build()
+            }
+            Self::PosteriorIncoherent => {
+                at(signal, antecedent_core::reason_details::signal_provider::POSTERIOR_INCOHERENT)
+                    .build()
+            }
         }
     }
 }

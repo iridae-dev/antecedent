@@ -54,6 +54,8 @@ from typing import Any, Literal, NamedTuple
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -615,12 +617,12 @@ class RecalcReceiptRefusal(RecalcRefusal):
 def _refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     detail = str(wire["detail"])
     if detail in {
-        "recalc.unavailable_fit",
-        "recalc.unavailable_data",
-        "recalc.unavailable_provider",
+        _reason_details.recalc.UNAVAILABLE_FIT,
+        _reason_details.recalc.UNAVAILABLE_DATA,
+        _reason_details.recalc.UNAVAILABLE_PROVIDER,
     }:
         return RecalcUnavailable
-    if detail == "recalc.no_live_state":
+    if detail == _reason_details.recalc.NO_LIVE_STATE:
         return RecalcNoLiveState
     if detail.partition(".")[0] == "recalc_receipt":
         return RecalcReceiptRefusal

@@ -151,7 +151,10 @@ fn a_bayesian_weighting_estimator_is_the_typed_boundary_with_its_next_attempt() 
         .unwrap_err();
     let text = error.to_string();
     assert!(text.contains("route_not_supported"), "{text}");
-    assert!(text.contains("penalized_propensity.effect_posterior"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::penalized_propensity::EFFECT_POSTERIOR),
+        "{text}"
+    );
     assert!(text.contains("ancillary"), "{text}");
     assert!(text.contains("Next attempt"), "{text}");
     assert!(text.contains("Bayesian g-computation"), "{text}");

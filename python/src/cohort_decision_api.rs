@@ -190,7 +190,7 @@ fn build_cohort_decision_source(
                         Some(refusal_json(
                             &CohortRefusal {
                                 code: antecedent_core::reason_code!("invalid_argument"),
-                                detail: "cohort_decision.fitted_model_invalid",
+                                detail: antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                                 subject: "expected_identity".to_owned(),
                                 remedy: "retain the compact export identity and supply it",
                             },
@@ -202,7 +202,8 @@ fn build_cohort_decision_source(
                     Ok(export) => FittedEffectModel::from_compact_export(&export),
                     Err(error) => Err(CohortRefusal {
                         code: error.code,
-                        detail: "cohort_decision.fitted_model_invalid",
+                        detail:
+                            antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                         subject: format!("{}: {}", error.detail, error.subject),
                         remedy: "re-export the model from its producer",
                     }),
@@ -709,7 +710,7 @@ fn native_fit_refusal(message: &str) -> String {
     RefusalJson::new(
         antecedent_core::reason_code!("invalid_argument"),
         "bind",
-        "cohort_decision.native_fit_refused",
+        antecedent_core::reason_details::cohort_decision::NATIVE_FIT_REFUSED,
         message,
     )
     .json()

@@ -305,7 +305,13 @@ fn a_mutated_derivation_or_witness_does_not_replay() {
         assert!(tampered.verify(&ctx).is_err());
     }
     let error = tampered_error_code(&obstruction, &ctx);
-    assert_eq!(error, ("transport_not_certified", "counterfactual_transport.invalid_witness"));
+    assert_eq!(
+        error,
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::counterfactual_transport::INVALID_WITNESS
+        )
+    );
 }
 
 fn tampered_error_code(
@@ -396,7 +402,10 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
         .unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("invalid_argument", "counterfactual_transport.invalid_catalog"))
+        Some((
+            "invalid_argument",
+            antecedent_core::reason_details::counterfactual_transport::INVALID_CATALOG
+        ))
     );
 
     // A coupling this contract does not model is out of scope, not an error.
@@ -416,7 +425,10 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
         identify_counterfactual_transport(&problem, &query, &adapted.catalog, limits, &ctx)
             .unwrap();
     assert!(matches!(decision, CounterfactualTransportDecision::UnsupportedScope(_)));
-    assert_eq!(decision.detail_code(), Some("counterfactual_transport.coupling_unsupported"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::counterfactual_transport::COUPLING_UNSUPPORTED)
+    );
 }
 
 #[test]
@@ -438,7 +450,10 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     };
     assert_eq!(receipt.stop, SearchStop::Operations);
     assert_eq!(starved.reason_code(), Some("transport_budget_cancel"));
-    assert_eq!(starved.detail_code(), Some("counterfactual_transport.budget"));
+    assert_eq!(
+        starved.detail_code(),
+        Some(antecedent_core::reason_details::counterfactual_transport::BUDGET)
+    );
     // Cancellation before the search is a stop with a receipt.
     let cancelled_ctx = ExecutionContext::for_tests(1);
     cancelled_ctx.cancellation.cancel();
@@ -467,7 +482,10 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     .unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("route_not_supported", "counterfactual_transport.bounds_exceeded"))
+        Some((
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
+        ))
     );
     // Nine variables and five levels are declarable: the search budget, not a count, pays for them.
     let nine: Vec<(VariableId, Vec<f64>)> =
@@ -479,7 +497,10 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     let error = CounterfactualTransportProblem::new(&wide, &[], &[]).unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("route_not_supported", "counterfactual_transport.bounds_exceeded"))
+        Some((
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
+        ))
     );
     // A directed cycle is outside the acyclic contract.
     let two: Vec<(VariableId, Vec<f64>)> =
@@ -488,7 +509,10 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     let error = CounterfactualTransportProblem::new(&two, &[(a, b), (b, a)], &[]).unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("route_not_supported", "counterfactual_transport.graph_outside_contract"))
+        Some((
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_transport::GRAPH_OUTSIDE_CONTRACT
+        ))
     );
     let text = error.to_string();
     assert!(text.contains("condensation"), "{text}");

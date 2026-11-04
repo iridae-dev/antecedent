@@ -236,7 +236,7 @@ fn contract_refusal(refusal: &antecedent_contract::ExternalRefusal) -> AdaptiveR
 fn request_invalid(message: &str) -> AdaptiveResultError {
     AdaptiveResultError {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "adaptive_inference.input_invalid".to_owned(),
+        detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
         message: message.to_owned(),
     }
 }
@@ -253,7 +253,7 @@ fn require_single_outcome(contract: &AdaptiveDesignContract) -> Result<(), Adapt
     } else {
         Err(AdaptiveResultError {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.measurements_invalid".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID.to_owned(),
             message: "a posterior over units with several measurements is the participant-level procedure's, not the one-outcome Beta-Bernoulli posterior; analyse it with the participant procedure".to_owned(),
         })
     }
@@ -400,7 +400,7 @@ pub fn compute_adaptive_result(
                     decision.expected_loss,
                     f64::from(u8::from(decision.stop)),
                 ],
-                unsupported_claim: Some("adaptive_inference.no_stopping_reliability_procedure"),
+                unsupported_claim: Some(antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE),
             })
         }
         AdaptiveResultSpec::AdaptiveWeighting {
@@ -523,7 +523,7 @@ pub fn compute_adaptive_result(
                 paradigm,
                 method: "lan_demets_alpha_spending_group_sequential",
                 values,
-                unsupported_claim: Some("adaptive_inference.no_stagewise_adjustment_procedure"),
+                unsupported_claim: Some(antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE),
             })
         }
     }

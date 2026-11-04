@@ -285,7 +285,7 @@ fn io_refusal(error: &IoError) -> String {
         other => RefusalJson::new(
             reason_code!("invalid_argument"),
             "sequential_evaluation",
-            "sequential_evaluation.malformed",
+            antecedent_core::reason_details::sequential_evaluation::MALFORMED,
             &other.to_string(),
         )
         .json(),

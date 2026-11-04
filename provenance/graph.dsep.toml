@@ -39,14 +39,17 @@ record_sha256 = "feaab601a802187f6409faff4a74576f4710ab0d635675ccac2af893c56c793
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/dsep.rs"
-sha256 = "354cadc168387afa5e95cebc2b842af31cac5b1ccae069363d523e115ea970a0"
+items = ["enum SeparationResult", "fn add_undirected", "fn bayes_ball_reaches", "fn d_sep_connected", "fn d_separation", "fn d_separation_with", "fn is_d_separated", "fn is_d_separated_with", "fn moral_reaches", "fn prepare", "fn reconstruct_path", "fn schedule", "struct BayesBallGraph", "struct DSeparationWorkspace", "struct PathStep", "struct SeparationCertificate"]
+sha256 = "a6f789156f6525d7905eaa164ef2b33fd0ae2bdc37f717619dabe07a6b6eff40"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/dsep_exhaustive.rs"
-sha256 = "eeeb20f487a231432329463d5490e59411cd2ba6c7932c6060b813217e09dd9f"
+items = ["fn active_from", "fn build", "fn check_graph", "fn edges_of", "fn every_dag_on_up_to_five_nodes_matches_the_path_definition", "fn id", "fn ill_posed_queries_are_not_reported_as_separated", "fn new", "fn sampled_six_and_seven_node_dags_match_the_path_definition", "fn separated", "struct Oracle"]
+sha256 = "52648bfa431cd6c5d9118f14bcc54df9f708364896b82e536811bac4e34ab049"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/src/dsep_tests.rs"
-sha256 = "d2f69830f44c6adb8de70572b708623ca2d0abab9747613be4faa196d3e920f0"
+items = ["enum EdgeKind", "fn chain3", "fn chain_blocked_by_middle", "fn collider_opens_with_conditioning", "fn endpoint_in_z_is_not_d_separated", "fn exists_active_path_dfs", "fn fork_blocked_by_common_cause", "fn has_descendant_in_z", "fn is_triple_active", "fn mutilation_removes_incoming", "fn path_oracle_d_separated", "fn property_dsep_witness_endpoints_and_activity", "fn property_matches_path_oracle_on_tiny_dags", "fn property_multi_treatment_mutilation_on_random_dags", "fn property_mutilation_drops_incoming_on_random_dags", "fn property_topological_order_on_random_dags", "fn random_dag", "fn random_dag_with_density", "fn sample_z_mask", "fn trail_active_under_z", "fn witness_returns_path_when_connected", "fn z_from_mask"]
+sha256 = "66f5acfe8132cc19d266bdbc938f5927c290fc854293304e8d7390e73ad7a796"

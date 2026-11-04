@@ -382,7 +382,11 @@ fn a_functional_decided_on_another_graph_is_refused() {
     match error {
         IoError::Refused { code, message } => {
             assert_eq!(code, "transport_not_certified");
-            assert!(message.starts_with("mixed_search.invalid_derivation"), "{message}");
+            assert!(
+                message
+                    .starts_with(antecedent_core::reason_details::mixed_search::INVALID_DERIVATION),
+                "{message}"
+            );
         }
         other => panic!("expected a typed refusal, got {other:?}"),
     }

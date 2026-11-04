@@ -38,9 +38,11 @@ record_sha256 = "f2b54da4ab0efd571e427854342625abeb7f762e8a4e4f8e54445d1c8c10028
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/evalue.rs"
-sha256 = "4b95a8f9ce0d08c3882af68249d3a28011f444999abce6be3f89fba7c3c16d28"
+items = ["fn e_value_from_risk_ratio", "fn smd_to_risk_ratio", "struct EValue"]
+sha256 = "33bcb1638b68bc01517211f5e6fc26b2e2390100c3f52eedb9557828c2d6eddc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/src/evalue_oracle_tests.rs"
-sha256 = "8ce3e4cc8b83ed00be5abaa011a9c92581a486fc17c994c37612340ea7884f2e"
+items = ["fn evalue_inverts_the_confounding_bound_and_is_its_smallest_equal_strength_root", "fn standardized_difference_conversion_is_finite_then_infinite_never_nan"]
+sha256 = "ab60db20790ea801472006b3c51bf8a86a2405350aae914b8c8294580714d288"

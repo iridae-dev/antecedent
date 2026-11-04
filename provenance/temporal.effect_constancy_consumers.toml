@@ -20,9 +20,11 @@ record_sha256 = "1d1661c3e7fe185ae6661f0c114b95185232e6952d9c5ced2e473974d110d47
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/effect_constancy_consumers.rs"
-sha256 = "297c72bb6a9b526711917eea2b0a9eb64110ec494bf5c9d3964a3bda47ab8685"
+items = ["const MAX_UTILITY_NESTING", "fn bounded_policy", "fn consume", "fn evidence", "fn invalid", "fn partition", "fn policy_review", "fn rank_prior_sources", "fn transport_diagnostic", "struct ConstancyConsumerError", "struct ConstancyConsumers", "struct ConstancyEvidence", "struct ConstancyPolicyPartition", "struct ConstancyPolicyReview", "struct ConstancyPriorRanking", "struct PriorPartitionBinding", "struct TransportConstancyDiagnostic"]
+sha256 = "5546b4b6a02906cd3401ee0f959f21dd5b873236719b8550c1a6e1e615e48304"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/effect_constancy_consumers.rs"
-sha256 = "ef86311198d4e39f2d11aff0fb38f664eab8faa2e964047c7a1645b0a4fcdc4c"
+items = ["fn actual_affine_policy_engine_retains_ties_and_empty_generalization_intersection", "fn actual_bank_filtering_and_effect_ranking_remain_data_dependent_advice", "fn consumer", "fn contract", "fn effect", "fn estimand", "fn oracle", "fn original", "fn original_covariance_aware_contrast_replays_and_does_not_support_transport"]
+sha256 = "3a3cb8a72fa3d3e5a9739e37ba4bb920b055146957e10f4e758d807e923ac498"

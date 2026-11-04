@@ -44,22 +44,26 @@ record_sha256 = "b355908c6b2035da512b4783aeabd9d33c882cf0d46279d59acda5534d30839
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compose/gaussian.rs"
-sha256 = "eaaf50d71f49bff37b3f1ee1bd06f70d5cebf52bb966bb525541a7def1ce1052"
+items = ["enum GaussianConditioningError", "fn add", "fn backward_solve", "fn cholesky_lower", "fn compile", "fn condition", "fn covariance_of", "fn cyclic_simulation_refusal", "fn div", "fn evidence_log_density", "fn forward_solve", "fn from_finite", "fn law", "fn law_with", "fn mean", "fn mean_contrast", "fn mean_contrast_uncertainty", "fn mean_of", "fn mul", "fn neg", "fn normalized", "fn observed", "fn position", "fn resolve", "fn spec", "fn sum", "fn to_f64", "fn variables", "fn variance_of", "struct ComposedLinearGaussian", "struct ConditionedGaussian", "struct ContrastArm", "struct FunctionalUncertainty", "struct JointGaussian", "struct MeanContrast", "struct Node", "struct Wide"]
+sha256 = "51118fa4b0df3a20c9484ab0c5f85451bf5251ae9158094008a50b5f75551ff3"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compose/tabular.rs"
-sha256 = "e8e1ca1cd6251fc5790e97e3fe114153b6d0b332f26d5ad818e16a08feeb048f"
+items = ["fn compile", "fn config", "fn cyclic_simulation_refusal", "fn law", "fn levels", "fn normalize_probability_rows", "fn probabilities", "fn probability", "fn resolve", "fn spec", "fn variables", "struct ComposedFinite", "struct FiniteLaw"]
+sha256 = "9d28200384f6e214a016bf7a929a2ea771309905648c591054cf241d37442ff5"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compose/uncertainty.rs"
-sha256 = "da01ff0d5da4fe2425e6505187e7718c31172721a1fd2fc4e230610296031be0"
+items = ["fn assemble_parameter_covariance", "struct ParameterCovariance"]
+sha256 = "60a634126205dcc03e55fc2c467516a88097a3cf82b16383b0d748ce08b57dc3"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/acyclic_joint_model_reference.rs"
-sha256 = "15e254e8c224e9b67ec72086a384d88f6167f3dcc1a1a01fb646ac890ab6826a"
+items = ["fn binding", "fn close", "fn descriptor", "fn doc", "fn finite_laws_equal_exact_enumeration_of_the_truncated_factorization", "fn finite_mechanisms", "fn linear_gaussian_laws_conditioning_and_delta_method_equal_the_rational_reference", "fn linear_mechanisms", "fn pairs", "fn provenance", "fn spec_of", "fn term"]
+sha256 = "b887ae79cac1aaae3fb472306ebdc7f2d86eb33672dc6881fd27e81dc96992f7"
 
 [[method_review.artifacts]]
 role = "reference"

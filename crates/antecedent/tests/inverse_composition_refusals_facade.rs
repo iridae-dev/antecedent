@@ -220,17 +220,29 @@ fn a_mean_contrast_without_a_declared_joint_law_surfaces_the_joint_law_refusal()
     };
     assert_eq!(action_id, "x0");
     assert_eq!(refusal.code(), "joint_law_required");
-    assert_eq!(refusal.details(), vec!["mechanism_composition.posterior_dependence_unknown"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN]
+    );
     assert!(refusal.refusals[0].remedy.is_some());
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.detail(), "mechanism_composition.posterior_dependence_unknown");
-    assert_ne!(error.detail(), "inverse_forward_source.origin_invalid");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN
+    );
+    assert_ne!(
+        error.detail(),
+        antecedent_core::reason_details::inverse_forward_source::ORIGIN_INVALID
+    );
     assert_eq!(error.action_id(), Some("x0"));
 
     // The structured form keeps the offending subject, the expected semantics and the remedy.
     let structured = error.to_refusal();
     assert_eq!(structured.code, "joint_law_required");
-    assert_eq!(structured.detail, "mechanism_composition.posterior_dependence_unknown");
+    assert_eq!(
+        structured.detail,
+        antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN
+    );
     assert!(structured.remedy.is_some());
     assert_eq!(error.refusals(), refusal.refusals);
 
@@ -240,7 +252,10 @@ fn a_mean_contrast_without_a_declared_joint_law_surfaces_the_joint_law_refusal()
         .unwrap_err();
     assert!(matches!(flat, ForwardSourceRefusal::Artifact { .. }), "{flat:?}");
     assert_eq!(flat.code(), "joint_law_required");
-    assert_eq!(flat.detail(), "mechanism_composition.posterior_dependence_unknown");
+    assert_eq!(
+        flat.detail(),
+        antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN
+    );
 }
 
 #[test]
@@ -253,9 +268,21 @@ fn mechanisms_with_no_parameter_law_refuse_a_contrast_with_the_missing_marginals
         panic!("expected the composition's own refusal, got {error:?}");
     };
     let details = refusal.details();
-    assert!(details.contains(&"mechanism_composition.uncertainty_marginal_missing"), "{details:?}");
-    assert!(details.contains(&"mechanism_composition.posterior_dependence_unknown"), "{details:?}");
-    assert!(refusal.refusals.iter().all(|r| r.detail != "inverse_forward_source.origin_invalid"));
+    assert!(
+        details.contains(
+            &antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_MARGINAL_MISSING
+        ),
+        "{details:?}"
+    );
+    assert!(
+        details.contains(
+            &antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN
+        ),
+        "{details:?}"
+    );
+    assert!(refusal.refusals.iter().all(
+        |r| r.detail != antecedent_core::reason_details::inverse_forward_source::ORIGIN_INVALID
+    ));
     assert!(refusal.refusals.iter().any(|r| r.code == "joint_law_required"));
 }
 
@@ -275,7 +302,10 @@ fn a_finite_query_of_a_gaussian_composition_is_an_unsupported_request_not_an_inv
     };
     assert_eq!(action_id, "x0");
     assert_eq!(refusal.code(), "route_not_supported");
-    assert_eq!(refusal.details(), vec!["mechanism_composition.request_unsupported"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED]
+    );
     assert!(refusal.refusals[0].remedy.is_some());
     assert!(refusal.refusals[0].offending.as_deref().is_some_and(|s| s.contains("x0")));
 }
@@ -296,7 +326,10 @@ fn a_composed_refusal_of_the_forward_source_stays_a_source_refusal() {
         "{error:?}"
     );
     assert_eq!(error.code(), "invalid_argument");
-    assert_eq!(error.detail(), "inverse_forward_source.composed_coordinate_is_outcome_law");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::inverse_forward_source::COMPOSED_COORDINATE_IS_OUTCOME_LAW
+    );
     assert!(error.action_id().is_none());
 }
 

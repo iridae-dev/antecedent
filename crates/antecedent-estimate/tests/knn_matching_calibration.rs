@@ -13,7 +13,7 @@
 //! full outcome coefficients, including covariance with reused donor outcomes, and estimates
 //! homoskedastic noise from arm-regression residuals with their residual degrees of freedom.
 //!
-//! The ignored design runs through `scripts/gate_calibration.sh`; it emits no coverage record
+//! The ignored design runs through `scripts/measure_calibration_groups.sh`; it emits no coverage record
 //! (the estimator is not reachable through the facade) and gates pass or fail.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -127,7 +127,7 @@ fn knn_matching_replicates_are_finite_and_centred_on_the_effect() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn knn_matching_interval_ci_coverage() {
     eprintln!("CALIBRATION_GATE_PROTOCOL population_linear");
     let rows = ROWS.n(MAX_ROWS);

@@ -157,7 +157,7 @@ def self_test() -> int:
         root = Path(temp)
         (root / "parity").mkdir()
         # The shared claim reader also classifies registered calibration acceptance.
-        (root / "parity/v3_test_registry.toml").write_text("", encoding="utf-8")
+        (root / "parity/test_registry.toml").write_text("", encoding="utf-8")
         (root / "parity/capability_records.toml").write_text(
             "\n".join(
                 f'''[[record]]

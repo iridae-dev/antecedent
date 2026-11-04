@@ -38,9 +38,11 @@ record_sha256 = "c534e7a31eed31cde6cd9bcca57b27cab9671604d55d3b619152298f76a9571
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/unit_change.rs"
-sha256 = "2e056d63abd0533b6f3a49e858fec701f15ea9afa8cad44c7c2fd3da8da49afe"
+items = ["fn pooled_stderr", "fn unit_change", "fn unit_seed", "fn value", "struct UnitPayoff"]
+sha256 = "764e04b308972b726892d3526d0ee78ac26ea7bf4414e4ee948ca7e055741be1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/unit_change_reference.rs"
-sha256 = "682486c452bb5dc35456e0fac883a79e183580b58eaf7a7a3289d1fd5528e01b"
+items = ["fn interacting_parents_receive_the_permutation_average_marginal_contribution", "fn linear_mechanism_unit_contributions_are_slope_times_deviation_from_the_mean", "fn mean", "fn roots", "fn table"]
+sha256 = "460252f7ab654a0271d4fd3c23610105f8c3a0314c9a64faa0d1c27e835417b2"

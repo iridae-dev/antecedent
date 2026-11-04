@@ -383,7 +383,7 @@ boundary and does not abduce a target-population factual unit.",
 target population: a transport identification supplies no abduction, shared-noise or per-world \
 receipts, and abduction in the source population is not abduction of a target unit.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.no_transported_row_derivation"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::NO_TRANSPORTED_ROW_DERIVATION),
         remedy: "supply a transport support for the quantity, a fixed-population cross-world \
 support, and the cross-population invariance of the exogenous law with target-population \
 factual evidence; the static additive linear case has its own theorem-scoped route",
@@ -403,7 +403,7 @@ factual evidence; the static additive linear case has its own theorem-scoped rou
 to be fitted from observational data, does not identify a cross-world joint law; the same \
 shared exogenous term is executed when every mechanism and law is declared.",
         refusal_code: Some("cross_world_not_identified"),
-        refusal_detail: Some("cross_world_execution.latent_confounding_not_identified"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::LATENT_CONFOUNDING_NOT_IDENTIFIED),
         remedy: "declare every mechanism and the finite law of every exogenous term (a fully \
 declared finite SCM may share an exogenous term between mechanisms), or use an identification \
 route that accepts the latent structure",
@@ -422,7 +422,7 @@ route that accepts the latent structure",
         theorem: "A cross-world joint law is not identified by a graph alone; mechanisms and \
 a noise law must be declared.",
         refusal_code: Some("cross_world_not_identified"),
-        refusal_detail: Some("cross_world_execution.mechanisms_not_declared"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::MECHANISMS_NOT_DECLARED),
         remedy: "declare the mechanisms and the exogenous law (a fully declared finite SCM or the \
 two-slice additive linear model), or ask an interventional rather than a cross-world question",
     },
@@ -440,7 +440,7 @@ two-slice additive linear model), or ask an interventional rather than a cross-w
         theorem: "Mechanisms hold for the history or regime they were declared under; factual \
 evidence from another history needs a new compatibility and identification check.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.incompatible_history"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::INCOMPATIBLE_HISTORY),
         remedy: "declare the mechanisms for the history the evidence was gathered under, or \
 establish and supply the invariance of the mechanisms across the two histories",
     },
@@ -458,7 +458,7 @@ establish and supply the invariance of the mechanisms across the two histories",
         theorem: "Worlds are defined by hard interventions; a stochastic or policy intervention \
 adds a randomization law whose coupling across worlds is not declared.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.soft_intervention"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::SOFT_INTERVENTION),
         remedy: "express each world as hard interventions, or declare the intervention's own \
 exogenous term as part of the SCM",
     },
@@ -476,7 +476,7 @@ exogenous term as part of the SCM",
         theorem: "A finite SCM's exogenous law is not identified from observational data alone \
 (response-type mass is partially identified); fitting it needs declared constraints.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.finite_fitting_not_executed"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::FINITE_FITTING_NOT_EXECUTED),
         remedy: "declare the mechanisms and the exogenous law, or use the partial-identification \
 route that returns bounds on the counterfactual",
     },
@@ -595,7 +595,9 @@ fn closed(id: &'static str) -> MatrixRefusal {
     let row = ALL_ROWS.iter().find(|r| r.id == id).unwrap_or(&ALL_ROWS[5]);
     MatrixRefusal {
         code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("route_not_supported")),
-        detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_not_in_matrix"),
+        detail: row
+            .refusal_detail
+            .unwrap_or(antecedent_core::reason_details::cross_world_execution::CELL_NOT_IN_MATRIX),
         subject: row.id,
         remedy: row.remedy,
         missing: Vec::new(),
@@ -657,7 +659,7 @@ pub fn decide(request: &MatrixRequest) -> MatrixDecision {
         let subject = candidates().next().map_or("matrix", |r| r.id);
         return Err(MatrixRefusal {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "cross_world_execution.cell_not_in_matrix",
+            detail: antecedent_core::reason_details::cross_world_execution::CELL_NOT_IN_MATRIX,
             subject,
             remedy: "the quantity, model, conditioning, history and evidence source must match \
 an executed row of the capability matrix (parity/cross_world_capability.toml)",
@@ -717,20 +719,26 @@ mod tests {
         };
         let refused = decide(&semi).unwrap_err();
         assert_eq!(refused.code, "cross_world_not_identified");
-        assert_eq!(refused.detail, "cross_world_execution.latent_confounding_not_identified");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::cross_world_execution::LATENT_CONFOUNDING_NOT_IDENTIFIED
+        );
 
         let history =
             MatrixRequest { history: HistoryKind::Incompatible, ..finite(QuantityClass::Temporal) };
         assert_eq!(
             decide(&history).unwrap_err().detail,
-            "cross_world_execution.incompatible_history"
+            antecedent_core::reason_details::cross_world_execution::INCOMPATIBLE_HISTORY
         );
 
         let soft = MatrixRequest {
             interventions: InterventionKind::Soft,
             ..finite(QuantityClass::CounterfactualMarginal)
         };
-        assert_eq!(decide(&soft).unwrap_err().detail, "cross_world_execution.soft_intervention");
+        assert_eq!(
+            decide(&soft).unwrap_err().detail,
+            antecedent_core::reason_details::cross_world_execution::SOFT_INTERVENTION
+        );
 
         let fit = MatrixRequest {
             evidence: EvidenceKind::DataToFit,
@@ -738,12 +746,15 @@ mod tests {
         };
         assert_eq!(
             decide(&fit).unwrap_err().detail,
-            "cross_world_execution.finite_fitting_not_executed"
+            antecedent_core::reason_details::cross_world_execution::FINITE_FITTING_NOT_EXECUTED
         );
 
         // A temporal quantity on a finite SCM is not a row.
         let mismatch = decide(&finite(QuantityClass::Temporal)).unwrap_err();
-        assert_eq!(mismatch.detail, "cross_world_execution.cell_not_in_matrix");
+        assert_eq!(
+            mismatch.detail,
+            antecedent_core::reason_details::cross_world_execution::CELL_NOT_IN_MATRIX
+        );
     }
 
     #[test]
@@ -754,7 +765,10 @@ mod tests {
         };
         let refused = decide(&request).unwrap_err();
         assert_eq!(refused.code, "route_not_supported");
-        assert_eq!(refused.detail, "cross_world_execution.no_transported_row_derivation");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::cross_world_execution::NO_TRANSPORTED_ROW_DERIVATION
+        );
         for gate in [
             "transport_support_missing",
             "cross_population_assumptions_missing",

@@ -27,6 +27,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
 from antecedent.outcomes import require_success
@@ -101,31 +102,31 @@ def test_every_missing_element_is_its_own_refusal():
         code="adaptive_contract_incomplete",
     )
     assert error.details == (
-        "adaptive_inference.outcome_structure_missing",
-        "adaptive_inference.within_unit_correlation_missing",
-        "adaptive_inference.historical_borrowing_missing",
-        "adaptive_inference.interim_analyses_missing",
-        "adaptive_inference.policy_history_missing",
-        "adaptive_inference.stopping_rule_missing",
-        "adaptive_inference.anytime_settings_missing",
+        reason_details.adaptive_inference.OUTCOME_STRUCTURE_MISSING,
+        reason_details.adaptive_inference.WITHIN_UNIT_CORRELATION_MISSING,
+        reason_details.adaptive_inference.HISTORICAL_BORROWING_MISSING,
+        reason_details.adaptive_inference.INTERIM_ANALYSES_MISSING,
+        reason_details.adaptive_inference.POLICY_HISTORY_MISSING,
+        reason_details.adaptive_inference.STOPPING_RULE_MISSING,
+        reason_details.adaptive_inference.ANYTIME_SETTINGS_MISSING,
     )
 
 
 @pytest.mark.parametrize(
     ("changes", "detail"),
     [
-        ({"responses": 1}, "adaptive_inference.measurements_invalid"),
-        ({"correlation": 1.0}, "adaptive_inference.correlation_invalid"),
-        ({"lag_looks": 33}, "adaptive_inference.outcome_availability_invalid"),
-        ({"enrolment": (40,)}, "adaptive_inference.looks_not_ordered"),
-        ({"min_exploration": 0.4}, "adaptive_inference.rule_mismatch"),
+        ({"responses": 1}, reason_details.adaptive_inference.MEASUREMENTS_INVALID),
+        ({"correlation": 1.0}, reason_details.adaptive_inference.CORRELATION_INVALID),
+        ({"lag_looks": 33}, reason_details.adaptive_inference.OUTCOME_AVAILABILITY_INVALID),
+        ({"enrolment": (40,)}, reason_details.adaptive_inference.LOOKS_NOT_ORDERED),
+        ({"min_exploration": 0.4}, reason_details.adaptive_inference.RULE_MISMATCH),
         (
             {"anytime": ai.AnytimeSettings(alpha=1.0, tuning_samples=30.0)},
-            "adaptive_inference.anytime_settings_invalid",
+            reason_details.adaptive_inference.ANYTIME_SETTINGS_INVALID,
         ),
         (
             {"borrowing": (ai.ArmPrior(), ai.ArmPrior())},
-            "adaptive_inference.historical_prior_invalid",
+            reason_details.adaptive_inference.HISTORICAL_PRIOR_INVALID,
         ),
         (
             {
@@ -135,7 +136,7 @@ def test_every_missing_element_is_its_own_refusal():
                     ai.ArmPrior(),
                 )
             },
-            "adaptive_inference.historical_prior_invalid",
+            reason_details.adaptive_inference.HISTORICAL_PRIOR_INVALID,
         ),
     ],
 )
@@ -171,7 +172,7 @@ def test_borrowing_is_part_of_the_identity_and_frozen_after_the_first_look(proce
     assert amended.identity == other.identity
     error = refused(
         lambda: procedure.amend_borrowing(borrowing(0.6), looks_performed=1),
-        detail="adaptive_inference.borrowing_fixed_after_first_look",
+        detail=reason_details.adaptive_inference.BORROWING_FIXED_AFTER_FIRST_LOOK,
         code="adaptive_assumption_violated",
     )
     assert "frozen" in str(error)
@@ -472,17 +473,17 @@ def test_planned_procedures_run(participants):
 def test_capacity_refusals_name_their_own_class_of_limit(procedure):
     refused(
         lambda: ai.ParticipantProcedure.declare(declaration(enrolment=(40_000, 40_000))),
-        detail="adaptive_inference.declared_units_exceeded",
+        detail=reason_details.adaptive_inference.DECLARED_UNITS_EXCEEDED,
         code="invalid_argument",
     )
     refused(
         lambda: ai.ParticipantProcedure.declare(declaration(enrolment=(1,) * 65)),
-        detail="adaptive_inference.declared_looks_exceeded",
+        detail=reason_details.adaptive_inference.DECLARED_LOOKS_EXCEEDED,
     )
     large = ai.ParticipantProcedure.declare(declaration(enrolment=(32_000, 32_000)))
     refused(
         lambda: large.simulate((0.4, 0.4, 0.4), replications=30_000, seed=1),
-        detail="adaptive_inference.simulation_work_exceeded",
+        detail=reason_details.adaptive_inference.SIMULATION_WORK_EXCEEDED,
     )
     refused(
         lambda: procedure.simulate(
@@ -491,11 +492,11 @@ def test_capacity_refusals_name_their_own_class_of_limit(procedure):
             seed=1,
             execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1_000)),
         ),
-        detail="adaptive_inference.simulation_memory_exceeded",
+        detail=reason_details.adaptive_inference.SIMULATION_MEMORY_EXCEEDED,
     )
     refused(
         lambda: procedure.simulate((0.4, 0.4, 0.4), replications=1_000_001, seed=1),
-        detail="adaptive_inference.simulation_replications_exceeded",
+        detail=reason_details.adaptive_inference.SIMULATION_REPLICATIONS_EXCEEDED,
     )
 
 
@@ -520,7 +521,7 @@ def test_a_tampered_history_does_not_replay(procedure, history):
     tampered = ai.ParticipantHistory(history.batches, history.arms, history.successes, rows)
     refused(
         lambda: procedure.read_history(tampered),
-        detail="adaptive_inference.assignment_not_replayed",
+        detail=reason_details.adaptive_inference.ASSIGNMENT_NOT_REPLAYED,
         code="adaptive_assumption_violated",
     )
     # A procedure that continued past a look at which its declared decisions stop it.
@@ -529,7 +530,7 @@ def test_a_tampered_history_does_not_replay(procedure, history):
     )
     refused(
         lambda: capped.read_history(history),
-        detail="adaptive_inference.stopping_not_replayed",
+        detail=reason_details.adaptive_inference.STOPPING_NOT_REPLAYED,
         code="adaptive_assumption_violated",
     )
 
@@ -570,7 +571,7 @@ def test_the_retained_contract_is_sealed_with_its_procedure_and_replayed(procedu
     other = procedure.amend_borrowing(borrowing(1.0), looks_performed=0)
     refused(
         lambda: bytes(session.export(paradigm="bayesian_posterior", procedure=other)),
-        detail="adaptive_inference.assignment_not_replayed",
+        detail=reason_details.adaptive_inference.ASSIGNMENT_NOT_REPLAYED,
     )
 
 

@@ -36,7 +36,18 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/design_ar_precision_calibration.rs",
-          "sha256": "f91d06f73c277e425b76de290cf4974e9a13928a8a687320a8291e4598d24ca8"
+          "items": [
+            "fn centered",
+            "fn checked_design_iv_ar_full_method_error_rate_and_weak_boundaries",
+            "fn checked_design_iv_roles_and_source_diagnostics_match_independent_quadratic",
+            "fn execute_one",
+            "fn inspect",
+            "fn oracle",
+            "fn request",
+            "struct Observation",
+            "struct Oracle"
+          ],
+          "sha256": "4b32ed8772e7462d723c67ab51909313ff1a3ea3a48ce3c778635b52dda713da"
         }
       ],
       "fixture_payload_sha256": "0baccffa027a5478c5ef3baae6aa2b408380065e994e2b673940da0461406b48"

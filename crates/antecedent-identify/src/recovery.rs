@@ -152,18 +152,30 @@ impl RecoveryDetail {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::NonrecoverableWitness => "recovery.nonrecoverable_witness",
-            Self::UnsupportedMechanism => "recovery.unsupported_mechanism",
-            Self::MissingMargin => "recovery.missing_margin",
-            Self::Budget => "recovery.budget",
-            Self::WitnessUnavailable => "recovery.witness_unavailable",
-            Self::InvalidQuery => "recovery.invalid_query",
-            Self::InvalidDerivation => "recovery.invalid_derivation",
-            Self::BoundsExceeded => "recovery.bounds_exceeded",
-            Self::Positivity => "recovery.positivity",
-            Self::InvalidObservedLaw => "recovery.invalid_observed_law",
-            Self::HandoffMismatch => "recovery.handoff_mismatch",
-            Self::EmpiricalNotSupported => "recovery.empirical_not_supported",
+            Self::NonrecoverableWitness => {
+                antecedent_core::reason_details::recovery::NONRECOVERABLE_WITNESS
+            }
+            Self::UnsupportedMechanism => {
+                antecedent_core::reason_details::recovery::UNSUPPORTED_MECHANISM
+            }
+            Self::MissingMargin => antecedent_core::reason_details::recovery::MISSING_MARGIN,
+            Self::Budget => antecedent_core::reason_details::recovery::BUDGET,
+            Self::WitnessUnavailable => {
+                antecedent_core::reason_details::recovery::WITNESS_UNAVAILABLE
+            }
+            Self::InvalidQuery => antecedent_core::reason_details::recovery::INVALID_QUERY,
+            Self::InvalidDerivation => {
+                antecedent_core::reason_details::recovery::INVALID_DERIVATION
+            }
+            Self::BoundsExceeded => antecedent_core::reason_details::recovery::BOUNDS_EXCEEDED,
+            Self::Positivity => antecedent_core::reason_details::recovery::POSITIVITY,
+            Self::InvalidObservedLaw => {
+                antecedent_core::reason_details::recovery::INVALID_OBSERVED_LAW
+            }
+            Self::HandoffMismatch => antecedent_core::reason_details::recovery::HANDOFF_MISMATCH,
+            Self::EmpiricalNotSupported => {
+                antecedent_core::reason_details::recovery::EMPIRICAL_NOT_SUPPORTED
+            }
         }
     }
 

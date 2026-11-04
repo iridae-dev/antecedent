@@ -36,12 +36,14 @@ record_sha256 = "03593a001162ea3522ebb3bc53509a5df020d762efdface7ad26e94bcdd78aa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/riesz.rs"
-sha256 = "ccc051da54df936f647a2f0616ca1cdf879166f8c9ec814daf0856fc574c030b"
+items = ["fn default", "fn default_delta_grid", "fn new", "fn refute", "fn refute_with_propensity", "fn representer_and_ipw", "fn stable_outcome_sd", "struct Representer", "struct RieszSensitivity"]
+sha256 = "d5192507199fcea1d5f4151b2cb393b12a8111b0e3fae5e316d9acb7cd324143"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/diagnostic_propensity_reference.rs"
-sha256 = "58df861de4d261e789cfe6afcab90d5f5389349aee7adba82cc246f62f4b17a5"
+items = ["fn column", "fn continuous_treatment_support_counts_rows_with_both_doses_inside_the_residual_band", "fn estimate", "fn f", "fn near", "fn overlap_assessment_reports_unsupported_ess_mass_and_judges_range_and_ess", "fn overlap_rule_retains_the_mass_inside_the_declared_band", "fn reference", "fn riesz_tips_at_the_first_grid_delta_whose_worst_case_bias_reaches_the_estimate", "fn study"]
+sha256 = "d4db74c2200ce294275c75d2c88f3e43deb57ddddf8c8600d158ebaf9ca4d464"
 
 [[method_review.artifacts]]
 role = "reference"

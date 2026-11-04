@@ -33,8 +33,6 @@
     "checkout_unchanged": false
   },
   "coverage_disposition": {
-    "ledger": "parity/test_refactor_dispositions.toml",
-    "ledger_sha256": "b82b6d90eaa3fec18ba4cf111a0aceba255644178ff08398516ed62200afe596",
     "baseline_identities_absent_after": 773,
     "replacement_or_new_identities": 15,
     "shared_control_occurrences_consolidated": 756,

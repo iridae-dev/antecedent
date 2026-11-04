@@ -144,7 +144,9 @@ impl RolloutArtifact {
             return Ok(None);
         }
         let evidence = crate::source_evidence::SourceEvidence::consume(&self.source_evidence)
-            .map_err(|_| refused("rollout.source_evidence_mismatch"))?;
+            .map_err(|_| {
+                refused(antecedent_core::reason_details::rollout::SOURCE_EVIDENCE_MISMATCH)
+            })?;
         let quantities = self
             .binding
             .source
@@ -154,10 +156,12 @@ impl RolloutArtifact {
             .cloned()
             .map(antecedent_contract::ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| refused("rollout.source_evidence_mismatch"))?;
+            .map_err(|_| {
+                refused(antecedent_core::reason_details::rollout::SOURCE_EVIDENCE_MISMATCH)
+            })?;
         evidence
             .require_quantity_binding(&quantities, &self.binding.source.identity.snapshot_id)
-            .map_err(|_| refused("rollout.source_evidence_mismatch"))?;
+            .map_err(|_| refused(antecedent_core::reason_details::rollout::SOURCE_EVIDENCE_MISMATCH))?;
         Ok(Some(evidence))
     }
 
@@ -235,10 +239,12 @@ impl RolloutArtifact {
     pub fn verify(&self, expected: &RolloutExpectation) -> Result<(), IoError> {
         self.diagnostic_evidence()?;
         if self.version != 1 || self.digest != self.recomputed_digest()? {
-            return Err(refused("rollout.identity_mismatch"));
+            return Err(refused(antecedent_core::reason_details::rollout::IDENTITY_MISMATCH));
         }
         if to_cbor(&self.binding)? != to_cbor(expected)? {
-            return Err(refused("rollout.expected_binding_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::rollout::EXPECTED_BINDING_MISMATCH,
+            ));
         }
         let source =
             DistributionArtifact::from_bytes(&self.source_artifact, &expected.source.identity)?;
@@ -246,19 +252,22 @@ impl RolloutArtifact {
         if metadata.trust != expected.source.trust
             || metadata.calibration != expected.source.calibration
         {
-            return Err(refused("rollout.source_standing_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::rollout::SOURCE_STANDING_MISMATCH,
+            ));
         }
         if source_digest(&source) != expected.source_digest {
-            return Err(refused("rollout.source_digest_mismatch"));
+            return Err(refused(antecedent_core::reason_details::rollout::SOURCE_DIGEST_MISMATCH));
         }
-        let coordinate = source
-            .quantities()
-            .iter()
-            .position(|q| q == &expected.state)
-            .ok_or_else(|| refused("rollout.state_coordinate_mismatch"))?;
+        let coordinate =
+            source.quantities().iter().position(|q| q == &expected.state).ok_or_else(|| {
+                refused(antecedent_core::reason_details::rollout::STATE_COORDINATE_MISMATCH)
+            })?;
         source.mean(coordinate)?; // invokes the existing actual support check
         if metadata.weights.is_some() || metadata.identity.alignment != DrawAlignment::Joint {
-            return Err(unsupported("rollout.unweighted_joint_state_required"));
+            return Err(unsupported(
+                antecedent_core::reason_details::rollout::UNWEIGHTED_JOINT_STATE_REQUIRED,
+            ));
         }
         let authorized = match expected.interpretation {
             StateInterpretation::PosteriorState => matches!(
@@ -272,10 +281,14 @@ impl RolloutArtifact {
             }
         };
         if !authorized {
-            return Err(unsupported("rollout.state_interpretation_mismatch"));
+            return Err(unsupported(
+                antecedent_core::reason_details::rollout::STATE_INTERPRETATION_MISMATCH,
+            ));
         }
         let PriorWire::Draws { states } = &expected.decision.prior else {
-            return Err(unsupported("rollout.finite_draw_state_required"));
+            return Err(unsupported(
+                antecedent_core::reason_details::rollout::FINITE_DRAW_STATE_REQUIRED,
+            ));
         };
         if states.len() != source.n_draws()
             || states
@@ -283,7 +296,7 @@ impl RolloutArtifact {
                 .zip(source.draws().chunks_exact(source.shape()[1]))
                 .any(|(state, row)| state.to_bits() != row[coordinate].to_bits())
         {
-            return Err(refused("rollout.ordered_prior_mismatch"));
+            return Err(refused(antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH));
         }
         let wire =
             DesignRankingArtifactWire::from_bytes(&self.ranking_artifact).map_err(|error| {
@@ -305,10 +318,12 @@ impl RolloutArtifact {
             message: format!("rollout.ranking_invalid: {error}"),
         })?;
         if wire.decision != expected.decision || ranking.identity != expected.ranking_identity {
-            return Err(refused("rollout.terminal_decision_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+            ));
         }
         if !wire.source_digests.contains(&expected.source_digest) {
-            return Err(refused("rollout.ranking_source_mismatch"));
+            return Err(refused(antecedent_core::reason_details::rollout::RANKING_SOURCE_MISMATCH));
         }
         Ok(())
     }
@@ -323,8 +338,10 @@ impl RolloutArtifact {
         use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         self.verify(&self.binding)?;
         let wire = DesignRankingArtifactWire::from_bytes(&self.ranking_artifact)
-            .map_err(|_| refused("rollout.ranking_invalid"))?;
-        let ranking = wire.provenance_chain().map_err(|_| refused("rollout.ranking_invalid"))?;
+            .map_err(|_| refused(antecedent_core::reason_details::rollout::RANKING_INVALID))?;
+        let ranking = wire
+            .provenance_chain()
+            .map_err(|_| refused(antecedent_core::reason_details::rollout::RANKING_INVALID))?;
         let causal = format!("causal_contract:{}", self.binding.source.identity.causal_contract_id);
         let data = format!("snapshot:{}", self.binding.source.identity.snapshot_id);
         let law = format!("distribution:{}", self.binding.source_digest);
@@ -352,14 +369,15 @@ impl RolloutArtifact {
             original.declared_parent_digests = None;
             links.push(original);
         }
-        ProvenanceChain::new(links).map_err(|_| refused("rollout.ranking_invalid"))
+        ProvenanceChain::new(links)
+            .map_err(|_| refused(antecedent_core::reason_details::rollout::RANKING_INVALID))
     }
 
     /// Invalid body, empty display identity or oversized encoded artifact.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         self.verify(&self.binding)?;
         if artifact_id.trim().is_empty() {
-            return Err(refused("rollout.artifact_id_missing"));
+            return Err(refused(antecedent_core::reason_details::rollout::ARTIFACT_ID_MISSING));
         }
         let body = to_cbor(self)?;
         antecedent_io_core::encode_container(
@@ -377,9 +395,11 @@ impl RolloutArtifact {
             }],
         )
         .map_err(|error| match error {
-            antecedent_io_core::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+            antecedent_io_core::CodecError::Layout => {
+                refused(antecedent_core::reason_details::rollout::ARTIFACT_KIND_MISMATCH)
+            }
             antecedent_io_core::CodecError::MissingArtifactId => {
-                refused("rollout.artifact_id_missing")
+                refused(antecedent_core::reason_details::rollout::ARTIFACT_ID_MISSING)
             }
             other => other.into_io("rollout artifact"),
         })
@@ -396,11 +416,13 @@ impl RolloutArtifact {
             bytes,
         )
         .map_err(|error| match error {
-            antecedent_io_core::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+            antecedent_io_core::CodecError::Layout => {
+                refused(antecedent_core::reason_details::rollout::ARTIFACT_KIND_MISMATCH)
+            }
             other => other.into_io("rollout artifact"),
         })?;
         let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
-            return Err(refused("rollout.artifact_kind_mismatch"));
+            return Err(refused(antecedent_core::reason_details::rollout::ARTIFACT_KIND_MISMATCH));
         };
         let artifact: Self = from_cbor(&body)?;
         artifact.check_bounds()?;

@@ -4,6 +4,7 @@ from dataclasses import FrozenInstanceError, replace
 from types import SimpleNamespace
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent._measured_inference import (
     MeasuredInference,
     MeasuredInferenceIdentity,
@@ -157,7 +158,7 @@ def test_source_report_unreachable_route_guard_is_class_only():
         encoding="utf-8"
     )
     start = consumer.index("match expected.route.as_str()")
-    end = consumer.index("measured_inference.unsupported_route", start)
+    end = consumer.index(reason_details.measured_inference.UNSUPPORTED_ROUTE, start)
     # The graph-imputation interval is consumed from a compiled-graph artifact only; it has no
     # source-report constructor, so the consumer's route set is the source set plus that one.
     assert set(re.findall(r'"([a-z_]+)"\s*=>', consumer[start:end])) == routes | {

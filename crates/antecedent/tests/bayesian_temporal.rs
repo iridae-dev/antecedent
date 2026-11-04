@@ -12,7 +12,7 @@
 //! regime keeps a persistent treatment, so it checks that the dependence
 //! correction does not over-widen when the iid likelihood is right.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -323,7 +323,7 @@ fn coverage(test: &'static str, cell: Cell, regime: Regime, measured: [Option<f6
 macro_rules! dag_coverage {
     ($($test:ident => ($cell:expr, $regime:expr $(, $measured:expr)?);)*) => {$(
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
         fn $test() {
             coverage(
                 stringify!($test),
@@ -559,7 +559,7 @@ fn mediation_coverage(test: &'static str, regime: Regime, measured: [[Option<f64
 macro_rules! mediation_coverage {
     ($($test:ident => ($regime:expr $(, $measured:expr)?);)*) => {$(
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
         fn $test() {
             mediation_coverage(
                 stringify!($test),
@@ -907,7 +907,7 @@ fn tyz_cpdag() -> TemporalCpdag {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage() {
     let regime = Regime::RHO05_N160.at_grid();
     let prior = ClassPrior::from_ordered([0.5, 0.5]).unwrap();

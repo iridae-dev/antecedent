@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from antecedent import Execution, observational_survival
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalError
 
 HORIZON = 2.0
@@ -85,11 +86,11 @@ def test_the_horizon_and_the_censoring_assumption_have_no_default() -> None:
     with pytest.raises(CausalError) as raised:
         _effect(data, censoring="independent_within_arm")
     assert raised.value.reason_code == "required_option_missing"
-    assert "survival_effect.horizon_missing" in str(raised.value)
+    assert reason_details.survival_effect.HORIZON_MISSING in str(raised.value)
     with pytest.raises(CausalError) as raised:
         _effect(data, horizon=HORIZON)
     assert raised.value.reason_code == "required_option_missing"
-    assert "survival_effect.censoring_assumption_missing" in str(raised.value)
+    assert reason_details.survival_effect.CENSORING_ASSUMPTION_MISSING in str(raised.value)
 
 
 def test_support_violations_are_refused_with_their_own_details() -> None:
@@ -97,7 +98,7 @@ def test_support_violations_are_refused_with_their_own_details() -> None:
     with pytest.raises(CausalError) as raised:
         _effect(data, horizon=500.0, censoring="independent_within_arm")
     assert raised.value.reason_code == "positivity_violated"
-    assert "survival_effect.horizon_beyond_follow_up" in str(raised.value)
+    assert reason_details.survival_effect.HORIZON_BEYOND_FOLLOW_UP in str(raised.value)
     bad = dict(data, treatment=np.where(np.arange(600) == 4, 2.0, data["treatment"]))
     with pytest.raises(CausalError) as raised:
         _effect(bad, horizon=HORIZON, censoring="independent_within_arm")

@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Independent normal prior on the mean of the cross-fitted score contrast the retarget reads, with the plug-in score variance. A wide scale stays at that score mean. The frequentist covariance interval is not reused. No coverage is claimed.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported).",
 ]
 
 upstream_implementations_observed = []
@@ -25,19 +25,22 @@ rationale = "Posterior mean of a cross-fitted score contrast under an independen
 no_independent_algorithm = "score_contrast_posterior forms the paired contrast, its mean and Bessel variance, and the normal-normal weight; the cross-fitted scores are produced by the covered estimator and consumed unchanged. posterior_mean.rs also holds the Dirichlet, ridge and Gaussian-kernel local-quadratic routes, which belong to other records."
 covered_by = ["estimate.posterior_mean_kernel"]
 derivation = "Normal likelihood for a mean with plug-in precision P = n / s2 and an independent N(0, tau^2) prior give posterior mean P / (P + 1 / tau^2) * mean = mean * n tau^2 / (n tau^2 + s2); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "499c2d5b484ba53b648f3376a41ec3c2745cc09ffce407b0288f77771295ae1a"
+record_sha256 = "027fd4c3f463c979255873fa9cbcaeb4e3eee39c494d035b3a7135eee015b18c"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "4d92ec840144292fc528750bee65061fc89dca05b4e2cb417d05c4db01db6fa1"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/penalized_aipw.rs"
-sha256 = "ce7f82aa602bec6778af12b41885e4f891896fafaa657a435cdcd2bae1eb2a5f"
+items = ["enum Regime", "fn a_cancelled_fit_is_a_stop_never_a_verdict", "fn a_cancelled_refit_bootstrap_is_a_stop_with_no_se", "fn a_duplicated_column_is_refused_with_a_typed_rank_error", "fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both", "fn a_lasso_propensity_fits_where_the_plain_logistic_is_refused", "fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fold", "fn a_lasso_support_and_penalty_are_chosen_on_training_rows_only", "fn a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded", "fn a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_interval", "fn a_penalized_score_table_round_trips_with_its_penalty_identity", "fn a_scope_outside_the_support_is_refused", "fn batch_retarget_posterior_consumer_replays_the_shrunk_score_mean", "fn batch_retarget_posterior_mean_stays_near_the_cross_fitted_score", "fn batch_retarget_posterior_refuses_an_unmeasured_band", "fn bits", "fn build", "fn draw", "fn expit", "fn failed_replicates_are_counted_and_the_se_follows_the_failure_policy", "fn glm_with_fallback", "fn hand_influence_se", "fn independent_scores", "fn lasso", "fn mean", "fn ols", "fn penalized_posterior_consumer_replays_the_shrunk_score_mean", "fn penalized_posterior_mean_stays_near_the_cross_fitted_score", "fn penalized_posterior_refuses_a_mapped_prior", "fn penalty_is_chosen_on_training_rows_only", "fn plain", "fn rewrite_fold_zero", "fn ridge", "fn ridge_logistic", "fn ridge_propensity_recovers_the_effect_where_the_unpenalized_fit_is_refused", "fn run", "fn scores_match_an_independent_calculation_and_retarget_exactly", "fn selected_lambdas", "fn selected_penalties_replay_from_the_seed", "fn solve", "fn table", "fn the_bootstrap_of_a_fallback_result_runs_the_destination", "fn the_influence_interval_covers_the_known_effect_in_repeated_sampling", "fn the_lasso_refit_bootstrap_repeats_selection_and_records_each_replicate", "fn the_refit_bootstrap_is_close_to_an_independent_bootstrap_through_the_public_fit", "fn the_refit_bootstrap_publishes_its_se_and_the_penalties_it_selected_in_every_replicate", "fn variance_of", "fn weighted_summary", "fn with_bootstrap", "struct Raw"]
+sha256 = "66cd53cc4f933e1598d12c5093a2757329c76d349d80a1cb81ed2ff8b26e9c9d"

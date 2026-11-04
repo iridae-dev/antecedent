@@ -41,12 +41,14 @@ record_sha256 = "9f5e6009f6de2737998c27d039aaad72537ece3542417372d4bd18e878ffb01
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/structure_mcmc.rs"
-sha256 = "3b993188e9fdc388a8da95d9137eb197978baf7a9d15c623ea08d350acb58a83"
+items = ["const DEFAULT_PAIR_MOVE_PROBABILITY", "const PAIR_MOVE_MAX_SETS", "fn build", "fn candidate_directed_list", "fn default", "fn is_empty", "fn new", "fn run", "fn schedule", "fn with_diagnostics_gate", "fn with_schedule", "struct ParentSetCatalog", "struct StructureMcmc", "struct StructureWalker"]
+sha256 = "42fbd2b40bd452e49eab6e2f7e0d7ad8d7a064d9323354a07148b07e4cbf6951"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
-sha256 = "6806340d5893a5429ed954e0322b719de2d7fa19743561520e98fc798803f651"
+items = ["fn dynamic_programme_matches_brute_force_enumeration_of_every_dag", "fn link", "fn order_and_structure_samplers_match_the_enumerated_marginals_under_priors_and_constraints", "fn problems", "struct Problem"]
+sha256 = "2a2679b69ade0650702ac3cb42a6295f4e1cd7d79e8e0142a003d636be62c621"
 
 [[method_review.artifacts]]
 role = "reference"

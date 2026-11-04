@@ -36,9 +36,11 @@ record_sha256 = "4bc2e0416297508d01e6ec530d9294efb2fa91d05eb584dff4db9328108f650
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/temporal_cross_world/staged.rs"
-sha256 = "8161ac4350173698f19614c8bc22e7ab9ecd37bd3971acc880e892a0f6841ebb"
+items = ["const MAX_RETAINED", "fn abduction_key", "fn counters", "fn default", "fn execute", "fn max_retained", "fn new", "fn with_max_retained", "struct GeneralTemporalExecutor", "struct RetainedGeneral", "struct RetainedHistories", "struct TemporalExecution", "struct TemporalExecutor"]
+sha256 = "7ef55dcf8a7ec1bb72bab2f6b5d81e50d991c24a00edf5f89c5120a328240d03"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/temporal_fixed_population_reference.rs"
-sha256 = "554c2382aaa00962e5ab5bf63273b15a539428c7744b1c4a098bc1e7f4ad1730"
+items = ["fn assert_refusal", "fn cases", "fn each_world_must_cover_exactly_the_factual_units", "fn f", "fn floats", "fn general_horizon_route_matches_the_exact_reference_and_its_staged_executor", "fn general_route_at_horizon_two_equals_the_fixed_route_bit_for_bit", "fn general_spec", "fn identical_histories_have_exactly_zero_contrast", "fn noise_support_boundary_accepts_equal_and_refuses_larger", "fn product_matches_exact_abduction_action_prediction", "fn run", "fn scale", "fn spec", "fn staged_executor_is_bit_identical_to_the_one_shot_on_every_reference_case", "fn staged_replay_of_a_new_action_history_equals_the_exact_reference", "fn unit_order_does_not_change_the_answer"]
+sha256 = "47cbbb07c57f48bfca3859644018849bea4ed33461323217eaac88a7593c3ee2"

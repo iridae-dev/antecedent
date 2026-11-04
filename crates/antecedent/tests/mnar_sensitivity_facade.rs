@@ -87,7 +87,7 @@ fn the_table_reader_refuses_an_unknown_column() {
         &spec(MnarEstimator::DifferenceInMeans),
     )
     .unwrap_err();
-    assert_eq!(err.detail(), "mnar_sensitivity.invalid_data");
+    assert_eq!(err.detail(), antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA);
 }
 
 #[test]

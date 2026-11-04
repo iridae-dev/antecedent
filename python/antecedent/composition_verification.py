@@ -55,6 +55,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -460,7 +462,7 @@ def ledger_effects(ledger: Any, bindings: Mapping[str, str]) -> tuple[Effect, ..
     text, refusal = _native.composition_ledger_effects(handle, _dumps(wire))
     if refusal is not None:
         found = json.loads(refusal)
-        if found.get("detail") == "composition_verification.unknown_result":
+        if found.get("detail") == _reason_details.composition_verification.UNKNOWN_RESULT:
             raise CausalValueError(str(found["message"]))
         raise_refusal(refusal, CompositionVerificationRefusal)
     assert text is not None
@@ -747,7 +749,7 @@ def _raise_ledger_mismatch(message: str) -> None:
         {
             "code": "invalid_argument",
             "stage": "composition_verification",
-            "detail": "composition_verification.ledger_mismatch",
+            "detail": _reason_details.composition_verification.LEDGER_MISMATCH,
             "message": message,
             "offending": None,
             "remedy": (

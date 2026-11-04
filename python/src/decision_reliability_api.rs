@@ -53,7 +53,9 @@ fn run_worker<T: Send>(
                     stage: "decision_reliability",
                 }));
             }
-            if fields["detail"] == "decision_reliability.memory_budget_exceeded" {
+            if fields["detail"]
+                == antecedent_core::reason_details::decision_reliability::MEMORY_BUDGET_EXCEEDED
+            {
                 return Err(crate::CausalResourceError::new_err(refusal.clone()));
             }
         }
@@ -90,7 +92,7 @@ fn invalid_json(message: String) -> String {
     json!({
         "code": antecedent_core::reason_code!("invalid_argument"),
         "stage": "decision_reliability",
-        "detail": "decision_reliability.invalid_input",
+        "detail": antecedent_core::reason_details::decision_reliability::INVALID_INPUT,
         "message": message,
         "offending": Json::Null,
         "remedy": Json::Null,

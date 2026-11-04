@@ -37,14 +37,17 @@ record_sha256 = "44ec71fb97904c11d15b2134524935941e0c6b78cc49b0c0ce13026e9ceb438
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/temporal_policy_transport.rs"
-sha256 = "168a2aa5852cf75c1f7ace2aa99a06c5518c32b5a2125cfa621eb6cd0151d68e"
+items = ["const TEMPORAL_PREMISES", "fn evaluate_temporal_policy", "fn evaluation_identity", "fn identity_hex", "fn of_model", "fn verify_temporal_policy", "struct ActionAlphabet", "struct HistoryAlphabet", "struct TemporalPolicyEvaluation", "struct TemporalPolicyRequest", "struct TemporalTarget", "struct TimeInvariance"]
+sha256 = "9941a82917da0aeaf9ea56b1546ee2e8415683697a8b2e981d82f973bcdf123b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/transported_policy.rs"
-sha256 = "f45a1aa7d57e358fe6656ebd533917e0043c44e869122fd9246eb44fb56db4db"
+items = ["const DECLARED", "const LAW_TOLERANCE", "const SAME_LAW_TOLERANCE", "const TRANSPORTED_POLICY_IDENTITY_VERSION", "const TRANSPORTED_POLICY_INFERENCE", "enum Axis", "enum MechanismStatus", "enum ModelMechanism", "fn applied_to", "fn check_target_initial", "fn check_target_utility_declaration", "fn declared_shifts", "fn detail", "fn evaluate_transported_policy", "fn evaluate_under_initial", "fn evaluate_under_target", "fn evaluation_identity", "fn identity_hex", "fn name", "fn required_mechanisms", "fn tag", "fn transport_refusal", "fn verify_transported_policy", "fn write", "struct ActionUtility", "struct SelectionDiagram", "struct ShiftedMechanisms", "struct TargetUtility", "struct TransportPremises", "struct TransportedPolicyEvaluation", "struct TransportedPolicyRequest", "struct UtilityProvenance"]
+sha256 = "5d92ccf7f80b1b6701891742bb48e43e2db98d177ed69221e6091d1ee14002cd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/transported_evaluation.rs"
-sha256 = "a407a21ae0b77c0bf73a7b7a1ccf5f12623d7c0b3b8a25b12b10f9a904e34195"
+items = ["const HOLD", "const INSPECT", "const SHIP", "const TARGET_DIGEST", "fn a_declared_target_utility_is_validated_then_accepted_and_echoed", "fn a_period_shift_under_time_invariant_mechanisms_has_the_hand_value", "fn a_shifted_dynamic_mechanism_is_refused_with_the_mechanism_named", "fn a_shifted_utility_needs_its_target_utility_and_relaxes_nothing_else", "fn a_stratum_the_adaptive_assignment_starved_is_a_support_failure", "fn a_target_native_utility_is_evaluated_against_hand_dynamic_programming", "fn a_target_utility_keeps_the_transition_observation_and_support_premises", "fn a_target_utility_must_match_the_source_and_declare_its_provenance", "fn adaptive_trial_means_standardize_to_the_target_stratum_law", "fn alarm_model", "fn all_invariant_but_initial", "fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused", "fn an_invariant_stratum_law_must_equal_the_trials_empirical_law", "fn cell", "fn commit", "fn ctx", "fn declaration", "fn diagram", "fn diagram_with_shifted_utility", "fn digest", "fn epsilon_greedy", "fn invariance", "fn missing_selection_contract_is_refused_by_name", "fn model", "fn policy", "fn refreshing_the_source_model_keeps_the_utility_declaration_and_recomputes_the_rest", "fn strata", "fn support_and_declaration_consistency_of_the_target_law_are_checked", "fn target", "fn target_utility", "fn target_value_by_hand", "fn the_evaluation_identity_follows_the_inputs_and_replays", "fn the_target_utility_and_its_provenance_are_bound_into_the_identity_and_replay", "fn the_trial_population_is_bound_to_the_diagram_and_distinct_from_the_target", "fn the_weighting_uses_the_recorded_probabilities_not_the_arm_counts", "fn time_varying_horizon_and_history_incompatibilities_are_refused", "fn transported_value_matches_the_hand_value_across_target_laws", "fn trial_diagram"]
+sha256 = "f631bab70960d5733264d980ae716d86e8c7bc9d68c242544b828b25fac7d8f3"

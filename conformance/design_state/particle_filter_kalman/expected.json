@@ -41,7 +41,13 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-state/tests/particle_filter_oracle.rs",
-          "sha256": "96fc6f17ef01585dbae8cf25ab0d52f82a0ad54f33c443395e5f23faf174f8c8"
+          "items": [
+            "fn fixture",
+            "fn particle_filter_fixture_names_its_retained_generator_and_tight_tolerances",
+            "fn particle_filter_moments_match_exact_kalman_filter",
+            "fn weighted_moments"
+          ],
+          "sha256": "545c4d65019f14fe3c20eedc0d4fe7d914f99fb60e97f32f6f2fca17022d2b1c"
         }
       ],
       "fixture_payload_sha256": "3921a738692e280bf95753eebad9ed8943ebfcc4b911a058f7ac91cc324a4e1d"

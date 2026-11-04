@@ -513,12 +513,12 @@ fn rule_refusal(refusal: &ExternalRefusal) -> ReliabilityError {
         return ReliabilityError::DependenceUnknown { what: "candidate_coupling" };
     }
     let reason = match refusal.detail.as_str() {
-        "joint_law_propagation.nonlinear_needs_aligned_joint_law" => {
+        antecedent_core::reason_details::joint_law_propagation::NONLINEAR_NEEDS_ALIGNED_JOINT_LAW => {
             "nonlinear_needs_aligned_joint_law"
         }
-        "joint_law_propagation.index_pairing_refused" => "index_pairing_refused",
-        "joint_law_propagation.alignment_mismatch" => "alignment_mismatch",
-        "joint_law_propagation.shared_evidence_declared_independent" => {
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED => "index_pairing_refused",
+        antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH => "alignment_mismatch",
+        antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT => {
             "shared_evidence_declared_independent"
         }
         _ => "propagation_rule_refused",

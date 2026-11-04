@@ -31,9 +31,11 @@ record_sha256 = "ceb0538a366c7072d59c87d99003633773d1afce51e3cd13cbf35b800b6964d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/surrogate.rs"
-sha256 = "d501274d129d0c1b76988b76a68f6d49e8dbbd5c688c15093e12958470478564"
+items = ["fn phase_randomize_column", "fn require_uniform_weights", "fn surrogate_permute_columns", "fn surrogate_phase_randomize"]
+sha256 = "39048eda56d2f54a001b210a577b9b4bb49e71701c73e481eed1ca773c9d1005"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/surrogate_reference.rs"
-sha256 = "266c748d9aa33d7606ba5be1d0b9d90dad9aacb0a233a269c4f8c3ce07fdf526"
+items = ["fn a_constant_series_is_a_fixed_point_and_columns_are_randomized_independently", "fn circular_autocovariance_is_preserved_because_the_power_spectrum_is", "fn column", "fn column_permutation_is_uniform_and_keeps_gaps_where_they_were", "fn dft", "fn lcg_series", "fn phase_randomization_keeps_every_fourier_magnitude_and_the_mean", "fn series", "fn surrogate_phases_are_uniform_on_the_circle"]
+sha256 = "e77f9d7c2f631c9bb6c8df5b7d1ad9284b8a4543dc82784736a0a6b4aec89403"

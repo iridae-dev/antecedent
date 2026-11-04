@@ -344,7 +344,7 @@ fn inversion_refuses_what_its_premises_do_not_cover() {
     assert_eq!(
         inversion_interval(&spec, &observed, &small, 0.3, &never),
         Err(Error::PremiseFailed {
-            detail: "adaptive_inference.inversion_premise_contexts",
+            detail: antecedent_core::reason_details::adaptive_inference::INVERSION_PREMISE_CONTEXTS,
             message: "inversion is defined for a contrast of arms within one context",
         })
     );

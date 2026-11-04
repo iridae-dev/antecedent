@@ -106,7 +106,10 @@ fn oracle_point_evalue(data: &TabularData, effect: f64) -> f64 {
 fn assert_interval_withheld(diagnostics: &TierDiagnostics) {
     let interval = &diagnostics.evalue.interval;
     assert_eq!(interval.code, "diagnostic_not_available");
-    assert_eq!(interval.detail, "tier_diagnostics.no_evalue_interval_method");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::tier_diagnostics::NO_EVALUE_INTERVAL_METHOD
+    );
 }
 
 #[test]
@@ -179,7 +182,10 @@ fn an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value(
     let diagnostics = tier_diagnostics(&result, &ctx).unwrap();
     let reason = diagnostics.evalue.point.unavailable().expect("a limit-minimum is not a point");
     assert_eq!(reason.code, "diagnostic_not_available");
-    assert_eq!(reason.detail, "tier_diagnostics.evalue_embeds_interval_limit");
+    assert_eq!(
+        reason.detail,
+        antecedent_core::reason_details::tier_diagnostics::EVALUE_EMBEDS_INTERVAL_LIMIT
+    );
     assert_interval_withheld(&diagnostics);
     // The overlap report of the same design is still carried.
     assert!(diagnostics.overlap.available().is_some());
@@ -226,10 +232,16 @@ fn unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnosti
     // No propensity, no single effect: each is a typed absence with its own detail.
     let overlap = diagnostics.overlap.unavailable().expect("no overlap on the Unknown cell");
     assert_eq!(overlap.code, "diagnostic_not_available");
-    assert_eq!(overlap.detail, "tier_diagnostics.unknown_scenarios_no_overlap");
+    assert_eq!(
+        overlap.detail,
+        antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_OVERLAP
+    );
     let point = diagnostics.evalue.point.unavailable().expect("no E-value across scenarios");
     assert_eq!(point.code, "diagnostic_not_available");
-    assert_eq!(point.detail, "tier_diagnostics.unknown_scenarios_no_evalue");
+    assert_eq!(
+        point.detail,
+        antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_EVALUE
+    );
     assert_interval_withheld(&diagnostics);
 }
 
@@ -289,7 +301,10 @@ fn a_result_that_is_not_a_tiered_average_effect_is_refused() {
         .unwrap();
     let error = tier_diagnostics(&result, &ctx).unwrap_err();
     assert_eq!(error.code, "invalid_argument");
-    assert_eq!(error.detail, "tier_diagnostics.not_a_tiered_average_result");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::tier_diagnostics::NOT_A_TIERED_AVERAGE_RESULT
+    );
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

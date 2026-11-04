@@ -63,6 +63,7 @@ from _repo import ensure_scripts_on_path
 ensure_scripts_on_path()
 
 import provenance_links  # noqa: E402
+import route_behaviour  # noqa: E402
 import test_evidence  # noqa: E402
 from evidence_kinds import EVIDENCE_KINDS as ALL_EVIDENCE_KINDS  # noqa: E402
 from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems  # noqa: E402
@@ -136,7 +137,7 @@ _SIMULATIONS: set[tuple[str, str]] | None = None
 
 
 def calibration_simulations() -> set[tuple[str, str]]:
-    """Registered repeated-sampling calibration checks (parity/v3_test_registry.toml)."""
+    """Registered repeated-sampling calibration checks (parity/test_registry.toml)."""
     global _SIMULATIONS
     if _SIMULATIONS is None:
         _SIMULATIONS = {
@@ -393,7 +394,7 @@ def evaluate() -> dict:
     }
 
 
-STALE = "independent check: a reviewed fixture or artifact changed since its review digest was bound"
+STALE = "independent check: a reviewed item or fixture changed since its review digest was bound"
 
 
 def cause(problem: str) -> str:
@@ -1116,8 +1117,13 @@ def transport_problems(registry_path: Path | None = None, *, resolve: bool = Fal
         return list(resolve_rust_test(path, assertion)[1])
 
     registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
-    # An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
-    errors: list[str] = []
+    # Stage, status, reason code and claim of a record-owned route are generated from its
+    # record (scripts/route_behaviour.py); a row states only the contract a stage adds.
+    generated = route_behaviour.load(root / route_behaviour.GENERATED)
+    merged, restated = route_behaviour.stage_routes(root, registry, generated)
+    registry = {**registry, "routes": merged}
+    owned = {r["route"] for entry in (generated or {}).values() for r in entry["routes"]}
+    errors: list[str] = list(restated)
     if registry.get("version") != 1 or registry.get("default") != "closed":
         errors.append("transport stages require version 1 and default=closed")
     seen = set()
@@ -1135,15 +1141,18 @@ def transport_problems(registry_path: Path | None = None, *, resolve: bool = Fal
             "consume",
         }:
             errors.append(f"invalid stage: {name}")
+        contract_keys = (
+            "graph",
+            "evidence",
+            "functional",
+            "guarantee",
+            "evidence_test",
+            "evidence_assertion",
+        )
         if route.get("status") == "supported":
-            for key in (
-                "graph",
-                "evidence",
-                "functional",
-                "guarantee",
-                "evidence_test",
-                "evidence_assertion",
-            ):
+            # A record-owned route that states no contract of its own is evidenced by its
+            # record's executed fixtures (scripts/check_capability_records.py).
+            for key in () if name in owned and not any(route.get(k) for k in contract_keys) else contract_keys:
                 if not route.get(key):
                     errors.append(f"{name}: missing {key}")
             path, assertion = route.get("evidence_test"), route.get("evidence_assertion")
@@ -1324,7 +1333,7 @@ def count_main(report: bool) -> int:
         print(f"  {kind}: {reason}: {count} unit(s)")
     if only_stale:
         print(
-            "  failing only on a stale review digest (rebind with scripts/bind_review_digests.py): "
+            "  failing only on a stale review digest (re-read the changed items, then rebind with scripts/bind_review_digests.py): "
             + ", ".join(f"{k} {v}" for k, v in sorted(only_stale.items()))
         )
     for item in result["structural"]:

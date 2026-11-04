@@ -2,7 +2,7 @@
 """The calibration gate's groups: which records each measures, which owe a run,
 and running them in parallel on this machine.
 
-`scripts/gate_calibration.sh` owns the groups, their commands and the
+`scripts/measure_calibration_groups.sh` owns the groups, their commands and the
 2000-replicate recheck, which runs inline right after a group that asks for it.
 This module never edits or re-implements a group. It reads the group list from
 the gate's dry run and runs each selected group alone through the
@@ -43,7 +43,7 @@ Selection without `--all`:
 * every group in a record-emitting suite file that has no record in the
   registry yet (a new coverage cell), whether or not anything else is owed;
 * when anything above runs, the pass/fail gates that emit no record (CI Type I,
-  discovery FPR, SBC, `gate_response_calibration.sh`): nothing attests them, so
+  discovery FPR, SBC): nothing attests them, so
   they run alongside every re-measurement rather than never.
 """
 
@@ -70,7 +70,7 @@ from pathlib import Path
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
 
-GATE = ROOT / "scripts" / "gate_calibration.sh"
+GATE = ROOT / "scripts" / "measure_calibration_groups.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
 ARCHIVE_DIR = ROOT / "target" / "calibration-archives"
 CONSOLE_DIR = ROOT / "target" / "calibration-console"
@@ -615,7 +615,7 @@ def prebuild(groups: list[Group]) -> int:
     for package in packages:
         commands.append(["cargo", "test", "--release", "-p", package, "--lib", "--no-run"])
     # A suite that declares required features is built with exactly those features,
-    # the way scripts/gate_calibration.sh runs it, so the binary is reused and the
+    # the way scripts/measure_calibration_groups.sh runs it, so the binary is reused and the
     # package's other suites are not rebuilt with a different feature set.
     suites_by_package: dict[tuple[str, tuple[str, ...]], set[str]] = {}
     for group in groups:

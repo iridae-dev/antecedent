@@ -674,15 +674,19 @@ impl RefusalReason {
     #[must_use]
     pub const fn detail(&self) -> &'static str {
         match self {
-            Self::Unavailable { missing: MissingDependency::Fit } => "recalc.unavailable_fit",
-            Self::Unavailable { missing: MissingDependency::Data } => "recalc.unavailable_data",
-            Self::Unavailable { missing: MissingDependency::Provider } => {
-                "recalc.unavailable_provider"
+            Self::Unavailable { missing: MissingDependency::Fit } => {
+                crate::reason_details::recalc::UNAVAILABLE_FIT
             }
-            Self::OffGrid { .. } => "recalc.off_grid_request",
-            Self::Unsupported { .. } => "recalc.unsupported_request",
-            Self::RetargetIncompatible => "recalc.retarget_incompatible",
-            Self::Blocked { .. } => "recalc.blocked_by_refused_dependency",
+            Self::Unavailable { missing: MissingDependency::Data } => {
+                crate::reason_details::recalc::UNAVAILABLE_DATA
+            }
+            Self::Unavailable { missing: MissingDependency::Provider } => {
+                crate::reason_details::recalc::UNAVAILABLE_PROVIDER
+            }
+            Self::OffGrid { .. } => crate::reason_details::recalc::OFF_GRID_REQUEST,
+            Self::Unsupported { .. } => crate::reason_details::recalc::UNSUPPORTED_REQUEST,
+            Self::RetargetIncompatible => crate::reason_details::recalc::RETARGET_INCOMPATIBLE,
+            Self::Blocked { .. } => crate::reason_details::recalc::BLOCKED_BY_REFUSED_DEPENDENCY,
         }
     }
 

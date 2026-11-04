@@ -223,7 +223,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_facade.rs",
-          "sha256": "c31118ffbd6fd46f32951dfd37cb1df060afc9186539008ddaea47f0e7dd3de1"
+          "items": [
+            "fn noisy_pulse_series",
+            "fn pointwise_halfwidths",
+            "fn pulse_sustained_and_surface_share_study_bootstrap_ses"
+          ],
+          "sha256": "8a29be94bd043375b87f358cce79ba15f5032016e3bdc4a17464f3775d6d28d0"
         }
       ],
       "fixture_payload_sha256": "8cd6c855615103423cc201882cf7547c3294d965149bd7b9f354c82ef9a197b9"

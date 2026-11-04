@@ -287,7 +287,9 @@ fn declared_mechanisms_are_labelled_and_need_acknowledgement() {
     assert_eq!(refusal.code(), "mechanism_composition_incoherent");
     assert_eq!(
         details(&refusal),
-        vec!["mechanism_composition.provenance_declared_mechanism_unacknowledged"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED
+        ]
     );
     // The label comes from the source of the numbers, not from the declaration.
     mechanisms[1].declaration.origin = MechanismOriginKind::Fitted;
@@ -302,14 +304,22 @@ fn declared_mechanisms_are_labelled_and_need_acknowledgement() {
 fn a_registry_slot_that_is_not_plain_linear_gaussian_does_not_compose() {
     let slot = MechanismSlot::Constant { value: 1.0 };
     let refusal = MechanismSource::from_fitted_slot(&slot, &[]).unwrap_err();
-    assert_eq!(refusal.details(), vec!["mechanism_composition.slot_not_linear_gaussian"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::SLOT_NOT_LINEAR_GAUSSIAN]
+    );
     let slot = MechanismSlot::LinearGaussian {
         intercept: 0.0,
         coeffs: Arc::from(vec![1.0, 2.0]),
         sigma: 1.0,
     };
     let refusal = MechanismSource::from_fitted_slot(&slot, &["X"]).unwrap_err();
-    assert_eq!(refusal.details(), vec!["mechanism_composition.shape_coefficient_parent_mismatch"]);
+    assert_eq!(
+        refusal.details(),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::SHAPE_COEFFICIENT_PARENT_MISMATCH
+        ]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -324,7 +334,11 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
     mechanisms[2].declaration.parents[1].units = "kPa".into();
     let refusal = StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "quantity_semantics_mismatch");
-    assert!(details(&refusal).contains(&"mechanism_composition.units_mismatch"), "{refusal:?}");
+    assert!(
+        details(&refusal)
+            .contains(&antecedent_core::reason_details::mechanism_composition::UNITS_MISMATCH),
+        "{refusal:?}"
+    );
     let first = &refusal.refusals[0];
     assert_eq!(first.offending.as_deref(), Some("M->Y"));
     assert!(first.remedy.is_some());
@@ -336,7 +350,12 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
     request.edges.push(("M".into(), "Y".into()));
     let refusal = StudyBuilder::mechanism_composition(request, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "graph_invalid");
-    assert_eq!(details(&refusal), vec!["mechanism_composition.parents_declared_graph_mismatch"]);
+    assert_eq!(
+        details(&refusal),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::PARENTS_DECLARED_GRAPH_MISMATCH
+        ]
+    );
     assert_eq!(refusal.refusals[0].expected.as_deref(), Some("{M,X}"));
     assert_eq!(refusal.refusals[0].supplied.as_deref(), Some("{X}"));
 
@@ -347,14 +366,21 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
     ];
     let refusal = StudyBuilder::mechanism_composition(request_of(cyc), &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "graph_invalid");
-    assert!(details(&refusal).contains(&"mechanism_composition.cycle_directed_cycle"));
+    assert!(
+        details(&refusal).contains(
+            &antecedent_core::reason_details::mechanism_composition::CYCLE_DIRECTED_CYCLE
+        )
+    );
 
     // Support: Y was fitted on X in [0, 10]; X is declared on the whole line.
     let mut mechanisms = chain();
     mechanisms[2].parent_domains[0].1 = Domain::Interval { lo: 0.0, hi: 10.0 };
     let refusal = StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "mechanism_composition_incoherent");
-    assert_eq!(details(&refusal), vec!["mechanism_composition.support_not_contained"]);
+    assert_eq!(
+        details(&refusal),
+        vec![antecedent_core::reason_details::mechanism_composition::SUPPORT_NOT_CONTAINED]
+    );
 
     // A parent with no mechanism of its own.
     let refusal = StudyBuilder::mechanism_composition(
@@ -362,13 +388,18 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
         &ctx(),
     )
     .unwrap_err();
-    assert!(details(&refusal).contains(&"mechanism_composition.identity_parent_without_mechanism"));
+    assert!(details(&refusal).contains(
+        &antecedent_core::reason_details::mechanism_composition::IDENTITY_PARENT_WITHOUT_MECHANISM
+    ));
 
     // Provenance: an unbound mechanism.
     let mut mechanisms = chain();
     mechanisms[1].declaration.artifact_id = " ".into();
     let refusal = StudyBuilder::mechanism_composition(request_of(mechanisms), &ctx()).unwrap_err();
-    assert_eq!(details(&refusal), vec!["mechanism_composition.provenance_missing_artifact"]);
+    assert_eq!(
+        details(&refusal),
+        vec![antecedent_core::reason_details::mechanism_composition::PROVENANCE_MISSING_ARTIFACT]
+    );
 
     // Families are never mixed.
     let mut mechanisms = chain();
@@ -385,7 +416,11 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused_with_structure(
     let mut request = request_of(mechanisms);
     request.admit_declared_mechanisms = true;
     let refusal = StudyBuilder::mechanism_composition(request, &ctx()).unwrap_err();
-    assert!(details(&refusal).contains(&"mechanism_composition.family_mixed"), "{refusal:?}");
+    assert!(
+        details(&refusal)
+            .contains(&antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED),
+        "{refusal:?}"
+    );
 }
 
 #[test]
@@ -401,7 +436,12 @@ fn a_mechanism_from_another_population_needs_a_declared_admission() {
     let refusal =
         StudyBuilder::mechanism_composition(request_of(from_source()), &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "quantity_semantics_mismatch");
-    assert_eq!(details(&refusal), vec!["mechanism_composition.population_undeclared_transport"]);
+    assert_eq!(
+        details(&refusal),
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT
+        ]
+    );
     assert_eq!(refusal.refusals[0].expected.as_deref(), Some("pop"));
     assert_eq!(refusal.refusals[0].supplied.as_deref(), Some("source"));
 
@@ -424,7 +464,9 @@ fn a_mechanism_from_another_population_needs_a_declared_admission() {
     let refusal = StudyBuilder::mechanism_composition(request, &ctx()).unwrap_err();
     assert_eq!(
         details(&refusal),
-        vec!["mechanism_composition.population_selection_arrow_into_mechanism"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        ]
     );
     // An explicit invariance assumption admits it regardless.
     let mut request = request_of(from_source());
@@ -462,14 +504,16 @@ fn shared_latents_are_exact_and_a_dropped_latent_is_refused() {
 
     // Dropping B: A's latent is shared with a mechanism that is not here.
     let refusal = StudyBuilder::mechanism_composition(build(false), &ctx()).unwrap_err();
-    assert!(
-        details(&refusal).contains(&"mechanism_composition.latent_shared_with_absent_mechanism")
-    );
+    assert!(details(&refusal).contains(
+        &antecedent_core::reason_details::mechanism_composition::LATENT_SHARED_WITH_ABSENT_MECHANISM
+    ));
     // The dependence exists but its strength is not declared.
     let mut request = build(true);
     request.mechanisms[0].latent_loadings.clear();
     let refusal = StudyBuilder::mechanism_composition(request, &ctx()).unwrap_err();
-    assert!(details(&refusal).contains(&"mechanism_composition.latent_loading_undeclared"));
+    assert!(details(&refusal).contains(
+        &antecedent_core::reason_details::mechanism_composition::LATENT_LOADING_UNDECLARED
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -485,7 +529,10 @@ fn unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim() {
     // ... but the uncertainty claim is a joint-law refusal, not independence.
     let refusal = prepared.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
     assert_eq!(refusal.code(), "joint_law_required");
-    assert_eq!(details(&refusal), vec!["mechanism_composition.posterior_dependence_unknown"]);
+    assert_eq!(
+        details(&refusal),
+        vec![antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN]
+    );
     assert!(refusal.refusals[0].remedy.is_some());
     // The interval refuses for the same reason: an unknown dependence is never independence.
     let closed = prepared.interval(&ate_at(2.0), 0.95).unwrap_err();
@@ -501,7 +548,9 @@ fn unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim() {
     assert_eq!(refusal.code(), "joint_law_required");
     assert_eq!(
         details(&refusal),
-        vec!["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        ]
     );
 }
 
@@ -520,7 +569,12 @@ fn independent_assumption_and_declared_covariance_give_different_checked_varianc
     // independence is not a joint law for it, whatever its justification.
     let refusal = independent.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
     assert_eq!(refusal.code(), "joint_law_required");
-    assert_eq!(details(&refusal), vec!["joint_law_propagation.nonlinear_needs_aligned_joint_law"]);
+    assert_eq!(
+        details(&refusal),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::NONLINEAR_NEEDS_ALIGNED_JOINT_LAW
+        ]
+    );
 
     // cov(b_MX, b_YM) = 0.002 adds 2 * 6 * 4.5 * 0.002 = 0.108.
     let mut request = request_of(uncertain_chain());
@@ -613,11 +667,9 @@ fn a_missing_cross_covariance_pair_is_unknown_for_that_pair() {
     let refusal = prepared.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
     let found = details(&refusal);
     assert_eq!(found.len(), 2);
-    assert!(
-        found
-            .iter()
-            .all(|d| *d == "mechanism_composition.posterior_dependence_cross_covariance_missing")
-    );
+    assert!(found.iter().all(|d| {
+        *d == antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_CROSS_COVARIANCE_MISSING
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -704,7 +756,9 @@ fn finite_tables_match_the_enumerated_scm() {
     }
     let refusal = StudyBuilder::mechanism_composition(request, &ctx()).unwrap_err();
     assert!(
-        details(&refusal).contains(&"mechanism_composition.support_missing_parent_configuration")
+        details(&refusal).contains(
+            &antecedent_core::reason_details::mechanism_composition::SUPPORT_MISSING_PARENT_CONFIGURATION
+        )
     );
 }
 
@@ -749,7 +803,10 @@ fn artifact_replays_and_refuses_semantic_mutation() {
     let refusal =
         consume_mechanism_composition_artifact(&export.bytes, Some(&"0".repeat(64)), &ctx())
             .unwrap_err();
-    assert_eq!(refusal.details(), vec!["mechanism_composition.premises_mismatch"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::PREMISES_MISMATCH]
+    );
     // Damaged bytes are refused.
     let mut damaged = export.bytes.clone();
     let at = damaged.len() / 2;
@@ -761,7 +818,10 @@ fn artifact_replays_and_refuses_semantic_mutation() {
     wire.premises.target_regime = "do(Z=1)".into();
     let bytes = wire.export().unwrap();
     let refusal = consume_mechanism_composition_artifact(&bytes, None, &ctx()).unwrap_err();
-    assert_eq!(refusal.details(), vec!["mechanism_composition.premises_mismatch"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::PREMISES_MISMATCH]
+    );
 
     // A resealed edit that changes the answer is a result mismatch ...
     let mut wire = MechanismCompositionArtifactWire::decode(&export.bytes).unwrap();
@@ -771,7 +831,10 @@ fn artifact_replays_and_refuses_semantic_mutation() {
     wire.premises_digest = mechanism_composition_identity(&wire.premises, &wire.query).unwrap();
     let bytes = wire.export().unwrap();
     let refusal = consume_mechanism_composition_artifact(&bytes, None, &ctx()).unwrap_err();
-    assert_eq!(refusal.details(), vec!["mechanism_composition.result_mismatch"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::RESULT_MISMATCH]
+    );
 
     // ... and one that breaks coherence is refused with the structured defect.
     let mut wire = MechanismCompositionArtifactWire::decode(&export.bytes).unwrap();
@@ -782,7 +845,10 @@ fn artifact_replays_and_refuses_semantic_mutation() {
     let bytes = wire.export().unwrap();
     let refusal = consume_mechanism_composition_artifact(&bytes, None, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "quantity_semantics_mismatch");
-    assert!(details(&refusal).contains(&"mechanism_composition.units_mismatch"));
+    assert!(
+        details(&refusal)
+            .contains(&antecedent_core::reason_details::mechanism_composition::UNITS_MISMATCH)
+    );
 }
 
 #[test]
@@ -856,7 +922,10 @@ fn refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechanisms() 
     changed_family.source =
         MechanismSource::DeclaredTable { levels: vec!["0".into(), "1".into()], rows: vec![] };
     let refusal = prepared.refresh_mechanisms(vec![changed_family], None, &ctx()).unwrap_err();
-    assert_eq!(details(&refusal), vec!["mechanism_composition.family_mixed"]);
+    assert_eq!(
+        details(&refusal),
+        vec![antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED]
+    );
     let mut other_parents = refit.clone();
     other_parents.source = MechanismSource::FittedLinear {
         intercept: 1.0,
@@ -864,14 +933,18 @@ fn refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechanisms() 
         coefficients: vec![("X".into(), 3.0), ("Z".into(), 1.0)],
     };
     let refusal = prepared.refresh_mechanisms(vec![other_parents], None, &ctx()).unwrap_err();
-    assert!(details(&refusal).contains(&"mechanism_composition.shape_coefficient_parent_mismatch"));
+    assert!(details(&refusal).contains(
+        &antecedent_core::reason_details::mechanism_composition::SHAPE_COEFFICIENT_PARENT_MISMATCH
+    ));
     let mut unknown = refit.clone();
     unknown.variable_id = "Q".into();
     let refusal = prepared.refresh_mechanisms(vec![unknown], None, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "quantity_semantics_mismatch");
     assert_eq!(
         details(&refusal),
-        vec!["mechanism_composition.identity_declaration_unknown_variable"]
+        vec![
+            antecedent_core::reason_details::mechanism_composition::IDENTITY_DECLARATION_UNKNOWN_VARIABLE
+        ]
     );
     // Still unchanged after three refusals.
     assert_eq!(prepared.intervention_law(&[("X", 2.0)]).unwrap(), before);
@@ -898,7 +971,10 @@ fn a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refit() {
     };
     let refusal = prepared.refresh_mechanisms(vec![refit.clone()], None, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "joint_law_required");
-    assert_eq!(details(&refusal), vec!["mechanism_composition.posterior_dependence_unknown"]);
+    assert_eq!(
+        details(&refusal),
+        vec![antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN]
+    );
     // Redeclared, the refit composes and the variance is recomputed.
     let refreshed = prepared
         .refresh_mechanisms(
@@ -911,7 +987,12 @@ fn a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refit() {
         .unwrap();
     let refusal = refreshed.mean_contrast_uncertainty(&ate_at(2.0)).unwrap_err();
     assert_eq!(refusal.code(), "joint_law_required");
-    assert_eq!(details(&refusal), vec!["joint_law_propagation.nonlinear_needs_aligned_joint_law"]);
+    assert_eq!(
+        details(&refusal),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::NONLINEAR_NEEDS_ALIGNED_JOINT_LAW
+        ]
+    );
 }
 
 #[test]

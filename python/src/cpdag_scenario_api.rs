@@ -358,7 +358,7 @@ fn cpdag_completion_scenarios_stage(
             None,
             Some(argument_refusal(
                 reason_code!("route_not_supported"),
-                "cpdag_scenarios.exact_laws_only",
+                antecedent_core::reason_details::cpdag_scenarios::EXACT_LAWS_ONLY,
                 "the completion route evaluates supplied exact laws; counted laws are not supported",
             )),
         ));
@@ -529,7 +529,7 @@ fn scenario_shared_covariance_stage(
                 None,
                 Some(argument_refusal(
                     reason_code!("invalid_argument"),
-                    "scenario_covariance.invalid_declaration",
+                    antecedent_core::reason_details::scenario_covariance::INVALID_DECLARATION,
                     &e.to_string(),
                 )),
             ));

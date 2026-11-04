@@ -454,19 +454,25 @@ impl RepeatedMeasuresSpec {
         let mut gaps = Vec::new();
         let arms = declaration.arms;
         if !(2..=MAX_PROCEDURE_ARMS).contains(&arms) {
-            gaps.push(ContractGap::Invalid("adaptive_inference.arms_invalid"));
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::ARMS_INVALID,
+            ));
         }
         match &declaration.assignment {
             None => gaps.push(ContractGap::AssignmentPolicyMissing),
             Some(UnitAssignment::Fixed { probabilities }) => {
                 if probabilities.len() != arms || !probability_vector(probabilities) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.rule_mismatch"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    ));
                 }
             }
             Some(UnitAssignment::EpsilonGreedy { epsilon, prior }) => {
                 if !(epsilon.is_finite() && (0.0..=1.0).contains(epsilon) && prior_is_valid(prior))
                 {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.rule_mismatch"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    ));
                 }
             }
         }
@@ -475,7 +481,9 @@ impl RepeatedMeasuresSpec {
             Some(schedule) => {
                 let total: u64 = schedule.iter().map(|&n| u64::from(n)).sum();
                 if schedule.first().is_none_or(|&first| first == 0) || total == 0 {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.looks_not_ordered"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
+                    ));
                 }
                 if schedule.len() > MAX_UNIT_BATCHES {
                     gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
@@ -492,17 +500,23 @@ impl RepeatedMeasuresSpec {
             }
         }
         if declaration.lag_looks > MAX_UNIT_LAG {
-            gaps.push(ContractGap::Invalid("adaptive_inference.outcome_availability_invalid"));
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
+            ));
         }
         let count_valid = |n: u32| (2..=MAX_MEASUREMENTS_PER_UNIT).contains(&n);
         match &declaration.structure {
             None => gaps.push(ContractGap::OutcomeStructureMissing),
             Some(OutcomeStructure::RepeatedMeasures { measurements, variance, correlation }) => {
                 if !count_valid(*measurements) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.measurements_invalid"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
+                    ));
                 }
                 if !(variance.is_finite() && *variance > 0.0) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.variance_invalid"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
+                    ));
                 }
                 match correlation {
                     None => gaps.push(ContractGap::WithinUnitCorrelationMissing),
@@ -510,14 +524,14 @@ impl RepeatedMeasuresSpec {
                         let m = f64::from(*measurements);
                         if !(rho.is_finite() && *rho < 1.0 && *rho * (m - 1.0) > -1.0) {
                             gaps.push(ContractGap::Invalid(
-                                "adaptive_inference.correlation_invalid",
+                                antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
                             ));
                         }
                     }
                     Some(WithinUnitCorrelation::Autoregressive { rho }) => {
                         if !(rho.is_finite() && rho.abs() < 1.0) {
                             gaps.push(ContractGap::Invalid(
-                                "adaptive_inference.correlation_invalid",
+                                antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
                             ));
                         }
                     }
@@ -525,19 +539,25 @@ impl RepeatedMeasuresSpec {
             }
             Some(OutcomeStructure::Hierarchical { members, between_variance, within_variance }) => {
                 if !count_valid(*members) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.measurements_invalid"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
+                    ));
                 }
                 match between_variance {
                     None => gaps.push(ContractGap::BetweenUnitVarianceMissing),
                     Some(v) if !(v.is_finite() && *v >= 0.0) => {
-                        gaps.push(ContractGap::Invalid("adaptive_inference.variance_invalid"));
+                        gaps.push(ContractGap::Invalid(
+                            antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
+                        ));
                     }
                     Some(_) => {}
                 }
                 match within_variance {
                     None => gaps.push(ContractGap::WithinUnitVarianceMissing),
                     Some(v) if !(v.is_finite() && *v > 0.0) => {
-                        gaps.push(ContractGap::Invalid("adaptive_inference.variance_invalid"));
+                        gaps.push(ContractGap::Invalid(
+                            antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
+                        ));
                     }
                     Some(_) => {}
                 }
@@ -560,7 +580,9 @@ impl RepeatedMeasuresSpec {
                     || analysis.plus == analysis.minus
                     || !weighted_ok
                 {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.analysis_invalid"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::ANALYSIS_INVALID,
+                    ));
                 }
             }
         }
@@ -568,7 +590,7 @@ impl RepeatedMeasuresSpec {
             None => gaps.push(ContractGap::StoppingRuleMissing),
             Some(StoppingRule::NoStopping) => {}
             Some(_) => gaps.push(ContractGap::Invalid(
-                "adaptive_inference.repeated_measures_stopping_not_derived",
+                antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_STOPPING_NOT_DERIVED,
             )),
         }
         if !gaps.is_empty() {
@@ -592,7 +614,7 @@ impl RepeatedMeasuresSpec {
                         analysis,
                     }),
                     None => Err(ProcedureContractError {
-                        gaps: vec![ContractGap::Invalid("adaptive_inference.correlation_invalid")],
+                        gaps: vec![ContractGap::Invalid(antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID)],
                     }),
                 }
             }
@@ -823,7 +845,8 @@ impl CellLabel {
             Ok(())
         } else {
             Err(Error::PremiseFailed {
-                detail: "adaptive_inference.guarantee_not_transferable",
+                detail:
+                    antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE,
                 message: "a guarantee derived for one cell of the procedure matrix is not a statement about another cell; derive it for that cell",
             })
         }
@@ -852,7 +875,7 @@ pub fn admit_repeated_measures(
         && !spec.measurements_independent()
     {
         return Err(premise(
-            "adaptive_inference.independence_assumed_for_dependent_measurements",
+            antecedent_core::reason_details::adaptive_inference::INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS,
             "a pooled analysis treats the measurements of a unit as independent, which the declared within-unit dependence contradicts; analyse unit summaries with a cluster-robust variance",
         ));
     }
@@ -861,13 +884,13 @@ pub fn admit_repeated_measures(
         UncertaintyParadigm::FrequentistFixedSample => {
             if spec.assignment.is_adaptive() {
                 return Err(premise(
-                    "adaptive_inference.fixed_sample_design_adaptive",
+                    antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE,
                     "a fixed-sample analysis presumes assignment probabilities fixed in advance; the declared assignment adapts to observed unit summaries",
                 ));
             }
             if weighted {
                 return Err(premise(
-                    "adaptive_inference.analysis_route_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::ANALYSIS_ROUTE_MISMATCH,
                     "the declared analysis is the adaptive-weighting route, not a fixed-sample analysis",
                 ));
             }
@@ -876,12 +899,12 @@ pub fn admit_repeated_measures(
             if !weighted {
                 return Err(if spec.assignment.is_adaptive() {
                     premise(
-                        "adaptive_inference.fixed_sample_design_adaptive",
+                        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE,
                         "the declared analysis is a fixed-sample contrast of unit summaries; after response-adaptive assignment only the weighting route is derived",
                     )
                 } else {
                     premise(
-                        "adaptive_inference.analysis_route_mismatch",
+                        antecedent_core::reason_details::adaptive_inference::ANALYSIS_ROUTE_MISMATCH,
                         "the declared analysis is a fixed-sample contrast, not the adaptive-weighting route",
                     )
                 });
@@ -889,7 +912,7 @@ pub fn admit_repeated_measures(
         }
         _ => {
             return Err(premise(
-                "adaptive_inference.repeated_measures_paradigm_not_derived",
+                antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_PARADIGM_NOT_DERIVED,
                 "only the fixed-sample and adaptive-weighting paradigms are derived for repeated-measures and clustered outcomes; other paradigms are separate cells",
             ));
         }
@@ -977,7 +1000,7 @@ pub fn exact_fixed_contrast_law(
 ) -> Result<GaussianMixtureLaw, Error> {
     let UnitAssignment::Fixed { probabilities } = &spec.assignment else {
         return Err(premise(
-            "adaptive_inference.exact_law_unavailable",
+            antecedent_core::reason_details::adaptive_inference::EXACT_LAW_UNAVAILABLE,
             "an adaptively assigned procedure has no closed-form contrast law; simulate the whole procedure",
         ));
     };
@@ -985,7 +1008,7 @@ pub fn exact_fixed_contrast_law(
         || matches!(spec.analysis.estimator, AnalysisEstimator::AdaptivelyWeighted { .. })
     {
         return Err(premise(
-            "adaptive_inference.exact_law_unavailable",
+            antecedent_core::reason_details::adaptive_inference::EXACT_LAW_UNAVAILABLE,
             "the closed form covers a contrast of arm means of unit summaries over two arms",
         ));
     }

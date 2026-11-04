@@ -148,24 +148,40 @@ fn cells_06_delayed_outcomes_enter_only_when_observed_and_an_outcome_dependent_d
     let session = AdaptiveInferenceSession::prepare(dependent).unwrap();
     let refusal = session.analyse(&posterior(1), &ctx()).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.delay_not_ignorable");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::DELAY_NOT_IGNORABLE
+    );
 
     // A non-finite outcome is not a missing one: it is refused at the contract.
     let mut not_a_number = declaration.clone();
     not_a_number.outcomes[2] = vec![f64::NAN];
     let refusals = AdaptiveInferenceSession::prepare(not_a_number).unwrap_err();
-    assert!(refusals.iter().any(|r| r.detail == "adaptive_inference.outcome_invalid"));
+    assert!(
+        refusals
+            .iter()
+            .any(|r| r.detail
+                == antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID)
+    );
 
     // The availability must agree with the outcomes: an outcome declared never available but
     // present, or available but empty, is a shape refusal.
     let mut present = declaration.clone();
     present.outcomes[7] = vec![1.0];
     let refusals = AdaptiveInferenceSession::prepare(present).unwrap_err();
-    assert!(refusals.iter().any(|r| r.detail == "adaptive_inference.shape_mismatch"));
+    assert!(
+        refusals.iter().any(
+            |r| r.detail == antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH
+        )
+    );
     let mut empty = declaration;
     empty.outcomes[0] = Vec::new();
     let refusals = AdaptiveInferenceSession::prepare(empty).unwrap_err();
-    assert!(refusals.iter().any(|r| r.detail == "adaptive_inference.shape_mismatch"));
+    assert!(
+        refusals.iter().any(
+            |r| r.detail == antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH
+        )
+    );
 }
 
 #[test]
@@ -189,7 +205,10 @@ fn cells_06_a_constant_outcome_has_its_closed_form_and_a_zero_variance_statistic
         let session = AdaptiveInferenceSession::prepare(group_sequential(outcomes)).unwrap();
         let refusal = session.analyse(&request, &ctx()).unwrap_err();
         assert_eq!(refusal.code, "invalid_argument");
-        assert_eq!(refusal.detail, "adaptive_inference.input_invalid");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+        );
         assert!(refusal.message.contains("zero sample variance"), "{}", refusal.message);
     }
     // With variation the same route answers: control {0, 2, ...} and treatment {1, 3, ...} are
@@ -231,17 +250,17 @@ fn cells_06_an_arm_or_look_the_design_never_exercised_is_refused_not_extrapolate
         AdaptiveRequest::GroupSequential { look: 1, control_arm: 0, treatment_arm: 5 };
     let refusal = session.analyse(&unknown_arm, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "adaptive_inference.input_invalid");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::adaptive_inference::INPUT_INVALID);
     assert!(refusal.message.contains("two declared arms"));
     // A look beyond the declared interim analyses.
     let late = AdaptiveRequest::GroupSequential { look: 7, control_arm: 0, treatment_arm: 1 };
     let refusal = session.analyse(&late, &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.input_invalid");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::adaptive_inference::INPUT_INVALID);
     assert!(refusal.message.contains("not one of the contract's interim analyses"));
     // A contrast of an arm with itself.
     let same = AdaptiveRequest::GroupSequential { look: 1, control_arm: 1, treatment_arm: 1 };
     let refusal = session.analyse(&same, &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.input_invalid");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::adaptive_inference::INPUT_INVALID);
 
     // An arm the policy all but never assigned has inverse-probability weights beyond the
     // declared floor: the weighted route refuses it and never clips the weight.
@@ -263,5 +282,8 @@ fn cells_06_an_arm_or_look_the_design_never_exercised_is_refused_not_extrapolate
     };
     let refusal = session.analyse(&weighted, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+    );
 }

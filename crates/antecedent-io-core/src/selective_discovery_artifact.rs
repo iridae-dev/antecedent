@@ -80,7 +80,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     SelectiveDiscoveryArtifactError {
         noun: "selective discovery",
-        identity: "selective_discovery.identity_mismatch",
+        identity: antecedent_core::reason_details::selective_discovery::IDENTITY_MISMATCH,
         variants {
             /// The state is not a usable record of one run.
             Refused {
@@ -108,7 +108,7 @@ impl SelectiveDiscoveryArtifactError {
             }
             Self::IdentityMismatch { field } => Some((
                 antecedent_core::reason_code!("discovery_statistics_invalid"),
-                "selective_discovery.identity_mismatch".to_owned(),
+                antecedent_core::reason_details::selective_discovery::IDENTITY_MISMATCH.to_owned(),
                 format!("{field} changed"),
             )),
             _ => None,

@@ -38,14 +38,16 @@ record_sha256 = "68862f0fba503a6f14690cbad4dc273ce8d803b8af1dfb1152330e018d1e093
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/transport.rs"
-sha256 = "415ca5b17cad401b182cc7646e2d0bc1d9673953f63182b5b023451a2266ac6c"
+items = ["const EXTREME_WEIGHT_THRESHOLD", "fn catalog", "fn diagnostic", "fn ipw_influence", "fn kish_effective_sample_size", "fn outcomes", "fn require_dahabreh_compatible_formula", "fn treatments", "fn trial_aipw_row_scores", "fn trial_to_target_effect", "fn trial_to_target_ipw_se", "fn trial_to_target_parts", "fn validate_trial_to_target_inputs", "struct TransportEffectEstimate", "struct TransportOverlapDiagnostic", "struct TransportOverlapReport"]
+sha256 = "75361ef68d6f6f1d64022775f896234ac0d1797daf829d127ec9fb7f487759e6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/statistical_transport_numeric.rs"
-sha256 = "089de73aee88340733381410eb355960a2b8d6354bb21a4d617516d63328ce4c"
+items = ["fn binary_env", "fn conditional_mean", "fn counts_sample", "fn holding_target_fixed_narrows_the_joint_bootstrap", "fn independent_leaf_resamples_overstate_precision_against_one_joint", "fn interval_width", "fn marginal_product", "fn mixed_supplied_law_is_bit_identical_across_replicates", "fn px_py_product", "fn trial_ipw_still_refuses_recursive_factorization", "fn v"]
+sha256 = "7bd4510622eb5136f4703b63780436d07f2e72f59292025663e2c354f7a93e61"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/response/trial_transport/expected.json"
-sha256 = "7784d6ccdfbf4e9c18b59f2693e38f3ae0f3de409fb1e4684926747943347455"
+sha256 = "19e4c23dfc33761ce3b8804722cde3c405e4f6f257c68c1b18192e070dd6d31e"

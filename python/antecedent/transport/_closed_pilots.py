@@ -13,6 +13,8 @@ from collections.abc import Mapping, Sequence
 from functools import partial
 from typing import Any, Literal, cast
 
+from antecedent import _reason_details
+
 from .. import _native
 from .._measured_inference import MeasuredInference
 from .._native import binary_nested_markov_closed as _binary_nested_markov_closed
@@ -136,7 +138,8 @@ def joint_bayesian_transport(
     ):
         if declared != "fixed_dag":
             raise CausalUnsupportedError(
-                "bayesian_transport.unsupported_graph", reason_code="route_not_supported"
+                _reason_details.bayesian_transport.UNSUPPORTED_GRAPH,
+                reason_code="route_not_supported",
             )
         if graph is not None:
             raise CausalValueError(
@@ -175,7 +178,8 @@ def joint_bayesian_transport(
         draws,
     )
     raise _identification_required(
-        "antecedent.transport.joint_bayesian", "bayesian_transport.identification_required"
+        "antecedent.transport.joint_bayesian",
+        _reason_details.bayesian_transport.IDENTIFICATION_REQUIRED,
     )
 
 
@@ -376,7 +380,7 @@ def _nested_posterior_entry(
         )
     _binary_nested_markov_closed(*arguments)
     raise _unavailable(
-        "antecedent.transport.binary_nested_markov", "nested_markov.producer_missing"
+        "antecedent.transport.binary_nested_markov", _reason_details.nested_markov.PRODUCER_MISSING
     )
 
 
@@ -483,7 +487,7 @@ def _nested_fisher_entry(
     _binary_nested_markov_closed(*arguments)
     raise _unavailable(
         "antecedent.transport.binary_nested_markov_fisher_interval",
-        "nested_markov.producer_missing",
+        _reason_details.nested_markov.PRODUCER_MISSING,
     )
 
 
@@ -577,7 +581,8 @@ def _sampled_recovery_entry(
     candidate = getattr(stage, "sampled_measured" if measured else "sampled_candidate", None)
     if candidate is None:
         raise _unavailable(
-            "antecedent.transport.sampled_observation_recovery", "sampled_recovery.producer_missing"
+            "antecedent.transport.sampled_observation_recovery",
+            _reason_details.sampled_recovery.PRODUCER_MISSING,
         )
     produced = call_native(
         execution,

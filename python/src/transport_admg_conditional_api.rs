@@ -423,7 +423,7 @@ impl AdmgConditionalTransportStage {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedAdmgConditionalTransportStage> {
         antecedent_core::support_gate::require_supported_unscoped(
-            "admg_transport.counted_laws_unsupported",
+            antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
             &["admg_conditional.counted_law_plugin_check"],
         )
         .map_err(|e| crate::not_supported_err(&e))?;
@@ -691,7 +691,7 @@ fn consume_admg_conditional_obstruction_artifact(
         let payload = serde_json::json!({
             "identification_status": "proven_non_transportable",
             "reason_code": "transport_proven_non_transportable",
-            "detail": "admg_transport.proven_non_transportable",
+            "detail": antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE,
             "outcomes": names_of(&names, &proof.query().base.outcomes),
             "treatments": names_of(&names, &proof.query().base.treatments),
             "conditioned_on": names_of(&names, &proof.query().conditioned_on),

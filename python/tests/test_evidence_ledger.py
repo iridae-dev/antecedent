@@ -27,6 +27,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import evidence_ledger as el
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.evidence_ledger import EvidenceLedgerRefusal
@@ -209,14 +210,14 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
             ledger.pool_summaries("p", [summary(s3, 1.0, -1.0), summary(s4, 3.0, -1.0)])
         )
     )
-    expect(error, "evidence_double_counted", "evidence_ledger.shared_observations")
+    expect(error, "evidence_double_counted", reason_details.evidence_ledger.SHARED_OBSERVATIONS)
     # Undeclared observations are unknown, never independent.
     error = refused(
         lambda: require_success(
             ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(claim, 3.0, 4.0)])
         )
     )
-    expect(error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown")
+    expect(error, "evidence_overlap_unknown", reason_details.evidence_ledger.OVERLAP_UNKNOWN)
     # A diagonal covariance over shared rows is the same double count.
     error = refused(
         lambda: require_success(
@@ -225,14 +226,18 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
             )
         )
     )
-    expect(error, "evidence_double_counted", "evidence_ledger.diagonal_covariance_shared_rows")
+    expect(
+        error,
+        "evidence_double_counted",
+        reason_details.evidence_ledger.DIAGONAL_COVARIANCE_SHARED_ROWS,
+    )
     # One source listed twice.
     error = refused(
         lambda: require_success(
             ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(s3, 2.0, 1.0)])
         )
     )
-    expect(error, "evidence_double_counted", "evidence_ledger.repeated_source")
+    expect(error, "evidence_double_counted", reason_details.evidence_ledger.REPEATED_SOURCE)
     # None of the refusals changed the session.
     assert (ledger.head, ledger.state_digest) == (head, state)
     assert ledger.results == ()
@@ -246,7 +251,7 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
             ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(copy, 1.0, 1.0)])
         )
     )
-    expect(error, "evidence_double_counted", "evidence_ledger.reentry_duplicate")
+    expect(error, "evidence_double_counted", reason_details.evidence_ledger.REENTRY_DUPLICATE)
 
     # The numbers refuse after the overlap check passes, and the staged registration is
     # discarded with them.
@@ -257,7 +262,7 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
             ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(s5, 3.0, -4.0)])
         )
     )
-    expect(error, "invalid_argument", "evidence_ledger.invalid_declaration")
+    expect(error, "invalid_argument", reason_details.evidence_ledger.INVALID_DECLARATION)
     assert isinstance(error, ValueError)
     assert (ledger.state_digest, ledger.head) == (before, before_head)
     assert ledger.results == ()
@@ -306,7 +311,7 @@ def test_a_declared_covariance_with_cross_terms_supports_the_shared_pair():
             )
         )
     )
-    expect(error, "invalid_argument", "evidence_ledger.invalid_declaration")
+    expect(error, "invalid_argument", reason_details.evidence_ledger.INVALID_DECLARATION)
     error = refused(
         lambda: require_success(
             ledger.pool_summaries(
@@ -314,7 +319,7 @@ def test_a_declared_covariance_with_cross_terms_supports_the_shared_pair():
             )
         )
     )
-    expect(error, "invalid_argument", "evidence_ledger.invalid_declaration")
+    expect(error, "invalid_argument", reason_details.evidence_ledger.INVALID_DECLARATION)
     assert len(ledger.results) == 1
 
 
@@ -611,11 +616,11 @@ def test_a_transported_claim_is_never_native_target_data():
     error = refused(
         lambda: ledger.transport_claim("bad", transported=[transported], native=[transported])
     )
-    expect(error, "evidence_double_counted", "evidence_ledger.native_and_transported")
+    expect(error, "evidence_double_counted", reason_details.evidence_ledger.NATIVE_AND_TRANSPORTED)
     # A claim without its transport identity cannot be transported.
     bare = ledger.add_source(data("bare", 300, 310))
     error = refused(lambda: ledger.transport_claim("bad", transported=[bare], native=[native]))
-    expect(error, "invalid_argument", "evidence_ledger.transport_identity_missing")
+    expect(error, "invalid_argument", reason_details.evidence_ledger.TRANSPORT_IDENTITY_MISSING)
     # Another transported claim is not native evidence.
     other = ledger.add_source(
         el.SourceDeclaration(
@@ -628,7 +633,7 @@ def test_a_transported_claim_is_never_native_target_data():
     error = refused(
         lambda: ledger.transport_claim("bad", transported=[transported], native=[other])
     )
-    expect(error, "invalid_argument", "evidence_ledger.transported_as_native")
+    expect(error, "invalid_argument", reason_details.evidence_ledger.TRANSPORTED_AS_NATIVE)
 
 
 def test_citing_a_result_counts_its_observations_once_and_refuses_a_stale_one():
@@ -653,7 +658,7 @@ def test_citing_a_result_counts_its_observations_once_and_refuses_a_stale_one():
     require_success(ledger.revise_source(el.SourceRevision.update(c, data("c_more", 50, 70))))
     assert ledger.standing(pooled.result) == "recompute"
     error = refused(lambda: ledger.reuse_result("cite", pooled.result))
-    expect(error, "evidence_source_withdrawn", "evidence_ledger.result_not_valid")
+    expect(error, "evidence_source_withdrawn", reason_details.evidence_ledger.RESULT_NOT_VALID)
 
 
 def test_repeated_observation_use_is_flagged_and_stays_flagged_when_cited():
@@ -668,7 +673,7 @@ def test_repeated_observation_use_is_flagged_and_stays_flagged_when_cited():
     assert cited_record is not None and cited_record.data_reuse
     # A stage with no name is not a declaration.
     error = refused(lambda: ledger.repeat_observations("nameless", [a], ""))
-    expect(error, "invalid_argument", "evidence_ledger.operation_arity")
+    expect(error, "invalid_argument", reason_details.evidence_ledger.OPERATION_ARITY)
     # Undeclared observations cannot be accounted: their reuse is unknown.
     claim = ledger.add_source(vendor())
     error = refused(lambda: ledger.repeat_observations("vendor_again", [claim], "final"))
@@ -750,7 +755,7 @@ def test_withdrawing_a_source_classifies_dependents_and_refuses_their_use():
         expect(
             refused(lambda stale=stale: s.ledger.synthesis(stale)),
             "evidence_source_withdrawn",
-            "evidence_ledger.result_not_valid",
+            reason_details.evidence_ledger.RESULT_NOT_VALID,
         )
     assert s.ledger.synthesis(s.r_s2_s3) is not None
     # New work cannot rest on the withdrawn source, directly or by lineage.
@@ -761,7 +766,7 @@ def test_withdrawing_a_source_classifies_dependents_and_refuses_their_use():
             )
         ),
         "evidence_source_withdrawn",
-        "evidence_ledger.source_withdrawn",
+        reason_details.evidence_ledger.SOURCE_WITHDRAWN,
     )
     expect(
         refused(
@@ -772,12 +777,12 @@ def test_withdrawing_a_source_classifies_dependents_and_refuses_their_use():
             )
         ),
         "evidence_source_withdrawn",
-        "evidence_ledger.source_withdrawn",
+        reason_details.evidence_ledger.SOURCE_WITHDRAWN,
     )
     expect(
         refused(lambda: s.ledger.reuse_result("cite_again", s.r_s1_s2)),
         "evidence_source_withdrawn",
-        "evidence_ledger.result_not_valid",
+        reason_details.evidence_ledger.RESULT_NOT_VALID,
     )
 
     # The recompute on the remaining studies names the result it replaces and the original is
@@ -816,7 +821,7 @@ def test_superseding_a_model_marks_dependents_for_recompute():
     expect(
         refused(lambda: s.ledger.synthesis(s.r_model)),
         "evidence_source_withdrawn",
-        "evidence_ledger.result_not_valid",
+        reason_details.evidence_ledger.RESULT_NOT_VALID,
     )
     # The superseded model cannot enter new results, and the refusal names its successor.
     error = refused(
@@ -824,7 +829,7 @@ def test_superseding_a_model_marks_dependents_for_recompute():
             s.ledger.pool_summaries("stale", [summary(s.model, 0.5, 1.0), summary(s.s2, 3.0, 4.0)])
         )
     )
-    expect(error, "evidence_source_withdrawn", "evidence_ledger.source_superseded")
+    expect(error, "evidence_source_withdrawn", reason_details.evidence_ledger.SOURCE_SUPERSEDED)
     assert successor_id in error.message
     # Recompute on the successor.
     recomputed = require_success(
@@ -858,7 +863,7 @@ def test_a_result_derived_from_a_valid_result_is_reached_by_a_later_withdrawal()
             )
         )
     )
-    assert error.detail == "evidence_ledger.source_withdrawn"
+    assert error.detail == reason_details.evidence_ledger.SOURCE_WITHDRAWN
     # A kind that is not a model or claim is not a derivation of a result.
     error = refused(lambda: s.ledger.declare_from_result(s.r_s1_s2, "x", "observation_set"))
     assert error.reason_code == "invalid_argument"
@@ -907,7 +912,7 @@ def test_refresh_is_all_or_nothing_and_keeps_untouched_results():
             )
         )
     )
-    expect(error, "invalid_argument", "evidence_ledger.unknown_source")
+    expect(error, "invalid_argument", reason_details.evidence_ledger.UNKNOWN_SOURCE)
     assert s.ledger.state_digest == state
     assert len(s.ledger.sources) == 4
 
@@ -947,7 +952,7 @@ def test_the_artifact_replays_and_a_consumer_refuses_another_history():
             el.consume_evidence_ledger_artifact(export.data, other_export.expectation.identity)
         )
     )
-    assert error.detail == "evidence_ledger.identity_mismatch"
+    assert error.detail == reason_details.evidence_ledger.IDENTITY_MISMATCH
     # One that holds none still refuses a damaged container, and truncated bytes.
     damaged = bytearray(export.data)
     damaged[len(damaged) // 2] ^= 0x55
@@ -977,7 +982,7 @@ def test_a_stored_value_that_differs_is_a_different_history():
             )
         ),
         "route_not_supported",
-        "evidence_ledger.identity_mismatch",
+        reason_details.evidence_ledger.IDENTITY_MISMATCH,
     )
     own = require_success(
         el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)
@@ -1072,7 +1077,7 @@ def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
             )
         ),
         "route_not_supported",
-        "evidence_ledger.identity_mismatch",
+        reason_details.evidence_ledger.IDENTITY_MISMATCH,
     )
     own = require_success(
         el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)

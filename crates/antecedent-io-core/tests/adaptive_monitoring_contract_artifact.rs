@@ -106,7 +106,7 @@ fn a_futility_rule_travels_through_the_wire_with_both_parameters() {
     assert!(matches!(
         Artifact::seal(&source, InferenceParadigm::BayesianPosterior),
         Err(Error::Refused { code, detail, .. })
-            if code == "route_not_supported" && detail == "adaptive_inference.cell_not_delivered"
+            if code == "route_not_supported" && detail == antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED
     ));
 }
 
@@ -161,7 +161,7 @@ fn a_posterior_rule_has_no_boundaries_and_the_looks_are_accounted() {
     assert_eq!(meta.evidence.repeated_slots, 6);
     assert_eq!(
         meta.evidence.independent_pooling_detail.as_deref(),
-        Some("adaptive_inference.looks_share_observations")
+        Some(antecedent_core::reason_details::adaptive_inference::LOOKS_SHARE_OBSERVATIONS)
     );
     assert_eq!(meta.feature, ADAPTIVE_MONITORING_CONTRACT_FEATURE);
 }
@@ -237,7 +237,10 @@ fn a_paradigm_the_design_may_not_use_is_refused_on_consumption() {
     match outcome.unwrap_err() {
         Error::Refused { code, detail, .. } => {
             assert_eq!(code, "adaptive_design_ignored");
-            assert_eq!(detail, "adaptive_inference.fixed_sample_on_adaptive_data");
+            assert_eq!(
+                detail,
+                antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
+            );
         }
         other => panic!("{other}"),
     }
@@ -248,7 +251,10 @@ fn a_paradigm_the_design_may_not_use_is_refused_on_consumption() {
     match outcome.unwrap_err() {
         Error::Refused { code, detail, .. } => {
             assert_eq!(code, "route_not_supported");
-            assert_eq!(detail, "adaptive_inference.paradigm_not_supported_for_cell");
+            assert_eq!(
+                detail,
+                antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+            );
         }
         other => panic!("{other}"),
     }
@@ -262,13 +268,13 @@ fn a_paradigm_the_design_may_not_use_is_refused_on_consumption() {
         Artifact::seal(&source, P::FrequentistFixedSample),
         Err(Error::Refused { code, detail, .. })
             if code == "adaptive_design_ignored"
-                && detail == "adaptive_inference.fixed_sample_on_adaptive_data"
+                && detail == antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
     ));
     assert!(matches!(
         Artifact::seal(&source, P::BayesianPosterior),
         Err(Error::Refused { code, detail, .. })
             if code == "route_not_supported"
-                && detail == "adaptive_inference.paradigm_not_supported_for_cell"
+                && detail == antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
     ));
 }
 
@@ -281,8 +287,13 @@ fn a_removed_contract_element_is_refused_on_consumption() {
     match outcome.unwrap_err() {
         Error::Refused { code, detail, message } => {
             assert_eq!(code, "adaptive_contract_incomplete");
-            assert_eq!(detail, "adaptive_inference.policy_history_missing");
-            assert!(message.contains("adaptive_inference.stopping_rule_missing"));
+            assert_eq!(
+                detail,
+                antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING
+            );
+            assert!(message.contains(
+                antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING
+            ));
         }
         other => panic!("{other}"),
     }
@@ -341,9 +352,9 @@ fn refusals_carry_registered_codes_and_namespaced_details() {
     let error = Artifact::from_meta(&meta, None).unwrap_err();
     let (code, detail, _) = error.refusal().expect("a replay mismatch is a registered refusal");
     assert!(antecedent_core::reason_code::is_runtime_refusal(code));
-    assert_eq!(detail, "adaptive_inference.report_replay_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::adaptive_inference::REPORT_REPLAY_MISMATCH);
     let wrong = Artifact::from_bytes(&encoded, Some(&"1".repeat(64))).unwrap_err();
     let (code, detail, _) = wrong.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "adaptive_inference.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT);
 }

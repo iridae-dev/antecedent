@@ -32,11 +32,14 @@ pub(crate) const INITIAL_STATE_MASS_TOLERANCE: f64 = 1e-9;
 pub const INITIAL_STATE_INFERENCE_CLAIM: &str = "point_only";
 
 /// Detail: only a source law or a point state was supplied for a target-marginal query.
-pub(crate) const INITIAL_STATE_TARGET_LAW_MISSING: &str = "initial_state.target_law_missing";
+pub(crate) const INITIAL_STATE_TARGET_LAW_MISSING: &str =
+    antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING;
 /// Detail: more support points than [`INITIAL_STATE_MAX_STATES`].
-pub(crate) const INITIAL_STATE_TOO_MANY_STATES: &str = "initial_state.too_many_states";
+pub(crate) const INITIAL_STATE_TOO_MANY_STATES: &str =
+    antecedent_core::reason_details::initial_state::TOO_MANY_STATES;
 /// Detail: a state with positive target mass has no history support.
-pub(crate) const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
+pub(crate) const INITIAL_STATE_SUPPORT_GAP: &str =
+    antecedent_core::reason_details::initial_state::SUPPORT_GAP;
 
 fn target_law_missing(message: &str) -> EstimationError {
     EstimationError::refused_detail(

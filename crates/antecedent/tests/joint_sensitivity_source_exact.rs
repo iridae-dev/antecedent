@@ -255,7 +255,8 @@ fn the_replayed_surface_is_the_hand_derived_range_and_moves_with_the_law() {
         let surface = surface_of(shift);
         let source = artifact(shift).export().unwrap();
         let checked = SourceBackedSensitivity::checked(&source, &surface, &context).unwrap();
-        let loaded = SourceBackedSensitivity::consume(&checked.export().unwrap(), &context).unwrap();
+        let loaded =
+            SourceBackedSensitivity::consume(&checked.export().unwrap(), &context).unwrap();
         let quantity = &loaded.surface().quantities()[0];
         assert_eq!(loaded.surface().grid(), &[0.0, 1.0]);
         assert!(near(quantity.lower[0], psi) && near(quantity.upper[0], psi), "{shift}");
@@ -271,5 +272,11 @@ fn a_surface_from_a_perturbed_law_is_not_replayed_by_the_unperturbed_source() {
     let source = artifact(0.0).export().unwrap();
     // The shifted law gives psi 0.435, not the source's 0.37: the replay recomputes 0.37.
     let error = SourceBackedSensitivity::checked(&source, &surface_of(0.1), &context).unwrap_err();
-    assert_eq!(refused(&error), ("invalid_argument", "sensitivity_source.surface_mismatch".into()));
+    assert_eq!(
+        refused(&error),
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH.into()
+        )
+    );
 }

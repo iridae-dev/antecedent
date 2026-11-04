@@ -138,12 +138,22 @@ record_sha256 = "..."
 [[non_algorithm_review.artifacts]]
 role = "implementation"               # the module files that were read
 path = "crates/.../module.rs"
+items = ["fn route", "impl Declaration"]   # the items the review read; the digest hashes only these
 sha256 = "..."
 [[non_algorithm_review.artifacts]]
 role = "assertion"                    # required for derivation and closed_variant
 path = "crates/.../tests/module.rs"
+items = ["fn refuses_unknown_arm"]
 sha256 = "..."
 ```
+
+A source or test artifact binds named items (`fn name`, `impl Type`, `mod name`, `const NAME`,
+`struct`/`enum`/`trait`/`type Name`, or `module` for all non-test code of a file that is reviewed as a
+whole). The digest hashes the normalized text of those items, so an edit to another function, a
+comment or formatting leaves the review bound, and an edit inside a named item stales it. A data
+artifact (fixture, oracle generator or reference, environment lock) binds the whole file. The same
+rule holds for `[[method_review.artifacts]]` and `oracle.reference_review.artifacts`
+(`scripts/review_items.py`).
 
 - `wrapper` delegates every numerical step to the `covered_by` records. `contract` is a declaration,
   binding, lineage or refusal check over supplied identities and numbers. `derivation` is closed-form

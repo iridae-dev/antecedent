@@ -131,7 +131,8 @@ fn only_the_analysis_part_passes_the_check_and_the_binding_states_what_it_suppor
 
     let detail =
         |table: &TabularData| split.check_analysis_table(table).unwrap_err().detail().unwrap();
-    let wrong = "selective_discovery.analysis_rows_not_the_split_part";
+    let wrong =
+        antecedent_core::reason_details::selective_discovery::ANALYSIS_ROWS_NOT_THE_SPLIT_PART;
     assert_eq!(detail(split.discovery_rows()), wrong);
     assert_eq!(detail(&data), wrong);
     // Same shape, other rows.
@@ -184,19 +185,19 @@ fn an_explicit_rule_names_the_discovery_rows_and_malformed_rules_are_refused() {
     };
     assert_eq!(
         refused(SplitRule::Explicit { discovery_rows: vec![3, 3] }),
-        "selective_discovery.split_rows_repeated"
+        antecedent_core::reason_details::selective_discovery::SPLIT_ROWS_REPEATED
     );
     assert_eq!(
         refused(SplitRule::Explicit { discovery_rows: vec![ROWS] }),
-        "selective_discovery.split_row_out_of_range"
+        antecedent_core::reason_details::selective_discovery::SPLIT_ROW_OUT_OF_RANGE
     );
     assert_eq!(
         refused(SplitRule::Explicit { discovery_rows: (0..ROWS).collect() }),
-        "selective_discovery.split_part_empty"
+        antecedent_core::reason_details::selective_discovery::SPLIT_PART_EMPTY
     );
     assert_eq!(
         refused(SplitRule::SeededPermutation { seed: 1, discovery_fraction: 1.0 }),
-        "selective_discovery.split_fraction_invalid"
+        antecedent_core::reason_details::selective_discovery::SPLIT_FRACTION_INVALID
     );
 }
 
@@ -256,7 +257,7 @@ fn masked_rows_are_filtered_before_the_split_and_recorded_in_the_receipt() {
     // The unmasked table is not the table that was split.
     assert_eq!(
         split.verify_against_source(&data).unwrap_err().detail(),
-        Some("selective_discovery.split_mask_mismatch")
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_MASK_MISMATCH)
     );
 }
 
@@ -266,13 +267,19 @@ fn weights_must_be_read_by_the_declared_test() {
     let weighted = with_rows(&data, Some(vec![1.0; ROWS]), None);
     let error = discover_on_split(&contract(), &weighted, rule(2), &ctx()).unwrap_err();
     assert_eq!(error.code(), Some("option_not_applicable"));
-    assert_eq!(error.detail(), Some("selective_discovery.weights_not_read_by_test"));
+    assert_eq!(
+        error.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::WEIGHTS_NOT_READ_BY_TEST)
+    );
 
     let mut weighted_test = contract();
     weighted_test.ci_test = CiTestSpec::named("weighted_parcorr");
     let error = discover_on_split(&weighted_test, &data, rule(2), &ctx()).unwrap_err();
     assert_eq!(error.code(), Some("option_not_applicable"));
-    assert_eq!(error.detail(), Some("selective_discovery.weighted_test_without_weights"));
+    assert_eq!(
+        error.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::WEIGHTED_TEST_WITHOUT_WEIGHTS)
+    );
 }
 
 #[test]
@@ -313,7 +320,9 @@ fn weighted_discovery_reads_the_discovery_weights_and_the_analysis_weights_are_e
     let reweighted = with_rows(split.analysis_rows(), Some(other_weights), None);
     assert_eq!(
         split.check_analysis_table(&reweighted).unwrap_err().detail(),
-        Some("selective_discovery.analysis_rows_not_the_split_part")
+        Some(
+            antecedent_core::reason_details::selective_discovery::ANALYSIS_ROWS_NOT_THE_SPLIT_PART
+        )
     );
     split.check_analysis_table(split.analysis_rows()).unwrap();
 }
@@ -324,7 +333,12 @@ fn reusing_the_rows_that_selected_is_refused_and_the_ledger_sees_the_overlap() {
     let split = discover_on_split(&contract(), &data, rule(9), &ctx()).unwrap();
     let error = split.request_unsplit_interval().unwrap_err();
     assert_eq!(error.code(), Some("selection_inference_not_supported"));
-    assert_eq!(error.detail(), Some("selective_discovery.downstream_interval_not_supported"));
+    assert_eq!(
+        error.detail(),
+        Some(
+            antecedent_core::reason_details::selective_discovery::DOWNSTREAM_INTERVAL_NOT_SUPPORTED
+        )
+    );
 
     let snapshot = b"split-snapshot-1";
     let (discovery, analysis) = split_evidence_sources(split.receipt(), snapshot).unwrap();

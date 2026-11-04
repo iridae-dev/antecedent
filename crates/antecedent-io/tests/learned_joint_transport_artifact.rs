@@ -368,18 +368,36 @@ fn learned_joint_artifact_refuses_resealed_semantic_mutations() {
     // A changed basis degree no longer matches the stored prior dimensions: refused by the
     // engine itself before any replay comparison.
     let message = refusal(&resealed(&wire, |w| w.model.basis_degree = 3));
-    assert!(message.contains("learned_joint_transport.prior_dimension"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::learned_joint_transport::PRIOR_DIMENSION),
+        "{message}"
+    );
     let message = refusal(&resealed(&wire, |w| w.model.basis_degree = 0));
-    assert!(message.contains("learned_joint_transport.invalid_basis"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::learned_joint_transport::INVALID_BASIS),
+        "{message}"
+    );
     // A changed covariate declaration is refused by the engine itself.
     let message = refusal(&resealed(&wire, |w| w.model.features = vec![8]));
-    assert!(message.contains("learned_joint_transport.feature_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::FEATURE_MISMATCH),
+        "{message}"
+    );
     // A changed graph class is refused as unsupported before any fit.
     let message = refusal(&resealed(&wire, |w| w.model.graph = GraphClassCode::Admg));
-    assert!(message.contains("learned_joint_transport.unsupported_graph"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::UNSUPPORTED_GRAPH),
+        "{message}"
+    );
     // Undeclared source dependence is refused.
     let message = refusal(&resealed(&wire, |w| w.model.dependence = SourceDependenceCode::Unknown));
-    assert!(message.contains("learned_joint_transport.source_dependence"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::SOURCE_DEPENDENCE),
+        "{message}"
+    );
     // Without resealing, an edited observation breaks the data identity digest.
     let mut edited = wire.clone();
     edited.sources[0].outcome[0] += 1.0;
@@ -415,7 +433,11 @@ fn learned_joint_artifact_refuses_prior_bank_and_likelihood_double_use() {
     )
     .expect_err("the producer refuses double use");
     assert_eq!(produced.reason_code(), Some("invalid_argument"));
-    assert!(produced.to_string().contains("learned_joint_transport.prior_data_overlap"));
+    assert!(
+        produced
+            .to_string()
+            .contains(antecedent_core::reason_details::learned_joint_transport::PRIOR_DATA_OVERLAP)
+    );
     // A consumer given a resealed artifact whose prior bank consumed a source refuses too.
     let (wire, _) = built();
     let message = refusal(&resealed(&wire, |w| {
@@ -427,7 +449,11 @@ fn learned_joint_artifact_refuses_prior_bank_and_likelihood_double_use() {
             }],
         };
     }));
-    assert!(message.contains("learned_joint_transport.prior_data_overlap"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::PRIOR_DATA_OVERLAP),
+        "{message}"
+    );
     // A bank built from other observations is accepted and stays recorded.
     let mut disjoint = model();
     disjoint.priors.varying.provenance = PriorProvenance::Bank {

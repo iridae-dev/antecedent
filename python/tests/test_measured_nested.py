@@ -9,6 +9,7 @@ from statistics import NormalDist
 import numpy as np
 import pytest
 from antecedent import Execution, ResourceLimits, _native
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalCancelledError,
     CausalError,
@@ -118,7 +119,9 @@ def test_normal_nested_unmeasured_protocols_are_annotated_not_calibrated(bayesia
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         produce(bayesian, execution=Execution(cancel=cancelled))
-    with pytest.raises(CausalResourceError, match="measured_inference.memory_budget_exceeded"):
+    with pytest.raises(
+        CausalResourceError, match=reason_details.measured_inference.MEMORY_BUDGET_EXCEEDED
+    ):
         produce(bayesian, execution=Execution(limits=ResourceLimits(memory_bytes=0)))
 
 

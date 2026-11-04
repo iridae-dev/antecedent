@@ -234,7 +234,9 @@ pub(super) fn check_fit(
     horizon: usize,
     fit: &GeneralMechanismFit,
 ) -> Result<Vec<&GeneralNodeMechanism>, TemporalCounterfactualError> {
-    let mismatch = |what: String| invalid("temporal_counterfactual.fit_mismatch", Some(what));
+    let mismatch = |what: String| {
+        invalid(antecedent_core::reason_details::temporal_counterfactual::FIT_MISMATCH, Some(what))
+    };
     let nodes = node_count(horizon);
     if fit.fit_id.trim().is_empty() || fit.mechanisms.len() != horizon + 1 {
         return Err(mismatch("mechanisms".to_owned()));
@@ -344,7 +346,7 @@ fn unpaired(
     history: Option<&HistoryId>,
 ) -> TemporalCounterfactualError {
     unsupported(
-        "temporal_counterfactual.unpaired_histories",
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES,
         Some(unit.as_str().to_owned()),
         Some(RefusingWitness {
             unit: Some(unit.clone()),
@@ -363,17 +365,24 @@ pub(super) fn check_inputs(
 ) -> Result<(), TemporalCounterfactualError> {
     let nodes = node_count(spec.horizon);
     if factual.is_empty() {
-        return Err(unsupported("temporal_counterfactual.shared_history_missing", None, None));
+        return Err(unsupported(
+            antecedent_core::reason_details::temporal_counterfactual::SHARED_HISTORY_MISSING,
+            None,
+            None,
+        ));
     }
     if spec.worlds.is_empty() {
-        return Err(invalid("temporal_counterfactual.history_name_invalid", None));
+        return Err(invalid(
+            antecedent_core::reason_details::temporal_counterfactual::HISTORY_NAME_INVALID,
+            None,
+        ));
     }
     let work = (factual.len() as u64)
         .saturating_mul(spec.worlds.len() as u64 + 1)
         .saturating_mul(nodes as u64);
     if work > MAX_WORK {
         return Err(invalid(
-            "temporal_counterfactual.too_many_units",
+            antecedent_core::reason_details::temporal_counterfactual::TOO_MANY_UNITS,
             Some(format!("work {work} exceeds {MAX_WORK}")),
         ));
     }
@@ -381,7 +390,7 @@ pub(super) fn check_inputs(
     for world in &spec.worlds {
         if world.name.trim().is_empty() || !names.insert(world.name.as_str()) {
             return Err(invalid(
-                "temporal_counterfactual.history_name_invalid",
+                antecedent_core::reason_details::temporal_counterfactual::HISTORY_NAME_INVALID,
                 Some(world.name.clone()),
             ));
         }
@@ -390,7 +399,7 @@ pub(super) fn check_inputs(
             || !world.actions.iter().all(|a| a.is_finite())
         {
             return Err(invalid(
-                "temporal_counterfactual.non_finite_history",
+                antecedent_core::reason_details::temporal_counterfactual::NON_FINITE_HISTORY,
                 Some(world.name.clone()),
             ));
         }
@@ -405,7 +414,7 @@ pub(super) fn check_inputs(
             || !unit.values.iter().all(|v| v.is_finite())
         {
             return Err(invalid(
-                "temporal_counterfactual.non_finite_history",
+                antecedent_core::reason_details::temporal_counterfactual::NON_FINITE_HISTORY,
                 Some(unit.unit.as_str().to_owned()),
             ));
         }
@@ -425,7 +434,7 @@ pub(super) fn check_inputs(
         }
         if let Some(unit) = factual.iter().find(|f| f.times != world.times) {
             return Err(unsupported(
-                "temporal_counterfactual.time_misaligned",
+                antecedent_core::reason_details::temporal_counterfactual::TIME_MISALIGNED,
                 Some(unit.unit.as_str().to_owned()),
                 Some(RefusingWitness {
                     unit: Some(unit.unit.clone()),
@@ -453,7 +462,7 @@ pub(super) fn abduce_unit(
             !residual.is_finite() || mech.noise_halfwidth.is_some_and(|h| residual.abs() > h);
         if refuted {
             return Err(unsupported(
-                "temporal_counterfactual.refuting_history",
+                antecedent_core::reason_details::temporal_counterfactual::REFUTING_HISTORY,
                 Some(format!("{}: node {}", unit.unit.as_str(), mech.node)),
                 Some(RefusingWitness {
                     unit: Some(unit.unit.clone()),
@@ -507,10 +516,17 @@ pub fn evaluate_general_temporal_counterfactual(
 ) -> Result<GeneralTemporalResult, TemporalCounterfactualError> {
     poll(ctx)?;
     if spec.horizon == 0 {
-        return Err(invalid("temporal_counterfactual.invalid_graph", Some("horizon".to_owned())));
+        return Err(invalid(
+            antecedent_core::reason_details::temporal_counterfactual::INVALID_GRAPH,
+            Some("horizon".to_owned()),
+        ));
     }
     if spec.latent_confounding {
-        return Err(unsupported("temporal_counterfactual.latent_confounding", None, None));
+        return Err(unsupported(
+            antecedent_core::reason_details::temporal_counterfactual::LATENT_CONFOUNDING,
+            None,
+            None,
+        ));
     }
     let mechs = check_fit(spec.horizon, &spec.fit)?;
     let mut factual: Vec<&GeneralFactualHistory> = spec.factual.iter().collect();

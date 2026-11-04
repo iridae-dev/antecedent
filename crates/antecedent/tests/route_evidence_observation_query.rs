@@ -204,7 +204,10 @@ fn observe_dispatches_a_conditioning_or_an_intervention_request() {
     };
     let refusal = prepared.observe(&set_and_seen, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "route_not_supported");
-    assert_eq!(refusal.details(), ["observation_query.mixed_conditioning_and_intervention"]);
+    assert_eq!(
+        refusal.details(),
+        [antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION]
+    );
 }
 
 #[test]
@@ -226,7 +229,10 @@ fn condition_on_answers_the_observational_conditional_with_its_evidence_probabil
     // An unknown variable is a typed refusal with a remedy.
     let refusal = prepared.condition_on("Y", &[direct("Q", "1")], &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "unknown_variable");
-    assert_eq!(refusal.details(), ["observation_query.unknown_variable"]);
+    assert_eq!(
+        refusal.details(),
+        [antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE]
+    );
     assert!(refusal.refusals[0].remedy.is_some());
 }
 
@@ -245,16 +251,25 @@ fn intervene_on_answers_the_truncated_factorization() {
     assert_ne!(one.identity(), zero.identity());
     let level = prepared.intervene_on("Y", &[pair("S", "7")], &ctx()).unwrap_err();
     assert_eq!(level.code(), "invalid_argument");
-    assert_eq!(level.details(), ["observation_query.unknown_level"]);
+    assert_eq!(
+        level.details(),
+        [antecedent_core::reason_details::observation_query::UNKNOWN_LEVEL]
+    );
     assert_eq!(level.refusals[0].offending.as_deref(), Some("S=7"));
     assert!(level.refusals[0].remedy.is_some());
     let unknown = prepared.intervene_on("Y", &[pair("Q", "1")], &ctx()).unwrap_err();
     assert_eq!(unknown.code(), "unknown_variable");
-    assert_eq!(unknown.details(), ["observation_query.unknown_variable"]);
+    assert_eq!(
+        unknown.details(),
+        [antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE]
+    );
     assert!(unknown.refusals[0].remedy.is_some());
     let twice = prepared.intervene_on("Y", &[pair("S", "1"), pair("S", "0")], &ctx()).unwrap_err();
     assert_eq!(twice.code(), "invalid_argument");
-    assert_eq!(twice.details(), ["observation_query.repeated_slot"]);
+    assert_eq!(
+        twice.details(),
+        [antecedent_core::reason_details::observation_query::REPEATED_SLOT]
+    );
     assert!(twice.refusals[0].remedy.is_some());
 }
 
@@ -310,7 +325,10 @@ fn finite_posterior_applies_bayes_rule_to_the_declared_hypothesis_space() {
     )
     .unwrap_err();
     assert_eq!(unknown.code(), "invalid_argument");
-    assert_eq!(unknown.details(), ["observation_query.unknown_level"]);
+    assert_eq!(
+        unknown.details(),
+        [antecedent_core::reason_details::observation_query::UNKNOWN_LEVEL]
+    );
     assert_eq!(unknown.refusals[0].offending.as_deref(), Some("observation=maybe"));
 }
 
@@ -326,7 +344,10 @@ fn conjugate_posterior_adds_the_counts_to_the_beta_shapes() {
     let bad =
         conjugate_posterior(0.0, 3.0, 4, 6, InferenceBasis::DeclaredModel, &ctx()).unwrap_err();
     assert_eq!(bad.code(), "invalid_argument");
-    assert_eq!(bad.details(), ["observation_query.invalid_declaration"]);
+    assert_eq!(
+        bad.details(),
+        [antecedent_core::reason_details::observation_query::INVALID_DECLARATION]
+    );
 }
 
 #[test]
@@ -340,7 +361,10 @@ fn the_required_bayes_factor_is_the_ratio_of_target_to_prior_odds() {
     // Probabilities on the boundary have no finite odds.
     let edge = required_bayes_factor(0.1, 1.0, Direction::Raise, &ctx()).unwrap_err();
     assert_eq!(edge.code(), "invalid_argument");
-    assert_eq!(edge.details(), ["observation_query.invalid_declaration"]);
+    assert_eq!(
+        edge.details(),
+        [antecedent_core::reason_details::observation_query::INVALID_DECLARATION]
+    );
 }
 
 #[test]
@@ -447,12 +471,18 @@ fn a_fresh_consumer_replays_a_required_evidence_claim_and_refuses_edits() {
     assert_eq!(&consumed.result, claim.result());
     // A retained identity that is not this claim's is refused.
     let refusal = consume_observation_query_artifact(&bytes, Some("00"), &ctx()).unwrap_err();
-    assert_eq!(refusal.details(), ["observation_query.artifact_refused"]);
+    assert_eq!(
+        refusal.details(),
+        [antecedent_core::reason_details::observation_query::ARTIFACT_REFUSED]
+    );
     // Truncated bytes are not an artifact.
     let cut =
         consume_observation_query_artifact(&bytes[..bytes.len() / 2], None, &ctx()).unwrap_err();
     assert_eq!(cut.code(), "invalid_argument");
-    assert_eq!(cut.details(), ["observation_query.artifact_invalid"]);
+    assert_eq!(
+        cut.details(),
+        [antecedent_core::reason_details::observation_query::ARTIFACT_INVALID]
+    );
     // A single-byte change either fails to replay or replays to this claim.
     for position in (0..bytes.len()).step_by((bytes.len() / 32).max(1)) {
         let mut mutated = bytes.clone();

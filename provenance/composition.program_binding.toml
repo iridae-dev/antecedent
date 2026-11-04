@@ -40,9 +40,11 @@ record_sha256 = "8d94fa689d4b3db942f756825813552e1017851f90f3a95f9db1ed04bb6aba7
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/program_binding.rs"
-sha256 = "da580be6043f0428558be257d0a5943b75080839990d4ab7d1da3e4e26082f74"
+items = ["const GRAPH_ONLY_KEY", "const IDENTITY_KEY", "fn bind_external_result_to_program", "fn check_external_against_program", "fn check_identity", "fn check_quantity", "fn check_quantity_list", "fn check_variables", "fn claim", "fn declared_by", "fn dose_label", "fn expected_quantities", "fn graph_only", "fn graph_only_identity", "fn grid_changed", "fn grid_text", "fn identity", "fn identity_mismatch", "fn invalid", "fn population", "fn program_identity", "fn refuse", "fn regime_for", "fn regime_refusal", "fn same_grid", "fn substitution", "fn validate", "struct ExternalProgramClaim", "struct ProgramBinding", "struct ProgramBoundClaim", "struct ProgramCheck"]
+sha256 = "eec3a406165d2ef207024c39106953a3b338042913536253f20f567e4515b3aa"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/program_binding.rs"
-sha256 = "981cf4402a842e9524fc755fd0e73a15d59a5afc00da20e4789dc3407af2c4a7"
+items = ["fn binding", "fn binding_binds_a_result_to_the_program_and_stays_external", "fn binding_contract_identity_mismatch_is_refused", "fn binding_dose_grid_change_is_refused", "fn binding_faithful_claim_passes_with_derived_coordinates", "fn binding_graph_only_identity_is_insufficient", "fn binding_identity_changes_when_any_one_field_changes", "fn binding_invalid_binding_is_refused_before_any_comparison", "fn binding_population_mismatch_is_refused", "fn binding_quantities_override_is_refused_with_its_coordinate", "fn binding_refuses_a_contract_that_describes_another_request", "fn binding_treatment_and_outcome_substitution_is_refused", "fn contract_for", "fn detail", "fn refused", "fn response_for"]
+sha256 = "1316c5bb46f51c78f219cbc062dc500d617fc6471cff25e65781d068b54b6203"

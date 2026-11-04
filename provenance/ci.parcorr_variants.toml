@@ -39,12 +39,14 @@ record_sha256 = "5761689ef9e90411bfc41da09028f60925372120d63fd13af74c200d712f246
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/parcorr_variants.rs"
-sha256 = "796ae6f125a533ae163db474b4e1d75e0f038fe4aada80905ebeb970f6abd573"
+items = ["const BLOCK_PIVOT_MIN", "const PERFECT_DEPENDENCE_EIGEN", "fn leading_psd_eigenvalue", "fn new", "fn residual_canonical", "fn residualize_block", "fn test_blocks", "struct BlockTest", "struct MultivariatePartialCorrelation", "struct ResidualCanonical", "struct RobustPartialCorrelation", "struct WeightedPartialCorrelation"]
+sha256 = "53d4a40f943c645a6f734330714ae122500e2ac89b4863fb0cc1fe2f91baf86c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/parcorr_variants_reference.rs"
-sha256 = "e9d435d792be6c2283e5018a32cc4efdb0c675f93e85552773871b35152fdd48"
+items = ["fn block_test_matches_wilks_lambda_bartlett_p_and_leading_canonical_correlation", "fn columns", "fn doc", "fn floats", "fn rel", "fn robust_partial_correlation_matches_van_der_waerden_scores", "fn weighted_partial_correlation_matches_weighted_least_squares_and_kish_df"]
+sha256 = "ab058f484c1678edd4386b1b0950bd30f04deeb15566c289e39f71ce5b955273"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -23,17 +23,20 @@ record_sha256 = "eb4b3f36b1f5bd7addb9758cb5998039013816de50a6f907529a580cffa3272
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/mediation.rs"
-sha256 = "b2ac0b86b4513e213ace42f293131bb7642666a2b2f44f9e3ddb13372638547d"
+items = ["enum QueryRefutationPlan", "fn reads_a_gap", "fn refute_temporal_atom", "fn refute_temporal_mediation_adjusted", "fn refute_temporal_mediation_with_gaps", "fn report", "fn temporal_mediation"]
+sha256 = "fd10127f5bd5a3aa0e07ef252acc2e984b417d5d96d27c1517240f2d8b185adc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "a3b7a83f837448185b84106af86340b716dd51e00db12901963d443ecac540c6"
+items = ["const REPORT_ALL", "const REPORT_COMPARISON", "const REPORT_FAILURE", "const REPORT_INFORMATIVE", "const REPORT_ORIGINAL", "const REPORT_PASSED", "const REPORT_REFUTED", "const REPORT_REPLICATES", "enum RefutationScope", "fn build", "fn builder", "fn comparison", "fn failure_condition", "fn informative", "fn new", "fn original_ate", "fn outcome", "fn passed", "fn refuted_ate", "fn replicates", "fn treatment", "struct RefutationReport", "struct RefutationReportBuilder"]
+sha256 = "f4a31936e93b73f6d0b8f40c11fd701cb1d7ea56fcdb99c0c5b0fdc47e3a378a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/temporal_mediation_refuter_reference.rs"
-sha256 = "f93f475373cbd71c881699eb27fa2a183258c0f6d3a060096d8d57706c922626"
+items = ["const PLACEBO", "const PLACEBO_MORE", "const REPS", "const SEED", "const WINDOW", "fn build", "fn by_id", "fn case_shape", "fn check", "fn contrast", "fn emit", "fn floats", "fn indices", "fn noise", "fn perturbations", "fn reference", "fn same", "fn temporal_mediation_refuter_frozen_perturbations_are_the_library_streams", "fn temporal_mediation_refuter_suite_equals_the_exact_reference", "fn the_non_gapped_entry_points_refuse_a_series_with_missing_time_points", "fn var"]
+sha256 = "10438dc12f1214ee7e6ec62b7515a5969eba817445f4894ac598951265c58d53"
 
 [[method_review.artifacts]]
 role = "reference"

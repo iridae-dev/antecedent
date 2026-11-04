@@ -399,7 +399,10 @@ fn refusal_text(error: &CausalError) -> String {
 fn assert_typed_weight_refusal(route: &str, error: &CausalError) {
     let text = refusal_text(error);
     assert!(text.starts_with("reason=option_not_applicable"), "{route}: {text}");
-    assert!(text.contains("sampling_weights.route_unsupported"), "{route}: {text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{route}: {text}"
+    );
     assert!(text.contains("Next attempt"), "{route}: {text}");
 }
 

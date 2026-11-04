@@ -62,7 +62,7 @@ fn output(detail: &str, remedy: &'static str) -> CallbackRefusal {
 #[must_use]
 pub fn blank_field(field: &str) -> CallbackRefusal {
     invalid(
-        "callback_protocol.blank_field",
+        antecedent_core::reason_details::callback_protocol::BLANK_FIELD,
         "name every provider, object, version, snapshot, request, dependency and input identity, in at most the declared number of bytes",
     )
     .with_offending(field)
@@ -72,7 +72,7 @@ pub fn blank_field(field: &str) -> CallbackRefusal {
 #[must_use]
 pub fn too_many_items(what: &str) -> CallbackRefusal {
     invalid(
-        "callback_protocol.too_many_items",
+        antecedent_core::reason_details::callback_protocol::TOO_MANY_ITEMS,
         "declare at most the bounded number of dependencies, inputs and operations",
     )
     .with_offending(what)
@@ -82,7 +82,7 @@ pub fn too_many_items(what: &str) -> CallbackRefusal {
 #[must_use]
 pub fn invalid_quantity(what: &str) -> CallbackRefusal {
     invalid(
-        "callback_protocol.invalid_quantity",
+        antecedent_core::reason_details::callback_protocol::INVALID_QUANTITY,
         "name the variable, units, population, regime, functional and transform of the quantity, with canonical conditioning",
     )
     .with_offending(what)
@@ -92,7 +92,7 @@ pub fn invalid_quantity(what: &str) -> CallbackRefusal {
 #[must_use]
 pub fn invalid_support(what: &str) -> CallbackRefusal {
     invalid(
-        "callback_protocol.invalid_support",
+        antecedent_core::reason_details::callback_protocol::INVALID_SUPPORT,
         "declare a support domain with finite ordered bounds or sorted, distinct, non-blank levels",
     )
     .with_offending(what)
@@ -102,7 +102,7 @@ pub fn invalid_support(what: &str) -> CallbackRefusal {
 #[must_use]
 pub fn no_operations() -> CallbackRefusal {
     invalid(
-        "callback_protocol.no_operations",
+        antecedent_core::reason_details::callback_protocol::NO_OPERATIONS,
         "declare at least one operation (mean, sample, cdf, quantile or posterior update) the callback answers; none implies another",
     )
 }
@@ -111,7 +111,7 @@ pub fn no_operations() -> CallbackRefusal {
 #[must_use]
 pub fn operation_not_for_kind(operation: &str, kind: &str) -> CallbackRefusal {
     invalid(
-        "callback_protocol.operation_not_for_kind",
+        antecedent_core::reason_details::callback_protocol::OPERATION_NOT_FOR_KIND,
         "declare only operations the callback kind answers: a posterior callback answers mean, sample and posterior update; a law or nested callback answers mean, sample, cdf and quantile",
     )
     .with_offending(operation)
@@ -122,7 +122,7 @@ pub fn operation_not_for_kind(operation: &str, kind: &str) -> CallbackRefusal {
 #[must_use]
 pub fn meaning_not_for_kind(meaning: &str, kind: &str) -> CallbackRefusal {
     invalid(
-        "callback_protocol.meaning_not_for_kind",
+        antecedent_core::reason_details::callback_protocol::MEANING_NOT_FOR_KIND,
         "declare a posterior meaning for a posterior callback and a non-posterior meaning for a law callback",
     )
     .with_offending(meaning)
@@ -133,7 +133,7 @@ pub fn meaning_not_for_kind(meaning: &str, kind: &str) -> CallbackRefusal {
 #[must_use]
 pub fn update_declaration_mismatch() -> CallbackRefusal {
     invalid(
-        "callback_protocol.update_declaration_mismatch",
+        antecedent_core::reason_details::callback_protocol::UPDATE_DECLARATION_MISMATCH,
         "declare the candidate, prior and possible observation exactly when the callback answers a posterior update",
     )
 }
@@ -141,8 +141,11 @@ pub fn update_declaration_mismatch() -> CallbackRefusal {
 /// Two inputs, dependencies or operations share a name.
 #[must_use]
 pub fn duplicate_name(what: &str) -> CallbackRefusal {
-    invalid("callback_protocol.duplicate_name", "give every input and dependency its own name")
-        .with_offending(what)
+    invalid(
+        antecedent_core::reason_details::callback_protocol::DUPLICATE_NAME,
+        "give every input and dependency its own name",
+    )
+    .with_offending(what)
 }
 
 /// The replay contract is incomplete: a seeded callback without a semantic
@@ -150,7 +153,7 @@ pub fn duplicate_name(what: &str) -> CallbackRefusal {
 #[must_use]
 pub fn replay_contract_incomplete(detail: &str) -> CallbackRefusal {
     invalid(
-        "callback_protocol.replay_contract_incomplete",
+        antecedent_core::reason_details::callback_protocol::REPLAY_CONTRACT_INCOMPLETE,
         "declare the semantic stream identity of a seeded callback and a positive attempt bound for an idempotent retry",
     )
     .with_offending(detail)
@@ -160,7 +163,7 @@ pub fn replay_contract_incomplete(detail: &str) -> CallbackRefusal {
 #[must_use]
 pub fn nested_inputs_mismatch() -> CallbackRefusal {
     invalid(
-        "callback_protocol.nested_inputs_mismatch",
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUTS_MISMATCH,
         "a nested callback declares at least one input supplied by another callback, and only a nested callback does",
     )
 }
@@ -169,7 +172,7 @@ pub fn nested_inputs_mismatch() -> CallbackRefusal {
 #[must_use]
 pub fn native_trust_claimed() -> CallbackRefusal {
     invalid(
-        "callback_protocol.native_trust_claimed",
+        antecedent_core::reason_details::callback_protocol::NATIVE_TRUST_CLAIMED,
         "a callback is external: declare it unverified, externally attested or exact-request verified; native support is never conferred by metadata",
     )
 }
@@ -178,7 +181,7 @@ pub fn native_trust_claimed() -> CallbackRefusal {
 #[must_use]
 pub fn trust_incomplete() -> CallbackRefusal {
     invalid(
-        "callback_protocol.trust_incomplete",
+        antecedent_core::reason_details::callback_protocol::TRUST_INCOMPLETE,
         "name the attestor of an attested callback and the verification receipt digest of a verified one",
     )
 }
@@ -191,7 +194,7 @@ pub fn operation_not_declared(operation: ExternalCapability, declared: &str) -> 
     ExternalRefusal::new(
         antecedent_core::reason_code!("external_capability_missing"),
         STAGE_NEGOTIATE,
-        "callback_protocol.operation_not_declared",
+        antecedent_core::reason_details::callback_protocol::OPERATION_NOT_DECLARED,
     )
     .with_capability(operation)
     .with_supplied(declared)
@@ -206,7 +209,7 @@ pub fn provider_identity_mismatch(expected: &str, supplied: &str) -> CallbackRef
     ExternalRefusal::new(
         antecedent_core::reason_code!("external_binding_mismatch"),
         STAGE_NEGOTIATE,
-        "callback_protocol.provider_identity_mismatch",
+        antecedent_core::reason_details::callback_protocol::PROVIDER_IDENTITY_MISMATCH,
     )
     .with_expected(expected)
     .with_supplied(supplied)
@@ -221,7 +224,7 @@ pub fn request_mismatch(detail: &str) -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("external_binding_mismatch"),
         STAGE_NEGOTIATE,
-        "callback_protocol.request_mismatch",
+        antecedent_core::reason_details::callback_protocol::REQUEST_MISMATCH,
     )
     .with_offending(detail)
     .with_remedy("supply every declared input, once, and a query of a declared operation")
@@ -234,7 +237,7 @@ pub fn nested_input_unregistered(input: &str) -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("sampling_dependence_unknown"),
         STAGE_NEGOTIATE,
-        "callback_protocol.nested_input_unregistered",
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUT_UNREGISTERED,
     )
     .with_offending(input)
     .with_remedy(
@@ -249,7 +252,7 @@ pub fn nested_inputs_share_evidence(first: &str, second: &str, shared: u64) -> C
     ExternalRefusal::new(
         antecedent_core::reason_code!("evidence_double_counted"),
         STAGE_NEGOTIATE,
-        "callback_protocol.nested_inputs_share_evidence",
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUTS_SHARE_EVIDENCE,
     )
     .with_offending(format!("{first}, {second}"))
     .with_supplied(format!("{shared} shared observation(s)"))
@@ -264,7 +267,7 @@ pub fn nested_input_overlap_unknown(first: &str, second: &str) -> CallbackRefusa
     ExternalRefusal::new(
         antecedent_core::reason_code!("sampling_dependence_unknown"),
         STAGE_NEGOTIATE,
-        "callback_protocol.nested_input_overlap_unknown",
+        antecedent_core::reason_details::callback_protocol::NESTED_INPUT_OVERLAP_UNKNOWN,
     )
     .with_offending(format!("{first}, {second}"))
     .with_remedy(
@@ -278,7 +281,7 @@ pub fn nested_input_overlap_unknown(first: &str, second: &str) -> CallbackRefusa
 #[must_use]
 pub fn opaque_dependencies() -> CallbackRefusal {
     reuse(
-        "callback_protocol.opaque_dependencies",
+        antecedent_core::reason_details::callback_protocol::OPAQUE_DEPENDENCIES,
         "declare every data, model, file, remote and environment dependency with a version or digest; an opaque or undeclared dependency makes a prior result ineligible for reuse",
     )
 }
@@ -287,7 +290,7 @@ pub fn opaque_dependencies() -> CallbackRefusal {
 #[must_use]
 pub fn hidden_state_unobservable() -> CallbackRefusal {
     reuse(
-        "callback_protocol.hidden_state_unobservable",
+        antecedent_core::reason_details::callback_protocol::HIDDEN_STATE_UNOBSERVABLE,
         "expose a state identity through the protocol (a version counter or weights digest) so a changed state is detected, or recompute on every use",
     )
 }
@@ -297,7 +300,7 @@ pub fn hidden_state_unobservable() -> CallbackRefusal {
 #[must_use]
 pub fn no_idempotency_contract() -> CallbackRefusal {
     reuse(
-        "callback_protocol.no_idempotency_contract",
+        antecedent_core::reason_details::callback_protocol::NO_IDEMPOTENCY_CONTRACT,
         "declare an idempotent retry contract and supply the idempotency key; without one the effects of a repeated call are unknown and the callback is not run again",
     )
 }
@@ -306,7 +309,7 @@ pub fn no_idempotency_contract() -> CallbackRefusal {
 #[must_use]
 pub fn diagnostic_only(reason: &str) -> CallbackRefusal {
     reuse(
-        "callback_protocol.diagnostic_only",
+        antecedent_core::reason_details::callback_protocol::DIAGNOSTIC_ONLY,
         "declare complete dependencies and a deterministic or seeded replay contract and attest or verify the provider; a stateful or side-effecting result stays diagnostic",
     )
     .with_offending(reason)
@@ -318,7 +321,7 @@ pub fn diagnostic_only(reason: &str) -> CallbackRefusal {
 #[must_use]
 pub fn invocation_outside_execution(phase: &str) -> CallbackRefusal {
     effect(
-        "callback_protocol.invocation_outside_execution",
+        antecedent_core::reason_details::callback_protocol::INVOCATION_OUTSIDE_EXECUTION,
         "planning and verification read declarations and stored records only; run the callback through an explicit execution",
     )
     .with_offending(phase)
@@ -328,7 +331,7 @@ pub fn invocation_outside_execution(phase: &str) -> CallbackRefusal {
 #[must_use]
 pub fn side_effects_not_allowed() -> CallbackRefusal {
     effect(
-        "callback_protocol.side_effects_not_allowed",
+        antecedent_core::reason_details::callback_protocol::SIDE_EFFECTS_NOT_ALLOWED,
         "opt in to side-effecting execution in the execution policy for this one request",
     )
 }
@@ -337,7 +340,7 @@ pub fn side_effects_not_allowed() -> CallbackRefusal {
 #[must_use]
 pub fn retry_outside_policy(attempts: u64) -> CallbackRefusal {
     effect(
-        "callback_protocol.retry_outside_policy",
+        antecedent_core::reason_details::callback_protocol::RETRY_OUTSIDE_POLICY,
         "a side-effecting callback is retried only under a declared idempotent contract with the same key and within its attempt bound",
     )
     .with_supplied(attempts.to_string())
@@ -349,7 +352,7 @@ pub fn retry_outside_policy(attempts: u64) -> CallbackRefusal {
 #[must_use]
 pub fn output_shape(detail: &str) -> CallbackRefusal {
     output(
-        "callback_protocol.output_shape",
+        antecedent_core::reason_details::callback_protocol::OUTPUT_SHAPE,
         "return exactly the values the query asks for, in order",
     )
     .with_offending(detail)
@@ -358,15 +361,18 @@ pub fn output_shape(detail: &str) -> CallbackRefusal {
 /// A value is not finite.
 #[must_use]
 pub fn output_not_finite(detail: &str) -> CallbackRefusal {
-    output("callback_protocol.output_not_finite", "return finite values only")
-        .with_offending(detail)
+    output(
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_FINITE,
+        "return finite values only",
+    )
+    .with_offending(detail)
 }
 
 /// A value lies outside the declared support.
 #[must_use]
 pub fn output_outside_support(detail: &str, support: &str) -> CallbackRefusal {
     output(
-        "callback_protocol.output_outside_support",
+        antecedent_core::reason_details::callback_protocol::OUTPUT_OUTSIDE_SUPPORT,
         "return values inside the declared support, or declare the support the law actually has",
     )
     .with_offending(detail)
@@ -377,7 +383,7 @@ pub fn output_outside_support(detail: &str, support: &str) -> CallbackRefusal {
 #[must_use]
 pub fn output_not_a_law(detail: &str) -> CallbackRefusal {
     output(
-        "callback_protocol.output_not_a_law",
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW,
         "a distribution function has values in [0, 1] that do not decrease in the threshold; a quantile function does not decrease in the level",
     )
     .with_offending(detail)
@@ -387,7 +393,7 @@ pub fn output_not_a_law(detail: &str) -> CallbackRefusal {
 #[must_use]
 pub fn query_invalid(detail: &str) -> CallbackRefusal {
     output(
-        "callback_protocol.query_invalid",
+        antecedent_core::reason_details::callback_protocol::QUERY_INVALID,
         "ask for a bounded number of draws, finite increasing thresholds and quantile levels strictly inside (0, 1)",
     )
     .with_offending(detail)
@@ -399,7 +405,7 @@ pub fn output_too_large(limit: usize) -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("callback_limit_exceeded"),
         STAGE_VALIDATE,
-        "callback_protocol.output_too_large",
+        antecedent_core::reason_details::callback_protocol::OUTPUT_TOO_LARGE,
     )
     .with_supplied(limit.to_string())
     .with_remedy("raise the declared output bound or ask for fewer values")
@@ -413,7 +419,7 @@ pub fn invocation_limit(limit: u64) -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("callback_limit_exceeded"),
         STAGE_EXECUTE,
-        "callback_protocol.invocation_limit",
+        antecedent_core::reason_details::callback_protocol::INVOCATION_LIMIT,
     )
     .with_supplied(limit.to_string())
     .with_remedy("raise the invocation bound of the execution policy")
@@ -426,7 +432,7 @@ pub fn wall_limit_exceeded(limit_ms: u64, observed_ms: u128) -> CallbackRefusal 
     ExternalRefusal::new(
         antecedent_core::reason_code!("callback_limit_exceeded"),
         STAGE_EXECUTE,
-        "callback_protocol.wall_limit_exceeded",
+        antecedent_core::reason_details::callback_protocol::WALL_LIMIT_EXCEEDED,
     )
     .with_expected(limit_ms.to_string())
     .with_supplied(observed_ms.to_string())
@@ -441,7 +447,7 @@ pub fn cancelled(boundary: &str) -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
         STAGE_EXECUTE,
-        "callback_protocol.cancelled",
+        antecedent_core::reason_details::callback_protocol::CANCELLED,
     )
     .with_offending(boundary)
     .with_remedy("rerun without cancellation; the cancellation is not a verdict on the callback")
@@ -453,7 +459,7 @@ pub fn provider_failed(message: &str) -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("callback_provider_unavailable"),
         STAGE_EXECUTE,
-        "callback_protocol.provider_failed",
+        antecedent_core::reason_details::callback_protocol::PROVIDER_FAILED,
     )
     .with_supplied(message)
     .with_remedy("repair the provider and execute again; no claim is issued from a failed call")
@@ -465,7 +471,7 @@ pub fn provider_unavailable(identity: &str) -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("callback_provider_unavailable"),
         STAGE_PLAN,
-        "callback_protocol.provider_unavailable",
+        antecedent_core::reason_details::callback_protocol::PROVIDER_UNAVAILABLE,
     )
     .with_expected(identity)
     .with_remedy(
@@ -481,7 +487,7 @@ pub fn interval_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         STAGE_CLOSED,
-        "callback_protocol.interval_not_supported",
+        antecedent_core::reason_details::callback_protocol::INTERVAL_NOT_SUPPORTED,
     )
     .with_remedy(
         "a callback supplies values, not a sampling or posterior representation of them: there is nothing to build an interval from; bind the callback output to a native method that reports an interval, or keep the result an external claim",
@@ -494,7 +500,7 @@ pub fn posterior_guarantee_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         STAGE_CLOSED,
-        "callback_protocol.posterior_guarantee_not_supported",
+        antecedent_core::reason_details::callback_protocol::POSTERIOR_GUARANTEE_NOT_SUPPORTED,
     )
     .with_remedy(
         "a callback posterior is the provider's object, and a guarantee about it is a property of the provider's method, not of the values it returned; keep it an external claim or implement the method natively",
@@ -507,7 +513,7 @@ pub fn native_trust_not_conferred() -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("callback_protocol_invalid"),
         STAGE_CLOSED,
-        "callback_protocol.native_trust_not_conferred",
+        antecedent_core::reason_details::callback_protocol::NATIVE_TRUST_NOT_CONFERRED,
     )
     .with_remedy(
         "metadata never confers native support; implement and support the method natively, or keep the result an external claim",
@@ -520,7 +526,7 @@ pub fn identification_not_conferred() -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("callback_protocol_invalid"),
         STAGE_CLOSED,
-        "callback_protocol.identification_not_conferred",
+        antecedent_core::reason_details::callback_protocol::IDENTIFICATION_NOT_CONFERRED,
     )
     .with_remedy(
         "identification is established from a graph and its assumptions; bind the callback output to a checked causal contract instead",
@@ -533,7 +539,7 @@ pub fn joint_law_not_conferred() -> CallbackRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("joint_law_required"),
         STAGE_CLOSED,
-        "callback_protocol.joint_law_not_conferred",
+        antecedent_core::reason_details::callback_protocol::JOINT_LAW_NOT_CONFERRED,
     )
     .with_remedy(
         "declare an aligned joint law or a covariance with an alignment identity every input shares; independently produced callback draws are never paired by index",

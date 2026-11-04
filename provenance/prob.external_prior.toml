@@ -41,9 +41,11 @@ record_sha256 = "bff1015ed09894d06c7758f0d3706887f969ea490a65433fc380e171a61d21b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/external_prior.rs"
-sha256 = "3ff7b4709523b71d35ab8c137d1fa383cb27d8ebb03921ea0bf6a494967da00a"
+items = ["fn compose_dense", "fn compose_external_priors", "fn compose_external_priors_with_alphas", "fn compose_mixture", "fn compose_power_add", "fn composition_assumption", "fn dense_scale", "fn effective_ess_per_source", "fn kish_weights_for_composition", "fn new", "fn power", "fn power_composed_ess", "fn power_mixture", "fn validate", "fn validate_mixture_weights", "struct ComposedPrior", "struct ExternalPriorSource", "struct ExternalPriorWeight"]
+sha256 = "eb7599f7a87546fdb3eda19d1de25cdddd0f2784493ffc2f7549c23f1cc59f89"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/external_prior_quadrature.rs"
-sha256 = "56be8b3f98c110b133a5f45a93b4cf56a48f049039aed02aac834e7e70460d34"
+items = ["fn dense_power_composition_matches_two_dimensional_quadrature", "fn dense_source", "fn gauss", "fn grid_moments_1d", "fn log_normal", "fn mixture_composition_matches_quadrature_of_the_mixture_density", "fn power_composition_matches_quadrature_of_the_tempered_density_product", "fn source"]
+sha256 = "4a94b86ef4efda2fc1b49a18b061b8e582dc532ab31cb8a005f1bc2aba8293d1"

@@ -656,7 +656,11 @@ fn overlapping_studies_pool_under_a_declared_covariance_and_replace_the_disjoint
         .pool_summaries(request(Some(disjoint)), PoolingDeclaration::Independent, &ctx())
         .unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted", "{refusal}");
-    assert_eq!(refusal.detail, "evidence_ledger.shared_observations", "{refusal}");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::evidence_ledger::SHARED_OBSERVATIONS,
+        "{refusal}"
+    );
 
     let replacing = session
         .pool_summaries(

@@ -670,7 +670,10 @@ mod tests {
             verify_provider_requests("origin", &[(VerificationSubject::Execution(&first), &off)])
                 .unwrap_err();
         let refusal = error.to_refusal();
-        assert_eq!(refusal.detail, "external_object_verification.failed_probe");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::external_object_verification::FAILED_PROBE
+        );
         assert_eq!(refusal.offending.as_deref(), Some("request[0].known_truth"));
         let uncertain = ExecutionContract { reports_uncertainty: true, ..execution("r1") };
         assert_eq!(

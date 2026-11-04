@@ -40,12 +40,14 @@ record_sha256 = "45bc1a6c206445513be82335c7c495bf12efd6937a912d95375eb4534c8efb5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+items = ["enum JointLawError", "enum PairStructure", "fn as_str", "fn atoms", "fn check_columns", "fn correlation_range_envelope", "fn mean", "fn ordered", "fn paired_moments", "fn require_finite", "fn structure", "struct CorrelationRangeEnvelope", "struct MomentSummary", "struct PairedMoments", "struct ValueBounds"]
+sha256 = "eea91aa2472ef8046587b4be431e3e7adffe359bcb80d1415341ab7b34302999"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/joint_law_transported_composition_reference.rs"
-sha256 = "18f2b6ce8739b9a4cab52c0b67460ef76bca6cc1fda2f81b5f8e8ec11cf5f38c"
+items = ["fn correlation_ranges_match_the_exact_endpoint_values", "fn f", "fn fs", "fn near", "fn paired_moments_match_the_exact_definitions", "fn reference"]
+sha256 = "5fda79bf50d658fb89dd9a24239b5823cf186e86dc96b84afd493ad64696546d"
 
 [[method_review.artifacts]]
 role = "reference"

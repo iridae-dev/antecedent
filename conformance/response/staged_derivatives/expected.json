@@ -55,7 +55,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_derivatives.rs",
-          "sha256": "47d1cf4ef981b259481198e8ff13d7519e3d2b3ce57f26f021b0928e7b756bf2"
+          "items": [
+            "fn confounded_derivatives_are_not_the_observational_slope",
+            "fn naive_ols_slope",
+            "fn staged_derivatives_known_truth"
+          ],
+          "sha256": "bbdcb15e97d2f41bec33e457bb180cf061e103f5fd53ea615e53dcebbecd2999"
         }
       ],
       "fixture_payload_sha256": "af8cb929e87122f941017d809e96968129b45c756d0240da795864cd32848eb8"

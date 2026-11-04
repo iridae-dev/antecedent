@@ -200,7 +200,7 @@ cancelled frontier is not exported, because it does not replay.
 
 Record `sensitivity.joint_uncertainty` now has supported Rust and Python
 functions returning the endpoint interval directly. The existing coverage
-records were measured by `scripts/gate_calibration.sh` (`run_js`, over the
+records were measured by `scripts/measure_calibration_groups.sh` (`run_js`, over the
 sample-size grid) at the historical source cut. The current public wrapper is
 not attested by those historical records. This section states the composition
 and its measured scope.

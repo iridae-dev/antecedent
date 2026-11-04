@@ -638,9 +638,10 @@ impl From<ValidationError> for CausalError {
         match error {
             ValidationError::Estimation(EstimationError::Refused { code, message })
                 if code == antecedent_core::reason_code!("cancelled_no_claim")
-                    && message.detail() == Some("dml.cancelled") =>
+                    && message.detail()
+                        == Some(antecedent_core::reason_details::dml::CANCELLED) =>
             {
-                Self::Cancelled { stage: "dml.cancelled" }
+                Self::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
             }
             other => lift_stage_error(other),
         }
@@ -719,9 +720,10 @@ impl From<EstimationError> for CausalError {
             }
             EstimationError::Refused { code, message }
                 if code == antecedent_core::reason_code!("cancelled_no_claim")
-                    && message.detail() == Some("dml.cancelled") =>
+                    && message.detail()
+                        == Some(antecedent_core::reason_details::dml::CANCELLED) =>
             {
-                Self::Cancelled { stage: "dml.cancelled" }
+                Self::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
             }
             EstimationError::Prob(ProbError::Cancelled { stage })
             | EstimationError::Learner(LearnError::Probability(ProbError::Cancelled { stage })) => {
@@ -1320,17 +1322,17 @@ mod tests {
         let error = || {
             EstimationError::refused_detail(
                 antecedent_core::reason_code!("cancelled_no_claim"),
-                "dml.cancelled",
+                antecedent_core::reason_details::dml::CANCELLED,
                 "no estimate",
             )
         };
         assert!(matches!(
             CausalError::from(error()),
-            CausalError::Cancelled { stage: "dml.cancelled" }
+            CausalError::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
         ));
         assert!(matches!(
             CausalError::from(ValidationError::Estimation(error())),
-            CausalError::Cancelled { stage: "dml.cancelled" }
+            CausalError::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
         ));
         assert!(matches!(
             CausalError::from(EstimationError::Admission(

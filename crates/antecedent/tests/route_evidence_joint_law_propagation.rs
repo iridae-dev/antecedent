@@ -150,7 +150,10 @@ fn the_rule_plans_an_aligned_route_only_for_inputs_sharing_one_alignment() {
     ))
     .expect_err("different alignments");
     assert_eq!(mismatch.code, "joint_law_required");
-    assert_eq!(mismatch.detail, "joint_law_propagation.alignment_mismatch");
+    assert_eq!(
+        mismatch.detail,
+        antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+    );
     assert!(mismatch.remedy.is_some());
 
     // Independent marginals have no row pairing at all.
@@ -162,7 +165,10 @@ fn the_rule_plans_an_aligned_route_only_for_inputs_sharing_one_alignment() {
     };
     let refused = check_propagation(&request(unpaired("x", "s1"), unpaired("y", "s2")))
         .expect_err("independent marginals");
-    assert_eq!(refused.detail, "joint_law_propagation.index_pairing_refused");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+    );
 }
 
 #[test]
@@ -184,7 +190,10 @@ fn an_alignment_identity_is_shared_by_the_columns_of_one_artifact_only() {
     let marginals = artifact("snap-marginals", DrawAlignment::IndependentMarginals, &x, &y);
     let refusal = alignment_identity(&marginals).expect_err("no identity");
     assert_eq!(refusal.code(), "joint_law_required");
-    assert_eq!(refusal.details(), vec!["joint_law_propagation.index_pairing_refused"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED]
+    );
 }
 
 #[test]
@@ -232,7 +241,7 @@ fn propagate_runs_a_declared_covariance_composition_to_its_closed_form() {
     );
     assert_eq!(
         wrong.expect_err("wrong shape").details(),
-        vec!["joint_law_propagation.invalid_request"]
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
     );
 }
 
@@ -286,7 +295,10 @@ fn aligned_linear_draws_give_the_covariance_from_the_rows_themselves() {
     let refused = propagate_aligned_linear(PropagationOperation::Sum, (1.0, 1.0), &dx, &oy, &ctx())
         .expect_err("different joint laws");
     assert_eq!(refused.code(), "joint_law_required");
-    assert_eq!(refused.details(), vec!["joint_law_propagation.alignment_mismatch"]);
+    assert_eq!(
+        refused.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH]
+    );
 }
 
 #[test]
@@ -323,7 +335,7 @@ fn aligned_functionals_are_expectations_under_the_joint_law() {
     );
     assert_eq!(
         refused.expect_err("zero denominator").details(),
-        vec!["joint_law_propagation.artifact_invalid"]
+        vec![antecedent_core::reason_details::joint_law_propagation::ARTIFACT_INVALID]
     );
 }
 
@@ -348,7 +360,7 @@ fn a_known_weight_mixture_splits_variance_into_within_and_between() {
     let bad = MixtureComponent { weight: 0.4, ..component("c", "s3", 0.0) };
     assert_eq!(
         propagate_mixture(&[bad.clone(), bad], &ctx()).expect_err("weights").details(),
-        vec!["joint_law_propagation.invalid_request"]
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
     );
 }
 
@@ -418,7 +430,7 @@ fn a_correlation_range_gives_an_assumption_range_linear_in_the_correlation() {
     );
     assert_eq!(
         refused.expect_err("single correlation").details(),
-        vec!["joint_law_propagation.invalid_request"]
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
     );
 }
 
@@ -465,7 +477,10 @@ fn a_fresh_consumer_replays_an_envelope_and_refuses_a_foreign_identity_or_trunca
     // A retained identity that is not this claim's is refused.
     let refusal = consume_joint_law_propagation_artifact(&bytes, Some("0000"), &ctx())
         .expect_err("foreign identity");
-    assert_eq!(refusal.details(), vec!["joint_law_propagation.artifact_refused"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ARTIFACT_REFUSED]
+    );
     // Truncated bytes are not an artifact.
     assert!(
         consume_joint_law_propagation_artifact(&bytes[..bytes.len() / 2], None, &ctx()).is_err()

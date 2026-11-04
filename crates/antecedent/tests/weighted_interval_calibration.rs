@@ -15,7 +15,7 @@
 //! its variance and its effective sample size differ, so every record binds the functional
 //! label `…+weights=sampling` and no record measured on unweighted rows applies to it. The
 //! routes publish no weighted interval until a record measures one. These designs are
-//! `#[ignore]`d measurement designs registered in `scripts/gate_calibration.sh`
+//! `#[ignore]`d measurement designs registered in `scripts/measure_calibration_groups.sh`
 //! (`run_wi`); the coverage record is the only missing piece. The fixed-seed truth checks of the
 //! same estimators are `crates/antecedent-estimate/tests/sampling_weights.rs`.
 //!

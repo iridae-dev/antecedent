@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import temporal
 from antecedent.errors import (
     CausalSerializationError,
@@ -205,8 +206,8 @@ def test_partitions_that_change_the_estimand_refuse(changed: EffectEstimand) -> 
     error = raised.value
     assert isinstance(error, CausalUnsupportedError)
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "effect_constancy.incompatible_partitions"
-    assert "effect_constancy.incompatible_partitions" in str(error)
+    assert error.detail == reason_details.effect_constancy.INCOMPATIBLE_PARTITIONS
+    assert reason_details.effect_constancy.INCOMPATIBLE_PARTITIONS in str(error)
     assert_registered_refusal(error)
 
 
@@ -214,10 +215,10 @@ def test_unsupported_coordinate_and_duplicate_labels_refuse() -> None:
     with pytest.raises(TemporalRefusal) as raised:
         run([Partition("a", 1.0, 0.5), Partition("b", 1.0, 0.5, support="unsupported")])
     assert raised.value.reason_code == "route_not_supported"
-    assert raised.value.detail == "effect_constancy.unsupported_partition"
+    assert raised.value.detail == reason_details.effect_constancy.UNSUPPORTED_PARTITION
     with pytest.raises(TemporalRefusal) as raised:
         run([("a", 1.0, 0.5), ("a", 2.0, 0.5)])
-    assert raised.value.detail == "effect_constancy.incompatible_partitions"
+    assert raised.value.detail == reason_details.effect_constancy.INCOMPATIBLE_PARTITIONS
     # A partially supported coordinate is reported, not refused.
     partial = run([Partition("a", 1.0, 0.5), Partition("b", 1.0, 0.5, support="partial")])
     assert partial.partitions[1].support == "partial"
@@ -231,11 +232,11 @@ def test_invalid_numbers_refuse_with_exact_details() -> None:
 
     assert detail([("a", 1.0, 0.5)]) == (
         "invalid_argument",
-        "effect_constancy.too_few_partitions",
+        reason_details.effect_constancy.TOO_FEW_PARTITIONS,
     )
     assert detail([("a", 1.0, 0.5), ("b", 1.0, 0.0)]) == (
         "invalid_argument",
-        "effect_constancy.invalid_standard_error",
+        reason_details.effect_constancy.INVALID_STANDARD_ERROR,
     )
     for covariance in (
         [[0.25, 0.1], [0.2, 0.25]],  # not symmetric
@@ -247,20 +248,20 @@ def test_invalid_numbers_refuse_with_exact_details() -> None:
     ):
         assert detail([("a", 1.0, 0.5), ("b", 2.0, 0.5)], covariance=covariance) == (
             "invalid_argument",
-            "effect_constancy.invalid_covariance",
+            reason_details.effect_constancy.INVALID_COVARIANCE,
         ), covariance
     assert detail([("a", 1.0, 0.5), ("b", 2.0, 0.5)], against="zzz") == (
         "invalid_argument",
-        "effect_constancy.unknown_reference",
+        reason_details.effect_constancy.UNKNOWN_REFERENCE,
     )
     assert detail([("a", 1.0, 0.5), ("b", 2.0, 0.5)], alpha=1.5) == (
         "invalid_argument",
-        "effect_constancy.invalid_alpha",
+        reason_details.effect_constancy.INVALID_ALPHA,
     )
     for bad in (float("nan"), float("inf")):
         with pytest.raises(TemporalRefusal) as raised:
             Partition("a", bad, 0.5)
-        assert raised.value.detail == "effect_constancy.non_finite_estimate"
+        assert raised.value.detail == reason_details.effect_constancy.NON_FINITE_ESTIMATE
 
 
 def test_a_missing_shared_estimand_is_never_assumed() -> None:
@@ -305,7 +306,7 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
                 bytes(mutated.export()), expected_identity=original.identity
             )
         assert raised.value.reason_code == "route_not_supported"
-        assert raised.value.detail == "effect_constancy.wrong_contract"
+        assert raised.value.detail == reason_details.effect_constancy.WRONG_CONTRACT
         assert raised.value.offending == field, field
 
     refused(run(base_parts, covariance=[[0.25, 0.0625], [0.0625, 0.25]]), "covariance")

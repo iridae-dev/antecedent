@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.graph import Admg
 from antecedent.recovery_chain import (
@@ -147,7 +148,7 @@ def test_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
     law, _ = scm(0, True)
     error = refused(
         lambda: recover_chain(graph(0, True, extra=[("x2", "r2")]), QUERY, law),
-        "recovery_chain.nonrecoverable_witness",
+        reason_details.recovery_chain.NONRECOVERABLE_WITNESS,
         "transport_proven_non_transportable",
     )
     witness = error.witness
@@ -177,7 +178,7 @@ def test_head_self_censoring_with_an_independent_tail_is_also_witnessed() -> Non
 
 def test_graphs_outside_the_row_are_not_supported_never_nonrecoverable() -> None:
     law, _ = scm(0, True)
-    unsupported = "recovery_chain.unsupported_mechanism"
+    unsupported = reason_details.recovery_chain.UNSUPPORTED_MECHANISM
     # A response drives the other variable's proxy.
     refused(
         lambda: recover_chain(graph(0, True, extra=[("r1", "p2")]), QUERY, law),
@@ -211,7 +212,7 @@ def test_malformed_roles_are_invalid_queries() -> None:
     broken["edges"] = [e for e in broken["edges"] if e != ("r2", "p2")]
     refused(
         lambda: recover_chain(broken, QUERY, law),
-        "recovery_chain.invalid_query",
+        reason_details.recovery_chain.INVALID_QUERY,
         "invalid_argument",
     )
     with pytest.raises(ValueError, match="three distinct"):
@@ -233,7 +234,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
     )
     refused(
         lambda: recover_chain(graph(0, True), QUERY, broken),
-        "recovery_chain.positivity",
+        reason_details.recovery_chain.POSITIVITY,
         "transport_support_failure",
     )
     not_normalized = PatternLaw(
@@ -241,7 +242,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
     )
     refused(
         lambda: recover_chain(graph(0, True), QUERY, not_normalized),
-        "recovery_chain.invalid_observed_law",
+        reason_details.recovery_chain.INVALID_OBSERVED_LAW,
         "invalid_argument",
     )
     with_nan = PatternLaw(
@@ -249,7 +250,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
     )
     refused(
         lambda: recover_chain(graph(0, True), QUERY, with_nan),
-        "recovery_chain.invalid_observed_law",
+        reason_details.recovery_chain.INVALID_OBSERVED_LAW,
         "invalid_argument",
     )
     with pytest.raises(ValueError, match="2 x 2"):
@@ -286,7 +287,7 @@ def test_nonrecoverable_artifact_reverifies_its_witness() -> None:
     assert artifact is not None
     error = refused(
         lambda: consume_recovery_chain_artifact(artifact),
-        "recovery_chain.nonrecoverable_witness",
+        reason_details.recovery_chain.NONRECOVERABLE_WITNESS,
         "transport_proven_non_transportable",
     )
     assert error.witness == info.value.witness

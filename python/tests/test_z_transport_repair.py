@@ -4,6 +4,7 @@ import json
 
 import pytest
 from antecedent import Admg, repair
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
@@ -93,7 +94,9 @@ def test_z_transport_contract_obligations_drive_verified_repair_and_typed_refusa
     assert result.best.derivation.checker == "z_transport.catalog"
     assert all(o.proof_step in result.best.derivation.steps for o in obligations)
     assert all(o.classification == "insufficient" for o in result.table if o.labels != ("correct",))
-    with pytest.raises(repair.RepairRefusal, match="identification_repair.invalid_request"):
+    with pytest.raises(
+        repair.RepairRefusal, match=reason_details.identification_repair.INVALID_REQUEST
+    ):
         edited = json.loads(failed.failure_snapshot)
         edited["catalog_digest"] = "changed"
         repair.ZTransportContract(names=failed.names, failure_snapshot=json.dumps(edited).encode())

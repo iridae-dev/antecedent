@@ -16,6 +16,15 @@ class BindArtifactDigest(unittest.TestCase):
                 f'path = "src/example.rs"{separator}sha256 = "{new}"',
             )
 
+    def test_items_line_between_path_and_digest_is_kept(self):
+        old, new = "a" * 64, "b" * 64
+        for separator in ("\n", ", "):
+            text = f'path = "src/example.rs"{separator}items = ["fn a", "impl B"]{separator}sha256 = "{old}"'
+            self.assertEqual(
+                bind_artifact_digest(text, "src/example.rs", new),
+                f'path = "src/example.rs"{separator}items = ["fn a", "impl B"]{separator}sha256 = "{new}"',
+            )
+
     def test_missing_or_duplicate_artifacts_fail_closed(self):
         entry = 'path = "src/example.rs", sha256 = "' + "a" * 64 + '"'
         for text in ("", entry + "\n" + entry):

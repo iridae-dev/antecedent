@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.cyclic import (
     SdeAction,
     SdeBound,
@@ -396,27 +397,27 @@ def test_unsupported_expression_classes_and_schemes_are_refused_with_typed_reaso
         parameters={"s": 0.1},
     )
     text = refusal_text(unbounded.simulate((0.5,), SdeSimulation(0.1, 10, 4, 1)))
-    assert "route_not_supported" in text and "sde.unbounded_growth" in text
+    assert "route_not_supported" in text and reason_details.sde.UNBOUNDED_GROWTH in text
     text = refusal_text(
         StochasticDifferentialEquation.epidemic().simulate(
             INITIAL, epidemic_simulation(scheme="milstein")
         )
     )
-    assert "sde.milstein_noncommutative" in text
+    assert reason_details.sde.MILSTEIN_NONCOMMUTATIVE in text
     off_grid = SdeWorld("late", actions=(SdeAction("I", (5.013,), (20.0,)),))
     text = refusal_text(
         StochasticDifferentialEquation.epidemic().simulate(
             INITIAL, epidemic_simulation(), interventions=[off_grid]
         )
     )
-    assert "sde.action_time_off_grid" in text
+    assert reason_details.sde.ACTION_TIME_OFF_GRID in text
     wide = SdeWorld("wide", inputs=(SdeInput("season", (0.0,), (2.0,), envelope=(-1.0, 2.0)),))
     text = refusal_text(
         StochasticDifferentialEquation.epidemic().simulate(
             INITIAL, epidemic_simulation(), interventions=[wide]
         )
     )
-    assert "sde.input_outside_certified_envelope" in text
+    assert reason_details.sde.INPUT_OUTSIDE_CERTIFIED_ENVELOPE in text
 
 
 def test_partial_noisy_observation_is_an_extended_kalman_fit_and_says_so():

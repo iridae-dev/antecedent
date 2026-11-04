@@ -516,7 +516,10 @@ fn a_value_restricted_trial_is_neither_searched_nor_bound_nor_executed() {
     assert_eq!(inspection.exclusions[0].reason, "restricted_levels");
     // A proof from the family refuses to bind to the restricted catalog.
     let refused = bind_mixed_source_catalog(&g, &derivation, &restricted).unwrap_err().to_string();
-    assert!(refused.contains("mixed_search.invalid_derivation"), "{refused}");
+    assert!(
+        refused.contains(antecedent_core::reason_details::mixed_search::INVALID_DERIVATION),
+        "{refused}"
+    );
     // Executing the family's plan on the restricted level's law alone evaluates that
     // level and refuses the level that was never measured.
     let only_true = Data::try_new(

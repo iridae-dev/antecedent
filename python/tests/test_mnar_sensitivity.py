@@ -19,6 +19,7 @@ import math
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import mnar_sensitivity as mnar
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
@@ -137,30 +138,30 @@ def test_mnar_ranges_are_never_labelled_as_confidence_intervals() -> None:
 def test_mnar_refuses_undeclared_unbounded_and_unsupported() -> None:
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(model=None)
-    assert info.value.detail == "mnar_sensitivity.mechanism_not_declared"
+    assert info.value.detail == reason_details.mnar_sensitivity.MECHANISM_NOT_DECLARED
     assert info.value.code == "required_option_missing"
 
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(model="logit_selection_on_covariates")
-    assert info.value.detail == "mnar_sensitivity.unsupported_mechanism"
+    assert info.value.detail == reason_details.mnar_sensitivity.UNSUPPORTED_MECHANISM
 
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(estimator="causal_forest")
-    assert info.value.detail == "mnar_sensitivity.unsupported_estimator"
+    assert info.value.detail == reason_details.mnar_sensitivity.UNSUPPORTED_ESTIMATOR
     assert isinstance(info.value, CausalUnsupportedError)
 
     for lower, upper in ((-math.inf, 1.0), (-1.0, math.inf), (-1.0, 1.0e13)):
         with pytest.raises(mnar.MnarSensitivityRefusal) as info:
             _shift(lower=lower, upper=upper)
-        assert info.value.detail == "mnar_sensitivity.unbounded_range"
+        assert info.value.detail == reason_details.mnar_sensitivity.UNBOUNDED_RANGE
 
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(lower=1.0, upper=2.0)
-    assert info.value.detail == "mnar_sensitivity.range_excludes_mar"
+    assert info.value.detail == reason_details.mnar_sensitivity.RANGE_EXCLUDES_MAR
 
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(sampling_composition="add the interval to the range")
-    assert info.value.detail == "mnar_sensitivity.composition_not_supported"
+    assert info.value.detail == reason_details.mnar_sensitivity.COMPOSITION_NOT_SUPPORTED
     assert info.value.code == "route_not_supported"
 
 
@@ -171,7 +172,7 @@ def test_mnar_argument_errors_are_domain_errors() -> None:
         _shift(loading="sideways")
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(level=1.0)
-    assert info.value.detail == "mnar_sensitivity.invalid_level"
+    assert info.value.detail == reason_details.mnar_sensitivity.INVALID_LEVEL
     assert isinstance(info.value, CausalValueError)
     with pytest.raises(CausalValueError):
         _shift(loading="treated_only").tipping_point("nonexistent")
@@ -246,7 +247,7 @@ def test_mnar_adjusted_estimators_require_covariates() -> None:
             upper=1.0,
             estimator="aipw",
         )
-    assert info.value.detail == "mnar_sensitivity.covariates_required"
+    assert info.value.detail == reason_details.mnar_sensitivity.COVARIATES_REQUIRED
 
 
 def test_mnar_result_replays_identically_with_its_assumption_records() -> None:

@@ -74,7 +74,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/discovery_masked_mci_lag1.rs",
-          "sha256": "15d470d2dc40b0f787bed359a0b925fc6700ad020a00db87b42f096601ed7e2b"
+          "items": [
+            "fn fixture_dir",
+            "fn load_series",
+            "fn masked_mci_lag1_exact_parents",
+            "fn name_to_id",
+            "fn parent_set"
+          ],
+          "sha256": "3da4310c336e6610b2bf93471cf71fe2892daaee5d4d9adafccf19d97c924b65"
         },
         {
           "role": "input_fixture",

@@ -11,6 +11,8 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from functools import cache
 
+from antecedent import _reason_details
+
 from . import _native
 from .errors import CausalValueError
 from .prediction import FittedEffectModel
@@ -96,7 +98,7 @@ class Capability:
     adapters: tuple[Adapter, ...]
     compatible_operation: str
     refusal_code: str = "route_not_supported"
-    refusal_detail: str = "recalc.capability_adapter_unavailable"
+    refusal_detail: str = _reason_details.recalc.CAPABILITY_ADAPTER_UNAVAILABLE
     inference: str = "Preserve the producing claim; reuse never supports uncertainty."
 
 

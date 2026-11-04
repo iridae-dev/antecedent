@@ -236,7 +236,10 @@ fn selection_on_outcome_mechanism_refuses_with_a_two_model_witness() {
         &evidence(),
     ));
     assert_eq!(refusal.refusal.code, "transport_proven_non_transportable");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.selection_on_mechanism");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+    );
     assert!(refusal.refusal.validate().is_ok());
     let w = refusal.witness.expect("the NDE is sensitive to the outcome mechanism");
     assert_eq!(w.selected_node, "y");
@@ -269,7 +272,10 @@ fn selection_on_mediator_is_witnessed_only_when_the_contrast_depends_on_it() {
         &evidence(),
     ));
     assert_eq!(refusal.refusal.code, "route_not_supported");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.selection_on_mechanism");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+    );
     assert!(refusal.witness.is_none());
     assert_eq!(refusal.refusal.offending.as_deref(), Some("m"));
     // The NIE depends on it: witness. Perturbing b by 1 moves NIE by d * 1 * 1.5 = 6.
@@ -305,16 +311,28 @@ fn undeclared_premises_refuse_each_with_its_own_detail() {
         ))
     };
     let r = go(DeclaredAssumptions { additive_noise: false, ..declared() });
-    assert_eq!(r.refusal.detail, "transported_counterfactual.nonadditive_mechanism");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM
+    );
     assert_eq!(r.refusal.code, "route_not_supported");
     let r = go(DeclaredAssumptions { noise_laws_shared: false, ..declared() });
-    assert_eq!(r.refusal.detail, "transported_counterfactual.noise_law_not_shared");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::NOISE_LAW_NOT_SHARED
+    );
     assert_eq!(r.refusal.offending.as_deref(), Some("noise_laws_shared"));
     assert!(r.refusal.validate().is_ok());
     let r = go(DeclaredAssumptions { cross_world_independence: false, ..declared() });
-    assert_eq!(r.refusal.detail, "transported_counterfactual.cross_world_independence_missing");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::CROSS_WORLD_INDEPENDENCE_MISSING
+    );
     let r = go(DeclaredAssumptions::default());
-    assert_eq!(r.refusal.detail, "transported_counterfactual.nonadditive_mechanism");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM
+    );
 }
 
 #[test]
@@ -322,7 +340,10 @@ fn target_outside_source_support_is_an_overlap_failure() {
     let outside = law(&[(0.0, 0.5), (3.0, 0.5)]);
     let r = refusal_of(run(&nde(), &outside));
     assert_eq!(r.refusal.code, "transport_support_failure");
-    assert_eq!(r.refusal.detail, "transported_counterfactual.overlap_failure");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::OVERLAP_FAILURE
+    );
     assert_eq!(r.refusal.offending.as_deref(), Some("z=3"));
     assert!(r.refusal.validate().is_ok());
 }
@@ -341,7 +362,10 @@ fn absent_regime_factor_is_factor_missing() {
         &factors,
     ));
     assert_eq!(r.refusal.code, "transport_missing_evidence");
-    assert_eq!(r.refusal.detail, "transported_counterfactual.factor_missing");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::FACTOR_MISSING
+    );
     assert_eq!(r.refusal.offending.as_deref(), Some("target:observational"));
     assert_eq!(r.missing_factors, vec![factor(PopulationRole::Target)]);
 }
@@ -360,12 +384,21 @@ fn malformed_inputs_are_invalid_arguments() {
         &evidence(),
     ));
     assert_eq!(r.refusal.code, "invalid_argument");
-    assert_eq!(r.refusal.detail, "transported_counterfactual.invalid_model");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL
+    );
     let bad_query = query(EdgeAssignment::treated_on(["z"]), EdgeAssignment::all_control());
     let r = refusal_of(run(&bad_query, &target()));
-    assert_eq!(r.refusal.detail, "transported_counterfactual.invalid_query");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::INVALID_QUERY
+    );
     let r = refusal_of(run(&nde(), &law(&[(0.0, 0.5), (1.0, 0.25)])));
-    assert_eq!(r.refusal.detail, "transported_counterfactual.invalid_law");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::INVALID_LAW
+    );
     let r = refusal_of(run_full(
         &model(),
         &selection("S", "nowhere"),
@@ -375,7 +408,10 @@ fn malformed_inputs_are_invalid_arguments() {
         declared(),
         &evidence(),
     ));
-    assert_eq!(r.refusal.detail, "transported_counterfactual.invalid_diagram");
+    assert_eq!(
+        r.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::INVALID_DIAGRAM
+    );
 }
 
 #[test]

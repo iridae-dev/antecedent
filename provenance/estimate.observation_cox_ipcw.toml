@@ -31,12 +31,14 @@ record_sha256 = "ee14d5247c16eb922203a29de49e9d8d5cb36accbeabe0d5f3b965cc2cf7339
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/cox_ipcw.rs"
-sha256 = "e44f70cf91cc03751b47c9497ad1d703517f39725b6f48667551329b4234b0b4"
+items = ["enum Stopping", "fn baseline_at", "fn baseline_before", "fn cox_breslow", "fn cox_ipcw", "fn evaluate", "fn fit_standardized", "fn invalid", "fn linear_predictor", "fn new", "fn reset_accumulators", "struct CoxBreslowFit", "struct CoxIpcwFit", "struct CoxScratch", "struct StandardizedCox"]
+sha256 = "6c82b207eb2c08ee3f0452b2e9473d24c8c44cd9231359d33cf9195341b949e4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/cox_ipcw_reference.rs"
-sha256 = "e0e7c4648effc9b0210a71f0a33182750007f033f3acb900776814521baafea2"
+items = ["fn breslow_coefficients_baseline_and_limits_match_the_multiprecision_fit", "fn close", "fn column_major", "fn fixture", "fn floats", "fn inverse_censoring_weights_match_the_multiprecision_conditional_survival", "fn text", "fn texts"]
+sha256 = "78ed40b075383b72530487843a7b3d3409c3b5af66124b0a11812761320d3f1b"
 
 [[method_review.artifacts]]
 role = "reference"

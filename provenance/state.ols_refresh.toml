@@ -36,12 +36,14 @@ record_sha256 = "ce1c750245e4d48fea978a9deeac00ee2d1029e43dfac3a3473498685862162
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/ols_refresh.rs"
-sha256 = "2d52f64d53108b214a853e2376cc70847c7443641576847a933556b3bfc20490"
+items = ["const SOURCE_TAG", "enum RefreshOutcome", "fn add", "fn add_to_stats", "fn append_row", "fn append_window", "fn check_against_fresh", "fn check_source", "fn checked_ids", "fn derive", "fn digest_row", "fn digest_start", "fn evict_row", "fn fresh_snapshot", "fn ledger", "fn live", "fn new", "fn position", "fn rebuild", "fn recomputes", "fn refuse_retention", "fn require", "fn retention", "fn rows", "fn set_count", "fn set_mask", "fn snapshot", "fn snapshot_of", "fn source", "fn stats", "fn take", "fn validate", "struct OlsLedgerState", "struct OlsRefresh", "struct OlsSnapshot", "struct RefreshRow"]
+sha256 = "b94733f86ac07129c96c79f2a12e9c5d2400177b8648b6f2bb87f7c472ec04cf"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/tests/ols_refresh_reference.rs"
-sha256 = "ef4a1bf8ea1df3ffd22927e385e5d005b9605ffb6bc28f39033bc9ba65af249c"
+items = ["fn agree", "fn every_operation_leaves_the_exact_least_squares_result", "fn index"]
+sha256 = "c305f4bd9384430efb6cc2d1fed9277ad433dbca83bd5e2268d9bc45397742a0"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -280,7 +280,7 @@ fn a_stored_temporal_policy_value_replays_and_forgeries_are_refused() {
     assert!((stored.target_value - 1.5).abs() < 1e-12);
     verify_temporal_policy(&stored, &request, &ctx()).unwrap();
 
-    let mismatch = "temporal_policy_transport.value_mismatch";
+    let mismatch = antecedent_core::reason_details::temporal_policy_transport::VALUE_MISMATCH;
     let mut value = stored.clone();
     value.target_value += 0.25;
     let err = verify_temporal_policy(&value, &request, &ctx()).unwrap_err();
@@ -308,7 +308,7 @@ fn a_stored_temporal_policy_value_replays_and_forgeries_are_refused() {
     let changed = TemporalPolicyRequest { invariance: Some(&longer), ..request };
     assert_eq!(
         verify_temporal_policy(&stored, &changed, &ctx()).unwrap_err().detail,
-        "temporal_policy_transport.horizon_mismatch"
+        antecedent_core::reason_details::temporal_policy_transport::HORIZON_MISMATCH
     );
 }
 
@@ -332,7 +332,7 @@ fn a_stored_adaptive_transport_estimate_replays_and_forgeries_are_refused() {
     assert!((stored.contrast - 1.0 / 56.0).abs() < 1e-12);
     verify_adaptive_transport(&stored, &request).unwrap();
 
-    let mismatch = "adaptive_transport.value_mismatch";
+    let mismatch = antecedent_core::reason_details::adaptive_transport::VALUE_MISMATCH;
     for which in 0..4 {
         let mut forged = stored.clone();
         match which {
@@ -355,6 +355,6 @@ fn a_stored_adaptive_transport_estimate_replays_and_forgeries_are_refused() {
     let bad = AdaptiveTransportRequest { target_stratum_law: Some(&bad_law), ..request };
     assert_eq!(
         verify_adaptive_transport(&stored, &bad).unwrap_err().detail,
-        "adaptive_transport.target_stratum_law"
+        antecedent_core::reason_details::adaptive_transport::TARGET_STRATUM_LAW
     );
 }

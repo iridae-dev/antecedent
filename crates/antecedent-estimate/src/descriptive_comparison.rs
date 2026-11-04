@@ -104,7 +104,7 @@ impl<T> Availability<T> {
 fn invalid_data(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "descriptive_comparison.invalid_data",
+        antecedent_core::reason_details::descriptive_comparison::INVALID_DATA,
         message,
     )
 }
@@ -112,7 +112,7 @@ fn invalid_data(message: &str) -> EstimationError {
 fn cancelled() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "descriptive_comparison.cancelled",
+        antecedent_core::reason_details::descriptive_comparison::CANCELLED,
         "the comparison was cancelled before every row was read; no contrast is reported and \
          the stop is not a verdict on the data",
     )
@@ -121,7 +121,7 @@ fn cancelled() -> EstimationError {
 fn arm_too_small() -> Unavailable {
     Unavailable {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "descriptive_comparison.arm_too_small",
+        detail: antecedent_core::reason_details::descriptive_comparison::ARM_TOO_SMALL,
         reason: "an arm with fewer than two rows has no sample variance, so the raw standard \
                  error and the independent-groups covariance of the arm means are unavailable",
     }
@@ -163,7 +163,7 @@ impl ReportingScale {
             .ok_or_else(|| {
                 refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "descriptive_comparison.scale_not_supported",
+                    antecedent_core::reason_details::descriptive_comparison::SCALE_NOT_SUPPORTED,
                     &format!(
                         "reporting scale '{name}' is not declared; the scales are mean_difference, \
                          risk_difference, log_risk_ratio and log_odds_ratio"
@@ -180,7 +180,7 @@ impl ReportingScale {
             } else {
                 Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "descriptive_comparison.transform_domain",
+                    antecedent_core::reason_details::descriptive_comparison::TRANSFORM_DOMAIN,
                     &format!(
                         "{} is undefined at the means ({active}, {control}): it needs {needs}",
                         self.name()
@@ -236,7 +236,7 @@ impl MeanPair {
             || {
                 Availability::Unavailable(Unavailable {
                     code: antecedent_core::reason_code!("required_option_missing"),
-                    detail: "descriptive_comparison.joint_covariance_unavailable",
+                    detail: antecedent_core::reason_details::descriptive_comparison::JOINT_COVARIANCE_UNAVAILABLE,
                     reason:
                         "the source estimate does not carry the joint covariance of the two arm \
                              means; the transformed points are reported and the delta-method \
@@ -282,7 +282,7 @@ impl MeanPair {
 fn invalid_covariance(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "descriptive_comparison.invalid_covariance",
+        antecedent_core::reason_details::descriptive_comparison::INVALID_COVARIANCE,
         message,
     )
 }
@@ -387,7 +387,7 @@ pub fn transform_mean_pair(
 pub fn refuse_column_attribution() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("effect_not_identified"),
-        "descriptive_comparison.column_attribution_not_identified",
+        antecedent_core::reason_details::descriptive_comparison::COLUMN_ATTRIBUTION_NOT_IDENTIFIED,
         "the raw-minus-adjusted gap is descriptive and is not attributed to individual \
          adjustment columns: the adjusted estimate is not an additive function of the columns \
          (a leave-one-out difference depends on the order, the remaining columns and the \
@@ -485,7 +485,7 @@ pub fn raw_contrast(
     if active.is_empty() || control.is_empty() {
         return Err(refuse(
             antecedent_core::reason_code!("arm_not_populated"),
-            "descriptive_comparison.arm_not_populated",
+            antecedent_core::reason_details::descriptive_comparison::ARM_NOT_POPULATED,
             &format!(
                 "a treatment arm has no rows ({} active, {} control), so there is no raw contrast",
                 active.len(),
@@ -603,17 +603,17 @@ fn cpu_admission_error(error: CpuAdmissionError) -> EstimationError {
         CpuAdmissionError::Cancelled => cancelled(),
         CpuAdmissionError::FoldExceedsLease { .. } => refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "descriptive_comparison.fold_exceeds_lease",
+            antecedent_core::reason_details::descriptive_comparison::FOLD_EXCEEDS_LEASE,
             "the fold exceeds the shared CPU and RAM lease",
         ),
         CpuAdmissionError::LearnerExceedsLease { .. } => refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "descriptive_comparison.learner_exceeds_lease",
+            antecedent_core::reason_details::descriptive_comparison::LEARNER_EXCEEDS_LEASE,
             "the learner exceeds the fold lease",
         ),
         _ => refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "descriptive_comparison.admission_refused",
+            antecedent_core::reason_details::descriptive_comparison::ADMISSION_REFUSED,
             "the CPU admission or its scratch was refused",
         ),
     }
@@ -691,7 +691,7 @@ pub fn compare_raw_adjusted(
     {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "descriptive_comparison.estimand_coding_mismatch",
+            antecedent_core::reason_details::descriptive_comparison::ESTIMAND_CODING_MISMATCH,
             &format!(
                 "the raw contrast is a difference of means at active 1 versus control 0; the \
                  adjusted estimate is on scale {} at active {} versus control {}, so the two do \
@@ -705,7 +705,7 @@ pub fn compare_raw_adjusted(
     if !adjusted.all_observed_population {
         return Err(refuse(
             antecedent_core::reason_code!("population_not_estimable"),
-            "descriptive_comparison.population_not_all_observed",
+            antecedent_core::reason_details::descriptive_comparison::POPULATION_NOT_ALL_OBSERVED,
             "the raw contrast averages over all observed rows; an adjusted estimate for another \
              target population answers a different question and is not compared with it",
         ));
@@ -720,7 +720,8 @@ pub fn compare_raw_adjusted(
         gap: raw.difference - adjusted.estimate,
         gap_interval: Unavailable {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "descriptive_comparison.gap_interval_unavailable",
+            detail:
+                antecedent_core::reason_details::descriptive_comparison::GAP_INTERVAL_UNAVAILABLE,
             reason: "the covariance between the raw and the adjusted estimate is not carried by \
                      either and is not assumed zero (they use the same rows), so the gap has no \
                      standard error or interval",

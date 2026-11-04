@@ -99,7 +99,10 @@ fn a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separate
     let text = ObservationalSurvivalEffect::evaluate(&survival_request(300, spec))
         .unwrap_err()
         .to_string();
-    assert!(text.contains("survival_effect.horizon_missing"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::survival_effect::HORIZON_MISSING),
+        "{text}"
+    );
     assert!(text.contains("required_option_missing"), "{text}");
 
     let mut spec = survival_spec();
@@ -107,7 +110,12 @@ fn a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separate
     let text = ObservationalSurvivalEffect::evaluate(&survival_request(300, spec))
         .unwrap_err()
         .to_string();
-    assert!(text.contains("survival_effect.censoring_assumption_missing"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_MISSING
+        ),
+        "{text}"
+    );
     assert!(text.contains("Informative censoring is not identified"), "{text}");
 
     let mut spec = survival_spec();
@@ -115,7 +123,12 @@ fn a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separate
     let text = ObservationalSurvivalEffect::evaluate(&survival_request(300, spec))
         .unwrap_err()
         .to_string();
-    assert!(text.contains("survival_effect.censoring_assumption_unknown"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_UNKNOWN
+        ),
+        "{text}"
+    );
 }
 
 #[test]
@@ -126,7 +139,10 @@ fn a_horizon_beyond_follow_up_is_a_positivity_refusal_on_the_public_route() {
         .unwrap_err()
         .to_string();
     assert!(text.contains("positivity_violated"), "{text}");
-    assert!(text.contains("survival_effect.horizon_beyond_follow_up"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::survival_effect::HORIZON_BEYOND_FOLLOW_UP),
+        "{text}"
+    );
 }
 
 fn policy_request(spec: ObservationalPolicySpecWire) -> ObservationalPolicyRequest {
@@ -202,12 +218,30 @@ fn policy_value_reports_the_declared_support_evaluation_and_standing() {
 fn every_undeclared_policy_input_is_refused_with_its_own_detail() {
     type Mutate = Box<dyn Fn(&mut ObservationalPolicySpecWire)>;
     let cases: [(&str, Mutate); 6] = [
-        ("policy_value.support_missing", Box::new(|s| s.support = None)),
-        ("policy_value.objective_missing", Box::new(|s| s.objective = None)),
-        ("policy_value.evaluation_missing", Box::new(|s| s.evaluation = None)),
-        ("policy_value.policy_origin_missing", Box::new(|s| s.policy_origin = None)),
-        ("policy_value.policy_actions_missing", Box::new(|s| s.policy_actions = None)),
-        ("policy_value.evaluation_unknown", Box::new(|s| s.evaluation = Some("in_sample".into()))),
+        (
+            antecedent_core::reason_details::policy_value::SUPPORT_MISSING,
+            Box::new(|s| s.support = None),
+        ),
+        (
+            antecedent_core::reason_details::policy_value::OBJECTIVE_MISSING,
+            Box::new(|s| s.objective = None),
+        ),
+        (
+            antecedent_core::reason_details::policy_value::EVALUATION_MISSING,
+            Box::new(|s| s.evaluation = None),
+        ),
+        (
+            antecedent_core::reason_details::policy_value::POLICY_ORIGIN_MISSING,
+            Box::new(|s| s.policy_origin = None),
+        ),
+        (
+            antecedent_core::reason_details::policy_value::POLICY_ACTIONS_MISSING,
+            Box::new(|s| s.policy_actions = None),
+        ),
+        (
+            antecedent_core::reason_details::policy_value::EVALUATION_UNKNOWN,
+            Box::new(|s| s.evaluation = Some("in_sample".into())),
+        ),
     ];
     for (detail, edit) in cases {
         let mut request = policy_request(policy_spec("prespecified"));
@@ -218,7 +252,10 @@ fn every_undeclared_policy_input_is_refused_with_its_own_detail() {
     let mut request = policy_request(policy_spec("held_out"));
     request.spec.evaluation_fraction = None;
     let text = ObservationalPolicyValue::evaluate(&request).unwrap_err().to_string();
-    assert!(text.contains("policy_value.evaluation_fraction_missing"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::EVALUATION_FRACTION_MISSING),
+        "{text}"
+    );
 }
 
 #[test]
@@ -232,5 +269,8 @@ fn reusing_the_evaluation_rows_to_learn_the_policy_and_unsupported_actions_are_r
     request.spec.policy_actions.as_mut().unwrap()[0] = 7.0;
     let text = ObservationalPolicyValue::evaluate(&request).unwrap_err().to_string();
     assert!(text.contains("positivity_violated"), "{text}");
-    assert!(text.contains("policy_value.action_outside_support"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_OUTSIDE_SUPPORT),
+        "{text}"
+    );
 }

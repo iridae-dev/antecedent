@@ -40,9 +40,16 @@ fn arms_are_bounded() {
     assert!(ProcedureSpec::new(base(MAX_PROCEDURE_ARMS, 2)).is_ok());
     assert_eq!(
         gaps(base(MAX_PROCEDURE_ARMS + 1, 2)),
-        vec![ContractGap::Invalid("adaptive_inference.arms_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::ARMS_INVALID
+        )]
     );
-    assert_eq!(gaps(base(1, 2)), vec![ContractGap::Invalid("adaptive_inference.arms_invalid")]);
+    assert_eq!(
+        gaps(base(1, 2)),
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::ARMS_INVALID
+        )]
+    );
 }
 
 #[test]
@@ -60,12 +67,16 @@ fn contexts_and_cells_are_bounded() {
     // One context more.
     assert_eq!(
         gaps(contextual(2, MAX_PROCEDURE_CONTEXTS + 1)),
-        vec![ContractGap::Invalid("adaptive_inference.contexts_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::CONTEXTS_INVALID
+        )]
     );
     // Within the context bound and over the cell bound: three contexts of four arms.
     assert_eq!(
         gaps(contextual(4, 3)),
-        vec![ContractGap::Invalid("adaptive_inference.contexts_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::CONTEXTS_INVALID
+        )]
     );
 }
 
@@ -103,7 +114,9 @@ fn looks_and_units_are_bounded() {
 
     // An empty schedule, an empty first look and a schedule of no units are ordering errors,
     // not capacity errors.
-    let ordering = vec![ContractGap::Invalid("adaptive_inference.looks_not_ordered")];
+    let ordering = vec![ContractGap::Invalid(
+        antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
+    )];
     for schedule in [vec![], vec![0, 5], vec![0]] {
         let mut declaration = base(2, 1);
         declaration.enrolment = Some(schedule);
@@ -123,7 +136,9 @@ fn outcome_delay_is_bounded() {
     assert!(ProcedureSpec::new(lagged(MAX_OUTCOME_LAG)).is_ok());
     assert_eq!(
         gaps(lagged(MAX_OUTCOME_LAG + 1)),
-        vec![ContractGap::Invalid("adaptive_inference.outcome_availability_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID
+        )]
     );
 }
 

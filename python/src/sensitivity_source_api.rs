@@ -97,7 +97,9 @@ fn export_sensitivity_source<'py>(
 ) -> PyResult<Bound<'py, PyBytes>> {
     let source = artifact.checked_source(py)?.ok_or_else(|| {
         crate::with_reason_code(
-            crate::value_err("sensitivity_source.source_unavailable"),
+            crate::value_err(
+                antecedent_core::reason_details::sensitivity_source::SOURCE_UNAVAILABLE,
+            ),
             reason_code!("invalid_argument"),
         )
     })?;
@@ -108,7 +110,7 @@ fn export_sensitivity_source<'py>(
 fn consume_sensitivity_source(py: Python<'_>, data: &[u8]) -> PyResult<PySensitivityArtifact> {
     if data.len() > antecedent::analysis::sensitivity_source::MAX_BYTES {
         return Err(crate::with_reason_code(
-            crate::value_err("sensitivity_source.limits_exceeded"),
+            crate::value_err(antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED),
             reason_code!("invalid_argument"),
         ));
     }

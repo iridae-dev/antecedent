@@ -43,17 +43,20 @@ record_sha256 = "d7df356a91d406ff05e9435330dfadb332dd366e04ab44c36054c319f6c24cb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/contrasts.rs"
-sha256 = "529c9ec8de69287f34caae14418c81a34f4fc9959e5c3319d56c2e744dd28806"
+items = ["fn checked_probability", "fn factorial_scores", "fn interference_scores", "fn multi_arm_scores", "fn require_aligned", "fn require_populated", "fn two_arm_scores", "fn validate_floor", "struct DesignScores"]
+sha256 = "57694ec65d3d0ea36ced5cfb9b7885edda1f2cc70f259c594e26a9d6ca321af3"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
-sha256 = "1dd13dac12b1583e3b1a6ed1839e9766b8d2627329d8873fff7ea1f1fd16351c"
+items = ["const MIN_CLUSTERS", "fn accumulate", "fn accumulate_weighted", "fn clusters", "fn covariance", "fn estimate", "fn holm_adjusted", "fn invalid", "fn lagged_pairs", "fn residuals", "fn sampling_summary", "fn weighted_estimate", "struct ClusterScores", "struct LaggedPairs", "struct PanelRows", "struct SamplingSummary", "struct SimultaneousBand"]
+sha256 = "a104cd1a54c3cb6118ed20880ac62037fa9a2520093f20f2569b9f14d99e60dc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_design_excursion_reference.rs"
-sha256 = "b86f799f1e76d1a2d1b86104fcaae4bf24f5812fa4d9168e2e1fd3d70267bc90"
+items = ["fn close", "fn column", "fn count", "fn excursion_designs_match_the_exact_reference"]
+sha256 = "47e39c49e3a48c930e361b00af6187018f5d959029be3675586b6d3278ba34a0"
 
 [[method_review.artifacts]]
 role = "reference"

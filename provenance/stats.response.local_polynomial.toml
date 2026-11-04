@@ -44,17 +44,20 @@ record_sha256 = "0fb4cd22a112ca48d900d8d6c4cfd995fd0147533328cdcb23529d0655a052e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/response.rs"
-sha256 = "5f30e3fcb6401b4fc196b03d072996efbf68147fe47cbf992a50dee3c2f6473e"
+items = ["fn diagonal_low_rank_quadratic_traces", "fn fit_local_quadratic", "fn gaussian_local_quadratic_influence", "fn gaussian_local_quadratic_influence_with", "fn inverse_3x3", "fn local_variance_degrees_of_freedom", "struct LocalPolynomialInfluence", "struct LocalPolynomialPoint", "struct LocalQuadraticWorkspace"]
+sha256 = "929009239013731c4187b033670d959c08e0594abe22b0708671401db8ef9844"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/local_quadratic_reference.rs"
-sha256 = "95b5465422425f202392c99937f8cb79cfb30d1a24d5b30928e763ee8981ca3c"
+items = ["fn gaussian_local_quadratic", "fn grid", "fn level_influences_sum_to_zero_and_square_to_the_robust_variance", "fn plug_in_level_variance_is_unbiased_under_homoskedastic_noise", "fn point_estimate_solves_the_weighted_normal_equations_and_recovers_a_quadratic", "fn solve_dense", "fn weighted_normal_equations"]
+sha256 = "040fa5d67eba465ffd483985be973b15f4dc49df34da06b36df5b85ea1612c39"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/local_quadratic_precision_reference.rs"
-sha256 = "de88579687a964c715f5812a49b9f6dc780fb72a606735df4599ede12eb2ceb9"
+items = ["fn estimates_influences_and_standard_errors_equal_the_high_precision_definition", "fn floats", "fn reference", "fn text"]
+sha256 = "04a6a0eae72e3c151644e503fd8024d962efaebd51de33e47e8c005ae2f37573"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -318,11 +318,17 @@ fn every_identified_ett_on_random_admgs_matches_the_enumerated_truth() {
                     nontrivial += 1;
                 }
             }
-            Err(refusal) if refusal.detail == "counterfactual_id.conflicting_subscripts" => {
+            Err(refusal)
+                if refusal.detail
+                    == antecedent_core::reason_details::counterfactual_id::CONFLICTING_SUBSCRIPTS =>
+            {
                 conflicts += 1;
                 refusal.obstruction.as_ref().unwrap().verify().unwrap();
             }
-            Err(refusal) if refusal.detail == "counterfactual_id.counterfactual_hedge" => {
+            Err(refusal)
+                if refusal.detail
+                    == antecedent_core::reason_details::counterfactual_id::COUNTERFACTUAL_HEDGE =>
+            {
                 hedges += 1;
                 refusal.obstruction.as_ref().unwrap().verify().unwrap();
             }
@@ -400,7 +406,10 @@ fn with_a_three_level_treatment_the_counterexample_stays_a_pinned_id_star_refusa
     let refusal = decide(&problem, &ett(2, 1.0, 0.0, 3, 1.0)).unwrap_err();
     assert_eq!(
         (refusal.code, refusal.detail),
-        ("route_not_supported", "counterfactual_id.conflicting_subscripts")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_id::CONFLICTING_SUBSCRIPTS
+        )
     );
     assert!(refusal.message.contains("not a proof of non-identifiability"), "{}", refusal.message);
     refusal.obstruction.as_ref().unwrap().verify().unwrap();
@@ -470,7 +479,10 @@ fn every_identified_ett_on_wider_shuffled_admgs_matches_the_enumerated_truth() {
                 Err(refusal) => {
                     assert_eq!(
                         (refusal.code, refusal.detail),
-                        ("route_not_supported", "counterfactual_id.conflicting_subscripts"),
+                        (
+                            "route_not_supported",
+                            antecedent_core::reason_details::counterfactual_id::CONFLICTING_SUBSCRIPTS
+                        ),
                         "{}",
                         refusal.message
                     );
@@ -538,7 +550,10 @@ fn the_bow_arc_refuses_with_conflicting_subscripts() {
     let problem = CounterfactualIdProblem::new(binary(2), &[(0, 1)], &[(0, 1)]).unwrap();
     let refusal = decide(&problem, &ett(0, 1.0, 0.0, 1, 1.0)).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "counterfactual_id.conflicting_subscripts");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::counterfactual_id::CONFLICTING_SUBSCRIPTS
+    );
     let Some(obstruction) = refusal.obstruction.as_deref() else { panic!("no obstruction") };
     obstruction.verify().unwrap();
     let CounterfactualObstruction::ConflictingSubscripts { variable, subscript, event, .. } =
@@ -586,7 +601,10 @@ fn the_instrument_graph_refuses_with_conflicting_subscripts() {
     let problem = CounterfactualIdProblem::new(binary(3), &[(0, 1), (1, 2)], &[(1, 2)]).unwrap();
     let refusal = decide(&problem, &ett(1, 1.0, 0.0, 2, 1.0)).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "counterfactual_id.conflicting_subscripts");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::counterfactual_id::CONFLICTING_SUBSCRIPTS
+    );
     refusal.obstruction.as_ref().unwrap().verify().unwrap();
 }
 
@@ -695,7 +713,7 @@ fn an_event_contradicting_itself_within_one_world_is_an_exact_zero() {
     let refusal = decide(&problem, &query).unwrap_err();
     assert_eq!(
         (refusal.code, refusal.detail),
-        ("invalid_argument", "counterfactual_id.invalid_query")
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_QUERY)
     );
 }
 
@@ -719,7 +737,11 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
         [],
     )
     .unwrap();
-    expect(&joint, "route_not_supported", "counterfactual_id.query_outside_contract");
+    expect(
+        &joint,
+        "route_not_supported",
+        antecedent_core::reason_details::counterfactual_id::QUERY_OUTSIDE_CONTRACT,
+    );
     // The abduction coupling of the fixed-DAG cell.
     let abduced = CounterfactualEventQuery::new(
         two(),
@@ -728,7 +750,11 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
         [at(0, 0, 0.0)],
     )
     .unwrap();
-    expect(&abduced, "route_not_supported", "counterfactual_id.query_outside_contract");
+    expect(
+        &abduced,
+        "route_not_supported",
+        antecedent_core::reason_details::counterfactual_id::QUERY_OUTSIDE_CONTRACT,
+    );
     // A world that routes an edge: path-specific, not supported by this route.
     let routed = CounterfactualEventQuery::new(
         vec![
@@ -744,7 +770,11 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
         [at(0, 0, 0.0)],
     )
     .unwrap();
-    expect(&routed, "route_not_supported", "counterfactual_id.path_specific_not_supported");
+    expect(
+        &routed,
+        "route_not_supported",
+        antecedent_core::reason_details::counterfactual_id::PATH_SPECIFIC_NOT_SUPPORTED,
+    );
     // x = x' (the observed conditional), an unknown level, an unknown variable.
     let same = CounterfactualEventQuery::new(
         two(),
@@ -753,14 +783,29 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
         [at(0, 0, 1.0)],
     )
     .unwrap();
-    expect(&same, "invalid_argument", "counterfactual_id.invalid_query");
-    expect(&ett(0, 1.0, 0.0, 2, 5.0), "invalid_argument", "counterfactual_id.invalid_query");
-    expect(&ett(0, 1.0, 0.0, 9, 1.0), "invalid_argument", "counterfactual_id.invalid_query");
+    expect(
+        &same,
+        "invalid_argument",
+        antecedent_core::reason_details::counterfactual_id::INVALID_QUERY,
+    );
+    expect(
+        &ett(0, 1.0, 0.0, 2, 5.0),
+        "invalid_argument",
+        antecedent_core::reason_details::counterfactual_id::INVALID_QUERY,
+    );
+    expect(
+        &ett(0, 1.0, 0.0, 9, 1.0),
+        "invalid_argument",
+        antecedent_core::reason_details::counterfactual_id::INVALID_QUERY,
+    );
     // A cyclic graph is outside the graph contract.
     let cyclic = CounterfactualIdProblem::new(binary(2), &[(0, 1), (1, 0)], &[]).unwrap_err();
     assert_eq!(
         (cyclic.code, cyclic.detail),
-        ("route_not_supported", "counterfactual_id.graph_outside_contract")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_id::GRAPH_OUTSIDE_CONTRACT
+        )
     );
     assert!(cyclic.message.contains("condensation"), "{}", cyclic.message);
     assert!(cyclic.message.contains("sigma_separates"), "{}", cyclic.message);
@@ -792,7 +837,7 @@ fn the_numerators_must_sum_to_the_conditioning_probability() {
             evaluate_counterfactual_functional(&problem, &broken, &joint, &ctx()).unwrap_err();
         assert_eq!(
             (refusal.code, refusal.detail),
-            ("invalid_argument", "counterfactual_id.invalid_query")
+            ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_QUERY)
         );
         assert!(refusal.message.contains("numerators sum to"), "{}", refusal.message);
     }
@@ -834,7 +879,7 @@ fn a_negative_consistency_complement_is_refused() {
         evaluate_counterfactual_functional(&problem, &broken, &joint, &ctx()).unwrap_err();
     assert_eq!(
         (refusal.code, refusal.detail),
-        ("invalid_argument", "counterfactual_id.invalid_query")
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_QUERY)
     );
     assert!(refusal.message.contains("not compatible with the graph"), "{}", refusal.message);
 }
@@ -858,7 +903,7 @@ fn the_one_budget_stops_with_receipts_never_a_verdict() {
             .unwrap_err();
     assert_eq!(
         (refusal.code, refusal.detail),
-        ("transport_budget_cancel", "counterfactual_id.budget")
+        ("transport_budget_cancel", antecedent_core::reason_details::counterfactual_id::BUDGET)
     );
     let receipt = refusal.receipt.unwrap();
     assert_eq!(receipt.stop, SearchStop::Operations);
@@ -968,7 +1013,10 @@ fn graph_size_is_unbounded_and_search_limits_are_capped() {
     let bounds = |r: CounterfactualIdRefusal| {
         assert_eq!(
             (r.code, r.detail),
-            ("route_not_supported", "counterfactual_id.bounds_exceeded")
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED
+            )
         );
     };
     // Graph size is not capped: six and seven variables are both admitted.

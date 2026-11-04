@@ -10,6 +10,7 @@ import json
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.descriptive import (
     attribute_gap_to_columns,
     raw_reporting_transform,
@@ -62,7 +63,7 @@ def test_the_raw_contrast_and_the_gap_match_the_hand_computation():
     # The gap has no interval: the typed reason is carried, never a standard error.
     assert result.gap_interval_unavailable == (
         "route_not_supported",
-        "descriptive_comparison.gap_interval_unavailable",
+        reason_details.descriptive_comparison.GAP_INTERVAL_UNAVAILABLE,
     )
 
 
@@ -117,7 +118,7 @@ def test_a_one_row_arm_has_no_standard_error_and_no_covariance():
     assert transform.covariance is None
     assert transform.covariance_unavailable == (
         "invalid_argument",
-        "descriptive_comparison.arm_too_small",
+        reason_details.descriptive_comparison.ARM_TOO_SMALL,
     )
 
 
@@ -128,7 +129,7 @@ def test_the_gap_is_never_attributed_to_adjustment_columns():
     ):
         error = refusal(call)
         assert error.reason_code == "effect_not_identified"
-        assert "descriptive_comparison.column_attribution_not_identified" in str(error)
+        assert reason_details.descriptive_comparison.COLUMN_ATTRIBUTION_NOT_IDENTIFIED in str(error)
 
 
 def test_log_risk_ratio_matches_the_hand_computation():
@@ -194,7 +195,7 @@ def test_a_missing_joint_covariance_gives_points_and_a_typed_reason_never_a_zero
     assert result.standard_error("log_risk_ratio") is None
     assert result.covariance_unavailable == (
         "required_option_missing",
-        "descriptive_comparison.joint_covariance_unavailable",
+        reason_details.descriptive_comparison.JOINT_COVARIANCE_UNAVAILABLE,
     )
 
 

@@ -41,17 +41,20 @@ record_sha256 = "c5bed8c1d2f025ad87baa08812313862edc0c924338a25755be81f7c158b4fe
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/iv.rs"
-sha256 = "7b8b94fd7cae0fc27481e38e714ec834e6d73257c07da8841bad6c5dd018f8bd"
+items = ["const AR_LEVEL", "fn attach_anderson_rubin", "fn default", "fn fit", "fn new", "fn prepare", "fn prepare_iv_problem", "fn problem", "fn require_read_inference", "fn shared_slice", "fn unobserved_discrete_level", "fn wald_first_stage_diagnostics", "fn wald_ratio", "struct ArData", "struct PreparedIvProblem", "struct TwoStageLeastSquares", "struct TwoStageLeastSquaresWorkspace", "struct WaldIv", "struct WaldResult"]
+sha256 = "5a939fcb91845288fe37568c50c8ba79af5569de1d04450249b3f159ee462cd1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/twosls.rs"
-sha256 = "9a6cee219922a60432ba686a27a0b1fcf9ce97f7732c2ca279faab91fd0d7814"
+items = ["fn check", "fn width"]
+sha256 = "2bbb502a9dd1f5300b581e9e5b15536ee0da66b9a9ef54a6a67d746034bfcffd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/iv_reference.rs"
-sha256 = "5388d6238e6fcecc0745d86c6d9c3e3e5334f5949d7b86b0396a6c0dc2f04871"
+items = ["fn build", "fn cases", "fn check", "fn close", "fn floats", "fn query", "fn the_set_scales_with_the_contrast_and_swaps_when_the_contrast_is_negative", "fn the_wald_estimator_matches_for_one_binary_instrument_and_delegates_otherwise", "fn two_stage_fit_first_stage_and_anderson_rubin_set_match_the_exact_reference", "struct Built"]
+sha256 = "15fec7a17b6288511517404efec1ed166ab715e0078635bea3c3363e1a79890a"
 
 [[method_review.artifacts]]
 role = "reference"

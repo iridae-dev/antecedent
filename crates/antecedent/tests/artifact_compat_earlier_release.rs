@@ -121,7 +121,7 @@ fn earlier_study_plans_are_inspectable_and_refused() {
         );
         let error = format!("{:?}", outcome.err().unwrap_or_else(|| panic!("{name}: accepted")));
         assert!(
-            error.contains("study_plan.invalid_artifact")
+            error.contains(antecedent_core::reason_details::study_plan::INVALID_ARTIFACT)
                 && error.contains("another rule set or ranking version"),
             "{name}: {error}"
         );

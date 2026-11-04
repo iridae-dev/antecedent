@@ -69,14 +69,23 @@ impl CheckedPriorSignal {
     pub(crate) fn bind(&self, request: &mut DesignRankingRequestWire) -> Result<(), String> {
         if !matches!(&request.decision.prior, PriorDeclWire::Draws { states } if states.is_empty())
         {
-            return Err(refusal("prior_signal.prior_projection_mismatch", "invalid_argument"));
+            return Err(refusal(
+                antecedent_core::reason_details::prior_signal::PRIOR_PROJECTION_MISMATCH,
+                "invalid_argument",
+            ));
         }
         for candidate in &request.candidates {
             if candidate.signal.state_quantity != self.state {
-                return Err(refusal("prior_signal.state_quantity_mismatch", "invalid_argument"));
+                return Err(refusal(
+                    antecedent_core::reason_details::prior_signal::STATE_QUANTITY_MISMATCH,
+                    "invalid_argument",
+                ));
             }
             if candidate.signal.prior_id != self.adapted.prior_id {
-                return Err(refusal("prior_signal.prior_identity_mismatch", "invalid_argument"));
+                return Err(refusal(
+                    antecedent_core::reason_details::prior_signal::PRIOR_IDENTITY_MISMATCH,
+                    "invalid_argument",
+                ));
             }
             let matches = match (&candidate.provider, self.family) {
                 (ProviderDeclWire::Binomial, NativeSignalFamily::Binomial) => true,
@@ -88,13 +97,16 @@ impl CheckedPriorSignal {
             };
             if !matches {
                 return Err(refusal(
-                    "prior_signal.signal_family_mismatch",
+                    antecedent_core::reason_details::prior_signal::SIGNAL_FAMILY_MISMATCH,
                     "design_signal_invalid",
                 ));
             }
         }
         let DecisionPrior::Draws(draws) = &self.adapted.prior else {
-            return Err(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument"));
+            return Err(refusal(
+                antecedent_core::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
+                "invalid_argument",
+            ));
         };
         request.decision.prior = PriorDeclWire::Draws { states: draws.clone() };
         request.prior_observation_ids.extend(self.observations.iter().cloned());
@@ -130,7 +142,10 @@ pub(crate) fn adapt_prior_signal(
         if wire.state.population_id != wire.target_population {
             return Ok((
                 None,
-                Some(refusal("prior_signal.target_population_mismatch", "invalid_argument")),
+                Some(refusal(
+                    antecedent_core::reason_details::prior_signal::TARGET_POPULATION_MISMATCH,
+                    "invalid_argument",
+                )),
             ));
         }
         let _: antecedent_contract::ScientificQuantity =
@@ -144,7 +159,7 @@ pub(crate) fn adapt_prior_signal(
                 return Ok((
                     None,
                     Some(refusal(
-                        "prior_signal.unsupported_signal_provider",
+                        antecedent_core::reason_details::prior_signal::UNSUPPORTED_SIGNAL_PROVIDER,
                         "route_not_supported",
                     )),
                 ));
@@ -178,7 +193,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            "prior_signal.posterior_draws_required",
+                            antecedent_core::reason_details::prior_signal::POSTERIOR_DRAWS_REQUIRED,
                             "design_signal_invalid",
                         )),
                     ));
@@ -189,7 +204,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            "prior_signal.source_population_mismatch",
+                            antecedent_core::reason_details::prior_signal::SOURCE_POPULATION_MISMATCH,
                             "invalid_argument",
                         )),
                     ));
@@ -206,7 +221,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            "prior_signal.original_posterior_unidentified",
+                            antecedent_core::reason_details::prior_signal::ORIGINAL_POSTERIOR_UNIDENTIFIED,
                             "design_signal_invalid",
                         )),
                     ));
@@ -229,7 +244,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            "prior_signal.named_state_draws_required",
+                            antecedent_core::reason_details::prior_signal::NAMED_STATE_DRAWS_REQUIRED,
                             "design_signal_invalid",
                         )),
                     ));
@@ -240,7 +255,10 @@ pub(crate) fn adapt_prior_signal(
                 {
                     return Ok((
                         None,
-                        Some(refusal("prior_signal.incomplete_posterior", "design_signal_invalid")),
+                        Some(refusal(
+                            antecedent_core::reason_details::prior_signal::INCOMPLETE_POSTERIOR,
+                            "design_signal_invalid",
+                        )),
                     ));
                 }
                 posterior_diagnostics.push(
@@ -275,7 +293,7 @@ pub(crate) fn adapt_prior_signal(
             return Ok((
                 None,
                 Some(refusal(
-                    "prior_signal.source_not_in_catalog_or_duplicate",
+                    antecedent_core::reason_details::prior_signal::SOURCE_NOT_IN_CATALOG_OR_DUPLICATE,
                     "design_signal_invalid",
                 )),
             ));
@@ -303,13 +321,19 @@ pub(crate) fn adapt_prior_signal(
         let DecisionPrior::Draws(rows) = &adapted.prior else {
             return Ok((
                 None,
-                Some(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument")),
+                Some(refusal(
+                    antecedent_core::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
+                    "invalid_argument",
+                )),
             ));
         };
         if !rows.iter().all(|v| v.is_finite()) || !adapted.diagnostics.pooled_mean.is_finite() {
             return Ok((
                 None,
-                Some(refusal("prior_signal.nonfinite_mapped_prior", "invalid_argument")),
+                Some(refusal(
+                    antecedent_core::reason_details::prior_signal::NONFINITE_MAPPED_PRIOR,
+                    "invalid_argument",
+                )),
             ));
         }
         let d = &adapted.diagnostics;

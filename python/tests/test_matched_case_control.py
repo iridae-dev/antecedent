@@ -14,6 +14,7 @@ import math
 
 import pytest
 from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -174,13 +175,13 @@ def test_risk_scale_estimands_are_refused_without_prevalence():
     for estimand in ("population_risk", "absolute_risk", "risk_difference", "risk_ratio"):
         error = refusal(lambda estimand=estimand: fit(pairs(7, 3), estimand=estimand))
         assert error.reason_code == "effect_not_identified"
-        assert "matched_case_control.absolute_risk_not_identified" in str(error)
+        assert reason_details.matched_case_control.ABSOLUTE_RISK_NOT_IDENTIFIED in str(error)
 
 
 def test_another_estimand_is_not_supported():
     error = refusal(lambda: fit(pairs(7, 3), estimand="hazard_ratio"))
     assert error.reason_code == "route_not_supported"
-    assert "matched_case_control.estimand_not_supported" in str(error)
+    assert reason_details.matched_case_control.ESTIMAND_NOT_SUPPORTED in str(error)
 
 
 def test_an_interval_is_reported_with_its_calibration_status():
@@ -202,17 +203,17 @@ def test_the_sampling_design_must_be_declared_and_be_the_matched_design():
         )
     )
     assert error.reason_code == "invalid_argument"
-    assert "matched_case_control.sampling_design" in str(error)
+    assert reason_details.matched_case_control.SAMPLING_DESIGN in str(error)
 
 
 def test_no_informative_set_and_a_monotone_likelihood_are_refused():
     error = refusal(lambda: fit(pairs(0, 0, both=3, neither=2) + [[(1, 1)]]))
     assert error.reason_code == "effect_not_identified"
-    assert "matched_case_control.no_informative_sets" in str(error)
+    assert reason_details.matched_case_control.NO_INFORMATIVE_SETS in str(error)
     for sets in (pairs(4, 0), pairs(0, 4)):
         error = refusal(lambda sets=sets: fit(sets))
         assert error.reason_code == "route_not_supported"
-        assert "matched_case_control.estimate_not_finite" in str(error)
+        assert reason_details.matched_case_control.ESTIMATE_NOT_FINITE in str(error)
 
 
 def test_malformed_rows_are_refused():
@@ -228,7 +229,7 @@ def test_malformed_rows_are_refused():
             lambda override=override: matched_case_control_odds_ratio(**{**base, **override})
         )
         assert error.reason_code == "invalid_argument"
-        assert "matched_case_control.invalid_data" in str(error)
+        assert reason_details.matched_case_control.INVALID_DATA in str(error)
     with pytest.raises(CausalTypeError):
         matched_case_control_odds_ratio(**{**base, "case": [1, None]})
 
@@ -238,7 +239,7 @@ def test_a_cancelled_solve_is_a_budget_stop_never_a_verdict():
     token.cancel()
     error = refusal(lambda: fit(pairs(7, 3), execution=Execution(cancel=token)))
     assert error.reason_code == "transport_budget_cancel"
-    assert "matched_case_control.budget" in str(error)
+    assert reason_details.matched_case_control.BUDGET in str(error)
     assert fit(pairs(7, 3)).odds_ratio == pytest.approx(7 / 3, abs=1e-9)
 
 

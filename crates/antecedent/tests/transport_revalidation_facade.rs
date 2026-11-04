@@ -176,7 +176,10 @@ fn a_calibration_record_is_never_inherited_by_another_target() {
     // the claim is refused only because the target data changed and it must be recomputed.
     let refusal = report.require_valid("effect_trial").unwrap_err();
     assert_eq!(refusal.code, "claim_revalidation_required");
-    assert_eq!(refusal.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     // A point-only claim of the same scene is recomputed, not withdrawn: it states no
     // guarantee to lose.
     assert_eq!(class(&report, "effect_registry"), Revalidation::Recompute);
@@ -226,7 +229,10 @@ fn a_refused_observation_leaves_the_state_unchanged() {
     ghost.rests_on = vec!["not_declared".into()];
     broken.claims.push(ghost);
     let error = state.observe(broken, &BTreeMap::new()).unwrap_err();
-    assert_eq!(error.detail, "transport_revalidation.scene_invalid");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transport_revalidation::SCENE_INVALID
+    );
     assert_eq!(state.scene(), Some(&first));
 
     // A good scene advances the state.

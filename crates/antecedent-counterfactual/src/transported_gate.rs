@@ -130,7 +130,7 @@ pub fn refuse_transported_counterfactual(
     let (code, detail, offending, remedy) = if !missing_gates.is_empty() {
         (
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "transported_counterfactual.prerequisite_missing",
+            antecedent_core::reason_details::transported_counterfactual::PREREQUISITE_MISSING,
             missing_gates.first().map(|g| g.name().to_owned()),
             "supply the missing transport support, fixed-population cross-world support and \
              cross-population assumptions; a finite discrete, static, acyclic semi-Markovian \
@@ -140,7 +140,7 @@ pub fn refuse_transported_counterfactual(
     } else if !missing_factors.is_empty() {
         (
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "transported_counterfactual.factor_missing",
+            antecedent_core::reason_details::transported_counterfactual::FACTOR_MISSING,
             missing_factors.first().map(RegimeFactorKey::label),
             "supply evidence for the missing source and target regime factors; a finite \
              discrete, static, acyclic semi-Markovian counterfactual transport question is \
@@ -149,7 +149,7 @@ pub fn refuse_transported_counterfactual(
     } else {
         (
             antecedent_core::reason_code!("route_not_supported"),
-            "transported_counterfactual.joint_theorem_not_derived",
+            antecedent_core::reason_details::transported_counterfactual::JOINT_THEOREM_NOT_DERIVED,
             None,
             "this temporal, continuous or non-finite route has no joint theorem; a finite \
              discrete, static, acyclic semi-Markovian counterfactual transport question is \

@@ -237,7 +237,7 @@ def inventory() -> None:
                 raise ValueError(
                     "OU coordinate-standardization continuation did not meet original score tolerance"
                 )
-    run([sys.executable, "scripts/check_v3_test_registry.py"], cwd=ROOT)
+    run([sys.executable, "scripts/check_test_registry.py"], cwd=ROOT)
     run([sys.executable, "scripts/generate_example_catalog.py", "--check"], cwd=ROOT)
 
 

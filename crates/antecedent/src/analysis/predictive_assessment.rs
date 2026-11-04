@@ -92,7 +92,7 @@ impl PredictiveAssessmentRefusal {
             Some((code, detail, message)) => Self::new(code, &detail, message),
             None => Self::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "predictive_assessment.invalid_artifact",
+                antecedent_core::reason_details::predictive_assessment::INVALID_ARTIFACT,
                 error.to_string(),
             ),
         }
@@ -157,7 +157,7 @@ pub fn fit_declaration_from_ledger(
         let Some(source) = ledger.source(*id) else {
             return Err(PredictiveAssessmentRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "predictive_assessment.unknown_source",
+                antecedent_core::reason_details::predictive_assessment::UNKNOWN_SOURCE,
                 format!("fit source {id} is not in the evidence ledger"),
             ));
         };
@@ -190,7 +190,7 @@ pub fn observation_keys_from_ledger(
     let Some(entry) = ledger.source(source) else {
         return Err(PredictiveAssessmentRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "predictive_assessment.unknown_source",
+            antecedent_core::reason_details::predictive_assessment::UNKNOWN_SOURCE,
             format!("observation source {source} is not in the evidence ledger"),
         ));
     };
@@ -198,7 +198,7 @@ pub fn observation_keys_from_ledger(
         EffectiveObservations::Known(rows) => Ok(rows.iter().copied().map(key_of).collect()),
         EffectiveObservations::Unknown(reason) => Err(PredictiveAssessmentRefusal::new(
             antecedent_core::reason_code!("evidence_overlap_unknown"),
-            "predictive_assessment.overlap_unknown",
+            antecedent_core::reason_details::predictive_assessment::OVERLAP_UNKNOWN,
             format!(
                 "the observations of source `{}` are not declared ({reason}); declare their \
                  row-level identities in the ledger so that held-out can be decided",
@@ -231,7 +231,7 @@ pub fn posterior_predictive_predictor(
     let replicates = check.replicates(problem, posterior).map_err(|error| {
         PredictiveAssessmentRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "predictive_assessment.invalid_law",
+            antecedent_core::reason_details::predictive_assessment::INVALID_LAW,
             error.to_string(),
         )
     })?;

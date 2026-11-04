@@ -42,17 +42,20 @@ record_sha256 = "517489b42f55f4a30b94f3e87b0eee60ba6bdf0d32e3df5675a1470b759c074
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/se.rs"
-sha256 = "8ee2d97b92007b867b90338745851a2849b064b839fa71dfab523681bd8b6ebf"
+items = ["enum AnalyticSeKind", "fn cluster_influence_se", "fn few_clusters", "fn hetero_influence_se", "fn influence_se_kind", "fn influence_se_under", "fn multiway_influence_se", "fn newey_west_influence_se", "fn newey_west_influence_se_at_times", "fn panel_cluster_hac_influence_se", "fn require_clusters", "fn require_multiway", "fn require_panel_times"]
+sha256 = "e2319fae9b701760215f720b224dd6b702605628466e01132f748ec9da375615"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/cluster.rs"
-sha256 = "fe7585203f64da92574b3fd977f5c65bfd281117e5e985b8853b7635dfa752c4"
+items = ["fn bartlett_weight", "fn cluster_meat_scalar", "fn combine_inclusion_exclusion", "fn effective_nw_lag", "fn newey_west_meat_scalar", "fn panel_hac_meat_scalar", "fn panel_max_time_span", "fn validate_panel_hac"]
+sha256 = "d49ad1228758f7e2d4a17829a61cb8979229257d7326b91e87fa4132aaa45dd0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/influence_se_reference.rs"
-sha256 = "c3a831852a60c1d5d695c9f370a27c10942a526f1254ab6b50e2c2fed6aebe40"
+items = ["fn a_dependence_declared_without_its_labels_is_refused_not_ignored", "fn check", "fn every_declared_dependence_matches_the_exact_variance", "fn ints", "fn spec"]
+sha256 = "fe9bda515900e9902947a7fd1b120f5f2e37fc814636b750e9535ba761666d4f"
 
 [[method_review.artifacts]]
 role = "reference"

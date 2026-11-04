@@ -247,7 +247,7 @@ fn establish_assumption_is_never_addressed_by_a_study() {
     named.variables = Arc::from([]);
     assert_eq!(
         EvidenceObligation::try_new(named).unwrap_err().detail,
-        "evidence_obligations.invalid_obligation"
+        antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION
     );
 }
 
@@ -298,7 +298,10 @@ fn malformed_obligations_are_refused_with_registered_codes() {
     let error = EvidenceObligation::try_new(one_variable).unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("invalid_argument", "evidence_obligations.invalid_obligation")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION
+        )
     );
 
     let mut not_joint = spec(EvidenceObligationKind::ProvideJointLaw);
@@ -306,7 +309,10 @@ fn malformed_obligations_are_refused_with_registered_codes() {
     let error = EvidenceObligation::try_new(not_joint).unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("transport_missing_evidence", "evidence_obligations.wrong_contract")
+        (
+            "transport_missing_evidence",
+            antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT
+        )
     );
 
     let mut blank = spec(EvidenceObligationKind::Measure);

@@ -323,7 +323,10 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
     candidate_mut(&mut edited, "cand-1").evsi = 0.9;
     let error = consume_wire(&edited, &open()).unwrap_err();
     assert!(matches!(error, DesignRankingArtifactError::DigestMismatch), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.digest_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::DIGEST_MISMATCH
+    );
 
     // A flipped byte is a container failure, not a refusal.
     let mut bytes = wire.to_bytes("r").unwrap();
@@ -344,7 +347,10 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
     future.version = 2;
     let error = consume(&future.to_bytes("r").unwrap(), &open()).unwrap_err();
     assert!(matches!(error, DesignRankingArtifactError::UnsupportedVersion(2)), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.unsupported_version");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::UNSUPPORTED_VERSION
+    );
 
     // A retained identity that differs refuses even for an honest artifact.
     let wrong = ConsumeExpectation { artifact_identity: Some("other".into()), ..open() };
@@ -368,7 +374,10 @@ fn altered_signal_or_update_is_refused_even_when_resealed() {
         ),
         "{error:?}"
     );
-    assert_eq!(refusal_detail(&error), "design_ranking.signal_inconsistent");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::SIGNAL_INCONSISTENT
+    );
 
     // An external law relabelled native trust.
     let mut edited = wire.clone();
@@ -411,7 +420,10 @@ fn altered_signal_or_update_is_refused_even_when_resealed() {
         matches!(&error, DesignRankingArtifactError::ReplayMismatch { quantity: "evsi", .. }),
         "{error:?}"
     );
-    assert_eq!(refusal_detail(&error), "design_ranking.replay_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::REPLAY_MISMATCH
+    );
 
     // A stored number edited and resealed.
     let mut edited = wire.clone();
@@ -464,7 +476,10 @@ fn altered_signal_or_update_is_refused_even_when_resealed() {
         matches!(&error, DesignRankingArtifactError::Ranking(RankingError::SignalMismatch(id)) if id == "cand-2"),
         "{error:?}"
     );
-    assert_eq!(refusal_detail(&error), "design_ranking.signal_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::SIGNAL_MISMATCH
+    );
 }
 
 #[test]
@@ -477,7 +492,10 @@ fn altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
     assert!(matches!(error, DesignRankingArtifactError::CostUnitsMismatch(_)), "{error:?}");
     let refusal = error.refusal().unwrap();
     assert_eq!(refusal.code, "design_cost_units_mismatch");
-    assert_eq!(refusal.detail, "design_ranking.cost_units_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH
+    );
 
     let mut edited = wire.clone();
     edited.cost_map.as_mut().unwrap().utility_unit = "qaly".into();
@@ -504,7 +522,10 @@ fn altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
         matches!(&error, DesignRankingArtifactError::Ranking(RankingError::CostMappingMismatch)),
         "{error:?}"
     );
-    assert_eq!(refusal_detail(&error), "design_ranking.cost_units_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH
+    );
     let none = ConsumeExpectation { cost_mapping: Some(None), ..open() };
     assert!(matches!(
         consume_wire(&wire, &none).unwrap_err(),
@@ -536,7 +557,10 @@ fn source_overlap_is_refused_before_ranking_and_when_resealed() {
         }
         other => panic!("{other:?}"),
     }
-    assert_eq!(refusal_detail(&error), "design_ranking.source_overlap");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::SOURCE_OVERLAP
+    );
 
     // A consumer's retained source digests must equal the stored ones.
     let other_sources =
@@ -564,7 +588,10 @@ fn stored_order_and_search_receipt_must_follow_from_the_values() {
     candidate_mut(&mut edited, "cand-2").rank = 0;
     let error = consume_wire(&resealed(edited), &open()).unwrap_err();
     assert!(matches!(&error, DesignRankingArtifactError::RankMismatch("rank")), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.rank_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::RANK_MISMATCH
+    );
 
     let mut edited = wire.clone();
     edited.search.truncated = true;
@@ -587,7 +614,10 @@ fn bounds_are_checked_before_any_recomputation() {
     }
     let error = consume_wire(&huge, &open()).unwrap_err();
     assert!(matches!(&error, DesignRankingArtifactError::Bounds("candidates")), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.bounds_exceeded");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::BOUNDS_EXCEEDED
+    );
     // Oversized bytes refuse before decoding.
     let big = vec![0_u8; 9 * 1024 * 1024];
     let oversized = consume(&big, &open()).unwrap_err();

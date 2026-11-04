@@ -149,7 +149,28 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs",
-          "sha256": "9e0dc8b39ca53c22b4fc0256230cf198931c5fd7d7803d3033b2b1ee682245a7"
+          "items": [
+            "const FIXTURE",
+            "const SUITES",
+            "fn assert_cell",
+            "fn bayesian",
+            "fn bow_graph",
+            "fn conditional",
+            "fn conditional_effect_admg_cells_execute_from_the_retained_plan_with_the_builder_dropped",
+            "fn conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference",
+            "fn conditional_effect_admg_graph_posterior_states_its_mass_and_matches_the_stratified_difference",
+            "fn effect",
+            "fn inference_name",
+            "fn node",
+            "fn posterior",
+            "fn posterior_graph",
+            "fn suite_name",
+            "fn table",
+            "fn truth",
+            "fn var",
+            "struct Truth"
+          ],
+          "sha256": "1a49290a7e1739acc62c4c9b5c2bc85e4c919fa33b457f0a06ca2ad15246c7fd"
         }
       ],
       "fixture_payload_sha256": "1301ab96fa774dbfb888e8c4296db28064ffab3c9fd96cb2984eb4e969a5884a"

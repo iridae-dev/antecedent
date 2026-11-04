@@ -45,6 +45,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from antecedent import _reason_details
+
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -115,7 +117,7 @@ def _aggregate_refusal(refusal: type[TransportScenarioRefusal]) -> TransportScen
     return refusal(
         {
             "code": "scenario_aggregate_not_supported",
-            "detail": "scenarios.shared_data_aggregate",
+            "detail": _reason_details.scenarios.SHARED_DATA_AGGREGATE,
             "message": "only per-scenario results are supported; no aggregate interval exists",
         }
     )

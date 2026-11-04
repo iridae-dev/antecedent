@@ -103,7 +103,7 @@ fn named(
     name_of(id).filter(|name| !name.trim().is_empty()).ok_or_else(|| {
         refuse(
             antecedent_core::reason_code!("unknown_variable"),
-            "coordinate_support.unknown_variable",
+            antecedent_core::reason_details::coordinate_support::UNKNOWN_VARIABLE,
             None,
             Some(id.raw().to_string()),
             "derive coordinates with the variable names the response was estimated on",
@@ -125,7 +125,7 @@ fn mean_curve_skeleton(
     let doses = treatment.grid.values().map_err(|error| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "coordinate_support.invalid_grid",
+            antecedent_core::reason_details::coordinate_support::INVALID_GRID,
             Some("a valid finite dose grid"),
             Some(error.to_string()),
             "request the response on a finite, strictly increasing dose grid",
@@ -157,7 +157,7 @@ fn mean_curve_skeleton(
 fn not_describable(kind: &str) -> ExternalRefusal {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "coordinate_support.regime_not_describable",
+        antecedent_core::reason_details::coordinate_support::REGIME_NOT_DESCRIBABLE,
         Some("hard set or additive shift to a finite numeric level"),
         Some(kind.to_owned()),
         "only a set or shift intervention at a finite numeric level names one exact regime",
@@ -216,7 +216,7 @@ fn intervention_skeleton(
     if response.horizon_identification.is_some() {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "coordinate_support.temporal_path_not_described",
+            antecedent_core::reason_details::coordinate_support::TEMPORAL_PATH_NOT_DESCRIBED,
             Some("a static intervention response"),
             Some("a horizon-indexed intervention path".to_owned()),
             "a temporal intervention path has one value per horizon; request a dose-by-horizon curve",
@@ -264,7 +264,7 @@ pub fn response_coordinate_skeleton(
         ResponseFunctional::InterventionResponse { .. } => intervention_skeleton(response, name_of),
         other => Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "coordinate_support.functional_not_described",
+            antecedent_core::reason_details::coordinate_support::FUNCTIONAL_NOT_DESCRIBED,
             Some("mean_curve or intervention_response"),
             Some(functional_name(other).to_owned()),
             "only a mean curve or a static intervention response is given scientific coordinates",
@@ -291,7 +291,7 @@ pub fn label_coordinates(
     {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "coordinate_support.units_required",
+            antecedent_core::reason_details::coordinate_support::UNITS_REQUIRED,
             Some("non-blank outcome units, population and transform"),
             None,
             "declare the outcome units; units are never inferred or converted",

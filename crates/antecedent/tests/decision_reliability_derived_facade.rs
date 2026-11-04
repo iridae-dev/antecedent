@@ -168,7 +168,10 @@ fn derivation_refuses_a_small_effective_sample_and_an_invalid_level() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "decision_reliability.effective_sample_size_too_small");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL
+    );
     // A level outside [0.5, 0.9999].
     for level in [0.3, 1.0, f64::NAN] {
         let refusal = derive_decision_uncertainty(
@@ -244,7 +247,10 @@ fn a_fresh_consumer_rederives_from_the_carried_draws() {
     let mut edited = derived;
     edited.selection.corrected.as_mut().unwrap().lower -= 0.25;
     let refusal = prepared.verify_derived(&edited, &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "decision_reliability.invalid_input");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::INVALID_INPUT
+    );
     // A consumer that retained another candidate-set digest refuses the artifact.
     let wrong = DecisionReliabilityExpectation {
         decided_id: Some("B".into()),
@@ -253,7 +259,11 @@ fn a_fresh_consumer_rederives_from_the_carried_draws() {
     let refusal =
         consume_derived_uncertainty(&bytes, &wrong, &IntervalRequest::marginal(0.95), &ctx())
             .unwrap_err();
-    assert_eq!(refusal.detail, "decision_reliability.artifact", "{refusal:?}");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::ARTIFACT,
+        "{refusal:?}"
+    );
     assert!(refusal.message.contains("decision_mismatch"), "{refusal:?}");
 }
 
@@ -321,7 +331,10 @@ fn point_only_and_undeclared_producer_outputs_refuse_with_typed_reasons() {
     }))
     .unwrap_err();
     assert_eq!(cohort_point.code, "joint_law_required");
-    assert_eq!(cohort_point.detail, "decision_reliability.producer_point_only");
+    assert_eq!(
+        cohort_point.detail,
+        antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY
+    );
     let rollout_point = reach_decision_carrier(ProducerOutput::PointOnly(PointOnlyOutput {
         producer: ProducerKind::SequentialRollout,
         identity: "model".into(),
@@ -348,7 +361,10 @@ fn point_only_and_undeclared_producer_outputs_refuse_with_typed_reasons() {
     let mut disagreeing = cohort_output(JointLawDeclaration::OneSharedLaw);
     disagreeing.reported_means = vec![("treat".into(), 9.0)];
     let refusal = reach_decision_carrier(ProducerOutput::Cohort(disagreeing)).unwrap_err();
-    assert_eq!(refusal.detail, "decision_reliability.producer_mean_disagrees");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::PRODUCER_MEAN_DISAGREES
+    );
 }
 
 #[test]

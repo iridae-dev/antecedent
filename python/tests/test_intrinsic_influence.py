@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent.gcm import IntrinsicInfluence, intrinsic_influence
 
 EDGES = [("x", "y"), ("y", "z")]
@@ -132,10 +133,12 @@ def test_same_seed_reproduces_and_a_different_seed_does_not():
 
 
 def test_undeclared_and_latent_confounded_noise_is_refused_with_its_reason():
-    with pytest.raises(Exception, match="intrinsic_influence.noise_independence_undeclared") as e:
+    with pytest.raises(
+        Exception, match=reason_details.intrinsic_influence.NOISE_INDEPENDENCE_UNDECLARED
+    ) as e:
         intrinsic_influence(_data(), EDGES, "z")
     assert getattr(e.value, "reason_code", None) == "route_not_supported"
-    with pytest.raises(Exception, match="intrinsic_influence.correlated_noise") as e:
+    with pytest.raises(Exception, match=reason_details.intrinsic_influence.CORRELATED_NOISE) as e:
         intrinsic_influence(_data(), EDGES, "z", bidirected_edges=[("x", "z")])
     assert getattr(e.value, "reason_code", None) == "route_not_supported"
 

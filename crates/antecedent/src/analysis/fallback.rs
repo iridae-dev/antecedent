@@ -637,7 +637,7 @@ impl Study {
                 return Err(FallbackUnavailable::new(
                     FallbackPart::Evidence,
                     "invalid_argument",
-                    "identification_repair.not_a_failure",
+                    antecedent_core::reason_details::identification_repair::NOT_A_FAILURE,
                     "the declared graph identifies the effect, so the refusal came from the \
                      estimator or the data and no structural evidence gap is owed. Next \
                      attempt: read the refusal's remedy",

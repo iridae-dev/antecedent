@@ -101,33 +101,44 @@ pub const BRIDGE_CALIBRATION: &str = "no_interval_or_calibration_claim";
 pub const BRIDGE_ERROR_SCOPE: &str = "mean_of_linear_contrast_of_interventional_means_only";
 
 /// The level count of some variable was not declared.
-pub const DETAIL_LEVELS_UNDECLARED: &str = "discretized_scm.levels_undeclared";
+pub const DETAIL_LEVELS_UNDECLARED: &str =
+    antecedent_core::reason_details::discretized_scm::LEVELS_UNDECLARED;
 /// A level count is outside `MIN_BRIDGE_LEVELS..=MAX_BRIDGE_LEVELS`.
-pub const DETAIL_LEVELS_OUT_OF_RANGE: &str = "discretized_scm.levels_out_of_range";
+pub const DETAIL_LEVELS_OUT_OF_RANGE: &str =
+    antecedent_core::reason_details::discretized_scm::LEVELS_OUT_OF_RANGE;
 /// The plan names a variable the composition does not have.
-pub const DETAIL_UNKNOWN_VARIABLE: &str = "discretized_scm.unknown_variable";
+pub const DETAIL_UNKNOWN_VARIABLE: &str =
+    antecedent_core::reason_details::discretized_scm::UNKNOWN_VARIABLE;
 /// The joint space exceeds the finite-enumeration bound.
-pub const DETAIL_STATE_SPACE_TOO_LARGE: &str = "discretized_scm.state_space_too_large";
+pub const DETAIL_STATE_SPACE_TOO_LARGE: &str =
+    antecedent_core::reason_details::discretized_scm::STATE_SPACE_TOO_LARGE;
 /// A mechanism is not additive-noise linear-Gaussian.
-pub const DETAIL_NON_GAUSSIAN: &str = "discretized_scm.non_gaussian_mechanism";
+pub const DETAIL_NON_GAUSSIAN: &str =
+    antecedent_core::reason_details::discretized_scm::NON_GAUSSIAN_MECHANISM;
 /// A mechanism's declared support is not the real line.
-pub const DETAIL_SUPPORT_NOT_REAL: &str = "discretized_scm.support_not_real_line";
+pub const DETAIL_SUPPORT_NOT_REAL: &str =
+    antecedent_core::reason_details::discretized_scm::SUPPORT_NOT_REAL_LINE;
 /// A mechanism loads on a shared latent cause.
-pub const DETAIL_LATENT_CONFOUNDING: &str = "discretized_scm.latent_confounding";
+pub const DETAIL_LATENT_CONFOUNDING: &str =
+    antecedent_core::reason_details::discretized_scm::LATENT_CONFOUNDING;
 /// A variable's marginal law is degenerate, so it has no grid.
-pub const DETAIL_DEGENERATE_MARGINAL: &str = "discretized_scm.degenerate_marginal";
+pub const DETAIL_DEGENERATE_MARGINAL: &str =
+    antecedent_core::reason_details::discretized_scm::DEGENERATE_MARGINAL;
 /// The composition is not coherent.
-pub const DETAIL_COMPOSITION_INCOHERENT: &str = "discretized_scm.composition_incoherent";
+pub const DETAIL_COMPOSITION_INCOHERENT: &str =
+    antecedent_core::reason_details::discretized_scm::COMPOSITION_INCOHERENT;
 /// An intervention names a variable or level that does not exist.
-pub const DETAIL_INTERVENTION_INVALID: &str = "discretized_scm.intervention_invalid";
+pub const DETAIL_INTERVENTION_INVALID: &str =
+    antecedent_core::reason_details::discretized_scm::INTERVENTION_INVALID;
 /// An interval, band, posterior or law was requested of a point-only value.
-pub const DETAIL_POINT_ONLY: &str = "discretized_scm.point_only";
+pub const DETAIL_POINT_ONLY: &str = antecedent_core::reason_details::discretized_scm::POINT_ONLY;
 /// Cancellation was observed.
-pub const DETAIL_CANCELLED: &str = "discretized_scm.cancelled";
+pub const DETAIL_CANCELLED: &str = antecedent_core::reason_details::discretized_scm::CANCELLED;
 /// A numerical failure in the discretization.
-pub const DETAIL_NUMERICAL: &str = "discretized_scm.numerical";
+pub const DETAIL_NUMERICAL: &str = antecedent_core::reason_details::discretized_scm::NUMERICAL;
 /// A route's inferential paradigm is not supported.
-pub const DETAIL_PARADIGM_NOT_SUPPORTED: &str = "paradigm_parity.paradigm_not_supported";
+pub const DETAIL_PARADIGM_NOT_SUPPORTED: &str =
+    antecedent_core::reason_details::paradigm_parity::PARADIGM_NOT_SUPPORTED;
 
 const TAG_IDENTITY: &str = "antecedent.model.discretized_scm.complete_premises.v2";
 
@@ -379,7 +390,9 @@ fn cell_probabilities(edges: &[f64], mean: f64, sigma: f64) -> Vec<f64> {
 fn from_composition(error: CompositionError) -> BridgeRefusal {
     match error {
         CompositionError::Incoherent { findings } => {
-            if findings.iter().any(|f| f.detail == "mechanism_composition.family_mixed") {
+            if findings.iter().any(|f| {
+                f.detail == antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED
+            }) {
                 return unsupported(
                     DETAIL_NON_GAUSSIAN,
                     "composition",

@@ -615,9 +615,12 @@ fn a_paper_fail_after_exchanges_is_search_incomplete_never_an_obstruction() {
     let MzTransportDecision::NotCertified(inspection) = &decision else {
         panic!("expected not_certified, got {decision:?}");
     };
-    assert_eq!(inspection.detail, "mz_transport.search_incomplete");
+    assert_eq!(inspection.detail, antecedent_core::reason_details::mz_transport::SEARCH_INCOMPLETE);
     assert_eq!(decision.reason_code(), Some("transport_not_certified"));
-    assert_eq!(decision.detail_code(), Some("mz_transport.search_incomplete"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::mz_transport::SEARCH_INCOMPLETE)
+    );
     let last = inspection.stages.last().map(|s| (s.stage.as_str(), s.outcome));
     assert_eq!(last, Some(("multi_source", "not_certified")));
     // Both candidate exchanges of the I = ∅ call were tried and ended in a failure.
@@ -633,7 +636,10 @@ fn a_paper_fail_after_exchanges_is_search_incomplete_never_an_obstruction() {
     // Declaration order does not matter.
     let reversed = [sources[1].clone(), sources[0].clone()];
     let again = decide(&confounded, &reversed, y_mask, x_mask).unwrap();
-    assert_eq!(again.detail_code(), Some("mz_transport.search_incomplete"));
+    assert_eq!(
+        again.detail_code(),
+        Some(antecedent_core::reason_details::mz_transport::SEARCH_INCOMPLETE)
+    );
 
     // Same graph, but no source can ever exchange: a forced line-11 terminal with
     // no active experiment, replayed as a checked obstruction.

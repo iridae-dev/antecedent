@@ -319,7 +319,10 @@ mod tests {
         let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         let err = estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();
         assert_eq!(err.reason_code(), Some("treatment_level_undeclared"));
-        assert!(err.to_string().contains("treatment_levels.undeclared_level"));
+        assert!(
+            err.to_string()
+                .contains(antecedent_core::reason_details::treatment_levels::UNDECLARED_LEVEL)
+        );
         let exclude =
             estimator.clone().with_other_levels(crate::propensity::OtherLevels::ExcludeUndeclared);
         let err = exclude.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();

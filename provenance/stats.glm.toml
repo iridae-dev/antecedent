@@ -40,27 +40,32 @@ record_sha256 = "cd5e352093a4bc707adc82d77557178bb7b6cd31ce423080b1f403967f1df9e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm.rs"
-sha256 = "9393dbbac3d34c397dc62f56ffb6a24fce8fc80a3f4ecc3ae61f1fde6a8338fb"
+items = ["const DEFAULT_RIDGE_ON_SEPARATION", "enum GlmFamily", "enum NbAlphaPolicy", "fn default", "fn fit_glm", "fn fit_glm_weighted", "fn new", "fn require_ok", "struct GlmDesignRef", "struct GlmFit", "struct GlmOptions"]
+sha256 = "e9bce9ed9ae80f30725ef6de376bcaaa1c0290e589e6c9ec91bbc411896f6579"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm/binomial.rs"
-sha256 = "7db58bcbcf8e6a49a2359bdb3504d042d00479bdc867dfe873536804a9c0875a"
+items = ["enum PenaltyScope", "fn accumulate_weighted_normal_equations", "fn binomial_diagnostics_at", "fn fit_binomial_penalized", "fn fit_binomial_ridge", "fn fit_glm_ridge", "fn fit_glm_ridge_weighted", "fn fit_logit_laplace", "fn logit_working_row", "fn separated", "struct BinomialDiagnostics", "struct GlmLaplaceFit"]
+sha256 = "eb7060f0a1a34aa70e330453ebc0658ce377ca6e0a264b3dd485d9b6b04371ee"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm/count.rs"
-sha256 = "dc10cd52dd271867c1683b3b23fe785b1db0be01601ed2e182529e0909bfc7d6"
+items = ["module"]
+sha256 = "cb4c3a4679b41d81f3f2bf739da33360bfaf7c8f1c85bf10b725514b9a764e33"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm/gaussian.rs"
-sha256 = "aa3472a7f5139bb79b3ed6b7985238ebbe8eab607c2f64b0e94c47c7395847d3"
+items = ["module"]
+sha256 = "0047db486007410638ca79acb4d59a567098cdcf45fe777de46ac6a7cae51aa4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/glm_reference.rs"
-sha256 = "1dd7e27d3d1edd23ed2e0ad46c0571807a675ae83fee5f827d6952d08f6df18d"
+items = ["const REFERENCE", "fn an_iteration_limit_is_reported_as_non_convergence", "fn coefficient_error", "fn default_options_reach_the_same_estimates_as_tight_tolerances", "fn family_of", "fn fit_case", "fn fits_match_the_exact_maximum_likelihood_estimates", "fn floats", "fn invalid_outcomes_and_weights_are_refused", "fn negative_binomial_dispersion_policies_match_their_definitions", "fn optional_floats", "fn ridge_fits_match_the_exact_penalised_maximiser", "fn separated_logistic_fits_are_flagged_refused_and_ridge_refit_on_request", "fn tight"]
+sha256 = "6b92837497a50941af71e435c58e8693a6714d4174a587abb91cfd766aa86182"
 
 [[method_review.artifacts]]
 role = "reference"

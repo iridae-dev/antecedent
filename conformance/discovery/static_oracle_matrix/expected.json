@@ -80,7 +80,20 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/static_discovery_oracle.rs",
-          "sha256": "840ebaa20fb95e964f7bfe120e5d47e05c9bcceb173fe6ded3ff9add049eadf0"
+          "items": [
+            "fn canonical_marked",
+            "fn case_data",
+            "fn cpdag_edges",
+            "fn direct_lingam_matches_external_orders_edges_and_coefficients",
+            "fn endpoint",
+            "fn fci_and_ges_match_causal_learn_across_motifs_and_all_permutations",
+            "fn fixture",
+            "fn pag_edges",
+            "fn reference_edges",
+            "fn static_discovery_fixture_records_exact_pins_and_retained_generator",
+            "type MarkedKey"
+          ],
+          "sha256": "3093caa69546d0caa3bdbdbe87edff78478030e37b1ed02377ce91b526d7d7fe"
         }
       ],
       "fixture_payload_sha256": "58114a5246058d565218745b969d84ae471c361a385f915a0b507cceb7103df3"

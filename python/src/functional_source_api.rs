@@ -15,7 +15,9 @@ fn export_law_functional_source(
     crate::catch_ffi(|| {
         if contract_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
             return Err(crate::with_reason_code(
-                crate::value_err("functional_source.invalid_contract"),
+                crate::value_err(
+                    antecedent_core::reason_details::functional_source::INVALID_CONTRACT,
+                ),
                 antecedent_core::reason_code!("invalid_argument"),
             ));
         }
@@ -26,7 +28,9 @@ fn export_law_functional_source(
             input.inner().source()
         else {
             return Err(crate::with_reason_code(
-                crate::value_err("functional_source.original_law_required"),
+                crate::value_err(
+                    antecedent_core::reason_details::functional_source::ORIGINAL_LAW_REQUIRED,
+                ),
                 antecedent_core::reason_code!("route_not_supported"),
             ));
         };
@@ -88,14 +92,18 @@ fn resolve_law_functional_source(
             .map_err(functional_source_error)?;
         let expected = artifact.source_evidence().ok_or_else(|| {
             crate::with_reason_code(
-                crate::value_err("functional_source.native_source_unavailable"),
+                crate::value_err(
+                    antecedent_core::reason_details::functional_source::NATIVE_SOURCE_UNAVAILABLE,
+                ),
                 antecedent_core::reason_code!("invalid_argument"),
             )
         })?;
         let fresh = crate::source_evidence_api::PySourceEvidence::from_claim(actual)?;
         expected.require_same_source(&fresh.inner).map_err(|_| {
             crate::with_reason_code(
-                crate::value_err("functional_source.source_mismatch"),
+                crate::value_err(
+                    antecedent_core::reason_details::functional_source::SOURCE_MISMATCH,
+                ),
                 antecedent_core::reason_code!("invalid_argument"),
             )
         })?;
@@ -108,7 +116,9 @@ fn resolve_law_functional_source(
             .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
         let NativeDecisionSource::JointLaw(law) = original.source else {
             return Err(crate::with_reason_code(
-                crate::value_err("functional_source.native_source_unavailable"),
+                crate::value_err(
+                    antecedent_core::reason_details::functional_source::NATIVE_SOURCE_UNAVAILABLE,
+                ),
                 antecedent_core::reason_code!("invalid_argument"),
             ));
         };
@@ -119,7 +129,9 @@ fn resolve_law_functional_source(
             != law.to_bytes("native-law-source-check").map_err(functional_source_error)?
         {
             return Err(crate::with_reason_code(
-                crate::value_err("functional_source.source_mismatch"),
+                crate::value_err(
+                    antecedent_core::reason_details::functional_source::SOURCE_MISMATCH,
+                ),
                 antecedent_core::reason_code!("invalid_argument"),
             ));
         }

@@ -44,7 +44,42 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/supported_static_cells.rs",
-          "sha256": "54464ffb26ec5e56f976926029d4f03114136d4ed77f1079eedba57225cd8f29"
+          "items": [
+            "const SUITES",
+            "fn assert_bayesian_validation",
+            "fn assert_evalue_fields",
+            "fn average_effect_dag_bayesian_known_truth_all_structures_and_suites",
+            "fn average_effect_dag_frequentist_known_truth_all_structures_and_suites",
+            "fn bayes",
+            "fn conditional_effect_dag_frequentist_known_truth_all_structures_and_suites",
+            "fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites",
+            "fn counterfactual_dag_additive_outcome_reports_rejected_heterogeneity_not_homogeneity",
+            "fn counterfactual_dag_categorical_lever_is_invariant_to_parent_rescaling",
+            "fn counterfactual_dag_discrete_outcome_makes_no_homogeneity_claim",
+            "fn counterfactual_dag_exp_modifier_unit_effects_rise_with_the_modifier",
+            "fn counterfactual_dag_flags_units_outside_the_opposite_arms_covariate_support",
+            "fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects",
+            "fn counterfactual_dag_single_parent_outcome_discloses_structural_homogeneity",
+            "fn counterfactual_query",
+            "fn dag",
+            "fn diagnostic",
+            "fn distribution_bayesian_known_truth_all_structures_and_suites",
+            "fn distribution_table",
+            "fn field",
+            "fn homogeneity_diagnostic",
+            "fn interaction_scm",
+            "fn json",
+            "fn linear_gaussian_ate",
+            "fn mediation_bayesian_known_truth_all_structures_and_suites",
+            "fn mediation_scm",
+            "fn mixture_data",
+            "fn refuter_names",
+            "fn report",
+            "fn staged",
+            "fn subgroup_mean",
+            "fn unit_effect_spread"
+          ],
+          "sha256": "d988f32a9d7cc24835152f515edd1e2d8be4510196a51b8eaa1002f1e90e374d"
         }
       ],
       "fixture_payload_sha256": "5214e33e6465873c8b9e33d10b65220153558df47b5473fb1358c34677034529"

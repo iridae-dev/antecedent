@@ -18,6 +18,7 @@ import itertools
 import numpy as np
 import pytest
 from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalTypeError, CausalValueError
 
@@ -247,7 +248,7 @@ def test_an_undirected_edge_at_the_treatment_is_refused_by_name() -> None:
         )
     assert_registered_refusal(info.value)
     assert info.value.reason_code == "discovered_structure_unresolved"
-    assert info.value.detail == "parent_set_effect.treatment_parents_ambiguous"
+    assert info.value.detail == reason_details.parent_set_effect.TREATMENT_PARENTS_AMBIGUOUS
     assert "h - n0" in info.value.message
     assert "no completion is chosen" in info.value.message
 
@@ -266,7 +267,7 @@ def test_log_linear_inputs_must_be_positive() -> None:
             execution=Execution(seed=SEED),
         )
     assert info.value.reason_code == "invalid_argument"
-    assert info.value.detail == "parent_set_effect.log_linear_input_not_positive"
+    assert info.value.detail == reason_details.parent_set_effect.LOG_LINEAR_INPUT_NOT_POSITIVE
     assert "column `m` has 5 non-positive value(s)" in info.value.message
     assert isinstance(info.value, CausalValueError)
 
@@ -284,7 +285,7 @@ def test_the_transformation_must_be_declared_before_the_data_are_touched(declare
             execution=Execution(seed=SEED),
         )
     assert info.value.reason_code == "invalid_argument"
-    assert info.value.detail == "parent_set_effect.transformation_undeclared"
+    assert info.value.detail == reason_details.parent_set_effect.TRANSFORMATION_UNDECLARED
     assert "before any data are read" in info.value.message
 
 
@@ -309,7 +310,7 @@ def test_a_log_shift_is_declared_only_by_a_log_linear_study() -> None:
             log_shift=1.0,
             split_seed=SPLIT_SEED,
         )
-    assert info.value.detail == "parent_set_effect.source_invalid"
+    assert info.value.detail == reason_details.parent_set_effect.SOURCE_INVALID
 
 
 def test_a_maximum_degree_above_four_is_computed_and_not_measured() -> None:

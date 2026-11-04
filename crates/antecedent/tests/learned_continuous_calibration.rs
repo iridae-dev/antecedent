@@ -24,10 +24,10 @@
 //! The two non-record tests print `calibration-measurement` lines and assert only the
 //! refusal property; they are not coverage records. The gate sweeps the sample-size grid
 //! (`ANTECEDENT_CALIBRATION_GRID_POINT`, read by `grid_n`) for the two coverage records
-//! only (`grid_group` in `scripts/gate_calibration.sh`); these two run once, at the base
+//! only (`grid_group` in `scripts/measure_calibration_groups.sh`); these two run once, at the base
 //! point.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

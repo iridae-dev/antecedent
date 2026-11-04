@@ -38,9 +38,11 @@ record_sha256 = "c966aaef4b8ebb0e8a1057a4c418e821279e79ba9c90461129b674fdd89562c
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/transported_bridge.rs"
-sha256 = "f0a3109778a372541c925ec651aede58a3ca384bf6463c1d355c594de48a9d85"
+items = ["const DETAIL_DIAGRAM_SCOPE_MISMATCH", "const DETAIL_PREMISE_CONTRADICTED", "const SURROGATE_TRANSPORT_PREMISE_ID", "const TAG_DIAGRAM", "const TRANSPORTED_BRIDGE_VERSION", "fn contract", "fn contradicted", "fn derive", "fn identity_hex", "fn points_into", "fn scope_mismatch", "struct BridgeSelectionDiagram", "struct TransportedSurrogateBridge"]
+sha256 = "63199e92e4a670c5a0ab19e5bf040b63acce7501f10a3c7cd79c0754f3285797"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/transported_bridge.rs"
-sha256 = "085ec67a3946758d5a5b4ec35002f6ab4faba80f3fcf2d2aa3f33c4d313be5e4"
+items = ["fn a_claim_in_the_validated_population_needs_no_premise_and_ignores_the_diagram", "fn a_diagram_between_other_populations_is_not_the_premise", "fn a_selection_arrow_into_a_relation_modifier_refuses_the_same_premise", "fn a_selection_arrow_into_the_terminal_outcome_refuses_naming_the_premise", "fn a_surrogate_effect_outside_the_validated_range_is_refused_after_the_premise", "fn a_surrogate_validated_elsewhere_is_carried_when_the_diagram_leaves_the_relation_invariant", "fn bridge", "fn claim", "fn digest", "fn quantity", "fn refused", "fn the_premise_is_stated_in_the_contract_and_bound_to_the_diagram", "fn validation"]
+sha256 = "4840c4305f8623e4cbaefb935e02cd5744d75aaced11605129513d3e808d71cd"

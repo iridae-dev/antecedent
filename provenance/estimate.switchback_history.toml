@@ -28,12 +28,14 @@ record_sha256 = "91a589bf1dd7685cc3ff8b9c07c71a6c187043938dd1d9ca1468853fd566c6d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/switchback.rs"
-sha256 = "4172d52a219d069693aa0802ad46c907a3d9fbf08360d7672732bae3f0ef7f44"
+items = ["const MIN_ARM_PROBABILITY_FOR_INTERVAL", "const MIN_SEQUENCES_FOR_INTERVAL", "fn switchback_history_means", "fn switchback_itt", "struct HistoryAssignment", "struct HistorySwitchbackFit", "struct SwitchbackItt"]
+sha256 = "2abf9a0c4ecba51f3376b8efa5e107169c44ce18bb71297075cb03d175c1ad8e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/randomized_design_enumeration.rs"
-sha256 = "9bb3d9de86777d43221fe3a712fca5e34c9a5ea7dd5bac2392915f74bf40c549"
+items = ["fn close", "fn floats", "fn history_means_and_covariance_match_every_realization", "fn independent_score_contrast_matches_every_realization", "fn multi_arm_matches_every_realization_of_the_assignment", "fn reference", "fn switchback_itt_matches_every_realization_including_unequal_sequences"]
+sha256 = "56bfe01289928809ae72ed7172c81d7683d4038460d411c42f711afbf7c2776d"
 
 [[method_review.artifacts]]
 role = "reference"

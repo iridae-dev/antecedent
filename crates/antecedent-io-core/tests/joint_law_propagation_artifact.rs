@@ -195,7 +195,7 @@ fn assumption_ranges_refuse_unrepresentable_moments() {
             details(&error),
             vec![(
                 "invalid_argument".to_owned(),
-                "joint_law_propagation.artifact_invalid".to_owned()
+                antecedent_core::reason_details::joint_law_propagation::ARTIFACT_INVALID.to_owned()
             )],
             "{mean} {sd}"
         );
@@ -218,7 +218,10 @@ fn independent_claims_refuse_covariance_cross_terms_even_after_resealing() {
     let error = JointLawPropagationArtifactWire::seal(&independent, numbers, &ctx()).unwrap_err();
     assert_eq!(
         details(&error),
-        vec![("invalid_argument".to_owned(), "joint_law_propagation.invalid_request".to_owned())]
+        vec![(
+            "invalid_argument".to_owned(),
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST.to_owned()
+        )]
     );
 
     let mut wire = contrast();
@@ -230,7 +233,10 @@ fn independent_claims_refuse_covariance_cross_terms_even_after_resealing() {
     reseal(&mut wire);
     let error =
         wire.consume(None, &ctx()).expect_err("resealing cannot support inconsistent dependence");
-    assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
+    assert_eq!(
+        details(&error)[0].1,
+        antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+    );
 }
 
 #[test]
@@ -254,7 +260,7 @@ fn aligned_linear_claims_refuse_nonfinite_coefficients_and_overflow() {
             details(&error),
             vec![(
                 "invalid_argument".to_owned(),
-                "joint_law_propagation.artifact_invalid".to_owned()
+                antecedent_core::reason_details::joint_law_propagation::ARTIFACT_INVALID.to_owned()
             )],
             "{coefficient}"
         );
@@ -382,7 +388,8 @@ fn unrelated_marginals_are_never_paired_by_index() {
         details(&error),
         vec![(
             "joint_law_required".to_owned(),
-            "joint_law_propagation.index_pairing_refused".to_owned()
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+                .to_owned()
         )]
     );
     let mismatched = declared(
@@ -393,7 +400,10 @@ fn unrelated_marginals_are_never_paired_by_index() {
     );
     let error =
         JointLawPropagationArtifactWire::seal(&mismatched, numbers, &ctx()).expect_err("refused");
-    assert_eq!(details(&error)[0].1, "joint_law_propagation.alignment_mismatch");
+    assert_eq!(
+        details(&error)[0].1,
+        antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+    );
 }
 
 #[test]
@@ -418,7 +428,8 @@ fn a_transported_interval_is_composed_only_under_a_covariance_or_an_aligned_law(
         details(&error),
         vec![(
             "joint_law_required".to_owned(),
-            "joint_law_propagation.transported_dependence_required".to_owned()
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+                .to_owned()
         )]
     );
     let with_covariance = declared(
@@ -479,7 +490,8 @@ fn semantic_mutations_are_refused() {
         details(&error),
         vec![(
             "invalid_argument".to_owned(),
-            "joint_law_propagation.mixture_weights_unknown".to_owned()
+            antecedent_core::reason_details::joint_law_propagation::MIXTURE_WEIGHTS_UNKNOWN
+                .to_owned()
         )]
     );
     // A resealed upgrade of an envelope's label to a point.
@@ -609,9 +621,15 @@ fn an_aligned_spread_replays_to_the_enumerated_joint_law() {
     as_point.rule.reading = "point".to_owned();
     reseal(&mut as_point);
     let error = as_point.consume(None, &ctx()).expect_err("refused");
-    assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
+    assert_eq!(
+        details(&error)[0].1,
+        antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+    );
     let direct = aligned_spread(numbers(), RequestedReading::Point).expect_err("refused");
-    assert_eq!(details(&direct)[0].1, "joint_law_propagation.invalid_request");
+    assert_eq!(
+        details(&direct)[0].1,
+        antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+    );
 
     // A resealed relabel of the spread as a point label no longer matches.
     let mut relabelled = wire.clone();
@@ -654,7 +672,10 @@ fn an_exceedance_decision_reports_its_monte_carlo_band_and_verdict() {
     below.consume(None, &ctx()).expect("replays");
     // A cutoff outside (0, 1) is a refused request, not a verdict.
     let error = decide(1.0).expect_err("refused");
-    assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
+    assert_eq!(
+        details(&error)[0].1,
+        antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+    );
     // An edited verdict code does not replay.
     let mut edited = below.clone();
     if let PropagationResultWire::AlignedExceedance { verdict, .. } = &mut edited.result {
@@ -692,7 +713,10 @@ fn spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused() {
     );
     let error = JointLawPropagationArtifactWire::seal(&unpaired, numbers.clone(), &ctx())
         .expect_err("refused");
-    assert_eq!(details(&error)[0].1, "joint_law_propagation.index_pairing_refused");
+    assert_eq!(
+        details(&error)[0].1,
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+    );
     let envelope_dependence = declared(
         PropagationOperation::Product,
         vec![summary("x", "s1"), summary("y", "s2")],
@@ -705,7 +729,8 @@ fn spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused() {
         details(&error),
         vec![(
             "uncertainty_representation_insufficient".to_owned(),
-            "joint_law_propagation.spread_needs_supported_dependence".to_owned()
+            antecedent_core::reason_details::joint_law_propagation::SPREAD_NEEDS_SUPPORTED_DEPENDENCE
+                .to_owned()
         )]
     );
 }
@@ -747,7 +772,10 @@ fn a_mixture_exceedance_uses_the_known_weights_and_no_joint_law() {
 #[test]
 fn the_declared_operation_is_bound_to_the_stored_numbers() {
     let invalid = |error: &JointLawPropagationArtifactError| {
-        assert_eq!(details(error)[0].1, "joint_law_propagation.invalid_request");
+        assert_eq!(
+            details(error)[0].1,
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
     };
     let linear = |operation, coefficients: &[f64]| {
         JointLawPropagationArtifactWire::seal(

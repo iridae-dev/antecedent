@@ -79,7 +79,7 @@ retains those tests for use after calibration. Plain pytest uses the same
 default; `-m requires_calibration` selects the acceptance tests explicitly.
 For Rust, the default nextest filter is the negation of
 `python3 scripts/evidence_audit.py rust-calibration-filter`, which is derived
-from `parity/v3_test_registry.toml`. Update the filter when registering another
+from `parity/test_registry.toml`. Update the filter when registering another
 measured-record assertion; the evidence-audit tests check that it stays in sync.
 
 Most integration files are compiled into a few consolidated `suite_NN` targets
@@ -87,7 +87,7 @@ per crate (`scripts/consolidate_tests.py`); the files stay where they are, are
 included with `#[path]`, and are listed in the crate's `tests/suite_map.txt`.
 Calibration harnesses and any target a script names with `--test` stay
 separate. `scripts/check_test_targets.py` fails when a test file is not
-compiled, and `scripts/check_v3_test_registry.py` fails when a registry row
+compiled, and `scripts/check_test_registry.py` fails when a registry row
 names a missing file or a stale suite-map line.
 
 ## Lanes
@@ -100,7 +100,7 @@ ordinary test is in the software lane, so none falls between lanes.
 | --- | --- | ---: | --- |
 | Engineering | `bash scripts/test.sh` | Rust tests (`rust`); pytest tests (`python`); script tests (`scripts`) | Every non-ignored workspace test except the registered scientific assertions and the registered calibration tests. |
 | Scientific evidence | `bash scripts/test.sh scientific` | 207 Rust tests plus 1 Python test | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; no other lane runs them. |
-| Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance` | 13 Rust tests; 39 pytest tests (`python-calibration-acceptance`) | Tests registered under `calibration_acceptance_assertions` in `parity/v3_test_registry.toml`, or marked `requires_calibration`. They need the frozen branch's attesting coverage records and fail until `scripts/measure_calibration.sh` has produced them. |
+| Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance` | 13 Rust tests; 39 pytest tests (`python-calibration-acceptance`) | Tests registered under `calibration_acceptance_assertions` in `parity/test_registry.toml`, or marked `requires_calibration`. They need the frozen branch's attesting coverage records and fail until `scripts/measure_calibration.sh` has produced them. |
 | Calibration measurement | `bash scripts/measure_calibration.sh` | 803 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and measurement diagnostics. No ordinary lane runs them. |
 | Slow correctness | `bash scripts/test.sh slow` | 9 `#[ignore]` Rust tests | Exhaustive enumerations and heavy acceptance fits that are too slow for the ordinary lanes (for example `mag_id_bruteforce::exhaustive_four_observed_two_latent` and the ring-with-triangles sampler references in `graph_posterior_wide`). Selected by exact name from `parity/slow_correctness_tests.toml`, which gives each a reason and an expected runtime. Manual or nightly; not part of ordinary CI. Twelve sweeps that take 4 s or less at the test profile (the 100,000-row `antecedent-io` fits, the matching and neighbourhood-sensitivity 100,000-row tests, the `p = 667` joint identification and the optional-estimator closure) are ordinary tests, not in this lane. |
 | Integration | `bash scripts/test.sh integration` | 6,570 Rust tests | All integration targets, without library unit tests. |

@@ -213,7 +213,7 @@ pub struct CompiledScm<'a> {
 fn bounds(what: &str) -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "cross_world_execution.bounds_exceeded",
+        antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
         Some(what.to_owned()),
         "reduce the declaration below the documented bound",
     )
@@ -225,7 +225,7 @@ fn bounds(what: &str) -> CrossWorldExecutionError {
 fn joint_state_bound() -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "cross_world_execution.joint_state_bound_exceeded",
+        antecedent_core::reason_details::cross_world_execution::JOINT_STATE_BOUND_EXCEEDED,
         Some("joint_exogenous_states".to_owned()),
         "reduce the number of exogenous states or terms so their product is within the \
          documented bound; the model is declared, so the counterfactual is computable but not \
@@ -249,7 +249,10 @@ fn unique_nonempty<'a>(
     let mut seen = BTreeSet::new();
     for name in names {
         if name.trim().is_empty() || !seen.insert(name) {
-            return Err(invalid("cross_world_execution.invalid_scm", what));
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                what,
+            ));
         }
     }
     Ok(())
@@ -284,10 +287,16 @@ impl FiniteScm {
             return Err(bounds("variables"));
         }
         if n == 0 || self.exogenous.is_empty() {
-            return Err(invalid("cross_world_execution.invalid_scm", "variables"));
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                "variables",
+            ));
         }
         if self.population.trim().is_empty() || self.history.trim().is_empty() {
-            return Err(invalid("cross_world_execution.invalid_scm", "population_or_history"));
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                "population_or_history",
+            ));
         }
         unique_nonempty(self.variables.iter().map(|v| v.name.as_str()), "variable_names")?;
         unique_nonempty(self.exogenous.iter().map(|e| e.name.as_str()), "exogenous_names")?;
@@ -299,7 +308,10 @@ impl FiniteScm {
                 && exo.pmf.iter().all(|p| p.is_finite() && *p >= 0.0)
                 && (sum - 1.0).abs() <= PMF_TOLERANCE;
             if !ok {
-                return Err(invalid("cross_world_execution.invalid_scm", exo.name.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                    exo.name.clone(),
+                ));
             }
             // Tolerated simplex slack is corrected; exact PMFs retain their bits.
             pmfs.push(normalized_pmf(&exo.pmf, sum));
@@ -313,7 +325,10 @@ impl FiniteScm {
                 && var.parents.iter().all(|p| *p < index)
                 && var.exogenous < self.exogenous.len();
             if !well_formed {
-                return Err(invalid("cross_world_execution.invalid_scm", var.name.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                    var.name.clone(),
+                ));
             }
             let size = self.exogenous[var.exogenous].pmf.len();
             let cfg = var
@@ -325,14 +340,17 @@ impl FiniteScm {
             let table_ok = var.table.len() == size * cfg
                 && var.table.iter().all(|l| usize::from(*l) < var.levels);
             if !table_ok {
-                return Err(invalid("cross_world_execution.invalid_scm", var.name.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                    var.name.clone(),
+                ));
             }
             users[var.exogenous] += 1;
             n_cfg.push(cfg);
         }
         if let Some(unused) = users.iter().position(|u| *u == 0) {
             return Err(invalid(
-                "cross_world_execution.invalid_scm",
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
                 self.exogenous[unused].name.clone(),
             ));
         }
@@ -420,7 +438,10 @@ pub fn validate_units(
             let known =
                 scm.variables.get(*variable).is_some_and(|v| usize::from(*level) < v.levels);
             if !known || previous == Some(*variable) {
-                return Err(invalid("cross_world_execution.invalid_evidence", unit.unit.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_EVIDENCE,
+                    unit.unit.clone(),
+                ));
             }
             previous = Some(*variable);
         }
@@ -444,7 +465,10 @@ pub fn validate_worlds(
     unique_nonempty(worlds.iter().map(|w| w.name.as_str()), "world_names")?;
     for (index, world) in worlds.iter().enumerate() {
         let bad = |what: &str| {
-            invalid("cross_world_execution.invalid_world", format!("{}:{what}", world.name))
+            invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_WORLD,
+                format!("{}:{what}", world.name),
+            )
         };
         let mut set = BTreeSet::new();
         for (variable, level) in &world.interventions {
@@ -476,7 +500,7 @@ impl FiniteWorld {
         for route in &self.routes {
             if !edges.insert((route.parent, route.child)) {
                 return Err(invalid(
-                    "cross_world_execution.invalid_world",
+                    antecedent_core::reason_details::cross_world_execution::INVALID_WORLD,
                     format!("{}:duplicate_route({},{})", self.name, route.parent, route.child),
                 ));
             }
@@ -543,7 +567,12 @@ impl FiniteQuantity {
         scm: &FiniteScm,
         n_worlds: usize,
     ) -> Result<(), CrossWorldExecutionError> {
-        let bad = || invalid("cross_world_execution.invalid_quantity", "quantity");
+        let bad = || {
+            invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_QUANTITY,
+                "quantity",
+            )
+        };
         if matches!(self, Self::JointProbability(atoms) if atoms.is_empty()) {
             return Err(bad());
         }
@@ -672,7 +701,7 @@ pub fn abduct_unit(
     if states.is_empty() && matched_underflow {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_execution.evidence_probability_underflow",
+            antecedent_core::reason_details::cross_world_execution::EVIDENCE_PROBABILITY_UNDERFLOW,
             Some(unit.unit.clone()),
             "use an executor with probability arithmetic that can retain this positive evidence mass; this f64 route cannot represent it",
         ));
@@ -680,7 +709,7 @@ pub fn abduct_unit(
     if states.is_empty() {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_execution.evidence_outside_model_support",
+            antecedent_core::reason_details::cross_world_execution::EVIDENCE_OUTSIDE_MODEL_SUPPORT,
             Some(unit.unit.clone()),
             "the factual evidence has probability zero under the declared mechanisms; revise \
              the mechanisms or the evidence (a refuted model is not repaired by conditioning)",
@@ -694,7 +723,7 @@ pub fn abduct_unit(
     if matched_underflow {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_execution.posterior_weight_underflow",
+            antecedent_core::reason_details::cross_world_execution::POSTERIOR_WEIGHT_UNDERFLOW,
             Some(unit.unit.clone()),
             "use an executor with probability arithmetic that can retain this positive posterior state mass; this f64 route cannot represent it",
         ));
@@ -706,7 +735,7 @@ pub fn abduct_unit(
         if weight == 0.0 {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cross_world_execution.posterior_weight_underflow",
+                antecedent_core::reason_details::cross_world_execution::POSTERIOR_WEIGHT_UNDERFLOW,
                 Some(unit.unit.clone()),
                 "rescale the declared model or use a posterior representation that can retain this positive state mass",
             ));
@@ -736,7 +765,7 @@ impl WorldPlan {
         validate_worlds(scm, worlds)?;
         if index >= worlds.len() {
             return Err(invalid(
-                "cross_world_execution.invalid_world",
+                antecedent_core::reason_details::cross_world_execution::INVALID_WORLD,
                 format!("world index {index}"),
             ));
         }

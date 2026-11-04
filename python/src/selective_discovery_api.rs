@@ -96,7 +96,7 @@ fn artifact_refusal(error: &SelectiveDiscoveryArtifactError) -> String {
         None => refusal_json(
             antecedent_core::reason_code!("invalid_argument"),
             STAGE,
-            "selective_discovery.artifact_invalid",
+            antecedent_core::reason_details::selective_discovery::ARTIFACT_INVALID,
             &error.to_string(),
             "supply an intact selective_discovery_v1 artifact",
         ),
@@ -817,7 +817,7 @@ impl SelectiveDiscoveryHandle {
                 Some(refusal_json(
                     antecedent_core::reason_code!("invalid_argument"),
                     STAGE,
-                    "selective_discovery.nothing_retained",
+                    antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                     "no discovery has run",
                     "run discovery before requesting transport across its class",
                 )),
@@ -855,7 +855,7 @@ impl SelectiveDiscoveryHandle {
                 Some(refusal_json(
                     antecedent_core::reason_code!("invalid_argument"),
                     STAGE,
-                    "selective_discovery.nothing_retained",
+                    antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                     "no discovery has run",
                     "run discovery before requesting transport across its class",
                 )),
@@ -877,7 +877,7 @@ impl SelectiveDiscoveryHandle {
             return refusal_json(
                 antecedent_core::reason_code!("invalid_argument"),
                 STAGE,
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "no discovery has run",
                 "run discovery before requesting a selection diagram",
             );
@@ -899,7 +899,7 @@ impl SelectiveDiscoveryHandle {
             return refusal_json(
                 antecedent_core::reason_code!("invalid_argument"),
                 STAGE,
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "no discovery has run",
                 "run discovery before making a claim request",
             );
@@ -1067,7 +1067,7 @@ fn selective_discovery_inspect(artifact: &[u8]) -> (Option<String>, Option<Strin
                 Some(refusal_json(
                     antecedent_core::reason_code!("invalid_argument"),
                     STAGE,
-                    "selective_discovery.artifact_invalid",
+                    antecedent_core::reason_details::selective_discovery::ARTIFACT_INVALID,
                     &error.to_string(),
                     "supply an intact selective_discovery_v1 artifact",
                 )),
@@ -1286,7 +1286,7 @@ impl PerPopulationDiscoveryHandle {
             return refusal_json(
                 antecedent_core::reason_code!("invalid_argument"),
                 STAGE,
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "no per-population discovery has run",
                 "run per-population discovery before requesting selection targets",
             );

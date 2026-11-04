@@ -40,24 +40,29 @@ record_sha256 = "c36453704a7bc2f1f9cf6d7be30f91bde2d4a63723c5082d0a08f37e0dfe181
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/pc.rs"
-sha256 = "c3ed87ec9701d0903f7273202dc6e01a522758b9f8e9eea25ba34c3506521c07"
+items = ["module"]
+sha256 = "70ee22420e0f0441dde72528019a3fd2797455dcb93b4270fd242e3fff06a82a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/static_skeleton.rs"
-sha256 = "66309b7cd26bc5fbd33c08fcb7bc40a13ed2f21df48221eeb13fa8ed504b5bb1"
+items = ["module"]
+sha256 = "6e82e5c996af2c79a06420cabec296135bff838b0ab02b574c2cf8d10dc86a42"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/orientation.rs"
-sha256 = "74a653ad0b61cc903d66ec4386f346cb3ca043c1ae96e450dbba05059624bd64"
+items = ["module"]
+sha256 = "0de3ae78655b4a35aac9c5ef67c5e9c497e0ed4c770e36159d74f9ef296bc151"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/evidence.rs"
-sha256 = "6ad77382c73879b173d20b5a5f7aa024afb49f40159bde2c1942c3f6a6a8ab3d"
+items = ["module"]
+sha256 = "ccac750e9a770d0659ade55b05793f9f965c12edf09b62876e0391097d2fd2ba"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/orientation_tests.rs"
-sha256 = "12d09bbe18a8964dfcbabd4fae69f301f9f2237a0812158fc2f119b87543dbf4"
+items = ["fn chain"]
+sha256 = "afdee5aeac7fad9bf44bb80f891add5e884b3e4d20d578a3d051b66565df4acd"

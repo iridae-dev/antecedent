@@ -57,7 +57,7 @@ python3 scripts/test_check_architecture.py
 python3 scripts/check_rust_ci_feature_parity.py
 
 echo "== test registry, lanes and ignored tests =="
-python3 scripts/check_v3_test_registry.py
+python3 scripts/check_test_registry.py
 python3 scripts/evidence_audit.py rust-engineering-filter --check
 python3 scripts/check_ignored_tests.py
 python3 scripts/check_child_test_selectors.py
@@ -86,10 +86,14 @@ bash scripts/gate_docs_support_matrix.sh
 
 echo "== release inventory =="
 python3 scripts/check_release_inventory.py
+python3 scripts/check_acceptance_inventory.py
+python3 scripts/check_acceptance_manifest.py --require-bound
 python3 scripts/check_residual_limitations.py
 python3 scripts/check_missing_policy_support.py
 
 echo "== bounds, release claims, links, conformance references =="
+python3 scripts/generate_reason_details.py --check
+python3 scripts/gate_reason_detail_literals.py
 python3 scripts/check_limits_agreement.py
 python3 scripts/check_release_claims.py
 python3 scripts/check_doc_links.py

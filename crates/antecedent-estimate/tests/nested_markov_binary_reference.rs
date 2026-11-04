@@ -38,7 +38,10 @@ fn constrained_fit_reaches_the_reference_maximum_on_hard_tables() {
             let refusal = fit_nested_markov(&table, &FitOptions::default(), &ctx)
                 .expect_err(&format!("{name}: boundary maximum must refuse"));
             assert!(
-                refusal.error.to_string().contains("nested_markov.fitted_boundary"),
+                refusal
+                    .error
+                    .to_string()
+                    .contains(antecedent_core::reason_details::nested_markov::FITTED_BOUNDARY),
                 "{name}: {refusal:?}"
             );
             refused += 1;

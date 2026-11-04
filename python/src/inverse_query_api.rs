@@ -61,14 +61,15 @@ fn query_refusal(error: &InverseQueryError) -> String {
 fn io_refusal(error: &IoError) -> String {
     match error {
         IoError::Refused { code, message } => {
-            let (detail, text) = message
-                .split_once(": ")
-                .unwrap_or(("functional_inverse_query.wrong_contract", message.as_str()));
+            let (detail, text) = message.split_once(": ").unwrap_or((
+                antecedent_core::reason_details::functional_inverse_query::WRONG_CONTRACT,
+                message.as_str(),
+            ));
             plain_refusal(*code, detail, Some(text.to_owned()))
         }
         other => plain_refusal(
             reason_code!("invalid_argument"),
-            "functional_inverse_query.invalid_artifact",
+            antecedent_core::reason_details::functional_inverse_query::INVALID_ARTIFACT,
             Some(other.to_string()),
         ),
     }

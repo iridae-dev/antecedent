@@ -87,7 +87,7 @@ impl PortableDiscoveryState {
         let max_receipts = limits.max_portable_receipts;
         if store.len() > max_receipts {
             return Err(refuse(
-                "selective_discovery.receipt_limit",
+                antecedent_core::reason_details::selective_discovery::RECEIPT_LIMIT,
                 format!(
                     "the run retains {} statistics; a portable state carries at most \
                      {max_receipts}. Export a smaller search (fewer variables, a lower \
@@ -153,33 +153,33 @@ impl PortableDiscoveryState {
     pub fn validate_within(&self, max_receipts: usize) -> Result<(), SelectiveDiscoveryError> {
         if self.receipts.len() > max_receipts {
             return Err(refuse(
-                "selective_discovery.receipt_limit",
+                antecedent_core::reason_details::selective_discovery::RECEIPT_LIMIT,
                 format!("a portable state carries at most {max_receipts} receipts"),
             ));
         }
         if self.receipts.iter().any(|r| !r.is_valid()) {
             return Err(refuse(
-                "selective_discovery.receipt_invalid",
+                antecedent_core::reason_details::selective_discovery::RECEIPT_INVALID,
                 "a retained statistic is not finite or its p-value is outside [0, 1]; \
                  recompute it from the raw data",
             ));
         }
         if self.receipts.windows(2).any(|w| w[0].coordinate >= w[1].coordinate) {
             return Err(refuse(
-                "selective_discovery.receipt_repeated",
+                antecedent_core::reason_details::selective_discovery::RECEIPT_REPEATED,
                 "receipts are not strictly ascending by coordinate: the state is not the \
                  record of one run",
             ));
         }
         if StatisticStore::receipts_identity(&self.receipts) != self.receipts_identity {
             return Err(refuse(
-                "selective_discovery.receipts_identity",
+                antecedent_core::reason_details::selective_discovery::RECEIPTS_IDENTITY,
                 "the receipt identity does not match the receipts",
             ));
         }
         if self.components.windows(2).any(|w| w[0].0 >= w[1].0) {
             return Err(refuse(
-                "selective_discovery.components_incomplete",
+                antecedent_core::reason_details::selective_discovery::COMPONENTS_INCOMPLETE,
                 "the declared inputs are not in strictly ascending name order",
             ));
         }
@@ -187,7 +187,7 @@ impl PortableDiscoveryState {
             self.components.iter().map(|(n, d)| (n.as_str(), d)).collect();
         if super::contract::contract_identity_of(&self.route, ordered) != self.contract_identity {
             return Err(refuse(
-                "selective_discovery.contract_identity",
+                antecedent_core::reason_details::selective_discovery::CONTRACT_IDENTITY,
                 "the contract identity does not match the declared inputs",
             ));
         }
@@ -198,7 +198,7 @@ impl PortableDiscoveryState {
         let named: BTreeSet<&str> = self.components.iter().map(|(n, _)| n.as_str()).collect();
         if named != expected || self.components.len() != expected.len() {
             return Err(refuse(
-                "selective_discovery.components_incomplete",
+                antecedent_core::reason_details::selective_discovery::COMPONENTS_INCOMPLETE,
                 "the state does not declare every stage input exactly once",
             ));
         }
@@ -216,14 +216,14 @@ impl PortableDiscoveryState {
             "temporal_pcmci_plus" => (StructureClass::TemporalCpdag, 1),
             _ => {
                 return Err(refuse(
-                    "selective_discovery.route_unknown",
+                    antecedent_core::reason_details::selective_discovery::ROUTE_UNKNOWN,
                     "the route is not one of the delivered discovery routes",
                 ));
             }
         };
         if self.structure.class() != class {
             return Err(refuse(
-                "selective_discovery.structure_class",
+                antecedent_core::reason_details::selective_discovery::STRUCTURE_CLASS,
                 format!(
                     "route `{}` returns a `{}` structure, the state holds `{}`",
                     self.route,
@@ -235,7 +235,7 @@ impl PortableDiscoveryState {
         let searched: BTreeSet<u32> = self.variables.iter().copied().collect();
         if searched.len() != self.variables.len() {
             return Err(refuse(
-                "selective_discovery.variables_repeated",
+                antecedent_core::reason_details::selective_discovery::VARIABLES_REPEATED,
                 "a searched variable is listed more than once",
             ));
         }
@@ -246,13 +246,13 @@ impl PortableDiscoveryState {
             .any(|node| node.kind != node_kind || !searched.contains(&node.variable))
         {
             return Err(refuse(
-                "selective_discovery.structure_nodes",
+                antecedent_core::reason_details::selective_discovery::STRUCTURE_NODES,
                 "a structure node is not an instance of a searched variable of this route's kind",
             ));
         }
         if !self.receipts.is_empty() && self.rows == 0 {
             return Err(refuse(
-                "selective_discovery.rows",
+                antecedent_core::reason_details::selective_discovery::ROWS,
                 "statistics were retained from data with no rows",
             ));
         }
@@ -269,7 +269,7 @@ impl PortableDiscoveryState {
             };
             if !admissible || (conflicted && !self.orientation_conflict) {
                 return Err(refuse(
-                    "selective_discovery.structure_marks",
+                    antecedent_core::reason_details::selective_discovery::STRUCTURE_MARKS,
                     "an edge carries marks its structure class cannot hold",
                 ));
             }
@@ -280,7 +280,7 @@ impl PortableDiscoveryState {
             || work.algorithm_executions > 1
         {
             return Err(refuse(
-                "selective_discovery.work_inconsistent",
+                antecedent_core::reason_details::selective_discovery::WORK_INCONSISTENT,
                 "the work counters are not ones a single constraint-based run can produce",
             ));
         }
@@ -297,7 +297,7 @@ impl PortableDiscoveryState {
         self.validate_within(max_receipts)?;
         if self.route != inputs.route() {
             return Err(refuse(
-                "selective_discovery.contract_mismatch",
+                antecedent_core::reason_details::selective_discovery::CONTRACT_MISMATCH,
                 format!(
                     "the state was produced by route `{}`, this request is `{}`",
                     self.route,
@@ -307,7 +307,7 @@ impl PortableDiscoveryState {
         }
         if self.data_identity != data.digest || self.rows != data.rows {
             return Err(refuse(
-                "selective_discovery.data_mismatch",
+                antecedent_core::reason_details::selective_discovery::DATA_MISMATCH,
                 "the supplied data differ from the data the statistics were computed from; \
                  new data invalidates the statistics and discovery is rerun, not resumed",
             ));
@@ -320,7 +320,7 @@ impl PortableDiscoveryState {
             .collect();
         if !differing.is_empty() {
             return Err(refuse(
-                "selective_discovery.contract_mismatch",
+                antecedent_core::reason_details::selective_discovery::CONTRACT_MISMATCH,
                 format!(
                     "the request differs from the state in: {}. Resume with the contract and \
                      kernel policy the state was produced under, or rerun discovery",
@@ -353,7 +353,7 @@ impl PortableDiscoveryState {
             || recorded.algorithm_executions != 1
         {
             return Err(refuse(
-                "selective_discovery.replay_diverged",
+                antecedent_core::reason_details::selective_discovery::REPLAY_DIVERGED,
                 "replaying the algorithm over the retained statistics did not reproduce the \
                  recorded result: a receipt or the recorded result was changed. Recompute from \
                  the raw data",

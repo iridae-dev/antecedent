@@ -195,7 +195,10 @@ fn declared_exclusions_remove_actions_and_are_part_of_the_bound_decision() {
         .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
         .unwrap_err();
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
-    assert_eq!(refusal.detail, "transported_decision.exclusions_leave_no_comparison");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_decision::EXCLUSIONS_LEAVE_NO_COMPARISON
+    );
 }
 
 #[test]
@@ -208,7 +211,10 @@ fn a_support_rule_stronger_than_the_transported_label_refuses() {
         .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
         .unwrap_err();
     assert_eq!(refusal.code, "transport_support_failure");
-    assert_eq!(refusal.detail, "transported_decision.support_rule_unmet");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_decision::SUPPORT_RULE_UNMET
+    );
     assert_eq!(refusal.supplied.as_deref(), Some("extrapolative"));
     assert!(refusal.remedy.is_some());
 }
@@ -224,7 +230,10 @@ fn an_uncertainty_requirement_a_point_cannot_meet_refuses() {
             .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
             .unwrap_err();
         assert_eq!(refusal.code, "decision_contract_unsatisfied");
-        assert_eq!(refusal.detail, "transported_decision.uncertainty_requirement");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_decision::UNCERTAINTY_REQUIREMENT
+        );
     }
     // A point requirement is met by a transported point.
     let rules = AdmissibilityRules {

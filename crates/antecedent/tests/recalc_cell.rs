@@ -396,7 +396,10 @@ fn cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
 
     // An unsupported route cannot be exported either.
     let error = session.export_scores().unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.retarget_not_supported");
+    assert_eq!(
+        request_detail(&error),
+        antecedent_core::reason_details::recalc::RETARGET_NOT_SUPPORTED
+    );
 }
 
 #[test]
@@ -410,7 +413,10 @@ fn cell_refusals_run_no_work_and_leave_the_session_usable() {
     let mut cold = CellSession::new();
     let (result, fits) =
         count_cell_model_fits(|| execute_cell_with_receipt(&mut cold, &bad, &ctx(SEED)));
-    assert_eq!(request_detail(&result.unwrap_err()), "recalc.invalid_adjustment_set");
+    assert_eq!(
+        request_detail(&result.unwrap_err()),
+        antecedent_core::reason_details::recalc::INVALID_ADJUSTMENT_SET
+    );
     assert_eq!(fits, 0, "the screen refuses before any fit");
     assert!(!cold.is_live());
     assert!(!cold.identities().contains(Stage::Graph));
@@ -420,7 +426,10 @@ fn cell_refusals_run_no_work_and_leave_the_session_usable() {
     outcome_adjusted.spec.adjustment = vec![Z, Y];
     let error = execute_cell_with_receipt(&mut CellSession::new(), &outcome_adjusted, &ctx(SEED))
         .unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.invalid_adjustment_set");
+    assert_eq!(
+        request_detail(&error),
+        antecedent_core::reason_details::recalc::INVALID_ADJUSTMENT_SET
+    );
 
     // An incompatible retarget is refused from the plan, with no work and the session intact.
     let mut session = CellSession::new();
@@ -680,7 +689,7 @@ fn cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
             Some(&StageStatus::Refused { reason: unavailable.clone() }),
             "{what}: the score artifact is not claimed as reused"
         );
-        assert_eq!(unavailable.detail(), "recalc.unavailable_data");
+        assert_eq!(unavailable.detail(), antecedent_core::reason_details::recalc::UNAVAILABLE_DATA);
         assert_eq!(unavailable.reason_code(), "score_table_unavailable");
         assert_eq!(fresh.identities(), &anchor, "{what}: the session is unchanged");
         assert!(!fresh.has_run());
@@ -699,16 +708,19 @@ fn cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
     ids.swap(0, 1);
     wrong_ids.target_row_ids = Some(ids);
     let error = execute_resumed_retarget(&mut fresh, &wrong_ids).unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.row_ids_mismatch");
+    assert_eq!(request_detail(&error), antecedent_core::reason_details::recalc::ROW_IDS_MISMATCH);
     let mut fewer = ok.clone();
     fewer.target = Some(TargetWeights { weights: vec![1.0; 10], depends_on: weights.depends_on });
     let error = execute_resumed_retarget(&mut fresh, &fewer).unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.row_count_mismatch");
+    assert_eq!(request_detail(&error), antecedent_core::reason_details::recalc::ROW_COUNT_MISMATCH);
 
     // A derived stage cannot be declared as a changed input.
     let derived = changed(Stage::Law, "cheat");
     let error = execute_resumed_retarget(&mut fresh, &derived).unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.invalid_changed_input");
+    assert_eq!(
+        request_detail(&error),
+        antecedent_core::reason_details::recalc::INVALID_CHANGED_INPUT
+    );
 
     // Weights that depend on the treatment are refused by the estimator's own gate, and the
     // session returns to the artifact.
@@ -829,5 +841,8 @@ fn cell_crossfit_scores_resume_the_same_way() {
     );
     // An unsupported export is refused.
     let error = freeze_crossfit_scores(&session, 600, RetargetSupport::NotDeclared).unwrap_err();
-    assert_eq!(request_detail(&error), "recalc.retarget_not_supported");
+    assert_eq!(
+        request_detail(&error),
+        antecedent_core::reason_details::recalc::RETARGET_NOT_SUPPORTED
+    );
 }

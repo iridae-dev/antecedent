@@ -150,7 +150,10 @@ fn index_pairing_of_unrelated_marginal_artifacts_is_refused() {
     )
     .expect_err("refused");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.alignment_mismatch"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH]
+    );
     // Independently sampled marginals are never paired by index.
     let marginals = artifact("snap-marginals", DrawAlignment::IndependentMarginals, &x, &y);
     let mx = PropagationDraws::from_artifact_column("mx", &marginals, 0).expect("mx");
@@ -164,7 +167,10 @@ fn index_pairing_of_unrelated_marginal_artifacts_is_refused() {
     )
     .expect_err("refused");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.index_pairing_refused"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED]
+    );
     assert!(alignment_identity(&marginals).is_err());
 }
 
@@ -226,7 +232,12 @@ fn a_covariance_aware_contrast_agrees_between_moments_and_aligned_draws() {
     )
     .expect_err("shared evidence");
     assert_eq!(error.code(), "evidence_double_counted");
-    assert_eq!(error.details(), vec!["joint_law_propagation.shared_evidence_declared_independent"]);
+    assert_eq!(
+        error.details(),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        ]
+    );
 }
 
 #[test]
@@ -275,7 +286,10 @@ fn known_weight_mixture_and_missing_weights() {
         &ctx(),
     )
     .expect_err("refused");
-    assert_eq!(error.details(), vec!["joint_law_propagation.mixture_weights_unknown"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::MIXTURE_WEIGHTS_UNKNOWN]
+    );
 }
 
 #[test]
@@ -317,11 +331,13 @@ fn the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval() {
     }
     assert_eq!(
         cdf.interval().expect_err("closed").details(),
-        vec!["joint_law_propagation.no_interval_construction"]
+        vec![antecedent_core::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION]
     );
     assert_eq!(
         cdf.posterior().expect_err("closed").details(),
-        vec!["joint_law_propagation.no_posterior_for_fixed_law_inputs"]
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::NO_POSTERIOR_FOR_FIXED_LAW_INPUTS
+        ]
     );
     // A value function without a verified sign structure is refused.
     let refused = propagate_dependence_envelope(
@@ -333,7 +349,10 @@ fn the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval() {
     )
     .expect_err("refused");
     assert_eq!(refused.code(), "route_not_supported");
-    assert_eq!(refused.details(), vec!["joint_law_propagation.structure_not_verified"]);
+    assert_eq!(
+        refused.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::STRUCTURE_NOT_VERIFIED]
+    );
 }
 
 #[test]
@@ -375,7 +394,10 @@ fn the_artifact_replays_in_a_fresh_consumer_and_every_mutation_is_refused() {
     // A retained identity that differs is refused.
     let error =
         consume_joint_law_propagation_artifact(&bytes, Some("other"), &ctx()).expect_err("refused");
-    assert_eq!(error.details(), vec!["joint_law_propagation.artifact_refused"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ARTIFACT_REFUSED]
+    );
     // Every sampled single-byte change either fails to decode or fails to
     // verify; none replays to a different accepted claim.
     for position in (0..bytes.len()).step_by((bytes.len() / 64).max(1)) {
@@ -415,7 +437,12 @@ fn a_transported_interval_needs_an_aligned_law_or_a_covariance() {
     };
     let error = propagate(&unknown, numbers.clone(), &ctx()).expect_err("refused");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.transported_dependence_required"]);
+    assert_eq!(
+        error.details(),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+        ]
+    );
     transported.role = InputRole::SourceSampling;
     let with_covariance = PropagationRequest {
         dependence: PropagationDependence::Covariance { id: "shared-source-evidence".into() },

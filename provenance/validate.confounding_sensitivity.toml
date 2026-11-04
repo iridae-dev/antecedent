@@ -44,12 +44,14 @@ record_sha256 = "f60831815ee34f9d3a70f889d0f865957064b59bb48a130c997e8eec8d22c38
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/sensitivity.rs"
-sha256 = "69c95682d80842e03ddb157989dfcdf779d64b13a2b3a29d550e6834e38357d3"
+items = ["const VANISHED_EFFECT_FRACTION", "fn adjustment_design", "fn assemble_perturbed_normal_eq", "fn ate_at", "fn compile", "fn data_pass_ate", "fn default", "fn estimate_explained_away", "fn estimate_vanished", "fn fill_bounded", "fn gram_applicable", "fn grid_failure_text", "fn grid_report", "fn grid_robustness_value", "fn len", "fn new", "fn orthogonalize_confounder", "fn probed_partial_r2", "fn refute", "fn residual_sd_given_design", "fn residual_sd_pair_on_adjustment", "fn robustness_passes", "fn run_grid", "fn run_grid_data_pass", "fn try_run_grid_gram", "fn valid_partial_r2_count", "fn validate_partial_r2_grid", "fn validate_partial_r2_options", "fn with_temporal_diagnostic_rows", "struct GridSetup", "struct LinearSensitivity", "struct NonparametricSensitivity", "struct PartialLinearSensitivity", "struct SensitivityGram"]
+sha256 = "53e90be481dd4ade0ccb957ad5aa784d25a0109b2c008c8b89f0ea7b9f9c71c3"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/linear_sensitivity_reference.rs"
-sha256 = "ae0c85b8e2683d22d7df068ca654aa0a9db569d1eb6d79cf6d5c6b242188514c"
+items = ["fn a_grid_that_stops_below_the_tipping_strength_reports_no_tipping", "fn cases", "fn close", "fn floats", "fn table", "fn the_realized_partial_r_squared_equals_the_grid_value_and_the_tip_matches_the_closed_form", "fn the_tipping_strength_and_refit_estimate_match_the_explicit_perturbation"]
+sha256 = "0220bd02e9c2c767ca582c5e4e4c6ce7d34a464b0af6bf4d32d6d40c123348d6"
 
 [[method_review.artifacts]]
 role = "reference"

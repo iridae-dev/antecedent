@@ -37,34 +37,41 @@ record_sha256 = "ce5979f6e0096132b3a79d9a7c5ce6522b2dc9352e3167c91f25b0f41612997
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/choice.rs"
-sha256 = "7991e9cf6ec5add935d8ca3711ac355db0df1c02a1de0732981650c94a498588"
+items = ["const CHOICE_DESIGN_VERSION", "const MAX_CHOICES_PER_RESPONDENT", "const MAX_CHOICE_CONTRACT_OPTIONS", "const MAX_CHOICE_RESPONDENTS", "const MAX_CHOICE_SOURCES", "const ROW_DOMAIN", "const STAGE_BIND", "const STAGE_DECLARE", "fn account", "fn admit_paradigm", "fn cell", "fn check_frame", "fn check_monitoring_and_rule", "fn check_overlap", "fn check_respondents", "fn check_sources", "fn declaration", "fn details", "fn distinct_labels", "fn ensure_current", "fn evidence", "fn identity", "fn identity_of", "fn invalid", "fn looks", "fn new", "fn options", "fn refusal", "fn respondent_rows", "fn respondents_at", "fn row_id", "fn scope", "fn source_row", "fn withdraw_retained_source", "struct ChoiceContractError", "struct ChoiceDesignContract", "struct ChoiceDesignDeclaration", "struct ChoiceEvidence", "struct ChoiceLook", "struct ChoiceRespondent", "struct RetainedChoiceProof", "struct RetainedChoiceSource"]
+sha256 = "eb8bf658fd5789176fa1b5acd9610208e65c8198dcf43425875de3c01ac19691"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/choice_inference.rs"
-sha256 = "545d5d685000db92007ba135e9218e9014a173de9dec2fd7b42cc6ed01dd8dc3"
+items = ["module"]
+sha256 = "e24e862f1b01bdc9690bcb78c12dca5fa9f7f0ec6c0442a67f20e359557d293c"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/choice_inference_result_artifact.rs"
-sha256 = "1cefed6542fbaff25df65e435e3b4e5a8a4ce833f083582af920f4592e376f54"
+items = ["const ARTIFACT_KIND", "const CHOICE_INFERENCE_CALIBRATION", "const CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE", "const CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION", "const CHOICE_RESULT_REPLAY_TOLERANCE", "const MAX_CHOICE_INFERENCE_RESULT_BYTES", "const META_SECTION", "const REPLAY", "const SOURCE_DEPTH", "enum ChoiceResultSpec", "fn bits", "fn check", "fn compute_choice_result", "fn compute_identity", "fn contract", "fn contract_from", "fn contract_refusal", "fn declaration_from_wire", "fn declaration_to_wire", "fn decode_meta", "fn decode_unchecked", "fn drop", "fn encode_meta", "fn from", "fn from_bytes", "fn from_meta", "fn hierarchical_inputs", "fn identity", "fn look", "fn malformed", "fn outcome", "fn paradigm", "fn reals", "fn request_invalid", "fn reseal_identity", "fn result", "fn result_refusal", "fn retained_choice_source_from_artifact", "fn seal", "fn spec", "fn spec_from_wire", "fn spec_to_wire", "fn to_bytes", "fn verify_retained_choice_sources", "struct ChoiceDeclarationWire", "struct ChoiceInferenceResultArtifact", "struct ChoiceResult", "struct ChoiceResultError", "struct ChoiceResultMeta", "struct ChoiceSpecWire", "struct DepthGuard", "struct RespondentWire", "struct SourceWire", "type Error"]
+sha256 = "f272c176115e859a70b6a47fd7e57d08edd81180fe70785f73adcc0cb76c7489"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/choice_evsi.rs"
-sha256 = "3b663ac4624501c4591dab582a0b51895100fb569ee7499d6b39a33cf2f6584c"
+items = ["module"]
+sha256 = "2724d05b0fa63dd5835387a6ce676b4409664976b98ec4272868560ae848623e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/choice_inference.rs"
-sha256 = "c5a8cd94453e39a70d0e76c6e3cdb09c7c83b2183822cb4560fab3643758910c"
+items = ["fn contract", "fn contract_identity", "fn from", "fn identity", "fn result"]
+sha256 = "751bbeacf2f26a52984c0b172a0a627168d984dd9cb78430ac52d4abee79dca8"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/choice_design.rs"
-sha256 = "ffdf54968eb91ff432c213222bc642cd3efbdb242170b07e637e4183ad1a2803"
+items = ["fn a_complete_declaration_is_admitted_with_a_stable_identity_that_moves_with_every_field", "fn a_source_is_scoped_to_the_target_options_meaning_and_population", "fn aggregate_rows_are_bounded_before_ledger_materialization", "fn cell", "fn details", "fn each_missing_or_inconsistent_element_is_its_own_refusal", "fn final_only", "fn heterogeneity_is_not_identified_without_repeated_choices", "fn labels", "fn looked", "fn looks_expose_nested_respondent_prefixes", "fn repeated_choosers_are_not_pooled_and_a_pooled_source_is_not_a_hierarchical_prior", "fn respondents", "fn source", "fn source_counts_must_match_distinct_original_rows", "fn the_ledger_refuses_sources_that_share_rows_with_the_respondents_or_each_other", "fn the_matrix_authorizes_paradigms_for_the_cell", "fn withdrawing_a_source_removes_current_inference_authority"]
+sha256 = "a964f84faccc1b02f2bee3631aca33909e94c4134a0ae441cc841597ef209077"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/choice_inference_result_artifact.rs"
-sha256 = "3b391ccb5c563d419e4d415137263a11067600b31334186a2233dc59bbd927d5"
+items = ["fn a_conflicting_source_is_reported_in_the_values_not_hidden", "fn a_measured_interval_is_reported_with_a_not_measured_calibration_slot", "fn a_route_is_refused_for_the_wrong_outcome_or_an_unsupported_paradigm", "fn a_single_retained_source_is_screened_against_the_current_look", "fn a_source_on_the_respondents_rows_is_refused_at_consumption", "fn a_stopping_decision_is_the_contracts_rule_on_the_posterior", "fn a_study_outside_the_measured_cells_reports_its_interval_as_not_measured", "fn a_symmetric_history_has_equal_probability_best", "fn categorical", "fn cell", "fn close", "fn contract", "fn ctx", "fn every_route_seals_and_a_fresh_consumer_replays_it", "fn hierarchical", "fn labels", "fn repeated", "fn resealed_semantic_edits_are_refused", "fn retained_native_posterior_is_replayed_and_bound_to_its_original_rows", "fn rule", "fn sealed", "fn source", "fn the_hierarchical_posterior_carries_the_respondents_dependence", "fn the_posterior_is_the_dirichlet_closed_form_on_the_qualified_prior", "fn uniform_final_only", "type Artifact", "type Error"]
+sha256 = "c2e5a9d18d661a08071cf9f85d4598b12d71e0d191600caeb7b430edafe13af1"

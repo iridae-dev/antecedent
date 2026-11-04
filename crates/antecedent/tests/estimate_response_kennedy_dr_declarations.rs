@@ -98,5 +98,10 @@ fn a_declared_dependence_is_refused_with_or_without_a_bootstrap_setting() {
     }
     let error = run(None, 0, true).err().expect("observation weights were ignored");
     assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
-    assert!(error.to_string().contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }

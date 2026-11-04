@@ -982,7 +982,8 @@ impl CallbackSession {
                 let (code, detail, message) = error.refusal().unwrap_or_else(|| {
                     (
                         antecedent_core::reason_code!("invalid_argument"),
-                        "callback_protocol.artifact_invalid".to_owned(),
+                        antecedent_core::reason_details::callback_protocol::ARTIFACT_INVALID
+                            .to_owned(),
                         error.to_string(),
                     )
                 });

@@ -429,7 +429,10 @@ fn receipt_never_marks_a_hypothetical_derivation_as_available() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.hypothetical_not_evidence");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::HYPOTHETICAL_NOT_EVIDENCE
+    );
     assert_eq!(error.code, "transport_missing_evidence");
 }
 
@@ -450,7 +453,10 @@ fn receipt_bundle_identity_is_invariant_to_proposal_order() {
     shuffled.proposals = reversed;
     assert_eq!(shuffled.compute_identity(), fx.bundle.identity);
     let error = verify(&shuffled.sealed(), &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.non_canonical_order");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::NON_CANONICAL_ORDER
+    );
     // Candidate order at the producers does not change the bundle either.
     let mut ranking = fx.ranking.clone();
     ranking.candidates.reverse();
@@ -461,14 +467,20 @@ fn receipt_bundle_identity_is_invariant_to_proposal_order() {
 fn receipt_bundle_assembly_refuses_empty_duplicate_and_foreign_receipts() {
     let fx = backdoor();
     let error = ProposalBundle::from_receipts(vec![]).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.empty_bundle");
+    assert_eq!(detail(&error), antecedent_core::reason_details::proposal_receipt::EMPTY_BUNDLE);
     let one = fx.bundle.proposals[0].clone();
     let error = ProposalBundle::from_receipts(vec![one.clone(), one.clone()]).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.duplicate_candidate");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::DUPLICATE_CANDIDATE
+    );
     let mut foreign = fx.bundle.proposals[1].clone();
     foreign.ranking_digest = "another-ranking".into();
     let error = ProposalBundle::from_receipts(vec![one, foreign.sealed()]).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.bundle_inconsistent");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::BUNDLE_INCONSISTENT
+    );
 }
 
 type Mutation = (&'static str, fn(&mut ProposalReceipt), &'static str);
@@ -477,94 +489,122 @@ const MUTATIONS: &[Mutation] = &[
     (
         "obligation id",
         |r| r.base_failure.obligation_ids.push("extra".into()),
-        "proposal_receipt.obligation_mismatch",
+        antecedent_core::reason_details::proposal_receipt::OBLIGATION_MISMATCH,
     ),
     (
         "family",
         |r| r.base_failure.family = "transport".into(),
-        "proposal_receipt.base_failure_mismatch",
+        antecedent_core::reason_details::proposal_receipt::BASE_FAILURE_MISMATCH,
     ),
     (
         "contract",
         |r| r.base_failure.contract = "other".into(),
-        "proposal_receipt.base_failure_mismatch",
+        antecedent_core::reason_details::proposal_receipt::BASE_FAILURE_MISMATCH,
     ),
     (
         "premises digest",
         |r| r.base_failure.premises_digest = "x".into(),
-        "proposal_receipt.base_failure_mismatch",
+        antecedent_core::reason_details::proposal_receipt::BASE_FAILURE_MISMATCH,
     ),
     (
         "data digest",
         |r| r.base_failure.data_digest = "x".into(),
-        "proposal_receipt.base_failure_mismatch",
+        antecedent_core::reason_details::proposal_receipt::BASE_FAILURE_MISMATCH,
     ),
     (
         "delta digest",
         |r| r.hypothetical.delta_digest = "x".into(),
-        "proposal_receipt.delta_mismatch",
+        antecedent_core::reason_details::proposal_receipt::DELTA_MISMATCH,
     ),
     (
         "derivation digest",
         |r| r.hypothetical.derivation_digest = Some("x".into()),
-        "proposal_receipt.derivation_mismatch",
+        antecedent_core::reason_details::proposal_receipt::DERIVATION_MISMATCH,
     ),
     (
         "classification",
         |r| r.hypothetical.classification = "not_certified".into(),
-        "proposal_receipt.derivation_mismatch",
+        antecedent_core::reason_details::proposal_receipt::DERIVATION_MISMATCH,
     ),
-    ("delta size", |r| r.hypothetical.delta_regimes += 1, "proposal_receipt.derivation_mismatch"),
-    ("cost units", |r| r.cost.units += 1, "proposal_receipt.cost_mismatch"),
-    ("cost label", |r| r.cost.unit_label = "EUR".into(), "proposal_receipt.cost_mismatch"),
-    ("sample size", |r| r.cost.sample_size += 1, "proposal_receipt.cost_mismatch"),
+    (
+        "delta size",
+        |r| r.hypothetical.delta_regimes += 1,
+        antecedent_core::reason_details::proposal_receipt::DERIVATION_MISMATCH,
+    ),
+    (
+        "cost units",
+        |r| r.cost.units += 1,
+        antecedent_core::reason_details::proposal_receipt::COST_MISMATCH,
+    ),
+    (
+        "cost label",
+        |r| r.cost.unit_label = "EUR".into(),
+        antecedent_core::reason_details::proposal_receipt::COST_MISMATCH,
+    ),
+    (
+        "sample size",
+        |r| r.cost.sample_size += 1,
+        antecedent_core::reason_details::proposal_receipt::COST_MISMATCH,
+    ),
     (
         "source digest",
         |r| r.lineage.source_digest = "x".into(),
-        "proposal_receipt.source_digest_mismatch",
+        antecedent_core::reason_details::proposal_receipt::SOURCE_DIGEST_MISMATCH,
     ),
     (
         "snapshot lineage",
         |r| r.lineage.snapshots.push("snapshot:forged".into()),
-        "proposal_receipt.lineage_mismatch",
+        antecedent_core::reason_details::proposal_receipt::LINEAGE_MISMATCH,
     ),
     (
         "request fingerprint",
         |r| r.valuation.signal_request_fingerprint = "x".into(),
-        "proposal_receipt.signal_mismatch",
+        antecedent_core::reason_details::proposal_receipt::SIGNAL_MISMATCH,
     ),
     (
         "signal identity",
         |r| r.valuation.signal_identity = "x".into(),
-        "proposal_receipt.signal_mismatch",
+        antecedent_core::reason_details::proposal_receipt::SIGNAL_MISMATCH,
     ),
-    ("net value", |r| r.valuation.net_value_bits = Some(1), "proposal_receipt.value_mismatch"),
-    ("evsi", |r| r.valuation.evsi_bits ^= 1, "proposal_receipt.value_mismatch"),
-    ("rank", |r| r.valuation.rank += 1, "proposal_receipt.value_mismatch"),
+    (
+        "net value",
+        |r| r.valuation.net_value_bits = Some(1),
+        antecedent_core::reason_details::proposal_receipt::VALUE_MISMATCH,
+    ),
+    (
+        "evsi",
+        |r| r.valuation.evsi_bits ^= 1,
+        antecedent_core::reason_details::proposal_receipt::VALUE_MISMATCH,
+    ),
+    (
+        "rank",
+        |r| r.valuation.rank += 1,
+        antecedent_core::reason_details::proposal_receipt::VALUE_MISMATCH,
+    ),
     (
         "decision contract",
         |r| r.decision.contract_identity = "contract-2".into(),
-        "proposal_receipt.contract_mismatch",
+        antecedent_core::reason_details::proposal_receipt::CONTRACT_MISMATCH,
     ),
     (
         "action set",
         |r| r.decision.action_ids_digest = "x".into(),
-        "proposal_receipt.contract_mismatch",
+        antecedent_core::reason_details::proposal_receipt::CONTRACT_MISMATCH,
     ),
     (
         "ranking identity",
         |r| r.decision.ranking_identity = "x".into(),
-        "proposal_receipt.contract_mismatch",
+        antecedent_core::reason_details::proposal_receipt::CONTRACT_MISMATCH,
     ),
     (
         "repair digest",
         |r| r.repair_report_digest = "x".into(),
-        "proposal_receipt.repair_digest_mismatch",
+        antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH,
     ),
     (
         "ranking digest",
         |r| r.ranking_digest = "x".into(),
-        "proposal_receipt.ranking_digest_mismatch",
+        antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH,
     ),
 ];
 
@@ -593,39 +633,60 @@ fn receipt_identity_and_bundle_digests_bind() {
     let mut bundle = fx.bundle.clone();
     bundle.proposals[0].identity = "forged".into();
     let error = verify(&bundle, &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.identity_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::IDENTITY_MISMATCH
+    );
 
     let mut bundle = fx.bundle.clone();
     bundle.identity = "forged".into();
     let error = verify(&bundle, &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.bundle_identity_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::BUNDLE_IDENTITY_MISMATCH
+    );
 
     let mut bundle = fx.bundle.clone();
     bundle.repair_report_digest = "x".into();
     let error = verify(&bundle.sealed(), &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.repair_digest_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH
+    );
 
     let mut bundle = fx.bundle.clone();
     bundle.ranking_digest = "x".into();
     let error = verify(&bundle.sealed(), &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.ranking_digest_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH
+    );
 
     let mut bundle = fx.bundle.clone();
     bundle.decision_contract_identity = "contract-2".into();
     let error = verify(&bundle.sealed(), &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.contract_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CONTRACT_MISMATCH
+    );
 
     // A bundle that drops a ranked candidate no longer covers the ranking.
     let mut bundle = fx.bundle.clone();
     bundle.proposals.pop();
     let error = verify(&bundle.sealed(), &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_set_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_SET_MISMATCH
+    );
 
     // A proposal with an unknown candidate id.
     let mut bundle = fx.bundle.clone();
     bundle.proposals[0].candidate_id = "sc1:unknown".into();
     let error = verify(&bundle.sealed(), &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_not_in_ranking");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_RANKING
+    );
 }
 
 // ------------------------------------------------------- cross-artifact checks
@@ -638,13 +699,19 @@ fn receipt_candidate_in_repair_but_not_in_ranking_is_refused() {
     ranking.reseal().unwrap();
     // The ranking is honestly sealed, so only the cross-check can refuse the bundle.
     let error = verify(&fx.bundle, &fx.repair, &ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_not_in_ranking");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_RANKING
+    );
     // A bundle cannot be built over a ranking that values a candidate the repair never saw.
     let mut repair = fx.repair.clone();
     repair.premises.candidates.retain(|c| c.semantic_id != id_of(&fx.wide));
     let repair = repair.sealed().unwrap();
     let error = ProposalBundle::build(&repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_not_in_repair");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_REPAIR
+    );
 }
 
 #[test]
@@ -654,7 +721,10 @@ fn receipt_candidate_in_ranking_but_not_in_repair_is_refused() {
     repair.premises.candidates.retain(|c| c.semantic_id != id_of(&fx.cheap));
     let repair = repair.sealed().unwrap();
     let error = verify(&fx.bundle, &repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_not_in_repair");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_REPAIR
+    );
 }
 
 #[test]
@@ -669,7 +739,10 @@ fn receipt_a_candidate_the_repair_did_not_evaluate_cannot_be_proposed() {
     }
     let repair = repair.sealed().unwrap();
     let error = ProposalBundle::build(&repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_not_proposed");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_PROPOSED
+    );
 }
 
 #[test]
@@ -687,7 +760,10 @@ fn receipt_a_changed_delta_or_swapped_signal_in_an_artifact_breaks_the_binding()
     }
     let repair = repair.sealed().unwrap();
     let error = verify(&fx.bundle, &repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.repair_digest_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH
+    );
     // Rebuilding over the changed artifact yields different delta digests.
     let rebuilt = ProposalBundle::build(&repair, &fx.ranking).unwrap();
     assert_ne!(
@@ -705,7 +781,10 @@ fn receipt_a_changed_delta_or_swapped_signal_in_an_artifact_breaks_the_binding()
     ranking.candidates[1].request_fingerprint = first.request_fingerprint;
     ranking.reseal().unwrap();
     let error = verify(&fx.bundle, &fx.repair, &ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.ranking_digest_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH
+    );
 
     // Swap the signals between the two receipts of the bundle and re-seal it.
     let mut bundle = fx.bundle.clone();
@@ -716,7 +795,7 @@ fn receipt_a_changed_delta_or_swapped_signal_in_an_artifact_breaks_the_binding()
     bundle.proposals[1].valuation.signal_request_fingerprint = a.signal_request_fingerprint;
     bundle.proposals = bundle.proposals.iter().map(|p| p.clone().sealed()).collect();
     let error = verify(&bundle.sealed(), &fx.repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.signal_mismatch");
+    assert_eq!(detail(&error), antecedent_core::reason_details::proposal_receipt::SIGNAL_MISMATCH);
 }
 
 #[test]
@@ -725,11 +804,17 @@ fn receipt_unsealed_artifacts_are_refused_before_any_binding_is_trusted() {
     let mut repair = fx.repair.clone();
     repair.report.obligations.clear();
     let error = verify(&fx.bundle, &repair, &fx.ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.repair_digest_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH
+    );
     let mut ranking = fx.ranking.clone();
     ranking.candidates[0].evsi += 0.5;
     let error = verify(&fx.bundle, &fx.repair, &ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.ranking_digest_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH
+    );
 }
 
 #[test]
@@ -739,7 +824,7 @@ fn receipt_a_ranking_that_costs_a_candidate_differently_is_refused() {
     ranking.candidates[0].cost_amount += 1.0;
     ranking.reseal().unwrap();
     let error = ProposalBundle::build(&fx.repair, &ranking).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.cost_mismatch");
+    assert_eq!(detail(&error), antecedent_core::reason_details::proposal_receipt::COST_MISMATCH);
 }
 
 // ------------------------------------------------------------------ on arrival
@@ -811,34 +896,52 @@ fn receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed_reaso
     let run = |arrival: &Arrival| on_arrival(receipt, family, &fx.wide, arrival, &ctx());
 
     let short = arrive_law(law(&[T, Y, Z1, Z2], true, "pop"), SAMPLES - 1);
-    assert_eq!(detail(&run(&short).unwrap_err()), "proposal_receipt.arrival_sample_mismatch");
+    assert_eq!(
+        detail(&run(&short).unwrap_err()),
+        antecedent_core::reason_details::proposal_receipt::ARRIVAL_SAMPLE_MISMATCH
+    );
 
     let mut blank = arrive_law(law(&[T, Y, Z1, Z2], true, "pop"), SAMPLES);
     blank.snapshot_id = "  ".into();
-    assert_eq!(detail(&run(&blank).unwrap_err()), "proposal_receipt.arrival_invalid");
+    assert_eq!(
+        detail(&run(&blank).unwrap_err()),
+        antecedent_core::reason_details::proposal_receipt::ARRIVAL_INVALID
+    );
 
     let empty = Arrival {
         snapshot_id: "snapshot:none".into(),
         sample_size: SAMPLES,
         evidence: ArrivedEvidence::CatalogDelta(vec![]),
     };
-    assert_eq!(detail(&run(&empty).unwrap_err()), "proposal_receipt.arrival_empty");
+    assert_eq!(
+        detail(&run(&empty).unwrap_err()),
+        antecedent_core::reason_details::proposal_receipt::ARRIVAL_EMPTY
+    );
 
     // A receipt answers only the candidate and the family it was issued for.
     let arrival = arrive_law(law(&[T, Y, Z1, Z2], true, "pop"), SAMPLES);
     let error = on_arrival(receipt, family, &fx.cheap, &arrival, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_MISMATCH
+    );
     let other = receipt_of(&fx.bundle, &fx.cheap);
     let error = on_arrival(other, family, &fx.wide, &arrival, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.candidate_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_MISMATCH
+    );
     let mut forged = receipt.clone();
     forged.hypothetical.delta_digest = "x".into();
     let error = on_arrival(&forged.sealed(), family, &fx.wide, &arrival, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.delta_mismatch");
+    assert_eq!(detail(&error), antecedent_core::reason_details::proposal_receipt::DELTA_MISMATCH);
     let mut forged = receipt.clone();
     forged.base_failure.obligation_ids.clear();
     let error = on_arrival(&forged.sealed(), family, &fx.wide, &arrival, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.obligation_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::OBLIGATION_MISMATCH
+    );
 }
 
 #[test]
@@ -929,5 +1032,8 @@ fn receipt_transport_arrival_in_another_population_or_regime_is_invalidated() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(detail(&error), "proposal_receipt.arrival_family_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::proposal_receipt::ARRIVAL_FAMILY_MISMATCH
+    );
 }

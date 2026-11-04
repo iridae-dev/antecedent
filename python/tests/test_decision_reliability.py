@@ -14,6 +14,7 @@ import textwrap
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision_reliability as dr
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.outcomes import require_success
@@ -215,7 +216,7 @@ def test_adaptively_generated_candidates_need_a_search_record() -> None:
     with pytest.raises(DR) as refused:
         require_success(dr.assess(_draws(columns, origin="adaptively_generated")))
     assert refused.value.reason_code == "candidate_search_record_required"
-    assert refused.value.detail == "decision_reliability.search_record_required"
+    assert refused.value.detail == reason_details.decision_reliability.SEARCH_RECORD_REQUIRED
     with pytest.raises(DR) as ranking:
         require_success(dr.rank(_draws(columns, origin="adaptively_generated")))
     assert ranking.value.reason_code == "candidate_search_record_required"
@@ -276,7 +277,7 @@ def test_validation_must_be_independent_of_the_selection_draws() -> None:
     with pytest.raises(DR) as repeated:
         require_success(dr.assess(selection, request, validation=reused))
     assert repeated.value.reason_code == "validation_stream_not_independent"
-    assert repeated.value.detail == "decision_reliability.validation_not_independent"
+    assert repeated.value.detail == reason_details.decision_reliability.VALIDATION_NOT_INDEPENDENT
 
 
 def test_sample_splitting_records_disjoint_segments() -> None:
@@ -316,7 +317,7 @@ def test_three_components_are_separate_and_a_combined_number_is_refused() -> Non
     assert combined.value.reason_code == "uncertainty_components_not_combined"
     with pytest.raises(DR) as again:
         require_success(result.combined_uncertainty())
-    assert again.value.detail == "decision_reliability.combined_uncertainty"
+    assert again.value.detail == reason_details.decision_reliability.COMBINED_UNCERTAINTY
 
 
 def test_every_published_route_is_published_with_its_calibration_slot() -> None:

@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 /// The request does not bind exactly the treatments and conditioned variables,
 /// or names a conditioning level outside the evaluated support.
-const INVALID_REQUEST: &str = "admg_transport.invalid_request";
+const INVALID_REQUEST: &str = antecedent_core::reason_details::admg_transport::INVALID_REQUEST;
 
 fn invalid_request(message: &str) -> EstimationError {
     EstimationError::refused_detail(
@@ -111,7 +111,7 @@ pub(crate) fn condition(
     if !total.is_finite() || total <= 0.0 {
         return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_support_failure"),
-            "admg_transport.support_failure",
+            antecedent_core::reason_details::admg_transport::SUPPORT_FAILURE,
             "the conditioning event has zero mass at the requested treatment level",
         ));
     }
@@ -146,7 +146,7 @@ pub fn prepare_exact_admg_conditional_transport(
     if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
         antecedent_core::support_gate::require_supported(
             ctx,
-            "admg_transport.counted_laws_unsupported",
+            antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
             &["admg_conditional.counted_law_plugin_check"],
         )?;
     }

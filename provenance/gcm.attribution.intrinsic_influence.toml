@@ -53,12 +53,14 @@ record_sha256 = "387e3a192c51181dcabd3cbbdfdb0fe887aa6f0158009c61d9b835cafac5515
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/intrinsic_influence.rs"
-sha256 = "b915c72acd0c7da7c6de59edf37b11939810d7b844f721e389569dbcddd75d9a"
+items = ["const DEFAULT_PERMUTATIONS", "const ESTIMATOR", "const FIT_STREAM", "const GAME", "const MIN_FIT_BOOTSTRAP_REPLICATES", "const REASON_EXACT", "const REASON_NOT_QUANTIFIED_NO_DATA", "const REASON_NOT_REQUESTED", "const REASON_OVER_BUDGET", "const REASON_REFIT_FAILED", "enum ComponentStatus", "enum FitComponent", "enum FitResampling", "enum IntrinsicAllocation", "enum NoiseIndependence", "enum ShapleyMethod", "enum UncertaintyComponent", "fn allocation_config", "fn as_str", "fn bootstrap_spread", "fn exact_is_no_costlier", "fn fit_component", "fn holds_families", "fn intrinsic_influence", "fn intrinsic_influence_with_temporal_runs", "fn nested_variance", "fn new", "fn noise_sources", "fn over_budget", "fn plan_within_budget", "fn refit_weights", "fn refuse", "fn require_independent_noise", "fn require_noise_support", "fn resample_rows", "fn run_game", "fn status", "fn validate", "fn values", "fn variance_of", "fn with_allocation", "fn with_seed", "fn with_simulation", "struct BatchPayoff", "struct BatchState", "struct ComponentUncertainty", "struct Decomposed", "struct Game", "struct IntrinsicBudget", "struct IntrinsicInfluenceQuery", "struct IntrinsicInfluenceResult", "struct IntrinsicMethod", "struct PooledPayoff", "struct ReplicateBank", "struct SourceInfluence"]
+sha256 = "18a040cacc9b8c55f7e4dfd4a4ea385995450f9d6c40467487323e5988e55f71"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/intrinsic_influence_reference.rs"
-sha256 = "2f5b178e40727a2b206a99bb429275a574c4b8a413682d5cb2aa31af9e5809a2"
+items = ["fn compile", "fn contributions_match_exact_shapley_values_of_the_variance_game", "fn linear", "fn linear_model", "fn node", "fn product_model"]
+sha256 = "5355851983d3f0606e7458e5ed6c172e2c0eee5a14d904707d194b3e13bfbfbe"
 
 [[method_review.artifacts]]
 role = "reference"

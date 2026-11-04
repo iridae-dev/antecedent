@@ -198,7 +198,9 @@ fn a_moved_standing_changes_the_classification_and_leaves_the_sibling_valid() {
     assert_eq!(class_of(&lost, "effect_b"), Revalidation::StillValid);
     let refused = lost.require_valid("effect_a").unwrap_err();
     assert!(
-        format!("{refused:?}").contains("composition_verification.provider_trust_withdrawn"),
+        format!("{refused:?}").contains(
+            antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN
+        ),
         "{refused:?}"
     );
     assert!(lost.require_valid("effect_b").is_ok(), "the sibling stays valid");
@@ -306,7 +308,9 @@ fn a_declared_claim_with_no_stated_trust_is_not_a_support_in_a_scene() {
     assert_eq!(report.claim("effect").unwrap().class, Revalidation::Withdrawn);
     let refused = report.require_valid("effect").unwrap_err();
     assert!(
-        format!("{refused:?}").contains("composition_verification.provider_trust_withdrawn"),
+        format!("{refused:?}").contains(
+            antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN
+        ),
         "{refused:?}"
     );
 

@@ -41,17 +41,20 @@ record_sha256 = "0fe584ffb23dbb341a77897ddbfe1117000959e4590c96c6a1037cbd714083e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
-sha256 = "7c22d254aa7cfbd346dfbac14c713b561b23f8d9b4acfe15290e9710f4888c14"
+items = ["const BINDING_TAG", "const WEIGHTED_TESTS", "const WHOLE_METHOD_CALIBRATION", "fn analysis_effective_sample_size", "fn analysis_row_ids", "fn analysis_rows", "fn analysis_weights", "fn check_analysis_table", "fn contract_on_part", "fn discover_on_split", "fn discovery_row_ids", "fn discovery_rows", "fn estimate_analysis_effect", "fn estimate_analysis_effect_with_kind", "fn interval", "fn outcome", "fn receipt", "fn report", "struct AnalysisBinding", "struct AnalysisEffectRequest", "struct SplitAnalysisEffect", "struct SplitDiscovery", "struct SplitEffectInterval"]
+sha256 = "9177eedb994dcf0f2be294e47f806a76050736fd89ba907e05abab5ef366d545"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/selective/reuse.rs"
-sha256 = "71cd5769c0eb2513da35599ff8916a8fdc5107bc87feb8484ea8565259e0930c"
+items = ["const MASK_TAG", "const ROWS_TAG", "const SPLIT_TAG", "enum SplitRule", "fn analysis_effective_sample_size", "fn analysis_weights", "fn assign_eligible", "fn eligibility", "fn invalid", "fn mask_identity", "fn not_supported", "fn receipt_identity", "fn rows_identity", "fn split_rows", "fn splitmix64", "fn write", "struct Eligibility", "struct SampleSplitReceipt", "struct SplitRows", "struct SplitWeights"]
+sha256 = "254c833394a288023a3b80908ac7371409d5465eef142e6feb74af6fc32fd8d8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/sample_split_analysis_reference.rs"
-sha256 = "8f69bda16a9a33500b04283b8b55c895d9e7c75ff31dd0612c80309358d80ed8"
+items = ["fn cells", "fn check_interval", "fn contract", "fn doc", "fn ids", "fn rel", "fn request", "fn the_split_filters_assigns_and_carries_weights_as_the_definition_says", "fn the_unweighted_hc3_effect_and_its_row_count_interval_equal_the_exact_reference", "fn the_weighted_hc3_effect_and_its_effective_size_interval_equal_the_exact_reference", "fn v", "fn weighted_masked_table"]
+sha256 = "c708282b3d0112cbf7d7e0fc310ecdc25ddcb52084dfac2eb353e17a3ba75601"
 
 [[method_review.artifacts]]
 role = "reference"

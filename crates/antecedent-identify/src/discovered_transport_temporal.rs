@@ -479,7 +479,12 @@ fn sorted_unique(mut edges: Vec<LaggedEdge>) -> Vec<LaggedEdge> {
 }
 
 fn invalid_query(facts: &RequestFacts<'_>, message: String) -> DiscoveredTransportError {
-    refusal("discovered_transport.temporal_query_invalid", facts, Vec::new(), message)
+    refusal(
+        antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_INVALID,
+        facts,
+        Vec::new(),
+        message,
+    )
 }
 
 /// The template query unrolled onto the window: its intervention at the origin, its outcome at
@@ -658,7 +663,12 @@ pub fn transport_across_temporal_class_with_context(
         antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let identifier = TransportIdentifier::new();
     let too_large = |detail: String| {
-        refusal("discovered_transport.class_too_large", &facts, unresolved.clone(), detail)
+        refusal(
+            antecedent_core::reason_details::discovered_transport::CLASS_TOO_LARGE,
+            &facts,
+            unresolved.clone(),
+            detail,
+        )
     };
     let mut members = Vec::new();
     let mut enumeration_complete = true;
@@ -714,7 +724,7 @@ pub fn transport_across_temporal_class_with_context(
                 sampler.by_ref().map(|completion| completion.graph).collect();
             if sampler.validation_report().ambiguous_global_class {
                 return Err(refusal(
-                    "discovered_transport.pag_class_ambiguous",
+                    antecedent_core::reason_details::discovered_transport::PAG_CLASS_AMBIGUOUS,
                     &facts,
                     unresolved,
                     "the circle endpoints admit completions from more than one Markov \
@@ -735,7 +745,7 @@ pub fn transport_across_temporal_class_with_context(
                 )?
                 else {
                     return Err(refusal(
-                        "discovered_transport.pag_selection_bias_edge",
+                        antecedent_core::reason_details::discovered_transport::PAG_SELECTION_BIAS_EDGE,
                         &facts,
                         unresolved,
                         "a completion has a tail-tail edge, which stands for selection bias \
@@ -750,7 +760,7 @@ pub fn transport_across_temporal_class_with_context(
     }
     if members.is_empty() {
         return Err(refusal(
-            "discovered_transport.no_members",
+            antecedent_core::reason_details::discovered_transport::NO_MEMBERS,
             &facts,
             unresolved,
             "the temporal structure has no stationary completion that is valid in the window \

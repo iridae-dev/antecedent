@@ -39,7 +39,9 @@ impl NodeVerifier for ResolvedProjectionVerifier {
                 .find(|receipt| receipt.source_artifact_digest() == report.source_digest)
                 .ok_or_else(|| NodeFailure {
                     stage: BundleStage::CallbackUnavailable,
-                    reason: "composition_bundle.callback_unavailable".into(),
+                    reason:
+                        antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE
+                            .into(),
                 })?;
             if report.unresolved.iter().any(|dependency| {
                 !receipt
@@ -49,7 +51,9 @@ impl NodeVerifier for ResolvedProjectionVerifier {
             }) {
                 return Err(NodeFailure {
                     stage: BundleStage::CallbackUnavailable,
-                    reason: "composition_bundle.callback_unavailable".into(),
+                    reason:
+                        antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE
+                            .into(),
                 });
             }
         }

@@ -656,7 +656,7 @@ impl ComposedLinearGaussian {
             if outside_consumer || !own.contains_value(value) {
                 let finding = CoherenceFinding::new(
                     CoherenceKind::Support,
-                    "mechanism_composition.support_intervention_outside_domain",
+                    antecedent_core::reason_details::mechanism_composition::SUPPORT_INTERVENTION_OUTSIDE_DOMAIN,
                     name,
                     "intervene only within the domain every consumer of this variable was fitted on",
                 )

@@ -267,7 +267,7 @@ impl AdaptiveProcedure {
             declaration.stopping_rule,
         ) else {
             return Err(vec![incomplete(
-                "adaptive_inference.interim_analyses_missing",
+                antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
                 "the contract is not complete; prepare the session before deriving the procedure",
             )]);
         };
@@ -302,7 +302,7 @@ impl AdaptiveProcedure {
         let lag = lags.first().copied().unwrap_or(0);
         if lags.iter().any(|&l| l != lag) {
             problems.push(invalid(
-                "adaptive_inference.outcome_availability_invalid",
+                antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
                 "outcomes became available after different delays in looks; the procedure model has one delay: declare a constant delay or analyse a route that does not model the procedure",
             ));
         }
@@ -322,7 +322,7 @@ impl AdaptiveProcedure {
             }
             _ => {
                 problems.push(incomplete(
-                    "adaptive_inference.outcome_availability_missing",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING,
                     "outcomes are lost or their availability depends on their values: declare the probability that a success and that a failure is observed once revealed",
                 ));
                 None
@@ -340,7 +340,7 @@ impl AdaptiveProcedure {
                 let declared_failures = model.failure_probability.iter().any(|&p| p > 0.0);
                 if failures_observed && !declared_failures {
                     problems.push(invalid(
-                        "adaptive_inference.exposure_invalid",
+                        antecedent_core::reason_details::adaptive_inference::EXPOSURE_INVALID,
                         "the retained exposure history differs from the assignments but the declared exposure model has no failures",
                     ));
                 }
@@ -352,7 +352,7 @@ impl AdaptiveProcedure {
             }
             None => {
                 problems.push(incomplete(
-                    "adaptive_inference.exposure_history_missing",
+                    antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING,
                     "the retained exposure differs from the assignments: declare the exposure-failure model (the probability each assigned arm is not delivered, the fallback arm, and the attribution)",
                 ));
                 None
@@ -362,7 +362,7 @@ impl AdaptiveProcedure {
         // Stopping rule parameters.
         let needs_prior = |detail: &str| {
             incomplete(
-                "adaptive_inference.stopping_rule_missing",
+                antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
                 format!(
                     "a posterior stopping rule's prior is not retained ({detail}): declare the prior the rule used"
                 ),
@@ -412,7 +412,7 @@ impl AdaptiveProcedure {
                     Ok(b) => Some(StoppingRule::WaldBoundaries { critical: b.critical, sidedness }),
                     Err(error) => {
                         problems.push(invalid(
-                            "adaptive_inference.rule_mismatch",
+                            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
                             format!("the alpha-spending boundaries could not be computed: {error}"),
                         ));
                         None
@@ -421,7 +421,7 @@ impl AdaptiveProcedure {
             }
             _ => {
                 problems.push(invalid(
-                    "adaptive_inference.rule_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
                     "the stopping rule has no procedure model",
                 ));
                 None
@@ -431,7 +431,7 @@ impl AdaptiveProcedure {
 
         if elements.assignment.is_none() {
             problems.push(incomplete(
-                "adaptive_inference.policy_history_missing",
+                antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
                 "the contract keeps realized probabilities only: declare the assignment rule as a function of the observed history",
             ));
         }
@@ -471,7 +471,7 @@ impl AdaptiveProcedure {
         };
         if !family_ok {
             problems.push(invalid(
-                "adaptive_inference.rule_mismatch",
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
                 format!(
                     "the declared assignment rule is a {} procedure but the contract's cell is {}",
                     spec.family_name(),
@@ -481,7 +481,7 @@ impl AdaptiveProcedure {
         }
         if spec.stopping_name() != cell.stopping.as_str() {
             problems.push(invalid(
-                "adaptive_inference.rule_mismatch",
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
                 format!(
                     "the declared stopping rule is {} but the contract's cell is {}",
                     spec.stopping_name(),
@@ -498,7 +498,7 @@ impl AdaptiveProcedure {
         };
         if !monitoring_ok {
             problems.push(invalid(
-                "adaptive_inference.rule_mismatch",
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
                 format!(
                     "the contract's monitoring strategy {} disagrees with the declared looks and stopping rule",
                     cell.monitoring.as_str()
@@ -507,7 +507,7 @@ impl AdaptiveProcedure {
         }
         if spec.observation().mechanism().as_str() != availability.delay.as_str() {
             problems.push(invalid(
-                "adaptive_inference.outcome_availability_invalid",
+                antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
                 format!(
                     "the declared retention makes outcome availability {} but the contract records {}",
                     spec.observation().mechanism().as_str(),
@@ -525,7 +525,7 @@ impl AdaptiveProcedure {
             });
             if !replays {
                 problems.push(invalid(
-                    "adaptive_inference.rule_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
                     "the realized assignment probabilities do not replay the declared fixed probabilities",
                 ));
             }

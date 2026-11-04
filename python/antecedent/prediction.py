@@ -9,6 +9,8 @@ from typing import Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -89,7 +91,7 @@ class FittedEffectModel:
                 {
                     "code": "invalid_argument",
                     "stage": "bind",
-                    "detail": "cohort_decision.wrong_parent_identity",
+                    "detail": _reason_details.cohort_decision.WRONG_PARENT_IDENTITY,
                     "offending": model.parent_claim,
                     "message": "the model comes from a different parent claim than the one retained",
                     "remedy": "load the model from the claim the consumer retained",

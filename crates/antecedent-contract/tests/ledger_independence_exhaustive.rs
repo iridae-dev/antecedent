@@ -74,7 +74,8 @@ fn declared_independence_matches_set_intersection_for_every_ordered_pair_of_sour
         .iter()
         .enumerate()
         .map(|(i, rows)| {
-            let declaration = SourceDeclaration::new(format!("fit-{i}"), SourceKind::ObservationSet);
+            let declaration =
+                SourceDeclaration::new(format!("fit-{i}"), SourceKind::ObservationSet);
             let declaration = match rows {
                 Some(rows) => declaration.with_observations(rows.iter().copied().map(observation)),
                 None => declaration,
@@ -85,10 +86,8 @@ fn declared_independence_matches_set_intersection_for_every_ordered_pair_of_sour
     let (mut accepted, mut shared, mut unknown) = (0, 0, 0);
     for (a, rows_a) in row_sets.iter().enumerate() {
         for (b, rows_b) in row_sets.iter().enumerate() {
-            let result = check_declared_independence_against_ledger(
-                &declaration(ids[a], ids[b]),
-                &ledger,
-            );
+            let result =
+                check_declared_independence_against_ledger(&declaration(ids[a], ids[b]), &ledger);
             match (rows_a, rows_b) {
                 // A source paired with itself shares all of its evidence by identity,
                 // whether or not it declares rows.
@@ -97,7 +96,9 @@ fn declared_independence_matches_set_intersection_for_every_ordered_pair_of_sour
                     let details: Vec<&str> = refusals.iter().map(|r| r.detail.as_str()).collect();
                     assert_eq!(
                         details,
-                        vec!["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"],
+                        vec![
+                            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT
+                        ],
                         "pair ({a}, {b})"
                     );
                     shared += 1;
@@ -107,10 +108,13 @@ fn declared_independence_matches_set_intersection_for_every_ordered_pair_of_sour
                     let y: BTreeSet<u8> = y.iter().copied().collect();
                     if x.intersection(&y).next().is_some() {
                         let refusals = result.expect_err("a shared row is declared independent");
-                        let details: Vec<&str> = refusals.iter().map(|r| r.detail.as_str()).collect();
+                        let details: Vec<&str> =
+                            refusals.iter().map(|r| r.detail.as_str()).collect();
                         assert_eq!(
                             details,
-                            vec!["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"],
+                            vec![
+                                antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT
+                            ],
                             "pair ({a}, {b})"
                         );
                         shared += 1;
@@ -124,7 +128,9 @@ fn declared_independence_matches_set_intersection_for_every_ordered_pair_of_sour
                     let details: Vec<&str> = refusals.iter().map(|r| r.detail.as_str()).collect();
                     assert_eq!(
                         details,
-                        vec!["mechanism_composition.posterior_dependence_evidence_overlap_unknown"],
+                        vec![
+                            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_EVIDENCE_OVERLAP_UNKNOWN
+                        ],
                         "pair ({a}, {b})"
                     );
                     unknown += 1;

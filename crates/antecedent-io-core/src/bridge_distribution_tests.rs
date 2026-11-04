@@ -292,7 +292,10 @@ fn the_declared_dependence_changes_the_bridged_spread_and_mean() {
     let infeasible = uncertain_affine(Some(0.1));
     let refused = bridge_draws(&infeasible, &posterior_table(&source), None, 7)
         .expect_err("covariance above the product of the variances");
-    assert_eq!(refused.detail, "scientific_bridge.dependence_not_a_covariance");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::DEPENDENCE_NOT_A_COVARIANCE
+    );
 }
 
 #[test]
@@ -426,7 +429,10 @@ fn a_trial_line_neither_truncates_nor_extrapolates_a_law() {
     let refused =
         bridge_draws(&trial_contract(ValueKind::Posterior), &posterior_table(&source), None, 5)
             .expect_err("draws outside the validated range [0, 4]");
-    assert_eq!(refused.detail, "scientific_bridge.draws_outside_domain");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::DRAWS_OUTSIDE_DOMAIN
+    );
     assert_eq!(refused.code, "bridge_mapping_not_supported");
 }
 
@@ -440,13 +446,19 @@ fn only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged() {
         bridge_draws(&bridge, &posterior_table(&source), Some(ClaimKind::Associational), 1)
             .expect_err("associational");
     assert_eq!(refused.code, "bridge_mapping_not_supported");
-    assert_eq!(refused.detail, "scientific_bridge.source_not_draws");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_DRAWS
+    );
     assert_eq!(refused.supplied.as_deref(), Some("associational"));
     // A bootstrap is neither a posterior nor a predictive law.
     let bootstrap =
         table(&source, &sibling, DistributionMeaningWire::Bootstrap, DrawAlignment::Joint);
     let refused = bridge_draws(&bridge, &bootstrap, None, 1).expect_err("bootstrap");
-    assert_eq!(refused.detail, "scientific_bridge.draws_meaning_mismatch");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::DRAWS_MEANING_MISMATCH
+    );
     // Independent marginals have no row pairing for the bridged draws to keep.
     let marginals = table(
         &source,
@@ -455,7 +467,10 @@ fn only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged() {
         DrawAlignment::IndependentMarginals,
     );
     let refused = bridge_draws(&bridge, &marginals, None, 1).expect_err("marginals");
-    assert_eq!(refused.detail, "scientific_bridge.draws_not_aligned");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::DRAWS_NOT_ALIGNED
+    );
     // A predictive law is not a posterior.
     let predictive = table(
         &source,
@@ -464,13 +479,19 @@ fn only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged() {
         DrawAlignment::Joint,
     );
     let refused = bridge_draws(&bridge, &predictive, None, 1).expect_err("predictive");
-    assert_eq!(refused.detail, "scientific_bridge.value_kind_substitution");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
+    );
     // A table with no column about the contract's source quantity.
     let mut other = bridge.clone();
     other.source.quantity = quantity("trial:other", "mmol_per_l");
     other.target.quantity = quantity("trial:other_outcome", "log_hazard");
     let refused = bridge_draws(&other, &posterior_table(&source), None, 1).expect_err("quantity");
-    assert_eq!(refused.detail, "scientific_bridge.quantity_mismatch");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH
+    );
 }
 
 fn clinic_model() -> MeasurementModel {
@@ -596,7 +617,10 @@ fn a_measurement_correction_draws_its_rates_and_agrees_with_the_delta_method() {
         DrawAlignment::Joint,
     );
     let refused = bridge_draws(&correction_contract(), &input, None, 13).expect_err("unattainable");
-    assert_eq!(refused.detail, "scientific_bridge.draws_outside_domain");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::DRAWS_OUTSIDE_DOMAIN
+    );
 }
 
 #[test]

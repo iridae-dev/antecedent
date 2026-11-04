@@ -197,7 +197,11 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
             let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
             assert_eq!(
                 coded(&prepared.refresh(counted, &ctx).unwrap_err()),
-                ("not_supported", "admg_transport.counted_laws_unsupported".into())
+                (
+                    "not_supported",
+                    antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED
+                        .into()
+                )
             );
         }
         let produced: Vec<Vec<u64>> =
@@ -231,7 +235,10 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
     w.proof.remaining.clear();
     assert_eq!(
         refusal(&conditional_reseal(&mut w)).refusal(),
-        ("transport_not_certified", "admg_transport.invalid_derivation"),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+        ),
         "re-sealed premises"
     );
     let mut w = original.clone();
@@ -322,7 +329,10 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
     .unwrap_err();
     assert_eq!(
         coded(&error),
-        ("transport_not_certified", "admg_transport.invalid_derivation".into())
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::INVALID_DERIVATION.into()
+        )
     );
 }
 
@@ -390,7 +400,10 @@ fn story_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() {
         // request fewer than the floor, so the interval refuses and the point stays.
         assert_eq!(
             coded(&prepared.interval(&ctx).unwrap_err()),
-            ("estimator_inference_mismatch", "dose_response.bootstrap_below_floor".into())
+            (
+                "estimator_inference_mismatch",
+                antecedent_core::reason_details::dose_response::BOOTSTRAP_BELOW_FLOOR.into()
+            )
         );
         let produced = plan.estimate().clone();
         (plan.export().unwrap(), produced)
@@ -641,9 +654,18 @@ fn story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range
 
     let original = consumed;
     let refused = |wire: &JointSensitivityArtifactWire| coded(&consume(wire).unwrap_err());
-    let premises = ("transport_not_certified", "joint_sensitivity.premises_mismatch".to_owned());
-    let data = ("transport_not_certified", "joint_sensitivity.data_identity_mismatch".to_owned());
-    let replay = ("transport_not_certified", "joint_sensitivity.replay_mismatch".to_owned());
+    let premises = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::PREMISES_MISMATCH.to_owned(),
+    );
+    let data = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::DATA_IDENTITY_MISMATCH.to_owned(),
+    );
+    let replay = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH.to_owned(),
+    );
     // Premises: the threshold and the factor set.
     let mut w = original.clone();
     w.body.perturbation.decision_threshold = Some(0.6);
@@ -676,13 +698,19 @@ fn story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range
     w.body.inference_claim = "confidence_interval".into();
     assert_eq!(
         refused(&sensitivity_reseal(w)),
-        ("estimator_inference_mismatch", "joint_sensitivity.union_labelled_ci".to_owned())
+        (
+            "estimator_inference_mismatch",
+            antecedent_core::reason_details::joint_sensitivity::UNION_LABELLED_CI.to_owned()
+        )
     );
     let mut w = original.clone();
     w.body.sampling.interval = Some([0.1, 0.9]);
     assert_eq!(
         refused(&sensitivity_reseal(w)),
-        ("route_not_supported", "joint_sensitivity.no_interval_method".to_owned())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.to_owned()
+        )
     );
 }
 
@@ -841,7 +869,10 @@ fn story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arriv
         let plan =
             plan_studies(&graph(), &route, &base, &candidates, StudyPlanLimits::default(), &ctx)
                 .unwrap();
-        assert_eq!(plan.plan().failure.detail, "mz_transport.missing_joint_regime");
+        assert_eq!(
+            plan.plan().failure.detail,
+            antecedent_core::reason_details::mz_transport::MISSING_JOINT_REGIME
+        );
         let top = plan.proposal(0).expect("the complementary pair is sufficient");
         assert_eq!(top.proposal().candidates, [Arc::from("a_do_z2"), Arc::from("b_do_z1")]);
         assert!(plan.plan().minimal);
@@ -890,17 +921,24 @@ fn story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arriv
         ..StudyPlanLimits::default()
     };
     let error = plan_studies(&graph(), &route, &base, &candidates, over, &ctx).unwrap_err();
-    assert_eq!((error.code, error.detail), ("route_not_supported", "study_plan.bounds_exceeded"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED)
+    );
     // A budget that stops the plan before the pair is a receipt, never a verdict.
     let short = StudyPlanLimits {
         search: SearchLimits { operations: 1, depth: 24 },
         ..StudyPlanLimits::default()
     };
     let error = plan_studies(&graph(), &route, &base, &candidates, short, &ctx).unwrap_err();
-    assert_eq!((error.code, error.detail), ("transport_budget_cancel", "study_plan.budget"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("transport_budget_cancel", antecedent_core::reason_details::study_plan::BUDGET)
+    );
 
     // Mutations: unsealed and re-sealed, four categories.
-    let invalid = ("transport_not_certified", "study_plan.invalid_artifact");
+    let invalid =
+        ("transport_not_certified", antecedent_core::reason_details::study_plan::INVALID_ARTIFACT);
     let refused = |w: &StudyPlanArtifactWire| {
         let error = consume(w).unwrap_err();
         (error.code, error.detail)
@@ -1166,7 +1204,12 @@ fn story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identificati
         .unwrap();
         let error = prepared.refresh(uniform, &ctx).unwrap_err();
         assert_eq!(error.reason_code(), Some("route_not_supported"));
-        assert!(error.to_string().contains("recovery.empirical_not_supported"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::recovery::EMPIRICAL_NOT_SUPPORTED),
+            "{error}"
+        );
         (
             result.export_named(&prepared, &names).unwrap(),
             bits(result.recovered().law().probabilities()),
@@ -1225,5 +1268,10 @@ fn story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identificati
     confounded.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let error = recovery_prepare(&model, confounded, model.observed_law()).unwrap_err();
     assert_eq!(error.reason_code(), Some("route_not_supported"));
-    assert!(error.to_string().contains("recovery.unsupported_mechanism"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::recovery::UNSUPPORTED_MECHANISM),
+        "{error}"
+    );
 }

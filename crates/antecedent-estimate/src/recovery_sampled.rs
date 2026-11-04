@@ -91,13 +91,23 @@ impl SampledRecoveryDetail {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::ComponentVarianceOnly => "sampled_recovery.component_variance_only",
-            Self::UnrecoverablePattern => "sampled_recovery.unrecoverable_pattern",
-            Self::TooManyFailedReplicates => "sampled_recovery.too_many_failed_replicates",
-            Self::BoundsExceeded => "sampled_recovery.bounds_exceeded",
-            Self::InvalidInput => "sampled_recovery.invalid_input",
-            Self::ReceiptMismatch => "sampled_recovery.receipt_mismatch",
-            Self::Cancelled => "sampled_recovery.cancelled",
+            Self::ComponentVarianceOnly => {
+                antecedent_core::reason_details::sampled_recovery::COMPONENT_VARIANCE_ONLY
+            }
+            Self::UnrecoverablePattern => {
+                antecedent_core::reason_details::sampled_recovery::UNRECOVERABLE_PATTERN
+            }
+            Self::TooManyFailedReplicates => {
+                antecedent_core::reason_details::sampled_recovery::TOO_MANY_FAILED_REPLICATES
+            }
+            Self::BoundsExceeded => {
+                antecedent_core::reason_details::sampled_recovery::BOUNDS_EXCEEDED
+            }
+            Self::InvalidInput => antecedent_core::reason_details::sampled_recovery::INVALID_INPUT,
+            Self::ReceiptMismatch => {
+                antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH
+            }
+            Self::Cancelled => antecedent_core::reason_details::sampled_recovery::CANCELLED,
         }
     }
 

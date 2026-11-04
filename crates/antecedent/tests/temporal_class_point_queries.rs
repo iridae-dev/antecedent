@@ -264,7 +264,10 @@ fn temporal_class_points_refuse_a_weighted_series_they_would_fit_unweighted() {
             study.run(&ExecutionContext::for_tests(11)).map_err(|error| error.to_string())
         })
         .expect_err("a weighted series cannot be fit without its weights");
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }
 
 #[test]

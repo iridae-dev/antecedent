@@ -38,12 +38,14 @@ record_sha256 = "3249d4a2d5607e02f869b55ba28b1f14dbefe863f9828d7e6d41a5b6fc66676
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/unobserved_common_cause.rs"
-sha256 = "90558c5900c1e8ab98e1e4ee94017fbd30a02fe67e8c1b709fc906628e116c09"
+items = ["fn default", "fn new", "fn refute", "struct UnobservedCommonCause"]
+sha256 = "7d48c4ecf1af0c6113b6cbb1aba85279854e0f1aa5bc91df11a8b32cb700a765"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/simulated_unobserved_confounder_reference.rs"
-sha256 = "ae60c181cfdae41189d1e5bcd4a75ab98e059d0b2345833c3da4cd22d0e3f26e"
+items = ["const SEED", "fn an_outcome_determined_by_the_adjustment_set_is_refused", "fn build", "fn floats"]
+sha256 = "2f04ab3d6ad9f40063f55b54a4cefa715e5b4cf40b7dfea6be943316977d5d99"
 
 [[method_review.artifacts]]
 role = "reference"

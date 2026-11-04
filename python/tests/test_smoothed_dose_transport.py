@@ -5,6 +5,7 @@ import dataclasses
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalCancelledError,
     CausalError,
@@ -195,11 +196,11 @@ def test_smoothed_dose_estimator_menu_reads_the_retained_plan_after_builder_disp
     assert menu.eligible == ("smoothed_dose_transport_aipw",)
     assert (
         menu["kennedy_local_linear_point_curve"].refusal["detail"]
-        == "dose_response.target_not_smoothed"
+        == reason_details.dose_response.TARGET_NOT_SMOOTHED
     )
     assert (
         menu["generalized_propensity_estimated_density"].refusal["detail"]
-        == "dose_response.estimated_dose_density"
+        == reason_details.dose_response.ESTIMATED_DOSE_DENSITY
     )
     assert not any("recommend" in repr(entry).lower() for entry in menu.entries)
     tuned = advanced.smoothed_dose_estimator_menu(
@@ -220,38 +221,44 @@ def test_smoothed_dose_estimator_menu_reads_the_retained_plan_after_builder_disp
 def test_refusals_carry_their_reason_codes():
     query, data = fixture()
     with pytest.raises(
-        CausalUnsupportedError, match="dose_response.grid_outside_dose_support"
+        CausalUnsupportedError, match=reason_details.dose_response.GRID_OUTSIDE_DOSE_SUPPORT
     ) as info:
         advanced.prepare_smoothed_dose(
             dataclasses.replace(query, grid=(3.8,)), data, options=options()
         )
     assert info.value.reason_code == "transport_support_failure"
     with pytest.raises(
-        CausalUnsupportedError, match="dose_response.estimated_dose_density"
+        CausalUnsupportedError, match=reason_details.dose_response.ESTIMATED_DOSE_DENSITY
     ) as info:
         advanced.prepare_smoothed_dose(
             dataclasses.replace(query, density_provenance="estimated"), data, options=options()
         )
     assert info.value.reason_code == "route_not_supported"
     for target, detail in (
-        ("point_curve", "dose_response.target_not_smoothed"),
-        ("derivative", "dose_response.target_not_smoothed"),
-        ("simultaneous_band", "dose_response.cate_or_simultaneous"),
+        ("point_curve", reason_details.dose_response.TARGET_NOT_SMOOTHED),
+        ("derivative", reason_details.dose_response.TARGET_NOT_SMOOTHED),
+        ("simultaneous_band", reason_details.dose_response.CATE_OR_SIMULTANEOUS),
     ):
         with pytest.raises(CausalUnsupportedError, match=detail) as info:
             advanced.prepare_smoothed_dose(query, data, options=options(), target=target)
         assert info.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalUnsupportedError, match="dose_response.kernel_not_supported") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.dose_response.KERNEL_NOT_SUPPORTED
+    ) as info:
         advanced.prepare_smoothed_dose(
             dataclasses.replace(query, kernel="gaussian"), data, options=options()
         )
     assert info.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalUnsupportedError, match="dose_response.non_iid_design") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.dose_response.NON_IID_DESIGN
+    ) as info:
         advanced.prepare_smoothed_dose(
             query, dataclasses.replace(data, sampling="clustered"), options=options()
         )
     assert info.value.reason_code == "sampling_dependence_unknown"
-    with pytest.raises(CausalUnsupportedError, match="dose_response.bounds_exceeded") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.dose_response.BOUNDS_EXCEEDED
+    ) as info:
         advanced.prepare_smoothed_dose(query, data, options=options(quadrature_nodes=64))
     assert info.value.reason_code == "route_not_supported"
     with pytest.raises(CausalValueError):
@@ -259,7 +266,9 @@ def test_refusals_carry_their_reason_codes():
     # Weak membership overlap refuses rather than extrapolating.
     far_query, far = fixture(shift=3.0)
     study = advanced.prepare_smoothed_dose(far_query, far, options=options())
-    with pytest.raises(CausalUnsupportedError, match="dose_response.membership_overlap") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.dose_response.MEMBERSHIP_OVERLAP
+    ) as info:
         require_success(study.estimate())
     assert info.value.reason_code == "transport_support_failure"
     # Below the replicate floor the point is kept and the interval withheld.
@@ -268,7 +277,7 @@ def test_refusals_carry_their_reason_codes():
             query, data, options=options(bootstrap=1), execution=ac.Execution(seed=2)
         ).estimate()
     )
-    assert below.uncertainty["detail"] == "dose_response.bootstrap_below_floor"
+    assert below.uncertainty["detail"] == reason_details.dose_response.BOOTSTRAP_BELOW_FLOOR
 
 
 def _with_source_edit(data, field, edit):
@@ -300,26 +309,26 @@ def test_support_learner_and_quadrature_refusals_carry_code_and_detail():
 
     assert _refusal(prepare(_with_source_edit(data, "dose_density", floor))) == (
         "transport_support_failure",
-        "dose_response.dose_density_floor",
+        reason_details.dose_response.DOSE_DENSITY_FLOOR,
     )
     assert _refusal(prepare(_with_source_edit(data, "dose_density", invalid))) == (
         "transport_support_failure",
-        "dose_response.dose_density_invalid",
+        reason_details.dose_response.DOSE_DENSITY_INVALID,
     )
     assert _refusal(prepare(min_local_ess=1e6)) == (
         "transport_support_failure",
-        "dose_response.local_dose_ess",
+        reason_details.dose_response.LOCAL_DOSE_ESS,
     )
     rounded = dataclasses.replace(
         data, dose=[round(a) if s else a for a, s in zip(data.dose, data.source, strict=True)]
     )
     assert _refusal(prepare(rounded)) == (
         "treatment_support_too_discrete",
-        "dose_response.dose_too_discrete",
+        reason_details.dose_response.DOSE_TOO_DISCRETE,
     )
     assert _refusal(prepare(outcome=ac.learners.NeuralNet())) == (
         "route_not_supported",
-        "dose_response.learner_not_portable",
+        reason_details.dose_response.LEARNER_NOT_PORTABLE,
     )
     # A tree learner's fitted curve is not piecewise polynomial in the dose: the two
     # quadrature rules are compared on every target row and a tight tolerance refuses.
@@ -332,7 +341,7 @@ def test_support_learner_and_quadrature_refusals_carry_code_and_detail():
     )
     assert _refusal(lambda: require_success(study.estimate())) == (
         "transport_numerical_failure",
-        "dose_response.quadrature_tolerance",
+        reason_details.dose_response.QUADRATURE_TOLERANCE,
     )
     # A linear fit is integrated exactly, so the same tolerance is never gated.
     exact = require_success(

@@ -60,11 +60,16 @@ const BODY_SECTION: &str = "transported_decision_body";
 const MAX_LIST_ITEMS: usize = 1024;
 const MAX_TEXT_BYTES: usize = 8 * 1024;
 
-const DETAIL_LAW_NOT_EXPORTABLE: &str = "transported_decision_artifact.law_not_exportable";
-const DETAIL_BOUNDS: &str = "transported_decision_artifact.bounds_exceeded";
-const DETAIL_REPLAY: &str = "transported_decision_artifact.replay_mismatch";
-const DETAIL_IDENTITY: &str = "transported_decision_artifact.identity_expected";
-const DETAIL_INVALID: &str = "transported_decision_artifact.invalid";
+const DETAIL_LAW_NOT_EXPORTABLE: &str =
+    antecedent_core::reason_details::transported_decision_artifact::LAW_NOT_EXPORTABLE;
+const DETAIL_BOUNDS: &str =
+    antecedent_core::reason_details::transported_decision_artifact::BOUNDS_EXCEEDED;
+const DETAIL_REPLAY: &str =
+    antecedent_core::reason_details::transported_decision_artifact::REPLAY_MISMATCH;
+const DETAIL_IDENTITY: &str =
+    antecedent_core::reason_details::transported_decision_artifact::IDENTITY_EXPECTED;
+const DETAIL_INVALID: &str =
+    antecedent_core::reason_details::transported_decision_artifact::INVALID;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

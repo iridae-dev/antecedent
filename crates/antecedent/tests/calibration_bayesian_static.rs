@@ -28,7 +28,7 @@
 //! runtime and bound to the tally on every scored replicate, so a record can
 //! only describe an interval the facade actually reported.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -311,7 +311,7 @@ fn effect_pair(result: &StudyResult) -> Pair {
 // ================================================================ scalar ATE
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_dag_bayesian_default_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -467,7 +467,7 @@ fn glm_likelihood_coverage(test: &'static str, dgp: &'static str, link: Link, st
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_dag_bayesian_logit_nominal_coverage() {
     glm_likelihood_coverage(
         "average_effect_dag_bayesian_logit_nominal_coverage",
@@ -478,7 +478,7 @@ fn average_effect_dag_bayesian_logit_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_dag_bayesian_probit_nominal_coverage() {
     glm_likelihood_coverage(
         "average_effect_dag_bayesian_probit_nominal_coverage",
@@ -489,7 +489,7 @@ fn average_effect_dag_bayesian_probit_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_dag_bayesian_poisson_nominal_coverage() {
     glm_likelihood_coverage(
         "average_effect_dag_bayesian_poisson_nominal_coverage",
@@ -555,7 +555,7 @@ fn ate_levels() -> AverageEffectQuery {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_cpdag_bayesian_default_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -582,7 +582,7 @@ fn average_effect_cpdag_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_effect_pag_bayesian_default_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -724,7 +724,7 @@ fn conditional_case_at(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn conditional_effect_dag_bayesian_default_nominal_coverage() {
     conditional_case_at(
         "conditional_effect_dag_bayesian_default_nominal_coverage",
@@ -740,7 +740,7 @@ fn conditional_effect_dag_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn conditional_effect_cpdag_bayesian_default_nominal_coverage() {
     conditional_case(
         "conditional_effect_cpdag_bayesian_default_nominal_coverage",
@@ -762,7 +762,7 @@ fn conditional_effect_cpdag_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn conditional_effect_pag_bayesian_default_nominal_coverage() {
     conditional_case(
         "conditional_effect_pag_bayesian_default_nominal_coverage",
@@ -837,7 +837,7 @@ fn distribution_case(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn interventional_distribution_dag_bayesian_near_one_default_coverage() {
     distribution_case(
         "interventional_distribution_dag_bayesian_near_one_default_coverage",
@@ -848,7 +848,7 @@ fn interventional_distribution_dag_bayesian_near_one_default_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn interventional_distribution_dag_bayesian_near_zero_default_coverage() {
     distribution_case(
         "interventional_distribution_dag_bayesian_near_zero_default_coverage",
@@ -913,7 +913,7 @@ fn mediation_case(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn mediation_nde_bayesian_default_nominal_coverage() {
     mediation_case(
         "mediation_nde_bayesian_default_nominal_coverage",
@@ -925,7 +925,7 @@ fn mediation_nde_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn mediation_nie_bayesian_default_nominal_coverage() {
     mediation_case(
         "mediation_nie_bayesian_default_nominal_coverage",
@@ -981,7 +981,7 @@ fn path_case(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn path_specific_chain_bayesian_default_nominal_coverage() {
     let cell = Cell {
         query: "PathSpecificEffect",
@@ -1014,7 +1014,7 @@ fn path_specific_chain_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn path_specific_two_path_bayesian_default_nominal_coverage() {
     path_case(
         "path_specific_two_path_bayesian_default_nominal_coverage",
@@ -1041,7 +1041,7 @@ const COUNTERFACTUAL_MEASURED: [[f64; GRID_POINTS]; 2] =
     [[0.9475, 0.942, 0.9325], [0.890, 0.886, 0.875]];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn counterfactual_bayesian_mean_ite_default_coverage() {
     let cell = Cell {
         query: "Counterfactual",
@@ -1150,7 +1150,7 @@ fn response_cells(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn intervention_response_dag_bayesian_default_nominal_coverage() {
     let cells = response_cells(
         "InterventionResponse",
@@ -1184,7 +1184,7 @@ fn intervention_response_dag_bayesian_default_nominal_coverage() {
 /// A band's five coordinates move together, so this test measures at
 /// [`PRECISION_N_SIM`] replicates (see `common::reported::n_sim_at_least`).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn response_curve_dag_bayesian_default_pointwise_nominal_coverage() {
     let labels: Vec<String> = GRID.iter().map(|a| format!("a={a}")).collect();
     let cells =
@@ -1331,7 +1331,7 @@ const POINT_DGP: &str = "point_data";
 const GAM_DGP: &str = "gam_data";
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn average_derivative_bayesian_default_nominal_coverage() {
     derivative_case(
         "average_derivative_bayesian_default_nominal_coverage",
@@ -1354,7 +1354,7 @@ fn average_derivative_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn point_derivative_bayesian_default_nominal_coverage() {
     derivative_case(
         "point_derivative_bayesian_default_nominal_coverage",
@@ -1372,7 +1372,7 @@ fn point_derivative_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn semi_elasticity_log_treatment_bayesian_default_nominal_coverage() {
     derivative_case(
         "semi_elasticity_log_treatment_bayesian_default_nominal_coverage",
@@ -1390,7 +1390,7 @@ fn semi_elasticity_log_treatment_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn semi_elasticity_log_outcome_bayesian_default_nominal_coverage() {
     derivative_case(
         "semi_elasticity_log_outcome_bayesian_default_nominal_coverage",
@@ -1408,7 +1408,7 @@ fn semi_elasticity_log_outcome_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn elasticity_bayesian_default_nominal_coverage() {
     derivative_case(
         "elasticity_bayesian_default_nominal_coverage",
@@ -1426,7 +1426,7 @@ fn elasticity_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn directional_derivative_bayesian_default_nominal_coverage() {
     let functional = F::DirectionalDerivative {
         outcomes: Arc::from([v(3), v(4)]),
@@ -1456,7 +1456,7 @@ fn directional_derivative_bayesian_default_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn response_jacobian_bayesian_default_coverage() {
     derivative_case(
         "response_jacobian_bayesian_default_coverage",

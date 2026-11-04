@@ -189,16 +189,28 @@ fn a_bridge_of_draws_is_prepared_derived_exported_and_consumed_independently() {
     let refusal = result.require_value_kind(ValueKind::Mean).unwrap_err();
     assert_eq!(
         code(&refusal),
-        ("bridge_substitution_refused", "scientific_bridge.value_kind_substitution")
+        (
+            "bridge_substitution_refused",
+            antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
+        )
     );
     assert!(result.require_value_kind(ValueKind::Posterior).is_ok());
     // No interval without a level, and none outside a measured design.
     let refusal = result.interval().unwrap_err();
-    assert_eq!(code(&refusal), ("route_not_supported", "scientific_bridge.interval_not_supported"));
+    assert_eq!(
+        code(&refusal),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED
+        )
+    );
     let refusal = result.bridged_interval(0.95).unwrap_err();
     assert_eq!(
         code(&refusal),
-        ("route_not_supported", "scientific_bridge.interval_scope_outside_measured")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED
+        )
     );
 
     // Export, then consume as a fresh consumer that retained the identity.
@@ -235,7 +247,10 @@ fn only_a_posterior_or_predictive_law_is_prepared_and_an_associational_claim_is_
     // A mean names no draws: the table's kind is refused as a substitution.
     let prepared = PreparedScientificBridgeDistribution::prepare(mean).unwrap();
     let refusal = prepared.derive(&table, None, 1).unwrap_err();
-    assert_eq!(refusal.detail, "scientific_bridge.value_kind_substitution");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
+    );
     // A set or a joint law is carried by no route.
     let mut set = uncertain();
     set.source_value = ValueKind::IdentifiedSet;
@@ -243,19 +258,28 @@ fn only_a_posterior_or_predictive_law_is_prepared_and_an_associational_claim_is_
     let refusal = PreparedScientificBridgeDistribution::prepare(set).unwrap_err();
     assert_eq!(
         code(&refusal),
-        ("bridge_mapping_not_supported", "scientific_bridge.value_kind_not_carried")
+        (
+            "bridge_mapping_not_supported",
+            antecedent_core::reason_details::scientific_bridge::VALUE_KIND_NOT_CARRIED
+        )
     );
     // An uncertain map without a declared dependence is refused before any draw.
     let mut undeclared = uncertain();
     undeclared.source_dependence = None;
     let refusal = PreparedScientificBridgeDistribution::prepare(undeclared).unwrap_err();
-    assert_eq!(refusal.detail, "scientific_bridge.source_dependence_missing");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
+    );
     // An associational source claim is never a bridge source.
     let prepared = PreparedScientificBridgeDistribution::prepare(uncertain()).unwrap();
     let refusal = prepared.derive(&table, Some(ClaimKind::Associational), 1).unwrap_err();
     assert_eq!(
         code(&refusal),
-        ("bridge_mapping_not_supported", "scientific_bridge.source_not_draws")
+        (
+            "bridge_mapping_not_supported",
+            antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_DRAWS
+        )
     );
 }
 

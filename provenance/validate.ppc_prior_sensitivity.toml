@@ -47,27 +47,32 @@ record_sha256 = "fa90db5bdbde74b072c060de240df396deb8667583e29fc6fe41dee9360773c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/bayesian_checks/predictive.rs"
-sha256 = "2d97fa27d91ecaf6237156809af75025652f4c83dbb7be00e5c3e72bbeaad6da"
+items = ["const REPLICATE_NOISE_STREAM", "enum PredictiveCheckKind", "enum PredictiveNoise", "enum PriorResidual", "enum ResidualStatistic", "fn add_observation_noise", "fn check", "fn check_temporal", "fn check_with_prior", "fn conditional_residual_sd", "fn default", "fn fitted_means", "fn lag1_autocorrelation", "fn name", "fn new", "fn push", "fn replicates", "fn sample_poisson", "fn serial_discrepancy", "fn strided_draw_index", "struct PosteriorPredictiveCheck", "struct PredictiveCheckReport", "struct PriorPredictiveCheck", "struct ResidualDiscrepancy", "struct SerialDiscrepancy"]
+sha256 = "26563ddfe1d60a1921176d515f103dca82544282f85193d0d5d384cc1e6acdf6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/bayesian_checks/calibration.rs"
-sha256 = "e51ad29f8a16450bcb2e9731d58a2efeca80ffac071e4d73a8b59aa3cb69e068"
+items = ["module"]
+sha256 = "ba21131e6a3b3037414c7c3892706da4efa34213817f06e13375cbe408a4c0eb"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/bayesian_checks/sbc.rs"
-sha256 = "b3db39134bb6867269eb73a8a76ba35f6b8852033abcd001288cc43ec36b6c4a"
+items = ["const SBC_BINS", "const SBC_CHI2_CRITICAL_4DF_P99", "const SBC_CHI2_CRITICAL_9DF_P99", "enum GeneratingVariance", "fn check", "fn default", "fn draw_generating_parameters", "fn new", "fn prior_correlation_cholesky", "fn prior_standard_normals", "fn sbc_bin", "fn sbc_rank_draws", "fn sbc_refit_seed", "fn to_report", "struct SbcReport", "struct SimulationBasedCalibration"]
+sha256 = "081b8be6fc6c7b60c51c629238a1bfff4c6913024b9949f9f300fa8064d94a5e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/bayesian_checks/prior_sensitivity.rs"
-sha256 = "89d0c9cbc1ee9c613fadd8253a6cf0a7e4dfdb8ba388590f85a0a00d5165d5d5"
+items = ["const DEFAULT_MAX_RELATIVE_PRIOR_RANGE", "fn default", "fn evaluate", "fn evaluate_external_alpha", "fn evaluate_in_force", "fn evaluate_resolved_prior", "fn grid_len", "fn scale_coefficient_variances", "fn standard_grid", "fn to_report", "struct ExternalAlphaSensitivity", "struct PriorSensitivity"]
+sha256 = "79079bb6c034491c8f28b158061c586b6a701e678e71af159fee4b093794d3b6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs"
-sha256 = "2ce4fc8131387344a805b40d96d3e691384109d4ed9530ce0319a162f9fdac66"
+items = ["const REPLICATE_NOISE", "const SERIAL_PPC", "fn arr", "fn arr2", "fn assert_report", "fn assert_residual", "fn close", "fn ctx", "fn design_json", "fn fit", "fn glm_family", "fn merge", "fn post_check", "fn post_estimator", "fn ppc_prior_sensitivity_posterior_predictive_equals_the_exact_reference", "fn ppc_prior_sensitivity_prior_predictive_equals_the_exact_reference", "fn ppc_prior_sensitivity_prior_predictive_mean_follows_the_exact_law", "fn ppc_prior_sensitivity_replicate_noise_variance_is_the_conjugate_conditional", "fn prior_check", "fn prior_set", "fn problem", "fn reference", "fn regen_post", "fn regen_prior", "fn same"]
+sha256 = "98376f3a77980c5c0d675e7ffe7897df6b8799c57e24693cc4a0bc62a892d861"
 
 [[method_review.artifacts]]
 role = "reference"

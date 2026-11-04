@@ -128,7 +128,15 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/causaleffect_transport_subset.rs",
-          "sha256": "f4bd47d32d18398628071bae4e203a604ac8ca6e8c2a59aaee51a232c72fcfb1"
+          "items": [
+            "fn assert_frozen_fixture",
+            "fn corrupted_oracle_expressions_cannot_borrow_local_formula_labels",
+            "fn dense",
+            "fn fixture",
+            "fn mean_curve_query",
+            "fn oracle_shape"
+          ],
+          "sha256": "542d0391f8406bd40bf1aeb4f253c45f9f5d3d2a543f98319a15e663540c9e68"
         }
       ],
       "fixture_payload_sha256": "244f4eaa46bcb84937bead2f784bfbf3e1b0e6ead76ffce8be83b88d843a826e"

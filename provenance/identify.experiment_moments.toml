@@ -42,12 +42,14 @@ record_sha256 = "a9be9cb37731f5bc6fa2ec7c29b4130d85390af58bc09a666bedb6d10147c0f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/experiment_moments.rs"
-sha256 = "bd549eee525b9af9b9e819099d203a2b4fddd32e5dea9fbc68a4c90fb74d8959"
+items = ["const F64_BYTES", "const MAX_INTERVENTION_CONDITION", "enum MomentAssemblyRefusal", "enum RegimeInconsistency", "fn accumulate_moments", "fn accumulate_one", "fn assemble_blocks", "fn assemble_experiment_constraints", "fn compensated_dot", "fn compensated_mean", "fn compensated_sum", "fn constraint_row_count", "fn experiment_constraint_bytes", "fn experimental_effects", "fn inconsistent_regime", "fn length_product", "fn missing_pairs", "fn prepare_one", "fn prepare_samples", "fn regime_effects", "fn retained_units", "fn row_coefficient", "fn u64_len", "fn unclamped_dropped_unit", "struct AssembledExperimentConstraints", "struct ConstraintRow", "struct ExperimentMoments", "struct MissingPair", "struct PreparedColumn", "struct PreparedSample", "struct RegimeEffects", "struct RegimeSample", "struct TargetConstraintBlock", "struct UnitColumn"]
+sha256 = "630741353aa32df4bdf51f7896d4eba1a05df2d146d046c8240f9955a12bb9dd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/clamp_experiment_constraints.rs"
-sha256 = "f6daa0735e9350e38e943457f92dd8e3a5c3bd2c9083cbe831e17e1947c45eb1"
+items = ["fn every_assembled_row_is_satisfied_by_the_true_direct_effects", "fn unit"]
+sha256 = "0d779b55440df3e038311fb69ce572ea883660e04d74772378ef7586867fedad"
 
 [[method_review.artifacts]]
 role = "reference"

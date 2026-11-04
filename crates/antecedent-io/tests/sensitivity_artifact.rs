@@ -56,7 +56,7 @@ fn withheld() -> UncertaintyRelationship {
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
             reason_code: "not_supported".into(),
-            detail: "joint_sensitivity.no_interval_method".into(),
+            detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.into(),
         },
     }
 }
@@ -119,7 +119,12 @@ fn assert_wrong_contract(result: Result<SensitivityArtifact, IoError>, needle: &
     let error = result.unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "decision_contract_unsatisfied");
-    assert!(message.starts_with("sensitivity_decision_composition.wrong_contract"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+        ),
+        "{message}"
+    );
     assert!(message.contains(needle), "{message}");
 }
 
@@ -253,7 +258,9 @@ fn unknown_versions_and_malformed_payloads_are_refused() {
     short.truncate(short.len() - 8);
     let resealed = encode_parts(&meta, &short, "sensitivity-1").unwrap();
     let error = SensitivityArtifact::from_bytes(&resealed, None).unwrap_err();
-    assert!(refusal(&error).1.starts_with("sensitivity_decision_composition.invalid_surface"));
+    assert!(refusal(&error).1.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    ));
 
     let mut nan = numbers.clone();
     set(&mut nan, 4, f64::NAN);
@@ -347,7 +354,9 @@ fn range_and_sampling_interval_stay_separate_fields() {
     let error = SensitivityArtifact::new(composed).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("sensitivity_decision_composition.composition_not_supported"));
+    assert!(message.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
+    ));
 }
 
 #[test]
@@ -362,34 +371,61 @@ fn bad_coordinates_and_surfaces_are_refused() {
     // A grid point outside the declared assumption range.
     let (code, detail) = refused(&|p| p.grid[2] = 3.0);
     assert_eq!(code, "quantity_semantics_mismatch");
-    assert_eq!(detail, "sensitivity_decision_composition.unsupported_coordinate");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE
+    );
     // Duplicate grid points, lower above upper and mismatched lengths.
     let (_, detail) = refused(&|p| p.grid[1] = 0.0);
-    assert_eq!(detail, "sensitivity_decision_composition.invalid_surface");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    );
     let (_, detail) = refused(&|p| p.quantities[0] = surface("ua", &[3.0; 3], &[2.0; 3]));
-    assert_eq!(detail, "sensitivity_decision_composition.invalid_surface");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    );
     let (_, detail) = refused(&|p| {
         p.support.pop();
     });
-    assert_eq!(detail, "sensitivity_decision_composition.invalid_surface");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    );
     // Fewer than two actions, an action reading a missing quantity, mixed populations.
     let (_, detail) = refused(&|p| p.actions.truncate(1));
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
     let (_, detail) = refused(&|p| p.actions[0] = act("A", "missing"));
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
     let (_, detail) = refused(&|p| p.quantities[1].quantity.population_id = "other".into());
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
     // A surface range that is not declared an assumption range.
     let (_, detail) =
         refused(&|p| p.uncertainty.assumption_range.kind = "confidence_interval".into());
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
     // More ranged quantities than the evaluation budget of the vertex enumeration admits.
     let (code, detail) = refused(&|p| {
         p.quantities = (0..25).map(|k| surface(&format!("q{k}"), &[0.0; 3], &[1.0; 3])).collect();
         p.actions = vec![act("A", "q0"), act("B", "q1")];
     });
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "sensitivity_decision_composition.bounds_exceeded");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::BOUNDS_EXCEEDED
+    );
 }
 
 fn joint_result(
@@ -476,7 +512,7 @@ fn a_joint_result_is_adapted_exactly_and_travels_through_the_wire() {
     assert_eq!(artifact.uncertainty().assumption_range.kind, "assumption_range");
     assert!(matches!(
         &artifact.uncertainty().sampling,
-        SamplingStatus::Withheld { detail, .. } if detail == "joint_sensitivity.no_interval_method"
+        SamplingStatus::Withheld { detail, .. } if detail == antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
     ));
     assert_eq!(artifact.provenance().decision_threshold, Some(0.25));
     assert_eq!(artifact.provenance().source_tipping[0].analytic, Some(5.0 / 30.0));
@@ -522,7 +558,9 @@ fn a_joint_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
             .unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("sensitivity_decision_composition.unsupported_adaptation"));
+    assert!(message.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_ADAPTATION
+    ));
 
     let empty = joint_result(
         vec![JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.0 }],

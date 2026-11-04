@@ -53,22 +53,26 @@ record_sha256 = "d08561481b87af15953dcbd3a40aabb5ddd580f6c05d88c5e926c505d4ec6d4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/derivative.rs"
-sha256 = "1691f5f1636d110f2db615ae6f2b707b134c83dcacaeb9a3321141c5a779de86"
+items = ["fn point_derivative"]
+sha256 = "94815461ce495833162fde4508ead5fb38696407a85c9411310be678e715cde4"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/derivative_influence.rs"
-sha256 = "4ad31f4f06a3f150fda31a243847323aa16699999bcb4db711b36f00829c6d0e"
+items = ["fn derivative_influence", "fn point_derivative_influence"]
+sha256 = "f68a52889af75127b3989258a1818d139ff046bdfeb3f9afe409f4f6987dbdb0"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/transform.rs"
-sha256 = "1b68e2d24a8d5983e005afc326c73b97b6a20758614b35087a1cdf39b86b9e1d"
+items = ["module"]
+sha256 = "b424cb9c5b4d0490166ce2c07add29d7e4691b903239be67a75f6e180157d970"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_point_derivative_reference.rs"
-sha256 = "ce383d5bf902355f801867be6f2da1cf306e7a770cbeaf99c3acf9718a07da1a"
+items = ["fn close", "fn derivatives_intervals_and_transforms_match_the_exact_local_fits", "fn floats", "fn num"]
+sha256 = "b93e811ebdd032e48051b3c9e38bf3f2daf18804af42d9fd765e6214fdee93e6"
 
 [[method_review.artifacts]]
 role = "reference"

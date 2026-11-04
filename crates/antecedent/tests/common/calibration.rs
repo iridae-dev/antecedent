@@ -18,7 +18,7 @@
 //!   level in either direction while still inside the band passes the band
 //!   but prints a `calibration-recheck` line. That includes
 //!   [`CoverageTally::emit`] for `reported_level` (0.95) records.
-//!   `scripts/gate_calibration.sh` re-runs such a group at
+//!   `scripts/measure_calibration_groups.sh` re-runs such a group at
 //!   [`RECHECK_N_SIM`] replicates and takes that run's verdict.
 //! * **Precision floor and ceiling.** At [`PRECISION_N_SIM`] replicates or
 //!   more, coverage must lie in `[level − 2·MCSE, level + 2·MCSE]`: at 2000
@@ -136,7 +136,7 @@
 //!
 //! Every `calibration-recheck` line is followed by a
 //! `calibration-recheck-test <test>` line naming the libtest thread (the test
-//! function), so `scripts/gate_calibration.sh` can recheck only that test of a
+//! function), so `scripts/measure_calibration_groups.sh` can recheck only that test of a
 //! whole-file group.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -323,7 +323,7 @@ pub fn grid_seed(seed: u64) -> u64 {
     seed ^ grid_salt()
 }
 
-/// Environment variable naming the commit under measurement (`scripts/gate_calibration.sh`
+/// Environment variable naming the commit under measurement (`scripts/measure_calibration_groups.sh`
 /// exports it). Every record carries it, so a line copied from another run or another
 /// commit is refused by `scripts/collect_coverage_records.py` on its own, not only when
 /// its log's trailer happens to agree.

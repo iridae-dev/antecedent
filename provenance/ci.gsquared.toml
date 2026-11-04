@@ -42,17 +42,20 @@ record_sha256 = "8309dc7fab2d9df28fac4091f357d8decbdbd52235c6efc6bff54acaf32687b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/gsquared.rs"
-sha256 = "952f446d347e8897daf53ebb049e2166e4fc3094ec637540e994544d883a3f47"
+items = ["fn new", "struct GSquared", "struct RegressionCi"]
+sha256 = "5d08ab3e51d416154dcceb2acb34de298fb565ba80e15d69fe7783a5676695dc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/special.rs"
-sha256 = "f74f5f296f1b3e2c87723a0772ced07801a5e8f35f1f1bb5d5c16b5d55399696"
+items = ["module"]
+sha256 = "28ae178322b8cd99a4819a0902f80b10c441b6937f9e93d1b4d5239122bfbe3f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/ci_exact_reference.rs"
-sha256 = "232c3b95a3140f671c6e22f4d5a45e90fbfeb052a3f2b82a3cca0adcfd9504e7"
+items = ["const REFERENCE", "fn expand", "fn floats", "fn g_squared_matches_exact_contingency_arithmetic", "fn g_squared_refuses_sparse_and_degenerate_tables", "fn partial_correlation_matches_multiprecision_residualization", "fn rel", "fn run"]
+sha256 = "801033abbff26b27f757636917d8804cb589a5d4038416e77f00451955372109"
 
 [[method_review.artifacts]]
 role = "reference"

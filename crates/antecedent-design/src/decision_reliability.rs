@@ -215,7 +215,7 @@ fn producer_point_only_refusal(producer: ProducerKind, held: &str) -> ExternalRe
     match producer {
         ProducerKind::CohortMeanDecision => builder(
             antecedent_core::reason_code!("joint_law_required"),
-            "decision_reliability.producer_point_only",
+            antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY,
         )
         .offending(format!("{}: holds {held}", producer.as_str()))
         .remedy(
@@ -226,7 +226,7 @@ fn producer_point_only_refusal(producer: ProducerKind, held: &str) -> ExternalRe
         .build(),
         ProducerKind::SequentialRollout | ProducerKind::SequentialOffPolicy => builder(
             antecedent_core::reason_code!("diagnostic_not_available"),
-            "decision_reliability.producer_point_only",
+            antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY,
         )
         .offending(format!("{}: holds {held}", producer.as_str()))
         .remedy(
@@ -246,7 +246,7 @@ fn producer_mean_disagrees_refusal(
 ) -> ExternalRefusal {
     builder(
         antecedent_core::reason_code!("distribution_meaning_mismatch"),
-        "decision_reliability.producer_mean_disagrees",
+        antecedent_core::reason_details::decision_reliability::PRODUCER_MEAN_DISAGREES,
     )
     .offending(format!(
         "{id}: reported {reported} but the supplied draws average {draws_mean} \
@@ -263,7 +263,7 @@ fn effective_sample_size_refusal(
 ) -> ExternalRefusal {
     builder(
         antecedent_core::reason_code!("route_not_supported"),
-        "decision_reliability.effective_sample_size_too_small",
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL,
     )
     .offending(format!("{what}: effective sample size {effective_sample_size:.1}"))
     .expected(format!("effective sample size of at least {minimum}"))
@@ -282,13 +282,13 @@ impl ReliabilityError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         match self {
             Self::InvalidInput { slot, message } => {
-                builder(invalid, "decision_reliability.invalid_input")
+                builder(invalid, antecedent_core::reason_details::decision_reliability::INVALID_INPUT)
                     .offending(format!("{slot}: {message}"))
                     .build()
             }
             Self::SearchRecordRequired { candidates } => builder(
                 antecedent_core::reason_code!("candidate_search_record_required"),
-                "decision_reliability.search_record_required",
+                antecedent_core::reason_details::decision_reliability::SEARCH_RECORD_REQUIRED,
             )
             .offending(format!("{candidates} adaptively generated candidates"))
             .remedy(
@@ -297,14 +297,14 @@ impl ReliabilityError {
             )
             .build(),
             Self::SearchRecordInconsistent { message } => {
-                builder(invalid, "decision_reliability.search_record_inconsistent")
+                builder(invalid, antecedent_core::reason_details::decision_reliability::SEARCH_RECORD_INCONSISTENT)
                     .offending(message.clone())
                     .remedy("the record must cover every retained candidate within its budget")
                     .build()
             }
             Self::ValidationNotIndependent { selection, validation } => builder(
                 antecedent_core::reason_code!("validation_stream_not_independent"),
-                "decision_reliability.validation_not_independent",
+                antecedent_core::reason_details::decision_reliability::VALIDATION_NOT_INDEPENDENT,
             )
             .expected(format!("a stream or draw range disjoint from {selection}"))
             .supplied(validation.clone())
@@ -315,7 +315,7 @@ impl ReliabilityError {
             .build(),
             Self::JointLawRequired { reason } => builder(
                 antecedent_core::reason_code!("joint_law_required"),
-                "decision_reliability.joint_law_required",
+                antecedent_core::reason_details::decision_reliability::JOINT_LAW_REQUIRED,
             )
             .offending(*reason)
             .remedy(
@@ -325,14 +325,14 @@ impl ReliabilityError {
             .build(),
             Self::DependenceUnknown { what } => builder(
                 antecedent_core::reason_code!("sampling_dependence_unknown"),
-                "decision_reliability.dependence_unknown",
+                antecedent_core::reason_details::decision_reliability::DEPENDENCE_UNKNOWN,
             )
             .offending(*what)
             .remedy("declare the dependence; unknown dependence is never taken as independence")
             .build(),
             Self::CombinedUncertainty => builder(
                 antecedent_core::reason_code!("uncertainty_components_not_combined"),
-                "decision_reliability.combined_uncertainty",
+                antecedent_core::reason_details::decision_reliability::COMBINED_UNCERTAINTY,
             )
             .remedy(
                 "read the three components separately; a combined statement needs a whole-procedure \
@@ -350,21 +350,21 @@ impl ReliabilityError {
             }
             Self::RouteNotSupported { message } => builder(
                 antecedent_core::reason_code!("route_not_supported"),
-                "decision_reliability.route_not_supported",
+                antecedent_core::reason_details::decision_reliability::ROUTE_NOT_SUPPORTED,
             )
             .offending(message.clone())
             .build(),
-            Self::Numerical { message } => builder(invalid, "decision_reliability.numerical")
+            Self::Numerical { message } => builder(invalid, antecedent_core::reason_details::decision_reliability::NUMERICAL)
                 .offending(message.clone())
                 .build(),
             Self::Cancelled => builder(
                 antecedent_core::reason_code!("cancelled_no_claim"),
-                "decision_reliability.cancelled",
+                antecedent_core::reason_details::decision_reliability::CANCELLED,
             )
             .build(),
             Self::Admission { error } => builder(
                 antecedent_core::reason_code!("invalid_argument"),
-                "decision_reliability.memory_budget_exceeded",
+                antecedent_core::reason_details::decision_reliability::MEMORY_BUDGET_EXCEEDED,
             )
             .offending(error.to_string())
             .build(),

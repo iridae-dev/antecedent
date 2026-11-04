@@ -23,17 +23,20 @@ record_sha256 = "d1b78e0582886ae1751da8accbc4044013315d81669c0ebf66b770b6115e2e4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
-sha256 = "cc9d7ff3f218a80ac33724c26308edeb0232a0f4a5fd4fee75af7e0e49ef779b"
+items = ["const LAPLACE_RANK_INTERVAL_BELOW_DRAWS", "enum BayesianBackendKind", "enum ReferenceArm", "fn adaptive_schedule", "fn add_modifier_mean_uncertainty", "fn apply_coefficient_names", "fn assemble_posterior_draws", "fn at", "fn center_interactions_on_arm", "fn check_sequential_prior", "fn coefficient_names_from_design", "fn conjugate", "fn default", "fn draw_budget", "fn effective_likelihood", "fn effects", "fn fit", "fn from_fit", "fn gcomp_evaluator", "fn glm_family", "fn new", "fn prepare", "fn prepare_conditional", "fn prior_assumptions", "fn prior_in_force", "fn random_intercept_gls_whiten", "fn redraw", "fn temper_likelihood", "fn whiten_design", "fn with_n_draws", "fn with_prior_scale", "fn with_seed", "struct AdaptiveOutcome", "struct AdaptiveRedraw", "struct BackendInputs", "struct BayesianGCompWorkspace", "struct BayesianGComputationAte", "struct EffectEvaluation", "struct PreparedBayesianProblem", "struct ResidualVarianceDraws", "type CenteredDesign", "type WhitenedDesign"]
+sha256 = "cacfc5c95c3d4ee868b4270cbd19278ba07867482575299e91cb598f7e392687"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
+items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
+sha256 = "81480e7cac5f4ca97855d646a708ed4e96bc6043c32c4099dedb383a4798b9e2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_conditional_reference.rs"
-sha256 = "e1ff6e3d9f484ff3c6d8c6fe8371e533d855abd9452927decc9670880ed5e608"
+items = ["const DRAWS", "fn cases", "fn floats", "fn problem", "fn the_conditional_average_contrast_carries_the_modifier_distribution_uncertainty"]
+sha256 = "0d71be335febe745954a6e94a007247e4b2bbaa980932a61fae228aeeb4e73af"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -307,7 +307,7 @@ def calibration_groups() -> list[tuple[str, str]]:
     env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
     env.pop("ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE", None)
     result = subprocess.run(
-        ["bash", "scripts/gate_calibration.sh"],
+        ["bash", "scripts/measure_calibration_groups.sh"],
         cwd=ROOT,
         env=env,
         capture_output=True,

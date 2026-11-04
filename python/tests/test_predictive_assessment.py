@@ -26,6 +26,7 @@ import sys
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import evidence_ledger as el
 from antecedent import predictive_assessment as pa
 from antecedent.errors import (
@@ -209,11 +210,11 @@ def test_energy_score_equals_the_hand_value_and_the_crps_in_one_dimension() -> N
 
 def test_unsupported_scores_and_infinite_log_scores_are_refused() -> None:
     error = refused(lambda: pa.score_case("log_score", pa.EmpiricalSample([0.0, 1.0]), 0.5))
-    expect(error, "route_not_supported", "predictive_assessment.score_not_defined")
+    expect(error, "route_not_supported", reason_details.predictive_assessment.SCORE_NOT_DEFINED)
     error = refused(lambda: pa.score_case("log_score", pa.Bernoulli(0.0), 1))
-    expect(error, "invalid_argument", "predictive_assessment.log_score_infinite")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.LOG_SCORE_INFINITE)
     error = refused(lambda: pa.score_case("energy_score", pa.Gaussian(0.0, 1.0), 0.0))
-    expect(error, "route_not_supported", "predictive_assessment.score_not_defined")
+    expect(error, "route_not_supported", reason_details.predictive_assessment.SCORE_NOT_DEFINED)
 
 
 def test_the_true_finite_law_has_the_smallest_expected_score() -> None:
@@ -412,11 +413,15 @@ def test_iid_is_refused_for_temporal_and_clustered_designs_and_short_lags_too() 
     expect(
         error,
         "sampling_dependence_unknown",
-        "predictive_assessment.iid_not_supported_for_dependent_design",
+        reason_details.predictive_assessment.IID_NOT_SUPPORTED_FOR_DEPENDENT_DESIGN,
     )
     n = 40
     error = refused(lambda: rolling_result(pa.Dependence.serial(list(range(n)), 0), horizon=4))
-    expect(error, "sampling_dependence_unknown", "predictive_assessment.serial_lag_below_horizon")
+    expect(
+        error,
+        "sampling_dependence_unknown",
+        reason_details.predictive_assessment.SERIAL_LAG_BELOW_HORIZON,
+    )
     error = refused(
         lambda: pa.assess(
             observed([0.1, 0.2, 0.3, 0.4]),
@@ -429,7 +434,7 @@ def test_iid_is_refused_for_temporal_and_clustered_designs_and_short_lags_too() 
     expect(
         error,
         "sampling_dependence_unknown",
-        "predictive_assessment.iid_not_supported_for_dependent_design",
+        reason_details.predictive_assessment.IID_NOT_SUPPORTED_FOR_DEPENDENT_DESIGN,
     )
 
 
@@ -445,7 +450,9 @@ def test_a_mismatched_target_or_horizon_is_refused_not_converted() -> None:
             obs, [predictor("a", laws, target=other_units)], simulation(), scores=("crps",)
         )
     )
-    expect(error, "quantity_semantics_mismatch", "predictive_assessment.target_mismatch")
+    expect(
+        error, "quantity_semantics_mismatch", reason_details.predictive_assessment.TARGET_MISMATCH
+    )
     error = refused(
         lambda: pa.assess(
             obs,
@@ -454,7 +461,9 @@ def test_a_mismatched_target_or_horizon_is_refused_not_converted() -> None:
             scores=("crps",),
         )
     )
-    expect(error, "quantity_semantics_mismatch", "predictive_assessment.horizon_mismatch")
+    expect(
+        error, "quantity_semantics_mismatch", reason_details.predictive_assessment.HORIZON_MISMATCH
+    )
 
 
 def test_callback_laws_and_incomplete_provider_identities_are_refused_by_name() -> None:
@@ -462,7 +471,9 @@ def test_callback_laws_and_incomplete_provider_identities_are_refused_by_name() 
     laws = [pa.Gaussian(0.0, 1.0)] * 2
     callback = predictor("cb", laws, source=pa.LawSource.callback("python closure"))
     error = refused(lambda: pa.assess(obs, [callback], simulation(), scores=("crps",)))
-    expect(error, "route_not_supported", "predictive_assessment.law_callback_not_built")
+    expect(
+        error, "route_not_supported", reason_details.predictive_assessment.LAW_CALLBACK_NOT_BUILT
+    )
     incomplete = predictor(
         "svc",
         laws,
@@ -471,7 +482,9 @@ def test_callback_laws_and_incomplete_provider_identities_are_refused_by_name() 
         ),
     )
     error = refused(lambda: pa.assess(obs, [incomplete], simulation(), scores=("crps",)))
-    expect(error, "invalid_argument", "predictive_assessment.provider_identity_incomplete")
+    expect(
+        error, "invalid_argument", reason_details.predictive_assessment.PROVIDER_IDENTITY_INCOMPLETE
+    )
 
 
 def test_the_unsupported_routes_raise_typed_refusals() -> None:
@@ -489,17 +502,17 @@ def test_the_unsupported_routes_raise_typed_refusals() -> None:
     expect(
         refused(result.score_interval),
         "quantity_semantics_mismatch",
-        "predictive_assessment.interval_not_supported",
+        reason_details.predictive_assessment.INTERVAL_NOT_SUPPORTED,
     )
     expect(
         refused(result.causal_validity),
         "route_not_supported",
-        "predictive_assessment.not_a_causal_claim",
+        reason_details.predictive_assessment.NOT_A_CAUSAL_CLAIM,
     )
     expect(
         refused(result.score_as_probability),
         "route_not_supported",
-        "predictive_assessment.score_not_probability",
+        reason_details.predictive_assessment.SCORE_NOT_PROBABILITY,
     )
     error = refused(
         lambda: pa.assess(
@@ -510,7 +523,11 @@ def test_the_unsupported_routes_raise_typed_refusals() -> None:
             score_interval=(0.95, "stationary bootstrap"),
         )
     )
-    expect(error, "quantity_semantics_mismatch", "predictive_assessment.interval_not_supported")
+    expect(
+        error,
+        "quantity_semantics_mismatch",
+        reason_details.predictive_assessment.INTERVAL_NOT_SUPPORTED,
+    )
 
 
 @pytest.mark.requires_calibration
@@ -538,7 +555,7 @@ def test_a_scoped_score_interval_is_calibrated_inside_a_measured_design_and_anno
     expect(
         refused(result.score_interval),
         "quantity_semantics_mismatch",
-        "predictive_assessment.interval_not_supported",
+        reason_details.predictive_assessment.INTERVAL_NOT_SUPPORTED,
     )
     assert interval.calibration == "calibrated"
     # Below the measured number of cases, and at another level: reported, not calibrated.
@@ -561,7 +578,7 @@ def test_a_scoped_score_interval_is_calibrated_inside_a_measured_design_and_anno
     expect(
         refused(lambda: undeclared.score_interval("a", "crps")),
         "sampling_dependence_unknown",
-        "predictive_assessment.interval_dependence_undeclared",
+        reason_details.predictive_assessment.INTERVAL_DEPENDENCE_UNDECLARED,
     )
 
 
@@ -579,13 +596,13 @@ def test_malformed_declarations_are_typed_input_errors() -> None:
             obs, [predictor("a", [pa.Gaussian(0.0, 0.0)] * 2)], simulation(), scores=("crps",)
         )
     )
-    expect(error, "invalid_argument", "predictive_assessment.invalid_law")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.INVALID_LAW)
     # Repeated observation identities are refused, not scored twice.
     twice = pa.Observations(TARGET, [pa.keys("cohort", [1])[0]] * 2, "real", [0.0, 1.0])
     error = refused(
         lambda: pa.assess(twice, [predictor("a", laws)], simulation(), scores=("crps",))
     )
-    expect(error, "invalid_argument", "predictive_assessment.invalid_observations")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.INVALID_OBSERVATIONS)
 
 
 # --------------------------------------------------------------------------- overlap
@@ -612,14 +629,14 @@ def test_overlap_is_decided_from_row_identities() -> None:
     overlap = labelled.report.predictor("model").overlap
     assert (overlap.label, overlap.shared) == ("in_sample", 2)
     error = refused(lambda: overlap_result(shared, strict=True))
-    expect(error, "evidence_double_counted", "predictive_assessment.in_sample")
+    expect(error, "evidence_double_counted", reason_details.predictive_assessment.IN_SAMPLE)
 
 
 def test_an_undeclared_fit_is_unverified_and_never_held_out() -> None:
     undeclared = pa.FitDeclaration.undeclared("provider declared no fit data")
     assert overlap_result(undeclared).report.predictor("model").overlap.label == "unverified"
     error = refused(lambda: overlap_result(undeclared, strict=True))
-    expect(error, "evidence_overlap_unknown", "predictive_assessment.overlap_unknown")
+    expect(error, "evidence_overlap_unknown", reason_details.predictive_assessment.OVERLAP_UNKNOWN)
 
 
 def test_the_fit_set_is_resolved_from_the_evidence_ledger() -> None:
@@ -670,12 +687,14 @@ def test_the_fit_set_is_resolved_from_the_evidence_ledger() -> None:
             require_held_out=True,
         )
     )
-    expect(error, "evidence_double_counted", "predictive_assessment.in_sample")
+    expect(error, "evidence_double_counted", reason_details.predictive_assessment.IN_SAMPLE)
     # An undeclared source is unknown, never held out.
     vendor = ledger.add_source(el.SourceDeclaration("vendor", "external_claim"))
     assert pa.FitDeclaration.from_ledger(ledger, [vendor]).wire["kind"] == "undeclared"
     unknown = refused(lambda: pa.ledger_observations(ledger, vendor))
-    expect(unknown, "evidence_overlap_unknown", "predictive_assessment.overlap_unknown")
+    expect(
+        unknown, "evidence_overlap_unknown", reason_details.predictive_assessment.OVERLAP_UNKNOWN
+    )
 
 
 # --------------------------------------------------------------------------- drift and adapters
@@ -697,7 +716,7 @@ def test_drift_compares_the_pit_of_two_windows() -> None:
     expected = sum((b - a) * math.log(b / a) for a, b in zip(pa_, pb, strict=True))
     assert moved.population_stability_index == pytest.approx(expected, abs=1e-9)
     error = refused(lambda: pa.distribution_drift([], [0.5], 4))
-    expect(error, "invalid_argument", "predictive_assessment.diagnostic_not_defined")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.DIAGNOSTIC_NOT_DEFINED)
 
 
 def test_posterior_predictive_replicates_are_scored_as_sample_laws() -> None:
@@ -839,13 +858,15 @@ def test_replicates_fitted_to_the_scored_rows_are_refused_as_held_out() -> None:
         )
 
     expect(
-        refused(lambda: strict(None)), "evidence_double_counted", "predictive_assessment.in_sample"
+        refused(lambda: strict(None)),
+        "evidence_double_counted",
+        reason_details.predictive_assessment.IN_SAMPLE,
     )
     undeclared = pa.FitDeclaration.undeclared("the fit rows were not recorded")
     expect(
         refused(lambda: strict(undeclared)),
         "evidence_overlap_unknown",
-        "predictive_assessment.overlap_unknown",
+        reason_details.predictive_assessment.OVERLAP_UNKNOWN,
     )
     # A target other than the one the laws are laws of is refused, never converted.
     other = pa.Target("y", "another population", "outcome units")
@@ -954,14 +975,14 @@ def test_an_assessment_of_other_laws_fails_the_retained_identity() -> None:
     error = refused(
         lambda: pa.consume_predictive_assessment_artifact(bytes(other.export()), original.identity)
     )
-    expect(error, "route_not_supported", "predictive_assessment.wrong_contract")
+    expect(error, "route_not_supported", reason_details.predictive_assessment.WRONG_CONTRACT)
     # An identity edited in transit is refused the same way.
     wire = dict(original.identity.wire)
     wire["configuration"] = "0" * 64
     error = refused(
         lambda: pa.consume_predictive_assessment_artifact(bytes(original.export()), wire)
     )
-    expect(error, "route_not_supported", "predictive_assessment.wrong_contract")
+    expect(error, "route_not_supported", reason_details.predictive_assessment.WRONG_CONTRACT)
 
 
 def test_a_damaged_artifact_is_refused_and_never_consumed() -> None:
@@ -982,7 +1003,7 @@ def test_a_damaged_artifact_is_refused_and_never_consumed() -> None:
     )
     assert error.reason_code == "invalid_argument"
     bounded = refused(lambda: pa.consume_predictive_assessment_artifact(artifact, max_cases=5))
-    expect(bounded, "invalid_argument", "predictive_assessment.invalid_artifact")
+    expect(bounded, "invalid_argument", reason_details.predictive_assessment.INVALID_ARTIFACT)
     with pytest.raises(CausalTypeError):
         pa.consume_predictive_assessment_artifact("not bytes")  # type: ignore[arg-type]
 
@@ -996,7 +1017,7 @@ def test_a_refused_assessment_exports_nothing() -> None:
             scores=("crps",),
         )
     )
-    assert error.detail == "predictive_assessment.law_callback_not_built"
+    assert error.detail == reason_details.predictive_assessment.LAW_CALLBACK_NOT_BUILT
 
 
 def test_listing_the_cases_in_another_order_gives_the_same_assessment() -> None:

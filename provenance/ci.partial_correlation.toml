@@ -40,22 +40,26 @@ record_sha256 = "2a6dbf796166aa37127ed9a4cf31a5022d11b3d820af96a33f6a4ad4bd128e2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/parcorr.rs"
-sha256 = "82075082e51a16cb7dd3b8436d5fcad4fcaffad7ad84b19be962e768e081692e"
+items = ["fn new", "struct PartialCorrelation"]
+sha256 = "9bf6e85eb819ae44e97ea252ce9d91beeb90bf92a6c10b52c16806df82d75eff"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/analytic.rs"
-sha256 = "cf981d8c4b0fd0d18c6548c3a3ec39adeb8524a8c37bd7fcb5900b1dd4eb57ce"
+items = ["module"]
+sha256 = "e9694f8a8d5d8e0e4c47413e5c4d133459176e80b696c56c25ed9a878f1f1932"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/parcorr.rs"
-sha256 = "cdd4a635454d154def99661523e5b92462f6b0cc2da52abb8599e4d4f3a7e61f"
+items = ["const DENSE_CACHE_CELLS", "fn from", "fn new"]
+sha256 = "63f6b6feaa70fe5ed8e52b6193e378df2fcba4e02f7331b32b225a2859d92c88"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/ci_exact_reference.rs"
-sha256 = "232c3b95a3140f671c6e22f4d5a45e90fbfeb052a3f2b82a3cca0adcfd9504e7"
+items = ["const REFERENCE", "fn expand", "fn floats", "fn g_squared_matches_exact_contingency_arithmetic", "fn g_squared_refuses_sparse_and_degenerate_tables", "fn partial_correlation_matches_multiprecision_residualization", "fn rel", "fn run"]
+sha256 = "801033abbff26b27f757636917d8804cb589a5d4038416e77f00451955372109"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -37,17 +37,20 @@ record_sha256 = "ece87533165b4133afa174367b0f2bd17b6669391010adfb41accd251e40cb5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/target_native/joint.rs"
-sha256 = "3cbcfcb9654bb1cfa90714b7a7d70bfdfda06b7e686bce8472ff984c1292d772"
+items = ["const RELATIVE_RIDGE", "enum JointStatisticKind", "fn as_str", "fn cholesky_in_place", "fn joint_mahalanobis", "fn joint_mahalanobis_with_bias", "fn mahalanobis_squared", "fn mean_and_covariance", "struct JointStatistic"]
+sha256 = "82616d2c88043e65b98a2ad55028d014f09405b5ef692144d68d0aa126a0f7fb"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/target_native/derivative.rs"
-sha256 = "197a811dd597ef893a40da0ac8fdc0ca22ddf29b76cb60d695c60a2b90252014"
+items = ["fn check_step", "fn evaluate", "fn finite_difference_consistency", "fn local_linearity", "fn max_standardized", "fn passed", "struct DerivativeCheckPoint", "struct DerivativeConsistency", "struct LocalLinearity"]
+sha256 = "743444e21a226433168383a95a63c302e59ad2c4122425f79ddcc9a4ce6420ac"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/target_native_numerics_reference.rs"
-sha256 = "6831a1c9c50cd64cf12e9a7c01cd16f965622f0fc555db39aa519a68308f0274"
+items = ["fn floats", "fn joint_mahalanobis_equals_the_rational_quadratic_form_and_its_chi_square_tail", "fn local_linearity_equals_the_second_difference_definition", "fn lookup", "fn reference", "fn relative", "fn richardson_difference_truncation_and_standardisation_equal_their_definitions", "fn text"]
+sha256 = "d7394d2c3206557e4b594f43623d09d7d0b2931115101b2e0e5d1bc520ed60f3"
 
 [[method_review.artifacts]]
 role = "reference"

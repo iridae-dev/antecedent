@@ -58,7 +58,7 @@ pub fn mnar_sensitivity(
 fn unreadable(message: String) -> MnarSensitivityError {
     MnarSensitivityError {
         code: reason_code!("invalid_argument"),
-        detail: "mnar_sensitivity.invalid_data",
+        detail: antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA,
         message,
     }
 }
@@ -140,7 +140,7 @@ pub fn mnar_sensitivity_for_study(
     else {
         return Err(MnarSensitivityError {
             code: reason_code!("route_not_supported"),
-            detail: "mnar_sensitivity.unsupported_query",
+            detail: antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_QUERY,
             message: "the sensitivity analysis re-runs an average-effect query on tabular data"
                 .to_owned(),
         });

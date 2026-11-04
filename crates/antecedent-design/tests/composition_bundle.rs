@@ -789,7 +789,10 @@ fn bundle_stages_map_to_registered_codes_and_namespaced_details() {
         offending: Some("decision".into()),
     };
     let refusal = error.to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.unsupported_law");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::UNSUPPORTED_LAW
+    );
     assert_eq!(refusal.code, "joint_law_required");
     assert_eq!(refusal.offending.as_deref(), Some("decision"));
     for kind in NodeKind::ALL {

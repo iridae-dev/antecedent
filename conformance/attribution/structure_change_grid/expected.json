@@ -39,7 +39,41 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/structure_change.rs",
-          "sha256": "aa737a79429e52cb272906956053d79535efa8ebab597acf2680f60d09e866f0"
+          "items": [
+            "const STRUCTURE_CACHE_CAP",
+            "fn attributes_parent_set_change_to_y",
+            "fn baseline_law",
+            "fn build_hybrid",
+            "fn change_outside_the_players_is_reported_as_unexplained",
+            "fn compiled_for",
+            "fn default",
+            "fn ensure_fits",
+            "fn hybrid_structure_dag",
+            "fn law_memo",
+            "fn measure",
+            "fn memoized_fits_match_per_coalition_refit",
+            "fn non_ancestor_structural_diff_is_unidentified",
+            "fn parent_sets_differ",
+            "fn parent_swap_fixture",
+            "fn parent_swap_fixture_with_z_shift",
+            "fn rejects_mechanism_components",
+            "fn sample_outcome_law",
+            "fn sampled_structure_counts_follow_the_measure",
+            "fn sorted_parents",
+            "fn structure_change",
+            "fn structure_change_impl",
+            "fn structure_players",
+            "fn validate_shared_layout",
+            "fn value",
+            "struct Case",
+            "struct Comparison",
+            "struct Fixture",
+            "struct StructureChangeOptions",
+            "struct StructureFits",
+            "struct StructureSwapPayoff",
+            "type RefitWeights"
+          ],
+          "sha256": "e5c3bdeb7912293053bf7b04736142af0462062cd05938e1fc3354c24706bb23"
         }
       ],
       "fixture_payload_sha256": "7fb31ec20f0e7552534dd5c83049c38f96f7f899fc209f82b666bdfc8803a0f7"

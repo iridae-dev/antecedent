@@ -50,12 +50,14 @@ record_sha256 = "888adf2b9a23ab5a99d12a29acbd9a6a75a175d75a9d9bbad37223c8e949b95
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/band.rs"
-sha256 = "11f6085b295de299949b873f30d2a1ab5a0a0865ad06b30863db72459092aa40"
+items = ["fn simultaneous_multiplier_band", "fn simultaneous_posterior_band", "fn valid_band_endpoints"]
+sha256 = "282ccd021c18f3409a83d2c6435f0807ffa1939ca16ccf6899116e515325828a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_simultaneous_reference.rs"
-sha256 = "7a1048725d4304c89848df978bf22d8bcafc86f525a7c18d706fb3d461d35a69"
+items = ["const GAMMA", "fn floats", "fn mix64", "fn reference_band", "fn the_in_test_band_equals_the_frozen_reference_and_the_product_stream"]
+sha256 = "ae4e02e1101929ae75745f31b6f20d3381ade5b70a1bb73f4118b3f820add765"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -70,9 +72,11 @@ sha256 = "f69cbc541db6c8ac55f6e296655f9d9d139fa0489fc04053d9624c8173ed7f5c"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/estimate_response_kennedy_dr_declarations.rs"
-sha256 = "c9ff87c45de37bd6d903b8cebd9428b2ee92524f8174dccdcddd42189ac01c34"
+items = ["fn a_declared_dependence_is_refused_with_or_without_a_bootstrap_setting", "fn assert_refused", "fn run"]
+sha256 = "dfb54b2fd26a5505b0cd1be23fcc289c6a87c7a2aab6f0ea21fc1b5bb39670b2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/builder/finish.rs"
-sha256 = "f926944b49279923b1209c828160ccabf78d1b59c0fff36a70050aee62e56deb"
+items = ["module"]
+sha256 = "250d1f6a7ad6642e61c5b1a0093c21c47ae57955113da5cc7287dda4df78f96b"

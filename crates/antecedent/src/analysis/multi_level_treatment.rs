@@ -259,7 +259,7 @@ impl MultiLevelTreatment {
         let rows = request.outcome.len();
         if rows == 0 || request.treatment.len() != rows {
             return Err(invalid(
-                "treatment_levels.invalid_data",
+                antecedent_core::reason_details::treatment_levels::INVALID_DATA,
                 "outcome and treatment must be non-empty and of equal length",
             ));
         }
@@ -269,7 +269,7 @@ impl MultiLevelTreatment {
             || columns.flat_map(|c| &c.values).any(|v| v.is_infinite())
         {
             return Err(invalid(
-                "treatment_levels.invalid_data",
+                antecedent_core::reason_details::treatment_levels::INVALID_DATA,
                 "adjustment columns must match the rows and no value may be infinite",
             ));
         }
@@ -279,7 +279,7 @@ impl MultiLevelTreatment {
             || names.windows(2).any(|pair| pair[0] == pair[1])
         {
             return Err(invalid(
-                "treatment_levels.invalid_data",
+                antecedent_core::reason_details::treatment_levels::INVALID_DATA,
                 "adjustment names must be distinct, non-empty and not 'treatment' or 'outcome'",
             ));
         }
@@ -309,7 +309,7 @@ impl MultiLevelTreatment {
             MultiLevelTargetWire::FullPopulation => {
                 let levels = spec.levels.clone().ok_or_else(|| {
                     invalid(
-                        "treatment_levels.levels_missing",
+                        antecedent_core::reason_details::treatment_levels::LEVELS_MISSING,
                         "the full-population target declares its levels",
                     )
                 })?;

@@ -6,7 +6,7 @@
 # that path in evidence_path when a test that the gate consumes is registered.
 #
 # This sentinel is the executable check: scripts/gate_release.sh runs
-# scripts/check_v3_test_registry.py in the inventory section. The checker
+# scripts/check_test_registry.py in the inventory section. The checker
 # script is the test; it is not a cargo target and it does not stand in for
 # route evidence.
 
@@ -154,7 +154,7 @@ gates = ["inventory", "named"]
 id = "v3-registry-sentinel"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/check_v3_test_registry.py"
+path = "scripts/check_test_registry.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10625,20 +10625,6 @@ path = "scripts/test_calibration_decision_logs.py"
 gates = ["inventory"]
 
 [[test]]
-id = "calibration-dependency-facets-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_calibration_dependency_facets.py"
-gates = ["inventory"]
-
-[[test]]
-id = "calibration-facet-conjunctions-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_calibration_facet_conjunctions.py"
-gates = ["inventory"]
-
-[[test]]
 id = "calibration-family-script"
 crate = "scripts"
 cargo_target = "script"
@@ -10657,13 +10643,6 @@ id = "calibration-key-aliases-script"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_calibration_key_aliases.py"
-gates = ["inventory"]
-
-[[test]]
-id = "calibration-private-unit-scaffolding-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_calibration_private_unit_scaffolding.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10748,13 +10727,6 @@ id = "evidence-selftest-script"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_evidence_selftest.py"
-gates = ["inventory"]
-
-[[test]]
-id = "interval-attestation-cache-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_interval_attestation_cache.py"
 gates = ["inventory"]
 
 [[test]]
@@ -20732,10 +20704,10 @@ path = "scripts/test_gate_provenance_nonempty.py"
 gates = ["inventory"]
 
 [[test]]
-id = "audit-inventory-scripts-test-gate-release-candidate-2-py"
+id = "installed-wheel-import-script"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_gate_release_candidate_2.py"
+path = "scripts/test_check_installed_wheel_import.py"
 gates = ["inventory"]
 
 [[test]]
@@ -20809,10 +20781,10 @@ path = "scripts/test_retained_citation_declarations.py"
 gates = ["inventory"]
 
 [[test]]
-id = "audit-inventory-scripts-test-v3-evidence-revisions-py"
+id = "audit-inventory-scripts-test-test-evidence-revisions-py"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_v3_evidence_revisions.py"
+path = "scripts/test_evidence_revisions.py"
 gates = ["inventory"]
 
 [[test]]
@@ -21691,13 +21663,6 @@ path = "crates/antecedent/src/analysis/graph_imputation_receipt.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "graph-imputation-native-replay"
-crate = "antecedent"
-cargo_target = "lib"
-path = "crates/antecedent/src/analysis/graph_imputation/wire.rs"
-gates = ["inventory", "named"]
-
-[[test]]
 id = "graph-imputation-prepared-atom"
 crate = "antecedent"
 cargo_target = "lib"
@@ -21808,3 +21773,787 @@ crate = "antecedent-io"
 cargo_target = "lib"
 path = "crates/antecedent-io/src/measured_inference/mnar_candidate.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "admg-frontdoor-validation-known-truth"
+crate = "antecedent"
+cargo_target = "admg_frontdoor_validation_known_truth"
+path = "crates/antecedent/tests/admg_frontdoor_validation_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "admg-response-known-truth"
+crate = "antecedent"
+cargo_target = "admg_response_known_truth"
+path = "crates/antecedent/tests/admg_response_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-rd-known-truth"
+crate = "antecedent"
+cargo_target = "bayesian_rd_known_truth"
+path = "crates/antecedent/tests/bayesian_rd_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-static-known-truth"
+crate = "antecedent"
+cargo_target = "bayesian_static_known_truth"
+path = "crates/antecedent/tests/bayesian_static_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-temporal-glm-link-contrast-known-truth"
+crate = "antecedent"
+cargo_target = "bayesian_temporal_glm_link_contrast_known_truth"
+path = "crates/antecedent/tests/bayesian_temporal_glm_link_contrast_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-temporal-lagged-instrument-known-truth"
+crate = "antecedent"
+cargo_target = "bayesian_temporal_lagged_instrument_known_truth"
+path = "crates/antecedent/tests/bayesian_temporal_lagged_instrument_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-temporal-white-innovation-known-truth"
+crate = "antecedent"
+cargo_target = "bayesian_temporal_white_innovation_known_truth"
+path = "crates/antecedent/tests/bayesian_temporal_white_innovation_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "callback-downstream-exact"
+crate = "antecedent"
+cargo_target = "callback_downstream_exact"
+path = "crates/antecedent/tests/callback_downstream_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "class-explicit-known-truth"
+crate = "antecedent"
+cargo_target = "class_explicit_known_truth"
+path = "crates/antecedent/tests/class_explicit_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "class-posterior-known-truth"
+crate = "antecedent"
+cargo_target = "class_posterior_known_truth"
+path = "crates/antecedent/tests/class_posterior_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "conditional-study-ranking-exact"
+crate = "antecedent"
+cargo_target = "conditional_study_ranking_exact"
+path = "crates/antecedent/tests/conditional_study_ranking_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "counterfactual-accepted-known-truth"
+crate = "antecedent"
+cargo_target = "counterfactual_accepted_known_truth"
+path = "crates/antecedent/tests/counterfactual_accepted_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dag-response-validation-known-truth"
+crate = "antecedent"
+cargo_target = "dag_response_validation_known_truth"
+path = "crates/antecedent/tests/dag_response_validation_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "development-build"
+crate = "antecedent"
+cargo_target = "development_build"
+path = "crates/antecedent/tests/development_build.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dirichlet-update-exact"
+crate = "antecedent"
+cargo_target = "dirichlet_update_exact"
+path = "crates/antecedent/tests/dirichlet_update_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimator-support-enumeration"
+crate = "antecedent"
+cargo_target = "estimator_support_enumeration"
+path = "crates/antecedent/tests/estimator_support_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimator-validity-snapshot"
+crate = "antecedent"
+cargo_target = "estimator_validity_snapshot"
+path = "crates/antecedent/tests/estimator_validity_snapshot.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "frontdoor-known-truth"
+crate = "antecedent"
+cargo_target = "frontdoor_known_truth"
+path = "crates/antecedent/tests/frontdoor_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "functional-effect-average-dag-known-truth"
+crate = "antecedent"
+cargo_target = "functional_effect_average_dag_known_truth"
+path = "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graphless-did-known-truth"
+crate = "antecedent"
+cargo_target = "graphless_did_known_truth"
+path = "crates/antecedent/tests/graphless_did_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "interference-estimators-known-truth"
+crate = "antecedent"
+cargo_target = "interference_estimators_known_truth"
+path = "crates/antecedent/tests/interference_estimators_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-horizon-block-weight-construction"
+crate = "antecedent"
+cargo_target = "joint_horizon_block_weight_construction"
+path = "crates/antecedent/tests/joint_horizon_block_weight_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-sensitivity-source-exact"
+crate = "antecedent"
+cargo_target = "joint_sensitivity_source_exact"
+path = "crates/antecedent/tests/joint_sensitivity_source_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "learned-continuous-posterior-exact"
+crate = "antecedent"
+cargo_target = "learned_continuous_posterior_exact"
+path = "crates/antecedent/tests/learned_continuous_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mechanism-refit-bootstrap-construction"
+crate = "antecedent"
+cargo_target = "mechanism_refit_bootstrap_construction"
+path = "crates/antecedent/tests/mechanism_refit_bootstrap_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "native-response-claims-exact"
+crate = "antecedent"
+cargo_target = "native_response_claims_exact"
+path = "crates/antecedent/tests/native_response_claims_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "proposal-arrival-exact"
+crate = "antecedent"
+cargo_target = "proposal_arrival_exact"
+path = "crates/antecedent/tests/proposal_arrival_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "recalc-attempt-exact-effect"
+crate = "antecedent"
+cargo_target = "recalc_attempt_exact_effect"
+path = "crates/antecedent/tests/recalc_attempt_exact_effect.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "recalc-cell-exact-effect"
+crate = "antecedent"
+cargo_target = "recalc_cell_exact_effect"
+path = "crates/antecedent/tests/recalc_cell_exact_effect.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "recalc-composite-hand-utilities"
+crate = "antecedent"
+cargo_target = "recalc_composite_hand_utilities"
+path = "crates/antecedent/tests/recalc_composite_hand_utilities.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "recalc-exact-effect"
+crate = "antecedent"
+cargo_target = "recalc_exact_effect"
+path = "crates/antecedent/tests/recalc_exact_effect.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "release-not-supported"
+crate = "antecedent"
+cargo_target = "release_not_supported"
+path = "crates/antecedent/tests/release_not_supported.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "response-cells-known-truth"
+crate = "antecedent"
+cargo_target = "response_cells_known_truth"
+path = "crates/antecedent/tests/response_cells_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scenario-claims-exact"
+crate = "antecedent"
+cargo_target = "scenario_claims_exact"
+path = "crates/antecedent/tests/scenario_claims_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "smoothed-dose-posterior-exact"
+crate = "antecedent"
+cargo_target = "smoothed_dose_posterior_exact"
+path = "crates/antecedent/tests/smoothed_dose_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "source-evidence-exact"
+crate = "antecedent"
+cargo_target = "source_evidence_exact"
+path = "crates/antecedent/tests/source_evidence_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "static-adjustment-known-truth"
+crate = "antecedent"
+cargo_target = "static_adjustment_known_truth"
+path = "crates/antecedent/tests/static_adjustment_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-class-posterior-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_class_posterior_known_truth"
+path = "crates/antecedent/tests/temporal_class_posterior_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-dag-adjustment-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_dag_adjustment_known_truth"
+path = "crates/antecedent/tests/temporal_dag_adjustment_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-glm-link-contrast-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_glm_link_contrast_known_truth"
+path = "crates/antecedent/tests/temporal_glm_link_contrast_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-lagged-instrument-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_lagged_instrument_known_truth"
+path = "crates/antecedent/tests/temporal_lagged_instrument_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-sequential-gcomp-class-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_sequential_gcomp_class_known_truth"
+path = "crates/antecedent/tests/temporal_sequential_gcomp_class_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-sequential-gcomp-multistep-known-truth"
+crate = "antecedent"
+cargo_target = "temporal_sequential_gcomp_multistep_known_truth"
+path = "crates/antecedent/tests/temporal_sequential_gcomp_multistep_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "tier-diagnostics-exact"
+crate = "antecedent"
+cargo_target = "tier_diagnostics_exact"
+path = "crates/antecedent/tests/tier_diagnostics_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "tiered-average-effect-closed-form"
+crate = "antecedent"
+cargo_target = "tiered_average_effect_closed_form"
+path = "crates/antecedent/tests/tiered_average_effect_closed_form.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "white-innovation-posterior-construction"
+crate = "antecedent"
+cargo_target = "white_innovation_posterior_construction"
+path = "crates/antecedent/tests/white_innovation_posterior_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-adaptive-design-exact"
+crate = "antecedent-contract"
+cargo_target = "adaptive_design_exact"
+path = "crates/antecedent-contract/tests/adaptive_design_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-callback-consumers-exact"
+crate = "antecedent-contract"
+cargo_target = "callback_consumers_exact"
+path = "crates/antecedent-contract/tests/callback_consumers_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-composition-provenance-exact"
+crate = "antecedent-contract"
+cargo_target = "composition_provenance_exact"
+path = "crates/antecedent-contract/tests/composition_provenance_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-external-negotiation-exact"
+crate = "antecedent-contract"
+cargo_target = "external_negotiation_exact"
+path = "crates/antecedent-contract/tests/external_negotiation_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-external-probe-enumeration"
+crate = "antecedent-contract"
+cargo_target = "external_probe_enumeration"
+path = "crates/antecedent-contract/tests/external_probe_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-external-trust-probe-verdicts"
+crate = "antecedent-contract"
+cargo_target = "external_trust_probe_verdicts"
+path = "crates/antecedent-contract/tests/external_trust_probe_verdicts.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-external-verification-exact"
+crate = "antecedent-contract"
+cargo_target = "external_verification_exact"
+path = "crates/antecedent-contract/tests/external_verification_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-ledger-dependence-exact"
+crate = "antecedent-contract"
+cargo_target = "ledger_dependence_exact"
+path = "crates/antecedent-contract/tests/ledger_dependence_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-ledger-independence-exhaustive"
+crate = "antecedent-contract"
+cargo_target = "ledger_independence_exhaustive"
+path = "crates/antecedent-contract/tests/ledger_independence_exhaustive.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-ledger-transport-exact"
+crate = "antecedent-contract"
+cargo_target = "ledger_transport_exact"
+path = "crates/antecedent-contract/tests/ledger_transport_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-program-binding-exact"
+crate = "antecedent-contract"
+cargo_target = "program_binding_exact"
+path = "crates/antecedent-contract/tests/program_binding_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-contract-provider-admission-table"
+crate = "antecedent-contract"
+cargo_target = "provider_admission_table"
+path = "crates/antecedent-contract/tests/provider_admission_table.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-composition-bundle-exact"
+crate = "antecedent-design"
+cargo_target = "composition_bundle_exact"
+path = "crates/antecedent-design/tests/composition_bundle_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-composition-exact"
+crate = "antecedent-design"
+cargo_target = "composition_exact"
+path = "crates/antecedent-design/tests/composition_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-decision-exact"
+crate = "antecedent-design"
+cargo_target = "decision_exact"
+path = "crates/antecedent-design/tests/decision_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-design-ranking-exact"
+crate = "antecedent-design"
+cargo_target = "design_ranking_exact"
+path = "crates/antecedent-design/tests/design_ranking_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-external-provider-exact"
+crate = "antecedent-design"
+cargo_target = "external_provider_exact"
+path = "crates/antecedent-design/tests/external_provider_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-native-authority-exact"
+crate = "antecedent-design"
+cargo_target = "native_authority_exact"
+path = "crates/antecedent-design/tests/native_authority_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-obligations-exact"
+crate = "antecedent-design"
+cargo_target = "obligations_exact"
+path = "crates/antecedent-design/tests/obligations_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-proposal-receipt-exact"
+crate = "antecedent-design"
+cargo_target = "proposal_receipt_exact"
+path = "crates/antecedent-design/tests/proposal_receipt_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-repair-search-exact"
+crate = "antecedent-design"
+cargo_target = "repair_search_exact"
+path = "crates/antecedent-design/tests/repair_search_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-sequential-evaluation-interval-construction"
+crate = "antecedent-design"
+cargo_target = "sequential_evaluation_interval_construction"
+path = "crates/antecedent-design/tests/sequential_evaluation_interval_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-signal-provider-bayes-exact"
+crate = "antecedent-design"
+cargo_target = "signal_provider_bayes_exact"
+path = "crates/antecedent-design/tests/signal_provider_bayes_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-structured-refusals-exact"
+crate = "antecedent-design"
+cargo_target = "structured_refusals_exact"
+path = "crates/antecedent-design/tests/structured_refusals_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-study-candidate-exact"
+crate = "antecedent-design"
+cargo_target = "study_candidate_exact"
+path = "crates/antecedent-design/tests/study_candidate_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-transported-decision-artifact-exact"
+crate = "antecedent-design"
+cargo_target = "transported_decision_artifact_exact"
+path = "crates/antecedent-design/tests/transported_decision_artifact_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-adaptive-interval-exact"
+crate = "antecedent-estimate"
+cargo_target = "adaptive_interval_exact"
+path = "crates/antecedent-estimate/tests/adaptive_interval_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-admg-conditional-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "admg_conditional_posterior_exact"
+path = "crates/antecedent-estimate/tests/admg_conditional_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-bayesian-route-exact"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_route_exact"
+path = "crates/antecedent-estimate/tests/bayesian_route_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-bayesian-score-route-exact"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_score_route_exact"
+path = "crates/antecedent-estimate/tests/bayesian_score_route_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-choice-interval-construction"
+crate = "antecedent-estimate"
+cargo_target = "choice_interval_construction"
+path = "crates/antecedent-estimate/tests/choice_interval_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-clustered-score-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "clustered_score_posterior_exact"
+path = "crates/antecedent-estimate/tests/clustered_score_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-graphless-interference-saturation-known-truth"
+crate = "antecedent-estimate"
+cargo_target = "graphless_interference_saturation_known_truth"
+path = "crates/antecedent-estimate/tests/graphless_interference_saturation_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-graphless-local-polynomial-ratio-known-truth"
+crate = "antecedent-estimate"
+cargo_target = "graphless_local_polynomial_ratio_known_truth"
+path = "crates/antecedent-estimate/tests/graphless_local_polynomial_ratio_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-graphless-published-intervals-known-truth"
+crate = "antecedent-estimate"
+cargo_target = "graphless_published_intervals_known_truth"
+path = "crates/antecedent-estimate/tests/graphless_published_intervals_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-graphless-randomized-cuped-known-truth"
+crate = "antecedent-estimate"
+cargo_target = "graphless_randomized_cuped_known_truth"
+path = "crates/antecedent-estimate/tests/graphless_randomized_cuped_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-graphless-survival-bootstrap-known-truth"
+crate = "antecedent-estimate"
+cargo_target = "graphless_survival_bootstrap_known_truth"
+path = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-latent-class-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "latent_class_posterior_exact"
+path = "crates/antecedent-estimate/tests/latent_class_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-learned-continuous-interval-construction"
+crate = "antecedent-estimate"
+cargo_target = "learned_continuous_interval_construction"
+path = "crates/antecedent-estimate/tests/learned_continuous_interval_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-mechanism-ridge-exact"
+crate = "antecedent-estimate"
+cargo_target = "mechanism_ridge_exact"
+path = "crates/antecedent-estimate/tests/mechanism_ridge_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-mediation-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "mediation_posterior_exact"
+path = "crates/antecedent-estimate/tests/mediation_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-multi-source-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "multi_source_posterior_exact"
+path = "crates/antecedent-estimate/tests/multi_source_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-mz-transport-interval-construction"
+crate = "antecedent-estimate"
+cargo_target = "mz_transport_interval_construction"
+path = "crates/antecedent-estimate/tests/mz_transport_interval_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-observational-survival-replicated"
+crate = "antecedent-estimate"
+cargo_target = "observational_survival_replicated"
+path = "crates/antecedent-estimate/tests/observational_survival_replicated.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-recovery-binary-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "recovery_binary_posterior_exact"
+path = "crates/antecedent-estimate/tests/recovery_binary_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-recovery-chain-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "recovery_chain_posterior_exact"
+path = "crates/antecedent-estimate/tests/recovery_chain_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-scenario-covariance-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "scenario_covariance_posterior_exact"
+path = "crates/antecedent-estimate/tests/scenario_covariance_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-support-coordinate-ess-exact"
+crate = "antecedent-estimate"
+cargo_target = "support_coordinate_ess_exact"
+path = "crates/antecedent-estimate/tests/support_coordinate_ess_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-temporal-initial-state-bayesian-exact"
+crate = "antecedent-estimate"
+cargo_target = "temporal_initial_state_bayesian_exact"
+path = "crates/antecedent-estimate/tests/temporal_initial_state_bayesian_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-two-step-posterior-exact"
+crate = "antecedent-estimate"
+cargo_target = "two_step_posterior_exact"
+path = "crates/antecedent-estimate/tests/two_step_posterior_exact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-identify-scenario-invariance-numeric"
+crate = "antecedent-identify"
+cargo_target = "scenario_invariance_numeric"
+path = "crates/antecedent-identify/tests/scenario_invariance_numeric.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-stats-graphless-g-formula-interval-known-truth"
+crate = "antecedent-stats"
+cargo_target = "graphless_g_formula_interval_known_truth"
+path = "crates/antecedent-stats/tests/graphless_g_formula_interval_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-core-graph-imputation-contract"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/graph_imputation_contract.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-core-support-gate"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/support_gate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-evidence-digest"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/evidence_digest.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-graph-candidate"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/measured_inference/graph_candidate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-core-cross-moments"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/contract_section/cross_moments.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-core-method-provenance"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/method_provenance.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-test-citations"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_citations.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-calibration-status"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_calibration_status.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-evidence-fingerprint"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_fingerprint.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-scientific-records"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_scientific_records.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-gate-docs-vocabulary"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_docs_vocabulary.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-gate-reason-detail-literals"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_reason_detail_literals.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-review-items"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_review_items.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-route-behaviour"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_route_behaviour.py"
+gates = ["inventory"]

@@ -53,7 +53,17 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_derivative_effect.rs",
-          "sha256": "33870ca31fa38913d2f23fe035d1f29062d32b5315cf684a7bfcada506e24096"
+          "items": [
+            "fn attach",
+            "fn derivative_artifacts_are_consumed_under_the_estimator_the_plan_chose",
+            "fn derivative_support_reports_a_point_outside_the_observed_series",
+            "fn functionals",
+            "fn graph",
+            "fn series",
+            "fn temporal_dag_derivatives_publish_the_linear_slope",
+            "fn temporal_derivative_log_scales_use_the_fitted_mean_response_claims_06"
+          ],
+          "sha256": "b99985db171f768e3d059674adca43daa74c52ea3839fd207d44f92784876ff4"
         }
       ],
       "fixture_payload_sha256": "80b8857c182ec5f2edb8402e8743125c27f653755533418ce3a72cad694473ed"

@@ -41,6 +41,7 @@ from _repo import REPO_ROOT as ROOT
 from _repo import cargo_target_feature_args
 from _repo import test_target as cargo_test_target
 from _source_cache import source_cache
+from detail_constants import resolve_rust
 from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
 PARSE_MARKERS = re.compile(
@@ -156,7 +157,7 @@ def _attrs_before(skel: str, code: str, pos: int) -> list[str]:
 
 @source_cache
 def source_masked(path: Path) -> Masked:
-    return mask_rust(path.read_text(errors="ignore", encoding="utf-8"))
+    return mask_rust(resolve_rust(path.read_text(errors="ignore", encoding="utf-8")))
 
 
 def module_items(masked: Masked) -> list[RustItem]:
@@ -601,7 +602,7 @@ def registered_calibration_simulations(root: Path = ROOT) -> list[dict]:
 
 
 def _registered_calibration_assertions(root: Path, field: str) -> list[dict]:
-    registry = root / "parity/v3_test_registry.toml"
+    registry = root / "parity/test_registry.toml"
     rows = tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
     found = []
     seen = set()
@@ -652,12 +653,12 @@ def _unregistered_target(path_text: str, root: Path) -> dict | None:
 
 @functools.lru_cache(maxsize=4)
 def _registry_rows_at(root: Path, stamp: tuple[int, int]) -> dict[str, dict]:
-    registry = root / "parity/v3_test_registry.toml"
+    registry = root / "parity/test_registry.toml"
     return {row["path"]: row for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])}
 
 
 def _registry_rows(root: Path) -> dict[str, dict]:
-    registry = root / "parity/v3_test_registry.toml"
+    registry = root / "parity/test_registry.toml"
     if not registry.is_file():
         return {}
     stat = registry.stat()
@@ -685,7 +686,7 @@ def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) 
         seen.add((path_text, name))
         row = by_path.get(path_text) or _unregistered_target(path_text, root)
         if row is None:
-            problems.append(f"{path_text}::{name}: file is not in parity/v3_test_registry.toml")
+            problems.append(f"{path_text}::{name}: file is not in parity/test_registry.toml")
             continue
         crate = root / "crates" / row["crate"]
         manifest = manifests.setdefault(
@@ -701,7 +702,7 @@ def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) 
         target_source = crate / source
         if path.resolve() not in target_files(target_source.resolve(), crate.resolve()):
             problems.append(
-                f"{path_text}::{name}: file is not in parity/v3_test_registry.toml for target {target} "
+                f"{path_text}::{name}: file is not in parity/test_registry.toml for target {target} "
                 f"(outside its registered target)"
                 if path_text not in by_path
                 else f"{path_text}::{name}: outside its registered target {target}"

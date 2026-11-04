@@ -37,12 +37,28 @@
         {
           "role": "input_fixture",
           "path": "conformance/design/expected_information_gain/expected.json",
-          "sha256": "1c3f1171c5acf1a550526b0fb4745dbb368f459eda9ae8f1f0069c44ede10f60"
+          "sha256": "5066b617b57196aaa2558d5ff3b3e13be5ad2e21f80155d836a755caeb83232c"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent-design/tests/design_oracle.rs",
-          "sha256": "e272a61ef60c5195b89585b0714b23075a35080af92e7b956ef0c37d758fafd7"
+          "items": [
+            "const DECISION_FIXTURE",
+            "const EIG_FIXTURE",
+            "const RANKING_FIXTURE",
+            "fn adaptive_ranking_scores_agree_with_independent_exact_gain_claims_06",
+            "fn candidate_ranking_replays_and_calibrates_across_seed_grid",
+            "fn decision_enumeration_matches_exact_feasibility_contract",
+            "fn evaluation_context",
+            "fn exact_targets_are_monotone_in_design_amount",
+            "fn fixed_budget_scores_match_exact_expected_information_gain",
+            "fn fixture_candidates",
+            "fn fixture_graphs",
+            "fn name",
+            "struct FixedSatisfaction",
+            "struct ProductUtility"
+          ],
+          "sha256": "381e8e6ea1a785615cd8f84a2e5181a43b6d7c71394fc2cce4d32b75da5181be"
         }
       ],
       "sources": [],

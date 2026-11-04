@@ -6,7 +6,7 @@
 schema = 1
 missing_attempts = 0
 missing_consumers = 0
-adjusted_claims = 79
+adjusted_claims = 73
 unresolved_mandatorys = 0
 families = 28
 
@@ -98,7 +98,7 @@ gaps = "none = 2, validation = 2"
 id = "P15"
 children = 16
 unresolved_evidence = 0
-gaps = "none = 6, target = 4, validation = 6"
+gaps = "none = 12, target = 4"
 
 [[family]]
 id = "P16"
@@ -304,54 +304,6 @@ method = "P14"
 side = "temporal.bayesian"
 status = "supported"
 reason = "the circular-block Dirichlet interval is reported and asserted wider than the independent-row posterior by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P15.conditional.temporal.frequentist"
-method = "P15.conditional"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P15.conditional.temporal.bayesian"
-method = "P15.conditional"
-side = "temporal.bayesian"
-status = "not_supported"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P15.pulse.temporal.frequentist"
-method = "P15.pulse"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P15.pulse.temporal.bayesian"
-method = "P15.pulse"
-side = "temporal.bayesian"
-status = "not_supported"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P15.sustained.temporal.frequentist"
-method = "P15.sustained"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P15.sustained.temporal.bayesian"
-method = "P15.sustained"
-side = "temporal.bayesian"
-status = "not_supported"
-reason = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]

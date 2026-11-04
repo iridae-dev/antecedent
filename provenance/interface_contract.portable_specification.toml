@@ -48,22 +48,25 @@ record_sha256 = "7ce5909637b04fee0f1201302473800f21ae9b3a92063bb500685aa689c131d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/identity.rs"
-sha256 = "14654d22c36bcbdce0e6852d729582aedcec430c70fdeeed797634a098fea8a7"
+items = ["const FNV1A_64_OFFSET", "const FNV1A_64_PRIME", "const HEX", "fn as_str", "fn byte", "fn bytes", "fn default", "fn from_bytes", "fn new", "fn text", "fn to_hex", "struct CanonicalWriter", "struct SemanticDigest"]
+sha256 = "149df9518a7666d0076b6d05aa261bda37029881f8dabcebcbe016ad29ba2d44"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/interface_contract_artifact.rs"
-sha256 = "79e81b89a65d924b019d96b010a921537f6e27c3e0578828f6c95d560c6cb8f0"
+items = ["const ARTIFACT_KIND", "const INTERFACE_CONTRACT_ARTIFACT_FEATURE", "const INTERFACE_CONTRACT_ARTIFACT_TAG", "const INTERFACE_CONTRACT_ARTIFACT_VERSION", "const MAX_INTERFACE_CONTRACT_ARTIFACT_BYTES", "const META_SECTION", "fn calibration_from_wire", "fn calibration_to_wire", "fn check", "fn compute_identity", "fn consumed_from_wire", "fn contract", "fn contract_from_wire_within", "fn contract_identity", "fn contract_to_wire", "fn decode_meta", "fn default", "fn encode_meta", "fn from_bytes", "fn from_bytes_within", "fn identity", "fn inspect", "fn is_strictly_increasing", "fn malformed", "fn meta_to_bytes", "fn operations_from_wire", "fn operations_to_wire", "fn produced_from_wire", "fn quantity_from_wire", "fn refusal", "fn refused", "fn reseal_identity", "fn seal", "fn strictly_increasing", "fn string_set", "fn support_from_wire", "fn support_to_wire", "fn to_bytes", "fn uncertainty_from_wire", "fn uncertainty_to_wire", "fn unsupported", "struct CalibrationWire", "struct ConsumedPortWire", "struct ContractWire", "struct EvidenceWire", "struct InterfaceContractArtifact", "struct InterfaceContractIntakeLimits", "struct InterfaceContractMeta", "struct ProducedPortWire", "struct SupportWire", "struct UncertaintyWire", "type Failure"]
+sha256 = "f853e4c0c9e7f85fab65258c62d175da838eb08f9f805f702f55eb3577824c7e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/specification_conformance.rs"
-sha256 = "314efe57a8a2dbbe8ed02b8b9bcb14e22bfdd3aff5b5bbf3e37fe93c918ca38e"
+items = ["const CB_KIND", "const CB_SECTION", "const EL_KIND", "const EL_SECTION", "const IC_KIND", "const IC_SECTION", "enum Step", "fn accepted", "fn add_field", "fn all_fixtures", "fn assemble", "fn at", "fn blake3_vectors", "fn bundle_parts", "fn committed_fixtures_regenerate_bit_for_bit", "fn composition_bundle_fixtures", "fn conformance_dir", "fn consumer_contract", "fn digest", "fn edit_section", "fn enum_of", "fn estimator_contract", "fn evidence_ledger_fixtures", "fn expected_files", "fn flip_edit", "fn flip_hex", "fn int_edit", "fn interface_contract_fixtures", "fn json_of", "fn ledger_fixture", "fn load_schema", "fn model_identity", "fn mutations", "fn normalize", "fn parts", "fn pretty", "fn python", "fn quantity", "fn rejected", "fn run_consumer", "fn schema_vocabularies_equal_the_implementations", "fn section_value", "fn set", "fn set_int", "fn set_text", "fn spec_dir", "fn text_edit", "fn the_clean_room_consumer_accepts_and_rejects_the_committed_fixtures", "fn the_clean_room_consumer_agrees_with_the_implementation_on_every_distinct_identity", "fn the_clean_room_consumer_rejects_mutated_copies_of_every_accepted_fixture", "fn the_clean_room_consumers_vocabulary_tables_equal_the_implementations", "fn the_specification_text_states_the_implementations_tables_and_tags", "fn try_at", "struct Fixture", "type Edit", "type Part"]
+sha256 = "76953692558f8c6a63afebadcae85f03b42382961c29cfe737922b67532a7bf4"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "spec/consumer/validate.py"
-sha256 = "68770b2f98614a0c4b49738866f49f8948b096c793b809c8a273d15568bc219a"
+sha256 = "db739b1747484f1b846251a1e50ab38ff676337eeca918bfa44c124e25598e1d"
 
 [[method_review.artifacts]]
 role = "fixture"

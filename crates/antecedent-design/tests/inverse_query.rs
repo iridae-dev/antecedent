@@ -345,7 +345,10 @@ fn nonlinear_utility_inverts_on_an_aligned_joint_law_and_refuses_marginals() {
             .unwrap_err();
     assert!(matches!(error, InverseQueryError::Engine(DecisionEvalError::JointLawRequired { .. })));
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_evaluation.joint_law_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED
+    );
     assert_eq!(refusal.code, "joint_law_required");
 }
 
@@ -385,7 +388,10 @@ fn a_mean_never_answers_a_probability_or_quantile() {
             error,
             InverseQueryError::Engine(DecisionEvalError::MeanSourceInsufficient { .. })
         ));
-        assert_eq!(error.to_refusal().detail, "decision_evaluation.mean_source_insufficient");
+        assert_eq!(
+            error.to_refusal().detail,
+            antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT
+        );
     }
 }
 

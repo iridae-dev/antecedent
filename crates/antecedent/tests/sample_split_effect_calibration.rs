@@ -539,7 +539,7 @@ fn named_boundary(test: &'static str, dgp: &'static str, runs: &[Option<Scored>]
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn sample_split_discovered_effect_nominal_95_coverage() {
     const TEST: &str = "sample_split_discovered_effect_nominal_95_coverage";
     let runs = map_replicates(n_sim(), |rep| split_replicate(supported_family_data, None, rep));
@@ -549,7 +549,7 @@ fn sample_split_discovered_effect_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn sample_split_weak_edges_boundary_95() {
     let runs = map_replicates(n_sim(), |rep| {
         split_replicate(weak_edge_family_data, Some("weak_edges"), rep)
@@ -558,7 +558,7 @@ fn sample_split_weak_edges_boundary_95() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn sample_split_cancelling_edge_boundary_95() {
     let runs = map_replicates(n_sim(), |rep| {
         split_replicate(cancelling_edge_family_data, Some("cancelling_edge"), rep)
@@ -571,7 +571,7 @@ fn sample_split_cancelling_edge_boundary_95() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn sample_split_misspecified_test_boundary_95() {
     let runs = map_replicates(n_sim(), |rep| {
         split_replicate(misspecified_test_family_data, Some("misspecified_test"), rep)
@@ -584,7 +584,7 @@ fn sample_split_misspecified_test_boundary_95() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn sample_split_full_row_reuse_boundary_95() {
     let runs = map_replicates(n_sim(), reuse_replicate);
     named_boundary("sample_split_full_row_reuse_boundary_95", "supported_family_data", &runs);

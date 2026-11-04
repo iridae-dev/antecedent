@@ -60,11 +60,7 @@ fn dataset(
         treatment.push(t);
         x_column.push(x);
         z_column.push(z);
-        outcome.push(if rng.uniform() < if t == 0.0 { 0.9 } else { 0.7 } {
-            y
-        } else {
-            f64::NAN
-        });
+        outcome.push(if rng.uniform() < if t == 0.0 { 0.9 } else { 0.7 } { y } else { f64::NAN });
     }
     let mut columns = vec![("t", treatment), ("y", outcome), ("x", x_column)];
     if variables == 4 {
@@ -76,7 +72,7 @@ fn dataset(
 
 /// T randomized/root, X independent of T, Y=0.8T+0.4X+N(0,1); missing Y depends only on T.
 #[test]
-#[ignore = "calibration: run through scripts/gate_calibration.sh"]
+#[ignore = "calibration: run through scripts/measure_calibration_groups.sh"]
 fn graph_imputation_mar_bic_nearest_rank_candidate() {
     let n = grid_n(200);
     let results = map_replicates(n_sim(), |replicate| {
@@ -143,10 +139,8 @@ fn prior_predictive_cell(
         .ok()?;
         Some((truth, candidate))
     });
-    let mut tally = CoverageTally::for_record(
-        RecordKey { test, dgp, interval: "nearest_rank_95" },
-        0.95,
-    );
+    let mut tally =
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "nearest_rank_95" }, 0.95);
     let mut skipped = 0u64;
     for result in results {
         match result {
@@ -166,7 +160,7 @@ fn prior_predictive_cell(
 
 /// Three variables, randomized root treatment: the empty adjustment set in every graph.
 #[test]
-#[ignore = "calibration: run through scripts/gate_calibration.sh"]
+#[ignore = "calibration: run through scripts/measure_calibration_groups.sh"]
 fn graph_imputation_prior_predictive_uniform_effect_candidate() {
     prior_predictive_cell(
         "graph_imputation_prior_predictive_uniform_effect_candidate",
@@ -180,7 +174,7 @@ fn graph_imputation_prior_predictive_uniform_effect_candidate() {
 /// Three variables, the covariate confounds: adjustment sets differ between graphs. Every graph
 /// has a unique minimal back-door set, so the support rule excludes none.
 #[test]
-#[ignore = "calibration: run through scripts/gate_calibration.sh"]
+#[ignore = "calibration: run through scripts/measure_calibration_groups.sh"]
 fn graph_imputation_prior_predictive_confounded_candidate() {
     prior_predictive_cell(
         "graph_imputation_prior_predictive_confounded_candidate",
@@ -193,7 +187,7 @@ fn graph_imputation_prior_predictive_confounded_candidate() {
 
 /// Four variables, randomized root treatment: a larger graph, still no confounding.
 #[test]
-#[ignore = "calibration: run through scripts/gate_calibration.sh"]
+#[ignore = "calibration: run through scripts/measure_calibration_groups.sh"]
 fn graph_imputation_prior_predictive_four_variable_candidate() {
     prior_predictive_cell(
         "graph_imputation_prior_predictive_four_variable_candidate",
@@ -209,7 +203,7 @@ fn graph_imputation_prior_predictive_four_variable_candidate() {
 /// back-door adjustment set; graphs with two minimal sets are excluded and the mixture weights
 /// the retained graphs only, so a record measured here covers that support rule and no other.
 #[test]
-#[ignore = "calibration: run through scripts/gate_calibration.sh"]
+#[ignore = "calibration: run through scripts/measure_calibration_groups.sh"]
 fn graph_imputation_prior_predictive_four_variable_confounded_candidate() {
     prior_predictive_cell(
         "graph_imputation_prior_predictive_four_variable_confounded_candidate",

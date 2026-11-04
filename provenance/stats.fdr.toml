@@ -42,22 +42,25 @@ record_sha256 = "5ecc39c848d84be778a662034b27c7d5ade0dbb4cf281b16bff0e44cf04f26d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/fdr.rs"
-sha256 = "073cc6e0380cacf1a33095867adb596cabdd2b2aa89c1f8f7fd289cb9dfff825"
+items = ["enum MultipleTestingMethod", "fn adjust_pvalues", "fn adjustment_pvalue", "fn benjamini_hochberg", "fn benjamini_yekutieli", "fn bh_family", "fn bonferroni", "fn default", "fn holm", "fn valid_pvalue", "struct FdrAdjustment"]
+sha256 = "4c09471b65d7f89f236cab3fe986b3d2df650576676fa87c2174aeb7fe56cf99"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/evidence.rs"
-sha256 = "6ad77382c73879b173d20b5a5f7aa024afb49f40159bde2c1942c3f6a6a8ab3d"
+items = ["fn in_fdr_family", "fn threshold_scored_links"]
+sha256 = "f4d6c94985a63cb4a7acbadac9379c45bf17f14fc3ece80b37f09ce1f09b721c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/multiplicity_oracle.rs"
-sha256 = "b16c11e30f8066a806cc5aab40ebf0e6a180b17000f876af6de5484af9bb8ad3"
+items = ["fn all_adjustment_methods_match_statsmodels", "fn close", "fn discovery_family_routing_matches_statsmodels_with_and_without_lag_zero", "fn fixture", "fn method", "fn routing_links"]
+sha256 = "b4d88784e4c77b0ce95b3055ccad851c9e2984477b4a4e207bc571eb39e4b55b"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/multiplicity/expected.json"
-sha256 = "a1747f146e138fa8d4628d29c3be3c6f2d9b24b6c658353081ed5608e2b4926c"
+sha256 = "c3062c2adfcff779e400065ed22fd3664d9331616cc7f088a86e2541d91dddd5"
 
 [[method_review.artifacts]]
 role = "reference"

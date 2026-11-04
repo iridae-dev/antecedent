@@ -7,7 +7,7 @@
 //! in every member, or the answer is a structural range) is scored as a non-report, so the
 //! coverage is of the whole procedure including its discovery and the rate at which it reports.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build). The interval stays
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build). The interval stays
 //! unbound to any record until this design is measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

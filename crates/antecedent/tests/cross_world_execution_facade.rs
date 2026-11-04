@@ -93,7 +93,10 @@ fn natural_direct_effect_seals_replays_and_resumes() {
     assert_eq!(sealed.result().label, "point_only");
     let interval = sealed.interval().err().expect("an unqualified interval is closed");
     assert_eq!(interval.code, "sampling_dependence_unknown");
-    assert_eq!(interval.detail, "cross_world_execution.no_interval_method");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::cross_world_execution::NO_INTERVAL_METHOD
+    );
     assert_eq!(sealed.posterior().unwrap_err().code, "uncertainty_representation_insufficient");
 
     let bytes = sealed.to_bytes("natural-direct").unwrap();

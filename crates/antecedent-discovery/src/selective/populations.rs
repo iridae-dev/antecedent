@@ -235,7 +235,7 @@ impl PerPopulationDiscovery {
             let report = adapter.run(&per_population, rows.data, ctx)?;
             let outcome = adapter.outcome().ok_or_else(|| {
                 invalid(
-                    "selective_discovery.nothing_retained",
+                    antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                     "the population run retained no outcome",
                 )
             })?;
@@ -285,7 +285,7 @@ fn validate_request(
     {
         return Err(SelectiveDiscoveryError::refused(
             antecedent_core::reason_code!("route_not_supported"),
-            "selective_discovery.pooled_population_search",
+            antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_SEARCH,
             "per-population discovery runs the contract on each population separately and \
              pools nothing. A pooled or context-variable search has its own cross-population \
              invariance assumptions: use the pooled algorithm directly and declare those \
@@ -294,7 +294,7 @@ fn validate_request(
     }
     if populations.len() < 2 {
         return Err(invalid(
-            "selective_discovery.populations_missing",
+            antecedent_core::reason_details::selective_discovery::POPULATIONS_MISSING,
             "declare at least two populations; a single population is the single-population \
              route",
         ));
@@ -303,13 +303,13 @@ fn validate_request(
     for rows in populations {
         if rows.population.trim().is_empty() {
             return Err(invalid(
-                "selective_discovery.population_missing",
+                antecedent_core::reason_details::selective_discovery::POPULATION_MISSING,
                 "every table is declared with the population it was drawn from",
             ));
         }
         if !seen.insert(rows.population) {
             return Err(invalid(
-                "selective_discovery.population_repeated",
+                antecedent_core::reason_details::selective_discovery::POPULATION_REPEATED,
                 format!(
                     "population `{}` is declared twice; give each table its own population \
                      label, or merge them into one declared population",
@@ -328,7 +328,7 @@ fn refuse_duplicate_rows(
         for (second, b) in &identities[i + 1..] {
             if a.digest == b.digest {
                 return Err(invalid(
-                    "selective_discovery.pooled_population_data",
+                    antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_DATA,
                     format!(
                         "populations `{first}` and `{second}` hold content-identical rows, so \
                          they are one dataset under two labels (a pooled table split by label, \

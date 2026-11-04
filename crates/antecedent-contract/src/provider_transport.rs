@@ -270,45 +270,45 @@ impl ProviderTransportSource {
     pub fn admit(&self) -> Result<AdmittedProviderSource, ExternalRefusal> {
         if !text_ok(&self.component) || !text_ok(&self.semantic_identity) {
             return Err(declare(
-                "provider_transport.blank_field",
+                antecedent_core::reason_details::provider_transport::BLANK_FIELD,
                 "name the component and the semantic identity of the quantity",
             ));
         }
         if self.quantity.population_id.trim().is_empty() {
             return Err(declare(
-                "provider_transport.population_missing",
+                antecedent_core::reason_details::provider_transport::POPULATION_MISSING,
                 "declare the population the provider's output was established in",
             )
             .with_offending("quantity.population_id"));
         }
         if self.quantity.regime_id.trim().is_empty() {
             return Err(declare(
-                "provider_transport.regime_missing",
+                antecedent_core::reason_details::provider_transport::REGIME_MISSING,
                 "declare the intervention regime (`observational` is explicit) the provider's output answers",
             )
             .with_offending("quantity.regime_id"));
         }
         if self.quantity.validate().is_err() || !self.support.is_well_formed() {
             return Err(declare(
-                "provider_transport.quantity_invalid",
+                antecedent_core::reason_details::provider_transport::QUANTITY_INVALID,
                 "name the variable, units, functional and transform of the quantity, with canonical conditioning and a well formed support",
             ));
         }
         if object_meaning(&self.object).is_none() {
             return Err(declare(
-                "provider_transport.object_unsupported",
+                antecedent_core::reason_details::provider_transport::OBJECT_UNSUPPORTED,
                 "offer a law, a parameter posterior or a causal-functional posterior; other provider objects are not source evidence of this route",
             ));
         }
         if self.object.validate().is_err() {
             return Err(declare(
-                "provider_transport.object_invalid",
+                antecedent_core::reason_details::provider_transport::OBJECT_INVALID,
                 "declare a complete provider object with distinct quantities and operations",
             ));
         }
         if self.assumptions.is_empty() || self.assumptions.iter().any(|a| !text_ok(a)) {
             return Err(declare(
-                "provider_transport.assumptions_missing",
+                antecedent_core::reason_details::provider_transport::ASSUMPTIONS_MISSING,
                 "name the invariance and selection assumptions the provider's output relies on",
             ));
         }
@@ -317,7 +317,7 @@ impl ProviderTransportSource {
             .any(|declared| declared.require_same_coordinate(&self.quantity).is_ok())
         {
             return Err(not_bound(
-                "provider_transport.quantity_not_declared",
+                antecedent_core::reason_details::provider_transport::QUANTITY_NOT_DECLARED,
                 "offer a quantity, population and regime that the provider object declares",
             )
             .with_supplied(self.quantity.canonical_identity()));
@@ -325,20 +325,20 @@ impl ProviderTransportSource {
         match &self.trust {
             ExternalTrustState::NativeSupported => {
                 return Err(declare(
-                    "provider_transport.native_trust_claimed",
+                    antecedent_core::reason_details::provider_transport::NATIVE_TRUST_CLAIMED,
                     "a provider is external: declare it attested or exact-request verified; native support is never conferred by metadata",
                 ));
             }
             ExternalTrustState::ExternallyAttested { attestor } => {
                 if !text_ok(attestor) {
                     return Err(declare(
-                        "provider_transport.trust_incomplete",
+                        antecedent_core::reason_details::provider_transport::TRUST_INCOMPLETE,
                         "name the attestor of an attested provider",
                     ));
                 }
                 if self.requirement == SourceTrustRequirement::ExactRequestVerified {
                     return Err(untrusted(
-                        "provider_transport.verification_required",
+                        antecedent_core::reason_details::provider_transport::VERIFICATION_REQUIRED,
                         "supply an exact-request verification receipt that covers this provider object; an attestation does not stand in for it",
                     )
                     .with_expected("verified_extension")
@@ -348,7 +348,7 @@ impl ProviderTransportSource {
             ExternalTrustState::ExactRequestVerified(_) => {
                 if !self.trust.verifies(&self.object) {
                     return Err(untrusted(
-                        "provider_transport.receipt_does_not_cover",
+                        antecedent_core::reason_details::provider_transport::RECEIPT_DOES_NOT_COVER,
                         "supply the receipt issued for this exact provider object, version, snapshot and request",
                     ));
                 }
@@ -510,7 +510,7 @@ impl AdmittedProviderSource {
     pub fn require_bound_to(&self, transport: &TransportIdentity) -> Result<(), ExternalRefusal> {
         if !transport.source_populations.iter().any(|p| p == self.population()) {
             return Err(quantity_mismatch(
-                "provider_transport.population_not_a_source",
+                antecedent_core::reason_details::provider_transport::POPULATION_NOT_A_SOURCE,
                 "use a provider whose population is a source population of the selection diagram, or declare the transport from that population",
             )
             .with_expected(transport.source_populations.join(","))
@@ -520,7 +520,7 @@ impl AdmittedProviderSource {
             self.source.assumptions.iter().find(|a| !transport.assumptions.contains(a))
         {
             return Err(assumption_mismatch(
-                "provider_transport.assumptions_not_carried",
+                antecedent_core::reason_details::provider_transport::ASSUMPTIONS_NOT_CARRIED,
                 "carry every assumption the provider's output relies on in the transport identity",
             )
             .with_offending(missing.clone()));
@@ -648,13 +648,13 @@ impl TransportedClaimOffer {
             || transport.source_populations.contains(&transport.target_population)
         {
             return Err(declare(
-                "provider_transport.transport_identity_incomplete",
+                antecedent_core::reason_details::provider_transport::TRANSPORT_IDENTITY_INCOMPLETE,
                 "name the source populations (none of them the target), the target population, the selection diagram and the assumptions the claim was carried under",
             ));
         }
         if self.quantity.population_id != transport.target_population {
             return Err(quantity_mismatch(
-                "provider_transport.claim_not_in_target",
+                antecedent_core::reason_details::provider_transport::CLAIM_NOT_IN_TARGET,
                 "state the transported claim in the target population of its transport identity",
             )
             .with_expected(transport.target_population.clone())
@@ -662,7 +662,7 @@ impl TransportedClaimOffer {
         }
         if self.evidence.is_empty() {
             return Err(declare(
-                "provider_transport.evidence_missing",
+                antecedent_core::reason_details::provider_transport::EVIDENCE_MISSING,
                 "name the ledger sources the transported claim was derived from",
             ));
         }
@@ -715,7 +715,7 @@ impl TransportedClaimOffer {
     ) -> Result<Self, ExternalRefusal> {
         let EvidenceBasis::Declared(evidence) = &port.evidence else {
             return Err(declare(
-                "provider_transport.evidence_missing",
+                antecedent_core::reason_details::provider_transport::EVIDENCE_MISSING,
                 "name the ledger sources the transported claim was derived from",
             ));
         };
@@ -842,7 +842,7 @@ pub fn hand_to_consumer(
     if policy == TransportedInputPolicy::NativeTargetOnly {
         return Err(vec![
             assumption_mismatch(
-                "provider_transport.native_target_required",
+                antecedent_core::reason_details::provider_transport::NATIVE_TARGET_REQUIRED,
                 "supply native target data, or declare the consumer's input as accepting a transported claim with its transport identity",
             )
             .with_offending(consumed_port)
@@ -895,7 +895,7 @@ pub fn hand_to_callback(
     {
         return Err(vec![
             assumption_mismatch(
-                "provider_transport.input_not_external",
+                antecedent_core::reason_details::provider_transport::INPUT_NOT_EXTERNAL,
                 "hand a transported claim to an input supplied from outside the callback graph",
             )
             .with_offending(input),

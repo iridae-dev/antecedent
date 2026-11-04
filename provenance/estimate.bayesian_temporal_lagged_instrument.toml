@@ -40,12 +40,14 @@ record_sha256 = "c83af3d40c7eb9b984e02d6b34d8a2de241ba2e859c0be470c9c92d8465d0d0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/lagged_instrument.rs"
-sha256 = "2bdebdcb0d6952408593fa7119ce2518b406dc2632c718a68ba2aedbab9cbb43"
+items = ["const MIN_ALIGNED_ROWS", "const POSTERIOR_MODEL", "const WALD_MODEL", "fn align", "fn fit_lagged_instrument", "fn fit_lagged_instrument_posterior", "fn quantile", "fn ratio_posterior", "fn require_threshold", "fn residual_weight", "fn wald", "struct AlignedSeries", "struct LaggedInstrumentContrast", "struct LaggedInstrumentPosterior", "struct LaggedInstrumentSample"]
+sha256 = "5c40d65a34bbdb92140c06dcbf399b8d6778add723f897e3ff5b324b703139cd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/lagged_instrument_ratio_reference.rs"
-sha256 = "1d9ddfcd2badcf22e8229c6e81fb67626aed84b295a28b48a5fb60baf1f8b21d"
+items = ["const DRAWS", "fn a_zero_lag_and_a_short_series_are_refused", "fn cases", "fn floats", "fn relative", "fn the_ratio_draws_follow_the_exact_distribution_function_of_the_gaussian_ratio", "fn the_wald_contrast_matches_the_exact_reference"]
+sha256 = "0dd0f50f96319fdbca131e35591c2a7b57f20829b0ebcec8cd3ec2c2f6b0dbe9"
 
 [[method_review.artifacts]]
 role = "reference"

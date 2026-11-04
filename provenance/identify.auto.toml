@@ -30,4 +30,5 @@ record_sha256 = "37b9a666d6c1c0a4bb958c616ff66e17611f6d0d59dcf568ed193b4d4f96de9
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/auto.rs"
-sha256 = "2da7e3d65f2d9d4be453e3ac214ec9e03c0f37064bf54589f4f771cdd62e80c6"
+items = ["struct AutoIdentifier"]
+sha256 = "b427fbd50c70f37e1f0402cef840dc6099d9e868ea9a53ba885a7b2030cbeb59"

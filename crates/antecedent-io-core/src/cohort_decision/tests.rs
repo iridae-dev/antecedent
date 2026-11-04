@@ -233,7 +233,10 @@ fn the_interval_route_is_not_supported_with_a_remedy() {
     let source = build(&compact_model(), &cohort()).unwrap();
     let interval = source.interval_refusal();
     assert_eq!(interval.code, "route_not_supported");
-    assert_eq!(interval.detail, "cohort_decision.interval_requires_native_fit");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT
+    );
     assert!(interval.remedy.contains("measured native-fit route"));
     interval.to_refusal().validate().unwrap();
     // A diagnostic is present for the compact model and none for the portable one.
@@ -249,15 +252,23 @@ fn law_valued_requests_are_refused_with_a_remedy() {
         (
             LawRequest::Probability,
             "decision_contract_unsatisfied",
-            "cohort_decision.law_not_supplied",
+            antecedent_core::reason_details::cohort_decision::LAW_NOT_SUPPLIED,
         ),
-        (LawRequest::Quantile, "decision_contract_unsatisfied", "cohort_decision.law_not_supplied"),
+        (
+            LawRequest::Quantile,
+            "decision_contract_unsatisfied",
+            antecedent_core::reason_details::cohort_decision::LAW_NOT_SUPPLIED,
+        ),
         (
             LawRequest::NonlinearUtility,
             "decision_contract_unsatisfied",
-            "cohort_decision.law_not_supplied",
+            antecedent_core::reason_details::cohort_decision::LAW_NOT_SUPPLIED,
         ),
-        (LawRequest::JointLaw, "joint_law_required", "cohort_decision.joint_law_required"),
+        (
+            LawRequest::JointLaw,
+            "joint_law_required",
+            antecedent_core::reason_details::cohort_decision::JOINT_LAW_REQUIRED,
+        ),
     ] {
         let refusal = source.law_refusal(request);
         assert_eq!((refusal.code, refusal.detail), (code, detail));
@@ -274,7 +285,10 @@ fn law_valued_requests_are_refused_with_a_remedy() {
 fn a_model_without_a_support_contract_is_refused_not_assumed_supported() {
     let error = build(&portable(None, "claim-a"), &cohort()).unwrap_err();
     assert_eq!(error.code, "invalid_argument");
-    assert_eq!(error.detail, "cohort_decision.support_contract_absent");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::SUPPORT_CONTRACT_ABSENT
+    );
     assert!(!portable(None, "claim-a").has_support_contract());
 }
 
@@ -283,12 +297,12 @@ fn rows_outside_the_fitted_support_are_refused_and_named() {
     let outside = cohort_with("target", &[-1.0, 1.5, 2.0], &[0.2, 0.3, 0.5]);
     let error = build(&portable(Some(box_support()), "claim-a"), &outside).unwrap_err();
     assert_eq!(error.code, "invalid_argument");
-    assert_eq!(error.detail, "cohort_decision.outside_support");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::OUTSIDE_SUPPORT);
     assert!(error.subject.contains("row=r1"), "{}", error.subject);
     assert!(error.subject.contains("rows_outside=2"), "{}", error.subject);
     // The compact route refuses the same row through its declared range.
     let compact = build(&compact_model(), &outside).unwrap_err();
-    assert_eq!(compact.detail, "cohort_decision.outside_support");
+    assert_eq!(compact.detail, antecedent_core::reason_details::cohort_decision::OUTSIDE_SUPPORT);
     assert!(compact.subject.contains("row=r1"), "{}", compact.subject);
 }
 
@@ -306,7 +320,7 @@ fn a_masked_region_of_a_compact_model_is_refused() {
     )
     .unwrap();
     let error = build(&masked, &cohort()).unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.outside_support");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::OUTSIDE_SUPPORT);
     assert!(error.subject.contains("top_decile"), "{}", error.subject);
 }
 
@@ -325,7 +339,10 @@ fn schema_unit_and_contrast_mismatches_are_typed_refusals() {
     .unwrap();
     let error = build(&model, &renamed).unwrap_err();
     assert_eq!(error.code, "schema_mismatch");
-    assert_eq!(error.detail, "cohort_decision.feature_schema_mismatch");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::FEATURE_SCHEMA_MISMATCH
+    );
     let extra = CohortBinding::new(
         "s",
         "target",
@@ -337,7 +354,7 @@ fn schema_unit_and_contrast_mismatches_are_typed_refusals() {
     .unwrap();
     assert_eq!(
         build(&model, &extra).unwrap_err().detail,
-        "cohort_decision.feature_schema_mismatch"
+        antecedent_core::reason_details::cohort_decision::FEATURE_SCHEMA_MISMATCH
     );
     // A categorical column where the model reads a number.
     let categorical = CohortBinding::new(
@@ -351,12 +368,15 @@ fn schema_unit_and_contrast_mismatches_are_typed_refusals() {
     .unwrap();
     assert_eq!(
         build(&model, &categorical).unwrap_err().detail,
-        "cohort_decision.feature_type_mismatch"
+        antecedent_core::reason_details::cohort_decision::FEATURE_TYPE_MISMATCH
     );
     // Units are required, and a compact response states its own.
     let blank =
         CohortDecisionSource::build(&model, &cohort(), " ", &CohortOptions::default(), &ctx());
-    assert_eq!(blank.unwrap_err().detail, "cohort_decision.outcome_units_required");
+    assert_eq!(
+        blank.unwrap_err().detail,
+        antecedent_core::reason_details::cohort_decision::OUTCOME_UNITS_REQUIRED
+    );
     let wrong_units = CohortDecisionSource::build(
         &compact_model(),
         &cohort(),
@@ -364,7 +384,10 @@ fn schema_unit_and_contrast_mismatches_are_typed_refusals() {
         &CohortOptions::default(),
         &ctx(),
     );
-    assert_eq!(wrong_units.unwrap_err().detail, "cohort_decision.units_mismatch");
+    assert_eq!(
+        wrong_units.unwrap_err().detail,
+        antecedent_core::reason_details::cohort_decision::UNITS_MISMATCH
+    );
     // The contrast the caller expects must be the model's.
     let options = CohortOptions {
         expected_contrast_regime: Some("contrast:do(t=2)-do(t=0)".into()),
@@ -373,10 +396,13 @@ fn schema_unit_and_contrast_mismatches_are_typed_refusals() {
     let error =
         CohortDecisionSource::build(&model, &cohort(), "mmHg", &options, &ctx()).unwrap_err();
     assert_eq!(error.code, "quantity_semantics_mismatch");
-    assert_eq!(error.detail, "cohort_decision.contrast_mismatch");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::CONTRAST_MISMATCH);
     // A compact export of an absolute mean is not a contrast.
     let absolute = compact_model_with("mean", vec![]).unwrap_err();
-    assert_eq!(absolute.detail, "cohort_decision.contrast_not_declared");
+    assert_eq!(
+        absolute.detail,
+        antecedent_core::reason_details::cohort_decision::CONTRAST_NOT_DECLARED
+    );
 }
 
 #[test]
@@ -386,21 +412,24 @@ fn invalid_cohorts_are_refused_at_binding() {
     };
     assert_eq!(
         bind(ids(2), vec![0.0, 1.0], vec![0.5, 0.6]).unwrap_err().detail,
-        "cohort_decision.weights_not_normalized"
+        antecedent_core::reason_details::cohort_decision::WEIGHTS_NOT_NORMALIZED
     );
     assert_eq!(
         bind(ids(2), vec![0.0, 1.0], vec![1.5, -0.5]).unwrap_err().detail,
-        "cohort_decision.weights_invalid"
+        antecedent_core::reason_details::cohort_decision::WEIGHTS_INVALID
     );
     assert_eq!(
         bind(ids(2), vec![0.0, f64::NAN], vec![0.5, 0.5]).unwrap_err().detail,
-        "cohort_decision.cohort_invalid"
+        antecedent_core::reason_details::cohort_decision::COHORT_INVALID
     );
     assert_eq!(
         bind(vec!["a".into(), "a".into()], vec![0.0, 1.0], vec![0.5, 0.5]).unwrap_err().detail,
-        "cohort_decision.cohort_invalid"
+        antecedent_core::reason_details::cohort_decision::COHORT_INVALID
     );
-    assert_eq!(bind(vec![], vec![], vec![]).unwrap_err().detail, "cohort_decision.cohort_empty");
+    assert_eq!(
+        bind(vec![], vec![], vec![]).unwrap_err().detail,
+        antecedent_core::reason_details::cohort_decision::COHORT_EMPTY
+    );
     let normalized = CohortBinding::normalize_weights(&[2.0, 6.0]).unwrap();
     approx(normalized[0], 0.25);
     approx(normalized[1], 0.75);
@@ -418,7 +447,10 @@ fn a_cohort_from_another_population_needs_a_declared_shift_and_support_overlap()
     // Without a declaration the unmet premise is named.
     let refusal = build(&model, &other).unwrap_err();
     assert_eq!(refusal.code, "transport_missing_evidence");
-    assert_eq!(refusal.detail, "cohort_decision.shift_declaration_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_REQUIRED
+    );
     // With the declaration the same prediction is issued under an assumption label.
     let declared = CovariateShiftDeclaration::new("target", "clinic_b", &["z"]);
     let options = CohortOptions { shift: Some(declared.clone()), expected_contrast_regime: None };
@@ -441,13 +473,19 @@ fn a_cohort_from_another_population_needs_a_declared_shift_and_support_overlap()
         let error =
             CohortDecisionSource::build(&model, &other, "mmHg", &options, &ctx()).unwrap_err();
         assert_eq!(error.code, "transport_not_certified");
-        assert_eq!(error.detail, "cohort_decision.shift_declaration_mismatch");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_MISMATCH
+        );
     }
     // A shift declared for a cohort that is the model's own population is refused.
     let options = CohortOptions { shift: Some(declared), expected_contrast_regime: None };
     let error =
         CohortDecisionSource::build(&model, &cohort(), "mmHg", &options, &ctx()).unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.shift_declaration_unneeded");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_UNNEEDED
+    );
 }
 
 #[test]
@@ -461,7 +499,10 @@ fn a_shifted_cohort_outside_the_support_is_a_transport_support_failure() {
     let error =
         CohortDecisionSource::build(&model, &outside, "mmHg", &options, &ctx()).unwrap_err();
     assert_eq!(error.code, "transport_support_failure");
-    assert_eq!(error.detail, "cohort_decision.shift_support_failure");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::SHIFT_SUPPORT_FAILURE
+    );
 }
 
 /// The shift gate compares four declared strings and the support box inclusively: a declaration
@@ -484,7 +525,10 @@ fn the_shift_gate_is_exact_on_the_assumption_label_and_the_support_edge() {
     let options = CohortOptions { shift: Some(relabelled), expected_contrast_regime: None };
     let error =
         CohortDecisionSource::build(&model, &on_edge, "mmHg", &options, &ctx()).unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.shift_declaration_mismatch");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_MISMATCH
+    );
 
     let just_outside =
         cohort_with("clinic_b", &[-1.0, f64::from_bits(1.0_f64.to_bits() + 1)], &[0.5, 0.5]);
@@ -496,12 +540,15 @@ fn the_shift_gate_is_exact_on_the_assumption_label_and_the_support_edge() {
         CohortDecisionSource::build(&model, &just_outside, "mmHg", &options, &ctx()).unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("transport_support_failure", "cohort_decision.shift_support_failure")
+        (
+            "transport_support_failure",
+            antecedent_core::reason_details::cohort_decision::SHIFT_SUPPORT_FAILURE
+        )
     );
     let unshifted =
         cohort_with("target", &[-1.0, f64::from_bits(1.0_f64.to_bits() + 1)], &[0.5, 0.5]);
     let error = build(&model, &unshifted).unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.outside_support");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::OUTSIDE_SUPPORT);
 }
 
 // ---------------------------------------------------------------------------
@@ -564,19 +611,28 @@ fn every_retained_expectation_is_a_typed_gate() {
     };
     assert_eq!(
         with(&|e| e.parent_claim = Some("claim-b".into())),
-        "cohort_decision.wrong_parent_identity"
+        antecedent_core::reason_details::cohort_decision::WRONG_PARENT_IDENTITY
     );
     assert_eq!(
         with(&|e| e.population_id = Some("clinic_b".into())),
-        "cohort_decision.population_mismatch"
+        antecedent_core::reason_details::cohort_decision::POPULATION_MISMATCH
     );
-    assert_eq!(with(&|e| e.outcome_units = Some("g/dL".into())), "cohort_decision.units_mismatch");
+    assert_eq!(
+        with(&|e| e.outcome_units = Some("g/dL".into())),
+        antecedent_core::reason_details::cohort_decision::UNITS_MISMATCH
+    );
     assert_eq!(
         with(&|e| e.contrast_regime = Some("contrast:do(t=2)-do(t=0)".into())),
-        "cohort_decision.contrast_mismatch"
+        antecedent_core::reason_details::cohort_decision::CONTRAST_MISMATCH
     );
-    assert_eq!(with(&|e| e.cohort_digest = Some("0".repeat(64))), "cohort_decision.cohort_changed");
-    assert_eq!(with(&|e| e.identity = "0".repeat(64)), "cohort_decision.identity_unexpected");
+    assert_eq!(
+        with(&|e| e.cohort_digest = Some("0".repeat(64))),
+        antecedent_core::reason_details::cohort_decision::COHORT_CHANGED
+    );
+    assert_eq!(
+        with(&|e| e.identity = "0".repeat(64)),
+        antecedent_core::reason_details::cohort_decision::IDENTITY_UNEXPECTED
+    );
 }
 
 #[test]
@@ -589,7 +645,7 @@ fn a_different_parent_claim_is_a_different_source() {
     let error =
         CohortDecisionSource::consume(&bytes, &CohortExpectation::for_identity(a.identity()))
             .unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.identity_unexpected");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::IDENTITY_UNEXPECTED);
 }
 
 #[test]
@@ -608,12 +664,18 @@ fn semantic_mutations_are_refused_even_when_the_container_is_resealed() {
     // A changed weight pair (still normalized), stored identity untouched.
     let mut changed = body.clone();
     changed.cohort = cohort_with("target", &[-1.0, 0.5, 1.0], &[0.3, 0.2, 0.5]);
-    assert_eq!(consume(&write_body(manifest.clone(), &changed)), "cohort_decision.replay_mismatch");
+    assert_eq!(
+        consume(&write_body(manifest.clone(), &changed)),
+        antecedent_core::reason_details::cohort_decision::REPLAY_MISMATCH
+    );
 
     // A changed stored mean, identity untouched.
     let mut changed = body.clone();
     changed.mean_contrast += 1e-9;
-    assert_eq!(consume(&write_body(manifest.clone(), &changed)), "cohort_decision.replay_mismatch");
+    assert_eq!(
+        consume(&write_body(manifest.clone(), &changed)),
+        antecedent_core::reason_details::cohort_decision::REPLAY_MISMATCH
+    );
 
     // A changed coefficient under the same stored model identity.
     let mut changed = body.clone();
@@ -623,26 +685,32 @@ fn semantic_mutations_are_refused_even_when_the_container_is_resealed() {
     }
     assert_eq!(
         consume(&write_body(manifest.clone(), &changed)),
-        "cohort_decision.model_identity_mismatch"
+        antecedent_core::reason_details::cohort_decision::MODEL_IDENTITY_MISMATCH
     );
 
     // A changed unit, identity untouched.
     let mut changed = body.clone();
     changed.outcome_units = "g/dL".into();
-    assert_eq!(consume(&write_body(manifest.clone(), &changed)), "cohort_decision.replay_mismatch");
+    assert_eq!(
+        consume(&write_body(manifest.clone(), &changed)),
+        antecedent_core::reason_details::cohort_decision::REPLAY_MISMATCH
+    );
 
     // A fully resealed artifact of a different cohort carries a different identity.
     let other = build(&model, &cohort_with("target", &[-1.0, 0.5, 1.0], &[0.3, 0.2, 0.5])).unwrap();
     assert_ne!(other.identity(), identity);
     assert_eq!(
         consume(&other.to_bytes("cohort-decision").unwrap()),
-        "cohort_decision.identity_unexpected"
+        antecedent_core::reason_details::cohort_decision::IDENTITY_UNEXPECTED
     );
 
     // An unknown body version and a foreign container are refused before any decode.
     let mut changed = body;
     changed.version = 2;
-    assert_eq!(consume(&write_body(manifest, &changed)), "cohort_decision.unsupported_version");
+    assert_eq!(
+        consume(&write_body(manifest, &changed)),
+        antecedent_core::reason_details::cohort_decision::UNSUPPORTED_VERSION
+    );
     assert!(consume(&bytes[..bytes.len() / 2]).starts_with("cohort_decision."));
 }
 
@@ -662,7 +730,10 @@ fn a_tampered_compact_payload_is_refused() {
         &CohortExpectation::for_identity(identity),
     )
     .unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.fitted_model_invalid");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID
+    );
 }
 
 #[test]
@@ -686,7 +757,10 @@ fn a_declared_shift_round_trips_and_is_bound_into_the_identity() {
         &CohortExpectation::for_identity(source.identity()),
     )
     .unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.shift_declaration_required");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_REQUIRED
+    );
 }
 
 #[test]
@@ -705,7 +779,7 @@ fn an_exported_source_carries_one_mean_and_no_law() {
         &CohortExpectation::for_identity(identity),
     )
     .unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.replay_mismatch");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::REPLAY_MISMATCH);
 }
 
 #[test]
@@ -724,7 +798,10 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     };
     assert!(bind(&defaults).is_ok());
     let small = CohortIntakeLimits { max_rows: 2, ..defaults };
-    assert_eq!(bind(&small).unwrap_err().detail, "cohort_decision.cohort_too_large");
+    assert_eq!(
+        bind(&small).unwrap_err().detail,
+        antecedent_core::reason_details::cohort_decision::COHORT_TOO_LARGE
+    );
 
     let model = portable(Some(box_support()), "claim-a");
     assert_eq!(
@@ -738,7 +815,7 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
         )
         .unwrap_err()
         .detail,
-        "cohort_decision.cohort_too_large"
+        antecedent_core::reason_details::cohort_decision::COHORT_TOO_LARGE
     );
 
     let source = build(&model, &cohort()).unwrap();
@@ -747,15 +824,15 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     CohortDecisionSource::consume_within(&bytes, &expectation, &defaults).unwrap();
     assert_eq!(
         CohortDecisionSource::consume_within(&bytes, &expectation, &small).unwrap_err().detail,
-        "cohort_decision.cohort_too_large"
+        antecedent_core::reason_details::cohort_decision::COHORT_TOO_LARGE
     );
     let tight = CohortIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
     assert_eq!(
         CohortDecisionSource::consume_within(&bytes, &expectation, &tight).unwrap_err().detail,
-        "cohort_decision.oversized"
+        antecedent_core::reason_details::cohort_decision::OVERSIZED
     );
     assert_eq!(
         source.to_bytes_within("limits", bytes.len() - 1).unwrap_err().detail,
-        "cohort_decision.oversized"
+        antecedent_core::reason_details::cohort_decision::OVERSIZED
     );
 }

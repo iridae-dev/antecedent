@@ -35,12 +35,14 @@ record_sha256 = "e1d1a32df9a59463b46191ce2ed37c26de3c465f2f4ba3c0a64e2ed783ab82a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/analytic.rs"
-sha256 = "cf981d8c4b0fd0d18c6548c3a3ec39adeb8524a8c37bd7fcb5900b1dd4eb57ce"
+items = ["fn analytic_parcorr_ci", "fn analytic_parcorr_pvalue", "fn z_to_r"]
+sha256 = "6bbc83f0cf37f4b1446dd29fcceb802551fe81b91e168d530a1e22f23666c5fd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/src/ci/analytic_oracle_tests.rs"
-sha256 = "4f4684e699d23c29693a0cc77a8a8afdc80e0faf3f22c68e9729245d09eeeeb7"
+items = ["fn interval_and_p_value_match_the_multiprecision_definitions"]
+sha256 = "ace538995e7e64957e36342a4ff59ea0b14f4d4e7c2bd6e4bee67fd797b7d563"
 
 [[method_review.artifacts]]
 role = "reference"

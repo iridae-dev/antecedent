@@ -148,7 +148,7 @@ syntheses and refuses another retained identity.
 
 `ledger.export(...)` returns a typed `ExportedArtifact`: `bytes(artifact)` are the container,
 `.expectation` the identity to retain, and carried/not-carried export receipts sit in immutable
-`.metadata`; no summary is silently promoted to a replayable synthesis.
+`.metadata`; no summary silently becomes a replayable synthesis.
 `ant.load(bytes(artifact), expected=artifact.expectation)` uses the existing ledger replay
 consumer. Retain the expectation separately from the container.
 

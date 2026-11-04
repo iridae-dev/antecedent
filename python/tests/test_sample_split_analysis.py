@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalValueError
 
@@ -27,7 +28,7 @@ def table(seed: int) -> dict[str, np.ndarray]:
 
 
 CONTRACT = sd.StaticContract(variables=("x", "y", "z"), alpha=0.001, fdr=None, seed=9)
-WRONG = "selective_discovery.analysis_rows_not_the_split_part"
+WRONG = reason_details.selective_discovery.ANALYSIS_ROWS_NOT_THE_SPLIT_PART
 
 
 def test_the_parts_partition_the_rows_and_discovery_sees_only_its_part() -> None:
@@ -107,18 +108,18 @@ def test_reusing_the_rows_that_selected_is_refused() -> None:
         split.request_unsplit_interval()
     assert_registered_refusal(info.value)
     assert info.value.reason_code == "selection_inference_not_supported"
-    assert info.value.detail == "selective_discovery.downstream_interval_not_supported"
+    assert info.value.detail == reason_details.selective_discovery.DOWNSTREAM_INTERVAL_NOT_SUPPORTED
 
 
 @pytest.mark.parametrize(
     ("kwargs", "detail"),
     [
-        ({"discovery_rows": [3, 3]}, "selective_discovery.split_rows_repeated"),
-        ({"discovery_rows": [N]}, "selective_discovery.split_row_out_of_range"),
-        ({"discovery_rows": list(range(N))}, "selective_discovery.split_part_empty"),
+        ({"discovery_rows": [3, 3]}, reason_details.selective_discovery.SPLIT_ROWS_REPEATED),
+        ({"discovery_rows": [N]}, reason_details.selective_discovery.SPLIT_ROW_OUT_OF_RANGE),
+        ({"discovery_rows": list(range(N))}, reason_details.selective_discovery.SPLIT_PART_EMPTY),
         (
             {"discovery_fraction": 1.0, "split_seed": 1},
-            "selective_discovery.split_fraction_invalid",
+            reason_details.selective_discovery.SPLIT_FRACTION_INVALID,
         ),
     ],
 )

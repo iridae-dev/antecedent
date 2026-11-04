@@ -41,12 +41,14 @@ record_sha256 = "3b8e7445e1229db07d3db61bc36f9211bb96b958d9aea3a89258840a398a6f7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dr.rs"
-sha256 = "f84dc9d83691ff090d430be9c76ea53f67a6f07ef0b646479c4cf7b6bd896180"
+items = ["const FINAL_EFFECT_FITS", "fn default", "fn fit", "fn fit_pointwise_profiles", "fn fit_with_profiles", "fn linear_cate_pointwise_se", "fn new", "fn pointwise_profile_results", "fn prepare", "fn publish_units", "fn with_sampling_weights", "struct CateProfile", "struct DrLearner", "struct PointwiseCateEstimate"]
+sha256 = "6985f0df0cb084bc0775c0760cebf75bb3478e4ed755af994e795a5cc4498252"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dr_learner_reference.rs"
-sha256 = "b8ba204f764c3f8f15ceef454331d9bda1ca98cbf492ba8c486f6d7d725d68b6"
+items = ["fn an_integer_sampling_weight_equals_row_replication_for_the_point_estimates", "fn close", "fn columns", "fn effect_cate_and_hc0_standard_errors_match_the_fixed_fold_references", "fn exact_support_profiles_report_the_hc0_estimate_of_the_matching_row", "fn floats", "fn floats_u32", "fn learner", "fn setup"]
+sha256 = "58c3804c3ce97ab3e1bdd662d8a8d52c04f8f3eb065b3d00bdd8dd578446e329"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -98,25 +98,29 @@ impl BatchRetargetError {
 /// refusal names no single change.
 fn remedy_of(detail: &str) -> Option<&'static str> {
     Some(match detail {
-        "batch_retarget.functional_not_supported" => {
+        antecedent_core::reason_details::batch_retarget::FUNCTIONAL_NOT_SUPPORTED => {
             "retarget the mean functional (an average effect or a joint cell); keep a quantile or \
              exceedance grid on the single-claim retarget"
         }
-        "batch_retarget.incompatible_target" => {
+        antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET => {
             "declare finite non-negative weights, one per row of the common snapshot"
         }
-        "batch_retarget.scores_unavailable"
-        | "batch_retarget.scores_unavailable_after_estimate" => {
+        antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE
+        | antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE_AFTER_ESTIMATE => {
             "use an AllObserved iid AIPW or cell-AIPW plan and keep its scores"
         }
-        "batch_retarget.contrast_member_failed" => {
+        antecedent_core::reason_details::batch_retarget::CONTRAST_MEMBER_FAILED => {
             "fix or drop the failed claim the contrast reads"
         }
-        "batch_retarget.unknown_claim" => {
+        antecedent_core::reason_details::batch_retarget::UNKNOWN_CLAIM => {
             "name only claims of this family and queries of this batch"
         }
-        "batch_retarget.duplicate_name" => "give every claim and contrast its own nonempty name",
-        "batch_retarget.invalid_contrast" => "use finite coefficients on distinct declared claims",
+        antecedent_core::reason_details::batch_retarget::DUPLICATE_NAME => {
+            "give every claim and contrast its own nonempty name"
+        }
+        antecedent_core::reason_details::batch_retarget::INVALID_CONTRAST => {
+            "use finite coefficients on distinct declared claims"
+        }
         _ => return None,
     })
 }
@@ -151,7 +155,7 @@ fn route_not_supported_err(detail: &'static str, message: impl Into<String>) -> 
 fn mixed_snapshot(message: impl Into<String>) -> BatchRetargetError {
     BatchRetargetError {
         code: reason_code!("row_weights_bound_to_snapshot"),
-        detail: "batch_retarget.mixed_snapshot",
+        detail: antecedent_core::reason_details::batch_retarget::MIXED_SNAPSHOT,
         message: message.into(),
         subject: None,
     }
@@ -160,7 +164,7 @@ fn mixed_snapshot(message: impl Into<String>) -> BatchRetargetError {
 fn cancelled() -> BatchRetargetError {
     BatchRetargetError {
         code: reason_code!("cancelled_no_claim"),
-        detail: "batch_retarget.cancelled",
+        detail: antecedent_core::reason_details::batch_retarget::CANCELLED,
         message: "the batch retarget was cancelled; no family is reported and the stop is not a \
                   verdict on the data"
             .into(),
@@ -171,13 +175,13 @@ fn cancelled() -> BatchRetargetError {
 fn scores_unavailable(source: ScoreSource) -> BatchRetargetError {
     let (detail, message) = match source {
         ScoreSource::Estimated => (
-            "batch_retarget.scores_unavailable_after_estimate",
+            antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE_AFTER_ESTIMATE,
             "this plan's estimate carried no score table (a trimmed or non-iid AIPW, or an \
              estimator that keeps no cross-fitted scores), so there is nothing to retarget; \
              the prepare-time rows are never substituted for the estimate's rows",
         ),
         ScoreSource::Prepared => (
-            "batch_retarget.scores_unavailable",
+            antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE,
             "this plan prepared no score table; retargeting needs an AllObserved iid AIPW or \
              cell-AIPW plan",
         ),
@@ -370,7 +374,7 @@ fn member_failure(error: &CausalError) -> MemberFailure {
     let carried = error.refusal_fields().map(|fields| Box::new(fields.into_owned()));
     if error.peeled().reason_code() == Some(reason_code!("positivity_violated")) {
         let mut failure = MemberFailure::from(positivity_violated(
-            "batch_retarget.weighted_overlap_failed",
+            antecedent_core::reason_details::batch_retarget::WEIGHTED_OVERLAP_FAILED,
             error.to_string(),
         ));
         failure.support_refused = true;
@@ -524,7 +528,7 @@ impl BatchRetargetReport {
         let failed = self.failed_members();
         if !failed.is_empty() {
             return Err(route_not_supported_err(
-                "batch_retarget.partial_family",
+                antecedent_core::reason_details::batch_retarget::PARTIAL_FAMILY,
                 format!(
                     "the family is partial: {} failed, so the surviving members are not a \
                      complete-family claim",
@@ -535,7 +539,7 @@ impl BatchRetargetReport {
         let point_only = self.point_only_members();
         if !point_only.is_empty() {
             return Err(route_not_supported_err(
-                "batch_retarget.point_only_member",
+                antecedent_core::reason_details::batch_retarget::POINT_ONLY_MEMBER,
                 format!(
                     "{} retarget to a point only under their score-table provenance, so the \
                      family has no complete joint covariance",
@@ -545,7 +549,7 @@ impl BatchRetargetReport {
         }
         self.covariance.as_ref().ok_or_else(|| {
             route_not_supported_err(
-                "batch_retarget.covariance_unavailable",
+                antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
                 "the family carries no covariance-bearing member",
             )
         })
@@ -620,7 +624,7 @@ fn evaluate_claim(
     let table = table.ok_or_else(|| MemberFailure::from(scores_unavailable(source)))?;
     if table.distinct_threshold_count() > 0 {
         return Err(MemberFailure::from(route_not_supported_err(
-            "batch_retarget.functional_not_supported",
+            antecedent_core::reason_details::batch_retarget::FUNCTIONAL_NOT_SUPPORTED,
             "a batch retarget covers the mean functional; a quantile or exceedance grid keeps \
              its single-claim retarget",
         )));
@@ -629,7 +633,7 @@ fn evaluate_claim(
     if claim.weights.len() != n || n < 2 || claim.weights.iter().any(|w| !w.is_finite() || *w < 0.0)
     {
         return Err(MemberFailure::from(invalid(
-            "batch_retarget.incompatible_target",
+            antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET,
             format!(
                 "claim {:?} declares {} weights for {n} snapshot rows; weights must be finite, \
                  non-negative and aligned with the common rows",
@@ -645,7 +649,7 @@ fn evaluate_claim(
         BatchQuery::Average(_) => {
             let contrast = out.contrast.as_ref().ok_or_else(|| {
                 MemberFailure::from(route_not_supported_err(
-                    "batch_retarget.functional_not_supported",
+                    antecedent_core::reason_details::batch_retarget::FUNCTIONAL_NOT_SUPPORTED,
                     "the plan's scores carry no single arm contrast",
                 ))
             })?;
@@ -653,7 +657,7 @@ fn evaluate_claim(
                 |arm: u32| table.columns.iter().position(|c| c.arm == arm && c.threshold.is_none());
             let (Some(control), Some(active)) = (column(0), column(1)) else {
                 return Err(MemberFailure::from(route_not_supported_err(
-                    "batch_retarget.functional_not_supported",
+                    antecedent_core::reason_details::batch_retarget::FUNCTIONAL_NOT_SUPPORTED,
                     "the plan's scores carry no arm-0 and arm-1 mean columns",
                 )));
             };
@@ -666,7 +670,7 @@ fn evaluate_claim(
             let arm = super::helpers::requested_joint_arm(q).map_err(|e| member_failure(&e))?;
             let Some(column) = table.columns.iter().position(|c| c.arm == arm) else {
                 return Err(MemberFailure::from(route_not_supported_err(
-                    "batch_retarget.functional_not_supported",
+                    antecedent_core::reason_details::batch_retarget::FUNCTIONAL_NOT_SUPPORTED,
                     "the requested joint cell is not a column of the plan's scores",
                 )));
             };
@@ -714,7 +718,10 @@ fn validate_request(
     plans: usize,
 ) -> Result<(), BatchRetargetError> {
     if request.claims.is_empty() {
-        return Err(invalid("batch_retarget.empty_family", "a family declares at least one claim"));
+        return Err(invalid(
+            antecedent_core::reason_details::batch_retarget::EMPTY_FAMILY,
+            "a family declares at least one claim",
+        ));
     }
     let mut names = std::collections::BTreeSet::new();
     for name in
@@ -722,7 +729,7 @@ fn validate_request(
     {
         if name.is_empty() || !names.insert(name.as_str()) {
             return Err(invalid(
-                "batch_retarget.duplicate_name",
+                antecedent_core::reason_details::batch_retarget::DUPLICATE_NAME,
                 format!("claim and contrast names must be nonempty and unique, got {name:?}"),
             )
             .about(name));
@@ -730,7 +737,7 @@ fn validate_request(
     }
     if let Some(claim) = request.claims.iter().find(|c| c.query_index >= plans) {
         return Err(invalid(
-            "batch_retarget.unknown_claim",
+            antecedent_core::reason_details::batch_retarget::UNKNOWN_CLAIM,
             format!(
                 "claim {:?} names query {} but the batch has {plans} plans",
                 claim.name, claim.query_index
@@ -745,7 +752,7 @@ fn validate_request(
             || contrast.coefficients.iter().any(|(n, _)| !seen.insert(n.as_str()))
         {
             return Err(invalid(
-                "batch_retarget.invalid_contrast",
+                antecedent_core::reason_details::batch_retarget::INVALID_CONTRAST,
                 format!(
                     "contrast {:?} needs finite coefficients on distinct claims",
                     contrast.name
@@ -757,7 +764,7 @@ fn validate_request(
             contrast.coefficients.iter().find(|(n, _)| !request.claims.iter().any(|c| &c.name == n))
         {
             return Err(invalid(
-                "batch_retarget.unknown_claim",
+                antecedent_core::reason_details::batch_retarget::UNKNOWN_CLAIM,
                 format!("contrast {:?} names the undeclared claim {missing:?}", contrast.name),
             )
             .about(&contrast.name));
@@ -817,7 +824,7 @@ fn gram(columns: &[&[f64]]) -> Result<JointCovariance, BatchRetargetError> {
     }
     if values.iter().any(|v| !v.is_finite()) {
         return Err(route_not_supported_err(
-            "batch_retarget.covariance_unavailable",
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
             "the joint score covariance is not finite",
         ));
     }
@@ -838,7 +845,7 @@ fn contrast_outcome(
             .and_then(|claim| claim.outcome.as_ref().ok())
             .ok_or_else(|| {
                 MemberFailure::from(route_not_supported_err(
-                    "batch_retarget.contrast_member_failed",
+                    antecedent_core::reason_details::batch_retarget::CONTRAST_MEMBER_FAILED,
                     format!("contrast {:?} reads claim {name:?}, which failed", contrast.name),
                 ))
             })?;
@@ -854,7 +861,7 @@ fn contrast_outcome(
     }
     let covariance = covariance.ok_or_else(|| {
         MemberFailure::from(route_not_supported_err(
-            "batch_retarget.covariance_unavailable",
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
             "no joint covariance for the contrast's claims",
         ))
     })?;
@@ -869,7 +876,7 @@ fn contrast_outcome(
     }
     if !variance.is_finite() || variance < -1e-12 * absolute {
         return Err(MemberFailure::from(route_not_supported_err(
-            "batch_retarget.covariance_unavailable",
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
             "the contrast variance is not a finite non-negative number",
         )));
     }
@@ -912,14 +919,14 @@ fn family_covariance(
                     .influence_covariance(&columns, &first.first, first.second.as_deref())
                     .map_err(|e| {
                         route_not_supported_err(
-                            "batch_retarget.covariance_unavailable",
+                            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
                             e.to_string(),
                         )
                     })?
             }
             _ => {
                 return Err(route_not_supported_err(
-                    "batch_retarget.covariance_unavailable",
+                    antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
                     "the family mixes members with and without declared cluster units",
                 ));
             }
@@ -943,7 +950,7 @@ pub(crate) fn retarget_family(
     validate_request(request, plans.len())?;
     if scores.tables.len() != plans.len() {
         return Err(invalid(
-            "batch_retarget.scores_mismatch",
+            antecedent_core::reason_details::batch_retarget::SCORES_MISMATCH,
             format!(
                 "the scores hold {} slots for {} plans; retain the scores of this batch",
                 scores.tables.len(),
@@ -1064,7 +1071,7 @@ fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRet
     let se: Vec<f64> = (0..dim).map(|i| matrix.se(i)).collect();
     if dim == 0 || se.iter().any(|s| !(s.is_finite() && *s > 0.0)) {
         return Err(route_not_supported_err(
-            "batch_retarget.covariance_unavailable",
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
             "a max-t band needs every claim's plug-in standard error positive and finite",
         ));
     }
@@ -1119,14 +1126,14 @@ fn max_t_critical_value_with_df(
 ) -> Result<f64, BatchRetargetError> {
     if !(level.is_finite() && level > 0.0 && level < 1.0) {
         return Err(invalid(
-            "batch_retarget.max_t_invalid_level",
+            antecedent_core::reason_details::batch_retarget::MAX_T_INVALID_LEVEL,
             format!("the max-t level must lie strictly between 0 and 1, got {level}"),
         ));
     }
     let min_draws = min_draws_for_level(level);
     if u64::from(draws) < min_draws {
         return Err(invalid(
-            "batch_retarget.max_t_draws_out_of_range",
+            antecedent_core::reason_details::batch_retarget::MAX_T_DRAWS_OUT_OF_RANGE,
             format!(
                 "{draws} draws are too few for an empirical {level} quantile; it needs at \
                  least {min_draws}"
@@ -1140,7 +1147,7 @@ fn max_t_critical_value_with_df(
         .map_err(|error| match error {
             antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
             other => invalid(
-                "batch_retarget.max_t_draws_out_of_range",
+                antecedent_core::reason_details::batch_retarget::MAX_T_DRAWS_OUT_OF_RANGE,
                 format!("{draws} draws exceed the execution context's memory budget: {other}"),
             ),
         })?;
@@ -1153,7 +1160,7 @@ fn max_t_critical_value_with_df(
         });
     if !well_formed {
         return Err(route_not_supported_err(
-            "batch_retarget.covariance_unavailable",
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
             "the max-t evaluator needs a finite correlation matrix with a unit diagonal and \
              entries in [-1, 1]",
         ));
@@ -1162,11 +1169,16 @@ fn max_t_critical_value_with_df(
     let critical = max_t_critical_with_df_polled(correlation, level, draws, df, &mut rng, &|| {
         ctx.cancellation.is_cancelled()
     })
-    .map_err(|e| route_not_supported_err("batch_retarget.covariance_unavailable", e.to_string()))?
+    .map_err(|e| {
+        route_not_supported_err(
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
+            e.to_string(),
+        )
+    })?
     .ok_or_else(cancelled)?;
     if !critical.is_finite() {
         return Err(invalid(
-            "batch_retarget.max_t_draws_out_of_range",
+            antecedent_core::reason_details::batch_retarget::MAX_T_DRAWS_OUT_OF_RANGE,
             format!("{draws} draws are too few for an empirical {level} quantile"),
         ));
     }
@@ -1243,7 +1255,7 @@ impl BatchRetargetReport {
                     .and_then(|point| point.reference_df);
                 if current.is_some_and(|df| df != next) {
                     Err(route_not_supported_err(
-                        "batch_retarget.covariance_unavailable",
+                        antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
                         "one family cannot mix different cluster reference degrees of freedom",
                     ))
                 } else {
@@ -1272,7 +1284,7 @@ impl BatchRetargetReport {
                     .map(|p| p.value)
                     .ok_or_else(|| {
                         route_not_supported_err(
-                            "batch_retarget.covariance_unavailable",
+                            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE,
                             format!("covariance claim {name} has no reported point"),
                         )
                     })?;
@@ -1398,7 +1410,10 @@ mod tests {
                 BatchScores::new(ScoreSource::Prepared, vec![Some(table(&[0, 1, 2])), Some(other)]);
             let error = mixed.common_rows().unwrap_err();
             assert_eq!(error.code, "row_weights_bound_to_snapshot");
-            assert_eq!(error.detail, "batch_retarget.mixed_snapshot");
+            assert_eq!(
+                error.detail,
+                antecedent_core::reason_details::batch_retarget::MIXED_SNAPSHOT
+            );
             assert!(mixed.snapshot_id().is_err());
         }
         let none = BatchScores::new(ScoreSource::Prepared, vec![None]);
@@ -1504,12 +1519,18 @@ mod tests {
         assert!(complete.complete_family().is_ok());
         assert!(complete.tidy_rows().iter().all(|r| r.family_complete));
 
-        let failed = MemberFailure::from(invalid("batch_retarget.incompatible_target", "x"));
+        let failed = MemberFailure::from(invalid(
+            antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET,
+            "x",
+        ));
         let partial = report(vec![
             claim_report("a", Ok(point(1.0, Some(0.5)))),
             claim_report("b", Err(failed)),
         ]);
-        assert_eq!(partial.complete_family().unwrap_err().detail, "batch_retarget.partial_family");
+        assert_eq!(
+            partial.complete_family().unwrap_err().detail,
+            antecedent_core::reason_details::batch_retarget::PARTIAL_FAMILY
+        );
         let rows = partial.tidy_rows();
         assert_eq!(rows.len(), 2);
         assert!(rows.iter().any(|r| r.name == "b" && r.status == "failed"));
@@ -1521,7 +1542,7 @@ mod tests {
         ]);
         assert_eq!(
             point_only.complete_family().unwrap_err().detail,
-            "batch_retarget.point_only_member"
+            antecedent_core::reason_details::batch_retarget::POINT_ONLY_MEMBER
         );
         let rows = point_only.tidy_rows();
         assert_eq!(rows[1].status, "point_only");
@@ -1653,21 +1674,33 @@ mod tests {
             max_t_critical_value(m, level, 1, draws, &ctx()).unwrap_err().detail
         };
         for level in [0.0, 1.0, -0.5, 1.5, f64::NAN] {
-            assert_eq!(detail(level, 5_000, &corr), "batch_retarget.max_t_invalid_level");
+            assert_eq!(
+                detail(level, 5_000, &corr),
+                antecedent_core::reason_details::batch_retarget::MAX_T_INVALID_LEVEL
+            );
         }
         // The floor follows the level: 0.95 needs 19 draws, 0.9999 needs 9999.
         assert_eq!(min_draws_for_level(0.95), 19);
         assert_eq!(min_draws_for_level(0.9999), 9_999);
-        assert_eq!(detail(0.95, 18, &corr), "batch_retarget.max_t_draws_out_of_range");
-        assert_eq!(detail(0.95, 0, &corr), "batch_retarget.max_t_draws_out_of_range");
+        assert_eq!(
+            detail(0.95, 18, &corr),
+            antecedent_core::reason_details::batch_retarget::MAX_T_DRAWS_OUT_OF_RANGE
+        );
+        assert_eq!(
+            detail(0.95, 0, &corr),
+            antecedent_core::reason_details::batch_retarget::MAX_T_DRAWS_OUT_OF_RANGE
+        );
         assert!(max_t_critical_value(&corr, 0.95, 1, 19, &ctx()).unwrap().is_finite());
         // 1000 draws cannot hold a 0.9999 empirical quantile.
-        assert_eq!(detail(0.9999, 1_000, &corr), "batch_retarget.max_t_draws_out_of_range");
+        assert_eq!(
+            detail(0.9999, 1_000, &corr),
+            antecedent_core::reason_details::batch_retarget::MAX_T_DRAWS_OUT_OF_RANGE
+        );
         // The draws' maxima are charged to the context's memory budget, not a literal count.
         let tight = ExecutionContext::for_tests(1).with_memory_limit(Some(8 * 5_000 - 1));
         assert_eq!(
             max_t_critical_value(&corr, 0.95, 1, 5_000, &tight).unwrap_err().detail,
-            "batch_retarget.max_t_draws_out_of_range"
+            antecedent_core::reason_details::batch_retarget::MAX_T_DRAWS_OUT_OF_RANGE
         );
         let roomy = ExecutionContext::for_tests(1).with_memory_limit(Some(8 * 5_000));
         assert!(max_t_critical_value(&corr, 0.95, 1, 5_000, &roomy).unwrap().is_finite());
@@ -1675,7 +1708,10 @@ mod tests {
         let not_psd = JointCovariance { dim: 2, values: Arc::from(vec![1.0, 2.0, 2.0, 1.0]) };
         let empty = JointCovariance { dim: 0, values: Arc::from(Vec::<f64>::new()) };
         for bad in [&not_unit, &not_psd, &empty] {
-            assert_eq!(detail(0.95, 5_000, bad), "batch_retarget.covariance_unavailable");
+            assert_eq!(
+                detail(0.95, 5_000, bad),
+                antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE
+            );
         }
     }
 
@@ -1687,13 +1723,13 @@ mod tests {
         let stopped = max_t_critical_value(&corr, 0.95, 1, DRAWS, &before).unwrap_err();
         assert_eq!(
             (stopped.code, stopped.detail),
-            ("cancelled_no_claim", "batch_retarget.cancelled")
+            ("cancelled_no_claim", antecedent_core::reason_details::batch_retarget::CANCELLED)
         );
         // Cancelled in the middle: the first poll passes, the second (draw 1024) trips.
         let mut mid = ExecutionContext::for_tests(3);
         mid.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
         let stopped = max_t_critical_value(&corr, 0.95, 1, DRAWS, &mid).unwrap_err();
-        assert_eq!(stopped.detail, "batch_retarget.cancelled");
+        assert_eq!(stopped.detail, antecedent_core::reason_details::batch_retarget::CANCELLED);
         // The same call then completes on a live context.
         assert!(max_t_critical_value(&corr, 0.95, 1, DRAWS, &ctx()).is_ok());
     }
@@ -1746,11 +1782,17 @@ mod tests {
         let mut mixed = two_claim_report();
         mixed.claims[0].outcome.as_mut().unwrap().reference_df = Some(df);
         let error = mixed.simultaneous_interval(level, 29, DRAWS, &ctx()).unwrap_err();
-        assert_eq!(error.detail, "batch_retarget.covariance_unavailable");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE
+        );
         let mut reverse_mixed = two_claim_report();
         reverse_mixed.claims[1].outcome.as_mut().unwrap().reference_df = Some(df);
         let error = reverse_mixed.simultaneous_interval(level, 29, DRAWS, &ctx()).unwrap_err();
-        assert_eq!(error.detail, "batch_retarget.covariance_unavailable");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE
+        );
     }
 
     #[test]
@@ -1780,18 +1822,24 @@ mod tests {
 
     #[test]
     fn the_band_refuses_a_partial_or_point_only_family() {
-        let failed = MemberFailure::from(invalid("batch_retarget.incompatible_target", "x"));
+        let failed = MemberFailure::from(invalid(
+            antecedent_core::reason_details::batch_retarget::INCOMPATIBLE_TARGET,
+            "x",
+        ));
         let partial = report(vec![
             claim_report("a", Ok(point(1.0, Some(0.5)))),
             claim_report("b", Err(failed)),
         ]);
         let refused = partial.simultaneous_interval(0.95, 1, DRAWS, &ctx()).unwrap_err();
-        assert_eq!(refused.detail, "batch_retarget.partial_family");
+        assert_eq!(refused.detail, antecedent_core::reason_details::batch_retarget::PARTIAL_FAMILY);
         let point_only = report(vec![
             claim_report("a", Ok(point(1.0, Some(0.5)))),
             claim_report("p", Ok(point(2.0, None))),
         ]);
         let refused = point_only.simultaneous_interval(0.95, 1, DRAWS, &ctx()).unwrap_err();
-        assert_eq!(refused.detail, "batch_retarget.point_only_member");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::batch_retarget::POINT_ONLY_MEMBER
+        );
     }
 }

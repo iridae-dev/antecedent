@@ -39,9 +39,11 @@ record_sha256 = "2749bc0a042b90de62a6297da72b97bb44dd0fa88a727ec2288ef6aaa7cad98
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/hmc.rs"
-sha256 = "c4e24fde601bfe26775aecbe25f643ca5edec2e721979f3d45c3c821b78692ae"
+items = ["fn check_hmc_cancelled", "fn default", "fn eval_grad", "fn final_logp", "fn finalize_energy", "fn grad_u", "fn hmc_step", "fn init", "fn is_divergent", "fn leapfrog", "fn neg_log_posterior_grad", "fn slot", "struct GaussianRef", "struct HmcStepResult", "struct Trajectory", "trait HmcTarget"]
+sha256 = "2540d43e583eab00ccdeca8ae5dd6cdcb3719c3c6f2c5e5dea46535b725a2072"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/src/hmc_oracle_tests.rs"
-sha256 = "50dd9b355d5db46443b8db3e6a168df390a78ed5fe38a44a9754397ab5967873"
+items = ["fn leapfrog_is_the_exact_linear_map_on_a_gaussian", "fn one_transition_leaves_the_gaussian_target_invariant", "struct StdNormal1"]
+sha256 = "8610b3feed1cc33cb23cc385473285660cd1312c36eca99546e157e788084b31"

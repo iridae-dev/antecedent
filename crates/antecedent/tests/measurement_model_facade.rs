@@ -224,7 +224,10 @@ fn classical_error_recovers_the_coefficient_and_carries_its_labels() {
     let half = 1.959_963_984_540_054 * se;
     assert!((lo - (estimate.point() - half)).abs() < 1e-9, "{lo}");
     assert!((hi - (estimate.point() + half)).abs() < 1e-9, "{hi}");
-    assert_eq!(estimate.interval(1.0).unwrap_err().detail, "measurement_model.interval_level");
+    assert_eq!(
+        estimate.interval(1.0).unwrap_err().detail,
+        antecedent_core::reason_details::measurement_model::INTERVAL_LEVEL
+    );
     let refusal = prepared.interval().unwrap_err();
     assert_eq!(refusal.code, "uncertainty_representation_insufficient");
 }
@@ -250,7 +253,7 @@ fn the_measurement_parameter_uncertainty_is_in_the_variance_and_the_functional()
     // A wrong-width weight vector refuses.
     let refusal = uncertain.downstream_linear_functional(&[1.0]).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "measurement_model.input_invalid");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::measurement_model::INPUT_INVALID);
     assert!(
         refusal.message.contains("functional weights do not match the design"),
         "{}",
@@ -282,7 +285,10 @@ fn estimator_refusals_keep_their_registered_codes() {
     let prepared = prepare_classical(&classical_model(5.0, 0.0), &sim);
     let refusal = prepared.estimate(&ctx()).unwrap_err();
     assert_eq!(refusal.code, "measurement_not_identified");
-    assert_eq!(refusal.detail, "measurement_model.reliability_too_small");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::RELIABILITY_TOO_SMALL
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -301,23 +307,35 @@ fn population_regime_arm_and_representation_are_checked_before_estimation() {
     other.population_id = "elsewhere".into();
     let refusal = refuse(&m, other);
     assert_eq!(refusal.code, "measurement_binding_mismatch");
-    assert_eq!(refusal.detail, "measurement_model.population_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
+    );
 
     let mut other = binding();
     other.regime_id = "do(a=1)".into();
-    assert_eq!(refuse(&m, other).detail, "measurement_model.regime_mismatch");
+    assert_eq!(
+        refuse(&m, other).detail,
+        antecedent_core::reason_details::measurement_model::REGIME_MISMATCH
+    );
 
     let mut arm_model = classical_model(0.6, 0.0);
     arm_model.binding.arm = ArmBinding::Arm("treated".into());
     let mut other = binding();
     other.arm_id = Some("control".into());
-    assert_eq!(refuse(&arm_model, other).detail, "measurement_model.arm_mismatch");
+    assert_eq!(
+        refuse(&arm_model, other).detail,
+        antecedent_core::reason_details::measurement_model::ARM_MISMATCH
+    );
 
     let mut other = binding();
     other.representation.version = 2;
     let refusal = refuse(&m, other);
     assert_eq!(refusal.code, "representation_mapping_required");
-    assert_eq!(refusal.detail, "measurement_model.representation_unmapped");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::REPRESENTATION_UNMAPPED
+    );
 
     // A proxy is never the construct: the measured column named as the
     // construct, and a proxy kind declared as the construct.
@@ -325,12 +343,18 @@ fn population_regime_arm_and_representation_are_checked_before_estimation() {
     other.construct_id = "schema:indicator".into();
     let refusal = refuse(&m, other);
     assert_eq!(refusal.code, "proxy_offered_as_construct");
-    assert_eq!(refusal.detail, "measurement_model.indicator_as_construct");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::INDICATOR_AS_CONSTRUCT
+    );
     let mut proxy_construct = classical_model(0.6, 0.0);
     proxy_construct.construct.kind = MeasurementKind::LearnedVectorRepresentation;
     let refusal = refuse(&proxy_construct, binding());
     assert_eq!(refusal.code, "proxy_offered_as_construct");
-    assert_eq!(refusal.detail, "measurement_model.proxy_as_construct");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::PROXY_AS_CONSTRUCT
+    );
 
     // The refusals are reason-coded for the facade error as well.
     let error: antecedent::CausalError = refuse(&m, {
@@ -372,7 +396,10 @@ fn a_declared_structure_is_never_pooled_with_the_other() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "differential_error_not_pooled");
-    assert_eq!(refusal.detail, "measurement_model.differential_declared");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::DIFFERENTIAL_DECLARED
+    );
     // Analysed under its own declaration: the per-arm rates apply.
     let right = StudyBuilder::measurement_model(
         differential.clone(),
@@ -414,7 +441,7 @@ fn a_declared_structure_is_never_pooled_with_the_other() {
     .unwrap()
     .estimate(&ctx())
     .unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.arm_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::measurement_model::ARM_MISMATCH);
 
     // Differential by time has no bounded route: refused, not pooled.
     let mut by_time = classical_model(0.6, 0.0);
@@ -444,7 +471,10 @@ fn the_route_supports_only_its_own_operations() {
     ] {
         let refusal = prepared.check_operation(refused).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported", "{refused:?}");
-        assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::OPERATION_NOT_SUPPORTED
+        );
         assert!(refusal.remedy.is_some());
     }
     // A binary input sent at a classical model is not an operation of its route.
@@ -484,7 +514,10 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
     let refusal =
         prepared.check_operation(MeasurementOperation::InterveneOnRepresentation).unwrap_err();
     assert_eq!(refusal.code, "representation_mapping_required");
-    assert_eq!(refusal.detail, "measurement_model.intervention_meaning_not_carried");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::INTERVENTION_MEANING_NOT_CARRIED
+    );
     // A mapping between other versions is refused outright.
     let mut wrong = relabel.clone();
     wrong.from.version = 7;
@@ -493,7 +526,10 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
     let refusal =
         StudyBuilder::measurement_model(m.clone(), b, classical_input(&sim), None, &ctx())
             .unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.mapping_endpoints");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::MAPPING_ENDPOINTS
+    );
     // Declared evidence of intervention preservation supports the meaning.
     let preserving = RepresentationMapping {
         semantics: MappingSemantics::InterventionPreserving { evidence_id: "ev:trial-9".into() },
@@ -506,7 +542,10 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
     // intervention on the recorded indicator (it is declared on the construct).
     let refusal = ok.check_operation(MeasurementOperation::InterveneOnRepresentation).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::OPERATION_NOT_SUPPORTED
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -586,7 +625,10 @@ fn repeated_measurements_estimate_the_icc_and_recover_the_coefficient() {
     .estimate(&ctx())
     .unwrap_err();
     assert_eq!(refusal.code, "measurement_not_identified");
-    assert_eq!(refusal.detail, "measurement_model.insufficient_replicates");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -618,7 +660,10 @@ fn binary_prevalence_inverts_the_misclassification_algebra() {
     // No coefficient vector to take a functional of.
     let refusal = estimate.downstream_linear_functional(&[1.0]).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::OPERATION_NOT_SUPPORTED
+    );
     assert!(refusal.message.contains("not an operation this route enters"), "{}", refusal.message);
 }
 
@@ -671,7 +716,10 @@ fn youden_index_at_or_below_the_minimum_refuses() {
         .estimate(&ctx())
         .unwrap_err();
         assert_eq!(refusal.code, "measurement_not_identified");
-        assert_eq!(refusal.detail, "measurement_model.youden_too_small");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::YOUDEN_TOO_SMALL
+        );
     }
 }
 
@@ -758,7 +806,7 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
     .unwrap()
     .estimate(&ctx())
     .unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.unknown_level");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::measurement_model::UNKNOWN_LEVEL);
 }
 
 // ---------------------------------------------------------------------------
@@ -861,7 +909,10 @@ fn a_posterior_route_needs_the_exact_attested_provider_object() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_native_trust");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_NATIVE_TRUST
+    );
     // Another request fingerprint is another object.
     let other = provider_object("req-2");
     let attested_other = ExternalTrustState::attest(&other, "vendor").unwrap();
@@ -873,7 +924,10 @@ fn a_posterior_route_needs_the_exact_attested_provider_object() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_identity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+    );
     // The exact object, attested, is consumed and labelled as such.
     let prepared =
         StudyBuilder::measurement_model(m, binding(), input(), Some((&good, &attested)), &ctx())
@@ -882,7 +936,10 @@ fn a_posterior_route_needs_the_exact_attested_provider_object() {
     // A learned representation's coordinates are not intervenable.
     let refusal =
         prepared.check_operation(MeasurementOperation::InterveneOnRepresentation).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.learned_coordinates_not_intervenable");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::LEARNED_COORDINATES_NOT_INTERVENABLE
+    );
 }
 
 #[test]
@@ -968,7 +1025,10 @@ fn posterior_mean_substitution_and_rubins_rules_replay_independently() {
     .unwrap()
     .estimate(&ctx())
     .unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.insufficient_draws");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::INSUFFICIENT_DRAWS
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,7 +1064,7 @@ fn refresh_keeps_the_model_recomputes_the_numbers_and_refuses_other_questions() 
     let tiny = Simulated { y: vec![0.0; 3], w: vec![0.0; 3], z: vec![0.0; 3] };
     let refusal = prepared.refresh(classical_input(&tiny), &ctx()).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "measurement_model.input_invalid");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::measurement_model::INPUT_INVALID);
     assert!(refusal.message.contains("too few rows: 3"), "{}", refusal.message);
     assert_eq!(prepared.estimate(&ctx()).unwrap().record(), before.record());
 }
@@ -1098,7 +1158,10 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
     elsewhere.population_id = "elsewhere".into();
     let refusal =
         consumed.check_use(&elsewhere, MeasurementOperation::LinearAdjustedEffect).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.population_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
+    );
 
     // Semantic mutations are different identities and are refused; the
     // original result cannot be attached to a mutated model either.
@@ -1126,12 +1189,18 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
     damaged[at] ^= 0x55;
     let refusal = consume_measurement_model_artifact(&damaged, &identity).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "measurement_model.artifact_invalid");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::ARTIFACT_INVALID
+    );
     assert!(refusal.message.contains("checksum mismatch"), "{}", refusal.message);
     // A malformed retained identity is refused, not ignored.
     let refusal = consume_measurement_model_artifact(&bytes, "not-an-identity").unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "measurement_model.artifact_invalid");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::ARTIFACT_INVALID
+    );
     assert!(refusal.message.contains("64 hexadecimal characters"), "{}", refusal.message);
 }
 

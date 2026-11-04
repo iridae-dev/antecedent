@@ -312,7 +312,12 @@ pub fn assumption_obligations(records: &[ObligationRecord]) -> Vec<EvidenceOblig
 fn absent_when_identified<T>(attempt: Result<T, RepairError>) -> Result<Option<T>, RepairError> {
     match attempt {
         Ok(family) => Ok(Some(family)),
-        Err(error) if error.detail == "identification_repair.not_a_failure" => Ok(None),
+        Err(error)
+            if error.detail
+                == antecedent_core::reason_details::identification_repair::NOT_A_FAILURE =>
+        {
+            Ok(None)
+        }
         Err(error) => Err(error),
     }
 }

@@ -80,7 +80,7 @@ fn a_dose_one_ulp_off_shares_the_label_but_is_a_different_program() {
     assert_ne!(a.identity(), b.identity());
     let claim_for_a = ExternalProgramClaim::declared_by(&a);
     let refusal = check_external_against_program(&b, &claim_for_a).unwrap_err();
-    assert_eq!(refusal.detail, "program_binding.dose_grid_changed");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED);
     assert_eq!(refusal.offending.as_deref(), Some("doses"));
     assert_eq!(refusal.expected.as_deref(), Some("0.3"));
     assert_eq!(refusal.supplied.as_deref(), Some("0.3"));
@@ -141,8 +141,7 @@ fn a_bound_result_carries_one_value_per_hand_listed_coordinate() {
     )
     .unwrap();
     let values = bound.claim().values().unwrap();
-    let regimes: Vec<String> =
-        p.expected_quantities().into_iter().map(|q| q.regime_id).collect();
+    let regimes: Vec<String> = p.expected_quantities().into_iter().map(|q| q.regime_id).collect();
     assert_eq!(
         regimes,
         ["do(schema:dose=0.5)", "do(schema:dose=1)", "do(schema:dose=1.5)", "do(schema:dose=2.5)"]

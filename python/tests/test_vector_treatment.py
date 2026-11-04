@@ -14,6 +14,7 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import vector_treatment
 from antecedent.errors import (
     CausalSerializationError,
@@ -152,45 +153,45 @@ def test_vector_incompatible_adjustment_set_snapshot_and_rows_refuse() -> None:
         )
     assert isinstance(other_set.value, CausalUnsupportedError)
     assert other_set.value.reason_code == "route_not_supported"
-    assert other_set.value.detail == "vector_treatment.adjustment_set_mismatch"
+    assert other_set.value.detail == reason_details.vector_treatment.ADJUSTMENT_SET_MISMATCH
     assert_registered_refusal(other_set.value)
 
     with pytest.raises(VectorTreatmentRefusal) as other_snapshot:
         joint_effects(Y, {"t1": X1, "t2": Treatment(X2, snapshot="elsewhere")}, snapshot="snap")
-    assert other_snapshot.value.detail == "vector_treatment.row_snapshot_mismatch"
+    assert other_snapshot.value.detail == reason_details.vector_treatment.ROW_SNAPSHOT_MISMATCH
     assert other_snapshot.value.reason_code == "route_not_supported"
 
     with pytest.raises(VectorTreatmentRefusal) as short:
         joint_effects(Y, {"t1": X1, "t2": X2[:-1]})
-    assert short.value.detail == "vector_treatment.row_count_mismatch"
+    assert short.value.detail == reason_details.vector_treatment.ROW_COUNT_MISMATCH
 
 
 def test_vector_degenerate_designs_refuse_with_typed_details() -> None:
     with pytest.raises(VectorTreatmentRefusal) as constant:
         joint_effects(Y, {"t1": X1, "t2": [1.0] * 6})
     assert constant.value.reason_code == "design_rank_deficient"
-    assert constant.value.detail == "vector_treatment.treatment_without_variation"
+    assert constant.value.detail == reason_details.vector_treatment.TREATMENT_WITHOUT_VARIATION
     assert_registered_refusal(constant.value)
 
     with pytest.raises(VectorTreatmentRefusal) as collinear:
         joint_effects(Y, {"t1": X1, "t2": [2.0 * v for v in X1]})
-    assert collinear.value.detail == "vector_treatment.collinear_treatments"
+    assert collinear.value.detail == reason_details.vector_treatment.COLLINEAR_TREATMENTS
 
     with pytest.raises(VectorTreatmentRefusal) as single:
         joint_effects(Y, {"t1": X1})
     assert single.value.reason_code == "invalid_argument"
-    assert single.value.detail == "vector_treatment.too_few_treatments"
+    assert single.value.detail == reason_details.vector_treatment.TOO_FEW_TREATMENTS
 
     with pytest.raises(VectorTreatmentRefusal) as nan:
         joint_effects([float("nan"), *Y[1:]], {"t1": X1, "t2": X2})
-    assert nan.value.detail == "vector_treatment.non_finite_value"
+    assert nan.value.detail == reason_details.vector_treatment.NON_FINITE_VALUE
 
     with pytest.raises(VectorTreatmentRefusal) as unknown:
         fit(contrasts=[Contrast("bad", {"zzz": 1.0})])
-    assert unknown.value.detail == "vector_treatment.unknown_contrast_coefficient"
+    assert unknown.value.detail == reason_details.vector_treatment.UNKNOWN_CONTRAST_COEFFICIENT
     with pytest.raises(VectorTreatmentRefusal) as empty:
         fit(contrasts=[Contrast("empty", {})])
-    assert empty.value.detail == "vector_treatment.empty_contrast"
+    assert empty.value.detail == reason_details.vector_treatment.EMPTY_CONTRAST
 
 
 def test_vector_input_validation_is_typed() -> None:
@@ -204,7 +205,7 @@ def test_vector_input_validation_is_typed() -> None:
         fit(contrasts=[42])  # type: ignore[list-item]
     with pytest.raises(VectorTreatmentRefusal) as bad_weight:
         fit(contrasts=[Contrast("inf", {"t1": float("inf")})])
-    assert bad_weight.value.detail == "vector_treatment.non_finite_value"
+    assert bad_weight.value.detail == reason_details.vector_treatment.NON_FINITE_VALUE
     with pytest.raises(CausalTypeError):
         consume_joint_effects("not bytes")  # type: ignore[arg-type]
 
@@ -286,7 +287,7 @@ def test_vector_consume_respects_the_memory_limit() -> None:
             bytes(result.export()),
             execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
         )
-    assert refused.value.detail == "vector_treatment.memory_budget_exceeded"
+    assert refused.value.detail == reason_details.vector_treatment.MEMORY_BUDGET_EXCEEDED
 
 
 def test_vector_resealed_change_is_refused_against_the_retained_identity() -> None:
@@ -300,7 +301,7 @@ def test_vector_resealed_change_is_refused_against_the_retained_identity() -> No
     with pytest.raises(VectorTreatmentRefusal) as refused:
         consume_joint_effects(bytes(changed.export()), expected_identity=original.identity)
     assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "vector_treatment.wrong_contract"
+    assert refused.value.detail == reason_details.vector_treatment.WRONG_CONTRACT
     assert refused.value.offending == "design"
     assert_registered_refusal(refused.value)
     dropped = fit(snapshot="snap")

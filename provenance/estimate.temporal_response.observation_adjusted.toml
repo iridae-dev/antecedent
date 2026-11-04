@@ -47,22 +47,26 @@ record_sha256 = "34101b6c554d83ecc59059a789a51cf8dabd0430fcc7c8f31b1901cc51ead86
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/observation.rs"
-sha256 = "5314e562fef1590a1daab1fb564d1271a8d89f6cbdcb3142b1f9ac3d660d9319"
+items = ["const DEFAULT_OBSERVATION_PROBABILITY_FLOOR", "const LAGGED_OUTCOME_REGRESSOR_REFUSAL", "enum FoldLayout", "enum SelectedOutcomeCorrection", "fn adjust_temporal_anchors", "fn adjust_temporal_series", "fn adjusted_outcome_with_extras", "fn censored", "fn censored_from_columns", "fn censoring_independence", "fn covariate_row", "fn crossfit_selected_nuisances", "fn default", "fn exact_outcome_independence", "fn fit_selected_outcome_regression", "fn fold_of", "fn gather_anchor_column", "fn gather_anchor_columns", "fn lag_aligned_observation_table", "fn new", "fn observation_fit_error", "fn observation_floor", "fn observation_floor_declared", "fn outcome_model_extras", "fn predict_linear", "fn read_complete_columns", "fn require_temporal_observation_containment", "fn require_unlagged_outcome_regressor", "fn retained_outcome_regressors", "fn selected", "fn selected_from_columns", "fn subset_colmajor", "fn temporal_conditioning_ids", "fn temporal_curve_outcome_regressors", "fn validate_options", "struct CensoringColumns", "struct CensoringValues", "struct CrossFittedSelectedNuisances", "struct ObservationAdjustedOutcome", "struct ObservationEstimatorOptions", "struct ObservationMechanismEstimator", "struct OutcomeModelExtras"]
+sha256 = "1bbcc9fb6db00472e1555d94a189632297b9b247bbad9a1c3210c6326dc10a4e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/tuple_bootstrap.rs"
-sha256 = "b01a0a926742bec3c45dd9a78e4ef720aa45b0378d6c41724335f4a3df0a26b3"
+items = ["fn dispersion", "fn first_anchor", "fn point", "fn scores"]
+sha256 = "71eb60a93f730abd76d7ef0ecea4653b712f24446f4fa8fc339790cda484f94c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/temporal_path.rs"
-sha256 = "0b9540fd5283defe557f1df852594415428cf6d0eed779233858142b7ba004e4"
+items = ["fn new"]
+sha256 = "e3864da9d3fef7d0a2bccb686a77cf4251fddf5e2291c29e3d6f1eacd7a3c96b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/temporal_response_observation_adjusted_reference.rs"
-sha256 = "1c65899cb948f7ee8f585e13a2f6d03563cf0a6a71ef60b106578e7e0430ff7d"
+items = ["const SEED", "const STREAM", "const X", "const Y", "const Z", "const Z_95", "fn cases", "fn close", "fn diagnostic", "fn floats", "fn graph", "fn identify", "fn incomplete_conditioning_sets_and_delayed_entry_are_refused", "fn options_for", "fn print_the_library_streams", "fn pseudo_outcomes_weights_and_the_composed_surface_match_the_exact_reference", "fn query_for", "fn reference", "fn regressors_and_adjustment", "fn series_of", "fn streams", "fn study", "fn surface", "fn the_censoring_survival_floor_is_read_by_the_censored_route", "fn the_hand_derived_design_columns_are_what_the_identified_horizons_give", "fn the_outer_bootstrap_regenerates_the_library_streams_and_recomputes_the_band_exactly", "struct Case"]
+sha256 = "3d5708bfd484610bc4b68bdcffff178c4b1868dfcc385ba534cec1a223bafd05"
 
 [[method_review.artifacts]]
 role = "reference"

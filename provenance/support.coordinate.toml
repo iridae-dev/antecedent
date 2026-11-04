@@ -30,9 +30,11 @@ record_sha256 = "1e76f3c9cad8ba4427d438510958b24c8c3ac303d316486e71d354e863954eb
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/response.rs"
-sha256 = "166ea8cc80956f7f8fc3f1cbffb1f2de3c38259a407763231567c4ba52b7ef43"
+items = ["module"]
+sha256 = "1b118edbbf67e9f6cbdb9d4f77a9881f19d7e473e5f859c93de777f40b0990f5"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/support.rs"
-sha256 = "06462b14d1cd5e882206894b0133d3e3d0d3499d52b687b429954df4cb5bbc5c"
+items = ["module"]
+sha256 = "d1494c0ca80936babee4d2a69381303339e2c0b85688c17f8138a50989e25ddd"

@@ -74,6 +74,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -671,7 +673,7 @@ class SelectiveDiscovery(ScientificResult):
                 {
                     "code": "invalid_argument",
                     "stage": "selective_discovery",
-                    "detail": "selective_discovery.nothing_retained",
+                    "detail": _reason_details.selective_discovery.NOTHING_RETAINED,
                     "message": "no discovery has run",
                     "remedy": "run discovery before exporting its state",
                 }

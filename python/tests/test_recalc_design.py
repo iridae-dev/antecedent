@@ -8,6 +8,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility
@@ -130,7 +131,7 @@ def test_design_weak_iv_retains_point_diagnostics_and_previous_state():
     error = caught.value
     assert (error.reason_code, error.detail, error.stage) == (
         "route_not_supported",
-        "recalc.iv_decision_unavailable",
+        reason_details.recalc.IV_DECISION_UNAVAILABLE,
         "decision",
     )
     assert error.point == pytest.approx(2.0, abs=1e-9)
@@ -173,7 +174,7 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
     refused(
         lambda: require_success(consume_design_result(artifact, None, execution=Execution(seed=3))),
         "score_table_unavailable",
-        "recalc.design_data_unavailable",
+        reason_details.recalc.DESIGN_DATA_UNAVAILABLE,
         "data_snapshot",
     )
     refused(
@@ -185,13 +186,13 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
             )
         ),
         "invalid_argument",
-        "recalc.design_artifact_mismatch",
+        reason_details.recalc.DESIGN_ARTIFACT_MISMATCH,
         "score_artifact",
     )
     refused(
         lambda: require_success(consume_design_result(artifact, r, execution=Execution(seed=4))),
         "invalid_argument",
-        "recalc.design_artifact_mismatch",
+        reason_details.recalc.DESIGN_ARTIFACT_MISMATCH,
         "score_artifact",
     )
     if kind == "rd":
@@ -202,7 +203,7 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
                 )
             ),
             "invalid_argument",
-            "recalc.design_artifact_mismatch",
+            reason_details.recalc.DESIGN_ARTIFACT_MISMATCH,
             "score_artifact",
         )
     path = tmp_path / "result.artifact"
@@ -231,7 +232,7 @@ def test_design_receipt_only_boundary_and_supplied_raw_refit(kind):
     refused(
         lambda: require_success(empty.execute(r, execution=Execution(seed=3))),
         "score_table_unavailable",
-        "recalc.unavailable_data",
+        reason_details.recalc.UNAVAILABLE_DATA,
         "data_snapshot",
     )
     restored = require_success(DesignSession.resume(receipt, ResumeContext(supplied_data=True)))
@@ -265,8 +266,8 @@ def test_design_resource_guards_and_native_capabilities():
             )
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.memory_budget_exceeded" in str(caught.value)
-    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+    assert reason_details.recalc.MEMORY_BUDGET_EXCEEDED in str(caught.value)
+    with pytest.raises(CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED):
         require_success(
             session.execute(r, execution=Execution(limits=ResourceLimits(memory_bytes=1)))
         )
@@ -290,7 +291,7 @@ def test_design_typed_invalid_design_refusals():
             session.execute(replace(r, model=RdModel("r", 0, -1)), execution=Execution(seed=3))
         ),
         "invalid_argument",
-        "recalc.invalid_rd_window",
+        reason_details.recalc.INVALID_RD_WINDOW,
         "query",
     )
     assert session.identities == identities and session.is_live

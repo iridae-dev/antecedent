@@ -369,5 +369,8 @@ fn the_cohort_mean_is_a_supported_forward_source_of_an_inverse_query() {
     // One shape for a consumer that does not accept a transported claim: the
     // same code and detail as the inverse forward source.
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
-    assert_eq!(refusal.detail, "inverse_forward_source.transported_not_accepted");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::inverse_forward_source::TRANSPORTED_NOT_ACCEPTED
+    );
 }

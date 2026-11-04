@@ -327,7 +327,12 @@ mod tests {
         match err {
             IoError::Refused { code, message } => {
                 assert_eq!(*code, antecedent_core::reason_code!("route_not_supported"), "{err}");
-                assert!(message.contains("nested_markov.outside_binary_pilot"), "{err}");
+                assert!(
+                    message.contains(
+                        antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT
+                    ),
+                    "{err}"
+                );
                 assert!(
                     message.contains("the pilot needs exactly the observational regime"),
                     "{err}"

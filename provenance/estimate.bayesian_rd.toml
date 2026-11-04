@@ -54,12 +54,14 @@ record_sha256 = "1408ce89419c6067ff0b1eb09f7cb05d7da02149fdc747e112734c41db10f11
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_rd.rs"
-sha256 = "9ec1379670d6755ab8d57f6246877ff6c7c5b9db59d607cc886dce5e0b150d69"
+items = ["fn draw_column", "fn fit_bayesian_sharp_rd", "fn invert", "fn posterior", "fn q", "struct BayesianRdEstimate", "struct RdSample"]
+sha256 = "295e7deca023b1cc22d51fc6ba87600121ebc4c72ba3e9b7ceb4a56d52b6b9c1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_rd_reference.rs"
-sha256 = "e6b10d0de91106d518aac16470f871e8fb5c9a9e5d29d574a2f86c461185a99a"
+items = ["const DRAWS", "fn cases", "fn floats", "fn rescaling_the_outcome_rescales_the_posterior_because_the_prior_is_in_residual_units", "fn the_jump_posterior_matches_the_exact_normal_reference"]
+sha256 = "73de6c466acc87de4df81e975a9d7a310c3bfe38803ef2d31b1ba25229531deb"
 
 [[method_review.artifacts]]
 role = "reference"

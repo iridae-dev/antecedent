@@ -412,24 +412,24 @@ impl ClaimRevalidation {
                 WithdrawalKind::Calibration => return None,
                 WithdrawalKind::Support => (
                     antecedent_core::reason_code!("claim_support_withdrawn"),
-                    "composition_verification.support_withdrawn",
+                    antecedent_core::reason_details::composition_verification::SUPPORT_WITHDRAWN,
                     "restrict the claim to coordinates inside the support, or supply evidence \
                      that extends it",
                 ),
                 WithdrawalKind::ProviderTrust => (
                     antecedent_core::reason_code!("claim_support_withdrawn"),
-                    "composition_verification.provider_trust_withdrawn",
+                    antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN,
                     "re-verify the provider at its current identity, or use a native route",
                 ),
                 WithdrawalKind::Retired => (
                     antecedent_core::reason_code!("claim_support_withdrawn"),
-                    "composition_verification.input_retired",
+                    antecedent_core::reason_details::composition_verification::INPUT_RETIRED,
                     "recompute the claim from the successor of the retired input, or declare \
                      a replacement",
                 ),
                 WithdrawalKind::Unexecutable => (
                     antecedent_core::reason_code!("claim_support_withdrawn"),
-                    "composition_verification.stage_unexecutable",
+                    antecedent_core::reason_details::composition_verification::STAGE_UNEXECUTABLE,
                     "supply the data, fit or provider the stage needs, or recompute it",
                 ),
             };
@@ -447,7 +447,7 @@ impl ClaimRevalidation {
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("claim_revalidation_required"),
                     stage,
-                    "composition_verification.recompute_required",
+                    antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED,
                 )
                 .with_offending(self.key.clone())
                 .with_expected(format!("origin {origin}"))
@@ -519,7 +519,7 @@ impl GraphRevalidation {
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 "revalidate",
-                "composition_verification.unknown_claim",
+                antecedent_core::reason_details::composition_verification::UNKNOWN_CLAIM,
             )
             .with_offending(key.to_owned())
             .with_remedy("name a claim declared in the current composition graph"));

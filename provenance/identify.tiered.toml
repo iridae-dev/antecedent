@@ -40,19 +40,23 @@ record_sha256 = "df8c4be3fcbb5c8dbef1e893d2d75725fb07c21666b514b96c838f6005c7871
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/tiered.rs"
-sha256 = "fa81fd28fe90f3dfefab80680d7586ab600f254460008a3a0924fb3ac868ce45"
+items = ["const NO_LATENT_TO_OUTCOME", "const TIERED_ADJUSTMENT_REFUSE", "const TIERED_JOINT_ADJUSTMENT_REFUSE", "const TIERED_JOINT_UNKNOWN_REFUSE", "fn estimand_for_set", "fn estimands_for_sets", "fn identify_closure", "fn identify_joint_closure_on", "fn identify_tiered", "fn identify_tiered_joint", "fn identify_tiered_on", "fn identify_tiered_unknown", "fn modifier_refusal", "fn named_no_latent_assumption", "fn no_latent_diagnostic", "fn node_of", "fn post_treatment_modifier", "fn validate_query"]
+sha256 = "80e94d8ef6ecd5f1ef71edba67b769ded17c4a282f009443bf7235e3683aaea2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/tiered.rs"
-sha256 = "7a7fd684a7c1ad9aed447c06644e21d49ea17559e149964efdef2a9db0f6173b"
+items = ["enum WithinTier", "fn build", "fn new", "fn tier_closure_set", "fn tier_of", "fn to_admg", "struct TierIndex", "struct TieredBackground"]
+sha256 = "d06668e1ef66c03e98e1e05a8207ee2e12c7af9be604b7fdd198bcc3b4922045"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/joint_response.rs"
-sha256 = "3caed53c5b66316bf912725b0d8daadb73e22c26349349df7e8208755f768ea3"
+items = ["module"]
+sha256 = "3d8ddd4eae364bca7141cf544cb0c83c8c96af699951afa5f98bb797b4b79f34"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/tiered_closure_enumeration.rs"
-sha256 = "9d59d35cb42f2310cbe3224d0994f23f87038515a0e8f367da17783ee5ada57c"
+items = ["fn admg", "fn an_effect_modifier_after_the_treatment_is_refused_not_dropped", "fn ancestors_of", "fn background", "fn bi", "fn child", "fn closure", "fn connected", "fn descendants", "fn edges", "fn id_identifies", "fn joint_backdoor", "fn layouts", "fn set_of", "fn the_tier_closure_matches_the_back_door_definition_on_every_layout", "fn v", "fn walk", "struct Layout"]
+sha256 = "ee71f97a15efb897f4f5d85a82caa6cfc3985be30ee2b5f42ec50cb3c00d5185"

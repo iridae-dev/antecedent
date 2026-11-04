@@ -54,7 +54,8 @@ impl MechanismDiscrepancyRefusal {
             Some((code, detail, message)) => Self { code, detail, message },
             None => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "mechanism_discrepancy.invalid_artifact".to_owned(),
+                detail: antecedent_core::reason_details::mechanism_discrepancy::INVALID_ARTIFACT
+                    .to_owned(),
                 message: error.to_string(),
             },
         }
@@ -69,13 +70,16 @@ impl MechanismDiscrepancyRefusal {
                 code,
                 detail: message
                     .detail()
-                    .unwrap_or("mechanism_discrepancy.invalid_request")
+                    .unwrap_or(
+                        antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST,
+                    )
                     .to_owned(),
                 message: message.explanation().to_owned(),
             },
             other => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "mechanism_discrepancy.invalid_request".to_owned(),
+                detail: antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST
+                    .to_owned(),
                 message: other.to_string(),
             },
         }
@@ -112,7 +116,7 @@ pub fn run_mechanism_discrepancy(
         if target_ids.iter().any(|id| ids.contains(id.as_str())) {
             return Err(MechanismDiscrepancyArtifactError::refused(
                 antecedent_core::reason_code!("route_not_supported"),
-                "mechanism_discrepancy.dependence_unknown",
+                antecedent_core::reason_details::mechanism_discrepancy::DEPENDENCE_UNKNOWN,
                 "source and target share units, so their estimates are not independent",
             ));
         }
@@ -169,6 +173,9 @@ mod tests {
             run_mechanism_discrepancy(&request, &ids(&["a", "b"]), &ids(&["b", "c"])).unwrap_err();
         let refusal = MechanismDiscrepancyRefusal::from_artifact_error(&error);
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "mechanism_discrepancy.dependence_unknown");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::mechanism_discrepancy::DEPENDENCE_UNKNOWN
+        );
     }
 }

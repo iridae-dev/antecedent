@@ -151,7 +151,7 @@ fn an_unavailable_stage_round_trips_and_carries_no_output() {
         declaration: declaration(),
         request: CallbackRequest::new(CallbackQuery::Mean, 1),
         outcome: CallbackOutcome::Unavailable {
-            reason: "callback_protocol.provider_unavailable".into(),
+            reason: antecedent_core::reason_details::callback_protocol::PROVIDER_UNAVAILABLE.into(),
         },
     };
     let bytes = CallbackResultArtifact::to_bytes(&record, "unavailable").expect("bytes");
@@ -236,7 +236,7 @@ fn metadata_cannot_mint_native_trust() {
     .expect_err("native trust is refused, not downgraded");
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, antecedent_core::reason_code!("callback_protocol_invalid"));
-    assert_eq!(detail, "callback_protocol.native_trust_claimed");
+    assert_eq!(detail, antecedent_core::reason_details::callback_protocol::NATIVE_TRUST_CLAIMED);
     // An unknown level is unsupported semantics, never silently accepted.
     let error =
         resealed(sealed_meta(&record), &vals, |m| m.protocol.trust.level = "supported".into())
@@ -256,12 +256,15 @@ fn a_stored_output_is_revalidated_as_a_law() {
     .expect_err("not a law");
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, antecedent_core::reason_code!("callback_output_invalid"));
-    assert_eq!(detail, "callback_protocol.output_not_a_law");
+    assert_eq!(detail, antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW);
     // A non-finite value.
     let nan = [0.1, f64::NAN, 0.9];
     let error = resealed(meta.clone(), &nan, |m| m.output_digest = output_values_digest(&nan))
         .expect_err("not finite");
-    assert_eq!(error.refusal().unwrap().1, "callback_protocol.output_not_finite");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_FINITE
+    );
     // The wrong number of values for the query.
     let short = [0.1, 0.5];
     let error = resealed(meta, &short, |m| {
@@ -269,7 +272,10 @@ fn a_stored_output_is_revalidated_as_a_law() {
         m.output_digest = output_values_digest(&short);
     })
     .expect_err("short");
-    assert_eq!(error.refusal().unwrap().1, "callback_protocol.output_shape");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_SHAPE
+    );
 }
 
 #[test]

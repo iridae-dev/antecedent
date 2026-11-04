@@ -10,6 +10,7 @@ import sys
 import tomllib
 
 from _repo import REPO_ROOT as ROOT
+from route_behaviour import load_stage_routes
 
 LEDGER = ROOT / "parity/evidence_ledger.toml"
 RECORDS = ROOT / "parity/capability_records.toml"
@@ -47,13 +48,11 @@ def problems(cells: list[dict], records: list[dict], stages: list[dict]) -> list
             continue
         record, route = expected[key]
         prefix = f"{record['id']} {route['name']}"
-        for field, wanted in (
-            ("parity_registry", "parity/capability_records.toml"),
-            ("support_registry", "parity/transport_stages.toml"),
-            ("executing_gate", "scripts/gate_capability_records.sh"),
-        ):
-            if cell.get(field) != wanted:
-                errors.append(f"{prefix}: {field} must be {wanted}")
+        if cell.get("parity_registry") != "parity/capability_records.toml":
+            errors.append(f"{prefix}: parity_registry must be parity/capability_records.toml")
+        for field in ("support_registry", "executing_gate"):
+            if field in cell:
+                errors.append(f"{prefix}: {field} is a constant of the gate, not of the cell")
         matches = stage_by_route.get(route["name"], [])
         if not any(
             stage.get("stage") == route["stage"]
@@ -144,14 +143,12 @@ def self_test() -> None:
         "route": "test.route",
         "algorithm_provenance": ["pending:provenance/test.toml"],
         "parity_registry": "parity/capability_records.toml",
-        "support_registry": "parity/transport_stages.toml",
         "positive_fixture": "test.positive",
         "oracle_kind": "pending_independent_oracle",
         "oracle_inputs": "pending inputs",
         "expected_values": "pending values",
         "tolerance": "pending tolerance",
         "calibration": "point_only_no_interval",
-        "executing_gate": "scripts/gate_capability_records.sh",
         "artifact_consumer_fixture": "test.artifact",
         "provider_trust": "native_route_pending_evidence",
         "exact_request_verification": "not_applicable_no_external_provider",
@@ -178,7 +175,7 @@ def main() -> int:
         print("evidence ledger: unsupported header", file=sys.stderr)
         return 1
     records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
-    stages = tomllib.loads(STAGES.read_text(encoding="utf-8"))["routes"]
+    stages = load_stage_routes(ROOT, STAGES)
     errors = problems(ledger["cell"], records, stages)
     if errors:
         print("\n".join(f"FAIL: {error}" for error in errors), file=sys.stderr)

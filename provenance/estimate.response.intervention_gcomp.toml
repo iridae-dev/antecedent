@@ -46,22 +46,26 @@ record_sha256 = "cd5b0b80be618b7a78d661d435e41b2e18e787c29c2bc37d56eb72020a32461
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/curve.rs"
-sha256 = "5fa78688d2f823851d49bff4d82cf3aa001508792536cd80802c0ede83370b26"
+items = ["fn intervention_response"]
+sha256 = "21cf8c7509275cb8bbec9190956826cca53a9c413a0e15fe552bf3fe05287cf2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/policy.rs"
-sha256 = "68b8e2f0e1eeef4039d149894d63a29e89bee6363c48295f1a3cf95c4716b98e"
+items = ["module"]
+sha256 = "3bffce46f2c142503379cbcd54b29e6e3fc615455301cb4166509120176a83e5"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/plugin.rs"
-sha256 = "2b5588eaa2bec08e02ac9837aaa991d38b2e9f9f932c740f42476e3ef23f10ff"
+items = ["fn new", "fn plugin_smooth", "fn sample_raw_column"]
+sha256 = "6cdf35b1996e98c4724315b955d1fb5fd4f69ffc24b0808aab0e6569b3d6176f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_intervention_gcomp_reference.rs"
-sha256 = "99b4dd5996b0e9c659a7bc5f2355a9abf2f5ef59db5d80d17d8b570e4b77a4e9"
+items = ["fn data_of", "fn estimator", "fn floats", "fn intervention", "fn num", "fn the_level_and_sandwich_error_match_the_exact_references"]
+sha256 = "5cd2b79cdfd6636af036a3beb7be3f529d721556492ca75e4b5aa30c3eefbe4a"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -70,7 +70,7 @@ const INNER_PLAN_TAG: u64 = 0x1AE5_17D0_F01D_0001;
 pub(crate) fn invalid(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "penalized_propensity.invalid_penalty",
+        antecedent_core::reason_details::penalized_propensity::INVALID_PENALTY,
         message,
     )
 }
@@ -80,7 +80,7 @@ fn allocate_penalty_grid(count: usize) -> Result<Vec<f64>, EstimationError> {
     grid.try_reserve_exact(count).map_err(|_| {
         refuse(
             antecedent_core::reason_code!("execution_resource_limit"),
-            "penalized_propensity.grid_allocation",
+            antecedent_core::reason_details::penalized_propensity::GRID_ALLOCATION,
             "could not allocate the declared penalty grid",
         )
     })?;
@@ -155,7 +155,7 @@ impl RidgeTuning {
         if !fits {
             return Err(refuse(
                 antecedent_core::reason_code!("execution_resource_limit"),
-                "penalized_propensity.grid_allocation",
+                antecedent_core::reason_details::penalized_propensity::GRID_ALLOCATION,
                 "penalty grid exceeds the per-declaration configuration cap",
             ));
         }
@@ -344,7 +344,7 @@ impl PropensityNuisance {
         if self.is_penalized() && self.fallback != NuisanceFallback::None {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "penalized_propensity.fallback_with_penalty",
+                antecedent_core::reason_details::penalized_propensity::FALLBACK_WITH_PENALTY,
                 "a nuisance fallback replaces a failed GLM propensity fit; a penalized \
                  propensity is declared as the primary route, so the fallback could never run",
             ));
@@ -358,7 +358,7 @@ impl PropensityNuisance {
     pub fn lasso_not_cross_fitted() -> EstimationError {
         refuse(
             antecedent_core::reason_code!("selection_inference_not_supported"),
-            "penalized_propensity.selection_not_supported",
+            antecedent_core::reason_details::penalized_propensity::SELECTION_NOT_SUPPORTED,
             "a lasso propensity is supported only inside the cross-fitted untrimmed AllObserved \
              mean ATE, where the support is selected on training rows only; a full-sample \
              lasso selects covariates on the rows it scores, so no interval is valid after \
@@ -391,7 +391,7 @@ impl PropensityNuisance {
         let fields = error.refusal_fields().map(std::borrow::Cow::into_owned);
         EstimationError::refused_detail_with_fields(
             antecedent_core::reason_code!("nuisance_fallback_not_supported"),
-            "penalized_propensity.fallback_not_supported",
+            antecedent_core::reason_details::penalized_propensity::FALLBACK_NOT_SUPPORTED,
             format!(
                 "the primary nuisance fit failed ({error}); {tail}, so the failed fit is \
                  reported and no fallback result is produced"
@@ -814,7 +814,7 @@ pub(crate) fn fit_penalized_fold(
         if ctx.cancellation.is_cancelled() {
             return Err(refuse(
                 antecedent_core::reason_code!("cancelled_no_claim"),
-                "penalized_propensity.cancelled",
+                antecedent_core::reason_details::penalized_propensity::CANCELLED,
                 &format!(
                     "{} penalty selection was cancelled; no estimate is reported",
                     penalty.label()

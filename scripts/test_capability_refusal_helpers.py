@@ -23,6 +23,7 @@ from capability_source import (
     refusal_stage_literals,
     rust_literals,
     rust_pub_items,
+    scan_refusal_details,
     sectioned_artifact_refusals,
     shared_namespace_problems,
     typed_input_exception_problems,
@@ -878,3 +879,39 @@ class SharedNamespaceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RegistryConstantTests(unittest.TestCase):
+    def scan(self, rust="", python=""):
+        import detail_constants
+
+        detail_constants._IDS = {"ns.one", "ns.two", "ns.three", "ns.four", "ns.listed"}
+        self.addCleanup(setattr, detail_constants, "_IDS", None)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = []
+            for name, text in (("a.rs", rust), ("b.py", python), ("reason_details.rs", 'pub const X: &str = "ns.listed";')):
+                (root / name).write_text(text, encoding="utf-8")
+                files.append((root / name, False))
+            found, _ = scan_refusal_details({"ns"}, files, lambda p: p.read_text(encoding="utf-8"), str)
+            return found["ns"]
+
+    def test_constants_of_the_detail_registry_name_their_ids(self):
+        found = self.scan(
+            rust="use antecedent_core::reason_details::ns;\n"
+            "pub fn f() { let _ = ns::ONE; let _ = crate::reason_details::ns::TWO; "
+            "let _ = antecedent_core::reason_details::ns::THREE; }\n",
+            python="from antecedent import _reason_details\nx = _reason_details.ns.FOUR\n",
+        )
+        self.assertEqual(set(found), {"ns.one", "ns.two", "ns.three", "ns.four"})
+
+    def test_a_non_registered_or_non_imported_family_constant_is_not_a_detail(self):
+        found = self.scan(
+            rust="use antecedent_core::reason_details::ns;\npub fn f() { let _ = ns::MAX_ITEMS; let _ = other::ONE; }\n"
+        )
+        self.assertEqual(found, {})
+        found = self.scan(rust="pub fn f() { let _ = ns::ONE; }\n")
+        self.assertEqual(found, {})
+
+    def test_the_generated_constant_modules_are_not_emission_sites(self):
+        self.assertEqual(self.scan(), {})

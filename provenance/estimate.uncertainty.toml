@@ -42,9 +42,11 @@ record_sha256 = "b560d1962941a50ff8fa5bb9a23ea8bf0195916b7131be2857584b4f9154468
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/result.rs"
-sha256 = "e0aed0844d1948d243f5c41c154fc399119b3fcc756d0e0c695bf2f1b02b07a4"
+items = ["const REPORTED_SE_INTERVAL_LEVEL", "enum PrimaryEstimate", "fn as_str", "fn critical_value", "fn estimate", "fn interval", "fn new", "fn positive_finite", "fn reported_se_interval_z", "fn select", "fn withhold_iv", "struct IntervalBinding", "struct PublishedScalarUncertainty"]
+sha256 = "563d072bdfb8efb0be5b6ea3cbb218f939a4d7a37cd84e81c81a400c2a7cb6f1"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/estimate_uncertainty_reference.rs"
-sha256 = "b5f53b12811e92c709e3e33fd9739b04414e294f5db854ba4a996c2801b27eaa"
+items = ["fn a_bootstrap_interval_ignores_declared_reference_degrees_of_freedom", "fn estimate", "fn fixture", "fn method_tag", "fn num", "fn the_critical_value_and_interval_match_the_exact_quantiles", "fn the_selector_matches_the_enumerated_rule_for_every_combination"]
+sha256 = "888547985a3591ac5fe4231d71faa3db4b42723d6dcd5426d8e81fa23f7b5a2c"

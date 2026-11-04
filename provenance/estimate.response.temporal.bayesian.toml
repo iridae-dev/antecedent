@@ -36,32 +36,38 @@ record_sha256 = "eabb501e9d0175361f328ba891f29295d02f77423284347d4e4d045e854a8d9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/bayes.rs"
-sha256 = "c0ec2b1886bea07ee165d437f794a7070911dbe49a9dcf33743dfbbcc9f05894"
+items = ["const ORDINARY_LIKELIHOOD_REFUSAL", "const TEMPORAL_BAYESIAN_JOINT_UNAVAILABLE", "const WHITE_INNOVATION_SUPPORT_DIAGNOSTIC", "fn bayesian_target", "fn combine_columns", "fn disclose_posterior_basis", "fn estimate_bayesian", "fn fit_horizons", "fn joint_trajectory_draws", "fn of", "fn retained_joint_trajectory_draws", "fn retained_response_draws", "fn summarize_cells", "fn tie_horizons", "fn validate_bayesian_request", "struct BayesTarget", "struct CellSummaries", "struct HorizonFit", "struct HorizonFits", "struct HorizonRun", "type CellDraws"]
+sha256 = "8c211f082506c744742c0b2f55885064af55934136d7e511b96f545692e2eb38"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/serial_dependence.rs"
-sha256 = "e850fdc3a51c51e1f4249736e986f336589f6afd9ba641c224ea66efa69adb5f"
+items = ["const DELTA_STEP", "const EXACT_FIT_RELATIVE_SS", "const MAX_PARTIAL_AUTOCORRELATION", "const NEWTON_POLISH_SLACK", "const NEWTON_POLISH_STEPS", "const NEWTON_POLISH_TOL", "const Q", "const SIMPLEX_F_TOL", "const SIMPLEX_ITERATIONS_PER_DIM", "const SIMPLEX_STEP", "const SIMPLEX_X_TOL", "enum DependenceScope", "enum SerialDependence", "fn block", "fn cholesky", "fn cholesky_into", "fn cholesky_solve", "fn coefficients", "fn correlate", "fn description", "fn effective_rows", "fn from_coefficients", "fn from_z", "fn information_matrix", "fn nelder_mead", "fn new", "fn newey_west_bandwidth", "fn newton_polish", "fn observed_information", "fn order", "fn pacf_to_phi", "fn pacf_to_phi_into", "fn projected_trace", "fn recolour", "fn recolour_any", "fn recolour_transpose", "fn recolour_transpose_any", "fn reml_autoregression", "fn reml_kernel_bytes", "fn reml_log_likelihood", "fn reml_poll", "fn solve_into", "fn solve_transpose_into", "fn whitened_gram", "fn z_to_phi", "struct ArErrorModel", "struct RemlKernel", "struct Whitener", "type Vertex"]
+sha256 = "33ba2099efccac10c2ac11e551f9a7dfe3117765036bda871fdc3f943c649a47"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/joint_coefficients.rs"
-sha256 = "3e5a96bbd0d8292982e8764d6a8c227d830b19e69ff3a0e191727ede9b0b239b"
+items = ["const JOINT_STREAM", "fn joint_draws", "struct CoefficientDraws", "struct Moments", "type JointCoefficientDraws"]
+sha256 = "11b89be912f5ca8f095ef2a368e2c80ead88758683910d315121a739065792df"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_slope_design.rs"
-sha256 = "aba8bce478fa4da1e94426afbfcc59987908b786e10411db2d7ca0a4d8c5f0ce"
+items = ["fn joint_dependence_factor", "struct DependencePart"]
+sha256 = "64fb7c2a16ccd68f66497d6bc6f2dbcd85ff60042ef1ec8d7d67ede6b088bebf"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_block.rs"
-sha256 = "3222a823c1a808cd53c2b150b5b6a06b0e3244bd1bed8b05a0b9984523ea8392"
+items = ["const SCORE_VARIANCE_FLOOR", "fn column", "fn dependence_block_length", "fn politis_white_block_length", "fn score_autocovariance", "fn testing_block_length"]
+sha256 = "c3c35923acc1751db8d17fd25aeb25275a46ad760672532eda4f24c8e41e1531"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_temporal_bayesian_reference.rs"
-sha256 = "926fae0f91e1613cae8b02160815562e456522669aa8a32d68f9ec58d909486a"
+items = ["const DRAWS", "const X", "const Y", "const Z", "fn assert_cells", "fn assert_kappas", "fn estimate", "fn estimate_response_temporal_bayesian_reference_block_length_reads_the_declared_history_lag", "fn estimate_response_temporal_bayesian_reference_joint_trajectory_dependence_matches_the_definition", "fn estimate_response_temporal_bayesian_reference_tempering_factor_and_curve_match_the_definition", "fn estimate_response_temporal_bayesian_reference_too_short_a_horizon_keeps_the_untempered_posterior", "fn floats", "fn graph", "fn horizons_of", "fn identify", "fn kappas", "fn load", "fn mean_curve", "fn published_block", "fn series", "fn set_level", "fn surface_band"]
+sha256 = "d323d13018d716f6e48d5a0046aef6d65f65233156ec07ca38bb62da66cd7eef"
 
 [[method_review.artifacts]]
 role = "reference"

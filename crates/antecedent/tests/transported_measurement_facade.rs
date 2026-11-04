@@ -237,35 +237,50 @@ fn every_unmet_premise_is_named() {
 
     let missing = run(None, target.clone());
     assert_eq!(missing.code, "transport_missing_evidence");
-    assert_eq!(missing.detail, "measurement_model.invariance_premise_required");
+    assert_eq!(
+        missing.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_PREMISE_REQUIRED
+    );
     assert!(missing.remedy.is_some());
 
     let partial = run(Some(&premise(&[ErrorParameter::Specificity])), target.clone());
     assert_eq!(partial.code, "transport_not_certified");
-    assert_eq!(partial.detail, "measurement_model.invariance_not_declared");
+    assert_eq!(
+        partial.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_NOT_DECLARED
+    );
     assert!(partial.message.contains("sensitivity"), "{}", partial.message);
 
     let differential = PopulationErrorStructure::Differential { declarer: "analyst".into() };
     let unpooled = run(Some(&differential), target.clone());
     assert_eq!(unpooled.code, "differential_error_not_pooled");
-    assert_eq!(unpooled.detail, "measurement_model.differential_population_unestablished");
+    assert_eq!(
+        unpooled.detail,
+        antecedent_core::reason_details::measurement_model::DIFFERENTIAL_POPULATION_UNESTABLISHED
+    );
 
     let elsewhere = PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
         "clinic_a", "clinic_c", "analyst", &BOTH,
     ));
     let wrong_target = run(Some(&elsewhere), target.clone());
     assert_eq!(wrong_target.code, "transport_not_certified");
-    assert_eq!(wrong_target.detail, "measurement_model.invariance_target_mismatch");
+    assert_eq!(
+        wrong_target.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_TARGET_MISMATCH
+    );
 
     let unknown = PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
         "clinic_z", "clinic_b", "analyst", &BOTH,
     ));
     let source_unknown = run(Some(&unknown), target.clone());
-    assert_eq!(source_unknown.detail, "measurement_model.invariance_source_unknown");
+    assert_eq!(
+        source_unknown.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_SOURCE_UNKNOWN
+    );
 
     let regime = run(Some(&premise(&BOTH)), binding("clinic_b", "do(a=1)"));
     assert_eq!(regime.code, "measurement_binding_mismatch");
-    assert_eq!(regime.detail, "measurement_model.regime_mismatch");
+    assert_eq!(regime.detail, antecedent_core::reason_details::measurement_model::REGIME_MISMATCH);
 }
 
 #[test]
@@ -281,6 +296,9 @@ fn a_route_with_nothing_to_carry_is_refused_by_the_transport_decision() {
     )
     .unwrap_err();
     assert_eq!(error.code, "route_not_supported");
-    assert_eq!(error.detail, "measurement_model.nothing_to_transport");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::measurement_model::NOTHING_TO_TRANSPORT
+    );
     assert!(error.remedy.is_some());
 }

@@ -204,7 +204,10 @@ fn a_resealed_declaration_the_library_refuses_is_refused_with_its_detail() {
     let error = InterfaceContractArtifact::from_bytes(&bytes_of(&meta), None).unwrap_err();
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, "interface_contract_invalid");
-    assert_eq!(detail, "interface_contract.uncertainty_meaning_required");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_REQUIRED
+    );
 
     // A stated paradigm that is not the meaning's paradigm.
     let mut meta = meta_of(&contract());
@@ -231,7 +234,10 @@ fn a_resealed_declaration_the_library_refuses_is_refused_with_its_detail() {
     let error = InterfaceContractArtifact::from_bytes(&bytes_of(&meta), None).unwrap_err();
     assert_eq!(
         error.refusal().map(|(_, detail, _)| detail),
-        Some("interface_contract.calibration_without_interval".to_owned())
+        Some(
+            antecedent_core::reason_details::interface_contract::CALIBRATION_WITHOUT_INTERVAL
+                .to_owned()
+        )
     );
 }
 

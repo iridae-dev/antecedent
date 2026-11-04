@@ -23,19 +23,23 @@ record_sha256 = "7c285efa7533655d57fcbccb527d3bb294b203df9c9f7f6a8c2ac9fb1d66c20
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/quantity.rs"
-sha256 = "be4c0e3fbbf28dfb0ccbacda87831069cf8df105ad7121ea223a22efae8ea6b5"
+items = ["enum QuantityRole", "struct QuantityCondition", "struct ScientificQuantity"]
+sha256 = "36536de5e68ccc771aa454d1c83e4d75efba081d6363811283884dc6b69dc2e8"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/joint_alignment.rs"
-sha256 = "ba5b1cbea83828ca7e0e0de89644463e39bfc6a1ae551ae8efdbf419a744bf06"
+items = ["const PRODUCING_LAW_TAG", "enum JointAxisKind", "enum JointCovariance", "enum MassFate", "fn as_str", "fn axes", "fn code", "fn covariance", "fn failed", "fn id", "fn identity", "fn key", "fn kind", "fn message", "fn new", "fn unidentified", "struct JointAxis"]
+sha256 = "45d04c089b8ed5a949066848d4913d3a059ab5ffb38379678e8995d35e5aaa9d"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/distribution_artifact.rs"
-sha256 = "821fd1c5fd6a6f7908b304ea01fc6ec8fd905faf4b252c60cafb32c98cc57e27"
+items = ["const ARTIFACT_KIND", "const DRAW_SECTION", "const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "const META_SECTION", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn from_bytes", "fn from_bytes_within", "fn joint_expectation", "fn mean", "fn metadata", "fn n_draws", "fn new", "fn new_within", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn to_bytes", "fn to_bytes_within", "fn validate", "fn validate_metadata", "fn validate_within", "fn weights", "struct DistributionArtifact", "struct DistributionIdentity", "struct DistributionIntakeLimits", "struct DistributionMetadata", "struct DistributionProvenance", "struct LegacyPosteriorBinding"]
+sha256 = "b8909be7043599313aba000f78f021efc9283ed3109ec55855ed985102862258"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/distribution_artifact.rs"
-sha256 = "ae09c09c9ca7df596ea178dbf66881532a9e9dfcbcab5dd6634a501795a58124"
+items = ["const ENUMERATED_DRAWS", "const PATH_ENV", "fn enumerated_metadata", "fn expected_identity", "fn fresh_process_consumer_recomputes_enumerated_joint_truth", "fn independent_marginals_cannot_supply_covariance", "fn joint_moments_match_the_enumerated_law", "fn resealed_axes_alignment_and_meaning_changes_are_refused"]
+sha256 = "f8d4f2acd97f51f0433f08028aad975b2e9ea6201648c989564c687730977a02"

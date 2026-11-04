@@ -54,62 +54,74 @@ record_sha256 = "c9ec3e3bf09ac4d0caf94aa86e4bc70d53c02fea00baa8ba0da0ed418139bb8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/mod.rs"
-sha256 = "17ea142dd9c4c51d1b25878deb8289b7b369ee7f882a6444761b02e55ce1a826"
+items = ["fn gapped_block_bootstrap", "struct GappedBootstrap"]
+sha256 = "f13f76515203d4f9bed944b9a7a04fadb3e76e015ceeb092462aea6abbc0696b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/pcmci_grid.rs"
-sha256 = "4e5938960e3f658ed2a0c3e36428768ccc9f20059057caf7b7793690efc1336d"
+items = ["fn default", "fn new", "fn report_from_counts", "fn run", "struct DiscoveryStabilityReport", "struct LinkStability"]
+sha256 = "14d164a06e779bfaec151aade35cfeff0f0fcf803b57ffdf270f26ce4c0f5537"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/orientation.rs"
-sha256 = "2bc3c7c34ce422d5ab68e20964c894f8c8f5d3aec86910577d4f326bb1c4cabb"
+items = ["fn default", "fn lagged_var_lag0", "fn new", "fn orientation_findings", "fn run", "struct OrientationFindings", "struct OrientationStabilityReport", "struct UndirectedLinkStability"]
+sha256 = "97c03d44ddbf5f3ada97e19d6e87ab87ae3266261bcda36d8596908f993776a7"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/regime.rs"
-sha256 = "4e4cf44b1c8f5e8a63fc97c881d93039a5346c6d6a8f473d55f2072e010e0b47"
+items = ["fn new", "fn run", "struct RegimeStabilityReport"]
+sha256 = "00ce7ffb904fe4e9d8576a947a1d6da7ad6749538984b7612559c259e19714af"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/false_positive.rs"
-sha256 = "4852f8207acf47fcd62bed18d8e847a072764643c0335f335fabc772194027a4"
+items = ["enum NullTransform", "fn new", "fn run", "struct FalsePositiveCheckReport"]
+sha256 = "1ff3a05f329db6e26968e74da9e7e4eabd155db11dead144cf1360210486b9b9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/null_calibration.rs"
-sha256 = "0d6b8757dc2af8dfea50091701d99af7feac55816f7f4109a7e3eeb826fa20cf"
+items = ["fn independent_noise_series", "fn new", "fn run", "struct NullCalibrationReport", "struct SyntheticNullCalibration"]
+sha256 = "78e2931392037c391a096a0010dd1c46ca55006a03ef39a20dddefa210e97504"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/stability/env_holdout.rs"
-sha256 = "83e7409e999b7f4f19dbc972a6ce967b54e826d52781553b8a82119dfc1c73db"
+items = ["fn agreement", "fn new", "fn run", "fn subset_envs", "struct EnvironmentHoldout", "struct EnvironmentHoldoutReport"]
+sha256 = "5f43634f21a4cf04cd552dbf06110b23c42f65935c5eac30cac90f4ed2ecb2fb"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/engine.rs"
-sha256 = "b9724761f53ccb550298d12d18707f3bbce7fd0df8d6037cc38f5005925fa7f4"
+items = ["fn default", "fn new", "fn with_constraints", "struct ColumnViewScratch", "struct DiscoveryWorkspace"]
+sha256 = "4ef8b7ca3945ae12a75154063bcb65b8ba3b30a62008592215a4caad6efcf64a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/pcmci_plus.rs"
-sha256 = "0f12591616700720b610a60e10d74ce67d85432e9dc477aadb110d26141be78a"
+items = ["fn contemp_mci_phase_inner", "fn declared_mci_family", "fn default", "fn is_contemp_node", "fn lagged_pc1_parents", "fn majority_is_collider", "fn majority_sep_counts", "fn new", "fn node_var_lag", "fn orient_fixed_directions", "fn orient_majority_colliders", "fn orient_majority_leg", "fn run", "fn run_on_frame", "struct MajorityVote", "struct PcmciPlus", "type AdjMap", "type ScoreMap"]
+sha256 = "0d5e5959efb8ee0ea3470aac2aa649659c81ce084d7ff7556ef0ce104a1065d7"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
-sha256 = "fa5b218ec04f05ff27d67a3eb79678c6c521071e04d3c301df248438ffbed7ff"
+items = ["fn cpdag_from_jpcmci_links", "fn default", "fn directed_exogenous_links", "fn exogenous_parents_from_scored", "fn force_orient_exogenous", "fn logical_exogenous_ids", "fn new", "fn orient_exogenous_links", "fn remap_dummy_block_links", "fn replace_exogenous_parents", "fn run", "struct JpcmciPlus", "type JpcmciPlusDiscoveryResult"]
+sha256 = "c0a8e17180923185db2963f8355ad23baae50a0c55bb26cb56dcd5f8b235e4e9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/lpcmci_phases.rs"
-sha256 = "c6c14984877cafdf3c7741db7df58810c7f90fcdf346e41543cd048b4decb6f8"
+items = ["module"]
+sha256 = "6bd7c3c2ea3e1786a10f558434152fcc3959d523a1159a64bd664e6955ac6191"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/src/discovery_stability_reference_tests.rs"
-sha256 = "e367258a02c951c248b8d43e3ea72422e5172ffad0964b9c5a2894d9464eb385"
+items = ["const REGIME_MIN_LEN", "fn constraints", "fn ctx", "fn discovery_stability_environment_holdout_refuses_overlapping_environments", "fn discovery_stability_reused_workspace_does_not_replay_validity_masks", "fn discovery_stability_synthetic_null_runs_discovery_at_the_declared_alpha", "fn env_series", "fn env_setup", "fn explicit_regime_links", "fn gauss_stream", "fn ids", "fn link_key", "fn links_json", "fn pcmci", "fn regime_replicates", "fn regime_setup", "fn two_regime"]
+sha256 = "b4b9832841b93ff9a1ca84c0b190238040c79dd5f794d54ff6054dff26b7f980"
 
 [[method_review.artifacts]]
 role = "reference"

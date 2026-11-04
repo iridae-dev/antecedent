@@ -326,7 +326,10 @@ fn artifact_resealed_mutation_is_refused() {
     })
     .unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
-    assert_eq!((code, detail), ("route_not_supported", "recalc_receipt.totals_mismatch"));
+    assert_eq!(
+        (code, detail),
+        ("route_not_supported", antecedent_core::reason_details::recalc_receipt::TOTALS_MISMATCH)
+    );
 
     // The untouched artifact still consumes.
     assert_eq!(consume(&base).unwrap().receipt_identity(), artifact.receipt_identity());
@@ -395,7 +398,13 @@ fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
         matches!(&error, RecalcReceiptArtifactError::FreshProcessReuse { stage } if stage == "law")
     );
     let (code, detail, _) = error.refusal().unwrap();
-    assert_eq!((code, detail), ("score_table_unavailable", "recalc_receipt.fresh_process_reuse"));
+    assert_eq!(
+        (code, detail),
+        (
+            "score_table_unavailable",
+            antecedent_core::reason_details::recalc_receipt::FRESH_PROCESS_REUSE
+        )
+    );
 
     // Even portable scores, for which the planner would reuse the score artifact, cannot be
     // sealed: a loaded receipt recreates no score table.

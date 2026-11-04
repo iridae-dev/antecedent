@@ -40,27 +40,32 @@ record_sha256 = "8459119d4f85c02f67a1cdbb6d5f065514c6c066127d77bf3b48e0cd7628862
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/laplace.rs"
-sha256 = "32eb9e61f5484cd1025650db64f4d571bbe9926a99db9d552ebd6f0f2339accf"
+items = ["fn fit", "fn fit_gaussian_laplace", "fn fit_gaussian_laplace_known", "fn fit_laplace_glm", "fn fit_laplace_glm_inner", "fn gaussian_normal_equations", "fn sample_gaussian_mvn"]
+sha256 = "462f474603a182a843ed4751582d1ffaa35430bdb87028a131c6932f0b3acad4"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/likelihood_terms.rs"
-sha256 = "c976cb3ac67c674b45428ea5477401d205c3df23cb463a5b8b1af329aeb603ef"
+items = ["module"]
+sha256 = "bd6b3dede8fa387aaf09d23f8d911e3a093cadb537e9fbd969662560d023fea7"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/prior.rs"
-sha256 = "cf40870bbb70f8cfd41e234b19a7bb919f2f1bb20ceb28f04a3f387783b587be"
+items = ["const CORRELATION_ZERO", "enum ContrastCoding", "enum PriorSpec", "fn dim", "fn from", "fn from_covariance", "fn len", "fn matrix", "fn new", "fn push", "fn validate", "fn weakly_informative", "struct CoefficientCorrelation", "struct GaussianCoefficientPrior", "struct InvGammaPrior", "struct PriorSet"]
+sha256 = "b05264b353f9594f93d7f93baa3322244da36f7986d583876f30350d26db49cd"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/special.rs"
-sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
+items = ["module"]
+sha256 = "c7d8d437ff37891a6438fa250f17dc8feb2081c0be66d55439188106c92259c0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/bayes_posterior_oracle.rs"
-sha256 = "fe2d46007fcb611b55a683c5cfd495926a7594a84575b94c291c8e400647a157"
+items = ["const M0", "const OFFSETS", "const WEIGHTS", "const X1", "const Y_BIN", "const Y_CNT", "fn colmajor", "fn gaussian_prior", "fn laplace_glm_mode_and_covariance_match_fifty_digit_reference", "struct Case"]
+sha256 = "83a1b0c8ab67d3e75125a2a4257c7403cfe32c41ccec08da054cabc719df792a"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -70,4 +75,4 @@ sha256 = "7887eb3d5124fee4717a055558eb07b800dbcd1fe9970aaec3aa3390db17902d"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/bayesian/laplace_glm/expected.json"
-sha256 = "26d1963ecec4a260d8c8c3e44b0dbb82cc63d33aeadead710c800a90bca46901"
+sha256 = "c1ce3be5fcd759295ad5726542d3b7c4713404583d0912666aead59e4b2ef15e"

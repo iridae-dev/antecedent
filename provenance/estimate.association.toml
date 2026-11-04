@@ -51,12 +51,14 @@ record_sha256 = "3e206af46d251b64fdd42820cf66d1a0c5f3e43bbede30c67ba3ea1dc147bb2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/association.rs"
-sha256 = "ee5199060c74672b18012fc9c2e0f27a4e1db69d4501c5bc3b6c22fcb5436071"
+items = ["const BOOTSTRAP_STREAM", "const CODE_TOLERANCE", "const FOLD_STREAM", "const MAX_STRATA", "const MAX_STRATUM_LEVELS", "const MIN_REPLICATES", "const POSTERIOR_STREAM", "const SCORE_FLOOR", "const SELECTION_RULE", "const SPREAD_LEVEL", "enum AssociationAnalysis", "enum ColumnValues", "enum Modality", "enum OutcomeKind", "fn analytic", "fn as_str", "fn bayesian_method", "fn bootstrap_draws", "fn build_design", "fn build_strata", "fn cancelled", "fn check_design", "fn check_outcome_values", "fn conjugate", "fn conjugate_applies", "fn descriptive_assumptions", "fn estimate", "fn expand_column", "fn family", "fn finite_column", "fn fit_with_weights", "fn fits_model", "fn gather_column", "fn is_count", "fn is_discrete_type", "fn is_indicator", "fn is_predictive", "fn is_stratified", "fn layout", "fn level_labels", "fn new", "fn newey_west_lag", "fn newey_west_variance", "fn numeric_levels", "fn numeric_predictor", "fn out_of_fold", "fn percentile_spread", "fn posterior_draws", "fn prepare", "fn publish_bootstrap", "fn raw_is_valid", "fn read_outcome_scale", "fn read_raw_column", "fn read_weights", "fn refuse_invalid", "fn refuse_unsupported", "fn row_is_analysed", "fn rows", "fn rows_dropped", "fn sandwich", "fn schema_error", "fn select_analysis", "fn selection", "fn statistics", "fn weighted_correlation", "fn weighted_sum", "fn with_bayesian", "fn with_sampling_design", "struct AssociationEstimate", "struct AssociationEstimator", "struct AssociationSelection", "struct AssociationTerm", "struct BayesianSettings", "struct Design", "struct HeldOutCase", "struct PosteriorRecord", "struct PredictionFit", "struct PreparedAssociation", "struct PreparedColumn", "struct RawColumn", "struct ReplicateDraws", "struct ResamplingRecord", "struct Strata", "struct TermPosterior", "struct TermSpec", "struct WeightedFit"]
+sha256 = "92bfcd8b29752208063e7da2fc6e62c977f637288228699a8760a264cdbb6c17"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_association_reference.rs"
-sha256 = "98056069a6d2f90f70f9793bd1f6b87ec6b611679572b31c02f9a5944b18106e"
+items = ["const BOOTSTRAP_STREAM", "const FOLD_STREAM", "const POSTERIOR_STREAM", "const SEED", "enum Col", "fn association_dump_library_streams", "fn block_length", "fn build", "fn check_plain", "fn close", "fn code", "fn declarations_the_estimator_cannot_honour_are_refused_with_their_reason", "fn estimates_and_analytic_errors_match_the_definition_references", "fn estimator", "fn is_conjugate", "fn modality", "fn parse_col", "fn predictors_crossing_into_too_many_strata_are_refused", "fn reference", "fn regenerate", "fn resampling_summaries_and_posteriors_match_the_references_on_the_library_streams", "fn run", "fn storage", "fn the_reference_covers_every_branch_it_names", "fn the_selection_rule_matches_its_documented_decision_table", "fn tolerance", "struct Built"]
+sha256 = "7a8a15699b966fcfa856ddca47fe02391d5c84362435e17360f61965765f281a"
 
 [[method_review.artifacts]]
 role = "reference"

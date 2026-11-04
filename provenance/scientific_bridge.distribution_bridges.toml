@@ -30,9 +30,11 @@ record_sha256 = "e310bcf2af1cd6e25c891df683e65f68e10831798461f3bb1849b683a68db2c
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/draws.rs"
-sha256 = "5e5675992b9592e9d08a0de44668bd78b78a0382045ea56501bb14be553dc14a"
+items = ["enum DrawMapping", "fn contract", "fn kind", "fn mapping", "struct AffineDrawLaw", "struct CorrectionDrawLaw"]
+sha256 = "d46e62e588ee6dfee75661ac59af77ecfedfd0684a351bd734c01d24e71d62e9"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io-core/src/bridge_distribution_tests.rs"
-sha256 = "c8791a8c1eb175de35f4528d834057663bcdf1a1242ebfcaa55a3dcd9de98231"
+items = ["const ROWS", "const STRIDE", "fn a_bridge_is_a_measurement_mapping_stage_and_a_chain_propagates_it_jointly", "fn a_correction_chain_feeds_a_utility_the_joint_law_of_the_corrected_rate", "fn a_correction_chain_reproduces_the_direct_draws_bridge_bit_for_bit_and_replays", "fn a_denominator_that_can_be_zero_or_a_rate_outside_its_range_is_refused_by_the_chain", "fn a_latent_to_measured_correction_is_the_forward_map_of_the_rates", "fn a_measurement_correction_draws_its_rates_and_agrees_with_the_delta_method", "fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line", "fn a_trial_line_draws_from_the_student_t_law_of_its_fit_and_a_predictive_law_adds_the_residual", "fn a_trial_line_neither_truncates_nor_extrapolates_a_law", "fn an_uncertain_slope_agrees_with_the_delta_method_and_a_monte_carlo_reference", "fn clinic_model", "fn contract", "fn correction_contract", "fn correction_table", "fn delta", "fn draws_in_draws_out_keep_the_alignment_and_every_other_column", "fn moments", "fn near", "fn normal_grid", "fn only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged", "fn partner", "fn posterior_table", "fn quantile", "fn quantity", "fn quantity_in", "fn reference", "fn refusal_detail", "fn relative", "fn sample_moments", "fn seal_stage", "fn table", "fn table_of", "fn the_declared_dependence_changes_the_bridged_spread_and_mean", "fn trial_contract", "fn uncertain_affine", "fn validation"]
+sha256 = "6af952db0383d9777dbb5286514bd2dd8751b96e1c11e7a9348240f8abe1c879"

@@ -40,7 +40,26 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/src/tests.rs",
-          "sha256": "7b71f70004a6465cb12ac9ace07b4f389211a0d2396c08334c1e3812d0759a8a"
+          "items": [
+            "fn bayesian_ate_attaches_prior_and_posterior_predictive",
+            "fn bayesian_exact_dag_posterior_effect_envelope",
+            "fn boundary_interventional_probability_reports_unavailable_interval",
+            "fn confounded_scm",
+            "fn end_to_end_ate",
+            "fn end_to_end_interventional_distribution",
+            "fn end_to_end_iv_two_stage_least_squares",
+            "fn end_to_end_path_specific_natural_effect",
+            "fn end_to_end_propensity_weighting_recovers_confounded_effect",
+            "fn end_to_end_temporal_effect",
+            "fn every_interval_method_has_a_record_or_code",
+            "fn graph_and_graph_posterior_together_conflicts",
+            "fn graph_posterior_average_effect_accepts_frequentist",
+            "fn graph_posterior_records_its_real_algorithm",
+            "fn iv_scm",
+            "fn run_binary_distribution",
+            "fn scm"
+          ],
+          "sha256": "d44e707dba4d28b7c9aa4b9923a7c7483f073f5b7fa9b7f613823601c4f7013c"
         }
       ],
       "fixture_payload_sha256": "6c8670eee2fc4f828296a6d010eedc80f47eec5df5d34e93e576fc64da17961c"

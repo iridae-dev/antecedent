@@ -37,7 +37,20 @@
         {
           "role": "assertion_source",
           "path": "python/tests/test_external_cyclic_mechanisms.py",
-          "sha256": "9a40e2626fd2b974063423d2eb3b60f819796c5b0a2791c0e303dbe06f9ea4a7"
+          "items": [
+            "const CLAMPED",
+            "const CONTENT",
+            "const NOISE",
+            "const WORLDS",
+            "fn export",
+            "fn fit_request",
+            "fn fixed_point_rows",
+            "fn make_registry",
+            "fn model",
+            "fn regime_rows",
+            "fn test_fit_and_fixed_points_match_the_committed_independent_reference"
+          ],
+          "sha256": "22cbd3910e155943e21b53cef1183cef912fa0a806f7c11bcd7b8f466fe7a520"
         }
       ],
       "fixture_payload_sha256": "b97b1bee916023786d10cafcd3b1128556424e9ba4bd70ebbc0250450e2300a5"

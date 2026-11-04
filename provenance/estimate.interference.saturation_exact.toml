@@ -39,19 +39,23 @@ record_sha256 = "84e515ac5b5bd8130438195b18ebfccb5e9785afad7419eee6bb5f35255249c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference_saturation.rs"
-sha256 = "71c784476bfb98a20baf2b8c1edd9ec434fddbb6a40cc7ad0855b4acb421e54c"
+items = ["const MAX_EXPOSURE_STATES", "const SUM_RESOLUTION", "fn estimate_saturation_interference", "fn level_probabilities", "fn saturation_cluster_interval", "fn treated_weight_distribution", "fn weighted_mean", "struct SaturationClusterInterval", "struct SaturationDesign", "struct SaturationInterferenceEstimate", "struct WeightedMean"]
+sha256 = "5aba9115594ab3a5f43cd31f8bcfe6ac07992886d716ac0c0d058e2a3bbd8092"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/interference.rs"
-sha256 = "4240db11575330dc4b893512252056c678eb2a638ad7e83344fe224263c556a9"
+items = ["fn new", "fn randomization_mean", "fn same_exposure", "struct RandomizationMean"]
+sha256 = "e11ff9d4112b7737a9feeea5f06ecf75ed9a8c6fb546258358308a32bfea3af4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/saturation_interference_route.rs"
-sha256 = "4d826db66de3a7636cb3a74d57fe9e1b14bb8df1058f32f6d421d22a1f55fca2"
+items = ["fn fixture", "fn saturation_direct_spillover_total_retain_truth_without_interval", "fn saturation_rejects_cross_cluster_edges_at_prepare", "fn supported_saturation_interval_survives_retained_artifact_round_trip"]
+sha256 = "85364f979ad03b5bf2b5b25f748629fbdb4876767298ec3b401ad9c7b14bf62a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/interference_saturation_calibration.rs"
-sha256 = "800a3a2579bee77b511992b420b019a7205293ba0673351b14e301c602664a8c"
+items = ["const CLUSTERS", "const DRAWS", "const UNITS_PER_CLUSTER", "fn centered_noise", "fn complete_cluster_randomization_pointwise_total_interval_covers_truth", "fn complete_cluster_total_interval_calibrates_at_support_boundary", "fn next_u64", "fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings", "fn uniform", "struct Contrast"]
+sha256 = "9b7d6d504d062e34051515a0c5942ca2da3288d4aba4b2bb3aa8c504acda6246"

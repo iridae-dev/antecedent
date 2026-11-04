@@ -194,13 +194,13 @@ fn incompatible_sources_and_mapping_refuse() {
     let bytes = artifact.to_bytes("batch-a-posterior").unwrap();
     assert_refused(
         mapped(&bytes, &identity(), &baseline(2.0)),
-        "mapped_posterior_transfer.residual_variance",
+        antecedent_core::reason_details::mapped_posterior_transfer::RESIDUAL_VARIANCE,
     );
     let mut wrong_snapshot = identity();
     wrong_snapshot.snapshot_id = "other".into();
     assert_refused(
         mapped(&bytes, &wrong_snapshot, &baseline(1.0)),
-        "aligned_joint_draws.identity_expected",
+        antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED,
     );
     let mut bootstrap = artifact.metadata().clone();
     bootstrap.identity.semantic = DistributionMeaningWire::Bootstrap;
@@ -211,7 +211,7 @@ fn incompatible_sources_and_mapping_refuse() {
             &bootstrap.metadata().identity,
             &baseline(1.0),
         ),
-        "mapped_posterior_transfer.parameter_posterior",
+        antecedent_core::reason_details::mapped_posterior_transfer::PARAMETER_POSTERIOR,
     );
     let reused = [("source:x".into(), "target:x".into()), ("source:x".into(), "target:y".into())];
     assert_refused(
@@ -278,7 +278,7 @@ fn fresh_process_replays_mapped_prior() {
         wrong.snapshot_id = "resealed-other".into();
         assert_refused(
             mapped(&bytes, &wrong, &baseline(1.0)),
-            "aligned_joint_draws.identity_expected",
+            antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED,
         );
         return;
     }

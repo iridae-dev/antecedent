@@ -638,7 +638,10 @@ fn a_logit_outcome_with_continuous_error_is_refused() {
     )
     .unwrap_err();
     assert_eq!(err.code, "route_not_supported");
-    assert_eq!(err.detail, "measurement_model.binary_outcome_continuous_error");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::BINARY_OUTCOME_CONTINUOUS_ERROR
+    );
     assert!(err.message.ends_with(USE_BINARY_MISCLASSIFICATION.sentence()), "{}", err.message);
 }
 
@@ -668,7 +671,10 @@ fn an_unidentified_error_variance_is_refused_with_the_next_attempt() {
     );
     let err = run(&binary, &data(&sim), &rc, &ctx()).unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
-    assert_eq!(err.detail, "measurement_model.error_variance_not_identified");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::ERROR_VARIANCE_NOT_IDENTIFIED
+    );
     assert!(err.message.ends_with(&suffix), "{}", err.message);
 
     // The repeated route with no replicates, and with no replicated unit.
@@ -687,7 +693,10 @@ fn an_unidentified_error_variance_is_refused_with_the_next_attempt() {
     };
     let err = run(&repeated, &singles, &rc, &ctx()).unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
-    assert_eq!(err.detail, "measurement_model.insufficient_replicates");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES
+    );
     assert!(err.message.ends_with(&suffix), "{}", err.message);
 }
 
@@ -724,7 +733,7 @@ fn an_unfunded_bootstrap_is_refused_before_allocation() {
     )
     .unwrap_err();
     assert_eq!(err.code, "invalid_argument");
-    assert_eq!(err.detail, "measurement_model.admission_refused");
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::ADMISSION_REFUSED);
 }
 
 #[test]

@@ -105,7 +105,7 @@ def self_test() -> int:
         write(root, "crates/c/Cargo.toml", '[package]\nname = "c"\n')
         write(root, "crates/c/tests/t.rs", "// Widget\n#[test]\nfn works() {}\nfn helper() {}\n")
         write(root, "crates/c/src/reader.rs", "pub fn read_artifact() {}\n")
-        write(root, "parity/v3_test_registry.toml", "schema = 1\n")
+        write(root, "parity/test_registry.toml", "schema = 1\n")
         write(root, MANIFEST, '[[route]]\nid = "r.one"\n')
         ev = Evidence(root)
         base = {

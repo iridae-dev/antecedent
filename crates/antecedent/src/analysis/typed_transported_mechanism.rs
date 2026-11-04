@@ -68,7 +68,7 @@ pub const TYPED_TRANSPORT_SUPPORT: &str = "extrapolative";
 pub const TYPED_TRANSPORT_INFERENCE: &str = "point_only";
 /// The retained transport identity is not the recomputed one.
 pub const DETAIL_TYPED_IDENTITY_MISMATCH: &str =
-    "typed_mechanism_transport.transport_identity_mismatch";
+    antecedent_core::reason_details::typed_mechanism_transport::TRANSPORT_IDENTITY_MISMATCH;
 
 /// The typed receipt of one transported typed-mechanism composition.
 #[derive(Clone, Debug, PartialEq)]
@@ -145,21 +145,21 @@ fn model_error(error: CompositionError) -> MechanismCompositionRefusal {
         CompositionError::Cancelled => refusal(
             antecedent_core::reason_code!("cancelled_no_claim"),
             "compose",
-            "mechanism_composition.cancelled",
+            antecedent_core::reason_details::mechanism_composition::CANCELLED,
             "transport".to_owned(),
             "retry; cancellation is not a verdict on the mechanisms",
         ),
         CompositionError::Numerical { message } => refusal(
             antecedent_core::reason_code!("invalid_argument"),
             "compose",
-            "mechanism_composition.numerical_failure",
+            antecedent_core::reason_details::mechanism_composition::NUMERICAL_FAILURE,
             message,
             "check the mechanisms' numbers",
         ),
         other => refusal(
             antecedent_core::reason_code!("route_not_supported"),
             "compose",
-            "mechanism_composition.request_unsupported",
+            antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             other.to_string(),
             "use a composition of fitted typed mechanisms and a bounded draw count",
         ),
@@ -171,7 +171,7 @@ fn fit_error(error: &TypedFitError) -> MechanismCompositionRefusal {
         return refusal(
             antecedent_core::reason_code!("cancelled_no_claim"),
             "compose",
-            "mechanism_composition.cancelled",
+            antecedent_core::reason_details::mechanism_composition::CANCELLED,
             "fit".to_owned(),
             "retry; cancellation is not a verdict on the mechanism",
         );
@@ -179,11 +179,11 @@ fn fit_error(error: &TypedFitError) -> MechanismCompositionRefusal {
     let (code, detail) = match error {
         TypedFitError::NotConverged(_) | TypedFitError::Singular(_) => (
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
-            "typed_mechanism_transport.fit_not_converged",
+            antecedent_core::reason_details::typed_mechanism_transport::FIT_NOT_CONVERGED,
         ),
         _ => (
             antecedent_core::reason_code!("mechanism_composition_incoherent"),
-            "typed_mechanism_transport.fit_refused",
+            antecedent_core::reason_details::typed_mechanism_transport::FIT_REFUSED,
         ),
     };
     refusal(

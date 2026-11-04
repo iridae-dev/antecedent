@@ -23,6 +23,7 @@ import sys
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import scientific_bridge as sb
 from antecedent.errors import CausalTypeError, CausalValueError
@@ -299,7 +300,7 @@ def test_an_associational_quantity_is_never_a_causal_quantity_without_an_identif
             predictive_contract(source_class="associational_quantity")
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.association_as_intervention",
+        reason_details.scientific_bridge.ASSOCIATION_AS_INTERVENTION,
     )
     assert "associational_quantity" in error.message
 
@@ -312,7 +313,7 @@ def test_an_association_is_a_causal_quantity_only_under_a_named_identification()
     error = refused(
         lambda: sb.prepare_scientific_bridge(predictive_contract()),
         "bridge_substitution_refused",
-        "scientific_bridge.association_as_intervention",
+        reason_details.scientific_bridge.ASSOCIATION_AS_INTERVENTION,
     )
     assert association - effect == pytest.approx(0.24, abs=1e-12)  # the wrong number refused
     assert "predictive_quantity" in error.message
@@ -456,7 +457,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
     refused(
         lambda: sb.prepare_scientific_bridge(correction_contract(assumptions=())),
         "proxy_offered_as_construct",
-        "scientific_bridge.proxy_as_construct",
+        reason_details.scientific_bridge.PROXY_AS_CONSTRUCT,
     )
     # stated preference as realized behavior
     stated = outcome(
@@ -486,7 +487,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.stated_preference_as_realized_behavior",
+        reason_details.scientific_bridge.STATED_PREFERENCE_AS_REALIZED_BEHAVIOR,
     )
     # scientific endpoint as utility
     endpoint = outcome("trial:qaly", units="qaly", population="adults", functional="average_effect")
@@ -510,7 +511,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.scientific_endpoint_as_utility",
+        reason_details.scientific_bridge.SCIENTIFIC_ENDPOINT_AS_UTILITY,
     )
     # predictive importance as causal effect and model score as probability: closed whatever is
     # declared
@@ -546,7 +547,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.predictive_importance_as_causal_effect",
+        reason_details.scientific_bridge.PREDICTIVE_IMPORTANCE_AS_CAUSAL_EFFECT,
     )
     score = outcome(
         "m:score", units="score", population="registry", regime="observational", functional="mean"
@@ -572,7 +573,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.model_score_as_probability",
+        reason_details.scientific_bridge.MODEL_SCORE_AS_PROBABILITY,
     )
 
 
@@ -581,7 +582,7 @@ def test_a_missing_assumption_and_an_assumption_naming_no_evidence_are_refused()
     refused(
         lambda: sb.prepare_scientific_bridge(contract),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_missing",
+        reason_details.scientific_bridge.ASSUMPTION_MISSING,
     )
     anonymous = surrogate_contract(
         assumptions=(sb.Assumption("validation", "surrogate_validation", "validated"),)
@@ -589,7 +590,7 @@ def test_a_missing_assumption_and_an_assumption_naming_no_evidence_are_refused()
     refused(
         lambda: sb.prepare_scientific_bridge(anonymous),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_evidence_missing",
+        reason_details.scientific_bridge.ASSUMPTION_EVIDENCE_MISSING,
     )
 
 
@@ -601,7 +602,7 @@ def test_value_kinds_are_not_interchangeable():
         error = refused(
             lambda contract=contract: sb.prepare_scientific_bridge(contract),
             "bridge_substitution_refused",
-            "scientific_bridge.value_kind_substitution",
+            reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION,
         )
         assert held in error.message and requested in error.message
     # A law held and required as itself has no bridge route.
@@ -610,7 +611,7 @@ def test_value_kinds_are_not_interchangeable():
         refused(
             lambda contract=contract: sb.prepare_scientific_bridge(contract),
             "bridge_mapping_not_supported",
-            "scientific_bridge.value_kind_not_carried",
+            reason_details.scientific_bridge.VALUE_KIND_NOT_CARRIED,
         )
     # A consumer that requires a law from a bridged mean is refused.
     claim = require_success(
@@ -621,7 +622,7 @@ def test_value_kinds_are_not_interchangeable():
         refused(
             lambda needed=needed: claim.require_value_kind(needed),
             "bridge_substitution_refused",
-            "scientific_bridge.value_kind_substitution",
+            reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION,
         )
 
 
@@ -635,7 +636,7 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
     refused(
         lambda: sb.prepare_scientific_bridge(other_population),
         "bridge_binding_mismatch",
-        "scientific_bridge.population_mismatch",
+        reason_details.scientific_bridge.POPULATION_MISMATCH,
     )
     other_regime = surrogate_contract(
         target=outcome("trial:survival", units="log_hazard", regime="do(t=2)")
@@ -643,7 +644,7 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
     refused(
         lambda: sb.prepare_scientific_bridge(other_regime),
         "bridge_binding_mismatch",
-        "scientific_bridge.regime_mismatch",
+        reason_details.scientific_bridge.REGIME_MISMATCH,
     )
     wrong = sb.SourceClaim.declared(
         "another-variable",
@@ -653,7 +654,7 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
     refused(
         lambda: require_success(bridge.derive(wrong)),
         "bridge_binding_mismatch",
-        "scientific_bridge.quantity_mismatch",
+        reason_details.scientific_bridge.QUANTITY_MISMATCH,
     )
     other_units = sb.SourceClaim(
         claim_id=surrogate_source().claim_id,
@@ -665,13 +666,13 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
     refused(
         lambda: require_success(bridge.derive(other_units)),
         "bridge_binding_mismatch",
-        "scientific_bridge.units_mismatch",
+        reason_details.scientific_bridge.UNITS_MISMATCH,
     )
     law = sb.SourceClaim.declared("a-law", None, contract.source, kind="mixture")
     refused(
         lambda: require_success(bridge.derive(law)),
         "bridge_mapping_not_supported",
-        "scientific_bridge.source_not_point",
+        reason_details.scientific_bridge.SOURCE_NOT_POINT,
     )
 
 
@@ -680,7 +681,7 @@ def test_a_transported_bridge_names_its_premise_or_is_refused():
     error = refused(
         lambda: sb.prepare_scientific_bridge(children),
         "bridge_assumption_missing",
-        "scientific_bridge.transport_premise_missing",
+        reason_details.scientific_bridge.TRANSPORT_PREMISE_MISSING,
     )
     assert "adults" in error.message and "children" in error.message
 
@@ -710,7 +711,7 @@ def test_a_transported_bridge_names_its_premise_or_is_refused():
             surrogate_contract(population="children", transport=wrong)
         ),
         "bridge_binding_mismatch",
-        "scientific_bridge.transport_premise_mismatch",
+        reason_details.scientific_bridge.TRANSPORT_PREMISE_MISMATCH,
     )
 
 
@@ -719,12 +720,12 @@ def test_validation_minimums_and_the_validated_range_are_enforced():
     refused(
         lambda: sb.prepare_scientific_bridge(surrogate_contract(min_trials=5)),
         "bridge_mapping_not_supported",
-        "scientific_bridge.validation_trials_too_few",
+        reason_details.scientific_bridge.VALIDATION_TRIALS_TOO_FEW,
     )
     refused(
         lambda: sb.prepare_scientific_bridge(surrogate_contract(min_r_squared=0.995)),
         "bridge_mapping_not_supported",
-        "scientific_bridge.validation_r_squared_too_low",
+        reason_details.scientific_bridge.VALIDATION_R_SQUARED_TOO_LOW,
     )
     bridge = sb.prepare_scientific_bridge(surrogate_contract())
     for inside, expected in ((0.0, 0.06), (1.5, 1.44)):
@@ -738,7 +739,7 @@ def test_validation_minimums_and_the_validated_range_are_enforced():
                 bridge.derive(sb.SourceClaim.declared(f"beyond-{beyond}", beyond, source_quantity))
             ),
             "bridge_mapping_not_supported",
-            "scientific_bridge.outside_validated_range",
+            reason_details.scientific_bridge.OUTSIDE_VALIDATED_RANGE,
         )
     # Recorded prevalences outside [1 - Sp, Se] cannot arise from any latent prevalence.
     correction = sb.prepare_scientific_bridge(correction_contract())
@@ -752,12 +753,12 @@ def test_validation_minimums_and_the_validated_range_are_enforced():
                 )
             ),
             "bridge_mapping_not_supported",
-            "scientific_bridge.outside_attainable_range",
+            reason_details.scientific_bridge.OUTSIDE_ATTAINABLE_RANGE,
         )
     refused(
         lambda: sb.prepare_scientific_bridge(correction_contract(clinic_model(0.55, 0.5, 0.1))),
         "measurement_not_identified",
-        "scientific_bridge.youden_too_small",
+        reason_details.scientific_bridge.YOUDEN_TOO_SMALL,
     )
 
 
@@ -798,12 +799,12 @@ def test_a_refused_derivation_or_replacement_leaves_the_prepared_bridge_unchange
     refused(
         lambda: require_success(bridge.derive(surrogate_source(2.0, label="beyond"))),
         "bridge_mapping_not_supported",
-        "scientific_bridge.outside_validated_range",
+        reason_details.scientific_bridge.OUTSIDE_VALIDATED_RANGE,
     )
     refused(
         lambda: bridge.with_contract(surrogate_contract(min_r_squared=0.995)),
         "bridge_mapping_not_supported",
-        "scientific_bridge.validation_r_squared_too_low",
+        reason_details.scientific_bridge.VALIDATION_R_SQUARED_TOO_LOW,
     )
     assert bridge.contract_identity == identity
     after = require_success(bridge.derive(surrogate_source(0.8)))
@@ -836,15 +837,21 @@ def test_no_interval_posterior_or_joint_law_is_supported():
         sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
     )
     error = refused(
-        claim.interval, "route_not_supported", "scientific_bridge.interval_not_supported"
+        claim.interval,
+        "route_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
     )
     assert error.stage == "scientific_bridge"
     consumed = require_success(sb.consume_scientific_bridge_artifact(bytes(claim.export("closed"))))
-    refused(consumed.interval, "route_not_supported", "scientific_bridge.interval_not_supported")
+    refused(
+        consumed.interval,
+        "route_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
+    )
     refused(
         lambda: consumed.claim.require_value_kind("posterior"),
         "bridge_substitution_refused",
-        "scientific_bridge.value_kind_substitution",
+        reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION,
     )
 
 
@@ -859,7 +866,7 @@ def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design
     refused(
         lambda: claim.interval(0.95),
         "required_option_missing",
-        "scientific_bridge.interval_source_uncertainty_required",
+        reason_details.scientific_bridge.INTERVAL_SOURCE_UNCERTAINTY_REQUIRED,
     )
     # Four validation trials are below the measured 15 to 40: the interval is reported and its
     # calibration says no current record measured it.
@@ -890,7 +897,11 @@ def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design
     assert interval.coverage_record.startswith("cov.bridged_claim_interval.")
     assert interval.degrees_of_freedom == 18.0
     # An unscoped request is still refused.
-    refused(claim.interval, "route_not_supported", "scientific_bridge.interval_not_supported")
+    refused(
+        claim.interval,
+        "route_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
+    )
 
 
 # --------------------------------------------------------------------------- artifact
@@ -921,7 +932,7 @@ def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_i
     refused(
         lambda: require_success(sb.consume_scientific_bridge_artifact(exported.data, "0" * 64)),
         "route_not_supported",
-        "scientific_bridge.identity_mismatch",
+        reason_details.scientific_bridge.IDENTITY_MISMATCH,
     )
     other = require_success(
         sb.prepare_scientific_bridge(surrogate_contract()).derive(
@@ -1002,7 +1013,7 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
         cwd=tmp_path,
     )
     assert refused_run.returncode != 0
-    assert "scientific_bridge.identity_mismatch" in refused_run.stderr
+    assert reason_details.scientific_bridge.IDENTITY_MISMATCH in refused_run.stderr
 
 
 def test_misspelled_contract_key_refused():

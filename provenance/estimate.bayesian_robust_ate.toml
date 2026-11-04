@@ -57,12 +57,14 @@ record_sha256 = "a65aa73a28608a32b8ea795aae50b7a4fe1d1bbd27c877e96daab2320fae1dd
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_robust_ate.rs"
-sha256 = "1af9d3f1011fd78ceb722378bdd4744e64d8c4c2fffebdb6d564e02231ab1035"
+items = ["const FOLD_ERRORS", "const FOLD_PLAN_SEED", "const WEIGHT_FINGERPRINT_TAG", "fn default", "fn estimate_bayesian_robust_ate", "fn fingerprint", "fn fit_draw", "fn fit_logistic", "fn fit_ridge", "fn fold_plan", "fn fold_u16", "fn interval", "fn make_design", "fn plan_bayesian_robust_ate_folds", "fn solve_penalized", "fn solve_spd_system", "fn validate", "struct BayesianRobustAteInput", "struct BayesianRobustAteOptions", "struct BayesianRobustAteResult", "struct BayesianRobustRefit"]
+sha256 = "671d9198ce1e37b428b02af1f1d7ad7f6b23c98ac1f2eb665b8a2d802cfad69a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_robust_ate_reference.rs"
-sha256 = "74aaafdba9e62cf6cf3804e5df25837e396aa064af6023a9e5b72ed7c3f70d92"
+items = ["const REFERENCE_DRAWS", "const SEED", "fn declared_options_are_used_or_refused", "fn dump_stream_inputs", "fn each_draw_equals_the_multiprecision_weighted_cross_fitted_score", "fn floats", "fn input", "fn options", "fn reference", "fn weights"]
+sha256 = "cdbdda5f3edb433821994c5f7e88927c44947dc7867d1a75aa098f593c5fc00d"
 
 [[method_review.artifacts]]
 role = "reference"

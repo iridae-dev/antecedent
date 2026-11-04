@@ -209,7 +209,9 @@ fn zero_support_conditioning_is_a_typed_refusal_not_a_number() {
     let error = evaluate(&derivation, &data).unwrap_err();
     assert_eq!(refusal_code(&error), "transport_support_failure");
     assert!(
-        refusal_message(&error).contains("counterfactual_transport.zero_conditioning_mass"),
+        refusal_message(&error).contains(
+            antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS
+        ),
         "{error:?}"
     );
     // The same query is defined, and enumerated, in the source population.

@@ -2647,7 +2647,28 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
-          "sha256": "3292303fd8deb689a3e773e5450b5e861d9c4ccbd6827654b9a0d88dccb8adca"
+          "items": [
+            "fn assert_least_squares_case",
+            "fn assert_slice_close",
+            "fn close",
+            "fn colmajor",
+            "fn correlation",
+            "fn descriptive_reductions_match_frozen_numpy_outputs",
+            "fn family_and_options",
+            "fn fixture",
+            "fn fixture_provenance_distinguishes_retained_and_historical_generators",
+            "fn flatten_matrix",
+            "fn floats",
+            "fn gam_basis_matches_scipy_oracle_and_fit_matches_self_snapshot",
+            "fn glm_families_match_frozen_statsmodels_outputs",
+            "fn least_squares_matches_frozen_statsmodels_outputs",
+            "fn require_cases",
+            "fn rng_stream_and_gaussian_sampler_match_frozen_scipy_battery",
+            "fn rowmajor",
+            "fn sandwich_covariances_match_frozen_statsmodels_outputs",
+            "fn update_gam_oracle_fixture"
+          ],
+          "sha256": "dadcf9370d3d2396a57dd8eee04e329402fb8f9fc494e18013ec541bc6287951"
         }
       ],
       "fixture_payload_sha256": "68bdd19e55b685728351e0964b67ed912b3e7934bea85a1936505a65ffc8c205"

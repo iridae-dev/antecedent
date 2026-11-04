@@ -13,6 +13,7 @@ import struct
 import antecedent
 import pytest
 from antecedent import Admg, Cpdag
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalSerializationError,
     CausalUnsupportedError,
@@ -150,9 +151,9 @@ def test_declared_weights_keep_unidentified_and_residual_mass():
     assert weighted["identified_weighted_sums"]["y"] == pytest.approx(total)
     rng = weighted["ranges"][0]
     assert (rng["lower"], rng["upper"]) == pytest.approx((total, total + 0.5))
-    with pytest.raises(CausalValueError, match="scenarios.invalid_weights"):
+    with pytest.raises(CausalValueError, match=reason_details.scenarios.INVALID_WEIGHTS):
         scenarios((0.3, None, 0.4))
-    with pytest.raises(CausalValueError, match="scenarios.invalid_weights"):
+    with pytest.raises(CausalValueError, match=reason_details.scenarios.INVALID_WEIGHTS):
         scenarios((0.6, 0.3, 0.4))
 
 
@@ -324,12 +325,14 @@ def test_data_identity_binds_law_snapshots_and_the_provider():
 
 def test_cross_scenario_inference_and_equivalence_classes_are_refused():
     prepared = prepare()
-    with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.scenarios.SHARED_DATA_AGGREGATE
+    ) as refused:
         prepared.aggregate_interval()
     assert refused.value.reason_code == "scenario_aggregate_not_supported"
     cpdag = Cpdag.from_directed_undirected(NAMES, [("z", "x")], [("x", "y")])
     with pytest.raises(
-        CausalUnsupportedError, match="scenarios.equivalence_class_input"
+        CausalUnsupportedError, match=reason_details.scenarios.EQUIVALENCE_CLASS_INPUT
     ) as equivalence:
         transport.TransportScenario("class", cpdag, [])
     assert equivalence.value.reason_code == "route_not_supported"
@@ -430,7 +433,7 @@ def test_export_frames_the_last_report_after_builder_disposal():
 
 def _schema_refusal(excinfo):
     assert excinfo.value.reason_code == "schema_mismatch"
-    assert "scenarios.coordinate_mismatch" in str(excinfo.value)
+    assert reason_details.scenarios.COORDINATE_MISMATCH in str(excinfo.value)
 
 
 @pytest.mark.parametrize(
@@ -575,7 +578,7 @@ def test_the_frozen_scenario_bound_refuses_65_scenarios():
     counts = {m["status"]: m["count"] for m in report["masses"]}
     assert counts["identified"] + counts["structurally_unidentified"] == 64
     # The 65th refuses with the frozen code before any scenario is decided.
-    with pytest.raises(CausalUnsupportedError, match="scenarios.count") as refused:
+    with pytest.raises(CausalUnsupportedError, match=reason_details.scenarios.COUNT) as refused:
         transport.TransportScenarioSet(distinct, schema)
     assert refused.value.reason_code == "route_not_supported"
 

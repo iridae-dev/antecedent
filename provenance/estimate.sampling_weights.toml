@@ -48,12 +48,14 @@ record_sha256 = "449ebec630bddc3df91c50e6be03b69d84454f8cca7913546c9138f3bf46fb1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/sampling_weights.rs"
-sha256 = "294ecf71185c232f69b64787daea03ac829e7336fc9893ff089943e4ad7088e5"
+items = ["fn drop_zero_weight_rows", "fn from_positive", "fn invalid", "fn new", "fn require_rows", "fn restrict", "fn retained", "fn source", "struct RetainedSamplingWeights", "struct SamplingWeightRecord", "struct SamplingWeights"]
+sha256 = "05ca88555033265d2ff8b72d81b1af3b4324ee3be50c4ae46a4c54861dfbafa7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/sampling_weights_reference.rs"
-sha256 = "3968eb7c59fe54ddeb79602413ab4711eed2e5321d92a3de29f61f3a85b8f3bd"
+items = ["fn floats", "fn normalised_weights_zero_counts_and_kish_size_match_the_exact_reference"]
+sha256 = "a126025fbb052a0694bc34e231f123c97264c0dd979d14e747de67ffb6ccadb6"
 
 [[method_review.artifacts]]
 role = "reference"

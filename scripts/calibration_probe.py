@@ -24,7 +24,7 @@ margin to its acceptance floor has to cover.
 
 Without `--record` the probes cover the records that are not current
 (`scripts/calibration_status.py status --owed`) and carry digests. Each group runs through
-`scripts/gate_calibration.sh` exactly as a measurement does (same frozen decision
+`scripts/measure_calibration_groups.sh` exactly as a measurement does (same frozen decision
 environment, so the seeds match), in smoke mode so a short run is never gated,
 with logs in `target/calibration-probe/`. Results go to
 `parity/calibration_probe_attestations.toml`, one row per record and measurement:
@@ -58,7 +58,7 @@ from _repo import REPO_ROOT as ROOT
 
 ATTESTATIONS = ROOT / "parity" / "calibration_probe_attestations.toml"
 PROBE_LOG_DIR = ROOT / "target" / "calibration-probe"
-GATE = ROOT / "scripts" / "gate_calibration.sh"
+GATE = ROOT / "scripts" / "measure_calibration_groups.sh"
 
 # `DIGEST_PREFIXES` in crates/antecedent/tests/common/calibration.rs.
 PREFIXES = (10, 32, 100, 320, 1000)
@@ -426,7 +426,7 @@ def dry_run_line(task: Task, total: int, threads: int) -> str:
     }
     prefix = " ".join(f"{name}={value}" for name, value in env.items())
     ids = ", ".join(sorted({str(r["id"]) for r in task.records}))
-    return f"# {task.group.label} [grid point {task.point}] k={task.k}: {ids}\n{prefix} bash scripts/gate_calibration.sh"
+    return f"# {task.group.label} [grid point {task.point}] k={task.k}: {ids}\n{prefix} bash scripts/measure_calibration_groups.sh"
 
 
 def parse_log(text: str) -> tuple[dict[tuple[str, int], dict[str, str]], str | None]:

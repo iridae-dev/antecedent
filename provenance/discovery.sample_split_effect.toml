@@ -44,22 +44,26 @@ record_sha256 = "092611d59e3df9f8a8dbea360e2c119f4672cb1096e8e9ffff8e109de0db94a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference/split_effect.rs"
-sha256 = "cf9991868caa34235ce2c4d5d7ea88dd630544dd67998026d61406f63851dfd5"
+items = ["const ALPHA", "const CI_TEST", "const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const LEVEL", "const MAX_ROWS", "fn adjusted_effect", "fn centred_least_squares", "fn directed_parents", "fn discovery_refusal", "fn effect_on_structure", "fn frame", "fn malformed", "fn new", "fn refused", "fn run", "fn validate", "struct AdjustedEffect", "struct SplitEffectRun", "struct SplitEffectSource"]
+sha256 = "2bd250a6e82f0fb30bda9fd2f6be7240191d348d5b5f8899d0cc97b341307a07"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/selective/reuse.rs"
-sha256 = "71cd5769c0eb2513da35599ff8916a8fdc5107bc87feb8484ea8565259e0930c"
+items = ["const MASK_TAG", "const ROWS_TAG", "const SPLIT_TAG", "enum SplitRule", "fn analysis_effective_sample_size", "fn analysis_weights", "fn assign_eligible", "fn eligibility", "fn invalid", "fn mask_identity", "fn not_supported", "fn receipt_identity", "fn rows_identity", "fn split_rows", "fn splitmix64", "fn write", "struct Eligibility", "struct SampleSplitReceipt", "struct SplitRows", "struct SplitWeights"]
+sha256 = "254c833394a288023a3b80908ac7371409d5465eef142e6feb74af6fc32fd8d8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/sample_split_effect_reference.rs"
-sha256 = "0ae81e5123bb596126884a1166215c1ffeed086fbe4d44f441a760987ec8aa39"
+items = ["fn adjusted_effect_equals_exact_least_squares_including_offsets_and_near_collinearity", "fn column", "fn rel_err", "fn the_split_effect_route_equals_the_split_by_definition_and_exact_least_squares"]
+sha256 = "d001a141be0f79203d060f26e7b9e8f20370d7f564d9847574ba61841b24c76b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/sample_split_parent_set_effect_reference.rs"
-sha256 = "1ed8a0f21cdae7563382acda1b8d96cc5d1b24051afca28fc8f85fddbb33d4b8"
+items = ["const PAIRS", "fn frame", "fn ids", "fn pairs", "fn parent_set_and_fixed_graph_acceptance_agree_with_the_definition_on_every_pattern", "fn structure", "fn the_parent_set_route_equals_exact_least_squares_for_both_versions_and_scales"]
+sha256 = "6fee99f94172ff71636af8860c67402233564334d754f5742dedd58820a32ca9"
 
 [[method_review.artifacts]]
 role = "reference"

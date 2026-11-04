@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.estimation import estimate_many, prepare_many
 from antecedent.outcomes import require_success
 
@@ -384,9 +385,9 @@ def test_partial_retarget_outcome_keeps_surviving_covariance_and_native_failure_
     )
     report = require_success(outcome)
     assert outcome.answer.kind == "partial"
-    assert outcome.answer.detail == "batch_retarget.partial_family"
+    assert outcome.answer.detail == reason_details.batch_retarget.PARTIAL_FAMILY
     assert outcome.uncertainty.available  # the surviving claim still has covariance
-    assert outcome.uncertainty.reason == "batch_retarget.partial_family"
+    assert outcome.uncertainty.reason == reason_details.batch_retarget.PARTIAL_FAMILY
     assert outcome.uncertainty.payload["covariance_members"] == ("good",)
     assert outcome.uncertainty.payload["failed_members"] == ("short",)
     assert outcome.uncertainty.payload["simultaneous_interval"]["status"] == "unavailable"
@@ -404,7 +405,7 @@ def test_point_only_native_report_shape_never_acquires_inferred_covariance():
 
     refusal = {
         "reason_code": "not_supported",
-        "detail": "batch_retarget.point_only_member",
+        "detail": reason_details.batch_retarget.POINT_ONLY_MEMBER,
         "message": "native provenance withholds covariance",
     }
     report = BatchRetarget(
@@ -438,9 +439,9 @@ def test_point_only_native_report_shape_never_acquires_inferred_covariance():
     )
     outcome = Outcome(value=report)
     assert outcome.answer.kind == "structured"  # the point exists; its interval does not
-    assert outcome.answer.detail == "batch_retarget.point_only_member"
+    assert outcome.answer.detail == reason_details.batch_retarget.POINT_ONLY_MEMBER
     assert not outcome.uncertainty.available
-    assert outcome.uncertainty.reason == "batch_retarget.point_only_member"
+    assert outcome.uncertainty.reason == reason_details.batch_retarget.POINT_ONLY_MEMBER
     assert outcome.uncertainty.payload["point_only_members"] == ("point",)
     assert outcome.support.payload["standing"] == "supported"
     assert "covariance_between" not in outcome.inspect().operations

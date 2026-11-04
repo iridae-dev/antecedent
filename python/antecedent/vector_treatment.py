@@ -54,6 +54,8 @@ from typing import Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -144,7 +146,7 @@ class Contrast:
                     {
                         "code": "invalid_argument",
                         "stage": "fit",
-                        "detail": "vector_treatment.non_finite_value",
+                        "detail": _reason_details.vector_treatment.NON_FINITE_VALUE,
                         "offending": self.name,
                         "message": f"contrast {self.name!r} has a non-finite weight",
                     }

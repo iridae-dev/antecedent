@@ -48,7 +48,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
-          "sha256": "3292303fd8deb689a3e773e5450b5e861d9c4ccbd6827654b9a0d88dccb8adca"
+          "items": [
+            "fn close",
+            "fn correlation",
+            "fn fixture",
+            "fn require_cases",
+            "fn rng_stream_and_gaussian_sampler_match_frozen_scipy_battery"
+          ],
+          "sha256": "21cf990b0246a718f3d27755cb12b065ea74ac73b9d8baeb8a472bc39aed20d6"
         }
       ],
       "fixture_payload_sha256": "8ee3a6030d9dd1239da91cf333e31df5685d000667d70e49f9fa3f8c9d0df3e3"

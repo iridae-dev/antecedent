@@ -237,7 +237,10 @@ fn native_mean_only_result_is_refused_for_probability_and_quantile_sources() {
         let requirement = contract(criterion).source_requirement().unwrap().unwrap();
         let refusal = claim.decision_source(&requirement).unwrap_err();
         assert_eq!(refusal.code, "decision_contract_unsatisfied");
-        assert_eq!(refusal.detail, "native_claims.source_not_supplied");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::native_claims::SOURCE_NOT_SUPPLIED
+        );
         assert_eq!(refusal.expected.as_deref(), Some("joint_draws,marginal_draws"));
         assert_eq!(refusal.supplied.as_deref(), Some("mean"));
         assert!(refusal.validate().is_ok());
@@ -335,7 +338,10 @@ fn native_unsupported_coordinates_are_withheld_not_silently_used() {
     );
     let claim = NativeResponseClaim::from_response(&none, &schema(), &context()).unwrap();
     let refusal = claim.decision_source(&requirement).unwrap_err();
-    assert_eq!(refusal.detail, "native_claims.no_supported_coordinate");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::native_claims::NO_SUPPORTED_COORDINATE
+    );
 }
 
 #[test]
@@ -349,20 +355,23 @@ fn native_response_for_another_request_is_refused_against_the_program() {
         ResponseUncertainty::None,
     );
     let refusal = NativeResponseClaim::from_response(&changed, &schema(), &context()).unwrap_err();
-    assert_eq!(refusal.detail, "program_binding.dose_grid_changed");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED);
     // A program that asks for another outcome than the response estimated.
     let mut other = context();
     other.program.outcome_id = "z".into();
     let refusal =
         NativeResponseClaim::from_response(&mean_response(), &schema(), &other).unwrap_err();
-    assert_eq!(refusal.detail, "program_binding.treatment_outcome_substitution");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION
+    );
     assert_eq!(refusal.offending.as_deref(), Some("outcome_id"));
     // A schema unit that contradicts the program's units is never converted.
     let mut kpa = context();
     kpa.program.outcome_units = "kPa".into();
     let refusal =
         NativeResponseClaim::from_response(&mean_response(), &schema(), &kpa).unwrap_err();
-    assert_eq!(refusal.detail, "native_claims.units_conflict");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::native_claims::UNITS_CONFLICT);
     assert_eq!(refusal.expected.as_deref(), Some("kPa"));
     assert_eq!(refusal.supplied.as_deref(), Some("mmHg"));
 }
@@ -374,12 +383,18 @@ fn native_non_point_or_unlabeled_responses_are_refused() {
     let refusal = NativeResponseClaim::from_response(&partial, &schema(), &context()).unwrap_err();
     assert_eq!(
         (refusal.code, refusal.detail.as_str()),
-        ("effect_not_identified", "native_claims.response_not_point_identified")
+        (
+            "effect_not_identified",
+            antecedent_core::reason_details::native_claims::RESPONSE_NOT_POINT_IDENTIFIED
+        )
     );
     let mut scalar = mean_response();
     scalar.estimate = ResponseIdentification::PointIdentified(ResponseValue::Scalar(1.0));
     let refusal = NativeResponseClaim::from_response(&scalar, &schema(), &context()).unwrap_err();
-    assert_eq!(refusal.detail, "native_claims.unsupported_estimand");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND
+    );
     let mut derivative = mean_response();
     derivative.estimand = ResponseFunctional::AverageDerivative {
         outcome: schema().id_of("y").unwrap(),
@@ -388,7 +403,10 @@ fn native_non_point_or_unlabeled_responses_are_refused() {
     };
     let refusal =
         NativeResponseClaim::from_response(&derivative, &schema(), &context()).unwrap_err();
-    assert_eq!(refusal.detail, "native_claims.unsupported_estimand");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND
+    );
     let unlabeled = response_on(
         &[1.0, 2.0],
         &[3.0, 5.0],
@@ -398,7 +416,10 @@ fn native_non_point_or_unlabeled_responses_are_refused() {
     );
     let refusal =
         NativeResponseClaim::from_response(&unlabeled, &schema(), &context()).unwrap_err();
-    assert_eq!(refusal.detail, "native_claims.point_support_missing");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::native_claims::POINT_SUPPORT_MISSING
+    );
     let hidden = response_on(
         &[1.0, 2.0],
         &[3.0, 5.0],
@@ -407,10 +428,13 @@ fn native_non_point_or_unlabeled_responses_are_refused() {
         ResponseUncertainty::None,
     );
     let refusal = NativeResponseClaim::from_response(&hidden, &schema(), &context()).unwrap_err();
-    assert_eq!(refusal.detail, "coordinate_support.summary_not_worst_label");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::coordinate_support::SUMMARY_NOT_WORST_LABEL
+    );
     let mut no_snapshot = context();
     no_snapshot.snapshot_id = " ".into();
     let refusal =
         NativeResponseClaim::from_response(&mean_response(), &schema(), &no_snapshot).unwrap_err();
-    assert_eq!(refusal.detail, "native_claims.invalid_context");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::native_claims::INVALID_CONTEXT);
 }

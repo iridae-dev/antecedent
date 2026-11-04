@@ -401,7 +401,8 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
                 .prepare(&ctx)
                 .expect_err("table weights must be refused on a route that never reads them");
             assert!(
-                format!("{refused:?}").contains("sampling_weights.route_unsupported"),
+                format!("{refused:?}")
+                    .contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
                 "{refused:?}"
             );
         }

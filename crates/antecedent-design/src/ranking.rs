@@ -186,26 +186,35 @@ impl RankingError {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
         let at = |code, detail: &str| RefusalBuilder::new(code, "consume", detail);
         match self {
-            Self::Empty => {
-                at(antecedent_core::reason_code!("invalid_argument"), "design_ranking.empty")
+            Self::Empty => at(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::design_ranking::EMPTY,
+            )
+            .build(),
+            Self::DuplicateCandidate(id) => {
+                at(signal, antecedent_core::reason_details::design_ranking::DUPLICATE_CANDIDATE)
+                    .offending(id.clone())
                     .build()
             }
-            Self::DuplicateCandidate(id) => {
-                at(signal, "design_ranking.duplicate_candidate").offending(id.clone()).build()
-            }
             Self::SignalMismatch(id) => {
-                at(signal, "design_ranking.signal_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::design_ranking::SIGNAL_MISMATCH)
+                    .offending(id.clone())
+                    .build()
             }
             Self::SourceDigestMismatch => {
-                at(signal, "design_ranking.source_digest_mismatch").build()
+                at(signal, antecedent_core::reason_details::design_ranking::SOURCE_DIGEST_MISMATCH)
+                    .build()
             }
             Self::CostMappingMismatch => at(
                 antecedent_core::reason_code!("design_cost_units_mismatch"),
-                "design_ranking.cost_units_mismatch",
+                antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH,
             )
             .remedy("replay with the cost mapping the ranking was computed under")
             .build(),
-            Self::ContractMismatch => at(signal, "design_ranking.contract_mismatch").build(),
+            Self::ContractMismatch => {
+                at(signal, antecedent_core::reason_details::design_ranking::CONTRACT_MISMATCH)
+                    .build()
+            }
         }
     }
 }

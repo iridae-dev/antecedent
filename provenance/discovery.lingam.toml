@@ -40,9 +40,11 @@ record_sha256 = "0b29c9c508ee5595d918a340e8c4e39dae22dd7e81d292c440b67e8586a5714
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/lingam.rs"
-sha256 = "397ef97fe0463a161d6f02d40f7690d0248670ec0bb6b343ce8ec284ed9cf344"
+items = ["const ALGORITHM", "fn causal_order", "fn center_inplace", "fn default", "fn excess_kurtosis", "fn fill_gram", "fn fit_edges", "fn gaussian_consistent_residuals", "fn insert_forward", "fn new", "fn predecessor_regression", "fn require_finite_column", "fn residual_into", "fn residual_looks_gaussian", "fn residual_on_predecessors", "fn run", "fn slope_from_gram", "struct DirectLingam", "type ParentCoefs", "type StaticDagDiscoveryResult"]
+sha256 = "623ea104c65798fc6a46a56eab18652137c0fa0ac5b3673203582df301b03a97"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/lingam_oracle_tests.rs"
-sha256 = "b5130708584d9c16490dde5da14bd5eb5a49f4cf912dbc42c6988e9370b8d0cb"
+items = ["fn assert_recovers", "fn columns", "fn dcor_definition", "fn distance_correlation_matches_its_definition", "fn known_structures_are_recovered_exactly", "fn marginal", "fn next", "fn product_grid_errors_are_exactly_uncorrelated_and_independent", "fn random", "fn random_models_recover_their_order_edges_and_coefficients", "fn run", "fn unit", "struct Lcg", "struct Model"]
+sha256 = "45abeda02677d1abbf1a461cf00f7ea3e0edd07ee0d41b70a76558a731f43548"

@@ -185,7 +185,10 @@ fn refusals_and_cancellation_leave_the_retained_state_unchanged() {
     let mut unpaired = spec();
     unpaired.plus.units.pop();
     let error = exec.execute(&unpaired, &ctx()).expect_err("unpaired");
-    assert_eq!(error.refusal().unwrap().detail, "temporal_counterfactual.unpaired_histories");
+    assert_eq!(
+        error.refusal().unwrap().detail,
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES
+    );
     let cancelled = ExecutionContext::for_tests(1);
     cancelled.cancellation.cancel();
     assert!(exec.execute(&spec(), &cancelled).is_err());

@@ -160,7 +160,7 @@ impl ObservationalSurvivalEffect {
         let Some(horizon) = spec.horizon else {
             return Err(refused(
                 antecedent_core::reason_code!("required_option_missing"),
-                "survival_effect.horizon_missing",
+                antecedent_core::reason_details::survival_effect::HORIZON_MISSING,
                 "survival at an observational horizon needs the horizon t* declared; the survival curve is not defined without it",
             ));
         };
@@ -168,7 +168,7 @@ impl ObservationalSurvivalEffect {
             None => {
                 return Err(refused(
                     antecedent_core::reason_code!("required_option_missing"),
-                    "survival_effect.censoring_assumption_missing",
+                    antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_MISSING,
                     "censoring must be declared ignorable: independent_within_arm, or at_random_given_covariates (the censoring hazard depends on the arm and the declared covariates only). Informative censoring is not identified from these data",
                 ));
             }
@@ -177,7 +177,7 @@ impl ObservationalSurvivalEffect {
             Some(other) => {
                 return Err(refused(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "survival_effect.censoring_assumption_unknown",
+                    antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_UNKNOWN,
                     &format!(
                         "unknown censoring assumption {other:?}; use independent_within_arm or at_random_given_covariates"
                     ),
@@ -193,7 +193,7 @@ impl ObservationalSurvivalEffect {
         {
             return Err(refused(
                 antecedent_core::reason_code!("invalid_argument"),
-                "survival_effect.invalid_data",
+                antecedent_core::reason_details::survival_effect::INVALID_DATA,
                 "adjustment columns must match the rows and have distinct, non-empty names",
             ));
         }

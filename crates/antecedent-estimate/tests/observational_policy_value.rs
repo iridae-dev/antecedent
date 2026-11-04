@@ -306,10 +306,16 @@ fn known_propensities_replace_the_fitted_model_and_are_validated() {
     // Probabilities that do not sum to one, or fall below the floor, are refused.
     request.known_propensity = Some(KnownPropensity::Constant(Arc::from([0.5, 0.6])));
     let text = estimate(&data, &request, 2).unwrap_err().to_string();
-    assert!(text.contains("policy_value.invalid_known_propensity"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::INVALID_KNOWN_PROPENSITY),
+        "{text}"
+    );
     request.known_propensity = Some(KnownPropensity::Constant(Arc::from([0.995, 0.005])));
     let text = estimate(&data, &request, 2).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_propensity_below_floor"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_PROPENSITY_BELOW_FLOOR),
+        "{text}"
+    );
 }
 
 #[test]
@@ -321,7 +327,12 @@ fn a_policy_declared_as_learned_on_the_scoring_rows_is_refused() {
     });
     let error = estimate(&data, &request, 1).unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("policy_value.policy_learned_on_evaluation_rows"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::policy_value::POLICY_LEARNED_ON_EVALUATION_ROWS
+        ),
+        "{text}"
+    );
     assert!(text.contains("held_out") && text.contains("cross_fitted_learning"), "{text}");
 }
 
@@ -335,7 +346,10 @@ fn a_policy_action_outside_the_declared_support_names_the_action() {
         origin: PolicyOrigin::Prespecified,
     });
     let text = estimate(&data, &request, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_outside_support"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_OUTSIDE_SUPPORT),
+        "{text}"
+    );
     assert!(text.contains('5'), "{text}");
 }
 
@@ -345,7 +359,10 @@ fn an_observed_treatment_outside_the_support_and_an_unpopulated_action_are_refus
     data.treatment[3] = 2.0;
     let request = binary_request(PolicyEvaluation::CrossFitted);
     let text = estimate(&data, &request, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.undeclared_level"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::UNDECLARED_LEVEL),
+        "{text}"
+    );
 
     let data = binary_study(1000, 27, 1.5, 0, 1.0);
     let wide = ObservationalPolicyValue::new(
@@ -354,7 +371,10 @@ fn an_observed_treatment_outside_the_support_and_an_unpopulated_action_are_refus
         PolicyEvaluation::CrossFitted,
     );
     let text = estimate(&data, &wide, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_not_populated"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_NOT_POPULATED),
+        "{text}"
+    );
 }
 
 #[test]
@@ -366,7 +386,10 @@ fn an_action_with_propensity_below_the_floor_is_a_positivity_refusal() {
         origin: PolicyOrigin::Prespecified,
     });
     let text = estimate(&data, &request, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_propensity_below_floor"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_PROPENSITY_BELOW_FLOOR),
+        "{text}"
+    );
 }
 
 #[test]
@@ -378,14 +401,14 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.reference_outside_support")
+            .contains(antecedent_core::reason_details::policy_value::REFERENCE_OUTSIDE_SUPPORT)
     );
     let request = binary_request(PolicyEvaluation::HeldOut { evaluation_fraction: 1.5 });
     assert!(
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.invalid_evaluation_fraction")
+            .contains(antecedent_core::reason_details::policy_value::INVALID_EVALUATION_FRACTION)
     );
     let mut request = binary_request(PolicyEvaluation::CrossFitted);
     request.folds = 1;
@@ -393,7 +416,7 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.invalid_folds")
+            .contains(antecedent_core::reason_details::policy_value::INVALID_FOLDS)
     );
     let request = ObservationalPolicyValue::new(
         vec![0.0, 0.0],
@@ -404,7 +427,7 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.invalid_support")
+            .contains(antecedent_core::reason_details::policy_value::INVALID_SUPPORT)
     );
     let short = Arc::<[f64]>::from(vec![0.0; 10]);
     let request = binary_request(PolicyEvaluation::Prespecified {
@@ -412,7 +435,10 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         origin: PolicyOrigin::Prespecified,
     });
     assert!(
-        estimate(&data, &request, 1).unwrap_err().to_string().contains("policy_value.invalid_data")
+        estimate(&data, &request, 1)
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::policy_value::INVALID_DATA)
     );
 }
 

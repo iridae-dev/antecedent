@@ -40,7 +40,15 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/effect_constancy_consumers.rs",
-          "sha256": "ef86311198d4e39f2d11aff0fb38f664eab8faa2e964047c7a1645b0a4fcdc4c"
+          "items": [
+            "fn consumer",
+            "fn effect",
+            "fn estimand",
+            "fn oracle",
+            "fn original",
+            "fn original_covariance_aware_contrast_replays_and_does_not_support_transport"
+          ],
+          "sha256": "0efe431e36d605d8587645645dfc6b3622b9ef94607851554a68a776e8f05729"
         }
       ],
       "fixture_payload_sha256": "f44610bdf8fc89f557eb863d125918d3f80a5d461dc60eda452403e8d32c43e3"

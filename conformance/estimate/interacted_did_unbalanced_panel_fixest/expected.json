@@ -87,12 +87,37 @@
         {
           "role": "input_fixture",
           "path": "conformance/estimate/interacted_did_unbalanced_panel/expected.json",
-          "sha256": "7bffbb5a84587fb971edebcde41dd9fd255df32123392e389706867a626aee52"
+          "sha256": "b942d67fed936f19bc4c17e18ceb6901336a91cc58b05f3e3fa09075d668324a"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs",
-          "sha256": "0e837fa7314330eaecded2eeca1ec09f8dce534af0a7da05efb8da6104dd5ad3"
+          "items": [
+            "fn a_cohort_with_no_observed_base_period_is_dropped_and_reported_not_reweighted",
+            "fn an_unbalanced_panel_is_read_as_observed_by_every_robust_estimator",
+            "fn anticipation_moves_the_base_period_and_recovers_an_anticipated_effect",
+            "fn conditional_trends",
+            "fn covariate_adjusted_two_period_comparisons_recover_the_effect_under_conditional_trends",
+            "fn covariates_are_refused_outside_the_two_by_two_estimator",
+            "fn every_robust_estimator_recovers_the_heterogeneous_effect_where_two_way_fixed_effects_fails",
+            "fn interacted_reference",
+            "fn normal",
+            "fn panel",
+            "fn removing_one_comparison_row_moves_the_interacted_fit_only_within_sampling_noise",
+            "fn spec",
+            "fn staggered",
+            "fn sun_abraham_on_an_unbalanced_panel_keeps_the_cohort_specific_effects_and_reports_support",
+            "fn sun_abraham_on_an_unbalanced_panel_matches_the_fixest_sunab_regression",
+            "fn sun_abraham_on_an_unbalanced_panel_matches_the_full_dummy_regression_reference",
+            "fn sun_abraham_refuses_when_no_comparison_unit_is_observed_in_two_periods",
+            "fn the_attrition_slope_is_zero_when_nothing_is_missing_and_the_missing_share_otherwise",
+            "fn the_bayesian_bootstrap_posterior_recovers_the_effect_with_joint_draws",
+            "fn the_dynamic_profile_recovers_the_exposure_path",
+            "fn the_whole_procedure_resample_is_deterministic_across_threads_and_bands_dominate",
+            "fn whole_procedure_intervals_cover_the_simulated_truth_in_most_samples",
+            "struct Simulated"
+          ],
+          "sha256": "c54771f028ea521873769b8b5345ad9a6e937d4d780fa93989c636f373a7f1f0"
         }
       ],
       "fixture_payload_sha256": "39e0152ec777709cb586a8e53382ea2ac49856f5c1ee31346597aaf87a143127"

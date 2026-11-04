@@ -41,12 +41,14 @@ record_sha256 = "2bb69005429b2e0bd18844540d53846e0d83f6550abbfdefd767a3bedb23f91
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/joint_if.rs"
-sha256 = "9e66fc52a44fe9460607bbaaaa4ce1596a6981e872cbb112dffe1158f992bf01"
+items = ["fn frozen_weight_mixture_scores", "fn get", "fn joint_influence_covariance", "fn joint_influence_covariance_with_means", "fn positive_weight_scale", "fn se", "fn weighted_mean", "struct JointCovariance"]
+sha256 = "604bbab9dc056c63388c31a1e5db924aa5171f3033b6cd57f179e05c6bdb461d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/joint_if_reference.rs"
-sha256 = "cef28143e441230d142728a02ff6b8a8c6767cfb7e0b38bcb6e201b8d8ce49e9"
+items = ["fn an_atom_with_zero_weight_is_not_mixed_even_when_its_scores_are_not_finite", "fn cases", "fn close", "fn floats", "fn invalid_declarations_are_refused_not_ignored", "fn means_and_joint_covariance_match_the_exact_rational_reference", "fn the_mixture_column_and_its_standard_error_match_the_exact_reference", "fn tolerance"]
+sha256 = "6daf95428b14abbe01b45e028440b82ec438ec09dda8ac3dc6edb5ad14ee5848"
 
 [[method_review.artifacts]]
 role = "reference"

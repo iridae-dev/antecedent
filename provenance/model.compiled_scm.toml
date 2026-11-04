@@ -37,22 +37,26 @@ record_sha256 = "14950c53cd1e3c6d252f74c42e2e5c707acfba33d7fd6bde640e1a3964478bc
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compile.rs"
-sha256 = "1ef08a8ed8ff0f931327d264b7b90499bec786c5d928c7532eb0beb4a5453bc4"
+items = ["enum MechanismSlot", "fn compile", "fn compile_shared", "fn gather_for", "fn get", "fn infer_noise_column", "fn log_prob_column", "fn n_parents", "fn new", "fn noise_inference_mode", "fn standard_normal_log_density", "fn supports_noise_inference", "fn vacant", "fn with_mechanisms", "struct CompiledCausalModel", "struct CompiledMechanismStore", "struct ModelOutputLayout", "struct ParentGatherPlan", "trait DynamicMechanism"]
+sha256 = "e5768a0da3daec61c4b94720752174530fce70f7d52ec9511e47cb10be56adee"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/overlay.rs"
-sha256 = "0873e12e8a86bf6990f9dc204e5d400d07543e716cbb919bf91a95f53fbf30c6"
+items = ["fn conflicting_directives", "fn observational", "fn program_conflict", "fn validate", "fn with_overlay", "struct InterventionOverlay", "struct ModelView"]
+sha256 = "e297430eaf5cc03272ae883a49833e8fb705220abdc7336ec2731cd190b367fe"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/sample.rs"
-sha256 = "16fda6b2a7b1ab99b31e897bc84044c7aaf7c95253d1bcf9acad86c7bbcbb553"
+items = ["enum NodeNoise", "fn admit_cells", "fn apply_shift", "fn count_param", "fn evaluate_node", "fn noise_kind_override", "fn noise_kind_slot", "fn positive", "fn refuse_cross_family_soft", "fn sample_stochastic", "fn sample_with_overlay", "fn sample_with_overlay_admitted", "fn sample_with_overlay_ctx", "fn sample_with_overlay_polled", "fn soft_discrete_slot", "fn soft_gp_slot", "fn soft_to_slot", "struct NodeEvaluation"]
+sha256 = "3786125d929029477c6ebbec83128197666eec0f159217008b91a702860574a0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/scm_replay_reference.rs"
-sha256 = "44dda2df0353575eae867be3b3b91694dca0a4f59841f98b6f88d419342e09b1"
+items = ["const TINY_SIGMA", "fn a_declared_activation_mask_is_refused_rather_than_ignored", "fn a_node_that_is_both_hard_set_and_shifted_is_refused", "fn ancestral_sampling_with_a_vanishing_noise_scale_follows_the_deterministic_part", "fn close", "fn compile", "fn compiled_evaluation_and_replay_match_the_structural_equations_exactly", "fn gathered", "fn node", "fn num", "fn overlay", "fn table"]
+sha256 = "8c3a8bff62f55c319548757dc693ac62cfba168581f7b9e2905e25cd93ed1fc1"
 
 [[method_review.artifacts]]
 role = "reference"

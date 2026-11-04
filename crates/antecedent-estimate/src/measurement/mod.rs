@@ -118,7 +118,7 @@ pub(crate) fn model_error(error: &MeasurementModelError) -> MeasurementError {
     match error {
         MeasurementModelError::ProxyOfferedAsConstruct { offered } => MeasurementError::new(
             antecedent_core::reason_code!("proxy_offered_as_construct"),
-            "measurement_model.proxy_as_construct",
+            antecedent_core::reason_details::measurement_model::PROXY_AS_CONSTRUCT,
             format!(
                 "a {} variable is offered as the latent scientific construct; relate it to the construct by a measurement model",
                 offered.as_str()
@@ -126,17 +126,17 @@ pub(crate) fn model_error(error: &MeasurementModelError) -> MeasurementError {
         ),
         MeasurementModelError::ObservedIndicator => MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.indicator_observed",
+            antecedent_core::reason_details::measurement_model::INDICATOR_OBSERVED,
             "an observed column has no error model; declare it noisy or misclassified",
         ),
         MeasurementModelError::StructureParameterMismatch => MeasurementError::new(
             antecedent_core::reason_code!("differential_error_not_pooled"),
-            "measurement_model.structure_parameters",
+            antecedent_core::reason_details::measurement_model::STRUCTURE_PARAMETERS,
             "the declared error structure disagrees with the parameter layout",
         ),
         other => MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             format!("{other:?}"),
         ),
     }
@@ -147,7 +147,7 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         MeasurementErrorError::ReliabilityNotPositive { reliability, floor } => {
             MeasurementError::new(
                 antecedent_core::reason_code!("measurement_not_identified"),
-                "measurement_model.reliability_too_small",
+                antecedent_core::reason_details::measurement_model::RELIABILITY_TOO_SMALL,
                 format!(
                     "implied reliability {reliability} is not above the declared floor {floor}; a more reliable measurement or averaged replicates is needed"
                 ),
@@ -155,7 +155,7 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         }
         MeasurementErrorError::YoudenTooSmall { youden, minimum } => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.youden_too_small",
+            antecedent_core::reason_details::measurement_model::YOUDEN_TOO_SMALL,
             format!(
                 "Youden index {youden} is not above the declared minimum {minimum}; the indicator is not informative enough to invert"
             ),
@@ -163,7 +163,7 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         MeasurementErrorError::ConfusionIllConditioned { condition, maximum } => {
             MeasurementError::new(
                 antecedent_core::reason_code!("measurement_not_identified"),
-                "measurement_model.confusion_ill_conditioned",
+                antecedent_core::reason_details::measurement_model::CONFUSION_ILL_CONDITIONED,
                 format!(
                     "confusion matrix condition {condition} exceeds the declared maximum {maximum}"
                 ),
@@ -171,27 +171,27 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         }
         MeasurementErrorError::EmptyLatentCategory => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.confusion_ill_conditioned",
+            antecedent_core::reason_details::measurement_model::CONFUSION_ILL_CONDITIONED,
             "a latent category has zero corrected mass, so its outcome mean is not defined",
         ),
         MeasurementErrorError::InsufficientReplicates(why) => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.insufficient_replicates",
+            antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES,
             format!("replicates cannot identify the within-unit variance: {why}"),
         ),
         MeasurementErrorError::SingularDesign => MeasurementError::new(
             antecedent_core::reason_code!("design_rank_deficient"),
-            "measurement_model.design_singular",
+            antecedent_core::reason_details::measurement_model::DESIGN_SINGULAR,
             "the observed design is rank deficient; no correction is formed",
         ),
         MeasurementErrorError::NonPositiveVariance(what) => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.variance_not_positive",
+            antecedent_core::reason_details::measurement_model::VARIANCE_NOT_POSITIVE,
             format!("the corrected variance of the {what} is not positive"),
         ),
         other => MeasurementError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "measurement_model.input_invalid",
+            antecedent_core::reason_details::measurement_model::INPUT_INVALID,
             other.to_string(),
         ),
     }
@@ -214,14 +214,14 @@ pub(crate) fn check_binding(
     };
     if model.binding.population_id != data.population_id {
         return Err(mismatch(
-            "measurement_model.population_mismatch",
+            antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH,
             &model.binding.population_id,
             &data.population_id,
         ));
     }
     if model.binding.regime_id != data.regime_id {
         return Err(mismatch(
-            "measurement_model.regime_mismatch",
+            antecedent_core::reason_details::measurement_model::REGIME_MISMATCH,
             &model.binding.regime_id,
             &data.regime_id,
         ));
@@ -229,7 +229,7 @@ pub(crate) fn check_binding(
     if let ArmBinding::Arm(bound) = &model.binding.arm {
         if data.arm_id.as_deref() != Some(bound.as_str()) {
             return Err(mismatch(
-                "measurement_model.arm_mismatch",
+                antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
                 bound,
                 data.arm_id.as_deref().unwrap_or("all_arms"),
             ));
@@ -238,7 +238,7 @@ pub(crate) fn check_binding(
     if model.representation != data.representation {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("representation_mapping_required"),
-            "measurement_model.representation_unmapped",
+            antecedent_core::reason_details::measurement_model::REPRESENTATION_UNMAPPED,
             format!(
                 "the model's indicator is {}@{}, the data are {}@{}; a changed representation needs an explicit mapping and a model established for the new coordinates",
                 model.representation.coordinate_system_id,
@@ -258,7 +258,7 @@ pub(crate) fn require_route(
     if model.route != route {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("route_not_supported"),
-            "measurement_model.route_mismatch",
+            antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH,
             format!(
                 "the model declares route `{}`; this entry point implements `{}`",
                 model.route.as_str(),
@@ -276,7 +276,7 @@ pub(crate) fn require_non_differential(model: &MeasurementModel) -> Result<(), M
         ErrorStructure::NonDifferential => Ok(()),
         _ => Err(MeasurementError::new(
             antecedent_core::reason_code!("differential_error_not_pooled"),
-            "measurement_model.differential_declared",
+            antecedent_core::reason_details::measurement_model::DIFFERENTIAL_DECLARED,
             "the model is declared differential; this route pools the error across arms, populations and time and is never run on it",
         )),
     }
@@ -286,7 +286,7 @@ pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), MeasurementE
     if ctx.cancellation.is_cancelled() {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "measurement_model.cancelled",
+            antecedent_core::reason_details::measurement_model::CANCELLED,
             "cancelled before a corrected functional was formed; this is not a verdict on the data",
         ));
     }
@@ -350,7 +350,7 @@ pub fn corrected_functional_interval(
     if !(level > 0.0 && level < 1.0) {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "measurement_model.interval_level",
+            antecedent_core::reason_details::measurement_model::INTERVAL_LEVEL,
             "the interval level must lie strictly between 0 and 1",
         ));
     }
@@ -367,7 +367,7 @@ pub fn corrected_functional_interval(
 pub fn interval_not_supported() -> MeasurementError {
     MeasurementError::new(
         antecedent_core::reason_code!("route_not_supported"),
-        "measurement_model.interval_requires_estimate",
+        antecedent_core::reason_details::measurement_model::INTERVAL_REQUIRES_ESTIMATE,
         "no variance of the whole measurement-plus-estimation method is derived for this route; the point and an uncalibrated standard error are the result",
     )
 }

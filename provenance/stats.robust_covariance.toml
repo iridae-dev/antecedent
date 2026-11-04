@@ -45,17 +45,20 @@ record_sha256 = "be0ffb3834d4fb137bc64fd5ae73054078613ae428df2b9bf9e77b0513b4e58
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/covariance.rs"
-sha256 = "f262f41b73a2745de3ac80015bdc636d6bc9c3b7e30c6be1e7c7e5f4e12aa49c"
+items = ["const LEVERAGE_SATURATION", "enum SandwichKind", "fn accumulate_xx", "fn basis_rank_tolerance", "fn cluster_finite_sample", "fn cluster_meat", "fn coefficient_covariance", "fn congruence", "fn distinct_count", "fn ensure_multiway_meat_psd", "fn hc2_coefficient_bell_mccaffrey", "fn hc_leverage", "fn hc_meat", "fn identity", "fn multiway_meat", "fn newey_west_meat", "fn newey_west_meat_on_rows", "fn sandwich_basis", "fn sandwich_from_multipliers", "fn score_coefficient_covariance", "fn symmetric_eigen", "struct Hc2Coefficient", "struct SandwichBasis"]
+sha256 = "e20aa798af9f02b5d0f2773cdf1e588a37c0b5f5e53a04763de27999b1d9fb4b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/cluster.rs"
-sha256 = "fe7585203f64da92574b3fd977f5c65bfd281117e5e985b8853b7635dfa752c4"
+items = ["fn bartlett_weight", "fn cluster_meat_scalar", "fn effective_nw_lag", "fn few_cluster_t_ratio", "fn newey_west_meat_scalar", "fn panel_hac_meat_scalar", "fn panel_max_time_span", "fn validate_panel_hac"]
+sha256 = "faa7b9cc40d620fc296e72238b8fdc9b7248c69fd533d1013405c12f65317da6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/sandwich_reference.rs"
-sha256 = "f78d56ada48a2aed8232eb300f84bdc4f8c7dea5a55d07269afdf4ebcc3cfe1c"
+items = ["const REFERENCE", "fn a_dependent_or_underdetermined_design_has_no_sandwich", "fn bell_mccaffrey_variance_and_degrees_of_freedom_match_the_dense_definition", "fn diagonal", "fn floats", "fn huber_regression_reaches_the_exact_fixed_point_of_its_estimating_equation", "fn ints", "fn least_squares_solves_match_exact_normal_equations", "fn normwise", "fn rank_deficient_designs_are_refused_or_solved_to_the_exact_minimum_norm", "fn sample_mean_and_standard_error_match_exact_arithmetic", "fn sandwich_covariances_match_exact_arithmetic"]
+sha256 = "e5d9171efcc419a70f4cebab8978676652f15495c33603e8b66f85a66d35415c"
 
 [[method_review.artifacts]]
 role = "reference"

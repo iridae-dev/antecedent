@@ -79,7 +79,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "0403758f56684fdf88399c8d98a515c6f10da46262c9d42ab99b03a93db2b060"
+          "items": [
+            "fn exceedance_level_refutation_refits_the_exceedance_target",
+            "fn report"
+          ],
+          "sha256": "1af23b293f0cf05c7604c2e378e43e31a89f4d65b205806cdd457eab26055cc6"
         }
       ],
       "fixture_payload_sha256": "07fada19dfcabe6a144a0f9edc4586c4a51e176b0d704e0ceac646dc2fcb1834"

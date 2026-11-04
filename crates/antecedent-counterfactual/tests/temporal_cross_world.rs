@@ -201,18 +201,27 @@ fn temporal_shared_scm_bounds_are_enforced() {
     let error = evaluate_temporal_counterfactual(&deep, &ctx()).unwrap_err();
     let refusal = error.refusal().unwrap();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "temporal_counterfactual.horizon_exceeded");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::temporal_counterfactual::HORIZON_EXCEEDED
+    );
 
     let mut latent = spec();
     latent.graph.latent_confounding = true;
     let error = evaluate_temporal_counterfactual(&latent, &ctx()).unwrap_err();
     assert_eq!(error.refusal().unwrap().code, "route_not_supported");
-    assert_eq!(detail(&error), "temporal_counterfactual.latent_confounding");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::temporal_counterfactual::LATENT_CONFOUNDING
+    );
 
     let mut mismatched = spec();
     mismatched.fit.mechanisms[2].parent_coefficients.pop();
     let error = evaluate_temporal_counterfactual(&mismatched, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "temporal_counterfactual.fit_mismatch");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::temporal_counterfactual::FIT_MISMATCH
+    );
 }
 
 #[test]
@@ -222,7 +231,10 @@ fn unpaired_history_missing_unit_in_a_world_refuses_with_witness() {
     let error = evaluate_temporal_counterfactual(&s, &ctx()).unwrap_err();
     let refusal = error.refusal().unwrap();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "temporal_counterfactual.unpaired_histories");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES
+    );
     assert_eq!(refusal.offending.as_deref(), Some("unit-2"));
     let witness = error.witness().unwrap();
     assert_eq!(witness.unit, Some(unit(2)));
@@ -235,7 +247,10 @@ fn unpaired_history_extra_world_unit_and_duplicate_factual_refuse() {
     let mut extra = spec();
     extra.plus.units.push(UnitId::new("stranger"));
     let error = evaluate_temporal_counterfactual(&extra, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "temporal_counterfactual.unpaired_histories");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES
+    );
     let witness = error.witness().unwrap();
     assert_eq!(witness.unit, Some(UnitId::new("stranger")));
     assert_eq!(witness.world.as_deref(), Some("always_treat"));
@@ -245,7 +260,10 @@ fn unpaired_history_extra_world_unit_and_duplicate_factual_refuse() {
     again.history = HistoryId::new("hist-1-second");
     duplicate.factual.push(again);
     let error = evaluate_temporal_counterfactual(&duplicate, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "temporal_counterfactual.unpaired_histories");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES
+    );
     assert_eq!(error.witness().unwrap().world.as_deref(), Some("factual"));
 }
 
@@ -258,7 +276,10 @@ fn unpaired_history_refuting_witness_is_retained() {
     let error = evaluate_temporal_counterfactual(&s, &ctx()).unwrap_err();
     let refusal = error.refusal().unwrap();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "temporal_counterfactual.refuting_history");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::temporal_counterfactual::REFUTING_HISTORY
+    );
     let witness = error.witness().unwrap();
     assert_eq!(witness.unit, Some(unit(3)));
     assert_eq!(witness.history, Some(HistoryId::new("hist-3")));
@@ -276,14 +297,20 @@ fn unpaired_history_time_misaligned_and_missing_histories_refuse() {
     let mut s = spec();
     s.plus.times = [0, 2];
     let error = evaluate_temporal_counterfactual(&s, &ctx()).unwrap_err();
-    assert_eq!(detail(&error), "temporal_counterfactual.time_misaligned");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::temporal_counterfactual::TIME_MISALIGNED
+    );
     assert_eq!(error.witness().unwrap().world.as_deref(), Some("always_treat"));
 
     let mut empty = spec();
     empty.factual.clear();
     let error = evaluate_temporal_counterfactual(&empty, &ctx()).unwrap_err();
     assert_eq!(error.refusal().unwrap().code, "route_not_supported");
-    assert_eq!(detail(&error), "temporal_counterfactual.shared_history_missing");
+    assert_eq!(
+        detail(&error),
+        antecedent_core::reason_details::temporal_counterfactual::SHARED_HISTORY_MISSING
+    );
 }
 
 #[test]
@@ -392,7 +419,10 @@ fn transported_gate_reports_exact_missing_gates_and_the_underived_joint_theorem(
         ]
     );
     assert_eq!(refusal.refusal.code, "transport_missing_evidence");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::PREREQUISITE_MISSING
+    );
     assert_eq!(refusal.refusal.offending.as_deref(), Some("transport_support_missing"));
     assert!(refusal.refusal.validate().is_ok());
 
@@ -407,7 +437,10 @@ fn transported_gate_reports_exact_missing_gates_and_the_underived_joint_theorem(
         vec![TransportedCounterfactualGate::FixedPopulationTemporalSupportMissing]
     );
     assert_eq!(refusal.refusal.code, "transport_missing_evidence");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::PREREQUISITE_MISSING
+    );
     assert_eq!(
         refusal.refusal.offending.as_deref(),
         Some("fixed_population_temporal_support_missing")
@@ -418,7 +451,10 @@ fn transported_gate_reports_exact_missing_gates_and_the_underived_joint_theorem(
     assert!(refusal.missing_gates.is_empty());
     assert!(refusal.missing_factors.is_empty());
     assert_eq!(refusal.refusal.code, "route_not_supported");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.joint_theorem_not_derived");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::JOINT_THEOREM_NOT_DERIVED
+    );
     assert_eq!(refusal.refusal.offending, None);
     assert!(refusal.refusal.validate().is_ok());
 }
@@ -430,7 +466,10 @@ fn transported_gate_absent_regime_factor_is_factor_missing() {
     supplied.insert(required[0].clone(), "evidence".to_owned());
     let refusal = refuse_transported_counterfactual(&all_gates(), &required, &supplied);
     assert_eq!(refusal.refusal.code, "transport_missing_evidence");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.factor_missing");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::FACTOR_MISSING
+    );
     assert_eq!(refusal.refusal.offending.as_deref(), Some("target:do_x"));
     assert_eq!(refusal.missing_factors, vec![required[1].clone()]);
     assert!(refusal.missing_gates.is_empty());
@@ -440,6 +479,9 @@ fn transported_gate_absent_regime_factor_is_factor_missing() {
     let gated = TransportedCounterfactualPrerequisites { transport_support: false, ..all_gates() };
     let refusal = refuse_transported_counterfactual(&gated, &required, &supplied);
     assert_eq!(refusal.refusal.code, "transport_missing_evidence");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::PREREQUISITE_MISSING
+    );
     assert_eq!(refusal.missing_factors, vec![required[1].clone()]);
 }

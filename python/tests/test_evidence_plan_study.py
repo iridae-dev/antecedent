@@ -17,6 +17,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import design, repair
 from antecedent.errors import CausalUnsupportedError, EffectNotIdentified
 from antecedent.fallback import (
@@ -267,4 +268,4 @@ def test_an_identified_study_returns_the_ordinary_result_and_owes_no_evidence():
         repair.FailureContract(
             graph=graph, treatment="t", outcome="y", population="study", observed=["t", "y"]
         )
-    assert caught.value.detail == "identification_repair.not_a_failure"
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE

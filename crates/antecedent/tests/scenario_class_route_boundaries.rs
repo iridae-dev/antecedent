@@ -238,7 +238,12 @@ fn the_routes_with_no_latent_variable_or_class_construction_are_refused_with_the
     // The latent-variable counterfactual is a discrete identification with at most four levels.
     let error = plain("admg", &counterfactual()).expect_err("a refusal");
     assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
-    assert!(error.to_string().contains("counterfactual_id.bounds_exceeded"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED),
+        "{error}"
+    );
     // Natural-direct mediation over the graph classes is a discrete functional.
     for class in CLASSES {
         let error = plain(class, &mediation()).expect_err("a refusal");
@@ -286,7 +291,10 @@ fn table_weights_are_refused_and_declared_weights_equal_row_replication_on_both_
                 .unwrap_or_else(|| panic!("{class}: published an estimate for weighted rows"));
             let text = error.to_string();
             assert!(text.starts_with("reason=option_not_applicable"), "{class}: {text}");
-            assert!(text.contains("sampling_weights.route_unsupported"), "{class}: {text}");
+            assert!(
+                text.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+                "{class}: {text}"
+            );
         }
         let honoured =
             run(class, table(&columns()), average_effect(), Some(linear(Some(weights()))), None)

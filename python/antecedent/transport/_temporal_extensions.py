@@ -34,6 +34,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from antecedent import _reason_details
+
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -628,7 +630,7 @@ class TemporalIntervalCandidate(ScientificResult):
                 {
                     "code": "not_supported",
                     "stage": "temporal_extension",
-                    "detail": "temporal_interval.consumer_unavailable",
+                    "detail": _reason_details.temporal_interval.CONSUMER_UNAVAILABLE,
                     "message": "the interval consumer is unavailable in this build",
                 }
             )

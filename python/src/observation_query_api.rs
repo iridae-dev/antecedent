@@ -55,7 +55,7 @@ fn refusals_json(code: &str, refusals: &[ExternalRefusal]) -> String {
         json!({
             "code": code,
             "stage": "observe",
-            "detail": "observation_query.request_unsupported",
+            "detail": antecedent_core::reason_details::observation_query::REQUEST_UNSUPPORTED,
             "message": "observation query refused",
             "offending": Json::Null,
             "expected": Json::Null,
@@ -847,7 +847,7 @@ fn count_fitted_observation_build(
     if nodes_json.len() > 4 * 1024 * 1024 || evidence_json.len() > 64 * 1024 {
         return Err(crate::value_err_code(
             antecedent_core::reason_code!("invalid_argument"),
-            "observation_query.count_fitted_bounds_exceeded",
+            antecedent_core::reason_details::observation_query::COUNT_FITTED_BOUNDS_EXCEEDED,
         ));
     }
     let nodes: Vec<CountFittedNodeWire> = serde_json::from_str(nodes_json).map_err(|e| {

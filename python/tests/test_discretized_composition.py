@@ -13,6 +13,7 @@ cells' own values. After ``M`` is refit as ``1 + 3 X``, ``E[Y | do(X = v)] = 2 +
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import discretized_composition as dc
 from antecedent import mechanism_composition as mc
 from antecedent.errors import CausalTypeError
@@ -57,7 +58,7 @@ def test_a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() -
     for paradigm in ("frequentist", "bayesian"):
         refusal = refusal_of(lambda paradigm=paradigm: bridged.uncertainty(paradigm))
         assert refusal.reason_code == "uncertainty_representation_insufficient"
-        assert refusal.detail == "discretized_scm.point_only"
+        assert refusal.detail == reason_details.discretized_scm.POINT_ONLY
         assert refusal.remedy
     refusal_of(bridged.interval)
     refusal_of(bridged.posterior)
@@ -102,17 +103,17 @@ def test_a_refresh_keeps_the_plan_and_recomputes_the_grid_the_bound_and_the_iden
         [*gaussian_chain(), linear("W", 0.0, 1.0, [("X", 1.0)])],
     )
     refusal = refusal_of(lambda: require_success(bridged.refresh(extra)))
-    assert refusal.detail == "discretized_scm.levels_undeclared"
+    assert refusal.detail == reason_details.discretized_scm.LEVELS_UNDECLARED
 
 
 def test_the_plan_and_the_composition_are_refused_with_their_own_reasons() -> None:
     composition = compose(gaussian_chain())
     # A level count is never defaulted.
     partial = refusal_of(lambda: composition.discretize({"X": 4, "Y": 4}))
-    assert partial.detail == "discretized_scm.levels_undeclared"
+    assert partial.detail == reason_details.discretized_scm.LEVELS_UNDECLARED
     # One level is no grid.
     one = refusal_of(lambda: composition.discretize(1))
-    assert one.detail == "discretized_scm.levels_out_of_range"
+    assert one.detail == reason_details.discretized_scm.LEVELS_OUT_OF_RANGE
     assert one.remedy
 
     # A finite-table composition has no Gaussian executable to discretize.
@@ -153,7 +154,7 @@ def test_an_export_is_re_derived_by_a_consumer_from_the_carried_premises() -> No
             dc.consume_discretized_composition(bytes(other.export()), bridged.identity)
         )
     )
-    assert mismatch.detail == "discretized_scm_artifact.identity_mismatch"
+    assert mismatch.detail == reason_details.discretized_scm_artifact.IDENTITY_MISMATCH
 
     # A damaged artifact is refused.
     refusal_of(lambda: require_success(dc.consume_discretized_composition(data[:-3])))

@@ -40,7 +40,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/root_cause.rs",
-          "sha256": "119952ebca0880abf2e329fbb07fc34cc798bce1ac2f76bbeacd58073de0555a"
+          "items": [
+            "fn attribution"
+          ],
+          "sha256": "d51653807cb43c7077585cc15513a8fdbdd031ad2d7a7193b850756042f96fec"
         }
       ],
       "fixture_payload_sha256": "3659657dda1d4813464e3ecc1764063052ca6b1cf3ff36a0087351ea6d90c5b9"

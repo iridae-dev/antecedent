@@ -265,9 +265,15 @@ fn a_declaration_the_fit_refuses_is_not_costed() {
     let config = FactorizedJointConfig::new(RidgeTuning::default());
     for orderings in [vec![], vec![vec![0, 1], vec![0, 1]], vec![vec![0, 0]]] {
         let error = estimate_joint_cell_cost(&config, 2, &orderings, None).unwrap_err();
-        assert!(error.to_string().contains("joint_cells.ordering"), "{error}");
+        assert!(
+            error.to_string().contains(antecedent_core::reason_details::joint_cells::ORDERING),
+            "{error}"
+        );
     }
     let bad = FactorizedJointConfig { folds: 1, ..config };
     let error = estimate_joint_cell_cost(&bad, 2, &[vec![0, 1]], None).unwrap_err();
-    assert!(error.to_string().contains("joint_cells.config"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::joint_cells::CONFIG),
+        "{error}"
+    );
 }

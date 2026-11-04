@@ -41,12 +41,14 @@ record_sha256 = "b0fa451f2ffcaa97ca03169c18cd9bbf9399c1d1fff2829bcd86542982b8525
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/lgssm.rs"
-sha256 = "564f1f0732b187f5417c997d3d22d9490582049df62610f3871c85e42f2ab615"
+items = ["fn kalman_filter", "fn rts_smooth", "fn scaled_lgssm", "struct ScaledLgssm"]
+sha256 = "ccbc31474e3aa621c7de99908c990b1b3e63d0cb332737e624100d37d488baf1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/lgssm_joint_gaussian_reference.rs"
-sha256 = "ca2e9ad83bbbcdf90747bf6e7c85b83b672ef110a750613365a85faf3f15b49d"
+items = ["fn agree", "fn column", "fn filter_smoother_and_density_match_the_joint_gaussian"]
+sha256 = "c4f04597411025e4c7d358df706920d185aa443623c072a56685dc9ef0764915"
 
 [[method_review.artifacts]]
 role = "reference"

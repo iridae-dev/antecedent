@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition, decision, decision_robust, inverse_query
 from antecedent import decision_reliability as reliability
 from antecedent._artifact_protocol import ExportedArtifact
@@ -113,7 +114,10 @@ def test_composed_functional_outcome_keeps_native_scalar_and_dependency_source()
         [source, other], [relation], operation="statistical_pooling"
     )
     assert isinstance(refused, Outcome) and not refused.accepted
-    assert refused.refusal.detail == "composition_boundary.unknown_dependence_is_not_independence"
+    assert (
+        refused.refusal.detail
+        == reason_details.composition_boundary.UNKNOWN_DEPENDENCE_IS_NOT_INDEPENDENCE
+    )
 
 
 def test_reliability_outcome_preserves_enumerated_probabilities_and_closed_publication():

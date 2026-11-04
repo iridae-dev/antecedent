@@ -445,7 +445,10 @@ fn an_interval_without_the_source_standard_error_is_refused_with_its_remedy() {
     let result = derive(&contract, 0.5, "probability", None);
     let refused = refusal(result.bridged_interval(0.95));
     assert_eq!(refused.code, antecedent_core::reason_code!("required_option_missing"));
-    assert_eq!(refused.detail, "scientific_bridge.interval_source_uncertainty_required");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_SOURCE_UNCERTAINTY_REQUIRED
+    );
     assert!(refused.remedy.as_deref().is_some_and(|remedy| remedy.contains("standard error")));
 }
 
@@ -455,7 +458,7 @@ fn an_unscoped_request_a_posterior_and_an_unmeasured_level_stay_refused() {
     let result = derive(&contract, 0.8, "mmol_per_l", Some(0.1));
     assert_eq!(
         refusal(result.interval()).detail,
-        "scientific_bridge.interval_not_supported",
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED,
         "an unscoped request"
     );
     // No record measures the trial-level construction at level 0.8: the interval is reported
@@ -465,7 +468,7 @@ fn an_unscoped_request_a_posterior_and_an_unmeasured_level_stay_refused() {
     // A level outside (0, 1) has no interval at all.
     assert_eq!(
         refusal(result.bridged_interval(1.5)).detail,
-        "scientific_bridge.interval_scope_outside_measured"
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED
     );
 }
 
@@ -478,5 +481,8 @@ fn rates_declared_without_a_validation_sample_are_outside_the_measured_scope() {
     }
     let result = derive(&contract, 0.31, "probability", Some(0.02));
     let refused = refusal(result.bridged_interval(0.95));
-    assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED
+    );
 }

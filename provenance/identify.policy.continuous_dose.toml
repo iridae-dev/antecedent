@@ -40,12 +40,14 @@ record_sha256 = "89cd634ac51b35589fd340f6a6f812c3a705edcaa7979ae20f20a14ec4aa82c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs"
-sha256 = "6a0c659735724b597c15c939b314e476958ed4e1e1acd6b7c69db6e6d3c5bc0e"
+items = ["module"]
+sha256 = "97575b682afb858f29f7d7464dd34e814df3756371674d1d81b22f9f2241a038"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/continuous_dose.rs"
-sha256 = "4374d6384a98e2670ee0bec5670e44faecdc9d8792e69082053cf973ca8f7876"
+items = ["const N", "const PER_GROUP", "const REPLICATES", "const TRUTH", "fn dose_policy_refuses_unmapped_and_unsupported_local_targets", "fn fixed_dose_policy_value", "fn fixed_group_dose_policy_paired_intervals_cover_kernel_smoothed_truth", "fn fixed_group_dose_policy_support_boundary_covers_known_truth", "fn group_response", "fn nonuniform_density_heteroscedastic_intervals_cover_quadrature_truth", "fn nonuniform_density_policy_value_matches_quadrature_on_a_quantile_design", "fn policy_rules", "struct DosePolicyValue", "struct DoseRows", "struct DoseRules", "struct DoseWindow"]
+sha256 = "7a0d6365cf6906848573e188d5bf2b5cd32324ebcd407d2327affc20bfbfba51"
 
 [[method_review.artifacts]]
 role = "reference"

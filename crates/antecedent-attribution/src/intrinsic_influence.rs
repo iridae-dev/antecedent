@@ -550,7 +550,7 @@ impl IntrinsicInfluenceQuery {
         let bad = |message: &'static str| {
             Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "intrinsic_influence.invalid_settings",
+                antecedent_core::reason_details::intrinsic_influence::INVALID_SETTINGS,
                 message,
             ))
         };
@@ -821,7 +821,7 @@ pub fn intrinsic_influence_with_temporal_runs(
 fn over_budget(message: &'static str) -> AttributionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "intrinsic_influence.draw_budget_exceeded",
+        antecedent_core::reason_details::intrinsic_influence::DRAW_BUDGET_EXCEEDED,
         message,
     )
 }
@@ -834,7 +834,7 @@ fn require_independent_noise(
     match noise {
         NoiseIndependence::Undeclared => Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "intrinsic_influence.noise_independence_undeclared",
+            antecedent_core::reason_details::intrinsic_influence::NOISE_INDEPENDENCE_UNDECLARED,
             "intrinsic influence is defined for independent exogenous noise terms; declare the \
              model Markovian or pass its structure",
         )),
@@ -843,7 +843,7 @@ fn require_independent_noise(
             if let Some((a, b)) = admg.bidirected_edge_pairs_sorted().first() {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.correlated_noise",
+                    antecedent_core::reason_details::intrinsic_influence::CORRELATED_NOISE,
                     format_args!(
                         "the noise terms of variables {a} and {b} are connected by a bidirected \
                          edge (a latent common cause), so they are not independent and the \
@@ -856,7 +856,7 @@ fn require_independent_noise(
             {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "intrinsic_influence.structure_mismatch",
+                    antecedent_core::reason_details::intrinsic_influence::STRUCTURE_MISMATCH,
                     "the declared structure does not have the model's directed edges",
                 ));
             }
@@ -905,7 +905,7 @@ fn require_noise_support(
             MechanismSlot::Vacant | MechanismSlot::Pending { .. } => {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.mechanism_unfitted",
+                    antecedent_core::reason_details::intrinsic_influence::MECHANISM_UNFITTED,
                     "a source has no fitted mechanism, so its noise cannot be drawn",
                 ));
             }
@@ -913,7 +913,7 @@ fn require_noise_support(
             | MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.noise_not_row_independent",
+                    antecedent_core::reason_details::intrinsic_influence::NOISE_NOT_ROW_INDEPENDENT,
                     "a state-space mechanism's noise is serially dependent across rows, so \
                      outer and inner draws are not independent",
                 ));
@@ -925,7 +925,7 @@ fn require_noise_support(
             {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.target_not_continuous",
+                    antecedent_core::reason_details::intrinsic_influence::TARGET_NOT_CONTINUOUS,
                     "the variance of a categorical target's level codes is not a meaningful \
                      quantity to attribute",
                 ));

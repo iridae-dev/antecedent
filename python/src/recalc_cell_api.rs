@@ -85,7 +85,7 @@ fn no_live_state_json(stage: Stage, planned: Option<&RecalcPlan>) -> String {
     refusal_json(
         antecedent_core::reason_code!("score_table_unavailable"),
         &stage.label(),
-        "recalc.no_live_state",
+        antecedent_core::reason_details::recalc::NO_LIVE_STATE,
         Some(&stage.label()),
         Some(
             "run the stage in this process, or resume with supplied data so it is recomputed \
@@ -127,7 +127,9 @@ fn export_refusal(error: RecalcRunError) -> PyResult<ExportPayload> {
 
 fn artifact_error(error: &FrozenScoresArtifactError) -> PyErr {
     match error {
-        FrozenScoresArtifactError::LimitsExceeded(what) => invalid("recalc.limits_exceeded", what),
+        FrozenScoresArtifactError::LimitsExceeded(what) => {
+            invalid(antecedent_core::reason_details::recalc::LIMITS_EXCEEDED, what)
+        }
         other => crate::serialization_err(other.to_string()),
     }
 }
@@ -149,7 +151,9 @@ fn retarget_of(name: &str) -> PyResult<RetargetSupport> {
     }
     .to_capabilities()
     .map(|c| c.retarget)
-    .map_err(|e| invalid("recalc.invalid_declaration", e.to_string()))
+    .map_err(|e| {
+        invalid(antecedent_core::reason_details::recalc::INVALID_DECLARATION, e.to_string())
+    })
 }
 
 fn column_vec(array: &PyReadonlyArray1<'_, f64>) -> Vec<f64> {
@@ -167,14 +171,14 @@ impl Frame {
     fn new(names: &[String], columns: &[NumericColumn<'_>]) -> PyResult<Self> {
         if names.is_empty() || names.len() != columns.len() {
             return Err(invalid(
-                "recalc.invalid_data",
+                antecedent_core::reason_details::recalc::INVALID_DATA,
                 "one named numeric column per name is required",
             ));
         }
         for (i, name) in names.iter().enumerate() {
             if name.trim().is_empty() || names[..i].contains(name) {
                 return Err(invalid(
-                    "recalc.invalid_data",
+                    antecedent_core::reason_details::recalc::INVALID_DATA,
                     "column names must be unique and non-empty",
                 ));
             }
@@ -184,16 +188,24 @@ impl Frame {
         if rows == 0
             || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
         {
-            return Err(invalid("recalc.invalid_data", "columns must be finite and equally long"));
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::INVALID_DATA,
+                "columns must be finite and equally long",
+            ));
         }
         Ok(Self { names: names.to_vec(), columns, rows })
     }
 
     fn position(&self, name: &str) -> PyResult<u32> {
         let at = self.names.iter().position(|n| n == name).ok_or_else(|| {
-            invalid("recalc.unknown_variable", format!("no column named `{name}`"))
+            invalid(
+                antecedent_core::reason_details::recalc::UNKNOWN_VARIABLE,
+                format!("no column named `{name}`"),
+            )
         })?;
-        u32::try_from(at).map_err(|_| invalid("recalc.invalid_data", "too many columns"))
+        u32::try_from(at).map_err(|_| {
+            invalid(antecedent_core::reason_details::recalc::INVALID_DATA, "too many columns")
+        })
     }
 
     fn positions(&self, names: &[String]) -> PyResult<Vec<u32>> {
@@ -212,7 +224,7 @@ impl Frame {
         let Some(weights) = weights else {
             if !depends_on.is_empty() {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -221,7 +233,7 @@ impl Frame {
         let weights = column_vec(weights);
         if weights.len() != self.rows || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
             return Err(invalid(
-                "recalc.invalid_request",
+                antecedent_core::reason_details::recalc::INVALID_REQUEST,
                 "target weights must be finite, non-negative and one per row",
             ));
         }
@@ -233,7 +245,10 @@ impl Frame {
 
 fn utility_of(benefit_per_unit: f64, cost: f64) -> PyResult<UtilitySpec> {
     if !benefit_per_unit.is_finite() || !cost.is_finite() {
-        return Err(invalid("recalc.invalid_request", "utility must be finite"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            "utility must be finite",
+        ));
     }
     Ok(UtilitySpec { benefit_per_unit, cost })
 }
@@ -243,14 +258,16 @@ fn quantity_of(name: &str, arm: Option<u32>) -> PyResult<ScoreQuantity> {
         ("average_effect", None) => Ok(ScoreQuantity::AverageEffect),
         ("interaction", None) => Ok(ScoreQuantity::Interaction),
         ("cell_minus_control", Some(arm)) => Ok(ScoreQuantity::CellMinusControl { arm }),
-        ("cell_minus_control", None) => {
-            Err(invalid("recalc.invalid_request", "cell_minus_control needs an arm"))
-        }
-        ("average_effect" | "interaction", Some(_)) => {
-            Err(invalid("recalc.invalid_request", "only cell_minus_control takes an arm"))
-        }
+        ("cell_minus_control", None) => Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            "cell_minus_control needs an arm",
+        )),
+        ("average_effect" | "interaction", Some(_)) => Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            "only cell_minus_control takes an arm",
+        )),
         (other, _) => Err(invalid(
-            "recalc.invalid_request",
+            antecedent_core::reason_details::recalc::INVALID_REQUEST,
             format!(
                 "quantity must be average_effect, interaction or cell_minus_control, got `{other}`"
             ),
@@ -395,7 +412,10 @@ fn cell_request(
     let frame = Frame::new(names, columns)?;
     let treatment_ids = frame.positions(treatments)?;
     if treatment_ids.is_empty() {
-        return Err(invalid("recalc.invalid_request", "at least one treatment is required"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            "at least one treatment is required",
+        ));
     }
     let mut estimator = CellSaturatedAipw::new();
     if let Some(folds) = folds {
@@ -624,7 +644,10 @@ impl PyCrossfitSession {
         let treatment = frame.position(treatment)?;
         let outcome = frame.position(outcome)?;
         if treatment == outcome {
-            return Err(invalid("recalc.invalid_request", "treatment and outcome must differ"));
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                "treatment and outcome must differ",
+            ));
         }
         let request = RecalcRequest {
             edges: frame.edges(&edges)?,
@@ -704,7 +727,7 @@ fn resume_request(
         None => {
             if !target_depends_on.is_empty() {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -714,7 +737,7 @@ fn resume_request(
             let weights = column_vec(weights);
             if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
                     "target weights must be finite and non-negative",
                 ));
             }
@@ -728,10 +751,16 @@ fn resume_request(
         .iter()
         .map(|(label, own)| {
             let stage = stage_from_label(label).ok_or_else(|| {
-                invalid("recalc.invalid_changed_input", format!("unknown stage `{label}`"))
+                invalid(
+                    antecedent_core::reason_details::recalc::INVALID_CHANGED_INPUT,
+                    format!("unknown stage `{label}`"),
+                )
             })?;
             let own = StageIdentity::from_hex(own).ok_or_else(|| {
-                invalid("recalc.invalid_changed_input", "an identity is 64 lowercase hex digits")
+                invalid(
+                    antecedent_core::reason_details::recalc::INVALID_CHANGED_INPUT,
+                    "an identity is 64 lowercase hex digits",
+                )
             })?;
             Ok((stage, own))
         })

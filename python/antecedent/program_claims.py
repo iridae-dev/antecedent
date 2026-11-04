@@ -38,6 +38,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from antecedent import _reason_details
+
 from . import _native
 from ._columns import coerce_fields
 from ._native import NativeResponseClaim as _NativeResponseClaim
@@ -488,7 +490,7 @@ def _unsupported_estimand(supplied: str) -> ExternalRefusal:
         {
             "code": "route_not_supported",
             "stage": "bind",
-            "detail": "native_claims.unsupported_estimand",
+            "detail": _reason_details.native_claims.UNSUPPORTED_ESTIMAND,
             "offending": None,
             "expected": "mean_curve",
             "supplied": supplied,
@@ -523,7 +525,7 @@ def _identification_from_response(response: CausalResponseView) -> _NativeProgra
             {
                 "code": "invalid_argument",
                 "stage": "bind",
-                "detail": "native_claims.native_state_unavailable",
+                "detail": _reason_details.native_claims.NATIVE_STATE_UNAVAILABLE,
                 "remedy": "use a response issued by actual checked native execution",
             }
         )

@@ -46,12 +46,14 @@ record_sha256 = "7f182fde1f1a9f04112beda660be761e36fd1b7f588523e74ae3ea960106dad
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/observational_survival.rs"
-sha256 = "2db640069bec913d5ce1884e3934de239811c681687fc5581d41aec5fa43474f"
+items = ["const DEFAULT_MIN_CENSORING_SURVIVAL", "const DEFAULT_SURVIVAL_FOLDS", "const DEFAULT_SURVIVAL_MIN_PROPENSITY", "enum CensoringAssumption", "fn as_str", "fn covariate_row", "fn estimate", "fn evaluate", "fn finish", "fn fit_arm", "fn new", "fn score_fold", "fn validate", "struct ArmGrid", "struct ArmModels", "struct ArmSurvival", "struct ObservationalSurvival", "struct ObservationalSurvivalEstimate", "struct Prepared", "struct RowEvaluation", "struct Scores", "struct SurvivalContrast", "struct SurvivalData"]
+sha256 = "43ff1bdcaae6b4edbe755a5bce5addb4ea251ea7026a7da9b17cef6a0efa2094"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/observational_survival_reference_tests.rs"
-sha256 = "048deefefb740083184718a06e43820d70376c42853c2001dd11ba602db0496d"
+items = ["const SEED", "fn arm_summaries_contrasts_and_scores_match_the_recorded_fold_reference", "fn cases", "fn close", "fn floats", "fn plan_folds", "fn run"]
+sha256 = "7b2940de3f17516f027052076e7f610c1209e2a4665a112056ef68a25a1aa888"
 
 [[method_review.artifacts]]
 role = "reference"

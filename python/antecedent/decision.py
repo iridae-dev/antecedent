@@ -37,6 +37,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -926,7 +928,7 @@ class Decision(ScientificResult):
                 {
                     "code": "route_not_supported",
                     "stage": "export",
-                    "detail": "decision_evaluation.mean_source_not_replayable",
+                    "detail": _reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE,
                     "offending": None,
                     "expected": "joint_draws",
                     "supplied": "mean",

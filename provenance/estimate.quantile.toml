@@ -39,12 +39,14 @@ record_sha256 = "91a0ff786fb833d759df074d0820fa87c775c7612869d933bc144aa80e6eb54
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/quantile.rs"
-sha256 = "18043a81ef1d13df5d4e7964ad0e48010b23ae3ff394d1a1409d6329c3a627cf"
+items = ["const MIN_QUANTILE_DENSITY", "fn invert_cdf_quantile", "fn invert_supported_cdf", "fn quantile_arm", "fn quantile_arm_at", "struct QuantileArm"]
+sha256 = "9744623ec051863e25776754da8caba812588a0c96a6768cdf3dc047f839de43"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/quantile_inversion_reference.rs"
-sha256 = "7d0d72a5491a0f42cce159dee958c1e2ce64a9b4ffdde335b9fcdc435f08424a"
+items = ["fn close", "fn direct_inversion_matches_exact_value_influence_and_refusals", "fn floats", "fn reference", "fn unsupported_bracket_and_projection_are_refused_where_the_reference_has_none", "fn weighted_score_table_matches_the_exact_ratio_estimator_derivative"]
+sha256 = "09e2d40e28514a70ce83ace25694e517f73d0b8b810a46806c78384fd683a918"
 
 [[method_review.artifacts]]
 role = "reference"

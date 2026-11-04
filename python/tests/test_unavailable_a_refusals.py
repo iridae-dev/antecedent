@@ -10,6 +10,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import interference
 from antecedent.errors import CausalCompileError, CausalError, CausalValueError
 from antecedent.outcomes import require_success
@@ -110,7 +111,7 @@ def test_augmented_panel_refuses_a_repeated_cross_section_and_missing_period_out
     # A unit with no pre-period outcome has nothing to adjust its change by.
     missing = pre.copy()
     missing[::2] = np.nan
-    with pytest.raises(CausalError, match="missing_data.policy_required"):
+    with pytest.raises(CausalError, match=reason_details.missing_data.POLICY_REQUIRED):
         require_success(
             ant.analyze(
                 {**base, "pre": missing, "post": missing + 1.0, "id": [f"s{i}" for i in range(n)]},

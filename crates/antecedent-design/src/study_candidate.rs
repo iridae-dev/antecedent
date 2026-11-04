@@ -181,7 +181,7 @@ impl StudyCandidateError {
     fn wrong_contract(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("design_signal_invalid"),
-            detail: "study_candidate.wrong_contract",
+            detail: antecedent_core::reason_details::study_candidate::WRONG_CONTRACT,
             message: message.into(),
         }
     }

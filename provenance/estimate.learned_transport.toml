@@ -37,12 +37,14 @@ record_sha256 = "f3d19117004f9d5478553a9f2563b2faeb51e8e76f0dd356edc6e53262c68a6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/learned_trial.rs"
-sha256 = "c7aaecdf275569e1d856b95bfc572f40c3b783da98b97a81055a41e1217a69b8"
+items = ["const FOLD_PLAN_SEED", "enum TrialSampling", "fn bootstrap_groups", "fn bootstrap_rows", "fn cancelled", "fn check_trial_aipw_resources", "fn default", "fn estimate_trial_aipw", "fn fit_point", "fn learned_trial_uncertainty", "fn trial_fold_assignment", "fn trial_nuisance_diagnostics", "fn validate_trial_aipw", "struct TrialAipwEstimate", "struct TrialAipwInput", "struct TrialAipwOptions", "struct TrialNuisanceDiagnostics"]
+sha256 = "ed0a5bc703ece90ab7a29086a41dc714dd10c2c6f0e528418e27595cb41efc4c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/learned_trial_reference_tests.rs"
-sha256 = "391c5c5dcb55b15303f0607e0636d8026e166cd93b2228ced55ca6553fa03651"
+items = ["const SEED", "fn bools", "fn certificate", "fn close", "fn estimate_scores_nuisances_replicates_and_interval_match_the_recorded_reference", "fn floats", "fn input", "fn options", "fn plan"]
+sha256 = "1b11cd90a89e622c43ea98618d4db61008331d4b666e2472e93cdf134d957fca"
 
 [[method_review.artifacts]]
 role = "reference"

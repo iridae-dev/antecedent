@@ -15,6 +15,7 @@ import json
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import joint_law_propagation as jl
 from antecedent.joint_distribution import (
     DistributionIdentity,
@@ -88,7 +89,7 @@ def test_aligned_functional_is_the_row_mean_of_a_maximum_under_the_joint_law() -
     _, _, other_y = _columns("snap-max-other")
     with pytest.raises(R) as error:
         require_success(jl.aligned_functional("nonlinear_functional", dx, other_y, "maximum"))
-    assert error.value.detail == "joint_law_propagation.alignment_mismatch"
+    assert error.value.detail == reason_details.joint_law_propagation.ALIGNMENT_MISMATCH
 
 
 def test_the_native_aligned_functional_entry_returns_a_sealed_claim_of_the_row_mean() -> None:
@@ -323,7 +324,7 @@ def test_consume_replays_a_sealed_claim_against_the_retained_identity() -> None:
                 bytes(claim.export()), expected_identity="0" * 64
             )
         )
-    assert error.value.detail == "joint_law_propagation.artifact_refused"
+    assert error.value.detail == reason_details.joint_law_propagation.ARTIFACT_REFUSED
 
 
 def test_the_native_consume_entry_returns_a_summary_or_a_refusal_payload() -> None:
@@ -351,7 +352,7 @@ def test_aligned_linear_never_pairs_foreign_or_marginal_columns() -> None:
     with pytest.raises(R) as error:
         require_success(jl.aligned_linear("sum", (1.0, 1.0), dx, foreign_y))
     assert error.value.reason_code == "joint_law_required"
-    assert error.value.detail == "joint_law_propagation.alignment_mismatch"
+    assert error.value.detail == reason_details.joint_law_propagation.ALIGNMENT_MISMATCH
     x, y = _rows()
     marginals = _artifact("snap-linear-marginals", x, y, alignment="independent_marginals")
     mx = jl.PropagationDraws.from_artifact_column("mx", marginals, 0)
@@ -359,7 +360,7 @@ def test_aligned_linear_never_pairs_foreign_or_marginal_columns() -> None:
     with pytest.raises(R) as error:
         require_success(jl.aligned_linear("sum", (1.0, 1.0), mx, my))
     assert error.value.reason_code == "joint_law_required"
-    assert error.value.detail == "joint_law_propagation.index_pairing_refused"
+    assert error.value.detail == reason_details.joint_law_propagation.INDEX_PAIRING_REFUSED
     assert error.value.remedy
     # The pairing was the refusal, not the operation: columns of one joint law still answer.
     paired = require_success(jl.aligned_linear("sum", (1.0, 1.0), dx, dy))
@@ -384,7 +385,7 @@ def test_an_improper_correlation_range_is_refused_and_the_closed_range_is_the_ex
         with pytest.raises(R) as error:
             require_success(declared(rho_lo, rho_hi))
         assert error.value.reason_code == "invalid_argument"
-        assert error.value.detail == "joint_law_propagation.invalid_request"
+        assert error.value.detail == reason_details.joint_law_propagation.INVALID_REQUEST
         assert error.value.offending == "correlation_range"
         assert error.value.remedy
     # Var(X + Y) = 2 + 2 rho for unit standard deviations: 0 at rho = -1 and 4 at rho = 1.

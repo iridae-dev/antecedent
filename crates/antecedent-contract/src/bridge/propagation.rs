@@ -1801,7 +1801,7 @@ mod tests {
         refused(
             &error,
             "bridge_mapping_not_supported",
-            "scientific_bridge.nonlinear_mean_not_expectation",
+            antecedent_core::reason_details::scientific_bridge::NONLINEAR_MEAN_NOT_EXPECTATION,
         );
         let error = nonlinear_expectation(
             NonlinearMap::Exponential,
@@ -1811,7 +1811,7 @@ mod tests {
         refused(
             &error,
             "bridge_mapping_not_supported",
-            "scientific_bridge.nonlinear_law_insufficient",
+            antecedent_core::reason_details::scientific_bridge::NONLINEAR_LAW_INSUFFICIENT,
         );
     }
 
@@ -1892,7 +1892,10 @@ mod tests {
             evidence: "same-panel".into(),
         });
         let error = contract.propagate_affine_uncertainty(0.0, 1.0).unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.dependence_not_a_covariance");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::DEPENDENCE_NOT_A_COVARIANCE
+        );
         // Pairwise-valid and singular 3x3: 0.6² + 0.8² = 1.
         contract.mapping_uncertainty.as_mut().unwrap().intercept_slope_covariance = 0.6;
         contract.source_dependence = Some(SourceMappingDependence::SlopeCovariance {
@@ -1943,14 +1946,14 @@ mod tests {
         refused(
             &missing,
             "bridge_assumption_missing",
-            "scientific_bridge.mapping_uncertainty_missing",
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_MISSING,
         );
         contract.mapping_uncertainty = Some(uncertainty(0.25));
         let dependence = contract.propagate_affine_uncertainty(1.0, 1.0).unwrap_err();
         refused(
             &dependence,
             "sampling_dependence_unknown",
-            "scientific_bridge.source_dependence_missing",
+            antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING,
         );
         contract.source_dependence = Some(SourceMappingDependence::SlopeCovariance {
             covariance: 1.0,
@@ -1960,7 +1963,7 @@ mod tests {
         refused(
             &covariance,
             "bridge_mapping_not_supported",
-            "scientific_bridge.dependence_not_a_covariance",
+            antecedent_core::reason_details::scientific_bridge::DEPENDENCE_NOT_A_COVARIANCE,
         );
         contract.mapping = BridgeMapping::TrialLevelLinear(TrialLevelValidation {
             trials: Vec::new(),
@@ -1968,7 +1971,11 @@ mod tests {
             min_r_squared: 0.0,
         });
         let affine = contract.propagate_affine_uncertainty(1.0, 0.25).unwrap_err();
-        refused(&affine, "scientific_bridge_invalid", "scientific_bridge.mapping_not_allowed");
+        refused(
+            &affine,
+            "scientific_bridge_invalid",
+            antecedent_core::reason_details::scientific_bridge::MAPPING_NOT_ALLOWED,
+        );
         contract.mapping = BridgeMapping::Identity;
         contract.mapping_uncertainty = Some(MappingUncertainty {
             id: "slope-se".into(),
@@ -1980,7 +1987,7 @@ mod tests {
         refused(
             &negative,
             "scientific_bridge_invalid",
-            "scientific_bridge.mapping_uncertainty_invalid",
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID,
         );
     }
 
@@ -2036,7 +2043,7 @@ mod tests {
         refused(
             &error,
             "bridge_assumption_missing",
-            "scientific_bridge.experimental_prior_without_estimand_bridge",
+            antecedent_core::reason_details::scientific_bridge::EXPERIMENTAL_PRIOR_WITHOUT_ESTIMAND_BRIDGE,
         );
         assert_eq!(before, contract.identity());
         assert!(contract.mapping_uncertainty.is_none());
@@ -2061,7 +2068,7 @@ mod tests {
         refused(
             &error,
             "scientific_bridge_invalid",
-            "scientific_bridge.estimand_bridge_incomplete",
+            antecedent_core::reason_details::scientific_bridge::ESTIMAND_BRIDGE_INCOMPLETE,
         );
         assert!(contract.estimand_bridge.is_none());
 
@@ -2078,7 +2085,11 @@ mod tests {
         };
         let before = contract.identity();
         let error = contract.import_experimental_prior(&prior).unwrap_err();
-        refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_bridge_mismatch");
+        refused(
+            &error,
+            "bridge_binding_mismatch",
+            antecedent_core::reason_details::scientific_bridge::ESTIMAND_BRIDGE_MISMATCH,
+        );
         assert_eq!(before, contract.identity());
 
         let prior = ExperimentalPrior { estimand_bridge: Some(translation(20.0, 15.0)), ..prior };
@@ -2128,15 +2139,27 @@ mod tests {
         // Target dose 25 minus experiment dose 10 is +15, not -15.
         let error =
             contract.import_experimental_prior(&prior(translation(20.0, -15.0))).unwrap_err();
-        refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_spend_inconsistent");
+        refused(
+            &error,
+            "bridge_binding_mismatch",
+            antecedent_core::reason_details::scientific_bridge::ESTIMAND_SPEND_INCONSISTENT,
+        );
         let mut units = translation(20.0, 15.0);
         units.target.dose_units = "eur_per_capita".into();
         let error = contract.import_experimental_prior(&prior(units)).unwrap_err();
-        refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_units_mismatch");
+        refused(
+            &error,
+            "bridge_binding_mismatch",
+            antecedent_core::reason_details::scientific_bridge::ESTIMAND_UNITS_MISMATCH,
+        );
         let mut spend_units = translation(20.0, 15.0);
         spend_units.spend_units = "eur_per_capita".into();
         let error = contract.import_experimental_prior(&prior(spend_units)).unwrap_err();
-        refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_units_mismatch");
+        refused(
+            &error,
+            "bridge_binding_mismatch",
+            antecedent_core::reason_details::scientific_bridge::ESTIMAND_UNITS_MISMATCH,
+        );
         assert!(contract.estimand_bridge.is_none());
         contract.import_experimental_prior(&prior(translation(20.0, 15.0))).unwrap();
     }
@@ -2180,7 +2203,7 @@ mod tests {
         refused(
             &error,
             "scientific_bridge_invalid",
-            "scientific_bridge.mapping_uncertainty_invalid",
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID,
         );
     }
 
@@ -2191,24 +2214,44 @@ mod tests {
             &AnalyticLaw::SecondMoment { mean: f64::NAN, variance: 1.0 },
         )
         .unwrap_err();
-        refused(&error, "scientific_bridge_invalid", "scientific_bridge.source_moment_not_finite");
+        refused(
+            &error,
+            "scientific_bridge_invalid",
+            antecedent_core::reason_details::scientific_bridge::SOURCE_MOMENT_NOT_FINITE,
+        );
         let error = nonlinear_expectation(
             NonlinearMap::Exponential,
             &AnalyticLaw::Normal { mean: 1000.0, variance: 1.0 },
         )
         .unwrap_err();
-        refused(&error, "scientific_bridge_invalid", "scientific_bridge.propagation_overflow");
+        refused(
+            &error,
+            "scientific_bridge_invalid",
+            antecedent_core::reason_details::scientific_bridge::PROPAGATION_OVERFLOW,
+        );
         let error =
             support_image(SupportMap::Exponential, ValueInterval { low: 0.0, high: 1000.0 })
                 .unwrap_err();
-        refused(&error, "scientific_bridge_invalid", "scientific_bridge.propagation_overflow");
+        refused(
+            &error,
+            "scientific_bridge_invalid",
+            antecedent_core::reason_details::scientific_bridge::PROPAGATION_OVERFLOW,
+        );
         let error =
             support_image(SupportMap::Square, ValueInterval { low: 0.0, high: 1e200 }).unwrap_err();
-        refused(&error, "scientific_bridge_invalid", "scientific_bridge.propagation_overflow");
+        refused(
+            &error,
+            "scientific_bridge_invalid",
+            antecedent_core::reason_details::scientific_bridge::PROPAGATION_OVERFLOW,
+        );
         // A reversed interval is still a malformed mapping.
         let error =
             support_image(SupportMap::Identity, ValueInterval { low: 1.0, high: 0.0 }).unwrap_err();
-        refused(&error, "scientific_bridge_invalid", "scientific_bridge.malformed_mapping");
+        refused(
+            &error,
+            "scientific_bridge_invalid",
+            antecedent_core::reason_details::scientific_bridge::MALFORMED_MAPPING,
+        );
     }
 
     #[test]
@@ -2471,9 +2514,15 @@ mod joint_tests {
     fn an_infeasible_joint_covariance_or_missing_declaration_is_refused() {
         let names = || vec!["a".to_owned(), "b".to_owned()];
         let error = JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 2.0, 2.0, 1.0]).unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID
+        );
         let error = JointLaw::new(names(), vec![0.0, 0.0], vec![1.0, 0.5, 0.0, 1.0]).unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID
+        );
         // Each pairwise covariance is feasible but the three together are not.
         let uncertainty = MappingUncertainty {
             id: "line".into(),
@@ -2490,7 +2539,10 @@ mod joint_tests {
             PropagationMethod::Unscented,
         )
         .unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.mapping_uncertainty_invalid");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::MAPPING_UNCERTAINTY_INVALID
+        );
         let none = contract(0.0, 1.0, slope_only(1.0), None);
         let error = propagate_nonlinear(
             &none,
@@ -2500,13 +2552,22 @@ mod joint_tests {
             PropagationMethod::Unscented,
         )
         .unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.source_dependence_missing");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
+        );
         let (law, ..) = lognormal_law();
         let error =
             propagate_joint(&law, &exp_sum, PropagationMethod::Simulation { draws: 3, seed: 1 })
                 .unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.malformed_mapping");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::MALFORMED_MAPPING
+        );
         let error = propagate_joint(&law, &|_| f64::NAN, PropagationMethod::Unscented).unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.propagation_overflow");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::PROPAGATION_OVERFLOW
+        );
     }
 }

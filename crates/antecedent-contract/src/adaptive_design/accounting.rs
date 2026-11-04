@@ -37,7 +37,7 @@ fn ledger_refusal(error: &LedgerError) -> ExternalRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("invalid_argument"),
         "bind",
-        "adaptive_inference.ledger_limit",
+        antecedent_core::reason_details::adaptive_inference::LEDGER_LIMIT,
     )
     .with_supplied(error.detail)
     .with_remedy("reduce the number of units or interim analyses so the evidence ledger can account for them")
@@ -57,7 +57,7 @@ impl AdaptiveDesignContract {
             ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 "bind",
-                "adaptive_inference.unit_out_of_range",
+                antecedent_core::reason_details::adaptive_inference::UNIT_OUT_OF_RANGE,
             )
             .with_offending(format!("unit {unit}"))
             .with_remedy("select a unit index below the number of declared units")
@@ -153,13 +153,13 @@ impl AdaptiveDesignContract {
                 RefusalKind::OverlapUnknown => ExternalRefusal::new(
                     antecedent_core::reason_code!("evidence_overlap_unknown"),
                     "bind",
-                    "adaptive_inference.looks_overlap_unknown",
+                    antecedent_core::reason_details::adaptive_inference::LOOKS_OVERLAP_UNKNOWN,
                 )
                 .with_remedy("declare the observations behind each interim analysis"),
                 _ => ExternalRefusal::new(
                     antecedent_core::reason_code!("evidence_double_counted"),
                     "bind",
-                    "adaptive_inference.looks_share_observations",
+                    antecedent_core::reason_details::adaptive_inference::LOOKS_SHARE_OBSERVATIONS,
                 )
                 .with_supplied(error.detail)
                 .with_remedy(

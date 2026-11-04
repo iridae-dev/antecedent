@@ -9,6 +9,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 from antecedent import _native, artifacts
+from antecedent import _reason_details as reason_details
 from antecedent._digest import canonical_digest
 from antecedent.errors import CausalSerializationError
 from antecedent.extensibility import (
@@ -292,7 +293,7 @@ def test_registry_refusals_carry_reason_codes_and_remedies_and_keep_their_classe
     with pytest.raises(ProviderRefusal) as failed:
         registry.verify("mean", [wrong], evidence_origin="independent/v1")
     assert failed.value.reason_code == "external_verification_failed"
-    assert failed.value.detail == "external_object_verification.failed_probe"
+    assert failed.value.detail == reason_details.external_object_verification.FAILED_PROBE
     assert failed.value.offending == "truth" and failed.value.remedy
     assert (
         require_success(registry.execute("mean", {"data": {"y": [1.0]}})).trust

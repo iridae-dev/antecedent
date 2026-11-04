@@ -15,6 +15,7 @@ import json
 
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
 from antecedent.observation_query import ObservationQueryRefusal
@@ -134,7 +135,7 @@ def test_threshold_crossing_lists_the_levels_that_cross_in_each_direction() -> N
     assert raised.crossing_probability == pytest.approx(0.5, abs=TOL)
     with pytest.raises(ObservationQueryRefusal) as caught:
         oq.threshold_crossing(model, "Y", "1", "S", threshold=0.5)
-    assert caught.value.detail == "observation_query.level_unreachable"
+    assert caught.value.detail == reason_details.observation_query.LEVEL_UNREACHABLE
     assert float(caught.value.supplied) == pytest.approx(0.46, abs=TOL)
 
 
@@ -274,7 +275,7 @@ def test_consume_replays_a_posterior_claim_against_the_retained_identity() -> No
     assert consumed.claim.posterior["ill"] == pytest.approx(18.0 / 19.0, abs=TOL)
     with pytest.raises(ObservationQueryRefusal) as wrong:
         oq.consume_observation_query_artifact(bytes(claim.export()), "f" * 64)
-    assert wrong.value.detail == "observation_query.artifact_refused"
+    assert wrong.value.detail == reason_details.observation_query.ARTIFACT_REFUSED
 
 
 def test_the_native_consume_entry_returns_the_replayed_summary_or_a_refusal() -> None:
@@ -288,5 +289,5 @@ def test_the_native_consume_entry_returns_the_replayed_summary_or_a_refusal() ->
     assert raw is None and refusal is not None
     refused = json.loads(refusal)
     assert refused["code"] == "invalid_argument"
-    assert refused["detail"] == "observation_query.artifact_refused"
+    assert refused["detail"] == reason_details.observation_query.ARTIFACT_REFUSED
     assert refused["stage"] == "consume"

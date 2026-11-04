@@ -70,7 +70,7 @@ fn identity_for(
     if panel.horizon().is_some_and(|steps| steps != TEMPORAL_REFRESH_HORIZON) {
         return Err(refused(
             reason_code!("invalid_argument"),
-            "temporal_refresh.invalid_replacement",
+            antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT,
             "a prepared result's panel must have the refreshable horizon of two",
         ));
     }
@@ -151,7 +151,7 @@ impl TemporalInitialState {
                 {
                     return Err(refused(
                         reason_code!("invalid_argument"),
-                        "temporal_refresh.invalid_replacement",
+                        antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT,
                         "a prepared result's window must match its premises and a horizon of two",
                     ));
                 }
@@ -255,7 +255,7 @@ impl TemporalInitialState {
         let identity = self.identity.clone().ok_or_else(|| {
             refused(
                 reason_code!("invalid_argument"),
-                "temporal_refresh.window_missing",
+                antecedent_core::reason_details::temporal_refresh::WINDOW_MISSING,
                 "the held result declared no observation window, so it has nothing to refresh",
             )
         })?;
@@ -323,7 +323,7 @@ impl TemporalInitialState {
         let (Some(lineage), Some(new_identity)) = (&self.lineage, &self.identity) else {
             return Err(refused(
                 reason_code!("invalid_argument"),
-                "temporal_refresh.no_refresh",
+                antecedent_core::reason_details::temporal_refresh::NO_REFRESH,
                 "only a result produced by a refresh has a refresh artifact",
             ));
         };
@@ -500,7 +500,7 @@ fn validated_interval(
     {
         return Err(refused(
             reason_code!("route_not_supported"),
-            "temporal_interval.retired_method",
+            antecedent_core::reason_details::temporal_interval::RETIRED_METHOD,
             "direct intervals require studentized",
         ));
     }

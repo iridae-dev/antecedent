@@ -240,7 +240,11 @@ fn latent_mixture_fixture_supported_design_and_independent_truth_prerequisite() 
         let error =
             fit_latent_class_effects(&unsupported, &config, &ExecutionContext::for_tests(1))
                 .unwrap_err();
-        assert!(error.to_string().contains("latent_class.design_support_too_small"));
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::latent_class::DESIGN_SUPPORT_TOO_SMALL)
+        );
     }
     // Independent finite population contrasts (noise mean zero) at each X point.
     let mut effects = [0.; 2];

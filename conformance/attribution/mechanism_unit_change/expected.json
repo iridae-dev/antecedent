@@ -39,7 +39,20 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/unit_change.rs",
-          "sha256": "2e056d63abd0533b6f3a49e858fec701f15ea9afa8cad44c7c2fd3da8da49afe"
+          "items": [
+            "fn pooled_stderr",
+            "fn pooled_stderr_is_per_player_root_sum_of_squares_over_n",
+            "fn unit_change",
+            "fn unit_change_attributes_parent",
+            "fn unit_change_does_not_depend_on_thread_count",
+            "fn unit_change_rejects_out_of_range_unit_row",
+            "fn unit_seed",
+            "fn units_draw_independent_permutation_streams",
+            "struct Fixture",
+            "struct UnitCase",
+            "struct UnitPayoff"
+          ],
+          "sha256": "629d89e079183dfc7eb977d55c909f62c7f97026b3bb9af9bcf1d5e23292c2a5"
         }
       ],
       "fixture_payload_sha256": "8f42c42369ffb55a2e9334d3e487aaa2f7f0feee3ac6a6bb08ad1bbf97f1a0e8"

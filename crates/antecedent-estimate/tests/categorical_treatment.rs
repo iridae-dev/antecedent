@@ -347,7 +347,12 @@ fn categorical_refuses_monotonicity_on_unordered_levels() {
     s.monotonicity = Some(MonotonicityDirection::NonDecreasing);
     let (code, message) = refusal(fit_categorical_treatment(&abc_input(), &s).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("categorical_treatment.monotonicity_requires_ordered"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::categorical_treatment::MONOTONICITY_REQUIRES_ORDERED
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -355,7 +360,10 @@ fn categorical_absent_level_is_refused_by_name() {
     let s = spec(&["a", "b", "c", "d"], LevelScale::Unordered, "a");
     let (code, message) = refusal(fit_categorical_treatment(&abc_input(), &s).unwrap_err());
     assert_eq!(code, "arm_not_populated");
-    assert!(message.contains("categorical_treatment.absent_level"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::ABSENT_LEVEL),
+        "{message}"
+    );
     assert!(message.contains("`d`"), "{message}");
 }
 
@@ -365,7 +373,10 @@ fn categorical_sparse_level_is_refused_by_name_never_dropped() {
     s.min_level_rows = 3; // level `a` has only two rows
     let (code, message) = refusal(fit_categorical_treatment(&abc_input(), &s).unwrap_err());
     assert_eq!(code, "arm_not_populated");
-    assert!(message.contains("categorical_treatment.sparse_level"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::SPARSE_LEVEL),
+        "{message}"
+    );
     assert!(message.contains("`a`"), "{message}");
     assert!(message.contains("2 rows"), "{message}");
     // The same data pass once the declared minimum is met.
@@ -384,37 +395,61 @@ fn categorical_refuses_malformed_declarations() {
     unknown_reference.reference = "z".into();
     let (code, message) = run(&unknown_reference, &abc_input());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("categorical_treatment.unknown_reference"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::UNKNOWN_REFERENCE),
+        "{message}"
+    );
 
     let undeclared = spec(&["a", "b"], LevelScale::Unordered, "a");
     let (_, message) = run(&undeclared, &abc_input());
-    assert!(message.contains("categorical_treatment.undeclared_level"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::UNDECLARED_LEVEL),
+        "{message}"
+    );
     assert!(message.contains("`c`"), "{message}");
 
     let one_level = spec(&["a"], LevelScale::Unordered, "a");
     let (_, message) = run(&one_level, &abc_input());
-    assert!(message.contains("categorical_treatment.too_few_levels"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::TOO_FEW_LEVELS),
+        "{message}"
+    );
 
     let mut zero_min = base.clone();
     zero_min.min_level_rows = 0;
     let (_, message) = run(&zero_min, &abc_input());
-    assert!(message.contains("categorical_treatment.invalid_min_level_rows"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::categorical_treatment::INVALID_MIN_LEVEL_ROWS
+        ),
+        "{message}"
+    );
 
     let mut bad_pair = base.clone();
     bad_pair.pairwise = vec![("a".into(), "a".into())];
     let (_, message) = run(&bad_pair, &abc_input());
-    assert!(message.contains("categorical_treatment.invalid_pair"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::INVALID_PAIR),
+        "{message}"
+    );
 
     let mut unknown_pair = base.clone();
     unknown_pair.pairwise = vec![("a".into(), "q".into())];
     let (_, message) = run(&unknown_pair, &abc_input());
-    assert!(message.contains("categorical_treatment.unknown_level"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::UNKNOWN_LEVEL),
+        "{message}"
+    );
 
     let mut short = abc_input();
     short.levels.to_mut().pop();
     let (code, message) = run(&base, &short);
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("categorical_treatment.row_count_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::categorical_treatment::ROW_COUNT_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -425,12 +460,18 @@ fn categorical_refuses_a_non_finite_outcome_or_adjustment_value_instead_of_dropp
     missing_outcome.outcome.to_mut()[3] = f64::NAN;
     let (code, message) = refusal(fit_categorical_treatment(&missing_outcome, &spec).unwrap_err());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("vector_treatment.non_finite_value"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE),
+        "{message}"
+    );
     let mut missing_adjustment = abc_input();
     missing_adjustment.adjustment =
         vec![NamedColumn::new("x", vec![1.0, 2.0, f64::NAN, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0])];
     let (code, message) =
         refusal(fit_categorical_treatment(&missing_adjustment, &spec).unwrap_err());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("vector_treatment.non_finite_value"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE),
+        "{message}"
+    );
 }

@@ -20,9 +20,11 @@ record_sha256 = "387e1a17428a4d15ecaec25548af3ec5e1911b6059c3faf35d5e5d8ef37850c
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/proposal_arrival.rs"
-sha256 = "80b4cb26a76d76ca10754387fb5ca9130af3670d5b9ac8db9f09adb56844c17b"
+items = ["const MAX_ARRIVAL_BYTES", "const MAX_EVALUATION_DEPTH", "enum Family", "fn base", "fn bind_arrival_program", "fn bounds", "fn budget", "fn consume", "fn consume_with_limits", "fn default", "fn digest", "fn execute_with_limits", "fn family", "fn from", "fn ids", "fn native_error", "fn produce", "fn produce_with_limits", "fn reference", "fn refused", "fn to_bytes", "fn to_bytes_with_limits", "fn unsupported", "fn validate_base_providers", "fn validate_delivery", "struct ArrivalArtifact", "struct ArrivalLimits", "struct ArrivalPoint", "struct ArrivalRequest", "struct ArrivalWork", "struct BoundArrivalProgram"]
+sha256 = "f46ba6ef26c3b4c23a4a66af45004b024d879220e621a3378c79ec509f152576"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/proposal_arrival.rs"
-sha256 = "0d1e50acce25a80925c7ae4accccb60218b333ea7cf604a3516f365494c818cf"
+items = ["fn arrival_checked_transport_evaluates_actual_counts_and_full_atom_truth", "fn arrival_checked_z_transport_replays_original_proof_and_actual_count_worlds", "fn arrival_count_snapshot_population_assignment_and_sampling_refusals", "fn arrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes", "fn candidate", "fn detail", "fn execute", "fn fixture", "fn fixture_family", "fn law", "fn pin", "fn ranking", "fn v"]
+sha256 = "1795e81dd311dfdb61472f560059a712f51f8565c4b6a4cc799dc5c162174258"

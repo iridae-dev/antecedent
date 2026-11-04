@@ -285,7 +285,10 @@ fn a_zero_weight_row_is_a_deleted_row_and_a_level_of_zero_weight_rows_is_absent(
     )
     .unwrap_err()
     .to_string();
-    assert!(error.contains("categorical_treatment.absent_level"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::categorical_treatment::ABSENT_LEVEL),
+        "{error}"
+    );
 }
 
 #[test]
@@ -307,26 +310,44 @@ fn declarations_without_their_covariance_kind_and_malformed_declarations_are_ref
     let groups: Vec<u32> =
         (0..u32::try_from(n).expect("fixture value fits")).map(|i| i % 4).collect();
     let text = refuse(&c, RowStructure { clusters: Some(&groups), ..RowStructure::default() });
-    assert!(text.contains("vector_treatment.cluster_unread"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::vector_treatment::CLUSTER_UNREAD),
+        "{text}"
+    );
     c.spec.covariance = VectorCovariance::Cluster;
     let text = refuse(&c, RowStructure::default());
-    assert!(text.contains("vector_treatment.cluster_ids_required"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::vector_treatment::CLUSTER_IDS_REQUIRED),
+        "{text}"
+    );
     let one = vec![3u32; n];
     let text = refuse(&c, RowStructure { clusters: Some(&one), ..RowStructure::default() });
-    assert!(text.contains("vector_treatment.too_few_clusters"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::vector_treatment::TOO_FEW_CLUSTERS),
+        "{text}"
+    );
     let short = vec![0u32; n - 1];
     let text = refuse(&c, RowStructure { clusters: Some(&short), ..RowStructure::default() });
-    assert!(text.contains("categorical_treatment.row_count_mismatch"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::categorical_treatment::ROW_COUNT_MISMATCH),
+        "{text}"
+    );
     // Lags: required by the kind, unread by the others, never zero or capped.
     c.spec.covariance = VectorCovariance::Hc0;
     let text = refuse(&c, RowStructure { lag: Some(2), ..RowStructure::default() });
-    assert!(text.contains("vector_treatment.lag_unread"), "{text}");
+    assert!(text.contains(antecedent_core::reason_details::vector_treatment::LAG_UNREAD), "{text}");
     c.spec.covariance = VectorCovariance::NeweyWest;
     let text = refuse(&c, RowStructure::default());
-    assert!(text.contains("vector_treatment.lag_required"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::vector_treatment::LAG_REQUIRED),
+        "{text}"
+    );
     for lag in [0, n, n + 3] {
         let text = refuse(&c, RowStructure { lag: Some(lag), ..RowStructure::default() });
-        assert!(text.contains("vector_treatment.invalid_lag"), "lag {lag}: {text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::vector_treatment::INVALID_LAG),
+            "lag {lag}: {text}"
+        );
     }
     // Weights that are not a valid declaration.
     c.spec.covariance = VectorCovariance::Hc0;

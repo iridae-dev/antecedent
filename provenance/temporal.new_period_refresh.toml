@@ -38,9 +38,11 @@ record_sha256 = "1193e1c49a2f63de4e4219c7d2372de8d6988bbd86d81b0894897e32f9cd36e
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_refresh.rs"
-sha256 = "8d7acf1a94c83a5a5121f0f679879d9d037dbc6a9945e77af252d9c3a043cacb"
+items = ["const RECEIPT_TAG", "const TEMPORAL_REFRESH_HORIZON", "const TEMPORAL_REFRESH_INFERENCE_CLAIM", "const WINDOW_IDENTITY_TAG", "enum RefreshDecision", "enum RefreshInvalidation", "fn accept_refresh", "fn bind", "fn compute_digest", "fn decide_refresh", "fn detail", "fn digest", "fn hex_digest", "fn horizon", "fn into_error", "fn message", "fn new", "fn period", "fn refresh_held", "fn tick", "fn validate", "fn verify", "fn write_list", "struct HeldTemporalResult", "struct ObservationPeriod", "struct RefreshReceipt", "struct TemporalWindowIdentity"]
+sha256 = "563ad2eed13666a3aa873a967942a098661ef9e8f71a37a488439e692e6fbc7f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_refresh.rs"
-sha256 = "dae60a0e9a365ef15e555a643a7a286ddf081f2d6105c6854d466adf1f150dad"
+items = ["fn evaluate", "fn held", "fn identity", "fn invalidation_detail", "fn period_replace_matches_clean_preparation_bit_for_bit", "fn period_replace_without_prior_interval_records_none", "fn period_reseal_identity_digest_changes_with_every_single_input", "fn period_reseal_receipt_digest_changes_with_period_snapshot_units_and_interval", "fn period_reseal_receipt_for_a_different_held_result_is_refused", "fn period_reseal_refreshed_result_keeping_an_interval_is_refused", "fn period_reseal_resealed_receipt_for_another_period_or_snapshot_is_refused", "fn period_reseal_unsealed_edit_of_a_receipt_is_refused", "fn refresh_posterior_consumer_replays_the_sample_mean", "fn refresh_posterior_mean_stays_at_the_new_period_response", "fn refresh_posterior_refuses_an_unmeasured_band", "fn replacement", "fn resealed_refresh_cannot_change_inference_or_validate_an_invalid_window", "fn set", "fn third_period_altered_intervention_history_invalidates", "fn third_period_appended_slice_or_changed_horizon_invalidates", "fn third_period_changed_lag_alignment_invalidates", "fn third_period_changed_selection_regimes_graph_or_proof_invalidates", "fn third_period_invalid_replacement_is_refused_before_evaluation", "fn third_period_invalidated_refresh_never_runs_the_evaluator", "fn third_period_new_snapshot_with_identical_period_is_stale", "fn window_identity_and_receipt_digests_match_the_independent_derivation"]
+sha256 = "1ad2fb37ad6fdff9259aa6b7c8aef7fa3e28df1a4f11f5f4754d1951b900ad65"

@@ -275,14 +275,20 @@ fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() 
     let (code, message) =
         refused(dependent_unit_interval(&p, &estimator, &many, &ctx()).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.too_many_replicates"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::TOO_MANY_REPLICATES),
+        "{message}"
+    );
     assert!(message.contains("2001 replicates exceed the cap of 2000"), "{message}");
 
     let few = panel(5);
     let (code, message) =
         refused(dependent_unit_interval(&few, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &config(1), &ctx()).unwrap_err());
     assert_eq!(code, "too_few_clusters");
-    assert!(message.contains("temporal_interval.too_few_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::TOO_FEW_UNITS),
+        "{message}"
+    );
 
     // Every history takes a1 = 1, so the sequence (0, 0) has no support at all.
     let units = (0..30_u64)
@@ -296,7 +302,10 @@ fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() 
     let (code, message) =
         refused(dependent_unit_interval(&unsupported, &query, &config(1), &ctx()).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unsupported_history"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNSUPPORTED_HISTORY),
+        "{message}"
+    );
 
     let stopped = ctx();
     stopped.cancellation.cancel();
@@ -309,7 +318,10 @@ fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() 
 fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
     let (code, message) = refused(TemporalUnitPanel::new("rows-only", None).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let one = |id: u64, times: &[u64]| UnitHistories {
         unit_id: id,
@@ -324,10 +336,16 @@ fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
     for (name, units) in cases {
         let (code, message) = refused(TemporalUnitPanel::new("s", Some(units)).unwrap_err());
         assert_eq!(code, "route_not_supported", "{name}");
-        assert!(message.contains("temporal_interval.unknown_units"), "{name}: {message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+            "{name}: {message}"
+        );
     }
     let (_, message) = refused(TemporalUnitPanel::new("", Some(vec![one(1, &[0])])).unwrap_err());
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let nan = UnitHistories { unit_id: 1, histories: vec![history(0, (0, 0, 0, 0, f64::NAN))] };
     let (code, message) = refused(TemporalUnitPanel::new("s", Some(vec![nan])).unwrap_err());
@@ -441,6 +459,10 @@ fn direct_intervals_reject_retired_methods_before_estimation() {
             &ctx(),
         )
         .unwrap_err();
-        assert!(error.to_string().contains("temporal_interval.retired_method"));
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::temporal_interval::RETIRED_METHOD)
+        );
     }
 }

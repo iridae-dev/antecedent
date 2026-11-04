@@ -22,6 +22,7 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import propagation_chain as pc
 from antecedent import scientific_bridge as sb
@@ -188,13 +189,13 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_support_them():
     refused(
         lambda: require_success(bridge.derive(draws, seed=1, source_kind="associational")),
         "bridge_mapping_not_supported",
-        "scientific_bridge.source_not_draws",
+        reason_details.scientific_bridge.SOURCE_NOT_DRAWS,
     )
     # A bootstrap is neither a posterior nor a predictive law.
     refused(
         lambda: require_success(bridge.derive(table(2_000, semantic="bootstrap"), seed=1)),
         "distribution_meaning_mismatch",
-        "scientific_bridge.draws_meaning_mismatch",
+        reason_details.scientific_bridge.DRAWS_MEANING_MISMATCH,
     )
     # Independent marginals have no row pairing to keep.
     refused(
@@ -202,32 +203,32 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_support_them():
             bridge.derive(table(2_000, alignment="independent_marginals"), seed=1)
         ),
         "joint_law_required",
-        "scientific_bridge.draws_not_aligned",
+        reason_details.scientific_bridge.DRAWS_NOT_ALIGNED,
     )
     # An uncertain map declares how it depends on the source.
     refused(
         lambda: sb.prepare_distribution_bridge(replace(contract(), source_dependence=None)),
         "sampling_dependence_unknown",
-        "scientific_bridge.source_dependence_missing",
+        reason_details.scientific_bridge.SOURCE_DEPENDENCE_MISSING,
     )
     # A bridged mean is the point route's; a distribution is a posterior, never a mean.
     result = require_success(bridge.derive(draws, seed=1))
     refused(
         lambda: result.require_value_kind("mean"),
         "bridge_substitution_refused",
-        "scientific_bridge.value_kind_substitution",
+        reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION,
     )
     result.require_value_kind("posterior")
     refused(
         lambda: require_success(result.interval()),
         "route_not_supported",
-        "scientific_bridge.interval_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
     )
     # An interval needs a measured record; an uncertain map has none.
     refused(
         lambda: require_success(result.interval(0.95)),
         "route_not_supported",
-        "scientific_bridge.interval_scope_outside_measured",
+        reason_details.scientific_bridge.INTERVAL_SCOPE_OUTSIDE_MEASURED,
     )
     with pytest.raises(CausalTypeError):
         require_success(bridge.derive(np.zeros((3, 2)), seed=1))

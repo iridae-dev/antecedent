@@ -12,6 +12,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -85,16 +87,16 @@ def _estimate(
         raise CausalTypeError("ArrivedStudy requires Admg and EvidenceCatalog")
     if len(study.arrived_laws) > 64 or len(study.base_laws) > 64:
         raise CausalValueError(
-            "proposal_arrival.bounds_exceeded", reason_code="route_not_supported"
+            _reason_details.proposal_arrival.BOUNDS_EXCEEDED, reason_code="route_not_supported"
         )
     names = study.graph.nodes()
     if len(names) > 12:
         raise CausalValueError(
-            "proposal_arrival.bounds_exceeded", reason_code="route_not_supported"
+            _reason_details.proposal_arrival.BOUNDS_EXCEEDED, reason_code="route_not_supported"
         )
     if any(name not in names for name in study.assignment):
         raise CausalValueError(
-            "proposal_arrival.assignment_mismatch", reason_code="invalid_argument"
+            _reason_details.proposal_arrival.ASSIGNMENT_MISMATCH, reason_code="invalid_argument"
         )
     request = {
         "repair_artifact": [],
@@ -126,7 +128,8 @@ def _estimate(
     value = ArrivalResult(str(json.loads(report)["identity"]), report, bytes(artifact))
     if value.proposal_identity != expected_proposal:
         raise CausalValueError(
-            "proposal_arrival.expected_proposal_mismatch", reason_code="invalid_argument"
+            _reason_details.proposal_arrival.EXPECTED_PROPOSAL_MISMATCH,
+            reason_code="invalid_argument",
         )
     return value
 
@@ -140,7 +143,7 @@ def consume_arrival(
         raise CausalTypeError("data must be bytes from ArrivalResult.export()")
     if len(data) > 32 * 1024 * 1024:
         raise CausalValueError(
-            "proposal_arrival.bounds_exceeded", reason_code="route_not_supported"
+            _reason_details.proposal_arrival.BOUNDS_EXCEEDED, reason_code="route_not_supported"
         )
     execution = resolve_execution(execution)
     report = execution._call(

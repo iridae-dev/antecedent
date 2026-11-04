@@ -849,7 +849,7 @@ fn the_compact_runtime_export_golden_is_consumed_and_gated() {
     // Another retained identity is refused.
     let error = CompactExport::consume(&bytes, &ExportLimits::default(), &"0".repeat(64))
         .expect_err("another identity");
-    assert_eq!(error.detail, "compact_export.identity_unexpected");
+    assert_eq!(error.detail, antecedent_core::reason_details::compact_export::IDENTITY_UNEXPECTED);
     // A newer body version is refused before the body is interpreted.
     let newer = with_body_version(
         &bytes,
@@ -860,7 +860,7 @@ fn the_compact_runtime_export_golden_is_consumed_and_gated() {
     );
     let error = CompactExport::consume(&newer, &ExportLimits::default(), &identity)
         .expect_err("a newer version");
-    assert_eq!(error.detail, "compact_export.unsupported_version");
+    assert_eq!(error.detail, antecedent_core::reason_details::compact_export::UNSUPPORTED_VERSION);
 }
 
 #[test]
@@ -876,7 +876,11 @@ fn the_cohort_decision_source_golden_is_consumed_and_gated() {
     // Another retained identity is refused.
     let other = CohortExpectation::for_identity("0".repeat(64));
     let refused = CohortDecisionSource::consume(&bytes, &other).unwrap_err();
-    assert_eq!(refused.detail, "cohort_decision.identity_unexpected", "{refused}");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::cohort_decision::IDENTITY_UNEXPECTED,
+        "{refused}"
+    );
     assert_eq!(refused.subject, "0".repeat(64));
     // A newer body version is refused as an unsupported version, not a field error.
     let newer = with_body_version(
@@ -887,5 +891,5 @@ fn the_cohort_decision_source_golden_is_consumed_and_gated() {
         2,
     );
     let error = CohortDecisionSource::consume(&newer, &expectation).expect_err("newer");
-    assert_eq!(error.detail, "cohort_decision.unsupported_version");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::UNSUPPORTED_VERSION);
 }

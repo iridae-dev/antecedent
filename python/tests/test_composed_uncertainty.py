@@ -17,6 +17,7 @@ import math
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import joint_law_propagation as jl
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import (
@@ -138,7 +139,10 @@ def test_linear_moments_spread_agrees_with_the_aligned_rows() -> None:
             )
         )
     assert error.value.reason_code == "evidence_double_counted"
-    assert error.value.detail == "joint_law_propagation.shared_evidence_declared_independent"
+    assert (
+        error.value.detail
+        == reason_details.joint_law_propagation.SHARED_EVIDENCE_DECLARED_INDEPENDENT
+    )
 
 
 def test_spread_of_unpaired_draws_is_refused() -> None:
@@ -149,13 +153,13 @@ def test_spread_of_unpaired_draws_is_refused() -> None:
     with pytest.raises(R) as error:
         require_success(jl.spread("nonlinear_functional", mx, my, "minimum"))
     assert error.value.reason_code == "joint_law_required"
-    assert error.value.detail == "joint_law_propagation.index_pairing_refused"
+    assert error.value.detail == reason_details.joint_law_propagation.INDEX_PAIRING_REFUSED
     assert error.value.remedy
     px, _ = _pair("snap-enum")
     _, other_y = _pair("snap-other")
     with pytest.raises(R) as error:
         require_success(jl.aligned_linear_spread("sum", (1.0, 1.0), px, other_y))
-    assert error.value.detail == "joint_law_propagation.alignment_mismatch"
+    assert error.value.detail == reason_details.joint_law_propagation.ALIGNMENT_MISMATCH
 
 
 # ------------------------------------------------------------------ interval
@@ -203,7 +207,7 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
     with pytest.raises(R) as error:
         claim.interval()
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "joint_law_propagation.no_interval_construction"
+    assert error.value.detail == reason_details.joint_law_propagation.NO_INTERVAL_CONSTRUCTION
     with pytest.raises(TypeError, match="evidence_rows"):
         require_success(claim.check_composed_interval("normal_approximation"))  # type: ignore[call-arg]
 
@@ -234,7 +238,7 @@ def test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_r
     with pytest.raises(R) as error:
         claim.interval()
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "joint_law_propagation.no_interval_construction"
+    assert error.value.detail == reason_details.joint_law_propagation.NO_INTERVAL_CONSTRUCTION
 
 
 def test_an_envelope_has_no_composed_interval() -> None:
@@ -249,7 +253,9 @@ def test_an_envelope_has_no_composed_interval() -> None:
     with pytest.raises(R) as error:
         require_success(env.check_composed_interval("normal_approximation", evidence_rows=200))
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "joint_law_propagation.spread_needs_supported_dependence"
+    assert (
+        error.value.detail == reason_details.joint_law_propagation.SPREAD_NEEDS_SUPPORTED_DEPENDENCE
+    )
     with pytest.raises(R):
         env.coordinate_id()
 
@@ -306,7 +312,7 @@ def test_exceedance_cutoff_outside_the_unit_interval_is_refused() -> None:
             jl.composed_exceedance("product", x, y, "product", threshold=1.0, cutoff=1.5)
         )
     assert error.value.reason_code == "invalid_argument"
-    assert error.value.detail == "joint_law_propagation.invalid_request"
+    assert error.value.detail == reason_details.joint_law_propagation.INVALID_REQUEST
     with pytest.raises(CausalTypeError):
         require_success(
             jl.composed_exceedance("product", x, y, "product", threshold="1", cutoff=0.5)
@@ -358,7 +364,7 @@ def test_transported_spread_needs_all_three_pieces_and_their_dependence() -> Non
             )
         )
     assert error.value.reason_code == "joint_law_required"
-    assert error.value.detail == "joint_law_propagation.transport_pieces_incomplete"
+    assert error.value.detail == reason_details.joint_law_propagation.TRANSPORT_PIECES_INCOMPLETE
     assert error.value.offending == "transport_functional"
 
     for dependence in ("declared_independent", "unknown"):
@@ -372,7 +378,10 @@ def test_transported_spread_needs_all_three_pieces_and_their_dependence() -> Non
                 )
             )
         assert error.value.reason_code == "joint_law_required"
-        assert error.value.detail == "joint_law_propagation.transported_dependence_required"
+        assert (
+            error.value.detail
+            == reason_details.joint_law_propagation.TRANSPORTED_DEPENDENCE_REQUIRED
+        )
 
 
 def test_transported_spread_from_aligned_pieces_matches_the_row_sums() -> None:
@@ -388,12 +397,12 @@ def test_transported_spread_from_aligned_pieces_matches_the_row_sums() -> None:
     with pytest.raises(R) as error:
         require_success(jl.transported_spread_aligned(source, other_target, functional))
     assert error.value.reason_code == "joint_law_required"
-    assert error.value.detail == "joint_law_propagation.alignment_mismatch"
+    assert error.value.detail == reason_details.joint_law_propagation.ALIGNMENT_MISMATCH
 
     ms, mt, mf = _piece_draws("snap-marginals", alignment="independent_marginals")
     with pytest.raises(R) as error:
         require_success(jl.transported_spread_aligned(ms, mt, mf))
-    assert error.value.detail == "joint_law_propagation.index_pairing_refused"
+    assert error.value.detail == reason_details.joint_law_propagation.INDEX_PAIRING_REFUSED
 
     with pytest.raises(CausalValueError):
         require_success(

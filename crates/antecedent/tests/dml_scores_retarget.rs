@@ -202,7 +202,10 @@ fn a_dml_fit_without_scores_refuses_the_retarget() {
         let report = prepared.retarget(&before, &request(rows), &ctx).unwrap();
         let failure = report.claims[0].outcome.as_ref().unwrap_err();
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
-        assert_eq!(failure.detail.as_deref(), Some("batch_retarget.scores_unavailable"));
+        assert_eq!(
+            failure.detail.as_deref(),
+            Some(antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE)
+        );
         let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
         assert!(results[0].estimate().as_effect().unwrap().scores.table.is_none());
         let report = prepared.retarget(&estimated, &request(rows), &ctx).unwrap();
@@ -210,7 +213,9 @@ fn a_dml_fit_without_scores_refuses_the_retarget() {
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
         assert_eq!(
             failure.detail.as_deref(),
-            Some("batch_retarget.scores_unavailable_after_estimate")
+            Some(
+                antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE_AFTER_ESTIMATE
+            )
         );
         assert!(report.complete_family().is_err());
     }

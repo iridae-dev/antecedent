@@ -88,7 +88,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     EvidenceLedgerArtifactError {
         noun: "evidence ledger",
-        identity: "evidence_ledger.identity_mismatch",
+        identity: antecedent_core::reason_details::evidence_ledger::IDENTITY_MISMATCH,
         variants {
             /// The ledger refused a stored operation on replay.
             Refused {
@@ -128,17 +128,17 @@ impl EvidenceLedgerArtifactError {
             Self::Refused { code, detail, message } => Some((*code, *detail, message.clone())),
             Self::IdentityMismatch { field } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "evidence_ledger.identity_mismatch",
+                antecedent_core::reason_details::evidence_ledger::IDENTITY_MISMATCH,
                 format!("{field} changed"),
             )),
             Self::ReplayMismatch(what) => Some((
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.replay_mismatch",
+                antecedent_core::reason_details::evidence_ledger::REPLAY_MISMATCH,
                 format!("the stored {what} does not replay"),
             )),
             Self::SynthesisMismatch(what) => Some((
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.synthesis_mismatch",
+                antecedent_core::reason_details::evidence_ledger::SYNTHESIS_MISMATCH,
                 format!("the stored synthesis {what} does not replay"),
             )),
             _ => None,

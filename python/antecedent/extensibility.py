@@ -808,7 +808,7 @@ class ProviderRegistry:
         *,
         evidence_origin: str,
     ) -> ProviderVerificationReceipt:
-        """Run independent caller fixtures before promoting an external provider.
+        """Run independent caller fixtures before registering an external provider.
 
         Fixtures are sugar: each becomes a typed request with numeric probes
         (shape, known truth, replay, optional uncertainty) that Rust checks and
@@ -817,7 +817,7 @@ class ProviderRegistry:
         compared here and must hold before any probe is submitted. This checks
         the executable contract and supplied references; it does not certify the
         scientific validity of caller supplied truth or grant native support.
-        Promotion is atomic after every fixture passes.
+        Registration is atomic after every fixture passes.
         """
         provider, trust = self._entry(name)
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:

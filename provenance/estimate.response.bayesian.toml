@@ -24,17 +24,20 @@ record_sha256 = "df08f4a43f631c4650f02e4b040102b52ebd262fd2e3c39320cee0b008bee6c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/bayes.rs"
-sha256 = "16cddc317c6c0d690627b397be99ff26b09dc3841f960f9eeaef703dbd80d819"
+items = ["const RESPONSE_ROWS_PER_CHUNK", "fn aligned_coefficient_draws", "fn average_derivative_posterior", "fn credible_scalar_uncertainty", "fn derivative_baseline", "fn derivative_draws", "fn derivative_inputs", "fn estimate_bayesian", "fn estimate_bayesian_derivative", "fn inflate_draws_by_edf", "fn non_derivative_functional", "fn refit_derivative_posterior", "fn stream_response_grid", "fn summarize_gam_derivative_draws", "fn summarize_point_derivative_draws", "fn summarize_scalar_draws", "struct DerivativeDraw", "struct DerivativeInputs", "struct DerivativePosterior", "struct ResponseGrid"]
+sha256 = "b7647ca87b2150a00dbfb25759092e47b4b67935039c24a2797c22b6115e089e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/band.rs"
-sha256 = "11f6085b295de299949b873f30d2a1ab5a0a0865ad06b30863db72459092aa40"
+items = ["fn simultaneous_posterior_band", "fn valid_band_endpoints"]
+sha256 = "bb4080d193b9202580dd58b107ffc2c9f5f14700a2c3a9a5d58bd8c238e834c7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_bayesian_reference.rs"
-sha256 = "9873182446018bda76cff3bc51c103712e1e57e781a241f6ec28f03830027624"
+items = ["const DRAWS", "fn check", "fn floats", "fn intervention", "fn response_levels_and_credible_intervals_match_the_exact_posterior"]
+sha256 = "abb74fdb7d2a8eaa569a478567c859a5e284616f80492f068aaf20980c018b9f"
 
 [[method_review.artifacts]]
 role = "reference"

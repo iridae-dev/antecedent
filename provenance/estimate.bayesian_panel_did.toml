@@ -56,12 +56,14 @@ record_sha256 = "606769db41e28f42307e759d575d443eb17525c74537066aa0236fd1012b5aa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_panel_did.rs"
-sha256 = "f408cf86927cbf5a8a151a44e9b91d97ac8a851fd48fd4c1ef35e2c58f1daec8"
+items = ["const ARM_SEED_STRIDE", "fn fit_bayesian_augmented_panel_did", "fn fit_bayesian_cross_section_did", "fn fit_bayesian_panel_did", "fn fit_nig", "fn indicator", "fn new", "fn require_one_unit_per_cluster", "fn summarize", "fn validate", "struct BayesianDidEstimate", "struct DidPrior"]
+sha256 = "2e5b4505ea92993136656fe142b86fa5c25ad080f84cf180b596ba1ccbdd1143"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_panel_did_reference.rs"
-sha256 = "fd9c6e44e2ad485ce606e9047546a8b7820350b35a3a7a1275f7c78800103991"
+items = ["const DRAWS", "fn cases", "fn every_form_matches_the_exact_posterior_under_both_priors", "fn flags", "fn floats", "fn the_prior_moves_the_posterior_as_the_reference_says"]
+sha256 = "1aaac174da232483ba8c88d97b9319cf545ee834d5fc15cf7b0d9e81c6dabbb1"
 
 [[method_review.artifacts]]
 role = "reference"

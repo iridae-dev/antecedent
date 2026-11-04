@@ -177,96 +177,62 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool, validatio
     assert_eq!(result.refutations.is_empty(), validation == "none", "{coordinate} refutations");
 }
 
-macro_rules! coordinate_test {
-    ($name:ident, $coordinate:literal, $accepted:literal, $bayesian:literal, $validation:literal) => {
-        #[test]
-        fn $name() {
-            verify_coordinate($coordinate, $accepted, $bayesian, $validation);
-        }
-    };
+#[test]
+fn dag_explicit_frequentist_none() {
+    verify_coordinate("AverageEffect:Dag:explicit:Frequentist:none", false, false, "none");
 }
 
-coordinate_test!(
-    dag_explicit_frequentist_none,
-    "AverageEffect:Dag:explicit:Frequentist:none",
-    false,
-    false,
-    "none"
-);
-coordinate_test!(
-    dag_explicit_frequentist_cheap,
-    "AverageEffect:Dag:explicit:Frequentist:cheap",
-    false,
-    false,
-    "cheap"
-);
-coordinate_test!(
-    dag_explicit_frequentist_full,
-    "AverageEffect:Dag:explicit:Frequentist:full",
-    false,
-    false,
-    "full"
-);
-coordinate_test!(
-    dag_explicit_bayesian_none,
-    "AverageEffect:Dag:explicit:Bayesian:none",
-    false,
-    true,
-    "none"
-);
-coordinate_test!(
-    dag_explicit_bayesian_cheap,
-    "AverageEffect:Dag:explicit:Bayesian:cheap",
-    false,
-    true,
-    "cheap"
-);
-coordinate_test!(
-    dag_explicit_bayesian_full,
-    "AverageEffect:Dag:explicit:Bayesian:full",
-    false,
-    true,
-    "full"
-);
-coordinate_test!(
-    dag_accepted_frequentist_none,
-    "AverageEffect:Dag:accepted:Frequentist:none",
-    true,
-    false,
-    "none"
-);
-coordinate_test!(
-    dag_accepted_frequentist_cheap,
-    "AverageEffect:Dag:accepted:Frequentist:cheap",
-    true,
-    false,
-    "cheap"
-);
-coordinate_test!(
-    dag_accepted_frequentist_full,
-    "AverageEffect:Dag:accepted:Frequentist:full",
-    true,
-    false,
-    "full"
-);
-coordinate_test!(
-    dag_accepted_bayesian_none,
-    "AverageEffect:Dag:accepted:Bayesian:none",
-    true,
-    true,
-    "none"
-);
-coordinate_test!(
-    dag_accepted_bayesian_cheap,
-    "AverageEffect:Dag:accepted:Bayesian:cheap",
-    true,
-    true,
-    "cheap"
-);
-coordinate_test!(
-    dag_accepted_bayesian_full,
-    "AverageEffect:Dag:accepted:Bayesian:full",
-    true,
-    true,
-    "full"
-);
+#[test]
+fn dag_explicit_frequentist_cheap() {
+    verify_coordinate("AverageEffect:Dag:explicit:Frequentist:cheap", false, false, "cheap");
+}
+
+#[test]
+fn dag_explicit_frequentist_full() {
+    verify_coordinate("AverageEffect:Dag:explicit:Frequentist:full", false, false, "full");
+}
+
+#[test]
+fn dag_explicit_bayesian_none() {
+    verify_coordinate("AverageEffect:Dag:explicit:Bayesian:none", false, true, "none");
+}
+
+#[test]
+fn dag_explicit_bayesian_cheap() {
+    verify_coordinate("AverageEffect:Dag:explicit:Bayesian:cheap", false, true, "cheap");
+}
+
+#[test]
+fn dag_explicit_bayesian_full() {
+    verify_coordinate("AverageEffect:Dag:explicit:Bayesian:full", false, true, "full");
+}
+
+#[test]
+fn dag_accepted_frequentist_none() {
+    verify_coordinate("AverageEffect:Dag:accepted:Frequentist:none", true, false, "none");
+}
+
+#[test]
+fn dag_accepted_frequentist_cheap() {
+    verify_coordinate("AverageEffect:Dag:accepted:Frequentist:cheap", true, false, "cheap");
+}
+
+#[test]
+fn dag_accepted_frequentist_full() {
+    verify_coordinate("AverageEffect:Dag:accepted:Frequentist:full", true, false, "full");
+}
+
+#[test]
+fn dag_accepted_bayesian_none() {
+    verify_coordinate("AverageEffect:Dag:accepted:Bayesian:none", true, true, "none");
+}
+
+#[test]
+fn dag_accepted_bayesian_cheap() {
+    verify_coordinate("AverageEffect:Dag:accepted:Bayesian:cheap", true, true, "cheap");
+}
+
+#[test]
+fn dag_accepted_bayesian_full() {
+    verify_coordinate("AverageEffect:Dag:accepted:Bayesian:full", true, true, "full");
+}

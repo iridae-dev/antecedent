@@ -402,7 +402,10 @@ mod source_replay {
         // The verified claim is a usable parent; the compact one is not.
         assert!(FittedEffectModel::load(&export.sourced).is_ok());
         match FittedEffectModel::load(&export.compact) {
-            Err(refusal) => assert_eq!(refusal.detail, "cohort_decision.parent_not_verified"),
+            Err(refusal) => assert_eq!(
+                refusal.detail,
+                antecedent_core::reason_details::cohort_decision::PARENT_NOT_VERIFIED
+            ),
             Ok(_) => panic!("a compact export must not be a verified parent"),
         }
     }

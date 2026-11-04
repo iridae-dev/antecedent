@@ -167,12 +167,12 @@ fn contract_on_part(
             Ok(weighted)
         }
         (Some(_), false) => Err(refuse(
-            "selective_discovery.weights_not_read_by_test",
+            antecedent_core::reason_details::selective_discovery::WEIGHTS_NOT_READ_BY_TEST,
             "the table carries observation weights but the declared test ignores them; declare \
              `weighted_parcorr`, or split an unweighted table",
         )),
         (None, true) => Err(refuse(
-            "selective_discovery.weighted_test_without_weights",
+            antecedent_core::reason_details::selective_discovery::WEIGHTED_TEST_WITHOUT_WEIGHTS,
             "`weighted_parcorr` needs observation weights and the table carries none",
         )),
     }
@@ -205,7 +205,7 @@ pub fn discover_on_split(
     let outcome = adapter.outcome().cloned().ok_or_else(|| {
         SelectiveDiscoveryError::refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "selective_discovery.nothing_retained",
+            antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
             "the discovery run retained no outcome",
         )
     })?;

@@ -15,6 +15,7 @@ import sys
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import nuisance_scores
 from antecedent.errors import CausalSerializationError
 from antecedent.execution import Execution
@@ -137,7 +138,7 @@ def test_a_bayesian_weighting_estimator_is_the_typed_boundary() -> None:
     assert result.value is None and result.refusal is not None
     assert result.refusal.code == "route_not_supported"
     text = result.refusal.message
-    assert "penalized_propensity.effect_posterior" in text
+    assert reason_details.penalized_propensity.EFFECT_POSTERIOR in text
     assert "ancillary" in text and "Next attempt" in text
     assert "Bayesian g-computation" in text
     assert result.refusal.code in REGISTERED

@@ -18,6 +18,7 @@ import math
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_verification as cv
 from antecedent import mixed_decision as md
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalValueError
@@ -337,7 +338,7 @@ def test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims(
         verification.require_valid("decision")
     assert_registered_refusal(withdrawn.value)
     assert withdrawn.value.reason_code == "claim_support_withdrawn"
-    assert withdrawn.value.detail == "composition_verification.input_retired"
+    assert withdrawn.value.detail == reason_details.composition_verification.INPUT_RETIRED
 
     # nothing asks the withdrawn source for permission any more
     for call in (

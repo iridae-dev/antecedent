@@ -66,7 +66,7 @@ impl FittedSequenceHistory {
         if law.population() != InitialStatePopulation::Target {
             return Err(EstimationError::refused_detail(
                 reason_code!("transport_missing_evidence"),
-                "initial_state.target_law_missing",
+                antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING,
                 "only a source initial-state law was supplied",
             ));
         }
@@ -398,7 +398,7 @@ mod tests {
             assert!(matches!(
                 error,
                 EstimationError::Refused { code: "route_not_supported", ref message }
-                    if message == "temporal_interval.studentized_estimator_not_certified"
+                    if message == antecedent_core::reason_details::temporal_interval::STUDENTIZED_ESTIMATOR_NOT_CERTIFIED
             ));
         }
 

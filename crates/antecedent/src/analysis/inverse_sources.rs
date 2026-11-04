@@ -112,8 +112,11 @@ pub struct ComposedActionQuery {
 /// moment ago did not consume to the same premises, so the origin is not the
 /// one the composition computed.
 fn replay_refusal(error: &MechanismCompositionRefusal) -> ForwardSourceRefusal {
-    let detail =
-        error.details().first().copied().unwrap_or("mechanism_composition.artifact_invalid");
+    let detail = error
+        .details()
+        .first()
+        .copied()
+        .unwrap_or(antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID);
     ForwardSourceRefusal::Artifact {
         code: error.code(),
         text: format!("{detail}: the composition's exported query did not replay to its premises"),
@@ -133,7 +136,7 @@ fn retype_export_refusal(
     let [only] = refusal.refusals.as_slice() else {
         return refusal;
     };
-    if only.detail != "mechanism_composition.artifact_invalid" {
+    if only.detail != antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID {
         return refusal;
     }
     let text = only.offending.clone().unwrap_or_default();
@@ -143,7 +146,7 @@ fn retype_export_refusal(
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("route_not_supported"),
                     "compose",
-                    "mechanism_composition.request_unsupported",
+                    antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
                 )
                 .with_offending(format!("action `{action}`: {message}"))
                 .with_remedy(
@@ -161,7 +164,7 @@ fn retype_export_refusal(
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
                     "compose",
-                    "mechanism_composition.numerical_failure",
+                    antecedent_core::reason_details::mechanism_composition::NUMERICAL_FAILURE,
                 )
                 .with_offending(format!("action `{action}`: {message}"))
                 .with_remedy("the composition's numbers could not be solved for this query"),
@@ -212,7 +215,10 @@ impl ComposedSourceRefusal {
     pub fn detail(&self) -> String {
         match self {
             Self::Composition { refusal, .. } => refusal.refusals.first().map_or_else(
-                || "mechanism_composition.artifact_invalid".to_owned(),
+                || {
+                    antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID
+                        .to_owned()
+                },
                 |r| r.detail.clone(),
             ),
             Self::Source(source) => source.detail(),
@@ -238,7 +244,7 @@ impl ComposedSourceRefusal {
                     ExternalRefusal::new(
                         refusal.code(),
                         "inverse_forward_source",
-                        "mechanism_composition.artifact_invalid",
+                        antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
                     )
                 })
             }
@@ -262,11 +268,9 @@ impl ComposedSourceRefusal {
     pub fn into_forward_source_refusal(self) -> ForwardSourceRefusal {
         match self {
             Self::Composition { refusal, .. } => {
-                let detail = refusal
-                    .details()
-                    .first()
-                    .copied()
-                    .unwrap_or("mechanism_composition.artifact_invalid");
+                let detail = refusal.details().first().copied().unwrap_or(
+                    antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
+                );
                 ForwardSourceRefusal::Artifact {
                     code: refusal.code(),
                     text: format!("{detail}: the mechanism composition refused the action's query"),

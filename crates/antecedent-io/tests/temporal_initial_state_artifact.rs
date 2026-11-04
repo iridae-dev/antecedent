@@ -237,7 +237,10 @@ fn initial_state_artifact_refuses_a_resealed_changed_law_snapshot_or_population(
     let (code, message) =
         refused(TemporalInitialStateArtifactWire::consume(&reseal(source), &limits()).unwrap_err());
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 
     // The stored result bound to another panel snapshot.
     let mut other_panel = artifact();
@@ -342,7 +345,10 @@ fn initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
         .unwrap_err(),
     );
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("initial_state.support_gap"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::SUPPORT_GAP),
+        "{message}"
+    );
 
     let mut bad = premises();
     bad.time_order[0] = "a1".into();
@@ -354,5 +360,8 @@ fn initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
             .unwrap_err(),
     );
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("initial_state.invalid_premises"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::INVALID_PREMISES),
+        "{message}"
+    );
 }

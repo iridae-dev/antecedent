@@ -500,7 +500,10 @@ fn horizon_one_transported_policy_value_is_the_static_expected_utility_but_needs
         limits: EvaluationLimits::default(),
     };
     let refusal = evaluate_transported_policy(&request, &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "transported_policy.selection_diagram_missing");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_policy::SELECTION_DIAGRAM_MISSING
+    );
 }
 
 // ---------------------------------------------------------------------------

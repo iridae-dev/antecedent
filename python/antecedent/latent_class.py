@@ -49,6 +49,8 @@ from typing import Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -392,7 +394,7 @@ _real = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        LatentClassRefusal, stage="fit", detail="latent_class.invalid_config"
+        LatentClassRefusal, stage="fit", detail=_reason_details.latent_class.INVALID_CONFIG
     ),
 )
 

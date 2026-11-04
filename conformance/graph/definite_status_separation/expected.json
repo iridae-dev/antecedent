@@ -39,7 +39,20 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-graph/tests/oracle_closure.rs",
-          "sha256": "f38bd0cad0b6d0d4dd7ecd532217e59692828a8aa3059c7261a52d6ba119b100"
+          "items": [
+            "fn completion_edge_strings",
+            "fn cpdag_edge",
+            "fn cpdag_endpoint_oracle",
+            "fn cpdag_from_edges",
+            "fn fixture",
+            "fn fixture_strings",
+            "fn latent_projection_oracle",
+            "fn pag_completion_oracle",
+            "fn pag_endpoint_and_definite_status_oracles",
+            "fn pag_from_edge_strings",
+            "fn pag_from_marked_edges"
+          ],
+          "sha256": "f3e557dd33c933eb50365bdddbb32b252028f36b85e60c47c04746df130af9d1"
         }
       ],
       "sources": [],

@@ -178,7 +178,10 @@ fn degenerate_one_level_treatment_does_not_take_continuous_overlap() {
     let err = result.err().expect("a one-level treatment has no control arm");
     assert_eq!(err.reason_code(), Some("arm_not_populated"), "{err}");
     let message = err.to_string();
-    assert!(message.contains("treatment_levels.level_not_populated"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::treatment_levels::LEVEL_NOT_POPULATED),
+        "{message}"
+    );
     assert!(!message.contains("continuous_support"), "{message}");
 }
 

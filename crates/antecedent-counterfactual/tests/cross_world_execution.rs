@@ -141,12 +141,18 @@ fn a_cross_world_joint_event_uses_the_coupled_worlds_only() {
         FiniteExecutionRequest { coupling: NoiseCoupling::IndependentWorldNoise, ..base.clone() };
     let (code, detail) = refusal_of(exec.execute(&independent, &ctx()));
     assert_eq!(code, "joint_law_required");
-    assert_eq!(detail, "joint_law_propagation.nonlinear_needs_aligned_joint_law");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::joint_law_propagation::NONLINEAR_NEEDS_ALIGNED_JOINT_LAW
+    );
 
     let undeclared = FiniteExecutionRequest { coupling: NoiseCoupling::Undeclared, ..base };
     let (code, detail) = refusal_of(exec.execute(&undeclared, &ctx()));
     assert_eq!(code, "joint_law_required");
-    assert_eq!(detail, "joint_law_propagation.index_pairing_refused");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+    );
 }
 
 #[test]
@@ -180,7 +186,7 @@ fn rare_positive_factual_evidence_is_not_misreported_as_zero_probability() {
         .expect_err("positive evidence below f64 range must fail closed");
     assert_eq!(
         error.refusal().unwrap().detail,
-        "cross_world_execution.evidence_probability_underflow"
+        antecedent_core::reason_details::cross_world_execution::EVIDENCE_PROBABILITY_UNDERFLOW
     );
 }
 
@@ -309,8 +315,10 @@ fn repeated_world_routes_are_refused_before_planning_or_digest() {
         let mut reversed = worlds.clone();
         reversed[0].routes.reverse();
         for worlds in [&worlds, &reversed] {
-            let expected =
-                ("invalid_argument".to_owned(), "cross_world_execution.invalid_world".to_owned());
+            let expected = (
+                "invalid_argument".to_owned(),
+                antecedent_core::reason_details::cross_world_execution::INVALID_WORLD.to_owned(),
+            );
             assert_eq!(refusal_of(validate_worlds(&model, worlds)), expected);
             assert_eq!(refusal_of(worlds[0].digest()), expected);
             assert_eq!(refusal_of(WorldPlan::new(&model, worlds, 0)), expected);
@@ -351,7 +359,11 @@ fn repeated_routes_preserve_populated_abductions_and_counters() {
             let invalid = request(model.clone(), vec![unit("u", &[])], candidate, quantity.clone());
             assert_eq!(
                 refusal_of(exec.execute(&invalid, &ctx())),
-                ("invalid_argument".to_owned(), "cross_world_execution.invalid_world".to_owned())
+                (
+                    "invalid_argument".to_owned(),
+                    antecedent_core::reason_details::cross_world_execution::INVALID_WORLD
+                        .to_owned()
+                )
             );
             assert_eq!(exec.counters(), before);
             assert_eq!(exec.retained_all().cloned().collect::<Vec<_>>(), retained);
@@ -564,7 +576,7 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     assert_eq!(err.refusal().unwrap().code, "route_not_supported");
     assert_eq!(
         err.refusal().unwrap().detail,
-        "cross_world_execution.no_transported_row_derivation"
+        antecedent_core::reason_details::cross_world_execution::NO_TRANSPORTED_ROW_DERIVATION
     );
     assert!(err.missing().iter().any(|m| m == "transport_support_missing"));
     assert!(err.missing().iter().any(|m| m == "target_population_abduction_receipt"));
@@ -576,7 +588,10 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     let (code, detail) = refusal_of(exec.execute(&history, &ctx()));
     assert_eq!(
         (code.as_str(), detail.as_str()),
-        ("route_not_supported", "cross_world_execution.incompatible_history")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::cross_world_execution::INCOMPATIBLE_HISTORY
+        )
     );
 
     // A sampled posterior of an exactly enumerable model is refused as a scientific mismatch.
@@ -585,7 +600,10 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     let (code, detail) = refusal_of(exec.execute(&sampled, &ctx()));
     assert_eq!(
         (code.as_str(), detail.as_str()),
-        ("estimator_inference_mismatch", "cross_world_execution.sampled_abduction_not_supported")
+        (
+            "estimator_inference_mismatch",
+            antecedent_core::reason_details::cross_world_execution::SAMPLED_ABDUCTION_NOT_SUPPORTED
+        )
     );
 
     // Refuted evidence: the complier-only model cannot produce X=1, Y=0.
@@ -598,7 +616,10 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     let (code, detail) = refusal_of(exec.execute(&refuted, &ctx()));
     assert_eq!(
         (code.as_str(), detail.as_str()),
-        ("route_not_supported", "cross_world_execution.evidence_outside_model_support")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::cross_world_execution::EVIDENCE_OUTSIDE_MODEL_SUPPORT
+        )
     );
 
     // A route that is not an edge, and a quantity on an unknown world.
@@ -606,19 +627,22 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     bad_route.worlds[1].routes = vec![WorldRoute { parent: 1, child: 0, source: 0 }];
     assert_eq!(
         refusal_of(exec.execute(&bad_route, &ctx())).1,
-        "cross_world_execution.invalid_world"
+        antecedent_core::reason_details::cross_world_execution::INVALID_WORLD
     );
     let mut bad_quantity = base.clone();
     bad_quantity.quantity = FiniteQuantity::Probability(atom(5, 1, 0));
     assert_eq!(
         refusal_of(exec.execute(&bad_quantity, &ctx())).1,
-        "cross_world_execution.invalid_quantity"
+        antecedent_core::reason_details::cross_world_execution::INVALID_QUANTITY
     );
 
     // Bounds: an empty unit set is outside the declaration bound.
     let mut none = base;
     none.units = Vec::new();
-    assert_eq!(refusal_of(exec.execute(&none, &ctx())).1, "cross_world_execution.bounds_exceeded");
+    assert_eq!(
+        refusal_of(exec.execute(&none, &ctx())).1,
+        antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED
+    );
 
     // None of the refusals did abduction work or retained anything.
     assert_eq!(exec.counters().abductions, 0);
@@ -815,7 +839,7 @@ fn shared_exogenous_cross_world_values_equal_an_independent_enumeration() {
                 }
                 (Err(error), None) => assert_eq!(
                     error.refusal().unwrap().detail,
-                    "cross_world_execution.evidence_outside_model_support"
+                    antecedent_core::reason_details::cross_world_execution::EVIDENCE_OUTSIDE_MODEL_SUPPORT
                 ),
                 (out, truth) => panic!("{observed:?}: {out:?} vs {truth:?}"),
             }
@@ -996,7 +1020,7 @@ fn elimination_refuses_refuted_evidence_and_keeps_the_joint_law_rule() {
     );
     assert_eq!(
         refusal_of(FiniteScmExecutor::new().execute(&refuted, &ctx())).1,
-        "cross_world_execution.evidence_outside_model_support"
+        antecedent_core::reason_details::cross_world_execution::EVIDENCE_OUTSIDE_MODEL_SUPPORT
     );
     // An undeclared coupling is refused exactly as on the enumerating route.
     let mut undeclared =
@@ -1069,7 +1093,7 @@ fn one_exogenous_draw_is_used_by_every_mechanism_that_names_it() {
     );
     assert_eq!(
         refusal_of(exec.execute(&contradictory, &ctx())).1,
-        "cross_world_execution.evidence_outside_model_support"
+        antecedent_core::reason_details::cross_world_execution::EVIDENCE_OUTSIDE_MODEL_SUPPORT
     );
 }
 
@@ -1146,14 +1170,20 @@ fn a_law_to_be_fitted_is_unsupported_execution_while_latent_confounding_is_nonid
     let undeclared = decide(&MatrixRequest { evidence: EvidenceKind::DataToFit, ..shape })
         .expect_err("a law to be fitted is not executed");
     assert_eq!(undeclared.code, "route_not_supported");
-    assert_eq!(undeclared.detail, "cross_world_execution.finite_fitting_not_executed");
+    assert_eq!(
+        undeclared.detail,
+        antecedent_core::reason_details::cross_world_execution::FINITE_FITTING_NOT_EXECUTED
+    );
 
     // Latent confounding without declared mechanisms is a statement about
     // identification, and carries the nonidentification code instead.
     let latent = decide(&MatrixRequest { model: ModelClass::SemiMarkovian, ..shape })
         .expect_err("latent confounding is not identified");
     assert_eq!(latent.code, "cross_world_not_identified");
-    assert_eq!(latent.detail, "cross_world_execution.latent_confounding_not_identified");
+    assert_eq!(
+        latent.detail,
+        antecedent_core::reason_details::cross_world_execution::LATENT_CONFOUNDING_NOT_IDENTIFIED
+    );
     assert_ne!(undeclared.code, latent.code);
 }
 

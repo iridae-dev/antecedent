@@ -33,9 +33,11 @@ record_sha256 = "4120df271e5b65a2f53a65a8be04c3426e0971dbcc8e46822ceddbf26f33f04
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/provider_transport.rs"
-sha256 = "9f3f69534053b9a9425c0519b77d9752ca177a063158a21ee4fcfe950f8c2d53"
+items = ["const PROVIDER_SOURCE_PORT", "const PROVIDER_TRANSPORT_VERSION", "const STAGE_BIND", "const STAGE_DECLARE", "const STAGE_VERIFY", "const STANDING", "const TAG_HANDOFF", "const TAG_SOURCE", "const TRANSPORT_SOURCE_PORT", "enum SourceTrustRequirement", "enum TransportedInputPolicy", "fn admit", "fn assumption_mismatch", "fn canonical_identity", "fn connect_provider_source", "fn connection", "fn declare", "fn hand_to_callback", "fn hand_to_consumer", "fn identity", "fn interface_contract", "fn is_native_target_data", "fn ledger_declaration", "fn not_bound", "fn object_meaning", "fn object_quantities", "fn operations", "fn policy", "fn population", "fn quantity_mismatch", "fn regime", "fn require_bound_to", "fn source", "fn standing", "fn text_ok", "fn transport", "fn transport_source_consumer", "fn trust", "fn untrusted", "fn validate", "fn write_evidence", "fn write_operations", "fn write_support", "struct AdmittedProviderSource", "struct ProviderTransportSource", "struct TransportedClaimOffer", "struct TransportedHandoff"]
+sha256 = "154c1056ddeda56c663cc3208ce4a49b9bdeb6e698c21fd0ab49ac7b4537074f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/provider_transport.rs"
-sha256 = "ee653a790c7a7fd5db402e5c0b5750116cfe556f80c1eda417a5c44857b8d2a2"
+items = ["fn a_changed_request_regime_trust_or_assumption_changes_the_source_identity", "fn a_claim_without_its_identity_or_outside_the_target_is_refused", "fn a_consumer_that_needs_native_target_data_refuses_a_transported_claim", "fn a_missing_population_or_regime_refuses_before_any_connection", "fn a_provider_source_is_not_native_target_data", "fn a_quantity_the_provider_does_not_declare_or_a_foreign_population_is_refused", "fn a_receipt_for_another_request_or_a_native_support_is_refused", "fn a_transported_claim_reaches_a_callback_input_with_its_transport_identity", "fn a_verified_provider_output_is_source_evidence_that_reaches_a_transported_claim", "fn attestation_does_not_stand_in_for_required_verification", "fn attested", "fn check", "fn consumer_callback", "fn digest", "fn evidence_id", "fn identity", "fn law", "fn observations", "fn offer", "fn probes", "fn quantity", "fn source", "fn the_connection_refuses_a_different_population_and_a_callback_input_but_serves_a_calibration_demand", "fn transport", "fn verified", "fn verified_source"]
+sha256 = "3e675b205f652b786f2c969bd0f04dd049acd48f5849d2e6d65b1cbc4b938437"

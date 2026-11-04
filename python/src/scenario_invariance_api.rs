@@ -138,7 +138,7 @@ fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyRes
             None,
             Some(refusal_json(
                 reason_code!("invalid_argument"),
-                "scenario_invariance.wrong_result_type",
+                antecedent_core::reason_details::scenario_invariance::WRONG_RESULT_TYPE,
                 "supply the stage returned by prepare_transport_scenarios",
             )),
         ));
@@ -148,7 +148,7 @@ fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyRes
             None,
             Some(refusal_json(
                 reason_code!("not_executed"),
-                "scenario_invariance.not_estimated",
+                antecedent_core::reason_details::scenario_invariance::NOT_ESTIMATED,
                 "call estimate() on the scenario stage before asking for its invariance report",
             )),
         ));
@@ -156,9 +156,10 @@ fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyRes
     match detach_catch(py, || Ok(prepared.invariance_report(report)))? {
         Ok(set) => Ok((Some(set_json(names, &set).to_string()), None)),
         Err(EstimationError::Refused { code, message }) => {
-            let (detail, text) = message
-                .split_once(": ")
-                .unwrap_or(("scenario_invariance.refused", message.as_str()));
+            let (detail, text) = message.split_once(": ").unwrap_or((
+                antecedent_core::reason_details::scenario_invariance::REFUSED,
+                message.as_str(),
+            ));
             Ok((None, Some(refusal_json(code, detail, text))))
         }
         Err(other) => Err(crate::transport_common::error(other)),

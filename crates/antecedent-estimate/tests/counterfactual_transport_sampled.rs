@@ -392,7 +392,12 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
     let error = estimate(&derivation, tables.clone(), UnseenCellRule::Refuse).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("counterfactual_transport_sampled.unseen_cell"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport_sampled::UNSEEN_CELL
+        ),
+        "{message}"
+    );
 
     // Declared structural zero: a different, labelled claim (the cell is
     // asserted impossible, which is false here, so the value is biased).
@@ -475,7 +480,7 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
         enveloped.inference.interval,
         SampledIntervalOutcome::NotComputable {
             code: "effect_not_identified",
-            detail: "counterfactual_transport_sampled.interval_not_computable",
+            detail: antecedent_core::reason_details::counterfactual_transport_sampled::INTERVAL_NOT_COMPUTABLE,
             reason: "partial_identification_has_no_single_standard_error",
         }
     );
@@ -492,7 +497,9 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
         &ExecutionContext::for_tests(7),
     )
     .unwrap_err();
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.sparsity_above_limit"));
+    assert!(refusal(&error).1.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::SPARSITY_ABOVE_LIMIT
+    ));
 }
 
 #[test]
@@ -508,7 +515,12 @@ fn estimated_table_zero_support_is_a_typed_refusal_not_a_number() {
     let error = estimate(&derivation, cited, UnseenCellRule::Refuse).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("counterfactual_transport.zero_conditioning_mass"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS
+        ),
+        "{message}"
+    );
     // Undeclared, the same cell is an unseen cell and refuses as such: never
     // silently zero.
     let undeclared: Vec<SampledRegimeCounts> = data
@@ -518,7 +530,11 @@ fn estimated_table_zero_support_is_a_typed_refusal_not_a_number() {
         .collect();
     let undeclared = cited_only(&derivation, &undeclared);
     let error = estimate(&derivation, undeclared, UnseenCellRule::Refuse).unwrap_err();
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.unseen_cell"));
+    assert!(
+        refusal(&error).1.contains(
+            antecedent_core::reason_details::counterfactual_transport_sampled::UNSEEN_CELL
+        )
+    );
     // The same query is defined in the source population.
     let mut in_source = case.clone();
     in_source.target_population = "source";
@@ -545,7 +561,9 @@ fn overlap_must_be_declared_and_unlinked_shared_units_are_refused() {
     // Nothing declared: unknown is never independent.
     let (code, message) = refusal(&run(OverlapDeclaration::undeclared()).unwrap_err());
     assert_eq!(code, "sampling_dependence_unknown");
-    assert!(message.contains("counterfactual_transport_sampled.overlap_unknown"));
+    assert!(message.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::OVERLAP_UNKNOWN
+    ));
 
     // One pair unknown among otherwise independent tables is refused too.
     let unknown_pair = OverlapDeclaration::all_independent()
@@ -560,7 +578,9 @@ fn overlap_must_be_declared_and_unlinked_shared_units_are_refused() {
         .unwrap();
     let (code, message) = refusal(&run(unlinked).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("counterfactual_transport_sampled.shared_units_unlinked"));
+    assert!(message.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::SHARED_UNITS_UNLINKED
+    ));
 
     // The declared-independent run is the reference value.
     let independent = run(OverlapDeclaration::all_independent()).unwrap();
@@ -585,7 +605,9 @@ fn uncited_missing_and_undersized_tables_are_refused_before_a_number() {
     let error = estimate(&derivation, thin, UnseenCellRule::Refuse).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_missing_provider");
-    assert!(message.contains("counterfactual_transport_sampled.missing_table"));
+    assert!(message.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::MISSING_TABLE
+    ));
 
     // A table for a regime the derivation does not cite is not silently ignored.
     let mut extra = tables.clone();
@@ -605,7 +627,9 @@ fn uncited_missing_and_undersized_tables_are_refused_before_a_number() {
     );
     let error = estimate(&derivation, extra, UnseenCellRule::Refuse).unwrap_err();
     assert_eq!(refusal(&error).0, "invalid_argument");
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.table_not_cited"));
+    assert!(refusal(&error).1.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::TABLE_NOT_CITED
+    ));
 
     // A sample below the declared minimum.
     let mut tiny = request(tables, UnseenCellRule::Refuse);
@@ -616,7 +640,9 @@ fn uncited_missing_and_undersized_tables_are_refused_before_a_number() {
         &ExecutionContext::for_tests(7),
     )
     .unwrap_err();
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.sample_size_below_limit"));
+    assert!(refusal(&error).1.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::SAMPLE_SIZE_BELOW_LIMIT
+    ));
 }
 
 #[test]
@@ -1201,7 +1227,7 @@ fn sampled_point_and_gradient_share_the_declared_operation_budget() {
     let error = estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap_err();
     let (code, detail) = refusal(&error);
     assert_eq!(code, "transport_budget_cancel");
-    assert!(detail.contains("counterfactual_transport.budget"));
+    assert!(detail.contains(antecedent_core::reason_details::counterfactual_transport::BUDGET));
 
     // Find the exact allowance required by the complete point and gradient.
     // The boundary must be inclusive and the fitted value invariant there.

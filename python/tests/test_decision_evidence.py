@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision_evidence as de
 from antecedent.decision_evidence import (
     Assumed,
@@ -141,17 +142,17 @@ def test_out_of_scope_requests_are_typed_refusals():
     with pytest.raises(DecisionEvidenceRefusal) as caught:
         de.evaluate(ev, q, population_id="all_customers")
     assert_registered_refusal(caught.value)
-    assert caught.value.detail == "decision_evidence.incompatible_population"
+    assert caught.value.detail == reason_details.decision_evidence.INCOMPATIBLE_POPULATION
     assert caught.value.remedy
     with pytest.raises(DecisionEvidenceRefusal) as caught:
         de.evaluate(ev, q, deployment=True)
-    assert caught.value.detail == "decision_evidence.deployment_bridge_missing"
+    assert caught.value.detail == reason_details.decision_evidence.DEPLOYMENT_BRIDGE_MISSING
     assert de.evaluate(ev, q, deployment=True, bridge_assumption_id="assumption.rollout").derived[
         "sampling"
     ]
     with pytest.raises(DecisionEvidenceRefusal) as caught:
         de.evaluate(_evidence(80, exposure="unspecified"), q)
-    assert caught.value.detail == "decision_evidence.interference_unspecified"
+    assert caught.value.detail == reason_details.decision_evidence.INTERFERENCE_UNSPECIFIED
 
 
 def test_compile_states_admissible_adjustments_before_any_fit():
@@ -181,7 +182,7 @@ def test_compile_states_admissible_adjustments_before_any_fit():
             horizon=1,
             exposure="unspecified",
         )
-    assert caught.value.detail == "decision_evidence.unsupported_assignment_design"
+    assert caught.value.detail == reason_details.decision_evidence.UNSUPPORTED_ASSIGNMENT_DESIGN
 
 
 def test_planning_reuse_and_withdrawal():

@@ -73,7 +73,10 @@ fn units_mismatch_refuses_with_the_same_fields_python_reads() {
     let refusal = bind_response(&contract(), &response("kPa", &Value::Null), "c").unwrap_err();
     assert_eq!(refusal.code, "quantity_semantics_mismatch");
     assert_eq!(refusal.stage, "bind");
-    assert_eq!(refusal.detail, "external_response_binding.coordinate_units");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::external_response_binding::COORDINATE_UNITS
+    );
     assert_eq!(refusal.offending.as_deref(), Some("coordinate[1]"));
     assert_eq!(refusal.expected.as_deref(), Some("mmHg"));
     assert_eq!(refusal.supplied.as_deref(), Some("kPa"));
@@ -141,7 +144,10 @@ fn observational_wrong_graph_population_and_missing_coordinate_refuse() {
     let refusal = bind_response(&bernoulli_contract(), &wrong_graph, "c").unwrap_err();
     assert_eq!(
         (refusal.code.as_str(), refusal.detail.as_str()),
-        ("external_binding_mismatch", "external_response_binding.graph")
+        (
+            "external_binding_mismatch",
+            antecedent_core::reason_details::external_response_binding::GRAPH
+        )
     );
 
     let mut population = good.clone();
@@ -153,7 +159,10 @@ fn observational_wrong_graph_population_and_missing_coordinate_refuse() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "quantity_semantics_mismatch");
-    assert_eq!(refusal.detail, "external_response_binding.coordinate_population");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::external_response_binding::COORDINATE_POPULATION
+    );
     assert_eq!(refusal.offending.as_deref(), Some("coordinate[1]"));
 
     let mut observational = good.clone();
@@ -170,7 +179,10 @@ fn observational_wrong_graph_population_and_missing_coordinate_refuse() {
 
     let missing = bernoulli_response("graph:binary", &json!([risk(0)]), &json!([0.25]));
     let refusal = bind_response(&bernoulli_contract(), &missing, "c").unwrap_err();
-    assert_eq!(refusal.detail, "external_response_binding.dimension");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::external_response_binding::DIMENSION
+    );
     assert_eq!(refusal.expected.as_deref(), Some("2"));
     assert_eq!(refusal.supplied.as_deref(), Some("1"));
 }

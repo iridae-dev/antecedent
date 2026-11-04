@@ -418,7 +418,10 @@ fn a_zero_mass_conditioning_event_refuses_as_a_support_failure() {
             panic!("typed refusal");
         };
         assert_eq!(code, "transport_support_failure");
-        assert!(message.starts_with("admg_transport.support_failure"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::admg_transport::SUPPORT_FAILURE),
+            "{message}"
+        );
     }
 }
 
@@ -455,7 +458,10 @@ fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables() {
         .unwrap_err();
         let EstimationError::Refused { code, message } = error else { panic!("typed") };
         assert_eq!(code, "invalid_argument");
-        assert!(message.starts_with("admg_transport.invalid_request"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::admg_transport::INVALID_REQUEST),
+            "{message}"
+        );
     };
     invalid(Assignment::from_pairs([(v(0), Value::Int64(1))]));
     invalid(Assignment::from_pairs([
@@ -476,7 +482,10 @@ fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables() {
         panic!("typed")
     };
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("admg_transport.invalid_request"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::admg_transport::INVALID_REQUEST),
+        "{message}"
+    );
 }
 
 /// Counted laws would make the point an empirical plug-in, which this route does
@@ -657,7 +666,12 @@ fn admg_conditional_posterior_refuses_an_unmeasured_band() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("admg_conditional_posterior.band_not_constructed"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::admg_conditional_posterior::BAND_NOT_CONSTRUCTED
+        ),
+        "{message}"
+    );
 }
 
 #[test]

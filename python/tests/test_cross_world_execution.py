@@ -16,6 +16,7 @@ import sys
 import textwrap
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cross_world_execution as cw
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.outcomes import require_success
@@ -243,15 +244,15 @@ def test_a_measured_interval_needs_a_declared_sampling_and_reports_its_calibrati
     with pytest.raises(R) as error:
         require_success(execution.measured_interval("independent_sample"))
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "cross_world_execution.no_interval_method"
+    assert error.value.detail == reason_details.cross_world_execution.NO_INTERVAL_METHOD
     with pytest.raises(R) as error:
         execution.interval()
     assert error.value.reason_code == "sampling_dependence_unknown"
-    assert error.value.detail == "cross_world_execution.no_interval_method"
+    assert error.value.detail == reason_details.cross_world_execution.NO_INTERVAL_METHOD
     with pytest.raises(R) as error:
         require_success(execution.posterior())
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "cross_world_execution.no_posterior_method"
+    assert error.value.detail == reason_details.cross_world_execution.NO_POSTERIOR_METHOD
 
     # Sixty units under a declared sampling: the interval is conditional on the declared model
     # and carries its calibration slot.
@@ -309,7 +310,7 @@ def test_a_whole_path_interval_is_annotated_outside_the_measured_cells() -> None
     with pytest.raises(R) as error:
         require_success(execution.measured_interval("independent_sample"))
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "cross_world_execution.no_interval_method"
+    assert error.value.detail == reason_details.cross_world_execution.NO_INTERVAL_METHOD
     fixed = require_success(execution.measured_interval("fixed_units"))
     assert fixed.lower <= fixed.point <= fixed.upper
     assert fixed.unit_sampling == "fixed_units"
@@ -332,10 +333,10 @@ def test_a_whole_path_interval_is_annotated_outside_the_measured_cells() -> None
     with pytest.raises(R) as error:
         small.interval()
     assert error.value.reason_code == "sampling_dependence_unknown"
-    assert error.value.detail == "cross_world_execution.no_interval_method"
+    assert error.value.detail == reason_details.cross_world_execution.NO_INTERVAL_METHOD
     with pytest.raises(R) as error:
         require_success(small.posterior())
-    assert error.value.detail == "cross_world_execution.no_posterior_method"
+    assert error.value.detail == reason_details.cross_world_execution.NO_POSTERIOR_METHOD
 
 
 def test_unsupported_requests_are_scientific_refusals() -> None:
@@ -369,7 +370,7 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
                 )
             )
         )
-    assert error.value.detail == "cross_world_execution.incompatible_history"
+    assert error.value.detail == reason_details.cross_world_execution.INCOMPATIBLE_HISTORY
 
     for reading in ("interval", "posterior"):
         with pytest.raises(R) as error:
@@ -398,7 +399,9 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
             )
         )
     assert error.value.reason_code == "estimator_inference_mismatch"
-    assert error.value.detail == "cross_world_execution.sampled_abduction_not_supported"
+    assert (
+        error.value.detail == reason_details.cross_world_execution.SAMPLED_ABDUCTION_NOT_SUPPORTED
+    )
     assert executor.retained_len() == 0
     assert executor.counters()["abductions"] == 0
 
@@ -417,7 +420,9 @@ def test_capability_matrix_and_decide() -> None:
     with pytest.raises(R) as error:
         cw.decide(quantity="counterfactual_joint", model="semi_markovian")
     assert error.value.reason_code == "cross_world_not_identified"
-    assert error.value.detail == "cross_world_execution.latent_confounding_not_identified"
+    assert (
+        error.value.detail == reason_details.cross_world_execution.LATENT_CONFOUNDING_NOT_IDENTIFIED
+    )
     with pytest.raises(R) as error:
         cw.decide(quantity="transported_cross_world", population="transported")
     assert error.value.missing
@@ -454,7 +459,7 @@ def test_artifact_round_trip_mutation_resume_and_fresh_process(tmp_path) -> None
         require_success(
             cw.consume_cross_world_execution_artifact(data, expected_identity=other.identity)
         )
-    assert error.value.detail == "cross_world_execution.artifact_changed"
+    assert error.value.detail == reason_details.cross_world_execution.ARTIFACT_CHANGED
 
     # Sampled single-byte edits never replay to a different accepted result.
     for position in range(0, len(data), max(1, len(data) // 64)):

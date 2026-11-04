@@ -323,7 +323,10 @@ fn cpdag_missing_evidence_refusals() {
             ("route_not_supported", CPDAG_SELECTION_OR_LATENT_DETAIL)
         );
     }
-    assert_eq!(CPDAG_SELECTION_OR_LATENT_DETAIL, "cpdag_scenarios.selection_or_latent");
+    assert_eq!(
+        CPDAG_SELECTION_OR_LATENT_DETAIL,
+        antecedent_core::reason_details::cpdag_scenarios::SELECTION_OR_LATENT
+    );
     // a -> b - c is not maximally oriented (b -> c is compelled), and a conflict edge is no CPDAG.
     let compelled = Case {
         name: "compelled",
@@ -405,7 +408,10 @@ fn assert_evidence_mismatch_refusals(a: &Arc<str>, b: &Arc<str>) {
         binding(a, a, "ev-2", &[0, 1, 2]),
     ]));
     assert_eq!(refusal(twice.unwrap_err()).1, CPDAG_EVIDENCE_MISMATCH_DETAIL);
-    assert_eq!(CPDAG_EVIDENCE_MISMATCH_DETAIL, "cpdag_scenarios.evidence_identity_mismatch");
+    assert_eq!(
+        CPDAG_EVIDENCE_MISMATCH_DETAIL,
+        antecedent_core::reason_details::cpdag_scenarios::EVIDENCE_IDENTITY_MISMATCH
+    );
 }
 
 #[test]

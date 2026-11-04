@@ -11,7 +11,7 @@
 //! never declared here — it is read from the runtime by binding every scored
 //! replicate's execution with `common::calibration_bind`.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -166,7 +166,7 @@ const CHANGE_CELL: Cell = Cell { estimator: "gcm.attribution.bayesian", dgp: "ch
 /// population means is first-order Normal, so `posterior_quantile` coverage is
 /// asymptotically calibrated (n ≥ 600 per population).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage() {
     // total_change = A2 − A1 (the x-laws are identical, so B·E[x] cancels).
     let truth = A2 - A1;

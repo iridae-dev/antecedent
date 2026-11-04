@@ -38,12 +38,30 @@
         {
           "role": "input_fixture",
           "path": "conformance/estimate/admg_frontdoor_functional/expected.json",
-          "sha256": "5af931a684a94dafd933df3fe64530f95d7decbe79d5b2461c9354dcf21b11e0"
+          "sha256": "e14574359dfdba5a1f95e35a62a00caaa6775397f443bbdb440a5b20394b3a33"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_static.rs",
-          "sha256": "7a2314e89d93fa3d9116475d80e5cc7f25640593eddbf67ed9dee1d20f4ccd0e"
+          "items": [
+            "fn adjacent_dag_and_unsorted_grid_refuse_before_work",
+            "fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract",
+            "fn changed_transport_law_reuses_other_population_factors",
+            "fn complementary_sources_actual_counts_and_independent_artifact",
+            "fn dense_factor_workspace_respects_budget_before_provider_construction",
+            "fn empirical_refresh_reuses_only_unchanged_factor_inputs",
+            "fn frontdoor_actual_components_and_coordinate_reuse",
+            "fn generic_refresh_exports_actual_refreshed_factor_snapshot",
+            "fn graph_and_query_substitution_recheck_identification",
+            "fn mz",
+            "fn rebind_estimate",
+            "fn refusal_is_transactional_and_receipts_do_not_grant_live_factors",
+            "fn response",
+            "fn static_oracle",
+            "fn utility",
+            "fn verma_checked_scalar_functionals_match_enumerated_latent_scm"
+          ],
+          "sha256": "0610330b2a8ccbbd59daf7e7d9e146114e4d02dd3647512d1e755c1738ce2b62"
         }
       ],
       "fixture_payload_sha256": "75806cabb949592c60d26b8994ac9e6f25ed438007431888bc82a9f0d7407cde"

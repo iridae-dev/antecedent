@@ -37,7 +37,23 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/source_projection.rs",
-          "sha256": "21c11ee7dfe81397d57dcc488668b6b3ed170b57ea219217b3840607626dd83b"
+          "items": [
+            "fn bundle",
+            "fn contract",
+            "fn external",
+            "fn pin",
+            "fn prepared",
+            "fn project",
+            "fn selected_affine_functional_replays_full_original_request_and_refuses_unsupported_action",
+            "fn source",
+            "fn source_projection_bundle_requires_actual_checked_execution_and_reuses_one_opaque_receipt",
+            "fn source_projection_changed_data_seed_source_and_unsupported_mean_functionals_refuse",
+            "fn source_projection_external_attestation_and_exact_coordinates_bind_actual_mean_utilities",
+            "fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes",
+            "fn source_projection_original_native_mean_and_affine_utility_match_independent_truth",
+            "struct Mutant"
+          ],
+          "sha256": ""
         }
       ],
       "fixture_payload_sha256": "a1626415293db6820be0cd2324fffd1c9d47949cd866469396c0ecdd50752553"

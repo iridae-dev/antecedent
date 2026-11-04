@@ -46,19 +46,23 @@ record_sha256 = "99d18953a86691f5eb5d3e9add91461f4a39395856961000100b4c13fa9e423
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/scenario_invariance.rs"
-sha256 = "8bdeddcabfb1607f619b5842c9e7c731816dd0ecb94de93825ba4fdf57e5e74b"
+items = ["const INVARIANCE_INCONSISTENT_DETAIL", "const INVARIANCE_NON_STATIC_DETAIL", "enum InvarianceBody", "fn body", "fn canonical_text", "fn digest", "fn district_selection_targets", "fn identified_body", "fn identity", "fn inconsistent", "fn invariance_report", "fn invariances", "fn non_static", "fn obligation_set", "fn obstruction", "fn of", "fn producing_leaves", "fn same_factor", "fn selection", "fn sorted", "fn status", "fn target_factors", "fn unordered", "fn variable_at", "fn witness_of", "struct ConditionalReduction", "struct InvarianceReport", "struct InvarianceReportError", "struct ObstructionWitness", "struct SelectionDifferences", "struct SourceInvariance", "struct TargetFactor"]
+sha256 = "1c42f55e5d6c9018824b3d81b0f0eefa2549182b98231c7b69770bdb0e68c921"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/scenario_invariance_report.rs"
-sha256 = "536982e506fdb5f0cfae262894ac6d16caed3f668cbddad92624d9617ad2497f"
+items = ["enum EnvelopeSide", "fn canonical_text", "fn extreme", "fn invariance_report", "fn refuse", "fn scenario", "fn scenario_set_invariance_report", "struct EnvelopeExtremeInvariance", "struct ScenarioInvariance", "struct ScenarioSetInvarianceReport"]
+sha256 = "5920f1e0c49b3b3be267735db993929bdbdfc47d882a4760047fd4043f4ddd73"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/scenario_invariance.rs"
-sha256 = "2dabc547ed4ba02a1f25a65c4618c74950d5aac8baf2855d1b97f4421054f0f6"
+items = ["const X", "const Y", "const Z", "fn catalog", "fn decide", "fn query", "fn regime", "fn report", "fn scenario", "fn scenario_in_order", "fn scenario_invariance_a_scenario_without_its_evidence_reports_no_invariances", "fn scenario_invariance_no_selection_relies_on_the_direct_source_experiment_alone", "fn scenario_invariance_scenarios_with_different_answers_report_different_invariance_sets", "fn scenario_invariance_selection_on_the_outcome_gives_an_obstruction_and_no_invariance_list", "fn scenario_invariance_selection_on_the_treatment_changes_the_difference_not_the_invariance", "fn scenario_invariance_standardize_relies_on_the_source_conditional_and_the_target_marginal", "fn scenario_invariance_the_identity_ignores_edge_selection_and_scenario_order", "fn schema", "fn v", "fn y_given_do_x"]
+sha256 = "51c049107901ec54a181a2f6cdd0f2ae201a23d6779ba2584e1a290cc0f80d48"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/scenario_invariance_report.rs"
-sha256 = "bc6cc5abddfabad907897792222769de74eab8c7133a5eaa55b890523ceb1393"
+items = ["const DIRECT", "const SOURCE", "const STANDARDIZED", "const TARGET", "const X", "const Y", "const Z", "fn assert_refused", "fn axis", "fn four", "fn invariances", "fn laws", "fn prepared", "fn regime", "fn run", "fn scenario", "fn scenario_invariance_a_report_for_another_set_is_refused", "fn scenario_invariance_each_envelope_extreme_lists_the_edges_selections_and_invariances_behind_it", "fn scenario_invariance_every_scenario_is_reported_and_an_unidentified_one_has_no_invariances", "fn scenario_invariance_the_report_is_independent_of_scenario_supply_order", "fn v", "fn y_given_do_x"]
+sha256 = "757959a8d874de2a18b494a09edc4cc0c404ba83d279ffa208f3abcfaf05ef44"

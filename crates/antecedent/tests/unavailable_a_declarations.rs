@@ -143,16 +143,22 @@ fn the_categorical_request_has_no_weight_cluster_or_lag_field_and_no_cluster_rob
     assert_eq!(fit.declared_rows.as_ref().unwrap().clusters, Some(4));
     assert_eq!(fit.spec.covariance.as_str(), "cluster_robust");
     let text = categorical(&clustered, &CategoricalRowsRequest::default()).unwrap_err().to_string();
-    assert!(text.contains("vector_treatment.cluster_ids_required"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::vector_treatment::CLUSTER_IDS_REQUIRED),
+        "{text}"
+    );
     let text = categorical(&request, &ids).unwrap_err().to_string();
-    assert!(text.contains("vector_treatment.cluster_unread"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::vector_treatment::CLUSTER_UNREAD),
+        "{text}"
+    );
     // A serial lag is read by the Newey-West covariance only.
     let serial = categorical_request(CovarianceKindWire::NeweyWest);
     let lag = CategoricalRowsRequest { serial_lag: Some(2), ..Default::default() };
     let fit = categorical(&serial, &lag).expect("a lag is read").report();
     assert_eq!(fit.declared_rows.as_ref().unwrap().serial_lag, Some(2));
     let text = categorical(&request, &lag).unwrap_err().to_string();
-    assert!(text.contains("vector_treatment.lag_unread"), "{text}");
+    assert!(text.contains(antecedent_core::reason_details::vector_treatment::LAG_UNREAD), "{text}");
     // Weights under the model-based variance are refused: it would treat them as precision weights.
     let model = categorical_request(CovarianceKindWire::ModelBased);
     let text = categorical(&model, &rows).unwrap_err().to_string();
@@ -246,7 +252,7 @@ fn the_dose_grid_request_has_no_weight_cluster_or_lag_field_and_no_categorical_d
     short.sampling_weights = Some(vec![1.0; 200]);
     assert_eq!(
         DoseGridFunctional::evaluate(short).unwrap_err().refusal().1,
-        "dose_grid.invalid_request"
+        antecedent_core::reason_details::dose_grid::INVALID_REQUEST
     );
 
     // A categorical design is not one of the two spellings; it is refused with a typed detail.
@@ -254,7 +260,7 @@ fn the_dose_grid_request_has_no_weight_cluster_or_lag_field_and_no_categorical_d
         .expect_err("categorical was read");
     let (code, detail) = error.refusal();
     assert_eq!(code.to_string(), "route_not_supported");
-    assert_eq!(detail, "dose_grid.unsupported_semantics");
+    assert_eq!(detail, antecedent_core::reason_details::dose_grid::UNSUPPORTED_SEMANTICS);
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -37,17 +37,20 @@ record_sha256 = "5b387af4fd846f6fb58bfad5222ed1db8df9420b0dd41f13007c4779465170e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/conflict.rs"
-sha256 = "0b37731107ab303b6a6809428389ede9e6cd930d6980b93ccf607509a490e027"
+items = ["fn apply_conflict_and_compose", "fn compose_with_conflict_policy", "fn estimate_conflict_signals", "fn new", "fn shrink_alpha", "fn try_new", "fn validate", "struct ConflictPolicy", "struct ConflictSignals"]
+sha256 = "a33ec5633b09e2bb898ff2553d363ad235bf63da0e8818282b0575dad7bf53cc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/divergence.rs"
-sha256 = "be11ced6140340247662351d504432e6674464ed05aecbb236033ba94eb76be3"
+items = ["fn gaussian_kl", "fn new", "fn x_minus_ln1p"]
+sha256 = "9235b2e8940d7bcd2696b4f9d9a07a602d62fae3187086f51987576c79a36433"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/conflict_policy_reference.rs"
-sha256 = "46486f2da60d79ca9fa06a874c0a5f2082b78fc460b09a20fd55f260856b1012"
+items = ["fn alpha_shrink_equals_the_stated_formula", "fn gauss", "fn gaussian_divergence_matches_high_precision_across_variance_ratios", "fn invalid_signals_drop_the_source_instead_of_passing_it", "fn opt", "fn reference", "fn shrink_then_compose_equals_the_precision_weighted_reference"]
+sha256 = "ea77ae8bdbc34ed2b5fa7890e6c7b66edf8c76d063d7f4a73101eff87a67336e"
 
 [[method_review.artifacts]]
 role = "reference"

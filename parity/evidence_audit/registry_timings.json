@@ -22,14 +22,14 @@
   "final_inventory": {
     "command": [
       "python3",
-      "scripts/check_v3_test_registry.py"
+      "scripts/check_test_registry.py"
     ],
     "wall_seconds": 6.376893333042972,
     "user_seconds": 5.804415,
     "system_seconds": 0.5352089999999999,
     "peak_rss_bytes": 210485248,
     "exit_code": 0,
-    "stdout": "v3 test registry OK: 2388 registered test\n",
+    "stdout": "test registry OK: 2388 registered test\n",
     "source_sha256": "6aabd27fe12f9058d0e1d54a43a9f340d2c0270641337654687eb94c147aa158",
     "registry_sha256": "0669cd81e6e65cccfcd34a51aca97af390afcb32d2703fcc687a771e755cde98"
   },

@@ -32,17 +32,20 @@ record_sha256 = "8a329a175f17fdf8fc751cad2ff85e7b2df687de351b40e6836c2f7d1a67697
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/ranking.rs"
-sha256 = "3551209e93700b60e79f6cdcd9a871a8593e25d10a441174f734afbe9f22230e"
+items = ["enum CalibrationStatus", "enum CandidateScope", "fn rank", "fn rank_tables", "fn rank_validated", "fn top_share", "struct CandidateRankStatement", "struct RankingReport", "struct RankingRequest", "struct StatementLabel", "struct TopKEstimate"]
+sha256 = "93ecb885f3222fd070781873a5b2e0a97a5ece877d410fab56d0e6becb1b055e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/mc_error.rs"
-sha256 = "f54d1d36153f1cd8cf2039783e84d1cbb0ad54b760bbc6012e6b61cff4de3811"
+items = ["const EPS", "const MAX_ITERATIONS", "const TINY", "enum BatchPlan", "enum Functional", "enum RiskTail", "enum StandardErrorMethod", "enum ThresholdSide", "fn batch_means", "fn batch_quantiles", "fn batches", "fn beta_continued_fraction", "fn cvar_lower", "fn estimate", "fn finite_checked", "fn influence_method", "fn maritz_jarrett_se", "fn mean_like", "fn order_index", "fn quantile_estimate", "fn regularized_beta", "fn series_stats", "fn sorted_copy", "fn validate", "fn welford", "struct FunctionalEstimate", "struct McEstimate", "struct SeriesStats", "type MeanLikeSeries"]
+sha256 = "e5d209582c885edea1e07f8213948290f5f2c490cec43343663862c53f34dbef"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/ranking_statement_reference.rs"
-sha256 = "721e1c9bf6d0d632600a3d7ad53a74dadf523f7a2f4ef01d81ca00cf1bedab46"
+items = ["fn close", "fn floats", "fn ranking_probabilities_and_errors_match_exact_enumeration"]
+sha256 = "e3963ef91db27805f84a548d3e7ee3f5143a04c2fc7585ae6a0f2eb4641fffc7"
 
 [[method_review.artifacts]]
 role = "reference"

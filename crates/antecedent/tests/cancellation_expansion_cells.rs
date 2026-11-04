@@ -202,7 +202,8 @@ fn batch_retarget_max_t_and_batch_preflight_stop_typed_at_every_poll() {
     };
 
     let is_stop = |e: &antecedent::BatchRetargetError| {
-        (e.code, e.detail) == ("cancelled_no_claim", "batch_retarget.cancelled")
+        (e.code, e.detail)
+            == ("cancelled_no_claim", antecedent_core::reason_details::batch_retarget::CANCELLED)
     };
     assert!(is_stop(&prepared.retarget(&scores, &request, &pre_cancelled()).unwrap_err()));
     let polls = sweep(50, |ctx| prepared.retarget(&scores, &request, ctx), is_stop);
@@ -212,7 +213,9 @@ fn batch_retarget_max_t_and_batch_preflight_stop_typed_at_every_poll() {
 
     // The unpublished max-t evaluator polls every 1024 draws: 5000 draws make five polls.
     let corr = JointCovariance { dim: 2, values: Arc::from(vec![1.0, 0.3, 0.3, 1.0]) };
-    let draw_stop = |e: &antecedent::BatchRetargetError| e.detail == "batch_retarget.cancelled";
+    let draw_stop = |e: &antecedent::BatchRetargetError| {
+        e.detail == antecedent_core::reason_details::batch_retarget::CANCELLED
+    };
     let stopped = max_t_critical_value(&corr, 0.95, 1, 5000, &pre_cancelled()).unwrap_err();
     assert!(draw_stop(&stopped));
     let draws = sweep(50, |ctx| max_t_critical_value(&corr, 0.95, 1, 5000, ctx), draw_stop);
@@ -265,7 +268,8 @@ fn inverse_outcome_stops_typed_at_an_action_without_a_classification() {
     let cancelled = CancellationToken::new();
     cancelled.cancel();
     let stop = |e: &antecedent::InverseOutcomeError| {
-        (e.code, e.detail) == ("transport_budget_cancel", "inverse.cancelled")
+        (e.code, e.detail)
+            == ("transport_budget_cancel", antecedent_core::reason_details::inverse::CANCELLED)
     };
     assert!(stop(&run(&cancelled).unwrap_err()));
     for checks in 0..grid.len() {
@@ -352,7 +356,8 @@ fn tier_diagnostics_stop_typed_at_every_poll_without_a_partial_read() {
         false,
     );
     let stop = |e: &antecedent::TierDiagnosticsError| {
-        (e.code, e.detail) == ("cancelled_no_claim", "tier_diagnostics.cancelled")
+        (e.code, e.detail)
+            == ("cancelled_no_claim", antecedent_core::reason_details::tier_diagnostics::CANCELLED)
     };
     for (name, result, minimum) in
         [("co-determined", &co_result, 2), ("unknown", &unknown_result, 3)]

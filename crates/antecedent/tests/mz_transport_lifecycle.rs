@@ -296,11 +296,17 @@ fn a_mutated_artifact_fails_independent_consumption() {
     let MzTransportArtifactError::ProofMismatch(inner) = refused(&forged) else { unreachable!() };
     assert_eq!(
         antecedent_identify::mz_transport_refusal(&inner),
-        Some(("transport_not_certified", "mz_transport.invalid_derivation"))
+        Some((
+            "transport_not_certified",
+            antecedent_core::reason_details::mz_transport::INVALID_DERIVATION
+        ))
     );
     assert_eq!(
         MzTransportArtifactError::ProofMismatch(inner).refusal(),
-        Some(("transport_not_certified", "mz_transport.invalid_derivation"))
+        Some((
+            "transport_not_certified",
+            antecedent_core::reason_details::mz_transport::INVALID_DERIVATION
+        ))
     );
     // Uncertainty bookkeeping cannot claim an interval exact laws do not have.
     let claimed = mutate(&|w| w.uncertainty.status = MZ_NOMINAL_INTERVAL.into());
@@ -530,7 +536,10 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
     );
     let (code, text) = message(counts_error);
     assert_eq!(code, "transport_missing_provider");
-    assert!(text.starts_with("mz_transport.empirical_counts_required"), "{text}");
+    assert!(
+        text.starts_with(antecedent_core::reason_details::mz_transport::EMPIRICAL_COUNTS_REQUIRED),
+        "{text}"
+    );
 }
 
 #[test]
@@ -576,7 +585,10 @@ fn preparation_refusals_carry_their_recorded_code_and_detail() {
     .unwrap_err();
     assert_eq!(
         pair(mismatch),
-        ("invalid_argument", "mz_transport.functional_graph_mismatch".to_owned())
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::mz_transport::FUNCTIONAL_GRAPH_MISMATCH.to_owned()
+        )
     );
     // An empirical preparation over laws without counts.
     let counts = StudyBuilder::mz_transport_empirical(
@@ -591,7 +603,10 @@ fn preparation_refusals_carry_their_recorded_code_and_detail() {
     .unwrap_err();
     assert_eq!(
         pair(counts),
-        ("transport_missing_provider", "mz_transport.empirical_counts_required".to_owned())
+        (
+            "transport_missing_provider",
+            antecedent_core::reason_details::mz_transport::EMPIRICAL_COUNTS_REQUIRED.to_owned()
+        )
     );
 }
 
@@ -599,13 +614,14 @@ fn preparation_refusals_carry_their_recorded_code_and_detail() {
 fn the_facade_error_reports_the_recorded_top_level_code() {
     use antecedent::CausalError;
     use antecedent_identify::IdentificationError;
-    let proof =
-        CausalError::Serialization(IoError::MzTransport(MzTransportArtifactError::ProofMismatch(
-            IdentificationError::invalid_derivation("mz_transport.invalid_derivation"),
-        )));
+    let proof = CausalError::Serialization(IoError::MzTransport(
+        MzTransportArtifactError::ProofMismatch(IdentificationError::invalid_derivation(
+            antecedent_core::reason_details::mz_transport::INVALID_DERIVATION,
+        )),
+    ));
     assert_eq!(proof.reason_code(), Some("transport_not_certified"));
     let bound = CausalError::Identify(IdentificationError::UnsupportedInput {
-        code: "mz_transport.bounds_exceeded",
+        code: antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED,
     });
     assert_eq!(bound.reason_code(), Some("route_not_supported"));
     let invalid = CausalError::Identify(IdentificationError::invalid_input(

@@ -215,7 +215,7 @@ fn source_projection_changed_data_seed_source_and_unsupported_mean_functionals_r
         let (changed, ctx, _) = prepared(shift, seed);
         assert_eq!(
             SourceResolution::execute(&evidence, &changed, &ctx).unwrap_err().detail,
-            "source_evidence.source_binding_mismatch"
+            antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH
         );
     }
     let mut nonlinear = contract(&evidence);
@@ -228,7 +228,7 @@ fn source_projection_changed_data_seed_source_and_unsupported_mean_functionals_r
         )
         .unwrap_err()
         .to_string()
-        .contains("source_projection.affine_contract_refused")
+        .contains(antecedent_core::reason_details::source_projection::AFFINE_CONTRACT_REFUSED)
     );
     let mut wrong = contract(&evidence);
     wrong.actions[0].inputs[0].units = "unconverted_units".into();
@@ -239,7 +239,7 @@ fn source_projection_changed_data_seed_source_and_unsupported_mean_functionals_r
         )
         .unwrap_err()
         .to_string()
-        .contains("source_projection.coordinate_mismatch")
+        .contains(antecedent_core::reason_details::source_projection::COORDINATE_MISMATCH)
     );
 }
 #[test]
@@ -279,7 +279,7 @@ fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes
             SourceProjectionArtifact::consume(&resealed, &mutant.identity)
                 .unwrap_err()
                 .to_string()
-                .contains("source_projection.replay_mismatch"),
+                .contains(antecedent_core::reason_details::source_projection::REPLAY_MISMATCH),
             "{field}"
         );
     }
@@ -444,7 +444,7 @@ fn source_projection_external_attestation_and_exact_coordinates_bind_actual_mean
             &SuppliedSources::default(),
         )
         .unwrap();
-    assert!(consumed.nodes().iter().any(|node|matches!(&node.status,NodeStatus::Failed{stage:BundleStage::SwappedEvidence,reason} if reason=="composition_bundle.swapped_evidence")));
+    assert!(consumed.nodes().iter().any(|node|matches!(&node.status,NodeStatus::Failed{stage:BundleStage::SwappedEvidence,reason} if reason==antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE)));
 }
 
 #[test]
@@ -495,7 +495,7 @@ fn selected_affine_functional_replays_full_original_request_and_refuses_unsuppor
         )
         .unwrap_err()
         .to_string()
-        .contains("source_projection.limits_exceeded")
+        .contains(antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED)
     );
     for projection in [
         SourceProjection::AffineDecision { contract: declaration.clone() },
@@ -508,7 +508,7 @@ fn selected_affine_functional_replays_full_original_request_and_refuses_unsuppor
             )
             .unwrap_err()
             .to_string()
-            .contains("source_projection.unsupported_coordinate")
+            .contains(antecedent_core::reason_details::source_projection::UNSUPPORTED_COORDINATE)
         );
     }
 }

@@ -255,7 +255,11 @@ fn nested_fit_replay_refuses_resealed_semantic_mutations() {
     // An adjacent graph (the bidirected edge removed) is outside the one selected pilot.
     let error = refusal(&resealed(&wire, |w| w.graph.bidirected.clear()));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
-    assert!(error.to_string().contains("nested_markov.outside_binary_pilot"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT)
+    );
     // So is a different directed edge.
     let error = refusal(&resealed(&wire, |w| w.graph.directed.push((0, 3))));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
@@ -265,7 +269,11 @@ fn nested_fit_replay_refuses_resealed_semantic_mutations() {
         w.regimes[0].fixed = vec![1];
     }));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
-    assert!(error.to_string().contains("nested_markov.outside_binary_pilot"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT)
+    );
     // A non-binary domain is outside the pilot.
     let error = refusal(&resealed(&wire, |w| w.regimes[0].levels = vec![2, 3, 2, 2]));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
@@ -373,6 +381,9 @@ fn nested_fit_replay_producer_refuses_outside_the_pilot_without_a_nonidentificat
         .expect_err("an adjacent ADMG is refused");
     assert_eq!(error.reason_code(), Some("route_not_supported"));
     let message = error.to_string();
-    assert!(message.contains("nested_markov.outside_binary_pilot"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT),
+        "{message}"
+    );
     assert!(!message.contains("nonidentif") && !message.contains("not_identified"), "{message}");
 }

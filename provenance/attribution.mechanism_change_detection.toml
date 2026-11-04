@@ -38,12 +38,14 @@ record_sha256 = "1c484f81df753b313af6b877137a9168da928a8f0df087e9263f1d61bbc36b4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/mechanism_change.rs"
-sha256 = "5aadfc1a68c49a48f71e12e240ad81061f4df07691b2ee73c5c70e358415a11a"
+items = ["const MIN_POPULATION_ROWS", "const NIG_ALPHA0", "const NIG_KAPPA0", "const PARENT_SHIFT_ALPHA", "enum MechanismChangeMethod", "fn baseline_cross_fit_folds", "fn charge_run_validation", "fn cross_fitted_residuals", "fn detect_mechanism_changes", "fn detect_mechanism_changes_with_correction", "fn gaussian_lr_statistic", "fn kfold_row_indices", "fn mechanism_change_posterior", "fn mechanism_change_posterior_impl", "fn nig_log_marginal", "fn parent_covariate_shift_detected", "fn poll_run_cancellation", "fn residual_pairs", "fn residual_stream_id", "fn residuals", "fn sample_mean", "fn serial_inflation", "fn serial_inflation_with_runs", "fn validate_runs", "struct MechanismChangePosterior", "type PopulationRuns", "type TargetResiduals"]
+sha256 = "89b8c946cad2941723c8057f07a03422fd16907008121f17a06c50ad11fb85db"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs"
-sha256 = "8d454eeafd66901c47ceb60f3e513a2b8b2922f9b249f6f20741ad4c71f9bf9d"
+items = ["fn bh", "fn close", "fn detection_statistics_and_family_correction_match_the_reference", "fn floats"]
+sha256 = "9bb9730599ad63693ecc130eec0a801cf678d08c70fe90cbaa5f20f674b4e3aa"
 
 [[method_review.artifacts]]
 role = "reference"

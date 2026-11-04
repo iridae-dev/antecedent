@@ -14,6 +14,7 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision_reliability as dr
 from antecedent.errors import CausalValueError
 from antecedent.outcomes import require_success
@@ -144,7 +145,9 @@ def test_refusals_for_small_samples_levels_and_undeclared_dependence() -> None:
         require_success(
             dr.derive_uncertainty(_law(times=1), _request(), dr.IntervalRequest(level=0.95))
         )
-    assert raised.value.detail == "decision_reliability.effective_sample_size_too_small"
+    assert (
+        raised.value.detail == reason_details.decision_reliability.EFFECTIVE_SAMPLE_SIZE_TOO_SMALL
+    )
     assert raised.value.reason_code == "route_not_supported"
     with pytest.raises(DR) as raised:
         require_success(dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.3)))
@@ -241,7 +244,7 @@ def test_point_only_and_undeclared_outputs_refuse_with_typed_reasons() -> None:
         assert raised.value.reason_code == code
     with pytest.raises(DR) as raised:
         dr.reach_carrier(_cohort(reported_means={"treat": 9.0}))
-    assert raised.value.detail == "decision_reliability.producer_mean_disagrees"
+    assert raised.value.detail == reason_details.decision_reliability.PRODUCER_MEAN_DISAGREES
 
 
 def _rollout(noise: str) -> dr.RolloutUtilityDraws:

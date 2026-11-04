@@ -78,18 +78,33 @@ impl LawFunctionalArtifact {
             .cloned()
             .map(antecedent_contract::ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| functional_invalid("functional_source.invalid_source"))?;
+            .map_err(|_| {
+                functional_invalid(
+                    antecedent_core::reason_details::functional_source::INVALID_SOURCE,
+                )
+            })?;
         evidence
             .require_quantity_binding(&quantities, &self.source.metadata().identity.snapshot_id)
-            .map_err(|_| functional_invalid("functional_source.invalid_source"))?;
+            .map_err(|_| {
+                functional_invalid(
+                    antecedent_core::reason_details::functional_source::INVALID_SOURCE,
+                )
+            })?;
         self.source_evidence = Some(
             evidence
                 .project(
-                    &contract_to_json(&self.contract)
-                        .map_err(|_| functional_invalid("functional_source.invalid_contract"))?,
+                    &contract_to_json(&self.contract).map_err(|_| {
+                        functional_invalid(
+                            antecedent_core::reason_details::functional_source::INVALID_CONTRACT,
+                        )
+                    })?,
                     &[self.action.clone()],
                 )
-                .map_err(|_| functional_invalid("functional_source.invalid_source"))?,
+                .map_err(|_| {
+                    functional_invalid(
+                        antecedent_core::reason_details::functional_source::INVALID_SOURCE,
+                    )
+                })?,
         );
         Ok(self)
     }
@@ -118,9 +133,9 @@ impl LawFunctionalArtifact {
         let law = format!("distribution:{}", crate::decision_artifact::source_digest(&self.source));
         let decision = format!(
             "decision_contract:{}",
-            self.contract
-                .identity()
-                .map_err(|_| functional_invalid("functional_source.invalid_contract"))?
+            self.contract.identity().map_err(|_| functional_invalid(
+                antecedent_core::reason_details::functional_source::INVALID_CONTRACT
+            ))?
         );
         let transform = format!(
             "functional:{}",
@@ -140,19 +155,23 @@ impl LawFunctionalArtifact {
             link(transform.clone(), CompositionStage::Transformation, vec![law, decision]),
             link("claim".into(), CompositionStage::Claim, vec![transform]),
         ])
-        .map_err(|_| functional_invalid("functional_source.invalid_source"))
+        .map_err(|_| {
+            functional_invalid(antecedent_core::reason_details::functional_source::INVALID_SOURCE)
+        })
     }
     /// Complete semantic source standing and original-law contributor coordinates.
     /// # Errors
     /// Invalid original chain.
     pub fn summary(&self) -> Result<serde_json::Value, IoError> {
         let chain = self.provenance_chain()?;
-        let action = self
-            .contract
-            .actions
-            .iter()
-            .find(|action| action.id == self.action)
-            .ok_or_else(|| functional_invalid("functional_source.missing_action"))?;
+        let action =
+            self.contract.actions.iter().find(|action| action.id == self.action).ok_or_else(
+                || {
+                    functional_invalid(
+                        antecedent_core::reason_details::functional_source::MISSING_ACTION,
+                    )
+                },
+            )?;
         Ok(serde_json::json!({
             "identity":blake3_hex(&self.export()?),
             "value":self.result.value,"standard_error":self.result.standard_error,"source_mode":format!("{}:{}", self.result.source_mode.representation.label(), self.result.source_mode.needs_error_receipt),
@@ -163,8 +182,8 @@ impl LawFunctionalArtifact {
             "verification_scope":"original finite law and functional replay; source labels preserve declared standing",
             "native_authority_issued":false,"calibration_support_issued":false,
             "lineage":chain.links().iter().map(|link| {
-                let digest = chain.digest_of(&link.id).map_err(|_| functional_invalid("functional_source.invalid_source"))?;
-                let parent_digests = link.parents.iter().map(|id| chain.digest_of(id).map_err(|_| functional_invalid("functional_source.invalid_source"))).collect::<Result<Vec<_>, _>>()?;
+                let digest = chain.digest_of(&link.id).map_err(|_| functional_invalid(antecedent_core::reason_details::functional_source::INVALID_SOURCE))?;
+                let parent_digests = link.parents.iter().map(|id| chain.digest_of(id).map_err(|_| functional_invalid(antecedent_core::reason_details::functional_source::INVALID_SOURCE))).collect::<Result<Vec<_>, _>>()?;
                 Ok::<_, IoError>(serde_json::json!({
                     "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,"digest":digest,
                     "parent_digests":parent_digests
@@ -177,14 +196,19 @@ impl LawFunctionalArtifact {
     /// Original encoding failure or oversized envelope.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
         if self.source.draws().len().checked_mul(8).is_none_or(|size| size > MAX_BYTES) {
-            return Err(functional_invalid("functional_source.limits_exceeded"));
+            return Err(functional_invalid(
+                antecedent_core::reason_details::functional_source::LIMITS_EXCEEDED,
+            ));
         }
         let mut bytes = MAGIC.to_vec();
         bytes.extend(to_cbor(&Wire {
             source: self.source.to_bytes("functional-original-law")?,
             expected: self.source.metadata().identity.clone(),
-            contract: contract_to_json(&self.contract)
-                .map_err(|_| functional_invalid("functional_source.invalid_contract"))?,
+            contract: contract_to_json(&self.contract).map_err(|_| {
+                functional_invalid(
+                    antecedent_core::reason_details::functional_source::INVALID_CONTRACT,
+                )
+            })?,
             action: self.action.clone(),
             functional: self.functional,
             value: self.result.value,
@@ -194,10 +218,16 @@ impl LawFunctionalArtifact {
                 .as_ref()
                 .map(crate::source_evidence::SourceEvidence::export)
                 .transpose()
-                .map_err(|_| functional_invalid("functional_source.invalid_source"))?,
+                .map_err(|_| {
+                    functional_invalid(
+                        antecedent_core::reason_details::functional_source::INVALID_SOURCE,
+                    )
+                })?,
         })?);
         if bytes.len() > MAX_BYTES {
-            return Err(functional_invalid("functional_source.limits_exceeded"));
+            return Err(functional_invalid(
+                antecedent_core::reason_details::functional_source::LIMITS_EXCEEDED,
+            ));
         }
         Ok(bytes)
     }
@@ -212,31 +242,42 @@ impl LawFunctionalArtifact {
     /// Any original refusal or changed complete request identity.
     pub fn consume_expected(bytes: &[u8], expected: Option<&str>) -> Result<Self, IoError> {
         if bytes.len() > MAX_BYTES {
-            return Err(functional_invalid("functional_source.limits_exceeded"));
+            return Err(functional_invalid(
+                antecedent_core::reason_details::functional_source::LIMITS_EXCEEDED,
+            ));
         }
         if expected.is_some_and(|id| id != blake3_hex(bytes).as_str()) {
-            return Err(functional_invalid("functional_source.expected_identity_mismatch"));
+            return Err(functional_invalid(
+                antecedent_core::reason_details::functional_source::EXPECTED_IDENTITY_MISMATCH,
+            ));
         }
-        let payload = bytes
-            .strip_prefix(MAGIC)
-            .ok_or_else(|| functional_invalid("functional_source.invalid_artifact"))?;
-        let wire: Wire = from_cbor(payload)
-            .map_err(|_| functional_invalid("functional_source.invalid_artifact"))?;
+        let payload = bytes.strip_prefix(MAGIC).ok_or_else(|| {
+            functional_invalid(antecedent_core::reason_details::functional_source::INVALID_ARTIFACT)
+        })?;
+        let wire: Wire = from_cbor(payload).map_err(|_| {
+            functional_invalid(antecedent_core::reason_details::functional_source::INVALID_ARTIFACT)
+        })?;
         let source = DistributionArtifact::from_bytes(&wire.source, &wire.expected)?;
-        let contract = contract_from_json_refusal(&wire.contract)
-            .map_err(|_| functional_invalid("functional_source.invalid_contract"))?;
+        let contract = contract_from_json_refusal(&wire.contract).map_err(|_| {
+            functional_invalid(antecedent_core::reason_details::functional_source::INVALID_CONTRACT)
+        })?;
         let mut result = Self::produce(source, contract, &wire.action, wire.functional)?;
         if let Some(source) = wire.source_evidence {
             result = result.with_source_evidence(
-                &crate::source_evidence::SourceEvidence::consume(&source)
-                    .map_err(|_| functional_invalid("functional_source.invalid_source"))?,
+                &crate::source_evidence::SourceEvidence::consume(&source).map_err(|_| {
+                    functional_invalid(
+                        antecedent_core::reason_details::functional_source::INVALID_SOURCE,
+                    )
+                })?,
             )?;
         }
         if result.result.value.to_bits() != wire.value.to_bits()
             || result.result.standard_error.map(f64::to_bits)
                 != wire.standard_error.map(f64::to_bits)
         {
-            return Err(functional_invalid("functional_source.output_mismatch"));
+            return Err(functional_invalid(
+                antecedent_core::reason_details::functional_source::OUTPUT_MISMATCH,
+            ));
         }
         Ok(result)
     }

@@ -49,6 +49,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -227,7 +229,7 @@ class CohortBinding:
                 if not np.isfinite(numbers).all():
                     raise _refusal(
                         "invalid_argument",
-                        "cohort_decision.cohort_invalid",
+                        _reason_details.cohort_decision.COHORT_INVALID,
                         name,
                         "cohort features must be finite",
                     )
@@ -242,7 +244,7 @@ class CohortBinding:
             if any(not math.isfinite(w) for w in raw):
                 raise _refusal(
                     "invalid_argument",
-                    "cohort_decision.weights_invalid",
+                    _reason_details.cohort_decision.WEIGHTS_INVALID,
                     "weights",
                     "weights must be finite",
                 )
@@ -463,7 +465,7 @@ class CohortDecisionSource(ScientificResult):
                 {
                     "code": "not_supported",
                     "stage": "evaluate",
-                    "detail": "cohort_decision.extrapolative_not_accepted",
+                    "detail": _reason_details.cohort_decision.EXTRAPOLATIVE_NOT_ACCEPTED,
                     "offending": self.population,
                     "message": "a cohort mean transported under a declared covariate shift is "
                     "extrapolative, point-only evidence under an assumption",

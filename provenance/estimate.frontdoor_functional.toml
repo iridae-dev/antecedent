@@ -43,12 +43,14 @@ record_sha256 = "c8ee8a9d2dd2a1b3267bfd4aba20933d29809f32c6876f00d759c60f4056b31
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/frontdoor_functional.rs"
-sha256 = "2128b40293800edd59ae25d7e827f46ba768fed16bc9b0d6096d68b3cd69fa58"
+items = ["const ALGORITHM", "const ARM_LINEAR_ASSUMPTION_ID", "const MAX_SATURATED_MEDIATOR_LEVELS", "const MAX_TREATMENT_LEVELS", "const SATURATED_ASSUMPTION_ID", "enum FrontDoorOutcomeModel", "enum OutcomeFit", "enum ResolvedModel", "fn arm_linear", "fn attach_bootstrap", "fn bootstrap_se", "fn contrast", "fn default", "fn fit", "fn level_codes", "fn level_index", "fn mean", "fn model_assumption", "fn new", "fn prepare", "fn require_declared_design_read", "fn residual", "fn residual_weight", "fn resolve_model", "fn saturated", "fn with_outcome_model", "struct Contrast", "struct FrontDoorFunctional", "struct Sample"]
+sha256 = "c562b42eea02b4c103fb4c41f5b7790b41fe68e691f6269bc4b0ffbdaf425b37"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/frontdoor_functional_reference.rs"
-sha256 = "b44710dabe4f3ea926cd05816077a2d0253798f71df1ad693dd0cd9d2da7e940"
+items = ["fn close", "fn data_and_estimand", "fn floats", "fn plug_in_effect_and_influence_standard_error_match_the_mass_derivative_reference"]
+sha256 = "312d2f0819a52cf26d67913db12a271bd8cafb5a63470d81c623358a1760c646"
 
 [[method_review.artifacts]]
 role = "reference"

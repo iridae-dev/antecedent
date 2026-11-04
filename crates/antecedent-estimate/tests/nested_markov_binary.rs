@@ -96,7 +96,10 @@ fn coded(error: &EstimationError) -> (&'static str, String) {
 fn assert_outside(error: &EstimationError) {
     let (code, message) = coded(error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("nested_markov.outside_binary_pilot"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT),
+        "{message}"
+    );
     assert!(!message.contains("nonidentif") && !message.contains("not_identified"), "{message}");
 }
 
@@ -204,7 +207,7 @@ fn nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fails()
     let refusal = fit_nested_markov(&counts, &strict, &ctx).expect_err("strict refusal");
     let (code, message) = coded(&refusal.error);
     assert_eq!(code, "transport_numerical_failure");
-    assert!(message.contains("nested_markov.constraint_violated"));
+    assert!(message.contains(antecedent_core::reason_details::nested_markov::CONSTRAINT_VIOLATED));
     assert!(refusal.diagnostics.is_some());
     let route = refusal.route.expect("constrained-draw record");
     assert!(route.failed());
@@ -279,7 +282,10 @@ fn nested_fit_diagnostics_boundary_refuses_with_retained_diagnostics() {
         fit_nested_markov(&counts, &FitOptions::default(), &ctx).expect_err("boundary fit");
     let (code, message) = coded(&refusal.error);
     assert_eq!(code, "transport_numerical_failure");
-    assert!(message.contains("nested_markov.fitted_boundary"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::nested_markov::FITTED_BOUNDARY),
+        "{message}"
+    );
     let d = refusal.diagnostics.expect("diagnostics retained");
     assert!(d.boundary_count.is_some_and(|c| c > 0));
     assert!(d.boundary_margin.is_some_and(|m| m <= 1e-9));
@@ -303,7 +309,10 @@ fn nested_fit_diagnostics_non_convergence_is_typed_and_keeps_state() {
     let refusal = fit_nested_markov(&counts, &options, &ctx).expect_err("not converged");
     let (code, message) = coded(&refusal.error);
     assert_eq!(code, "transport_numerical_failure");
-    assert!(message.contains("nested_markov.fit_not_converged"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::nested_markov::FIT_NOT_CONVERGED),
+        "{message}"
+    );
     let d = refusal.diagnostics.expect("diagnostics retained");
     assert_eq!(d.iterations, 1);
     assert!(!d.converged);
@@ -343,7 +352,7 @@ fn nested_fit_diagnostics_bounds_cancellation_and_positivity() {
     let refusal = fit_nested_markov(&sparse, &FitOptions::default(), &ctx).expect_err("zero cell");
     let (code, message) = coded(&refusal.error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("nested_markov.positivity"));
+    assert!(message.contains(antecedent_core::reason_details::nested_markov::POSITIVITY));
     let route = refusal.route.expect("positivity record");
     assert!(route.failed());
     assert_eq!(route.route_name(), "positivity");

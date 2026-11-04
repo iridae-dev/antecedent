@@ -84,7 +84,27 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_intervention_response_refuter_truth.rs",
-          "sha256": "34f4d9749e721b89473a5ba1f47fcadabeb8881a44035bc368e863281b8d1ec5"
+          "items": [
+            "const FIXTURE",
+            "enum Structure",
+            "fn bayesian",
+            "fn bayesian_level_cheap_and_full_pass_on_the_clean_law_at_the_closed_form_level",
+            "fn bayesian_level_refuters_detect_planted_positivity_and_curvature_violations",
+            "fn bayesian_level_refuters_execute_from_the_retained_plan_with_the_builder_dropped",
+            "fn contract",
+            "fn data",
+            "fn graph",
+            "fn level_query",
+            "fn normal",
+            "fn posterior",
+            "fn published_level",
+            "fn report",
+            "fn study",
+            "fn uniform",
+            "struct Contract",
+            "struct Stream"
+          ],
+          "sha256": "b8b976764d0fceb33acb6f64f17669adde9639d5c675be8e180ac30fc10b33eb"
         }
       ],
       "fixture_payload_sha256": "2155e583937c12bf1128742fa193641eabeb60ec72e876ff63528edf5ba52cc1"

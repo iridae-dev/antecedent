@@ -40,22 +40,26 @@ record_sha256 = "ee4c3e74096e332a800e44f91399bcf4f202bd04030ab91d259836b07010e1f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/constraints.rs"
-sha256 = "8483803c3818c649b144119e57e9f5c9a4d54f13da44b0ca2d0192f8628ba2ab"
+items = ["enum CiMaskType", "enum ContextKind", "enum CrossEnvLinkAssumption", "enum JpcmciNodeRole", "enum SpaceDummyCiMode", "enum TimeDummyCiMode", "fn allows_lagged_as_source", "fn build", "fn context_kind", "fn default", "fn gunther_forbids", "fn is_context", "fn is_dummy", "fn is_exogenous", "fn is_observed_context", "fn len", "fn message", "fn role_of", "struct DiscoveryConstraints", "struct MultiDatasetConstraints", "struct TemporalConstraints"]
+sha256 = "65bed20409a4efe485aecf0de1160644e911513ef2557368a78c1bf55490d545"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/pooled_frame.rs"
-sha256 = "2e4dd7007d27e25b514ef8b3e26149c50cbfa75735a38e3852c895a3a2343010"
+items = ["const DEFAULT_MAX_TIME_ONE_HOT_LEVELS", "enum TimeDummyEncoding", "fn default", "fn effective_raw_times", "fn next_synthetic_id", "fn pool_impl", "fn pool_multi_env_lagged_frame", "struct DummyOptions", "struct PooledLaggedFrame"]
+sha256 = "ed16078ca5058d8d946ccb06bffd0502986fa966eb957e41fc071c8108145d3d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/multi_dataset_constraints_reference.rs"
-sha256 = "425af114b76680b19dc7b306d7467b026a0873725adecac0c14895220fa74c81"
+items = ["fn declared", "fn id", "fn the_link_assumption_table_equals_the_written_out_rules"]
+sha256 = "02cf90cfd616f29e6857c78b188ddcd3dadb146e829c4595a1aba83afeb05b2e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs"
-sha256 = "a6598a9f1c4950725f164681332a9af0f5a25fd89234ba67fbf6716efdb7081f"
+items = ["fn environment", "fn the_pooled_frame_equals_its_definition_with_every_dummy_encoding"]
+sha256 = "a7506892de6a58b22186bb6ecea94cf769942f3dab02296a0d8522fe9b3504a7"
 
 [[method_review.artifacts]]
 role = "reference"

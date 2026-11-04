@@ -42,12 +42,14 @@ record_sha256 = "fe91763834fe7236f41980f960ef640c32b1c64dfc593fde66844e026aa54b4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_adjustment.rs"
-sha256 = "01b8c637f08280034e8396319468d56a36b42d56635d938e932880b5bdc35656"
+items = ["const CONDITIONAL_MARKER", "const CONDITIONAL_METHOD", "fn action_ns", "fn admit_temporal_history", "fn assignment", "fn censoring", "fn checked_effect_modifiers", "fn conditional_design", "fn conditional_effect_variance", "fn conditional_method", "fn conditional_modifier_count", "fn default", "fn fit", "fn fit_conditional_point", "fn history", "fn history_operator_refusal", "fn horizon", "fn horizon_steps", "fn new", "fn offset_to_lag", "fn outcome_sample_anchor", "fn point_fitter", "fn point_fitter_with", "fn prepare", "fn prepare_aligned_with_extras", "fn prepare_windows", "fn prepare_with_extras", "fn prepare_with_gaps", "fn query_horizon_end", "fn refuse_conditional_bootstrap", "fn refuse_multi_step_schedule", "fn weight_windows", "struct AdmittedTemporalHistory", "struct GapSelection", "struct TemporalDesignInputs", "struct TemporalLinearAdjustment"]
+sha256 = "fbe9777b116ae1c3a411eef2a8d14d994a4c316abe9ca45b4a95faa4b3beeafe"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_linear_adjustment_reference.rs"
-sha256 = "26921bd3e65eae8686d4fe46630d598305a957c7171913cd0a7af249a4635f7e"
+items = ["fn a_query_declaring_effect_modifiers_is_answered_with_the_conditional_effect_not_the_average_effect", "fn aligned_windows_effect_and_standard_error_match_the_exact_reference", "fn close", "fn floats", "fn graph", "fn series"]
+sha256 = "be5689797b002b24268a9aac0c53a876fe3f29dc2cffe39ca4c6365d4ad33fa1"
 
 [[method_review.artifacts]]
 role = "reference"

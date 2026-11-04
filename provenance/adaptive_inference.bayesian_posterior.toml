@@ -37,17 +37,20 @@ record_sha256 = "b4d0f9cb4f538245382909c2d8ffc73fe0bed82e581a5ae5c92f242ecfa90d3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs"
-sha256 = "12d881b9b03ea045116f977db6408fd24e65e6c43d071d2063f4ffb5f9f782ab"
+items = ["const CANCEL_STRIDE", "const EXACT_BETA_TRIALS", "const FRACTION_EPSILON", "const MAX_BANDIT_ARMS", "const MAX_FRACTION_ITERATIONS", "const MAX_PANELS", "const TAIL_MASS", "const TAIL_STANDARD_DEVIATIONS", "const TINY", "fn alpha", "fn best_arm_probabilities", "fn beta", "fn beta_fraction", "fn cdf", "fn check_arms", "fn expected_losses", "fn is_normal_approximated", "fn ln_density", "fn mean", "fn narrowest", "fn new", "fn panel_count", "fn probability_exceeds", "fn probability_superior", "fn regularized_incomplete_beta", "fn standard_deviation", "fn variance", "fn window", "struct BetaPosterior"]
+sha256 = "f8ab8163872ccc60063615023668042daa10156103cb11d5d1477f11aee37733"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/mod.rs"
-sha256 = "4873d3084c2f6adb3059c730e9ea049cf0fb52a050031bcfc9670f4fd65daa21"
+items = ["module"]
+sha256 = "edb4323e11153516b6f2685d0cbbe0eb4ec3de306c9a97508a808085b0dd64a0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/beta_bernoulli_reference.rs"
-sha256 = "8e633cd2f321dfee3399b268266c3bd562eb00b987a9833162535e930f67fd46"
+items = ["fn arms", "fn best_arm_probabilities_and_losses_match_the_reference", "fn integer_shape_superiority_equals_the_exact_rational_sum", "fn margin_exceedance_matches_the_reference", "fn never", "fn number", "fn reference", "fn the_incomplete_beta_function_matches_the_reference"]
+sha256 = "66e77589fab17d77174edaba29077eac78f98fa3ef34b897697ea2bb4cc971c7"
 
 [[method_review.artifacts]]
 role = "reference"

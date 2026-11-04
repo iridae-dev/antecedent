@@ -504,7 +504,10 @@ fn a_period_shift_response_requires_the_invariance_the_evaluation_was_computed_u
     )
     .unwrap_err();
     assert!(matches!(error, TransportedRefusal::InvalidValue(_)), "{error:?}");
-    assert_eq!(error.detail(), "transported_decision.invalid_value");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::transported_decision::INVALID_VALUE
+    );
 }
 
 #[test]
@@ -619,7 +622,10 @@ fn a_native_bridged_claim_and_a_foreign_bridge_are_not_transported_responses() {
     // A claim about the validated population is native: nothing is carried.
     let error = bridge_response("adults", &[]).unwrap_err();
     assert_eq!(error, TransportedRefusal::NotTransported);
-    assert_eq!(error.detail(), "transported_decision.not_transported");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::transported_decision::NOT_TRANSPORTED
+    );
 
     // A bridged claim offered with another bridge's declaration is refused.
     let bridge_a = bridge("children", &["biomarker"]);
@@ -684,7 +690,10 @@ fn a_typed_route_cannot_be_declared_by_hand_and_the_declared_route_still_refuses
             TransportedResponse::declared_point(coordinate(), vec![1.0], &declaration(route))
                 .unwrap_err();
         assert_eq!(error, TransportedRefusal::RouteNeedsTypedSource(route));
-        assert_eq!(error.detail(), "transported_decision.route_needs_typed_source");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::transported_decision::ROUTE_NEEDS_TYPED_SOURCE
+        );
     }
 
     // The declared route: free text is accepted, an incomplete identity, a

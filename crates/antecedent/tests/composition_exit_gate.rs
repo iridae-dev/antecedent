@@ -10,7 +10,7 @@
 //! refusal or incomplete side.
 //!
 //! Story 3 checks the public analytic interval. Its coverage is measured separately
-//! in `learned_continuous_calibration.rs` under `scripts/gate_calibration.sh`.
+//! in `learned_continuous_calibration.rs` under `scripts/measure_calibration_groups.sh`.
 //! `scripts/gate_composition_exit.sh` verifies the corresponding coverage records.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -949,7 +949,12 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
         match prepared.estimate(&ctx) {
             Err(IoError::Refused { code, message }) => {
                 assert_eq!(code, "transport_support_failure");
-                assert!(message.starts_with("learned_transport.membership_overlap"), "{message}");
+                assert!(
+                    message.starts_with(
+                        antecedent_core::reason_details::learned_transport::MEMBERSHIP_OVERLAP
+                    ),
+                    "{message}"
+                );
             }
             other => panic!("expected an overlap refusal, got {:?}", other.map(|_| ())),
         }
@@ -962,7 +967,12 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
     {
         Err(IoError::Refused { code, message }) => {
             assert_eq!(code, "transport_support_failure");
-            assert!(message.starts_with("learned_transport.treatment_overlap"), "{message}");
+            assert!(
+                message.starts_with(
+                    antecedent_core::reason_details::learned_transport::TREATMENT_OVERLAP
+                ),
+                "{message}"
+            );
         }
         other => panic!("expected a treatment-overlap refusal, got {:?}", other.map(|_| ())),
     }
@@ -1216,7 +1226,9 @@ fn story_4_two_step_temporal_transport_with_history_support_refusal() {
                 Err(IoError::Refused { code, message }) => {
                     assert_eq!(code, "transport_support_failure");
                     assert!(
-                        message.starts_with("temporal_transport.history_outside_support"),
+                        message.starts_with(
+                            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+                        ),
                         "{message}"
                     );
                     assert!(
@@ -1237,7 +1249,12 @@ fn story_4_two_step_temporal_transport_with_history_support_refusal() {
         match prepared.interval() {
             Err(IoError::Refused { code, message }) => {
                 assert_eq!(code, "estimator_inference_mismatch");
-                assert!(message.starts_with("temporal_transport.interval_requested"), "{message}");
+                assert!(
+                    message.starts_with(
+                        antecedent_core::reason_details::temporal_transport::INTERVAL_REQUESTED
+                    ),
+                    "{message}"
+                );
             }
             other => panic!("expected a typed refusal, got {other:?}"),
         }
@@ -1247,7 +1264,11 @@ fn story_4_two_step_temporal_transport_with_history_support_refusal() {
         match prepare(&three, laws(&source, &target, &[]), &ctx) {
             Err(IoError::Refused { code, message }) => {
                 assert_eq!(code, "route_not_supported");
-                assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+                assert!(
+                    message
+                        .starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+                    "{message}"
+                );
             }
             other => panic!("expected a horizon refusal, got {:?}", other.map(|_| ())),
         }
@@ -1427,7 +1448,10 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         .unwrap();
         let text = check(&graph, &recanting).unwrap_err().to_string();
         assert!(text.contains("reason=cross_world_not_identified"), "{text}");
-        assert!(text.contains("cross_world.recanting_witness"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::RECANTING_WITNESS),
+            "{text}"
+        );
         let text = evaluate_cross_world_effect(
             mediation(),
             &linear(60),
@@ -1438,7 +1462,10 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         .unwrap_err()
         .to_string();
         assert!(text.contains("reason=estimator_inference_mismatch"), "{text}");
-        assert!(text.contains("cross_world.interval_requested"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::INTERVAL_REQUESTED),
+            "{text}"
+        );
         let text = evaluate_cross_world_effect(
             admg(3, &EDGES.map(|(a, b)| (a as usize, b as usize)), &[(1, 2)]),
             &linear(60),
@@ -1449,7 +1476,10 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         .unwrap_err()
         .to_string();
         assert!(text.contains("reason=route_not_supported"), "{text}");
-        assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT),
+            "{text}"
+        );
         // The witness the check returns is what the artifact carries.
         let witness = check(&mediation(), &indirect).unwrap();
         assert_eq!(witness.intervened_edges, vec![(X, M), (M, Y)]);
@@ -1700,7 +1730,10 @@ fn story_6_mixed_source_proof_by_bounded_search_and_an_incomplete_search_stays_u
             decide_mixed_source(&bow, &bow_query, &bow_catalog, MIXED_SOURCE_DEFAULT_LIMITS, &ctx)
                 .unwrap();
         assert_eq!(stuck.reason_code(), Some("transport_not_certified"));
-        assert_eq!(stuck.detail_code(), Some("mixed_search.not_certified"));
+        assert_eq!(
+            stuck.detail_code(),
+            Some(antecedent_core::reason_details::mixed_search::NOT_CERTIFIED)
+        );
         let MixedSourceDecision::NotCertified(inspection) = stuck else { panic!("not certified") };
         assert!(inspection.operations > 0 && inspection.generations > 0);
         assert!(!inspection.frontier.is_empty(), "the receipt lists what was explored");
@@ -1715,7 +1748,10 @@ fn story_6_mixed_source_proof_by_bounded_search_and_an_incomplete_search_stays_u
         )
         .unwrap();
         assert_eq!(stopped.reason_code(), Some("transport_budget_cancel"));
-        assert_eq!(stopped.detail_code(), Some("mixed_search.budget"));
+        assert_eq!(
+            stopped.detail_code(),
+            Some(antecedent_core::reason_details::mixed_search::BUDGET)
+        );
         let MixedSourceDecision::Exhausted(receipt) = stopped else { panic!("exhausted") };
         assert_eq!(receipt.stop, SearchStop::Operations);
         assert_eq!(receipt.operations_consumed, Some(30));

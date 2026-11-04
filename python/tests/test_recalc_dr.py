@@ -8,6 +8,7 @@ from dataclasses import replace
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalValueError
 from antecedent.estimators import DML, DRLearner
 from antecedent.execution import Execution
@@ -186,14 +187,14 @@ def test_dr_portable_scores_and_predictor_fresh_process(tmp_path, cate):
         refusal(
             lambda: session.export_predictor(source=altered),
             "invalid_argument",
-            "recalc.dr_source_mismatch",
+            reason_details.recalc.DR_SOURCE_MISMATCH,
             "data_snapshot",
         )
     else:
         refusal(
             session.export_predictor,
             "route_not_supported",
-            "recalc.dr_predictor_unavailable",
+            reason_details.recalc.DR_PREDICTOR_UNAVAILABLE,
             "score_artifact",
         )
     (tmp_path / "scores").write_bytes(bytes(scores.export()))
@@ -238,7 +239,7 @@ def test_dr_receipt_only_resume_refuses_and_supplied_data_refits(tmp_path):
     refusal(
         lambda: require_success(resumed.execute(r, execution=Execution(seed=3))),
         "score_table_unavailable",
-        "recalc.unavailable_data",
+        reason_details.recalc.UNAVAILABLE_DATA,
         "data_snapshot",
     )
     resumed = require_success(DrSession.resume(receipt, ResumeContext(supplied_data=True)))
@@ -256,7 +257,7 @@ def test_dr_receipt_only_resume_refuses_and_supplied_data_refits(tmp_path):
     )
     wire = json.loads(ran.stdout)
     assert wire == {
-        "detail": "recalc.unavailable_data",
+        "detail": reason_details.recalc.UNAVAILABLE_DATA,
         "folds": 9,
         "models": 1,
         "ate": pytest.approx(2),
@@ -275,21 +276,21 @@ def test_dr_unsupported_score_target_and_prediction_preserve_state():
     refusal(
         lambda: require_success(session.execute(unsupported, execution=Execution(seed=3))),
         "route_not_supported",
-        "recalc.unsupported_request",
+        reason_details.recalc.UNSUPPORTED_REQUEST,
         "treatment_grid",
     )
     for rows, names in [([[0, 0]], ["w", "z"]), ([[0]], ["z", "w"]), ([[np.nan, 0]], ["z", "w"])]:
         refusal(
             lambda rows=rows, names=names: require_success(session.predict(rows, columns=names)),
             "invalid_argument",
-            "recalc.dr_prediction_schema_mismatch",
+            reason_details.recalc.DR_PREDICTION_SCHEMA_MISMATCH,
             "score_artifact",
         )
     unsupported = replace(r, estimator=replace(r.estimator, outcome=Auto()))
     refusal(
         lambda: require_success(session.execute(unsupported, execution=Execution(seed=3))),
         "route_not_supported",
-        "recalc.unsupported_request",
+        reason_details.recalc.UNSUPPORTED_REQUEST,
         "treatment_grid",
     )
     assert session.identities == before
@@ -298,41 +299,41 @@ def test_dr_unsupported_score_target_and_prediction_preserve_state():
     refusal(
         lambda: require_success(marginal.predict([[0, 0]], columns=["z", "w"])),
         "route_not_supported",
-        "recalc.dr_predictor_unavailable",
+        reason_details.recalc.DR_PREDICTOR_UNAVAILABLE,
         "score_artifact",
     )
     invalid = replace(r, target=TargetWeights(np.ones(1), ("z",)))
     refusal(
         lambda: require_success(session.execute(invalid, execution=Execution(seed=3))),
         "invalid_argument",
-        "recalc.invalid_target_weights",
+        reason_details.recalc.INVALID_TARGET_WEIGHTS,
         "target_population",
     )
     refusal(
         lambda: require_success(session.predict([[5, 0]], columns=["z", "w"])),
         "route_not_supported",
-        "recalc.dr_prediction_out_of_support",
+        reason_details.recalc.DR_PREDICTION_OUT_OF_SUPPORT,
         "score_artifact",
     )
     no_arm = replace(r, data={**r.data, "t": np.zeros(840)})
     refusal(
         lambda: require_success(session.execute(no_arm, execution=Execution(seed=3))),
         "arm_not_populated",
-        "recalc.dr_arm_not_populated",
+        reason_details.recalc.DR_ARM_NOT_POPULATED,
         "score_artifact",
     )
     malformed = replace(r, edges=[*r.edges, ("y", "t")])
     refusal(
         lambda: require_success(session.execute(malformed, execution=Execution(seed=3))),
         "invalid_argument",
-        "recalc.invalid_graph",
+        reason_details.recalc.INVALID_GRAPH,
         "graph",
     )
     invalid_query = replace(r, treatment="y")
     refusal(
         lambda: require_success(session.execute(invalid_query, execution=Execution(seed=3))),
         "invalid_argument",
-        "recalc.invalid_query",
+        reason_details.recalc.INVALID_QUERY,
         "query",
     )
     assert session.identities == before
@@ -358,7 +359,7 @@ def test_dr_bounded_native_input_and_learner_configs():
             )
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.memory_budget_exceeded" in str(caught.value)
+    assert reason_details.recalc.MEMORY_BUDGET_EXCEEDED in str(caught.value)
     # The public declaration refuses a one-fold cross-fit before any request exists; the native
     # boundary independently refuses the same count in a request spelled directly.
     with pytest.raises(ValueError, match="at least 2"):
@@ -374,7 +375,7 @@ def test_dr_bounded_native_input_and_learner_configs():
             )
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.dr_invalid_folds" in str(caught.value)
+    assert reason_details.recalc.DR_INVALID_FOLDS in str(caught.value)
     cate = DrSession()
     require_success(cate.execute(request(True), execution=Execution(seed=3)))
 
@@ -396,7 +397,7 @@ def test_dr_bounded_native_input_and_learner_configs():
             )
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.memory_budget_exceeded" in str(caught.value)
+    assert reason_details.recalc.MEMORY_BUDGET_EXCEEDED in str(caught.value)
 
 
 def test_dr_artifact_receipt_count_replay():
@@ -417,7 +418,7 @@ def test_dr_capabilities_inspect_native_score_and_predictor_states():
     refusal(
         lambda: require_success(empty.predict([[0, 0]], columns=["z", "w"])),
         "score_table_unavailable",
-        "recalc.no_live_state",
+        reason_details.recalc.NO_LIVE_STATE,
         "score_artifact",
     )
     for cate in [False, True]:
@@ -521,5 +522,5 @@ def test_dr_bundle_refuses_semantically_changed_resume_state(mutation):
     status = checked.node("scores").status
     assert isinstance(status, Failed)
     assert status.stage == "swapped_evidence"
-    assert status.detail == "composition_bundle.swapped_evidence"
+    assert status.detail == reason_details.composition_bundle.SWAPPED_EVIDENCE
     assert status.code == "external_binding_mismatch"

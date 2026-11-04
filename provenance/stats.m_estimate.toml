@@ -37,22 +37,26 @@ record_sha256 = "75f5c568cf0b78b84e0ded4b6ee497464d87f9cd037f8360aaf4c831be0880f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/m_estimate.rs"
-sha256 = "25dfbebac5c3a524ac281c33c83e4eed33056c8a3bdb1d57dbaa54e1a73b8217"
+items = ["fn default", "fn fit_huber_m", "fn robust_scale", "struct MEstimateFit", "struct MEstimateOptions"]
+sha256 = "8cc4d4dcfdcafd28a57f1fbaa345c1a6f6af4ccd2a77ffd7449a6626f5ca35f3"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/quantile.rs"
-sha256 = "6819e192ae75a9455d9813381f52190924bdaeecd987b8f582847001c6df3d47"
+items = ["module"]
+sha256 = "5c3e70ead6db11697f810248e830f7d93319637cb251cd9442acf3c51639c4ad"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/twosls.rs"
-sha256 = "9a6cee219922a60432ba686a27a0b1fcf9ce97f7732c2ca279faab91fd0d7814"
+items = ["fn fit_wls"]
+sha256 = "f456799c50eebebd93d8fb7595937a7cc71b74afc1772942113590e46fbbdaa3"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/sandwich_reference.rs"
-sha256 = "f78d56ada48a2aed8232eb300f84bdc4f8c7dea5a55d07269afdf4ebcc3cfe1c"
+items = ["const REFERENCE", "fn floats", "fn huber_regression_reaches_the_exact_fixed_point_of_its_estimating_equation", "fn normwise"]
+sha256 = "2c801d12e9eb31216b49850f9cbbe9e0b61d1a1fffa6642ff8b0d2558f9ac963"
 
 [[method_review.artifacts]]
 role = "reference"

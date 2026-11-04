@@ -64,7 +64,7 @@ impl CandidateWire {
         let bytes = antecedent_io::to_cbor(self).map_err(crate::py_msg)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
             return Err(invalid(
-                "recalc.limits_exceeded",
+                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
                 "checked temporal interval artifact exceeds 24 MiB",
             ));
         }
@@ -116,7 +116,7 @@ fn before_copy(
         .is_some_and(|limit| limit < (bytes as u64).saturating_mul(8).saturating_add(1024 * 1024))
     {
         return Err(invalid(
-            "recalc.memory_budget_exceeded",
+            antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
             "planned artifact decoding/copies exceed memory limit",
         ));
     }
@@ -147,7 +147,7 @@ fn bounds(
         || !(0.0..1.0).contains(&config.max_failed_fraction)
     {
         return Err(invalid(
-            "recalc.invalid_declaration",
+            antecedent_core::reason_details::recalc::INVALID_DECLARATION,
             "invalid checked interval configuration",
         ));
     }
@@ -164,7 +164,9 @@ fn bounds(
         .units
         .iter()
         .try_fold(0usize, |count, unit| count.checked_add(unit.histories.len()));
-    let rows = rows.ok_or_else(|| invalid("recalc.limits_exceeded", "history count overflow"))?;
+    let rows = rows.ok_or_else(|| {
+        invalid(antecedent_core::reason_details::recalc::LIMITS_EXCEEDED, "history count overflow")
+    })?;
     if max_units > 4096
         || max_histories > 100_000
         || max_replicates > 2000
@@ -175,7 +177,7 @@ fn bounds(
         || rows.checked_mul(config.replicates).is_none_or(|work| work > MAX_HISTORY_REFITS)
     {
         return Err(invalid(
-            "recalc.limits_exceeded",
+            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
             "checked temporal interval source or refit work exceeds bounds",
         ));
     }
@@ -234,7 +236,7 @@ pub(super) fn produce(
         };
         if bytes.len() > MAX_SOURCE_BYTES {
             return Err(invalid(
-                "recalc.limits_exceeded",
+                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
                 "checked temporal source exceeds 16 MiB",
             ));
         }
@@ -282,14 +284,14 @@ fn consume_checked_temporal_interval_candidate(
 ) -> Outcome {
     if artifact.len() > MAX_ARTIFACT_BYTES {
         return Err(invalid(
-            "recalc.limits_exceeded",
+            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
             "checked temporal interval artifact exceeds 24 MiB",
         ));
     }
     before_copy(artifact.len(), memory_limit_bytes, cancel.as_ref())?;
     if max_units > 4096 || max_histories > 100_000 || max_replicates > 2000 {
         return Err(invalid(
-            "recalc.limits_exceeded",
+            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
             "consumer limits exceed checked handoff caps",
         ));
     }
@@ -307,13 +309,13 @@ fn consume_checked_temporal_interval_candidate(
             || wire.identity.seal != wire.seal()?
         {
             return Err(invalid(
-                "recalc.temporal_artifact_invalid",
+                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "checked temporal interval identity or envelope differs",
             ));
         }
         if wire.source.len() > MAX_SOURCE_BYTES {
             return Err(invalid(
-                "recalc.limits_exceeded",
+                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
                 "checked temporal source exceeds 16 MiB",
             ));
         }
@@ -327,7 +329,7 @@ fn consume_checked_temporal_interval_candidate(
             )
         {
             return Err(invalid(
-                "recalc.temporal_artifact_invalid",
+                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "source identity differs from retained expected identity",
             ));
         }
@@ -357,13 +359,13 @@ fn consume_checked_temporal_interval_candidate(
                 .map_err(crate::py_msg)?
         {
             return Err(invalid(
-                "recalc.temporal_artifact_invalid",
+                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "checked temporal interval full independent replay differs",
             ));
         }
         if wire.export_bytes()? != bytes {
             return Err(invalid(
-                "recalc.temporal_artifact_invalid",
+                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "checked interval envelope is not its canonical encoding",
             ));
         }

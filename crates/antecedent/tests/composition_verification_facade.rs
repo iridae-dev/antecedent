@@ -162,7 +162,10 @@ fn replacing_the_data_snapshot_recomputes_the_fit_and_keeps_no_old_authority() {
     assert!(fit.numerical.iter().any(|n| n.cause == NumericalCause::StructureReusedFitNotRetained));
     let refusal = verification.require_valid("decision").expect_err("stale");
     assert_eq!(refusal.code, "claim_revalidation_required");
-    assert_eq!(refusal.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     assert!(refusal.remedy.is_some());
     assert!(verification.require_valid("identification").is_ok());
 }
@@ -196,7 +199,10 @@ fn a_target_change_recomputes_the_law_and_never_inherits_its_calibration() {
     assert!(law.withdrawn_for(WithdrawalKind::Calibration));
     let refusal = verification.require_valid("law").expect_err("refused");
     assert_eq!(refusal.code, "claim_revalidation_required");
-    assert_eq!(refusal.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     // the score artifact and identification do not depend on the target
     assert_eq!(verification.classify("score_fit").expect("c").class, Revalidation::StillValid);
     // the decision rests on a law that must be recomputed; its point value is not withdrawn
@@ -268,18 +274,27 @@ fn a_fresh_consumer_replays_the_export_and_refuses_tampering() {
     flipped[middle] ^= 0xff;
     let tampered = consume_composition_verification_artifact(&flipped, None).expect_err("tampered");
     assert_eq!(tampered.code, "invalid_argument");
-    assert_eq!(tampered.detail, "composition_verification.artifact_invalid");
+    assert_eq!(
+        tampered.detail,
+        antecedent_core::reason_details::composition_verification::ARTIFACT_INVALID
+    );
     for offset in [0, bytes.len() / 4, 3 * bytes.len() / 4, bytes.len() - 1] {
         let mut other = bytes.clone();
         other[offset] ^= 0x01;
         assert!(consume_composition_verification_artifact(&other, None).is_err(), "byte {offset}");
     }
     let stale = consumed.require_valid("decision").expect_err("recompute");
-    assert_eq!(stale.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        stale.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     let other_identity = "0".repeat(64);
     let wrong = consume_composition_verification_artifact(&bytes, Some(other_identity.as_str()))
         .expect_err("retained identity");
-    assert_eq!(wrong.detail, "composition_verification.identity_mismatch");
+    assert_eq!(
+        wrong.detail,
+        antecedent_core::reason_details::composition_verification::IDENTITY_MISMATCH
+    );
     assert!(wrong.remedy.is_some());
 }
 
@@ -343,7 +358,10 @@ fn invalidation_log_and_claim_freshness_drive_the_classification() {
     assert_eq!(verification.classify("report").expect("c").class, Revalidation::StillValid);
     let refusal = verification.require_valid("other_report").expect_err("withdrawn");
     assert_eq!(refusal.code, "claim_support_withdrawn");
-    assert_eq!(refusal.detail, "composition_verification.input_retired");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::INPUT_RETIRED
+    );
 }
 
 #[test]
@@ -440,7 +458,10 @@ fn the_ledger_supplies_standings_overlap_and_a_state_the_consumer_checks() {
     // after a withdrawal the consumer's ledger is at another state than the one declared
     ledger.withdraw_source(s1, "consent withdrawn").expect("withdraw");
     let refusal = consumed.verify_ledger(&ledger, &cancel).expect_err("moved");
-    assert_eq!(refusal.detail, "composition_verification.ledger_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::LEDGER_MISMATCH
+    );
     // classification of the new standing: the pooled result of two now has one member
     let effects = ledger_effects(&ledger, &[("pooled_13", r_13)]).expect("effects");
     let moved = CompositionVerification::verify(Some(&g), &g, &effects, Some((&ledger, &cancel)))

@@ -59,9 +59,11 @@ record_sha256 = "5409365556c03a5a66fb776a54508733c296668ba2f228671f343238a8e84c6
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/structure_change.rs"
-sha256 = "aa737a79429e52cb272906956053d79535efa8ebab597acf2680f60d09e866f0"
+items = ["fn baseline_law", "fn default", "fn law_memo", "fn measure", "fn parent_sets_differ", "fn sorted_parents", "fn structure_change", "fn structure_change_impl", "fn structure_players", "fn validate_shared_layout", "fn value", "struct StructureChangeOptions", "struct StructureFits", "struct StructureSwapPayoff", "type RefitWeights"]
+sha256 = "ccb3df4d4f268be8475775fab254cb1c43d75ba10f2d237be1fd45da9f9a0b94"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/attribution.rs"
-sha256 = "f2f7d85f9ca9c867c8b1e6f7bdca181f11169cc31cfceb887160a96a43e963cb"
+items = ["fn claims_03_distribution_change_y_shift_recovers_the_exact_five", "fn distribution_change_y_shift_conformance", "fn fixture", "fn mechanism_change_change_point_conformance", "fn mechanism_change_detect_conformance", "fn mechanism_change_kernel_conformance", "fn parent_swap_graphs", "fn structure_change_parent_swap_conformance", "fn two_period_chain"]
+sha256 = "ec3318d97aedf95c1fae53ac910698cb32e7ee0c3546e7f22abb289353dacff6"

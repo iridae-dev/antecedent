@@ -110,7 +110,10 @@ fn missing_or_changed_predecessor_digest_refuses_chain_validation() {
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "external_binding_mismatch");
     assert_eq!(refusal.stage, "provenance");
-    assert_eq!(refusal.detail, "composition_provenance.unresolved_parent");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_provenance::UNRESOLVED_PARENT
+    );
     assert_eq!(refusal.offending.as_deref(), Some("provider:lab/curve@v1"));
 
     // A changed declared predecessor digest.
@@ -129,7 +132,10 @@ fn missing_or_changed_predecessor_digest_refuses_chain_validation() {
     );
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "external_binding_mismatch");
-    assert_eq!(refusal.detail, "composition_provenance.digest_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_provenance::DIGEST_MISMATCH
+    );
     assert_eq!(refusal.offending.as_deref(), Some("provider:lab/curve@v1"));
     assert_eq!(refusal.expected.as_deref(), Some(real.as_str()));
     assert_eq!(refusal.supplied.as_deref(), Some("0".repeat(64).as_str()));
@@ -164,10 +170,13 @@ fn missing_or_changed_predecessor_digest_refuses_chain_validation() {
     // Against the retained claim digest, the renamed chain refuses.
     let retained = good.digest_of("claim").unwrap().to_owned();
     let error = changed.verify_digest("claim", &retained).unwrap_err();
-    assert_eq!(error.to_refusal().detail, "composition_provenance.digest_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::composition_provenance::DIGEST_MISMATCH
+    );
     assert_eq!(
         changed.verify_digest("nope", &retained).unwrap_err().to_refusal().detail,
-        "composition_provenance.unknown_link"
+        antecedent_core::reason_details::composition_provenance::UNKNOWN_LINK
     );
     assert_eq!(
         ProvenanceChain::new(links(&ROWS[..1], None))
@@ -176,7 +185,7 @@ fn missing_or_changed_predecessor_digest_refuses_chain_validation() {
             .unwrap_err()
             .to_refusal()
             .detail,
-        "composition_provenance.missing_stage"
+        antecedent_core::reason_details::composition_provenance::MISSING_STAGE
     );
 }
 
@@ -223,7 +232,10 @@ fn fresh_reader_reconstructs_the_lineage_from_digests_not_labels() {
     let relabelled = relabel("provider:lab/curve@v1", "provider:friendly-name");
     let error = rebuild(&relabelled).unwrap_err();
     assert!(matches!(error, ProvenanceChainError::DigestMismatch { .. }));
-    assert_eq!(error.to_refusal().detail, "composition_provenance.digest_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::composition_provenance::DIGEST_MISMATCH
+    );
 
     // Relabelling and re-declaring the digests still cannot reach the retained claim digest.
     let consistent = ProvenanceChain::new(links(

@@ -17,6 +17,7 @@ from pathlib import Path
 from _py_closure import closure_nodes
 from _repo import REPO_ROOT
 from _source_cache import source_cache
+from detail_constants import parse_python
 from test_evidence import (
     _attrs_before,
     _is_cfg_test,
@@ -326,7 +327,7 @@ def _adaptive_rule_emitter(path: Path, skel: str) -> str | None:
     gap_sources = {stats + "procedure_contract.rs", stats + "procedure_repeated_measures.rs", stats + "participant_procedure.rs"}
     if rel in gap_sources:
         gap = REPO_ROOT / (stats + "procedure_contract.rs")
-        if _source_item_hash(gap, "impl", "ContractGap") != "fb66b233f6acc63eecf90e70a4dc8669d1fa207a100d4fcf98774742525b1a44":
+        if _source_item_hash(gap, "impl", "ContractGap") != "2520662ecb74f866cfdf1b1a1eb813fc93a2f826faf27e1d9990f883df6229b1":
             return None
         if rel != stats + "procedure_contract.rs" and not re.search(r"\buse\s+super::procedure_contract::\{[^}]*\bContractGap\b[^}]*\}\s*;", skel):
             return None
@@ -349,7 +350,7 @@ def _adaptive_rule_emitter(path: Path, skel: str) -> str | None:
     # `declare` uses this concrete external refusal constructor and setter.
     if rel.startswith("crates/antecedent-contract/"):
         external = REPO_ROOT / "crates/antecedent-contract/src/external_refusal.rs"
-        if _source_item_hash(external, "impl", "ExternalRefusal") != "f34fc42e5d96be3c45bcbba2133c59856e967f51e90e4b5b2cef9d7c1355c6d5":
+        if _source_item_hash(external, "impl", "ExternalRefusal") != "2d8ff6a3d3080859f1fb89826882f0359969cfe482fb9f654b5c6ab518bbb3e1":
             return None
     if not all(_source_item_hash(path, "fn", name) == digest for name, digest in funcs):
         return None
@@ -386,7 +387,7 @@ def _decision_builder_proven(path: Path) -> bool:
         (expected, "fn", "builder", "eccc9fbabd0196489c8cb02b7164dbf40290bef9244cb623eae4c40b59182657"),
         (expected, "fn", "to_refusal", "0e0cc52466effef62a099ae7876522d155972222749edfc661fa599082437dff"),
         (REPO_ROOT / "crates/antecedent-design/src/signal.rs", "impl", "RefusalBuilder", "948280df6891ab404eefc1886763c6f4e99950209e04485b6214b936c55fcfbc"),
-        (REPO_ROOT / "crates/antecedent-contract/src/external_refusal.rs", "impl", "ExternalRefusal", "f34fc42e5d96be3c45bcbba2133c59856e967f51e90e4b5b2cef9d7c1355c6d5"),
+        (REPO_ROOT / "crates/antecedent-contract/src/external_refusal.rs", "impl", "ExternalRefusal", "2d8ff6a3d3080859f1fb89826882f0359969cfe482fb9f654b5c6ab518bbb3e1"),
     ]
     return all(_source_item_hash(source, kind, name) == digest for source, kind, name, digest in dependencies)
 
@@ -974,6 +975,56 @@ def external_surface_ownership(root: Path, record: dict, checked: list[tuple[str
     return {(expected[3], name) for name in symbols}, []
 
 
+# The registry's generated constant modules list every detail; they are not emission sites.
+GENERATED_DETAIL_MODULES = ("reason_details.rs", "_reason_details.py")
+
+
+def scan_refusal_details(namespaces: set[str], files, read, rel):
+    """Scan non-test source for refusal-detail literals.
+
+    `files` is a list of (path, in_crate), `read` returns a file's raw text and `rel`
+    names a path for messages. Returns (found, dynamic): namespace -> detail ->
+    [(path, in_crate, Lit)] for every literal that is exactly `<ns>.<snake>` or starts
+    `<ns>.<snake>:`, and namespace -> ["file:line"] for every literal that builds a
+    detail dynamically (`<ns>.` followed by a format placeholder or ending there)."""
+    found: dict[str, dict[str, list]] = {ns: {} for ns in namespaces}
+    dynamic: dict[str, list[str]] = {ns: [] for ns in namespaces}
+    if not namespaces:
+        return found, dynamic
+    alt = "|".join(map(re.escape, sorted(namespaces)))
+    shape = re.compile(r"^(" + alt + r")\.([a-z0-9_]+)(?::|$)")
+    dyn = re.compile(r"(?<![\w.])(" + alt + r")\.(?:\{|%|$)")
+    hint = re.compile("|".join(re.escape(ns + ".") for ns in sorted(namespaces)))
+    for path, in_crate in files:
+        if not path.is_file() or path.name in GENERATED_DETAIL_MODULES:
+            continue
+        if not hint.search(read(path)) and "reason_details" not in read(path):
+            continue
+        if path.suffix == ".py":
+            lits, finite_lines, stages = python_literals(path), set(), set()
+        else:
+            inferred, finite_lines = finite_refusal_helpers(path, in_crate=in_crate)
+            stages = refusal_stage_literals(path, in_crate=in_crate)
+            lits = [*rust_literals(path, in_crate=in_crate), *inferred]
+        for lit in lits:
+            if (lit.line, lit.value) in stages:
+                continue
+            m = shape.match(lit.value)
+            if m:
+                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append(
+                    (path, in_crate, lit)
+                )
+            for d in dyn.finditer(lit.value):
+                if not (
+                    lit.line in finite_lines
+                    and lit.value in {f"{d.group(1)}.{{detail}}: {{message}}",
+                                      f"{d.group(1)}.{{detail}}",
+                                      f"{d.group(1)}.{{scope}}: {{message}}"}
+                ):
+                    dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
+    return found, dynamic
+
+
 def duplicate_refusal_pairs(refusals: list[dict]) -> set[tuple[str, str]]:
     seen: set[tuple[str, str]] = set()
     duplicates: set[tuple[str, str]] = set()
@@ -1163,7 +1214,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
 
 def input_exception_evidence_problems(entry: dict, path: Path, assertion: str) -> list[str]:
     """Require class assertion plus absent reason code, including finite pytest cases."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = parse_python(path.read_text(encoding="utf-8"))
     functions = [
         n
         for n in ast.walk(tree)
@@ -1398,7 +1449,7 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
         ):
             return ["class-only value_err literal now includes an explicit reason prefix"]
     if pair[0] == "CausalValueError":
-        errors = ast.parse((root / "python/antecedent/errors.py").read_text(encoding="utf-8"))
+        errors = parse_python((root / "python/antecedent/errors.py").read_text(encoding="utf-8"))
         registrations = [
             n
             for n in ast.walk(errors)
@@ -1596,7 +1647,7 @@ def ignored_test_emits_record(path: Path, name: str) -> bool:
 def python_fn_literals(path: Path) -> dict[str, list[str]]:
     """Function name -> string constants in its body, for every def of a Python file."""
     try:
-        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
+        tree = parse_python(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError:
         return {}
     out: dict[str, list[str]] = {}
@@ -1637,7 +1688,7 @@ def python_literals(path: Path) -> list[Lit]:
     """Every string a Python file builds: constants (adjacent literals are already
     one constant), f-strings and `+` concatenations."""
     try:
-        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
+        tree = parse_python(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError:
         return []
     # Documentation is not an emitted runtime string. In particular, a sentence
@@ -2028,7 +2079,7 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
     """Public top-level names of a Python file: `__all__` if it defines it (kinds
     resolved through `from .mod import Name`), else defs and classes without a
     leading underscore."""
-    tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
+    tree = parse_python(path.read_text(errors="ignore", encoding="utf-8"))
     kinds = {
         node.name: "type" if isinstance(node, ast.ClassDef) else "function"
         for node in tree.body
@@ -2039,7 +2090,7 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
             target = path.parent / (node.module.replace(".", "/") + ".py")
             if target.is_file():
                 try:
-                    inner = ast.parse(target.read_text(errors="ignore", encoding="utf-8"))
+                    inner = parse_python(target.read_text(errors="ignore", encoding="utf-8"))
                 except SyntaxError:
                     continue
                 for sub in inner.body:
@@ -2152,7 +2203,7 @@ def rust_assertion_args(path: Path, name: str) -> list[str]:
 
 
 def _py_closure(path: Path, name: str) -> list[ast.AST]:
-    tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
+    tree = parse_python(path.read_text(errors="ignore", encoding="utf-8"))
     return closure_nodes(tree, name)
 
 

@@ -295,7 +295,10 @@ fn prepared_z_stage_evaluates_joint_sensitivity_without_reidentifying() {
     let error = prepared.joint_mechanism_sensitivity(&coupled, &ctx).unwrap_err();
     assert_eq!(
         refused(&error),
-        ("route_not_supported", "joint_sensitivity.budget_coupling".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET_COUPLING.into()
+        )
     );
 }
 
@@ -355,10 +358,18 @@ fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer() {
 #[test]
 fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason() {
     let wire = artifact();
-    let premises = ("transport_not_certified", "joint_sensitivity.premises_mismatch".to_owned());
-    let data_identity =
-        ("transport_not_certified", "joint_sensitivity.data_identity_mismatch".to_owned());
-    let replay = ("transport_not_certified", "joint_sensitivity.replay_mismatch".to_owned());
+    let premises = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::PREMISES_MISMATCH.to_owned(),
+    );
+    let data_identity = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::DATA_IDENTITY_MISMATCH.to_owned(),
+    );
+    let replay = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH.to_owned(),
+    );
     let cases: Vec<(&str, Box<dyn Fn(&mut JointSensitivityArtifactWire)>, _)> = vec![
         (
             "fraction",
@@ -418,7 +429,10 @@ fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason() {
 #[test]
 fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
     let wire = artifact();
-    let replay = ("transport_not_certified", "joint_sensitivity.replay_mismatch".to_owned());
+    let replay = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH.to_owned(),
+    );
     let cases: Vec<(&str, Box<dyn Fn(&mut JointSensitivityArtifactWire)>, (&str, String))> = vec![
         (
             "kernel fraction",
@@ -500,22 +514,34 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
         (
             "interval",
             Box::new(|w| w.body.sampling.interval = Some([0.1, 0.9])),
-            ("route_not_supported", "joint_sensitivity.no_interval_method".to_owned()),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.to_owned(),
+            ),
         ),
         (
             "claim",
             Box::new(|w| w.body.inference_claim = "confidence_interval".into()),
-            ("estimator_inference_mismatch", "joint_sensitivity.union_labelled_ci".to_owned()),
+            (
+                "estimator_inference_mismatch",
+                antecedent_core::reason_details::joint_sensitivity::UNION_LABELLED_CI.to_owned(),
+            ),
         ),
         (
             "factor name",
             Box::new(|w| w.body.perturbation.factors[0].factor = "latent_mechanism".into()),
-            ("invalid_argument", "joint_sensitivity.unknown_factor".to_owned()),
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::joint_sensitivity::UNKNOWN_FACTOR.to_owned(),
+            ),
         ),
         (
             "out-of-scope factor",
             Box::new(|w| w.body.perturbation.factors[0].factor = "fixed_graph_parent".into()),
-            ("route_not_supported", "joint_sensitivity.fixed_graph_parent".to_owned()),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_PARENT.to_owned(),
+            ),
         ),
     ];
     for (name, mutate, expected) in &cases {
@@ -548,7 +574,10 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
 fn stored_limits_above_the_consumer_maxima_refuse_before_any_work() {
     let wire = artifact();
     let bytes = wire.export().unwrap();
-    let limited = ("route_not_supported", "joint_sensitivity.consumer_limits".to_owned());
+    let limited = (
+        "route_not_supported",
+        antecedent_core::reason_details::joint_sensitivity::CONSUMER_LIMITS.to_owned(),
+    );
     let consumer =
         |max_operations: usize, max_depth: usize, max_memory_bytes: u64, hard: Option<u64>| {
             let mut ctx = ExecutionContext::for_tests(1);
@@ -599,7 +628,10 @@ fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay(
     let effective = wire.body.receipt.memory_limit_bytes;
     assert_eq!(wire.body.perturbation.memory_bytes, 64 << 20);
     assert_eq!(effective, 64 << 20, "a producer context without a hard limit");
-    let limited = ("route_not_supported", "joint_sensitivity.consumer_limits".to_owned());
+    let limited = (
+        "route_not_supported",
+        antecedent_core::reason_details::joint_sensitivity::CONSUMER_LIMITS.to_owned(),
+    );
     let consume_under = |mutated: &JointSensitivityArtifactWire, max_memory_bytes: u64| {
         JointSensitivityArtifactWire::consume_with_limits(
             &mutated.export().unwrap(),
@@ -618,7 +650,10 @@ fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay(
     // Not re-sealed: the declared cap is a premise.
     assert_eq!(
         refused(&consume_under(&declared(128 << 20, false), 128 << 20).unwrap_err()),
-        ("transport_not_certified", "joint_sensitivity.premises_mismatch".to_owned())
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::joint_sensitivity::PREMISES_MISMATCH.to_owned()
+        )
     );
     // Re-sealed and at or above the effective cap: accepted. This is the
     // documented gap (what replay does not protect against): the numbers depend
@@ -727,13 +762,22 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
     .unwrap_err();
     assert_eq!(
         refused(&error),
-        ("route_not_supported", "joint_sensitivity.bounds_exceeded".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED.into()
+        )
     );
     // A cancelled frontier cannot replay and is not exported.
     let mut ctx = ExecutionContext::for_tests(1);
     ctx.progress = Some(Arc::new(CancelAfterFirstLine(ctx.cancellation.clone())));
     let error = JointSensitivityArtifactWire::checked(baseline, &spec(), &ctx).unwrap_err();
-    assert_eq!(refused(&error), ("transport_budget_cancel", "joint_sensitivity.budget".into()));
+    assert_eq!(
+        refused(&error),
+        (
+            "transport_budget_cancel",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET.into()
+        )
+    );
 }
 
 #[test]
@@ -801,7 +845,10 @@ fn the_endpoint_bootstrap_interval_replays() {
             .unwrap_err();
         assert_eq!(
             refused(&error),
-            ("route_not_supported", "joint_sensitivity.bounds_exceeded".into()),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED.into()
+            ),
             "replicates={replicates} level={level}"
         );
     }
@@ -833,14 +880,20 @@ fn the_range_artifact_refuses_a_forged_sampling_interval() {
     let ctx = ExecutionContext::for_tests(1);
     let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
     assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
-    assert_eq!(result.uncertainty.detail, "joint_sensitivity.no_interval_method");
+    assert_eq!(
+        result.uncertainty.detail,
+        antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+    );
     let mut wire = artifact();
     wire.body.sampling.interval = Some([0.0, 1.0]);
     reseal(&mut wire);
     let error = consume(&wire).unwrap_err();
     assert_eq!(
         refused(&error),
-        ("route_not_supported", "joint_sensitivity.no_interval_method".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.into()
+        )
     );
 }
 
@@ -941,5 +994,5 @@ fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_su
         .unwrap_err();
     let (code, detail) = refused(&error);
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "sensitivity_source.surface_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH);
 }

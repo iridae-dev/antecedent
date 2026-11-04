@@ -239,7 +239,7 @@ impl RepairError {
     pub(crate) fn invalid_request(message: impl Into<String>) -> Self {
         Self::new(
             reason_code!("invalid_argument"),
-            "identification_repair.invalid_request",
+            antecedent_core::reason_details::identification_repair::INVALID_REQUEST,
             message,
         )
     }
@@ -247,19 +247,23 @@ impl RepairError {
     fn bounds(message: impl Into<String>) -> Self {
         Self::new(
             reason_code!("invalid_argument"),
-            "identification_repair.bounds_exceeded",
+            antecedent_core::reason_details::identification_repair::BOUNDS_EXCEEDED,
             message,
         )
     }
 
     pub(crate) fn not_a_failure(message: impl Into<String>) -> Self {
-        Self::new(reason_code!("invalid_argument"), "identification_repair.not_a_failure", message)
+        Self::new(
+            reason_code!("invalid_argument"),
+            antecedent_core::reason_details::identification_repair::NOT_A_FAILURE,
+            message,
+        )
     }
 
     fn budget(message: impl Into<String>, receipt: Option<SearchReceipt>) -> Self {
         Self {
             code: reason_code!("transport_budget_cancel"),
-            detail: "identification_repair.budget",
+            detail: antecedent_core::reason_details::identification_repair::BUDGET,
             message: message.into(),
             receipt: receipt.map(Box::new),
         }
@@ -376,15 +380,21 @@ impl RepairReport {
             return None;
         }
         if self.receipt.stop.is_some() {
-            return Some((reason_code!("transport_budget_cancel"), "identification_repair.budget"));
+            return Some((
+                reason_code!("transport_budget_cancel"),
+                antecedent_core::reason_details::identification_repair::BUDGET,
+            ));
         }
         if self.obligations.iter().any(|o| !o.satisfiable_by_study()) {
             return Some((
                 reason_code!("transport_missing_evidence"),
-                "evidence_obligations.wrong_contract",
+                antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT,
             ));
         }
-        Some((reason_code!("transport_not_certified"), "identification_repair.wrong_contract"))
+        Some((
+            reason_code!("transport_not_certified"),
+            antecedent_core::reason_details::identification_repair::WRONG_CONTRACT,
+        ))
     }
 }
 
@@ -748,7 +758,7 @@ pub fn repair(
     {
         return Err(RepairError::new(
             reason_code!("design_cost_units_mismatch"),
-            "identification_repair.cost_units_mismatch",
+            antecedent_core::reason_details::identification_repair::COST_UNITS_MISMATCH,
             "cost ranking compares candidates that declare different cost unit labels",
         ));
     }

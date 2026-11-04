@@ -8,6 +8,7 @@ that produced it, is refused with the route's own ``value_mismatch`` detail.
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import transported_constructors as tc
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.transported_response import TransportedResponseRefusal
@@ -47,7 +48,7 @@ def test_a_policy_evaluation_replays_and_an_edited_value_does_not() -> None:
     edited["target_value"] = edited["target_value"] + 1.0
     with pytest.raises(TransportedResponseRefusal) as raised:
         tc.verify_policy(m, policy(m), edited, **_policy_request(m))
-    assert raised.value.detail == "transported_policy.value_mismatch"
+    assert raised.value.detail == reason_details.transported_policy.VALUE_MISMATCH
 
 
 def test_a_policy_evaluation_does_not_replay_under_another_target_law() -> None:
@@ -55,7 +56,7 @@ def test_a_policy_evaluation_does_not_replay_under_another_target_law() -> None:
     built = _built_policy(m)
     with pytest.raises(TransportedResponseRefusal) as raised:
         tc.verify_policy(m, policy(m), built, **_policy_request(m, target_initial=(0.3, 0.7)))
-    assert raised.value.detail == "transported_policy.value_mismatch"
+    assert raised.value.detail == reason_details.transported_policy.VALUE_MISMATCH
 
 
 def test_a_period_shift_replays_and_an_edited_identity_does_not() -> None:
@@ -79,7 +80,7 @@ def test_a_period_shift_replays_and_an_edited_identity_does_not() -> None:
     edited["identity"] = "0" * 64
     with pytest.raises(TransportedResponseRefusal) as raised:
         tc.verify_period_shift(m, policy(m), edited, **request)
-    assert raised.value.detail == "temporal_policy_transport.value_mismatch"
+    assert raised.value.detail == reason_details.temporal_policy_transport.VALUE_MISMATCH
 
 
 def test_an_adaptive_trial_estimate_replays_and_an_edited_mean_does_not() -> None:
@@ -97,7 +98,7 @@ def test_an_adaptive_trial_estimate_replays_and_an_edited_mean_does_not() -> Non
     edited["treatment_mean"] = edited["treatment_mean"] + 0.01
     with pytest.raises(TransportedResponseRefusal) as raised:
         tc.verify_adaptive_trial(trial_design(), edited, **request)
-    assert raised.value.detail == "adaptive_transport.value_mismatch"
+    assert raised.value.detail == reason_details.adaptive_transport.VALUE_MISMATCH
 
 
 def test_an_evaluation_of_another_route_or_type_is_refused_before_native_work() -> None:

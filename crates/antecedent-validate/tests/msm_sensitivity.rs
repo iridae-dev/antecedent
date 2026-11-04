@@ -185,13 +185,22 @@ fn msm_bounds_widen_with_lambda() {
 #[test]
 fn msm_refuses_lambda_below_one() {
     let error = msm_ate_bounds_at(&two_strata(), 0.5).unwrap_err();
-    assert_eq!(refusal(&error), ("invalid_argument", "msm_sensitivity.lambda_below_one"));
+    assert_eq!(
+        refusal(&error),
+        ("invalid_argument", antecedent_core::reason_details::msm_sensitivity::LAMBDA_BELOW_ONE)
+    );
     let error = msm_ate_sensitivity(&two_strata(), &MsmSensitivitySpec::new(0.9)).unwrap_err();
-    assert_eq!(refusal(&error), ("invalid_argument", "msm_sensitivity.lambda_below_one"));
+    assert_eq!(
+        refusal(&error),
+        ("invalid_argument", antecedent_core::reason_details::msm_sensitivity::LAMBDA_BELOW_ONE)
+    );
     let error = msm_ate_sensitivity(&two_strata(), &MsmSensitivitySpec::new(1.0)).unwrap_err();
-    assert_eq!(refusal(&error), ("invalid_argument", "msm_sensitivity.lambda_range_empty"));
+    assert_eq!(
+        refusal(&error),
+        ("invalid_argument", antecedent_core::reason_details::msm_sensitivity::LAMBDA_RANGE_EMPTY)
+    );
     let error = msm_ate_bounds_at(&two_strata(), f64::NAN).unwrap_err();
-    assert_eq!(error.detail(), "msm_sensitivity.lambda_below_one");
+    assert_eq!(error.detail(), antecedent_core::reason_details::msm_sensitivity::LAMBDA_BELOW_ONE);
 }
 
 #[test]
@@ -199,7 +208,10 @@ fn msm_refuses_propensities_on_the_boundary() {
     for propensity in [0.0, 1.0, -0.1, 1.2, f64::NAN] {
         let strata = vec![stratum(0.5, 0.5, 0.8, 0.4), stratum(0.5, propensity, 0.5, 0.3)];
         let error = msm_ate_bounds_at(&strata, 2.0).unwrap_err();
-        assert_eq!(refusal(&error), ("route_not_supported", "msm_sensitivity.positivity"));
+        assert_eq!(
+            refusal(&error),
+            ("route_not_supported", antecedent_core::reason_details::msm_sensitivity::POSITIVITY)
+        );
     }
 }
 
@@ -208,43 +220,55 @@ fn msm_refuses_malformed_inputs_and_sampling_composition() {
     let mut strata = two_strata();
     strata[0].mass = 0.6;
     let error = msm_ate_bounds_at(&strata, 2.0).unwrap_err();
-    assert_eq!(refusal(&error), ("invalid_argument", "msm_sensitivity.stratum_mass"));
+    assert_eq!(
+        refusal(&error),
+        ("invalid_argument", antecedent_core::reason_details::msm_sensitivity::STRATUM_MASS)
+    );
     let mut strata = two_strata();
     strata[1].treated.probabilities = vec![0.5, 0.6];
     let error = msm_ate_bounds_at(&strata, 2.0).unwrap_err();
-    assert_eq!(refusal(&error), ("invalid_argument", "msm_sensitivity.outcome_law"));
+    assert_eq!(
+        refusal(&error),
+        ("invalid_argument", antecedent_core::reason_details::msm_sensitivity::OUTCOME_LAW)
+    );
     let mut strata = two_strata();
     strata[1].control.values = vec![f64::INFINITY, 1.0];
     assert_eq!(
         msm_ate_bounds_at(&strata, 2.0).unwrap_err().detail(),
-        "msm_sensitivity.outcome_law"
+        antecedent_core::reason_details::msm_sensitivity::OUTCOME_LAW
     );
     let error = msm_ate_bounds_at(&[], 2.0).unwrap_err();
-    assert_eq!(refusal(&error), ("route_not_supported", "msm_sensitivity.bounds_exceeded"));
+    assert_eq!(
+        refusal(&error),
+        ("route_not_supported", antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED)
+    );
 
     let mut spec = MsmSensitivitySpec::new(2.0);
     spec.sampling_composition = Some("percentile_bootstrap_of_bounds".into());
     let error = msm_ate_sensitivity(&two_strata(), &spec).unwrap_err();
     assert_eq!(
         refusal(&error),
-        ("route_not_supported", "msm_sensitivity.composition_not_supported")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::msm_sensitivity::COMPOSITION_NOT_SUPPORTED
+        )
     );
     let mut spec = MsmSensitivitySpec::new(2.0);
     spec.grid_points = 1;
     assert_eq!(
         msm_ate_sensitivity(&two_strata(), &spec).unwrap_err().detail(),
-        "msm_sensitivity.bounds_exceeded"
+        antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED
     );
     let mut spec = MsmSensitivitySpec::new(2.0);
     spec.tolerance = 0.5;
     assert_eq!(
         msm_ate_sensitivity(&two_strata(), &spec).unwrap_err().detail(),
-        "msm_sensitivity.invalid_tolerance"
+        antecedent_core::reason_details::msm_sensitivity::INVALID_TOLERANCE
     );
     let spec = MsmSensitivitySpec::new(2.0).with_threshold(f64::NAN);
     assert_eq!(
         msm_ate_sensitivity(&two_strata(), &spec).unwrap_err().detail(),
-        "msm_sensitivity.invalid_threshold"
+        antecedent_core::reason_details::msm_sensitivity::INVALID_THRESHOLD
     );
 }
 
@@ -272,7 +296,10 @@ fn msm_keeps_the_assumption_range_distinct_from_sampling() {
     assert_eq!(result.uncertainty.sampling_interval, "sampling interval: not reported");
     assert_eq!(result.uncertainty.sampling_interval, MSM_SAMPLING_STATEMENT);
     assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
-    assert_eq!(result.uncertainty.detail, "msm_sensitivity.no_interval_method");
+    assert_eq!(
+        result.uncertainty.detail,
+        antecedent_core::reason_details::msm_sensitivity::NO_INTERVAL_METHOD
+    );
     assert!(result.normalization.contains("not Hajek"));
 }
 
@@ -304,7 +331,10 @@ fn msm_posterior_refuses_a_mapped_prior() {
     let antecedent_estimate::EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("msm_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::msm_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

@@ -26,9 +26,11 @@ record_sha256 = "e6401292ebec640de918c0b0452e99c32c510efe3b199425188f6ac72f2b426
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/distribution_artifact.rs"
-sha256 = "821fd1c5fd6a6f7908b304ea01fc6ec8fd905faf4b252c60cafb32c98cc57e27"
+items = ["const ARTIFACT_KIND", "const DRAW_SECTION", "const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "const META_SECTION", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn from_bytes", "fn from_bytes_within", "fn joint_expectation", "fn mean", "fn metadata", "fn n_draws", "fn new", "fn new_within", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn to_bytes", "fn to_bytes_within", "fn validate", "fn validate_metadata", "fn validate_within", "fn weights", "struct DistributionArtifact", "struct DistributionIdentity", "struct DistributionIntakeLimits", "struct DistributionMetadata", "struct DistributionProvenance", "struct LegacyPosteriorBinding"]
+sha256 = "b8909be7043599313aba000f78f021efc9283ed3109ec55855ed985102862258"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/cross_surface_joint_law.rs"
-sha256 = "0d01d561a064cb4ec79fca6f517c6dbe0891b03f29d7a88f7819124863351036"
+items = ["fn assert_enumerated_truth", "fn both_directions_round_trip_through_one_wire_format", "fn changed_semantic_id_wrong_meaning_and_marginals_refuse", "fn expected_identity", "fn fixture_dir", "fn identity", "fn law", "fn near", "fn python_built_joint_law_reports_the_enumerated_truth_under_constants", "fn quantities", "fn read_fixture", "fn regenerate_rust_fixtures"]
+sha256 = "848ca53758d0c9a89d62dafc7a5c3edea28456e5cc750e0ed0645a3f810ee495"

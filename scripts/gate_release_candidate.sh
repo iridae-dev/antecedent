@@ -12,7 +12,7 @@
 #   3. re-runs every scientific assertion and records the passes
 #      (`bash scripts/test.sh scientific --all`)
 #   4. runs the release-only checks: the release inventory with no unresolved row, strict bounds
-#      and final claims, the composition and decision exit stories, the release-only scale
+#      and final claims, the exit-story verdict logic, the release-only scale
 #      cases, the release-closure receipts and the cross-language interchange
 #   5. builds one local wheel into a fresh directory, installs it into a fresh venv, and runs the
 #      documented examples, the cyclic-systems gate and the full Python test suite against the
@@ -148,9 +148,11 @@ echo "== release candidate: strict bounds and final claims =="
 python3 scripts/check_limits_agreement.py --strict
 python3 scripts/check_release_claims.py --final
 
-echo "== release candidate: composition and decision exit stories =="
-bash scripts/gate_composition_exit.sh
-bash scripts/gate_decision_exit.sh --require-implemented
+# The composition and decision exit stories are ordinary engineering tests (tier 2 runs them and
+# fails on any failing story); here only the verdict logic that joins their per-story tables is checked.
+echo "== release candidate: exit-story verdict logic =="
+bash scripts/gate_composition_exit.sh --self-test
+bash scripts/gate_decision_exit.sh --self-test
 
 echo "== release candidate: release-only scale cases within their frozen budgets =="
 bash scripts/gate_scale_cases.sh
@@ -190,7 +192,7 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
     numpy pandas pyarrow pytest 'mypy>=1.17.0'
   # Run outside python/ so the source tree cannot shadow the installed wheel.
   cd "$run_dir"
-  "$venv_dir/venv/bin/python" "$ROOT/scripts/gate_release_candidate_2.py" "$venv_dir"
+  "$venv_dir/venv/bin/python" "$ROOT/scripts/check_installed_wheel_import.py" "$venv_dir"
   # Every documented snippet and embedded example, from the installed wheel.
   "$venv_dir/venv/bin/python" "$ROOT/scripts/run_doc_examples.py"
   # The cyclic-systems implementation gate against the installed wheel.

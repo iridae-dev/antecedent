@@ -43,12 +43,14 @@ record_sha256 = "3ebae7c4ab0991fd3f63c88a2953f7aa02612222cf5077c586cb69939fd92e1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
-sha256 = "1c83542bfff721d9d767671869ca147cd6c84f525279d9d9eaacfcc482a5b085"
+items = ["const BOUNDING_BOX_MIN_DIMENSION", "const DIRECT_RUN", "const MATCH_CANCELLATION_CHUNK", "enum CaliperScale", "enum SpatialIndex", "fn add_donor_usage", "fn analytic_se", "fn bias_adjusted_coefficient_norm", "fn check_label_lengths", "fn coefficients", "fn control_to_treated", "fn custom_unit_coefficients", "fn default", "fn donor_usage", "fn fit", "fn fit_linear_mean", "fn for_dimension", "fn from_donors", "fn match_diffs", "fn match_diffs_with", "fn match_nearest_k", "fn match_nearest_tied", "fn match_scalar_sorted", "fn match_target", "fn match_with_box_tree", "fn matched_outcome_diffs", "fn matched_point_effect", "fn matching_contrast", "fn mean_noise_inflation", "fn nearest", "fn new", "fn population_matching_se", "fn population_se", "fn predict_linear", "fn prepare", "fn quote_exact_matching", "fn require_match_counts", "fn require_read_inference", "fn set_sizes", "fn treated_to_control", "fn validate_caliper", "fn weighted_abadie_imbens_se", "fn with_caliper", "fn with_caliper_scale", "fn with_overlap", "fn with_sampling_weights", "struct MatchSide", "struct MatchedArms", "struct MatchedDiffs", "struct MatchedEffects", "struct MatchedEstimate", "struct MatchedVariance", "struct MatchingSample", "struct PropensityMatching", "struct SortedScalarIndex", "struct TiedDonors"]
+sha256 = "dc198ace9f411e71bf40a3b131f74520e31f4dfd3d009d9002470e2e4bc27641"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/propensity_matching_reference.rs"
-sha256 = "da22b0263f341abcda43157762eb5bf3ee840d60779920273295ff17c6755ec7"
+items = ["fn cases", "fn close", "fn floats", "fn matched_effect_and_standard_error_match_the_exhaustive_reference"]
+sha256 = "aad0a7bbc3300dcd2a6189f854e5e1046616ce09dab2345f874abf35495bd825"
 
 [[method_review.artifacts]]
 role = "reference"

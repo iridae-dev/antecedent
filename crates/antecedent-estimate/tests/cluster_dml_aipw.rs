@@ -716,7 +716,7 @@ fn the_two_way_variance_equals_hand_computed_cgm_sums() {
     // A cluster-unit receipt refuses a second label set instead of ignoring it.
     let first_only = ClusterDml::new(20).unwrap();
     let error = first_only.receipt(t, &raw.cluster, Some(&raw.second)).unwrap_err();
-    code_of(&error, "cluster_dml.second_ids_unexpected");
+    code_of(&error, antecedent_core::reason_details::cluster_dml::SECOND_IDS_UNEXPECTED);
     assert!(error.to_string().contains("a cluster unit takes one label per row"), "{error}");
 }
 
@@ -846,7 +846,12 @@ fn unsupported_dyadic_structures_are_refused() {
     }
     let error = run(&declared_two_way(&bridged, 20, 4), &bridged, 1).unwrap_err();
     code_of(&error, "dyadic_dependence_not_supported");
-    assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::DYADIC_GIANT_COMPONENT),
+        "{error}"
+    );
 
     // One third of the rows share one second endpoint: a component larger than a fold's share.
     let mut heavy = raw.clone();
@@ -856,14 +861,24 @@ fn unsupported_dyadic_structures_are_refused() {
     }
     let error = run(&declared_two_way(&heavy, 20, 4), &heavy, 1).unwrap_err();
     code_of(&error, "dyadic_dependence_not_supported");
-    assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::DYADIC_GIANT_COMPONENT),
+        "{error}"
+    );
 
     // An entity that is a first endpoint of some rows and a second endpoint of others.
     let mut shared = raw.clone();
     shared.second[0] = raw.cluster[5];
     let error = run(&declared_two_way(&shared, 20, 4), &shared, 1).unwrap_err();
     code_of(&error, "dyadic_dependence_not_supported");
-    assert!(error.to_string().contains("cluster_dml.dyadic_shared_namespace"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::DYADIC_SHARED_NAMESPACE),
+        "{error}"
+    );
     let fit = run(&declared_two_way(&raw, 20, 4), &raw, 1).unwrap();
     let error = ClusterDml::dyadic(20, 4)
         .unwrap()
@@ -880,7 +895,12 @@ fn two_way_declarations_below_their_minimum_or_incomplete_are_refused() {
     let raw = draw_two_way(12, 3, 4, 8);
     let error = run(&declared_two_way(&raw, 20, 4), &raw, 1).unwrap_err();
     code_of(&error, "too_few_clusters");
-    assert!(error.to_string().contains("cluster_dml.too_few_components"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::TOO_FEW_COMPONENTS),
+        "{error}"
+    );
     assert!(run(&declared_two_way(&raw, 20, 2), &raw, 1).is_ok());
 
     // 90 first endpoints are below a declared minimum of 100.
@@ -924,7 +944,12 @@ fn flexible_learner_estimators_refuse_a_cluster_option_with_a_typed_reason() {
                 "{error}"
             );
             let text = error.to_string();
-            assert!(text.contains("cluster_dml.flexible_learner_not_supported"), "{text}");
+            assert!(
+                text.contains(
+                    antecedent_core::reason_details::cluster_dml::FLEXIBLE_LEARNER_NOT_SUPPORTED
+                ),
+                "{text}"
+            );
             assert!(text.contains(estimator) && text.contains(option), "{text}");
         }
     }
@@ -953,7 +978,7 @@ fn the_cluster_summed_covariance_matches_a_hand_calculation_on_a_fixed_table() {
     assert_eq!(spec.reference_df(&clusters, None), 9);
     // Labels that do not match the unit, or too few clusters, are typed refusals.
     let error = spec.influence_covariance(&[&a], &clusters, Some(&clusters)).unwrap_err();
-    code_of(&error, "cluster_dml.second_ids_unexpected");
+    code_of(&error, antecedent_core::reason_details::cluster_dml::SECOND_IDS_UNEXPECTED);
     assert!(error.to_string().contains("do not match the declared independence unit"), "{error}");
     let few: Vec<u32> = (0..9u32).flat_map(|g| [g, g]).collect();
     code_of(&spec.influence_covariance(&[&a[..18]], &few, None).unwrap_err(), "too_few_clusters");
@@ -1037,7 +1062,11 @@ fn clustered_posterior_refuses_an_external_power_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("clustered_posterior.external_power_prior"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::clustered_posterior::EXTERNAL_POWER_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

@@ -35,6 +35,7 @@ from typing import TypeVar
 import antecedent as ac
 import pytest
 from antecedent import _native, decision, external, repair
+from antecedent import _reason_details as reason_details
 from antecedent import design as dr
 from antecedent import inverse_query as iq
 from antecedent import sensitivity_decision as sd
@@ -618,17 +619,37 @@ def test_refusal_families_keep_their_own_details_across_the_bridge():
 
     # (error, registered code, stage, detail), the same literals as the Rust table.
     table = [
-        (joint, "joint_law_required", "inverse_query", "decision_evaluation.joint_law_required"),
+        (
+            joint,
+            "joint_law_required",
+            "inverse_query",
+            reason_details.decision_evaluation.JOINT_LAW_REQUIRED,
+        ),
         (no_constraints, "invalid_argument", "inverse_query", "inverse_query.no_constraints"),
-        (sample_size, "design_signal_invalid", "declare", "signal_provider.sample_size_mismatch"),
-        (cost_units, "design_cost_units_mismatch", "evaluate", "evsi.cost_units_mismatch"),
-        (cost_map_required, "design_cost_units_mismatch", "evaluate", "evsi.cost_map_required"),
-        (overlap, "design_signal_invalid", "evaluate", "evsi.source_overlap"),
+        (
+            sample_size,
+            "design_signal_invalid",
+            "declare",
+            reason_details.signal_provider.SAMPLE_SIZE_MISMATCH,
+        ),
+        (
+            cost_units,
+            "design_cost_units_mismatch",
+            "evaluate",
+            reason_details.evsi.COST_UNITS_MISMATCH,
+        ),
+        (
+            cost_map_required,
+            "design_cost_units_mismatch",
+            "evaluate",
+            reason_details.evsi.COST_MAP_REQUIRED,
+        ),
+        (overlap, "design_signal_invalid", "evaluate", reason_details.evsi.SOURCE_OVERLAP),
         (
             ranking_cost_map,
             "design_cost_units_mismatch",
             "consume",
-            "design_ranking.cost_units_mismatch",
+            reason_details.design_ranking.COST_UNITS_MISMATCH,
         ),
     ]
     for error, code, stage, detail in table:
@@ -666,7 +687,7 @@ def test_obligation_refusals_use_the_codes_and_details_rust_registers():
     )
     result = repair.repair(contract, [candidate])
     assert result.reason_code == "transport_missing_evidence"
-    assert result.detail == "evidence_obligations.wrong_contract"
+    assert result.detail == reason_details.evidence_obligations.WRONG_CONTRACT
     assert result.reason_code in set(_native.runtime_refusal_codes())
 
 

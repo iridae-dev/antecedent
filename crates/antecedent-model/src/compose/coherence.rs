@@ -343,7 +343,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     if spec.mechanisms.is_empty() {
         out.push(CoherenceFinding::new(
             Shape,
-            "mechanism_composition.shape_empty_composition",
+            antecedent_core::reason_details::mechanism_composition::SHAPE_EMPTY_COMPOSITION,
             "composition",
             "declare at least one mechanism",
         ));
@@ -352,7 +352,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         out.push(
             CoherenceFinding::new(
                 Shape,
-                "mechanism_composition.shape_too_many_mechanisms",
+                antecedent_core::reason_details::mechanism_composition::SHAPE_TOO_MANY_MECHANISMS,
                 "composition",
                 "split the composition below the declared bound",
             )
@@ -365,7 +365,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     if blank(&spec.target.population) || blank(&spec.target.regime) {
         out.push(CoherenceFinding::new(
             Shape,
-            "mechanism_composition.shape_blank_coordinate",
+            antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_COORDINATE,
             "target",
             "name the target population and regime",
         ));
@@ -375,7 +375,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         if blank(v) {
             out.push(CoherenceFinding::new(
                 Shape,
-                "mechanism_composition.shape_blank_identity",
+                antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_IDENTITY,
                 "variable",
                 "give every mechanism a stable variable identity",
             ));
@@ -388,7 +388,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         {
             out.push(CoherenceFinding::new(
                 Shape,
-                "mechanism_composition.shape_blank_coordinate",
+                antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_COORDINATE,
                 v,
                 "declare units, transform, population and regime for the mechanism",
             ));
@@ -397,7 +397,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
             out.push(
                 CoherenceFinding::new(
                     Shape,
-                    "mechanism_composition.shape_invalid_domain",
+                    antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
                     v,
                     "declare a well formed output support",
                 )
@@ -407,7 +407,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         if d.parents.len() > MAX_PARENTS_PER_MECHANISM {
             out.push(CoherenceFinding::new(
                 Shape,
-                "mechanism_composition.shape_too_many_parents",
+                antecedent_core::reason_details::mechanism_composition::SHAPE_TOO_MANY_PARENTS,
                 v,
                 "reduce the parent set below the declared bound",
             ));
@@ -416,7 +416,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
             if blank(&p.variable) || blank(&p.units) || blank(&p.transform) {
                 out.push(CoherenceFinding::new(
                     Shape,
-                    "mechanism_composition.shape_blank_coordinate",
+                    antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_COORDINATE,
                     format!("{v}<-{}", p.variable),
                     "declare the parent's variable, units and transform",
                 ));
@@ -425,7 +425,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 out.push(
                     CoherenceFinding::new(
                         Shape,
-                        "mechanism_composition.shape_invalid_domain",
+                        antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
                         format!("{v}<-{}", p.variable),
                         "declare a well formed input domain",
                     )
@@ -436,7 +436,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         if d.parents.windows(2).any(|w| w[0].variable == w[1].variable) {
             out.push(CoherenceFinding::new(
                 Shape,
-                "mechanism_composition.shape_duplicate_parent",
+                antecedent_core::reason_details::mechanism_composition::SHAPE_DUPLICATE_PARENT,
                 v,
                 "list each parent once",
             ));
@@ -447,7 +447,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         {
             out.push(CoherenceFinding::new(
                 Shape,
-                "mechanism_composition.shape_invalid_latents",
+                antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_LATENTS,
                 v,
                 "name each latent once with a non-blank identity",
             ));
@@ -460,7 +460,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 {
                     out.push(CoherenceFinding::new(
                         Shape,
-                        "mechanism_composition.shape_non_finite_parameter",
+                        antecedent_core::reason_details::mechanism_composition::SHAPE_NON_FINITE_PARAMETER,
                         v,
                         "refit or correct the mechanism: every parameter must be finite",
                     ));
@@ -468,7 +468,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 if *sigma < 0.0 {
                     out.push(CoherenceFinding::new(
                         Shape,
-                        "mechanism_composition.shape_negative_scale",
+                        antecedent_core::reason_details::mechanism_composition::SHAPE_NEGATIVE_SCALE,
                         v,
                         "a residual standard deviation cannot be negative",
                     ));
@@ -479,7 +479,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                     out.push(
                         CoherenceFinding::new(
                             Shape,
-                            "mechanism_composition.shape_coefficient_parent_mismatch",
+                            antecedent_core::reason_details::mechanism_composition::SHAPE_COEFFICIENT_PARENT_MISMATCH,
                             v,
                             "give exactly one coefficient per declared parent",
                         )
@@ -493,7 +493,7 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 if !numeric(&d.output_support) || !d.parents.iter().all(|p| numeric(&p.domain)) {
                     out.push(CoherenceFinding::new(
                         Shape,
-                        "mechanism_composition.shape_invalid_domain",
+                        antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
                         v,
                         "a linear-Gaussian mechanism ranges over numeric domains",
                     ));
@@ -517,7 +517,7 @@ fn check_table_shape(
     let table_defect = |why: &'static str| {
         CoherenceFinding::new(
             Shape,
-            "mechanism_composition.shape_invalid_table",
+            antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_TABLE,
             v,
             "supply a normalized conditional table over declared levels",
         )
@@ -589,7 +589,7 @@ fn check_table_shape(
         out.push(
             CoherenceFinding::new(
                 Support,
-                "mechanism_composition.support_missing_parent_configuration",
+                antecedent_core::reason_details::mechanism_composition::SUPPORT_MISSING_PARENT_CONFIGURATION,
                 v,
                 "supply a row for every combination of parent levels the producers can emit",
             )
@@ -605,7 +605,7 @@ fn check_family(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         out.push(
             CoherenceFinding::new(
                 CoherenceKind::Family,
-                "mechanism_composition.family_mixed",
+                antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED,
                 "composition",
                 "compose one family at a time: all linear-Gaussian or all finite tables",
             )
@@ -624,7 +624,7 @@ fn check_identity(
         if w[0].variable == w[1].variable {
             out.push(CoherenceFinding::new(
                 VariableIdentity,
-                "mechanism_composition.identity_duplicate_mechanism",
+                antecedent_core::reason_details::mechanism_composition::IDENTITY_DUPLICATE_MECHANISM,
                 w[0].variable.clone(),
                 "keep one fitted mechanism per variable, or compose the alternatives separately",
             ));
@@ -635,7 +635,7 @@ fn check_identity(
             if !known.contains(p.variable.as_str()) {
                 out.push(CoherenceFinding::new(
                     VariableIdentity,
-                    "mechanism_composition.identity_parent_without_mechanism",
+                    antecedent_core::reason_details::mechanism_composition::IDENTITY_PARENT_WITHOUT_MECHANISM,
                     format!("{}<-{}", d.variable, p.variable),
                     "supply a mechanism for the parent (a root needs its own marginal mechanism)",
                 ));
@@ -646,7 +646,7 @@ fn check_identity(
         if !known.contains(parent.as_str()) || !known.contains(child.as_str()) {
             out.push(CoherenceFinding::new(
                 VariableIdentity,
-                "mechanism_composition.identity_edge_unknown_variable",
+                antecedent_core::reason_details::mechanism_composition::IDENTITY_EDGE_UNKNOWN_VARIABLE,
                 format!("{parent}->{child}"),
                 "declare edges only between variables that have a mechanism",
             ));
@@ -656,7 +656,7 @@ fn check_identity(
         if !known.contains(inv.variable.as_str()) {
             out.push(CoherenceFinding::new(
                 VariableIdentity,
-                "mechanism_composition.identity_declaration_unknown_variable",
+                antecedent_core::reason_details::mechanism_composition::IDENTITY_DECLARATION_UNKNOWN_VARIABLE,
                 inv.variable.clone(),
                 "declare invariance only for a variable that has a mechanism",
             ));
@@ -707,7 +707,7 @@ fn check_cycles(spec: &ComposedModelSpec, known: &BTreeSet<&str>, out: &mut Vec<
     involved.dedup();
     out.push(CoherenceFinding::new(
         CoherenceKind::Cycle,
-        "mechanism_composition.cycle_directed_cycle",
+        antecedent_core::reason_details::mechanism_composition::CYCLE_DIRECTED_CYCLE,
         list(involved),
         "schedule the dependency feedback with CyclicDigraph::condensation, which does not execute the policies",
     ));
@@ -722,7 +722,7 @@ fn check_parent_and_conditioning_sets(spec: &ComposedModelSpec, out: &mut Vec<Co
             out.push(
                 CoherenceFinding::new(
                     CoherenceKind::CausalParents,
-                    "mechanism_composition.parents_declared_graph_mismatch",
+                    antecedent_core::reason_details::mechanism_composition::PARENTS_DECLARED_GRAPH_MISMATCH,
                     d.variable.clone(),
                     "refit the mechanism on the declared parents, or correct the declared graph",
                 )
@@ -736,7 +736,7 @@ fn check_parent_and_conditioning_sets(spec: &ComposedModelSpec, out: &mut Vec<Co
             out.push(
                 CoherenceFinding::new(
                     CoherenceKind::ConditioningSet,
-                    "mechanism_composition.conditioning_extra_conditioner",
+                    antecedent_core::reason_details::mechanism_composition::CONDITIONING_EXTRA_CONDITIONER,
                     d.variable.clone(),
                     "refit without the extra conditioners (the fit is P(y | parents, extras), not the mechanism), or declare them as parents",
                 )
@@ -747,7 +747,7 @@ fn check_parent_and_conditioning_sets(spec: &ComposedModelSpec, out: &mut Vec<Co
             out.push(
                 CoherenceFinding::new(
                     CoherenceKind::ConditioningSet,
-                    "mechanism_composition.conditioning_parent_not_conditioned",
+                    antecedent_core::reason_details::mechanism_composition::CONDITIONING_PARENT_NOT_CONDITIONED,
                     d.variable.clone(),
                     "the fit must condition on every declared parent",
                 )
@@ -768,7 +768,7 @@ fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<Coheren
                 out.push(
                     CoherenceFinding::new(
                         CoherenceKind::Units,
-                        "mechanism_composition.units_mismatch",
+                        antecedent_core::reason_details::mechanism_composition::UNITS_MISMATCH,
                         edge.clone(),
                         "convert explicitly and refit, or refit the consumer in the producer's units; no implicit conversion is inferred",
                     )
@@ -779,7 +779,7 @@ fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<Coheren
                 out.push(
                     CoherenceFinding::new(
                         CoherenceKind::Transform,
-                        "mechanism_composition.transform_mismatch",
+                        antecedent_core::reason_details::mechanism_composition::TRANSFORM_MISMATCH,
                         edge.clone(),
                         "declare the transform the consumer was fitted on, or refit one side",
                     )
@@ -791,7 +791,7 @@ fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<Coheren
                 Containment::Partial => out.push(
                     CoherenceFinding::new(
                         CoherenceKind::Support,
-                        "mechanism_composition.support_not_contained",
+                        antecedent_core::reason_details::mechanism_composition::SUPPORT_NOT_CONTAINED,
                         edge,
                         "restrict the producer to the consumer's fitted domain, refit the consumer on the producer's range, or declare global validity of the consumer (domain real)",
                     )
@@ -800,7 +800,7 @@ fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<Coheren
                 Containment::Disjoint => out.push(
                     CoherenceFinding::new(
                         CoherenceKind::Support,
-                        "mechanism_composition.support_disjoint",
+                        antecedent_core::reason_details::mechanism_composition::SUPPORT_DISJOINT,
                         edge,
                         "the producer never emits values the consumer was fitted on; the composition has no overlap",
                     )
@@ -809,7 +809,7 @@ fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<Coheren
                 Containment::KindMismatch => out.push(
                     CoherenceFinding::new(
                         CoherenceKind::Support,
-                        "mechanism_composition.support_kind_mismatch",
+                        antecedent_core::reason_details::mechanism_composition::SUPPORT_KIND_MISMATCH,
                         edge,
                         "a numeric output cannot feed a finite-level input or the reverse",
                     )
@@ -822,7 +822,7 @@ fn check_units_transform_support(spec: &ComposedModelSpec, out: &mut Vec<Coheren
 
 /// Literal for a selection arrow into a latent cause a mechanism loads on.
 pub(crate) const DETAIL_SELECTION_INTO_LATENT: &str =
-    "mechanism_transport.selection_arrow_into_latent";
+    antecedent_core::reason_details::mechanism_transport::SELECTION_ARROW_INTO_LATENT;
 
 /// Population admission of every mechanism.
 ///
@@ -863,7 +863,7 @@ fn check_context(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
             if selected(&d.variable) {
                 out.push(compare(CoherenceFinding::new(
                     CoherenceKind::Population,
-                    "mechanism_composition.population_selection_arrow_into_mechanism",
+                    antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM,
                     d.variable.clone(),
                     "a selection node points into this variable, so its mechanism is not invariant; refit it in the target population (an invariance declaration cannot override the diagram it contradicts)",
                 )));
@@ -878,14 +878,14 @@ fn check_context(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 if diagrams.is_empty() {
                     out.push(compare(CoherenceFinding::new(
                         CoherenceKind::Population,
-                        "mechanism_composition.population_undeclared_transport",
+                        antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT,
                         d.variable.clone(),
                         "declare a selection diagram or an invariance assumption for this mechanism, or refit it in the target population",
                     )));
                 } else if !d.latents.is_empty() {
                     out.push(compare(CoherenceFinding::new(
                         CoherenceKind::Population,
-                        "mechanism_composition.population_latent_blocks_selection_admissibility",
+                        antecedent_core::reason_details::mechanism_composition::POPULATION_LATENT_BLOCKS_SELECTION_ADMISSIBILITY,
                         d.variable.clone(),
                         "a mechanism with a shared latent cause is admitted only by an explicit invariance declaration",
                     )));
@@ -904,7 +904,7 @@ fn check_context(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 out.push(
                     CoherenceFinding::new(
                         CoherenceKind::Regime,
-                        "mechanism_composition.regime_undeclared_invariance",
+                        antecedent_core::reason_details::mechanism_composition::REGIME_UNDECLARED_INVARIANCE,
                         d.variable.clone(),
                         "declare that the mechanism is invariant between the fitted and target regime, or refit it in the target regime",
                     )
@@ -930,7 +930,7 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
             if d.form.family() != MechanismFamily::LinearGaussian {
                 out.push(CoherenceFinding::new(
                     SharedLatent,
-                    "mechanism_composition.latent_family_unsupported",
+                    antecedent_core::reason_details::mechanism_composition::LATENT_FAMILY_UNSUPPORTED,
                     subject.clone(),
                     "finite tables carry no latent loadings; marginalize the latent explicitly in a model that supports it",
                 ));
@@ -938,13 +938,13 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
             match l.loading {
                 None => out.push(CoherenceFinding::new(
                     SharedLatent,
-                    "mechanism_composition.latent_loading_undeclared",
+                    antecedent_core::reason_details::mechanism_composition::LATENT_LOADING_UNDECLARED,
                     subject.clone(),
                     "declare the loading on the shared latent; its residual is otherwise correlated by an unknown amount and is never treated as independent",
                 )),
                 Some(x) if !x.is_finite() => out.push(CoherenceFinding::new(
                     SharedLatent,
-                    "mechanism_composition.latent_loading_undeclared",
+                    antecedent_core::reason_details::mechanism_composition::LATENT_LOADING_UNDECLARED,
                     subject.clone(),
                     "declare a finite loading",
                 )),
@@ -954,7 +954,7 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 if !known.contains(other.as_str()) {
                     out.push(CoherenceFinding::new(
                         SharedLatent,
-                        "mechanism_composition.latent_shared_with_absent_mechanism",
+                        antecedent_core::reason_details::mechanism_composition::LATENT_SHARED_WITH_ABSENT_MECHANISM,
                         format!("{}:{other}", l.latent),
                         "the latent is shared with a mechanism that is not in the composition; add that mechanism or the dropped latent would be treated as independent",
                     ));
@@ -962,7 +962,7 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                     if !peer.latents.iter().any(|x| x.latent == l.latent) {
                         out.push(CoherenceFinding::new(
                             SharedLatent,
-                            "mechanism_composition.latent_sharing_not_reciprocal",
+                            antecedent_core::reason_details::mechanism_composition::LATENT_SHARING_NOT_RECIPROCAL,
                             format!("{}:{other}", l.latent),
                             "both mechanisms must declare the shared latent",
                         ));
@@ -988,7 +988,7 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                 if !others.is_subset(&declared) {
                     out.push(CoherenceFinding::new(
                         SharedLatent,
-                        "mechanism_composition.latent_sharing_not_declared",
+                        antecedent_core::reason_details::mechanism_composition::LATENT_SHARING_NOT_DECLARED,
                         format!("{latent}:{}", m.variable),
                         "list every mechanism that depends on the latent; undeclared sharing would be treated as independent",
                     ));
@@ -1000,7 +1000,7 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     if distinct > MAX_COMPOSED_LATENTS {
         out.push(CoherenceFinding::new(
             SharedLatent,
-            "mechanism_composition.latent_too_many",
+            antecedent_core::reason_details::mechanism_composition::LATENT_TOO_MANY,
             "composition",
             "reduce the number of declared latent causes",
         ));
@@ -1013,7 +1013,7 @@ fn check_provenance(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         if blank(&d.provenance.artifact_id) {
             out.push(CoherenceFinding::new(
                 Provenance,
-                "mechanism_composition.provenance_missing_artifact",
+                antecedent_core::reason_details::mechanism_composition::PROVENANCE_MISSING_ARTIFACT,
                 d.variable.clone(),
                 "bind the mechanism to the identity of the fit or external binding that produced it",
             ));
@@ -1021,7 +1021,7 @@ fn check_provenance(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         if blank(&d.provenance.evidence_id) {
             out.push(CoherenceFinding::new(
                 Provenance,
-                "mechanism_composition.provenance_missing_evidence",
+                antecedent_core::reason_details::mechanism_composition::PROVENANCE_MISSING_EVIDENCE,
                 d.variable.clone(),
                 "name the evidence the mechanism was estimated from so dependence can be judged",
             ));
@@ -1029,7 +1029,7 @@ fn check_provenance(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
         if d.provenance.origin == MechanismOrigin::Declared && !spec.admit_declared_mechanisms {
             out.push(CoherenceFinding::new(
                 Provenance,
-                "mechanism_composition.provenance_declared_mechanism_unacknowledged",
+                antecedent_core::reason_details::mechanism_composition::PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED,
                 d.variable.clone(),
                 "a declared (not estimated) mechanism is admitted only when the composition acknowledges it",
             ));
@@ -1047,7 +1047,7 @@ fn check_uncertainty_marginal(
     if d.form.family() != MechanismFamily::LinearGaussian {
         out.push(CoherenceFinding::new(
             UncertaintyAlignment,
-            "mechanism_composition.uncertainty_family_unsupported",
+            antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_FAMILY_UNSUPPORTED,
             v,
             "parameter uncertainty is propagated for linear-Gaussian mechanisms only; the finite-table route is point-only",
         ));
@@ -1058,7 +1058,7 @@ fn check_uncertainty_marginal(
         out.push(
             CoherenceFinding::new(
                 UncertaintyAlignment,
-                "mechanism_composition.uncertainty_parameter_set_mismatch",
+                antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_PARAMETER_SET_MISMATCH,
                 v,
                 "report covariance over exactly the intercept and one coefficient per declared parent",
             )
@@ -1070,7 +1070,7 @@ fn check_uncertainty_marginal(
     if u.covariance.len() != k * k || !all_finite(&u.covariance) {
         out.push(CoherenceFinding::new(
             UncertaintyAlignment,
-            "mechanism_composition.uncertainty_shape",
+            antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_SHAPE,
             v,
             "supply a finite k x k covariance",
         ));
@@ -1079,14 +1079,14 @@ fn check_uncertainty_marginal(
     if !is_symmetric(&u.covariance, k) {
         out.push(CoherenceFinding::new(
             UncertaintyAlignment,
-            "mechanism_composition.uncertainty_not_symmetric",
+            antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_NOT_SYMMETRIC,
             v,
             "supply a symmetric covariance",
         ));
     } else if !is_positive_semidefinite(&u.covariance, k) {
         out.push(CoherenceFinding::new(
             UncertaintyAlignment,
-            "mechanism_composition.uncertainty_not_psd",
+            antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_NOT_PSD,
             v,
             "supply a positive semidefinite covariance",
         ));
@@ -1113,7 +1113,7 @@ fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) 
         out.push(
             CoherenceFinding::new(
                 Align,
-                "mechanism_composition.uncertainty_meaning_mismatch",
+                antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_MEANING_MISMATCH,
                 "composition",
                 "a posterior covariance and a sampling covariance are not one law; supply laws of one meaning",
             )
@@ -1126,7 +1126,7 @@ fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) 
             if blank(justification) {
                 out.push(CoherenceFinding::new(
                     Dep,
-                    "mechanism_composition.posterior_dependence_independence_unjustified",
+                    antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_INDEPENDENCE_UNJUSTIFIED,
                     "composition",
                     "state why the estimates are independent (disjoint, independently generated evidence)",
                 ));
@@ -1141,7 +1141,7 @@ fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) 
                     out.push(
                         CoherenceFinding::new(
                             Dep,
-                            "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
+                            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT,
                             format!("{first}|{}", d.variable),
                             "mechanisms estimated from the same evidence are dependent; supply a joint law or cross-mechanism covariance",
                         )
@@ -1156,7 +1156,7 @@ fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) 
             if spec.mechanisms.iter().any(|d| d.form.family() != MechanismFamily::LinearGaussian) {
                 out.push(CoherenceFinding::new(
                     Align,
-                    "mechanism_composition.uncertainty_family_unsupported",
+                    antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_FAMILY_UNSUPPORTED,
                     "composition",
                     "parameter uncertainty is propagated for linear-Gaussian mechanisms only; the finite-table route is point-only",
                 ));
@@ -1168,7 +1168,7 @@ fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) 
                 out.push(
                     CoherenceFinding::new(
                         Align,
-                        "mechanism_composition.uncertainty_joint_parameter_set_mismatch",
+                        antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_JOINT_PARAMETER_SET_MISMATCH,
                         "composition",
                         "the joint law must cover exactly every parameter of every mechanism once",
                     )
@@ -1177,21 +1177,21 @@ fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) 
             } else if covariance.len() != k * k || !all_finite(covariance) {
                 out.push(CoherenceFinding::new(
                     Align,
-                    "mechanism_composition.uncertainty_shape",
+                    antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_SHAPE,
                     "composition",
                     "supply a finite k x k joint covariance",
                 ));
             } else if !is_symmetric(covariance, k) {
                 out.push(CoherenceFinding::new(
                     Align,
-                    "mechanism_composition.uncertainty_not_symmetric",
+                    antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_NOT_SYMMETRIC,
                     "composition",
                     "supply a symmetric covariance",
                 ));
             } else if !is_positive_semidefinite(covariance, k) {
                 out.push(CoherenceFinding::new(
                     Align,
-                    "mechanism_composition.uncertainty_not_psd",
+                    antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_NOT_PSD,
                     "composition",
                     "supply a positive semidefinite covariance",
                 ));
@@ -1221,7 +1221,7 @@ fn check_uncertainty(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) 
                                 out.push(
                                     CoherenceFinding::new(
                                         Align,
-                                        "mechanism_composition.uncertainty_marginal_inconsistent_with_joint",
+                                        antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_MARGINAL_INCONSISTENT_WITH_JOINT,
                                         d.variable.clone(),
                                         "the joint law and the mechanism's own fit disagree; they are not one posterior",
                                     )
@@ -1256,7 +1256,7 @@ fn check_cross_blocks(
         else {
             out.push(CoherenceFinding::new(
                 Align,
-                "mechanism_composition.uncertainty_cross_block_unknown_mechanism",
+                antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_CROSS_BLOCK_UNKNOWN_MECHANISM,
                 subject,
                 "name mechanisms that are in the composition",
             ));
@@ -1265,7 +1265,7 @@ fn check_cross_blocks(
         if b.first == b.second || !seen.insert((b.first.as_str(), b.second.as_str())) {
             out.push(CoherenceFinding::new(
                 Dep,
-                "mechanism_composition.posterior_dependence_cross_block_duplicate",
+                antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_CROSS_BLOCK_DUPLICATE,
                 subject,
                 "give each pair of distinct mechanisms one block",
             ));
@@ -1278,7 +1278,7 @@ fn check_cross_blocks(
         {
             out.push(CoherenceFinding::new(
                 Align,
-                "mechanism_composition.uncertainty_cross_block_shape",
+                antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_CROSS_BLOCK_SHAPE,
                 subject,
                 "a cross block is over exactly the two mechanisms' parameters, finite, rows x columns",
             ));
@@ -1335,7 +1335,7 @@ pub fn uncertainty_findings(spec: &ComposedModelSpec) -> Vec<CoherenceFinding> {
             if !provided(d) {
                 out.push(CoherenceFinding::new(
                     CoherenceKind::UncertaintyAlignment,
-                    "mechanism_composition.uncertainty_marginal_missing",
+                    antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_MARGINAL_MISSING,
                     d.variable.clone(),
                     "the owning fit must report its parameter covariance",
                 ));
@@ -1346,7 +1346,7 @@ pub fn uncertainty_findings(spec: &ComposedModelSpec) -> Vec<CoherenceFinding> {
         match &spec.dependence {
             PosteriorDependence::Unknown => out.push(CoherenceFinding::new(
                 CoherenceKind::PosteriorDependence,
-                "mechanism_composition.posterior_dependence_unknown",
+                antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN,
                 "composition",
                 "supply an aligned joint law over all parameters, or an explicit cross-mechanism covariance for every pair; independence must be declared with its justification, never assumed",
             )),
@@ -1359,7 +1359,7 @@ pub fn uncertainty_findings(spec: &ComposedModelSpec) -> Vec<CoherenceFinding> {
                         if !have.contains(&(names[i], names[j])) && !have.contains(&(names[j], names[i])) {
                             out.push(CoherenceFinding::new(
                                 CoherenceKind::PosteriorDependence,
-                                "mechanism_composition.posterior_dependence_cross_covariance_missing",
+                                antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_CROSS_COVARIANCE_MISSING,
                                 format!("{}|{}", names[i], names[j]),
                                 "give every pair of mechanisms an explicit covariance block, a zero block being a declared independence for that pair",
                             ));

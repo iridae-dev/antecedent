@@ -296,7 +296,9 @@ mod tests {
         ExternalRefusal {
             code: antecedent_core::reason_code!("external_capability_missing"),
             stage: "negotiate",
-            detail: "provider_capability_negotiation.capability_missing".to_owned(),
+            detail:
+                antecedent_core::reason_details::provider_capability_negotiation::CAPABILITY_MISSING
+                    .to_owned(),
             offending: None,
             expected: None,
             supplied: None,

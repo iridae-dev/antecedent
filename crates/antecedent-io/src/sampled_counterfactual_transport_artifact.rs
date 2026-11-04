@@ -66,9 +66,12 @@ pub const SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
 pub const SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE: &str =
     crate::artifact_kinds::SAMPLED_COUNTERFACTUAL_TRANSPORT;
 
-const DETAIL_INVALID_ARTIFACT: &str = "counterfactual_transport_sampled.invalid_artifact";
-const DETAIL_BOUNDS: &str = "counterfactual_transport_sampled.bounds_exceeded";
-const DETAIL_DERIVATION: &str = "counterfactual_transport.invalid_derivation";
+const DETAIL_INVALID_ARTIFACT: &str =
+    antecedent_core::reason_details::counterfactual_transport_sampled::INVALID_ARTIFACT;
+const DETAIL_BOUNDS: &str =
+    antecedent_core::reason_details::counterfactual_transport_sampled::BOUNDS_EXCEEDED;
+const DETAIL_DERIVATION: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_DERIVATION;
 
 /// Why a sampled counterfactual transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

@@ -178,18 +178,18 @@ fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse() {
         assert_refused(
             changed.verify(&artifact.binding),
             "invalid_argument",
-            "rollout.expected_binding_mismatch",
+            antecedent_core::reason_details::rollout::EXPECTED_BINDING_MISMATCH,
             edit,
         );
         let scientific = [
-            "rollout.terminal_decision_mismatch",
-            "rollout.terminal_decision_mismatch",
-            "rollout.terminal_decision_mismatch",
-            "rollout.state_coordinate_mismatch",
-            "rollout.source_standing_mismatch",
-            "rollout.source_standing_mismatch",
-            "rollout.ordered_prior_mismatch",
-            "rollout.terminal_decision_mismatch",
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+            antecedent_core::reason_details::rollout::STATE_COORDINATE_MISMATCH,
+            antecedent_core::reason_details::rollout::SOURCE_STANDING_MISMATCH,
+            antecedent_core::reason_details::rollout::SOURCE_STANDING_MISMATCH,
+            antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH,
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
         ];
         assert_refused(
             changed.verify(&changed.binding),
@@ -204,9 +204,15 @@ fn rollout_changed_source_values_and_draw_order_cannot_retain_original_prior() {
     let artifact = fixture(false);
     let old = source(false);
     for (edit, (draws, scientific)) in [
-        (vec![0.75, 2., 0.25, 1.], "rollout.ordered_prior_mismatch"),
-        (vec![0.25, 999., 0.75, 2.], "rollout.ranking_source_mismatch"),
-        (vec![0.5, 1., 0.75, 2.], "rollout.ordered_prior_mismatch"),
+        (
+            vec![0.75, 2., 0.25, 1.],
+            antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH,
+        ),
+        (
+            vec![0.25, 999., 0.75, 2.],
+            antecedent_core::reason_details::rollout::RANKING_SOURCE_MISMATCH,
+        ),
+        (vec![0.5, 1., 0.75, 2.], antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH),
     ]
     .into_iter()
     .enumerate()
@@ -218,7 +224,7 @@ fn rollout_changed_source_values_and_draw_order_cannot_retain_original_prior() {
         assert_refused(
             changed.verify(&artifact.binding),
             "invalid_argument",
-            "rollout.source_digest_mismatch",
+            antecedent_core::reason_details::rollout::SOURCE_DIGEST_MISMATCH,
             edit,
         );
         changed.binding.source_digest = source_digest(&replacement);
@@ -255,13 +261,13 @@ fn rollout_meaning_support_weighting_and_marginal_pairing_refuse() {
             0 | 2 => assert_refused(
                 result,
                 "route_not_supported",
-                "rollout.unweighted_joint_state_required",
+                antecedent_core::reason_details::rollout::UNWEIGHTED_JOINT_STATE_REQUIRED,
                 edit,
             ),
             _ => assert_refused(
                 result,
                 "route_not_supported",
-                "rollout.state_interpretation_mismatch",
+                antecedent_core::reason_details::rollout::STATE_INTERPRETATION_MISMATCH,
                 edit,
             ),
         }
@@ -330,7 +336,7 @@ fn rollout_truncation_corruption_and_nonfinite_prior_refuse() {
     assert_refused(
         changed.verify(&changed.binding),
         "invalid_argument",
-        "rollout.ordered_prior_mismatch",
+        antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH,
         0,
     );
 }

@@ -43,24 +43,28 @@ record_sha256 = "9db39287fa2d644d8cd535614c9a0a324ecdfc4ff74bbe3adba9c01ccd964fa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/gcomp.rs"
-sha256 = "7e99e66c1c72d4f449fefe888f996c4325e9111126b415d631b9cd617e0952b0"
+items = ["const ROW_BLOCK", "fn contrast_row_etas", "fn linear_predictors", "fn mean_contrast", "struct GcompContrast"]
+sha256 = "e318f0e296c0e89a9082c38e2a0e867c3e6277ada132fe5e420321cfc812c38a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm.rs"
-sha256 = "9393dbbac3d34c397dc62f56ffb6a24fce8fc80a3f4ecc3ae61f1fde6a8338fb"
+items = ["const DEFAULT_RIDGE_ON_SEPARATION", "enum GlmFamily", "enum NbAlphaPolicy", "fn default", "fn fit_glm", "fn mean_from_eta", "fn new", "fn require_ok", "struct GlmDesignRef", "struct GlmFit", "struct GlmOptions"]
+sha256 = "c092b03abebe4680b162df6cc19cdc6652b4a1f96e404939588d25ab92ad4319"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/numeric.rs"
-sha256 = "c17444482d21c072e7c4b92e3be0379cc2089f5c9c616652964ef2b18da42afa"
+items = ["module"]
+sha256 = "090b1b721ff0a4520d8c7d2364ddc3e45ca1c0e7174cb509f7b9c80a07cb8b7c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/glm_adjustment/tests.rs"
-sha256 = "3b9e2afff9dab6f025f266efbcb8bb785d17f67af6e334b2aa6db3fcc8b4f58d"
+items = ["fn ctx", "fn glm_adjustment_matches_pinned_statsmodels_oracle", "fn oracle_cell_table"]
+sha256 = "e0634ce76ad6b90306e7272bc615e3ec100e2a9a252293dd5f7e099dcdda5c4b"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/estimate/glm_adjustment_grid/expected.json"
-sha256 = "9bb938cfea828cf1eb853b2aa1a670275a59aff2b4b93935411ae99fda129810"
+sha256 = "a2f9bfbf56b2e14dbb3d851416c0bae85a2edafcb21f29860e905fb97f82cf64"

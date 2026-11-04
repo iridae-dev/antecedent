@@ -37,7 +37,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs",
-          "sha256": "7ead8122e5322676fc33a8683c77bd1021bc49f8c327d870e43ecf9fb40989b4"
+          "items": [
+            "fn efficient_adjustment_fixture_every_case_reports_the_stored_optimal_set",
+            "fn index_of",
+            "fn strings"
+          ],
+          "sha256": "9ee3b253277080f12462d7962a0ed314675ac9301de0ed21707396825784a0f9"
         }
       ],
       "fixture_payload_sha256": "b3fd2385e2572f63fbf82d4948b1ed05ab03802c0ce26d1f2462f2b675c058d5"

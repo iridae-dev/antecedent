@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import check_v3_test_registry as gate
+import check_test_registry as gate
 
 
 class EvidenceRevisions(unittest.TestCase):
@@ -17,7 +17,7 @@ class EvidenceRevisions(unittest.TestCase):
                 (f"revision = '{head}' # note\n", True),
                 (f"revision = '{'0'*40}' # stale\n", False),
                 ("revision = 42\n", False),
-                ("# v3-evidence\nother = 1\n", False),
+                ("# test-evidence\nother = 1\n", False),
                 ("description = '''\nrevision = 'not a key'\n'''\n", True),
             ]
             for body, valid in cases:

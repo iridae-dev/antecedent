@@ -62,7 +62,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/advanced_ci_oracle.rs",
-          "sha256": "9f2b7a348d153417558dacf41f8ae89ec6ecea38d611036b90a7d79627c66744"
+          "items": [
+            "fn advanced_ci_fixture_has_pinned_reproducible_provenance",
+            "fn fixture",
+            "fn gpdc_matches_oracle_decisions_after_stable_residualization",
+            "fn run_case",
+            "fn symbolic_cmi_matches_tigramite_statistics_and_decisions"
+          ],
+          "sha256": "8d030f85613987b53c40092ec0bc6a2153b09ea13d493d1afca915ac7573dc93"
         }
       ],
       "fixture_payload_sha256": "538f5f3ffcc2da5847bc2191f6369844b910219fb88e1378a6bddf5dd3e247bf"

@@ -9,6 +9,7 @@ from dataclasses import replace
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.estimators import GlmAdjustment, LinearAdjustment
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
@@ -310,22 +311,34 @@ def test_adjusted_unsupported_coordinates_refuse_without_discarding_live_fit(kin
     with pytest.raises(RecalcRefusal) as error:
         require_success(session.execute(changed, execution=Execution(seed=3)))
     expected = {
-        "off_grid": ("route_not_supported", "recalc.off_grid_request", "treatment_grid"),
-        "unknown_level": ("route_not_supported", "recalc.off_grid_request", "treatment_grid"),
+        "off_grid": (
+            "route_not_supported",
+            reason_details.recalc.OFF_GRID_REQUEST,
+            "treatment_grid",
+        ),
+        "unknown_level": (
+            "route_not_supported",
+            reason_details.recalc.OFF_GRID_REQUEST,
+            "treatment_grid",
+        ),
         "sparse_level": (
             "arm_not_populated",
-            "recalc.adjusted_arm_not_populated",
+            reason_details.recalc.ADJUSTED_ARM_NOT_POPULATED,
             "score_artifact",
         ),
-        "categorical_coding": ("invalid_argument", "recalc.categorical_role_mismatch", "query"),
+        "categorical_coding": (
+            "invalid_argument",
+            reason_details.recalc.CATEGORICAL_ROLE_MISMATCH,
+            "query",
+        ),
         "weight_dependence": (
             "invalid_argument",
-            "recalc.invalid_target_weights",
+            reason_details.recalc.INVALID_TARGET_WEIGHTS,
             "target_population",
         ),
         "invalid_adjustment": (
             "effect_not_identified",
-            "recalc.adjustment_not_identified",
+            reason_details.recalc.ADJUSTMENT_NOT_IDENTIFIED,
             "identification",
         ),
     }[kind]
@@ -389,14 +402,14 @@ def test_adjusted_prediction_uses_named_native_schema_and_measures_zero_fits(kin
         require_success(session.predict(rows, columns=tuple(reversed(schema))))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
-        "recalc.adjusted_prediction_schema_mismatch",
+        reason_details.recalc.ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
         "score_artifact",
     )
     with pytest.raises(RecalcRefusal) as error:
         require_success(session.predict([[0.0]], columns=schema))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
-        "recalc.adjusted_prediction_schema_mismatch",
+        reason_details.recalc.ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
         "score_artifact",
     )
     bad = [[0.0, 1.0, 1.0]] if kind == "categorical" else [[0.0, 2.0]]
@@ -404,7 +417,7 @@ def test_adjusted_prediction_uses_named_native_schema_and_measures_zero_fits(kin
         require_success(session.predict(bad, columns=schema))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "route_not_supported",
-        "recalc.adjusted_prediction_out_of_support",
+        reason_details.recalc.ADJUSTED_PREDICTION_OUT_OF_SUPPORT,
         "treatment_grid",
     )
     assert session.is_live
@@ -412,7 +425,7 @@ def test_adjusted_prediction_uses_named_native_schema_and_measures_zero_fits(kin
         require_success(AdjustedSession().predict(rows, columns=schema))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "score_table_unavailable",
-        "recalc.no_live_state",
+        reason_details.recalc.NO_LIVE_STATE,
         "score_artifact",
     )
 
@@ -459,13 +472,17 @@ def test_adjusted_over_budget_input_is_refused_before_it_is_copied():
     class Claimed:
         size = 2**50
 
-    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
+    with pytest.raises(
+        CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED
+    ) as error:
         _columns({"a": Claimed()}, memory_limit_bytes=2**40)
     assert error.value.reason_code == "invalid_argument"
 
     session = AdjustedSession()
     for call in (session.plan, session.execute):
-        with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
+        with pytest.raises(
+            CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED
+        ) as error:
             call(request, execution=Execution(limits=ResourceLimits(memory_bytes=values * 8 - 1)))
         assert error.value.reason_code == "invalid_argument"
     assert not session.is_live
@@ -481,7 +498,9 @@ def test_adjusted_over_budget_input_is_refused_before_it_is_copied():
     # Native code applies the same budget to its own copy, independently of Python.
     native = _native.AdjustedSessionHandle()
     columns = [np.asarray(v) for v in request.data.values()]
-    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
+    with pytest.raises(
+        CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED
+    ) as error:
         require_success(
             native.execute(
                 list(request.data),
@@ -492,7 +511,7 @@ def test_adjusted_over_budget_input_is_refused_before_it_is_copied():
         )
     assert error.value.reason_code == "invalid_argument"
     assert not native.is_live()
-    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+    with pytest.raises(CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED):
         require_success(
             native.predict(
                 [[0.0, 0.0]] * 10,
@@ -500,7 +519,7 @@ def test_adjusted_over_budget_input_is_refused_before_it_is_copied():
                 memory_limit_bytes=8,
             )
         )
-    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+    with pytest.raises(CausalValueError, match=reason_details.recalc.MEMORY_BUDGET_EXCEEDED):
         require_success(
             AdjustedSession().predict(
                 [[0.0, 0.0]] * 10,
@@ -521,7 +540,7 @@ def test_adjusted_cancelled_run_refuses_before_fitting():
         require_success(session.execute(request, execution=Execution(cancel=token)))
     assert (error.value.reason_code, error.value.detail) == (
         "cancelled_no_claim",
-        "recalc.cancelled",
+        reason_details.recalc.CANCELLED,
     )
     assert not session.is_live
     # An unfired token changes nothing.
@@ -559,7 +578,9 @@ def test_adjusted_bridge_checks_glm_iterations_before_execution():
     assert refusal is None
     assert json.loads(report)["model_fits"] == 0
 
-    with pytest.raises(CausalValueError, match="recalc.adjusted_invalid_model") as error:
+    with pytest.raises(
+        CausalValueError, match=reason_details.recalc.ADJUSTED_INVALID_MODEL
+    ) as error:
         require_success(
             AdjustedSession().execute(replace(logistic_request(), model=GlmModel(max_iter=0)))
         )
@@ -574,13 +595,25 @@ def test_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit(kind):
     identities = session.identities
     if kind == "invalid_outcome":
         changed = replace(request, data={**request.data, "y": np.full(len(request.data["y"]), 2.0)})
-        expected = ("invalid_argument", "recalc.adjusted_model_data_invalid", "data_snapshot")
+        expected = (
+            "invalid_argument",
+            reason_details.recalc.ADJUSTED_MODEL_DATA_INVALID,
+            "data_snapshot",
+        )
     elif kind == "nonconvergence":
         changed = replace(request, model=GlmModel(max_iter=1))
-        expected = ("route_not_supported", "recalc.adjusted_glm_not_converged", "score_artifact")
+        expected = (
+            "route_not_supported",
+            reason_details.recalc.ADJUSTED_GLM_NOT_CONVERGED,
+            "score_artifact",
+        )
     else:
         changed = replace(request, data={**request.data, "y": np.asarray(request.data["t"])})
-        expected = ("route_not_supported", "recalc.adjusted_glm_separated", "score_artifact")
+        expected = (
+            "route_not_supported",
+            reason_details.recalc.ADJUSTED_GLM_SEPARATED,
+            "score_artifact",
+        )
     with pytest.raises(RecalcRefusal) as error:
         require_success(session.execute(changed, execution=Execution(seed=3)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == expected

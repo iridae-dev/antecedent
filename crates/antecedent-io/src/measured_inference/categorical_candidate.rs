@@ -45,8 +45,12 @@ struct CandidateReading {
 // This private reading is never a measured result: only the crate-private factory, after a
 // matching attesting record, turns it into one.
 fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<CandidateReading, IoError> {
-    let source = CategoricalCandidateSource::decode(bytes)
-        .map_err(|message| invalid("compiled_categorical_posterior.source_invalid", message))?;
+    let source = CategoricalCandidateSource::decode(bytes).map_err(|message| {
+        invalid(
+            antecedent_core::reason_details::compiled_categorical_posterior::SOURCE_INVALID,
+            message,
+        )
+    })?;
     let lease = ctx
         .acquire_admission(0, admission_bytes(source.rows(), source.declared_levels().len()))
         .map_err(|error| match error {
@@ -75,7 +79,10 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<CandidateReadi
         CREDIBLE_LEVEL,
     )
     .map_err(|error| {
-        invalid("compiled_categorical_posterior.execution_refused", &error.to_string())
+        invalid(
+            antecedent_core::reason_details::compiled_categorical_posterior::EXECUTION_REFUSED,
+            &error.to_string(),
+        )
     })?;
     if scoped.cancellation.is_cancelled() {
         return Err(IoError::Refused {
@@ -86,7 +93,7 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<CandidateReadi
     }
     if posterior.level_contrasts.len() + 1 != source.declared_levels().len() {
         return Err(invalid(
-            "compiled_categorical_posterior.execution_refused",
+            antecedent_core::reason_details::compiled_categorical_posterior::EXECUTION_REFUSED,
             "the reported contrasts differ from the declared levels",
         ));
     }
@@ -257,7 +264,9 @@ mod tests {
             measure_source(b"untrusted", &ExecutionContext::for_tests(7)).unwrap_err(),
         );
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("compiled_categorical_posterior.source_invalid"));
+        assert!(message.contains(
+            antecedent_core::reason_details::compiled_categorical_posterior::SOURCE_INVALID
+        ));
     }
 
     #[test]

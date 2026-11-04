@@ -41,12 +41,14 @@ record_sha256 = "c55e6fb25379631038619ed98c05494fff5d086854a00d4eb8533863c32e9ed
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/scenario_covariance.rs"
-sha256 = "1ceac113326cb2023567e3c4f5d7d49b6663e74d0e6084fa0f967434955a1ca7"
+items = ["const COVARIANCE_INTERPRETATION", "const EXACT_ENUMERATION_HARD_CAP", "const MAX_EXACT_ROWS", "const MIN_REPLICATES", "const MIN_ROWS", "const PSD_RELATIVE_TOLERANCE", "const REPLICATE_DIGEST_TAG", "const ROW_DIGEST_TAG", "enum CovarianceMethod", "enum RowDependence", "fn check_cancel", "fn composition_count", "fn covariance_estimator_moments", "fn dependence", "fn dimension", "fn draw_counts", "fn entry", "fn entry_sampling_variances", "fn estimate", "fn evaluate_all", "fn exact_enumeration_covariance", "fn finish", "fn hex_digest", "fn id", "fn invalid", "fn is_psd", "fn moments", "fn new", "fn numerical", "fn over_bound", "fn probability", "fn replicate_id", "fn seed_digest", "fn shared_row_bootstrap_covariance", "fn snapshot_digest", "fn unit_ids", "fn unknown_dependence", "fn validate_family", "fn visit", "fn walk", "fn widen", "fn with_dependence", "struct Enumerator", "struct ExactEnumerationOptions", "struct FamilyIdentity", "struct ScenarioCovariance", "struct ScenarioRowEstimator", "struct SharedRowBootstrapOptions", "struct Tally", "type RowEstimatorFn"]
+sha256 = "70fd7198102608290e3ec3b28eac7d48dc68f9fe9aceb87591a188814cc5bfba"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/shared_scenario_covariance_reference.rs"
-sha256 = "35ac4f14515fe360efbae8d2131cf147cc81447ddfa3f6184dc11206ea8ef4ef"
+items = ["fn bootstrap_covariance_equals_the_corrected_covariance_of_the_recorded_replicates", "fn estimator", "fn exact_enumeration_matches_rational_reference_with_joint_dropping", "fn ints", "fn moment_routine_matches_rational_reference", "fn near", "fn reference", "fn units"]
+sha256 = "1647573a0f503e5ffcd0adadc63aacb3cb56dced67b75a19696dd501f9ffaedd"
 
 [[method_review.artifacts]]
 role = "reference"

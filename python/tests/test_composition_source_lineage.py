@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition as comp
 from antecedent import decision, program_claims
 from antecedent import design as dr
@@ -147,7 +148,9 @@ def test_sensitivity_full_original_v3_source_replays_surface_and_preserves_withh
     } <= loaded.stages_behind()
     historical = require_success(sd.SensitivityArtifact.consume(bytes(artifact.export())))
     assert historical.source_evidence is None
-    with pytest.raises(ValueError, match="sensitivity_source.source_unavailable") as missing:
+    with pytest.raises(
+        ValueError, match=reason_details.sensitivity_source.SOURCE_UNAVAILABLE
+    ) as missing:
         historical.export(include_source=True)
     assert missing.value.reason_code == "invalid_argument"
 
@@ -234,7 +237,7 @@ def test_law_functional_changed_complete_request_identity_and_invalid_artifact_r
         declaration, "treat", comp.Functional.probability(2.0, "upper"), source
     ).source_artifact
     with pytest.raises(
-        ValueError, match="functional_source.expected_identity_mismatch"
+        ValueError, match=reason_details.functional_source.EXPECTED_IDENTITY_MISMATCH
     ) as mismatch:
         require_success(
             LawFunctionalArtifact.consume(
@@ -242,7 +245,9 @@ def test_law_functional_changed_complete_request_identity_and_invalid_artifact_r
             )
         )
     assert mismatch.value.reason_code == "invalid_argument"
-    with pytest.raises(ValueError, match="functional_source.invalid_artifact") as corrupt:
+    with pytest.raises(
+        ValueError, match=reason_details.functional_source.INVALID_ARTIFACT
+    ) as corrupt:
         require_success(LawFunctionalArtifact.consume(b"not a source artifact"))
     assert corrupt.value.reason_code == "invalid_argument"
 
@@ -391,7 +396,9 @@ def test_native_law_row_resolution_refuses_other_actual_source_and_missing_origi
     ).source_artifact
     other_view = _native_view()
     other = program_claims.native_claim(other_view, _native_program(other_view))
-    with pytest.raises(ValueError, match="functional_source.source_mismatch") as mismatch:
+    with pytest.raises(
+        ValueError, match=reason_details.functional_source.SOURCE_MISMATCH
+    ) as mismatch:
         artifact.resolve_with(other)
     assert mismatch.value.reason_code == "invalid_argument"
     external_contract = contract(
@@ -406,7 +413,9 @@ def test_native_law_row_resolution_refuses_other_actual_source_and_missing_origi
         comp.Functional.expectation(),
         comp.DecisionInput.from_distribution("external", joint()),
     ).source_artifact
-    with pytest.raises(ValueError, match="functional_source.native_source_unavailable") as missing:
+    with pytest.raises(
+        ValueError, match=reason_details.functional_source.NATIVE_SOURCE_UNAVAILABLE
+    ) as missing:
         external.resolve_with(other)
     assert missing.value.reason_code == "invalid_argument"
 
@@ -597,7 +606,10 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     assert value.value == 5.0
     with pytest.raises(comp.SupportRefusal) as unsupported:
         _functional(declaration, "B", comp.Functional.expectation(), source)
-    assert unsupported.value.detail == "composition_boundary.unsupported_action_not_comparable"
+    assert (
+        unsupported.value.detail
+        == reason_details.composition_boundary.UNSUPPORTED_ACTION_NOT_COMPARABLE
+    )
     assert unsupported.value.reason_code == "decision_contract_unsatisfied"
     assert value.source_evidence[0].action_contributors == {"A": (claim.quantities[0],)}
     original = consume_source_projection(
@@ -622,7 +634,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     assert loaded.source_evidence[0].diagnostics == ()
     assert loaded.source_evidence[0]._summary["native_authority_issued"] is False
     if forward == "mean_adapter":
-        with pytest.raises(ValueError, match="source_evidence.point_binding_mismatch"):
+        with pytest.raises(ValueError, match=reason_details.source_evidence.POINT_BINDING_MISMATCH):
             require_success(query.evaluate(point=replace(point, means=(30.0, 50.0))))
     decision_result = require_success(declaration.evaluate(claim))
     assert decision_result.source_evidence[0].identities == claim.identity_fields
@@ -712,13 +724,17 @@ print(json.dumps({'selected':result.selected,'identities':evidence.identities,
             )
         )
     assert quantile_refusal.value.reason_code == "decision_contract_unsatisfied"
-    assert quantile_refusal.value.detail == "decision_evaluation.mean_source_insufficient"
-    with pytest.raises(ValueError, match="source_evidence.point_binding_mismatch") as changed:
+    assert (
+        quantile_refusal.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
+    )
+    with pytest.raises(
+        ValueError, match=reason_details.source_evidence.POINT_BINDING_MISMATCH
+    ) as changed:
         require_success(
             query.evaluate(point=replace(mean, means=tuple(value + 1 for value in mean.means)))
         )
     assert changed.value.reason_code == "invalid_argument"
-    with pytest.raises(ValueError, match="source_evidence.point_binding_mismatch"):
+    with pytest.raises(ValueError, match=reason_details.source_evidence.POINT_BINDING_MISMATCH):
         require_success(
             declaration.evaluate(replace(adapter.source, snapshot_id="substituted-snapshot"))
         )

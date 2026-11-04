@@ -125,7 +125,10 @@ fn two_step_posterior_refuses_an_external_power_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("two_step_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::two_step_posterior::EXTERNAL_POWER_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -286,7 +289,12 @@ fn a_reached_history_without_source_support_refuses() {
     // The source supplies no outcome experiment for (b = 1, l1 = 0, l2 = 1).
     let (code, message) = refusal(prepare(&sequence(1.0, 1.0), &[(1, 0, 1)]));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     assert!(message.contains("b=1") && message.contains("l2=1"), "{message}");
 }
 
@@ -312,7 +320,12 @@ fn a_history_the_target_never_reaches_still_needs_source_support() {
         &ctx(),
     ));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     // Served, the unreached histories are reported as such and the answer is the truth.
     let served = laws(&source_scm(), &target, &[]);
     let prepared =
@@ -591,7 +604,10 @@ fn a_structural_obstruction_and_missing_evidence_refuse_with_their_own_reasons()
         &ctx(),
     ));
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.starts_with("temporal_transport.missing_evidence"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::MISSING_EVIDENCE),
+        "{message}"
+    );
 }
 
 /// Whether the exact evaluator itself accepts `data` for the decided sequence,
@@ -644,7 +660,12 @@ fn a_source_law_without_interventions_supports_no_history() {
         &ctx(),
     ));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     assert!(message.contains("8 of 12 histories") && message.contains("step 2 (b="), "{message}");
 }
 
@@ -665,7 +686,12 @@ fn a_source_law_intervening_only_on_the_actions_supports_no_complete_history() {
         &ctx(),
     ));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
 }
 
 #[test]

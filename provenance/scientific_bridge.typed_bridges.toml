@@ -55,17 +55,20 @@ record_sha256 = "e21aa38fdbbc78cd6421151b15e4355e4879f7ecb9ccb2630867dd234909ee0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/mapping.rs"
-sha256 = "02a183a0858175999991cd5333bac2497efba4d1f91be166138eb6832cb838f5"
+items = ["enum BridgeMapping", "enum MappingKind", "fn kind", "struct TrialEffectPair", "struct TrialLevelValidation"]
+sha256 = "05567aa9d967311610e671e7830684d976802c429c5eec7925757fb0b1794eb5"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/point_propagation.rs"
-sha256 = "e0f1178d7320d92d23cc8b9dc57d7a55d80ed5daaae5fc525b73527f70cd7723"
+items = ["fn finite_variance", "fn propagate"]
+sha256 = "e8aa55b6b7147a6ea766e666db1ad959228bbb904b134f021474f8a67424944e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/typed_bridges_reference.rs"
-sha256 = "ec0d46f680b7b32b86eec9ecc5de33205e046b709799382c0521b27f32173dbd"
+items = ["const REFERENCE", "fn affine_propagation_matches_the_exact_variance_with_declared_dependence", "fn assumption", "fn claim", "fn close", "fn correction", "fn dependence", "fn digest", "fn endpoint", "fn lines", "fn model", "fn num", "fn propagate", "fn quantity", "fn rogan_gladen_inversion_and_forward_map_match_the_exact_reference_with_rate_variances", "fn the_exponential_map_uses_the_normal_mgf_and_is_refused_for_a_two_moment_law", "fn trial_level_fit_range_and_mean_line_variance_match_the_exact_reference"]
+sha256 = "48d6d6071bd25140f909d22c4b23a9f4f9992ee44832ec6f5cc7ebc5e760416e"
 
 [[method_review.artifacts]]
 role = "reference"

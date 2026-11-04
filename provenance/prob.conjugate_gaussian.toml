@@ -44,34 +44,40 @@ record_sha256 = "9e9e295cc6dd44c8d3867bb6b3f551dfd843b83652f52b88f20ad1720efdba2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
+items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
+sha256 = "81480e7cac5f4ca97855d646a708ed4e96bc6043c32c4099dedb383a4798b9e2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/prior.rs"
-sha256 = "cf40870bbb70f8cfd41e234b19a7bb919f2f1bb20ceb28f04a3f387783b587be"
+items = ["const CORRELATION_ZERO", "enum ContrastCoding", "enum PriorSpec", "fn dim", "fn from", "fn from_covariance", "fn len", "fn matrix", "fn new", "fn push", "fn validate", "fn weakly_informative", "struct CoefficientCorrelation", "struct GaussianCoefficientPrior", "struct InvGammaPrior", "struct PriorSet"]
+sha256 = "b05264b353f9594f93d7f93baa3322244da36f7986d583876f30350d26db49cd"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/likelihood_terms.rs"
-sha256 = "c976cb3ac67c674b45428ea5477401d205c3df23cb463a5b8b1af329aeb603ef"
+items = ["module"]
+sha256 = "bd6b3dede8fa387aaf09d23f8d911e3a093cadb537e9fbd969662560d023fea7"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/rng.rs"
-sha256 = "2f2c3b3131920b1b90548aec7ff20c83d5bda13d342dce398dd953873f787259"
+items = ["fn categorical_mass", "fn categorical_total", "fn len", "fn new", "fn total"]
+sha256 = "7f9dde98c97c457e185b7cd1993acf0cb586091003401a842e889988e78a0006"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/bayes_posterior_oracle.rs"
-sha256 = "fe2d46007fcb611b55a683c5cfd495926a7594a84575b94c291c8e400647a157"
+items = ["const INT_WEIGHTS", "const M0", "const OFFSETS", "const WEIGHTS", "const X1", "const Y_GAUSS", "fn colmajor", "fn gaussian_prior", "fn known_variance_posterior_obeys_bayes_rule_with_weights_offsets_and_dense_prior", "fn nig_integer_weights_equal_replication_and_zero_weight_equals_deletion", "fn nig_prior", "fn nig_residual_variance_mean_and_coefficient_covariance_match_independent_algebra", "fn quad2"]
+sha256 = "d688baeb5a01a55922cb4a722e271e59fafc18d22c5da3925299acdee3b5bdad"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/dense_v0_sequential.rs"
-sha256 = "9b2b818912ae6756f79d0d8349f53afe12c336a396137a7b92261510deffc77d"
+items = ["const P", "const SIGMA2", "fn analytic_posterior", "fn batch", "fn colmajor", "fn invert", "fn laplace_logit_hessian_adds_dense_prior_precision", "fn nig_posterior_mean_uses_dense_v0", "fn rel_close"]
+sha256 = "2341fc2fb5f7d353a116d05ab4985623ec991ebb8c04588868053f4de6d0eb90"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/bayesian/conjugate_gaussian/expected.json"
-sha256 = "78782e080d7e105359ecf5039e16929f6429435ecaebd20baf495d34f265c829"
+sha256 = "514cc895bcf5601de576b88ca785c804c58323c531bc194937ef3cedd46c03ee"

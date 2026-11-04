@@ -48,7 +48,7 @@ fn refused(code: &'static str, detail: &str, text: &str) -> IoError {
 fn invalid_effect() -> IoError {
     refused(
         antecedent_core::reason_code!("invalid_argument"),
-        "sensitivity_decision_composition.invalid_surface",
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
         "a surface quantity coordinate is invalid",
     )
 }
@@ -100,7 +100,7 @@ pub fn msm_sensitivity_artifact(
     if result.inference_claim != SENSITIVITY_INFERENCE_CLAIM {
         return Err(refused(
             antecedent_core::reason_code!("decision_contract_unsatisfied"),
-            "sensitivity_decision_composition.wrong_contract",
+            antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
             "only an assumption-range result can be adapted",
         ));
     }

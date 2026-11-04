@@ -167,7 +167,7 @@ impl std::error::Error for SensitivityDecisionError {}
 fn wrong_contract(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
         code: antecedent_core::reason_code!("decision_contract_unsatisfied"),
-        detail: "sensitivity_decision_composition.wrong_contract",
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
         message: message.into(),
     }
 }
@@ -175,7 +175,7 @@ fn wrong_contract(message: impl Into<String>) -> SensitivityDecisionError {
 fn not_supported(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
         code: antecedent_core::reason_code!("route_not_supported"),
-        detail: "sensitivity_decision_composition.composition_not_supported",
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED,
         message: message.into(),
     }
 }
@@ -183,7 +183,7 @@ fn not_supported(message: impl Into<String>) -> SensitivityDecisionError {
 fn invalid_surface(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "sensitivity_decision_composition.invalid_surface",
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
         message: message.into(),
     }
 }
@@ -194,22 +194,22 @@ fn from_io(error: &IoError) -> SensitivityDecisionError {
         return invalid_surface(error.to_string());
     };
     let detail = match message.split_once(": ").map_or("", |(detail, _)| detail) {
-        "sensitivity_decision_composition.unsupported_coordinate" => {
-            "sensitivity_decision_composition.unsupported_coordinate"
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE => {
+            antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE
         }
-        "sensitivity_decision_composition.composition_not_supported" => {
-            "sensitivity_decision_composition.composition_not_supported"
+        antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED => {
+            antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
         }
-        "sensitivity_decision_composition.bounds_exceeded" => {
-            "sensitivity_decision_composition.bounds_exceeded"
+        antecedent_core::reason_details::sensitivity_decision_composition::BOUNDS_EXCEEDED => {
+            antecedent_core::reason_details::sensitivity_decision_composition::BOUNDS_EXCEEDED
         }
-        "sensitivity_decision_composition.unsupported_adaptation" => {
-            "sensitivity_decision_composition.unsupported_adaptation"
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_ADAPTATION => {
+            antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_ADAPTATION
         }
-        "sensitivity_decision_composition.invalid_surface" => {
-            "sensitivity_decision_composition.invalid_surface"
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE => {
+            antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
         }
-        _ => "sensitivity_decision_composition.wrong_contract",
+        _ => antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
     };
     SensitivityDecisionError { code, detail, message: message.clone() }
 }
@@ -217,7 +217,7 @@ fn from_io(error: &IoError) -> SensitivityDecisionError {
 fn from_structural(error: &StructuralError) -> SensitivityDecisionError {
     SensitivityDecisionError {
         code: error.reason_code(),
-        detail: "sensitivity_decision_composition.wrong_contract",
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
         message: format!("{error:?}"),
     }
 }

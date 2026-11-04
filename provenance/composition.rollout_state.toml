@@ -20,9 +20,11 @@ record_sha256 = "7208cbf955fddf740ecbcdda04aea904befa74973eefffc9340ff6f1ace45bd
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/rollout_artifact.rs"
-sha256 = "18c4c40a90a60753a9d4648cfd800a5493138c09848230bbbfdace56c3de7cc5"
+items = ["const MAX_ROLLOUT_BYTES", "const ROLLOUT_KIND", "const SECTION", "enum StateInterpretation", "fn check_bounds", "fn consume", "fn diagnostic_evidence", "fn from_bytes", "fn new", "fn recomputed_digest", "fn refused", "fn seal", "fn to_bytes", "fn unsupported", "fn verify", "struct DigestBody", "struct RolloutArtifact", "struct RolloutExpectation", "struct RolloutSource"]
+sha256 = "f46e5b95b88af892c736feffc50d1e1f906a55f1d728a435b3b12e70bc4c4d03"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/rollout_artifact.rs"
-sha256 = "55ad6a22278aac5724182dafb7d400c6bbc392f7586f3a796ae0e77053c1a3e8"
+items = ["fn assert_refused", "fn bundle", "fn fixture", "fn pin", "fn quantity", "fn rollout_bundle_verifies_source_rollout_ranking_chain_and_refuses_swapped_metadata", "fn rollout_changed_source_values_and_draw_order_cannot_retain_original_prior", "fn rollout_finite_source_and_ranking_replay_match_independent_bet_truth", "fn rollout_meaning_support_weighting_and_marginal_pairing_refuse", "fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse", "fn rollout_truncation_corruption_and_nonfinite_prior_refuse", "fn source"]
+sha256 = "f602c41eba8871a8c8487ed21f4be1915a5d8604242d6dc041efcf2087a91d16"

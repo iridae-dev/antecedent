@@ -5,6 +5,7 @@ from importlib import import_module
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.prediction import FittedEffectModel
@@ -66,7 +67,7 @@ def test_readable_results_or_flags_never_grant_execution(family, operation):
         with pytest.raises(RecalcUnavailable) as error:
             require_adapter(family, operation, state)
         assert error.value.reason_code == "route_not_supported"
-        assert error.value.detail == "recalc.capability_adapter_unavailable"
+        assert error.value.detail == reason_details.recalc.CAPABILITY_ADAPTER_UNAVAILABLE
         assert error.value.stage == "score_artifact"
 
 

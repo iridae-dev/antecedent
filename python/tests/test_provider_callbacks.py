@@ -18,6 +18,7 @@ import textwrap
 from statistics import NormalDist
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import provider_callbacks as pc
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
@@ -204,16 +205,16 @@ def test_operations_are_negotiated_separately():
     cdf_only = declaration(operations=("cdf",))
     error = refusal_of(session.execute, provider, cdf_only, pc.Request(pc.Query.quantile([0.5])))
     assert error.reason_code == "external_capability_missing"
-    assert error.detail == "callback_protocol.operation_not_declared"
+    assert error.detail == reason_details.callback_protocol.OPERATION_NOT_DECLARED
     # An update needs its declaration and the observation law.
     error = refusal_of(
         declaration(
             kind="posterior", meaning="parameter_posterior", operations=("posterior_update",)
         ).validate
     )
-    assert error.detail == "callback_protocol.update_declaration_mismatch"
+    assert error.detail == reason_details.callback_protocol.UPDATE_DECLARATION_MISMATCH
     error = refusal_of(declaration(operations=("mean", "posterior_update")).validate)
-    assert error.detail == "callback_protocol.operation_not_for_kind"
+    assert error.detail == reason_details.callback_protocol.OPERATION_NOT_FOR_KIND
 
 
 # -- replay, reuse, invalidation ----------------------------------------------------------------
@@ -328,7 +329,7 @@ def test_provider_replacement_is_refused_and_is_a_new_callback():
     require_success(session.execute(v1, decl, request))
     error = refusal_of(session.execute, v2, decl, request)
     assert error.reason_code == "external_binding_mismatch"
-    assert error.detail == "callback_protocol.provider_identity_mismatch"
+    assert error.detail == reason_details.callback_protocol.PROVIDER_IDENTITY_MISMATCH
     assert error.invocations == 0 and counted(v2) == []
     replaced = dataclasses.replace(decl, provider=identity("2.0"))
     assert replaced.identity != decl.identity
@@ -354,14 +355,14 @@ def test_malformed_laws_are_refused_whole():
     decl = declaration()
     error = refusal_of(session.execute, provider, decl, pc.Request(pc.Query.cdf([0.0, 1.0])))
     assert error.reason_code == "callback_output_invalid"
-    assert error.detail == "callback_protocol.output_not_a_law"
+    assert error.detail == reason_details.callback_protocol.OUTPUT_NOT_A_LAW
     assert error.invocations == 1
     error = refusal_of(
         session.execute, provider, decl, pc.Request(require_success(pc.Query.sample(3)))
     )
-    assert error.detail == "callback_protocol.output_not_finite"
+    assert error.detail == reason_details.callback_protocol.OUTPUT_NOT_FINITE
     error = refusal_of(session.execute, provider, decl, pc.Request(pc.Query.quantile([0.5])))
-    assert error.detail == "callback_protocol.output_shape"
+    assert error.detail == reason_details.callback_protocol.OUTPUT_SHAPE
     assert len(session) == 0
 
 
@@ -395,7 +396,7 @@ def test_failure_cancellation_and_limits_are_typed_and_counted():
         request,
         token=pc.CallbackToken(),
     )
-    assert error.detail == "callback_protocol.cancelled" and error.invocations == 1
+    assert error.detail == reason_details.callback_protocol.CANCELLED and error.invocations == 1
     error = refusal_of(
         session.execute, provider, decl, request, policy=pc.ExecutionPolicy(max_invocations=0)
     )
@@ -407,7 +408,7 @@ def test_failure_cancellation_and_limits_are_typed_and_counted():
         pc.Request(require_success(pc.Query.sample(5))),
         policy=pc.ExecutionPolicy(max_output_values=3),
     )
-    assert error.detail == "callback_protocol.output_too_large"
+    assert error.detail == reason_details.callback_protocol.OUTPUT_TOO_LARGE
 
 
 def test_side_effect_retry_is_refused_and_never_invoked_outside_execution():
@@ -434,17 +435,17 @@ def test_side_effect_retry_is_refused_and_never_invoked_outside_execution():
             policy=pc.ExecutionPolicy(phase=phase, allow_side_effects=True),
         )
         assert error.reason_code == "callback_side_effect_forbidden"
-        assert error.detail == "callback_protocol.invocation_outside_execution"
+        assert error.detail == reason_details.callback_protocol.INVOCATION_OUTSIDE_EXECUTION
     assert calls == []
     error = refusal_of(session.execute, provider, decl, request)
-    assert error.detail == "callback_protocol.side_effects_not_allowed" and calls == []
+    assert error.detail == reason_details.callback_protocol.SIDE_EFFECTS_NOT_ALLOWED and calls == []
     # Planning reads the declaration only.
     assert session.plan(decl, request).plan == "recompute"
     allow = pc.ExecutionPolicy(allow_side_effects=True)
     first = refusal_of(session.execute, provider, decl, request, policy=allow)
     assert first.invocations == 1 and first.request_attempts == 1
     retry = refusal_of(session.execute, provider, decl, request, policy=allow)
-    assert retry.detail == "callback_protocol.retry_outside_policy"
+    assert retry.detail == reason_details.callback_protocol.RETRY_OUTSIDE_POLICY
     assert retry.invocations == 0 and calls == [1]
     # Under an idempotent contract with a key the declared retry is allowed once.
     calls.clear()
@@ -520,7 +521,7 @@ def test_nested_callback_binds_inputs_and_reports_dependents_and_overlap():
     error = refusal_of(session.execute, provider, outer, bad, inputs={"inner": inner_done})
     assert error.reason_code == "external_binding_mismatch"
     error = refusal_of(session.execute, provider, outer, request)
-    assert error.detail == "callback_protocol.request_mismatch"
+    assert error.detail == reason_details.callback_protocol.REQUEST_MISMATCH
     assert session.dependents_of(inner.identity) == (1,)
     assert session.dependents_of(outer.identity) == ()
     # Overlap: a sibling over disjoint evidence shares nothing; undeclared evidence is unknown.
@@ -548,24 +549,28 @@ def test_unsupported_routes_refuse_with_registered_codes_and_remedies():
         (
             pc.refuse_interval,
             "uncertainty_representation_insufficient",
-            "callback_protocol.interval_not_supported",
+            reason_details.callback_protocol.INTERVAL_NOT_SUPPORTED,
         ),
         (
             pc.refuse_posterior_guarantee,
             "uncertainty_representation_insufficient",
-            "callback_protocol.posterior_guarantee_not_supported",
+            reason_details.callback_protocol.POSTERIOR_GUARANTEE_NOT_SUPPORTED,
         ),
         (
             pc.refuse_native_trust,
             "callback_protocol_invalid",
-            "callback_protocol.native_trust_not_conferred",
+            reason_details.callback_protocol.NATIVE_TRUST_NOT_CONFERRED,
         ),
         (
             pc.refuse_identification_evidence,
             "callback_protocol_invalid",
-            "callback_protocol.identification_not_conferred",
+            reason_details.callback_protocol.IDENTIFICATION_NOT_CONFERRED,
         ),
-        (pc.refuse_joint_law, "joint_law_required", "callback_protocol.joint_law_not_conferred"),
+        (
+            pc.refuse_joint_law,
+            "joint_law_required",
+            reason_details.callback_protocol.JOINT_LAW_NOT_CONFERRED,
+        ),
     ):
         error = refusal_of(route)
         assert (error.reason_code, error.detail) == (code, detail)
@@ -599,7 +604,7 @@ def test_exported_result_round_trips_and_mutations_are_refused():
     assert meta["contract"]["produces"][0]["calibration"]["status"] == "not_measured"
     assert meta["contract"]["produces"][0]["calibration"]["record_id"] is None
     error = refusal_of(pc.consume_callback_result, result.data, "0" * 64)
-    assert error.detail == "callback_protocol.identity_mismatch"
+    assert error.detail == reason_details.callback_protocol.IDENTITY_MISMATCH
     for offset in (len(result.data) // 3, len(result.data) // 2, len(result.data) - 5):
         corrupt = bytearray(result.data)
         corrupt[offset] ^= 0x01
@@ -779,7 +784,7 @@ def test_sample_output_lifts_to_an_empirical_forecast_law_and_a_mean_does_not():
         session.execute(gaussian(), mean_only(), pc.Request(pc.Query.mean(), seed=5))
     )
     error = refusal_of(session.forecast_law, mean)
-    assert error.detail == "callback_protocol.request_mismatch"
+    assert error.detail == reason_details.callback_protocol.REQUEST_MISMATCH
     # An execution of another session is not this session's result.
     other = pc.CallbackSession()
     refusal_of(other.forecast_law, sample)
@@ -849,7 +854,7 @@ def test_a_callback_registers_in_the_ledger_with_its_inner_callback_and_supersed
     # A nested callback names its inner callback's source or it is not registered; the ledger is
     # exactly as it was.
     error = refusal_of(pc.register_callback_source, ledger, outer)
-    assert error.detail == "callback_protocol.request_mismatch"
+    assert error.detail == reason_details.callback_protocol.REQUEST_MISMATCH
     assert len(ledger.sources) == 1
     outer_source = pc.register_callback_source(
         ledger, outer, inner_sources={inner.identity: inner_source}

@@ -45,14 +45,17 @@ record_sha256 = "3dcc5ac204620cda2723ba6dd07a93f82b6f76f25826bf365db620dc032b870
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/response_coordinates.rs"
-sha256 = "6c79cbec6ab3d330534ca3be8d0d9869a8c35e1125d6057a5cc3506b1f88bec7"
+items = ["fn functional_name", "fn intervention_skeleton", "fn label", "fn label_coordinates", "fn mean_curve_skeleton", "fn named", "fn not_describable", "fn numeric_level", "fn refuse", "fn regime_part", "fn response_coordinate_skeleton", "fn response_coordinates", "struct ResponseCoordinateLabels", "struct ResponseCoordinateSkeleton"]
+sha256 = "6c30e6731e3ed177b15450bae4df05d3dfdcdf66ea3527a2b82f3346052e4f81"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/support_labels.rs"
-sha256 = "6dbbaad31bb152f49cff61f7cb286d50f1339189a6906e95d7583a2597fd4997"
+items = ["module"]
+sha256 = "109a3f5ef4a7656f353e851936558ef27e986ffc605a7d34fc2a02a55daead36"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/native_response_coordinates.rs"
-sha256 = "c0c1618b8b65331094e3e1e773b646fa10659f41fda0ba16cf5d40cf1668116f"
+items = ["const A", "const B", "const Y", "fn a_variable_the_caller_cannot_name_refuses", "fn curve", "fn derivative_functionals_and_temporal_paths_refuse_with_their_own_detail", "fn intervention", "fn joint_set_and_shift_response_has_one_coordinate_naming_every_intervention", "fn labels", "fn name_of", "fn refusal_of", "fn response", "fn static_curve_coordinates_are_hand_derived_and_match_the_program_binding", "fn surface", "fn temporal_surface_coordinates_are_dose_major", "fn units_are_required_and_never_inferred", "fn v", "fn what_has_no_exact_regime_refuses_instead_of_being_scalarized"]
+sha256 = "3d23c318662f937493071d907a14bb2a809047798a7730ff1c7fa587e42b325a"

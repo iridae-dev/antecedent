@@ -832,7 +832,7 @@ fn mz_prepared(
                             code: decision.reason_code().unwrap_or("transport_not_certified"),
                             message: decision
                                 .detail_code()
-                                .unwrap_or("mz_transport.search_incomplete")
+                                .unwrap_or(antecedent_core::reason_details::mz_transport::SEARCH_INCOMPLETE)
                                 .to_owned(),
                         }));
                     };

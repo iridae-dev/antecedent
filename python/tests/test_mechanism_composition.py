@@ -32,6 +32,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import mechanism_composition as mc
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.mechanism_composition import MechanismCompositionRefusal
@@ -362,7 +363,7 @@ def test_a_fitted_slot_that_is_not_plain_linear_gaussian_is_refused_by_name():
     assert dict(gcm.mechanism_kinds())["A"] == "discrete"
     # ... which is outside the bounded family and is refused by name, not coerced.
     error = refusal_of(lambda: mc.Mechanism.fitted_linear(declaration("A"), gcm))
-    assert error.detail == "mechanism_composition.slot_not_linear_gaussian"
+    assert error.detail == reason_details.mechanism_composition.SLOT_NOT_LINEAR_GAUSSIAN
     assert error.reason_code == "mechanism_composition_incoherent"
     # A variable that is not a node of the fitted model is an input error.
     with pytest.raises(CausalValueError):
@@ -374,7 +375,7 @@ def test_declared_mechanisms_are_labelled_and_need_acknowledgement():
     error = refusal_of(lambda: compose(mechanisms, admit=False))
     assert error.reason_code == "mechanism_composition_incoherent"
     assert set(error.details) == {
-        "mechanism_composition.provenance_declared_mechanism_unacknowledged"
+        reason_details.mechanism_composition.PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED
     }
     prepared = compose(mechanisms, admit=True)
     assert prepared.declared_mechanisms == ("M", "X", "Y")
@@ -412,7 +413,7 @@ def test_individually_valid_mechanisms_that_cannot_compose_are_refused_with_stru
     )
     error = refusal_of(lambda: compose([linear("X", 1.0, 2.0), m, y]))
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert "mechanism_composition.units_mismatch" in error.details
+    assert reason_details.mechanism_composition.UNITS_MISMATCH in error.details
     assert error.offending == "M->Y"
     assert error.remedy
 
@@ -425,7 +426,7 @@ def test_individually_valid_mechanisms_that_cannot_compose_are_refused_with_stru
         )
     )
     assert error.reason_code == "graph_invalid"
-    assert error.details == ("mechanism_composition.parents_declared_graph_mismatch",)
+    assert error.details == (reason_details.mechanism_composition.PARENTS_DECLARED_GRAPH_MISMATCH,)
     assert error.refusals[0]["expected"] == "{M,X}"
     assert error.refusals[0]["supplied"] == "{X}"
 
@@ -433,7 +434,7 @@ def test_individually_valid_mechanisms_that_cannot_compose_are_refused_with_stru
     cyclic = [linear("A", 0.0, 1.0, [("B", 0.5)]), linear("B", 0.0, 1.0, [("A", 0.5)])]
     error = refusal_of(lambda: compose(cyclic))
     assert error.reason_code == "graph_invalid"
-    assert "mechanism_composition.cycle_directed_cycle" in error.details
+    assert reason_details.mechanism_composition.CYCLE_DIRECTED_CYCLE in error.details
 
     # Support: Y was fitted on X in [0, 10]; X is declared on the whole line.
     bounded = [
@@ -443,11 +444,11 @@ def test_individually_valid_mechanisms_that_cannot_compose_are_refused_with_stru
     ]
     error = refusal_of(lambda: compose(bounded))
     assert error.reason_code == "mechanism_composition_incoherent"
-    assert error.details == ("mechanism_composition.support_not_contained",)
+    assert error.details == (reason_details.mechanism_composition.SUPPORT_NOT_CONTAINED,)
 
     # A parent with no mechanism of its own.
     error = refusal_of(lambda: compose([linear("Y", 0.0, 1.0, [("W", 1.0)])]))
-    assert "mechanism_composition.identity_parent_without_mechanism" in error.details
+    assert reason_details.mechanism_composition.IDENTITY_PARENT_WITHOUT_MECHANISM in error.details
 
     # Provenance: an unbound mechanism.
     unbound = mc.Mechanism.declared_linear(
@@ -466,7 +467,7 @@ def test_individually_valid_mechanisms_that_cannot_compose_are_refused_with_stru
             [linear("X", 1.0, 2.0), unbound, linear("Y", -1.0, 0.5, [("X", 0.5), ("M", 3.0)])]
         )
     )
-    assert error.details == ("mechanism_composition.provenance_missing_artifact",)
+    assert error.details == (reason_details.mechanism_composition.PROVENANCE_MISSING_ARTIFACT,)
 
     # Families are never mixed.
     table = mc.Mechanism.declared_table(
@@ -475,7 +476,7 @@ def test_individually_valid_mechanisms_that_cannot_compose_are_refused_with_stru
         rows=[({}, {"0": 0.5, "1": 0.5})],
     )
     error = refusal_of(lambda: compose([*chain(), table]))
-    assert "mechanism_composition.family_mixed" in error.details
+    assert reason_details.mechanism_composition.FAMILY_MIXED in error.details
 
 
 def test_a_mechanism_from_another_population_needs_a_declared_admission():
@@ -496,7 +497,7 @@ def test_a_mechanism_from_another_population_needs_a_declared_admission():
 
     error = refusal_of(lambda: compose(from_source()))
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert error.details == ("mechanism_composition.population_undeclared_transport",)
+    assert error.details == (reason_details.mechanism_composition.POPULATION_UNDECLARED_TRANSPORT,)
     assert error.refusals[0]["expected"] == "pop"
     assert error.refusals[0]["supplied"] == "source"
 
@@ -512,7 +513,9 @@ def test_a_mechanism_from_another_population_needs_a_declared_admission():
     error = refusal_of(
         lambda: compose(from_source(), admissions=[admission(selection_targets=("M",))])
     )
-    assert error.details == ("mechanism_composition.population_selection_arrow_into_mechanism",)
+    assert error.details == (
+        reason_details.mechanism_composition.POPULATION_SELECTION_ARROW_INTO_MECHANISM,
+    )
     # ... and an explicit invariance assumption admits it regardless.
     assert compose(from_source(), admissions=[admission(assumption_id="assumption:m-invariant")])
     with pytest.raises(CausalValueError):
@@ -548,10 +551,10 @@ def test_shared_latents_are_exact_and_a_dropped_latent_is_refused():
     assert law.covariance_of("A", "B") == pytest.approx(6.0, abs=TOL)
     # Dropping B: A's latent is shared with a mechanism that is not here.
     error = refusal_of(lambda: compose(build(False)))
-    assert "mechanism_composition.latent_shared_with_absent_mechanism" in error.details
+    assert reason_details.mechanism_composition.LATENT_SHARED_WITH_ABSENT_MECHANISM in error.details
     # The dependence exists but its strength is not declared.
     error = refusal_of(lambda: compose(build(True, declare_loading=False)))
-    assert "mechanism_composition.latent_loading_undeclared" in error.details
+    assert reason_details.mechanism_composition.LATENT_LOADING_UNDECLARED in error.details
 
 
 # --------------------------------------------------------------------------- uncertainty
@@ -570,7 +573,7 @@ def test_unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim():
         )
     )
     assert error.reason_code == "joint_law_required"
-    assert error.details == ("mechanism_composition.posterior_dependence_unknown",)
+    assert error.details == (reason_details.mechanism_composition.POSTERIOR_DEPENDENCE_UNKNOWN,)
     assert error.remedy
     # The interval needs the same joint law, so it refuses the same way.
     unbounded = refusal_of(
@@ -595,7 +598,7 @@ def test_unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim():
     error = refusal_of(lambda: compose(shared, dependence=independent()))
     assert error.reason_code == "joint_law_required"
     assert error.details == (
-        "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
+        reason_details.mechanism_composition.POSTERIOR_DEPENDENCE_SHARED_EVIDENCE_DECLARED_INDEPENDENT,
     )
 
 
@@ -615,7 +618,9 @@ def test_independence_and_a_declared_covariance_give_different_checked_variances
         lambda: require_success(independent_prepared.mean_contrast_uncertainty(contrast))
     )
     assert error.reason_code == "joint_law_required"
-    assert error.details == ("joint_law_propagation.nonlinear_needs_aligned_joint_law",)
+    assert error.details == (
+        reason_details.joint_law_propagation.NONLINEAR_NEEDS_ALIGNED_JOINT_LAW,
+    )
 
     # cov(b_MX, b_YM) = 0.002 adds 2 * 6 * 4.5 * 0.002 = 0.108.
     sigma = SIGMA_INDEPENDENT.copy()
@@ -680,7 +685,7 @@ def test_a_missing_cross_covariance_pair_is_unknown_for_that_pair():
     assert error.reason_code == "joint_law_required"
     assert len(error.details) == 2
     assert set(error.details) == {
-        "mechanism_composition.posterior_dependence_cross_covariance_missing"
+        reason_details.mechanism_composition.POSTERIOR_DEPENDENCE_CROSS_COVARIANCE_MISSING
     }
 
 
@@ -798,7 +803,9 @@ def test_finite_tables_match_the_enumerated_scm():
         rows=[({"X": "0"}, {"0": 0.8, "1": 0.2})],
     )
     error = refusal_of(lambda: compose([broken[0], short, broken[2]]))
-    assert "mechanism_composition.support_missing_parent_configuration" in error.details
+    assert (
+        reason_details.mechanism_composition.SUPPORT_MISSING_PARENT_CONFIGURATION in error.details
+    )
 
 
 # --------------------------------------------------------------------------- artifact
@@ -828,7 +835,7 @@ def test_the_artifact_replays_and_refuses_semantic_mutation():
     error = refusal_of(
         lambda: require_success(mc.consume_mechanism_composition_artifact(export.data, "0" * 64))
     )
-    assert error.details == ("mechanism_composition.premises_mismatch",)
+    assert error.details == (reason_details.mechanism_composition.PREMISES_MISMATCH,)
     # Damaged and truncated bytes are refused.
     damaged = bytearray(export.data)
     damaged[len(damaged) // 2] ^= 0xFF
@@ -858,7 +865,7 @@ def test_the_artifact_replays_and_refuses_semantic_mutation():
             mc.consume_mechanism_composition_artifact(mutated.data, export.expectation.identity)
         )
     )
-    assert error.details == ("mechanism_composition.premises_mismatch",)
+    assert error.details == (reason_details.mechanism_composition.PREMISES_MISMATCH,)
 
     other_query = prepared.export(mc.MeanContrast.mean_at("Y", {"X": 3.0}))
     assert other_query.expectation.identity != export.expectation.identity
@@ -965,7 +972,7 @@ def test_refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechani
         "data:M:2",
     )
     error = refusal_of(lambda: prepared.refresh_mechanisms([table]))
-    assert error.details == ("mechanism_composition.family_mixed",)
+    assert error.details == (reason_details.mechanism_composition.FAMILY_MIXED,)
     other_parents = mc.MechanismRefit.declared_linear(
         "M",
         intercept=1.0,
@@ -975,7 +982,7 @@ def test_refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechani
         evidence_id="data:M:2",
     )
     error = refusal_of(lambda: prepared.refresh_mechanisms([other_parents]))
-    assert "mechanism_composition.shape_coefficient_parent_mismatch" in error.details
+    assert reason_details.mechanism_composition.SHAPE_COEFFICIENT_PARENT_MISMATCH in error.details
     unknown = mc.MechanismRefit.declared_linear(
         "Q",
         intercept=1.0,
@@ -986,7 +993,9 @@ def test_refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechani
     )
     error = refusal_of(lambda: prepared.refresh_mechanisms([unknown]))
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert error.details == ("mechanism_composition.identity_declaration_unknown_variable",)
+    assert error.details == (
+        reason_details.mechanism_composition.IDENTITY_DECLARATION_UNKNOWN_VARIABLE,
+    )
     # Still unchanged after three refusals.
     assert np.array_equal(require_success(prepared.intervention_law({"X": 2.0})).mean, before.mean)
 
@@ -1004,7 +1013,7 @@ def test_a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refi
     )
     error = refusal_of(lambda: prepared.refresh_mechanisms([refit]))
     assert error.reason_code == "joint_law_required"
-    assert error.details == ("mechanism_composition.posterior_dependence_unknown",)
+    assert error.details == (reason_details.mechanism_composition.POSTERIOR_DEPENDENCE_UNKNOWN,)
     # Redeclared, the refit composes and the variance is recomputed.
     refreshed = prepared.refresh_mechanisms(
         [refit],
@@ -1014,7 +1023,9 @@ def test_a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refi
         lambda: require_success(refreshed.mean_contrast_uncertainty(contrast_query()))
     )
     assert error.reason_code == "joint_law_required"
-    assert error.details == ("joint_law_propagation.nonlinear_needs_aligned_joint_law",)
+    assert error.details == (
+        reason_details.joint_law_propagation.NONLINEAR_NEEDS_ALIGNED_JOINT_LAW,
+    )
 
 
 def test_cancellation_stops_before_a_composed_result_and_a_bad_declaration_is_typed():

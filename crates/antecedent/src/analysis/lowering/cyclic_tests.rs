@@ -591,7 +591,10 @@ mod composition {
         let refusals =
             check_interface_composition_with_cyclic(&components, &connections, &[unknown], None)
                 .expect_err("a product names a declared component");
-        assert_eq!(refusals[0].detail, "interface_contract.unknown_component");
+        assert_eq!(
+            refusals[0].detail,
+            antecedent_core::reason_details::interface_contract::UNKNOWN_COMPONENT
+        );
 
         let looped = [component("feedback_model", true, true), component("decision", true, true)];
         let loop_connections = [

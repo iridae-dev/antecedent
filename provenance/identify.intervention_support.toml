@@ -31,4 +31,5 @@ record_sha256 = "bcc245d4aa9e506ffd8a5770ecf4771783d4f0da4c08976a0464e0497b65616
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/intervention_support.rs"
-sha256 = "2eee0e5d894f189d5f0a962afc3362159225a53b505ef7944dc18520ee7c173d"
+items = ["module"]
+sha256 = "296d7d37cc2592e297c23b35c05c9656ef693f03a5e0d9851b6c5261a66b2a8c"

@@ -86,7 +86,29 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_prior_transfer.rs",
-          "sha256": "090254eacdd5ac3ab2491946cb59972b4a3d5dbec027952b7c49885bbad8f5c4"
+          "items": [
+            "fn bayes",
+            "fn catalog_for",
+            "fn curve_query",
+            "fn design_xy",
+            "fn fit_pulse",
+            "fn fixture",
+            "fn graph_x2y",
+            "fn graph_xy",
+            "fn graph_xyw",
+            "fn lag2_pulse_query",
+            "fn lag_one_source_refuses_lag_two_target_without_a_named_mapping",
+            "fn mapped_effect_transfer_and_incompatible_catalog_fail_closed",
+            "fn pulse_query",
+            "fn run_transfer",
+            "fn same_design_pulse_consumes_named_source_target_and_filter",
+            "fn same_design_sustained_and_response_curve_ride_staged_path",
+            "fn sequence_refuses_prior_transfer_without_a_new_filter",
+            "fn series_xy",
+            "fn series_xyw",
+            "fn sustained_query"
+          ],
+          "sha256": "e01528ec3d9d3ea8479f5d9df4737f0aacb67e7efff1ec2b3d51c493a63595b8"
         }
       ],
       "fixture_payload_sha256": "3232f6cc0cfd6e30e580f933960186f88c28ecc83e249a240900672382d105fd"

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import multi_level_treatment
 from antecedent.errors import CausalError
 
@@ -79,7 +80,7 @@ def test_a_row_at_an_undeclared_level_is_refused_not_dropped() -> None:
             adjust={"z": data["z"]},
         )
     assert raised.value.reason_code == "treatment_level_undeclared"
-    assert "treatment_levels.full_population_undeclared_level" in str(raised.value)
+    assert reason_details.treatment_levels.FULL_POPULATION_UNDECLARED_LEVEL in str(raised.value)
 
 
 def test_the_target_has_no_default_and_full_population_needs_its_levels() -> None:

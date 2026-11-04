@@ -37,7 +37,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-graph/tests/latent_projection_claims_02_reference.rs",
-          "sha256": "fdf58f30a55b72a2ee3c3a7c022b6b5074dd99fc115371d6b0a889e7c50321a3"
+          "items": [
+            "fn latent_projection_claims_02_every_fixture_case_matches_the_full_edge_set",
+            "fn names"
+          ],
+          "sha256": "23c8441168cc7adc841fb6c4dccf65714f0f601dc605d1c0a12f02d42f91cee4"
         }
       ],
       "fixture_payload_sha256": "9711b227c7d25c599e3d1a00245cbd671d056e9bc1cd2e3bda6db06f36fe1028"

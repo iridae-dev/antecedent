@@ -222,11 +222,14 @@ fn an_in_sample_predictor_and_an_undeclared_dependence_are_refused() {
     let in_sample = assess(&spec(Design::Iid, 800, FitDeclaration::FittedOn(Vec::new()), true));
     let refused = in_sample.expected_score_interval(&mean_query(ScoreKind::Crps)).unwrap_err();
     assert_eq!(refused.code, "evidence_double_counted");
-    assert_eq!(refused.detail, "predictive_assessment.in_sample");
+    assert_eq!(refused.detail, antecedent_core::reason_details::predictive_assessment::IN_SAMPLE);
     let undeclared = assess(&spec(Design::Iid, 800, FitDeclaration::NotFitted, false));
     let refused = undeclared.expected_score_interval(&mean_query(ScoreKind::Crps)).unwrap_err();
     assert_eq!(refused.code, "sampling_dependence_unknown");
-    assert_eq!(refused.detail, "predictive_assessment.interval_dependence_undeclared");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::predictive_assessment::INTERVAL_DEPENDENCE_UNDECLARED
+    );
 }
 
 #[test]
@@ -234,5 +237,8 @@ fn the_unscoped_request_stays_refused() {
     let prepared = assess(&spec(Design::Iid, 800, FitDeclaration::NotFitted, true));
     let refused = prepared.request_score_interval().unwrap_err();
     assert_eq!(refused.code, "quantity_semantics_mismatch");
-    assert_eq!(refused.detail, "predictive_assessment.interval_not_supported");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::predictive_assessment::INTERVAL_NOT_SUPPORTED
+    );
 }

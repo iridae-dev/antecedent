@@ -98,7 +98,10 @@ fn mechanism_discrepancy_run<'py>(
             return Ok((
                 None,
                 None,
-                Some(invalid_json("mechanism_discrepancy.invalid_request", &error.to_string())),
+                Some(invalid_json(
+                    antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST,
+                    &error.to_string(),
+                )),
             ));
         }
     };
@@ -125,7 +128,10 @@ fn mechanism_discrepancy_run<'py>(
             (Err(error), _) => (
                 None,
                 None,
-                Some(invalid_json("mechanism_discrepancy.invalid_artifact", &error.to_string())),
+                Some(invalid_json(
+                    antecedent_core::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
+                    &error.to_string(),
+                )),
             ),
         })
     })?;
@@ -153,7 +159,7 @@ fn mechanism_discrepancy_consume(
                 return Ok((
                     None,
                     Some(invalid_json(
-                        "mechanism_discrepancy.invalid_identity",
+                        antecedent_core::reason_details::mechanism_discrepancy::INVALID_IDENTITY,
                         &error.to_string(),
                     )),
                 ));
@@ -168,7 +174,7 @@ fn mechanism_discrepancy_consume(
                 Err(error) => (
                     None,
                     Some(invalid_json(
-                        "mechanism_discrepancy.invalid_artifact",
+                        antecedent_core::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
                         &error.to_string(),
                     )),
                 ),

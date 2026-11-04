@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 from antecedent import Admg, Dag, repair
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
@@ -153,7 +154,7 @@ def test_assumption_obligations_are_never_satisfied_by_a_study():
     assert result.outcome == "none_certified"
     assert result.best is None
     assert result.reason_code == "transport_missing_evidence"
-    assert result.detail == "evidence_obligations.wrong_contract"
+    assert result.detail == reason_details.evidence_obligations.WRONG_CONTRACT
 
 
 # --------------------------------------------------------------- study candidate
@@ -163,7 +164,7 @@ def test_candidate_needs_unit_and_cost_semantics():
     for field, value in (("unit", " "), ("cost_unit", ""), ("timing", ""), ("recruitment", "")):
         with pytest.raises(repair.StudyCandidateRefusal) as caught:
             observation("bad", ["t", "y"], 5, **{field: value})
-        assert caught.value.detail == "study_candidate.wrong_contract"
+        assert caught.value.detail == reason_details.study_candidate.WRONG_CONTRACT
         assert caught.value.reason_code == "design_signal_invalid"
         assert_registered_refusal(caught.value)
     with pytest.raises(repair.StudyCandidateRefusal):
@@ -214,7 +215,7 @@ def test_candidate_observing_separate_regimes_cannot_claim_the_joint_factor():
     # Claiming the joint law while observing separate regimes is invalid.
     assert result.classification("liar") == "invalid"
     (row,) = [r for r in result.table if r.labels == ("liar",)]
-    assert "study_candidate.wrong_contract" in row.reasons[0]
+    assert reason_details.study_candidate.WRONG_CONTRACT in row.reasons[0]
     assert result.best is None
 
 
@@ -253,7 +254,7 @@ def test_separate_studies_cannot_meet_a_joint_regime_obligation():
     assert result.outcome == "none_certified"
     assert result.best is None
     assert result.reason_code == "transport_not_certified"
-    assert result.detail == "identification_repair.wrong_contract"
+    assert result.detail == reason_details.identification_repair.WRONG_CONTRACT
 
 
 def test_transport_family_is_repaired_by_the_source_experiment_only():
@@ -313,7 +314,7 @@ def test_objective_ranks_sufficient_subsets_and_cost_units_must_agree():
     )
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.repair(backdoor(), [cheap, euros], "minimize_cost")
-    assert caught.value.detail == "identification_repair.cost_units_mismatch"
+    assert caught.value.detail == reason_details.identification_repair.COST_UNITS_MISMATCH
     assert caught.value.reason_code == "design_cost_units_mismatch"
     assert_registered_refusal(caught.value)
     with pytest.raises(ValueError, match="objective"):
@@ -329,7 +330,7 @@ def test_a_contract_that_already_identifies_is_not_a_repair_target():
             population="clinic",
             observed=["a", "b"],
         )
-    assert caught.value.detail == "identification_repair.not_a_failure"
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE
     assert_registered_refusal(caught.value)
 
 
@@ -355,7 +356,7 @@ def test_budget_truncated_search_is_exhausted_never_impossible():
     unevaluated = [r for r in result.table if r.classification == "unevaluated"]
     assert len(unevaluated) == 12
     assert result.reason_code == "transport_budget_cancel"
-    assert result.detail == "identification_repair.budget"
+    assert result.detail == reason_details.identification_repair.BUDGET
     assert "impossible" not in repr(result).lower()
     assert "impossible" not in (result.detail or "")
 
@@ -410,7 +411,7 @@ def test_request_bounds_are_refusals():
     assert found.receipt.unevaluated_total == 0
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.repair(backdoor(), candidates(), limits=repair.RepairLimits(max_operations=10**9))
-    assert caught.value.detail == "identification_repair.bounds_exceeded"
+    assert caught.value.detail == reason_details.identification_repair.BOUNDS_EXCEEDED
     assert caught.value.reason_code == "invalid_argument"
 
 
@@ -449,7 +450,7 @@ def test_consumer_refuses_oversized_limits_and_malformed_bytes():
     data = bytes(repair.repair(backdoor(), candidates()).export())
     with pytest.raises(repair.RepairArtifactRefusal) as caught:
         require_success(repair.consume(data, max_operations=1))
-    assert caught.value.detail == "repair_artifact.bounds_exceeded"
+    assert caught.value.detail == reason_details.repair_artifact.BOUNDS_EXCEEDED
     assert_registered_refusal(caught.value)
     with pytest.raises(CausalTypeError):
         require_success(repair.consume("not bytes"))  # type: ignore[arg-type]
@@ -578,7 +579,7 @@ def test_front_door_contract_owes_the_mediator_set_as_one_joint_law():
 def test_front_door_contract_that_already_identifies_refuses():
     with pytest.raises(repair.RepairRefusal) as caught:
         frontdoor_contract(observed=("t", "m", "y"))
-    assert caught.value.detail == "identification_repair.not_a_failure"
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE
     assert_registered_refusal(caught.value)
 
 
@@ -606,7 +607,7 @@ def test_instrument_validity_is_an_assumption_no_study_satisfies():
     assert result.outcome == "none_certified"
     assert result.classification("instrumented") == "not_certified"
     assert result.reason_code == "transport_missing_evidence"
-    assert result.detail == "evidence_obligations.wrong_contract"
+    assert result.detail == reason_details.evidence_obligations.WRONG_CONTRACT
 
 
 def hedge_contract():
@@ -671,7 +672,7 @@ def test_sensitivity_finding_owes_the_confounder_it_names():
     assert require_success(repair.consume(bytes(result.export()))).best == result.best
     with pytest.raises(repair.RepairRefusal) as caught:
         sensitivity_contract(robust=True)
-    assert caught.value.detail == "identification_repair.not_a_failure"
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE
 
 
 def test_a_failure_reports_its_evidence_needs_as_a_capability_report():

@@ -33,7 +33,20 @@
         {
           "path": "crates/antecedent-estimate/src/joint_panel/tests.rs",
           "role": "assertion_source",
-          "sha256": "b2f2c1fad9743fdd7201008f50e4fc3e13fc0e9930581a48c502d65f26b38c46"
+          "items": [
+            "fn actual_posterior_draws_include_conditional_random_effect_uncertainty_and_report_mixing",
+            "fn batched_law_preserves_shared_worlds_failed_slots_and_releases_its_output_reservation",
+            "fn configured_three_channel_programmable_features_use_exact_axis_and_shared_draw",
+            "fn failed_optimizer_slots_are_retained_without_a_fabricated_covariance",
+            "fn fixture",
+            "fn gaussian_random_intercept_integration_matches_dense_covariance",
+            "fn posterior_draws_are_bit_identical_for_any_thread_budget",
+            "fn programs",
+            "fn resource_refusal_and_cancellation_are_distinct_from_statistical_failure",
+            "fn shared_draw_response_matches_independent_panel_truth_and_initial_histories",
+            "fn source_identity_covers_data_histories_group_order_and_static_specialization"
+          ],
+          "sha256": "79355b33b8d5d12767fdb370c7c1fb116f3a4390c9e1bcf82ebae3a350301a9c"
         }
       ],
       "fixture_payload_sha256": "ab42dd79e08ae665b1307ba5c59df8cd19d167041a6c0d2c916fb241222271af",

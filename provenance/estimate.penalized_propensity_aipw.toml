@@ -41,12 +41,14 @@ record_sha256 = "1a3d8cbf008b0da39075765a2f0ca67011fa98a6021b7dc041a7c6282864200
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/penalized.rs"
-sha256 = "fc525eab1fa346bcb6ab46853dd056c146b5d48849abcef5e045d89adb92e1f3"
+items = ["const CONTEXT_FREE_GRID_BYTES_PER_PENALTY", "const CONTEXT_FREE_GRID_POLICY_BYTES", "const DEFAULT_RIDGE_GRID", "const DEFAULT_RIDGE_INNER_FOLDS", "const FLOOR", "const INNER_PLAN_TAG", "enum FoldPenalty", "enum PropensityPenalty", "fn allocate_penalty_grid", "fn check_context_free_grid_len", "fn default", "fn factory", "fn fit_penalized_fold", "fn inner_folds", "fn invalid", "fn label", "fn lambdas", "fn new", "fn penalty", "fn selected_columns", "fn spec_name", "fn standardize", "fn weighted_logloss", "struct RidgeFoldInput", "struct RidgeFoldSelection", "struct RidgeTuning"]
+sha256 = "ebc38fd7298366530bef0ccc96ba8dddf30e077638630a2a15f1f19d0ae1cbaf"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/propensity/penalized_reference_tests.rs"
-sha256 = "7d159699223488f61f99812dd932d77f04bc808e0561be0d8dd5c8f2bb7b34c0"
+items = ["fn colmajor", "fn floats", "fn inner_plan", "fn run", "fn selected_penalty_support_and_predictions_match_the_independent_reference"]
+sha256 = "38c4c83665b2982e301b0653c5b93568f01ffab6cb5e0e1a2a06089dfd52a616"
 
 [[method_review.artifacts]]
 role = "reference"

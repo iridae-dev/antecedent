@@ -156,10 +156,13 @@ fn refusals_are_typed_and_name_the_next_attempt() {
     let PosteriorRowRequestWire::DoseGrid(mut observational) = dose_grid("level", &[0.5]);
     observational.design = "observational".into();
     let (code, detail, _) = refusal_of(PosteriorRowRequestWire::DoseGrid(observational));
-    assert_eq!((code, detail.as_str()), ("effect_not_identified", "dose_grid.graph_not_certified"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("effect_not_identified", antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED)
+    );
 
     let (_, detail, _) = refusal_of(dose_grid("level", &[0.01]));
-    assert_eq!(detail, "dose_grid.unsupported_dose");
+    assert_eq!(detail, antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE);
 }
 
 #[test]

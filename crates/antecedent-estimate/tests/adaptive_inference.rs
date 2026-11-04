@@ -70,7 +70,10 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
         expected_loss_stopping(&posterior, PosteriorRule::ExpectedLoss { loss_threshold: 1e-6 })
             .unwrap();
     assert!(!loss.stop, "the expected loss of the best arm is not below one in a million");
-    assert_eq!(stop.guarantee.detail, "adaptive_inference.no_stopping_reliability_procedure");
+    assert_eq!(
+        stop.guarantee.detail,
+        antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE
+    );
     assert_eq!(stop.guarantee.code, "estimator_inference_mismatch");
     {
         let error =
@@ -78,7 +81,10 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
                 .unwrap_err();
         assert_eq!(
             (error.code, error.detail),
-            ("invalid_argument", "adaptive_inference.input_invalid")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
         );
         assert!(error.message.contains("probability threshold in (0.5, 1)"), "{}", error.message);
     }
@@ -120,7 +126,10 @@ fn weighted_estimates_match_the_hand_calculation_and_never_clip() {
     let refusal =
         adaptively_weighted_estimate(&history, Estimand::ArmMean(0), &strict, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+    );
     assert!(refusal.message.contains("unit 3"));
     // Estimating only the arm that was never starved is fine.
     assert!(adaptively_weighted_estimate(&history, Estimand::ArmMean(1), &strict, &ctx()).is_ok());
@@ -157,7 +166,10 @@ fn a_subject_size_multiplier_reweights_the_scores() {
         &options,
         &ctx(),
     );
-    assert_eq!(refused.unwrap_err().detail, "adaptive_inference.input_invalid");
+    assert_eq!(
+        refused.unwrap_err().detail,
+        antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+    );
 }
 
 #[test]
@@ -180,7 +192,10 @@ fn confidence_sequences_match_the_closed_form_and_union_bound_a_contrast() {
     // Outcomes outside [0, 1] are refused, not rescaled.
     let refusal =
         anytime_valid_arm_sequences(&[vec![0.5, 1.5]], None, 0.05, 10.0, &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.outcome_invalid");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID
+    );
 }
 
 fn plan() -> GroupSequentialPlan {
@@ -209,14 +224,20 @@ fn group_sequential_boundaries_and_decisions_follow_the_published_values() {
     assert_eq!(none.stopped_at, None);
     let last = group_sequential_decision(&plan(), &[1.0, 2.0, 2.0], &ctx()).unwrap();
     assert_eq!(last.stopped_at, Some(2));
-    assert_eq!(last.guarantee.detail, "adaptive_inference.no_stagewise_adjustment_procedure");
+    assert_eq!(
+        last.guarantee.detail,
+        antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE
+    );
     assert_eq!(last.guarantee.code, "route_not_supported");
     // More looks than planned, and a non-finite statistic.
     {
         let error = group_sequential_decision(&plan(), &[0.0; 4], &ctx()).unwrap_err();
         assert_eq!(
             (error.code, error.detail),
-            ("invalid_argument", "adaptive_inference.input_invalid")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
         );
         assert!(error.message.contains("at most the planned looks"), "{}", error.message);
     }
@@ -224,7 +245,10 @@ fn group_sequential_boundaries_and_decisions_follow_the_published_values() {
         let error = group_sequential_decision(&plan(), &[f64::NAN], &ctx()).unwrap_err();
         assert_eq!(
             (error.code, error.detail),
-            ("invalid_argument", "adaptive_inference.input_invalid")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
         );
         assert!(error.message.contains("one finite standardized statistic"), "{}", error.message);
     }
@@ -238,7 +262,10 @@ fn the_standardized_difference_matches_a_hand_calculation() {
         let error = standardized_difference(&[1.0], &[1.0, 2.0]).unwrap_err();
         assert_eq!(
             (error.code, error.detail),
-            ("invalid_argument", "adaptive_inference.input_invalid")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
         );
         assert!(error.message.contains("at least two observed outcomes"), "{}", error.message);
     }
@@ -246,7 +273,10 @@ fn the_standardized_difference_matches_a_hand_calculation() {
         let error = standardized_difference(&[1.0, 1.0], &[2.0, 2.0]).unwrap_err();
         assert_eq!(
             (error.code, error.detail),
-            ("invalid_argument", "adaptive_inference.input_invalid")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
         );
         assert!(error.message.contains("zero sample variance"), "{}", error.message);
     }
@@ -259,7 +289,7 @@ fn cancellation_is_a_refusal_not_a_verdict() {
     let counts = [ArmCounts { successes: 1, failures: 1 }; 2];
     let refusal = bayesian_posterior(1.0, 1.0, &counts, &ctx).unwrap_err();
     assert_eq!(refusal.code, "cancelled_no_claim");
-    assert_eq!(refusal.detail, "adaptive_inference.cancelled");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::adaptive_inference::CANCELLED);
     let refusal = group_sequential_boundaries(&plan(), &ctx).unwrap_err();
     assert_eq!(refusal.code, "cancelled_no_claim");
 }

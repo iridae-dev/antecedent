@@ -75,27 +75,35 @@ const STAGE: &str = "inverse_observational_scenarios";
 const TAG: &str = "antecedent.inverse_observational_scenarios.result";
 
 /// Detail: no scenario was declared, or a scenario identity is blank or repeated.
-pub const DETAIL_SCENARIOS: &str = "inverse_observational_scenarios.invalid_scenarios";
+pub const DETAIL_SCENARIOS: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::INVALID_SCENARIOS;
 /// Detail: a threshold, bound or probability is not finite or is inverted.
-pub const DETAIL_PARAMETER: &str = "inverse_observational_scenarios.invalid_parameter";
+pub const DETAIL_PARAMETER: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::INVALID_PARAMETER;
 /// Detail: a scenario conditions on the outcome.
 pub const DETAIL_CONDITIONS_ON_OUTCOME: &str =
-    "inverse_observational_scenarios.condition_on_outcome";
+    antecedent_core::reason_details::inverse_observational_scenarios::CONDITION_ON_OUTCOME;
 /// Detail: a coordinate is not in the law.
-pub const DETAIL_COORDINATE_MISSING: &str = "inverse_observational_scenarios.coordinate_missing";
+pub const DETAIL_COORDINATE_MISSING: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::COORDINATE_MISSING;
 /// Detail: a coordinate is masked as unsupported.
 pub const DETAIL_COORDINATE_UNSUPPORTED: &str =
-    "inverse_observational_scenarios.coordinate_unsupported";
+    antecedent_core::reason_details::inverse_observational_scenarios::COORDINATE_UNSUPPORTED;
 /// Detail: the law's rows are not paired joint realizations.
-pub const DETAIL_JOINT_LAW: &str = "inverse_observational_scenarios.joint_law_required";
+pub const DETAIL_JOINT_LAW: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::JOINT_LAW_REQUIRED;
 /// Detail: the law is not observational.
-pub const DETAIL_MEANING: &str = "inverse_observational_scenarios.meaning_not_observational";
+pub const DETAIL_MEANING: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::MEANING_NOT_OBSERVATIONAL;
 /// Detail: the event has no mass in the supplied law.
-pub const DETAIL_EVENT_MASS: &str = "inverse_observational_scenarios.event_has_no_mass";
+pub const DETAIL_EVENT_MASS: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::EVENT_HAS_NO_MASS;
 /// Detail: a draw is not finite.
-pub const DETAIL_DRAWS: &str = "inverse_observational_scenarios.non_finite_draw";
+pub const DETAIL_DRAWS: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::NON_FINITE_DRAW;
 /// Detail: a stored result does not replay from its law and query.
-pub const DETAIL_REPLAY: &str = "inverse_observational_scenarios.result_mismatch";
+pub const DETAIL_REPLAY: &str =
+    antecedent_core::reason_details::inverse_observational_scenarios::RESULT_MISMATCH;
 
 /// Which tail of the outcome is the event.
 #[derive(Clone, Copy, Debug, PartialEq)]

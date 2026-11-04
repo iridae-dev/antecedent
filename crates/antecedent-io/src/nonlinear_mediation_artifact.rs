@@ -82,10 +82,10 @@ const DATA_SECTION: &str = "nonlinear_mediation_data";
 const BUDGET: BudgetDetails = BudgetDetails {
     cancelled: (
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "nonlinear_mediation.cancelled",
+        antecedent_core::reason_details::nonlinear_mediation::CANCELLED,
     ),
-    memory: "nonlinear_mediation.memory_budget_exceeded",
-    export: "nonlinear_mediation.export_budget_exceeded",
+    memory: antecedent_core::reason_details::nonlinear_mediation::MEMORY_BUDGET_EXCEEDED,
+    export: antecedent_core::reason_details::nonlinear_mediation::EXPORT_BUDGET_EXCEEDED,
 };
 /// `NonlinearMediationMeta::data_binding` of a record that holds no dataset, only its digest.
 const DATA_BOUND_BY_DIGEST: &str = "digest";
@@ -118,7 +118,7 @@ fn budget_refusal((code, detail, explanation): BudgetRefusal) -> NonlinearMediat
 fn invalid_request(message: &str) -> NonlinearMediationArtifactError {
     NonlinearMediationArtifactError::refused(
         antecedent_core::reason_code!("invalid_argument"),
-        "nonlinear_mediation.invalid_request",
+        antecedent_core::reason_details::nonlinear_mediation::INVALID_REQUEST,
         message,
     )
 }
@@ -964,7 +964,7 @@ impl NonlinearMediationArtifact {
             (Some(DATA_BOUND_BY_DIGEST), None) => {
                 return Err(NonlinearMediationArtifactError::refused(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "nonlinear_mediation.data_required",
+                    antecedent_core::reason_details::nonlinear_mediation::DATA_REQUIRED,
                     format!(
                         "the artifact is bound to its dataset by digest {}; supply the dataset \
                          to replay it",

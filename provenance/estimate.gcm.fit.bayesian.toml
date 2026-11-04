@@ -69,9 +69,11 @@ record_sha256 = "9598d443139658aac8bffff40e1b9b22c7ada895b65f6f4e17a1adcf49584c6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/attribution_path.rs"
-sha256 = "4b1541bc21768c4ef13acbd24bd4448e48ecc8b0c7f98c8ab392128ea22defb0"
+items = ["enum CounterfactualProcedure", "fn counterfactual_posterior", "fn counterfactual_posterior_columns", "fn dirichlet_counterfactual_estimate", "fn matches_inference", "fn new", "fn operation", "fn unit_effect_posterior_summary", "struct CounterfactualRefit", "struct UnitContrast"]
+sha256 = "086055bc0afb0a9d02d6d433a8270ec77a9d98e4cf08116882bf89cbb0589f9f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"
-sha256 = "fecc2abe8e93340d8f9ed8c3ae5a53b02c4086cb4ff9fbbf0ec9f758c05e05c8"
+items = ["const DRAWS", "const SEED", "fn chain", "fn chain_dag", "fn chain_query", "fn change_attribution_draws_use_one_weight_vector_per_population_and_stay_coupled", "fn column_named", "fn every_counterfactual_draw_is_the_product_of_the_weighted_slopes_of_its_weight_vector", "fn two_period", "fn weighted_slope"]
+sha256 = "646b50cd246e6374b83614ab88e8f02379cc58b762129abfbe07b613dfb38c15"

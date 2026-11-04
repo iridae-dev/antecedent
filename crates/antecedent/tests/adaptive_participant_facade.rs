@@ -102,10 +102,10 @@ fn declaring_refuses_each_missing_element_with_its_own_detail_and_a_remedy() {
     assert_eq!(
         details,
         [
-            "adaptive_inference.outcome_structure_missing",
-            "adaptive_inference.within_unit_correlation_missing",
-            "adaptive_inference.historical_borrowing_missing",
-            "adaptive_inference.anytime_settings_missing",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_STRUCTURE_MISSING,
+            antecedent_core::reason_details::adaptive_inference::WITHIN_UNIT_CORRELATION_MISSING,
+            antecedent_core::reason_details::adaptive_inference::HISTORICAL_BORROWING_MISSING,
+            antecedent_core::reason_details::adaptive_inference::ANYTIME_SETTINGS_MISSING,
         ]
     );
     assert!(
@@ -116,7 +116,10 @@ fn declaring_refuses_each_missing_element_with_its_own_detail_and_a_remedy() {
     invalid.correlation = Some(1.0);
     let refusals = ParticipantProcedure::declare(invalid).unwrap_err();
     assert_eq!(refusals[0].code, "invalid_argument");
-    assert_eq!(refusals[0].detail, "adaptive_inference.correlation_invalid");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
+    );
 }
 
 #[test]
@@ -147,7 +150,10 @@ fn borrowing_is_frozen_after_the_first_look_with_an_assumption_refusal() {
     assert_ne!(amended.identity(), a.identity());
     let refusal = refused(a.amend_borrowing(&borrowing(0.6), 1));
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.borrowing_fixed_after_first_look");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK
+    );
     assert!(a.amend_borrowing(&borrowing(0.5), 4).is_ok(), "no change is not an amendment");
 }
 
@@ -158,7 +164,10 @@ fn capacity_refusals_name_their_class_of_limit() {
     let mut huge = declaration();
     huge.enrolment = Some(vec![40_000, 40_000]);
     let refusals = ParticipantProcedure::declare(huge).unwrap_err();
-    assert_eq!(refusals[0].detail, "adaptive_inference.declared_units_exceeded");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED
+    );
     assert_eq!(refusals[0].code, "invalid_argument");
     assert!(refusals[0].message.contains("stages"));
 
@@ -174,7 +183,10 @@ fn capacity_refusals_name_their_class_of_limit() {
         &ParticipantSimulationRequest { replications: 20_000, seed: 1, true_correlation: None },
         &ctx(),
     ));
-    assert_eq!(work.detail, "adaptive_inference.simulation_work_exceeded");
+    assert_eq!(
+        work.detail,
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED
+    );
     assert!(work.message.contains("remedy"));
     // A memory budget on the execution context is honoured.
     let mut small = ctx();
@@ -184,7 +196,10 @@ fn capacity_refusals_name_their_class_of_limit() {
         &ParticipantSimulationRequest { replications: 10, seed: 1, true_correlation: None },
         &small,
     ));
-    assert_eq!(memory.detail, "adaptive_inference.simulation_memory_exceeded");
+    assert_eq!(
+        memory.detail,
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED
+    );
     // Cancellation is a refusal that is not a verdict on the data.
     let cancelled = ctx();
     cancelled.cancellation.cancel();
@@ -350,7 +365,10 @@ fn a_resealed_edit_of_the_procedure_section_does_not_replay() {
     })
     .unwrap_err();
     assert_eq!(error, ArtifactError::ReplayMismatch("procedure readings"));
-    assert_eq!(replay_detail(&error).1, "adaptive_inference.report_replay_mismatch");
+    assert_eq!(
+        replay_detail(&error).1,
+        antecedent_core::reason_details::adaptive_inference::REPORT_REPLAY_MISMATCH
+    );
 
     // A stored decision that was changed.
     let error = resealed(&run, |meta| {
@@ -382,7 +400,10 @@ fn a_resealed_edit_of_the_procedure_section_does_not_replay() {
         section.looks = vec![first; 65];
     })
     .unwrap_err();
-    assert_eq!(replay_detail(&error).1, "adaptive_inference.retained_record_exceeded");
+    assert_eq!(
+        replay_detail(&error).1,
+        antecedent_core::reason_details::adaptive_inference::RETAINED_RECORD_EXCEEDED
+    );
 
     // An element that was removed: the declared procedure is rebuilt through its own checks.
     let error = resealed(&run, |meta| {
@@ -390,7 +411,10 @@ fn a_resealed_edit_of_the_procedure_section_does_not_replay() {
     })
     .unwrap_err();
     assert_eq!(replay_detail(&error).0, "invalid_argument");
-    assert_eq!(replay_detail(&error).1, "adaptive_inference.looks_not_ordered");
+    assert_eq!(
+        replay_detail(&error).1,
+        antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
+    );
 
     // A procedure section on a contract of another cell.
     let other_cell = resealed(&run, |meta| {
@@ -419,7 +443,10 @@ fn a_retained_probability_that_the_declared_priors_do_not_produce_is_refused() {
     let error = Artifact::from_meta(&meta, None).unwrap_err();
     let (code, detail) = replay_detail(&error);
     assert_eq!(code, "adaptive_assumption_violated");
-    assert_eq!(detail, "adaptive_inference.assignment_not_replayed");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED
+    );
 }
 
 #[test]
@@ -434,10 +461,16 @@ fn sealing_under_other_borrowing_is_refused_because_the_allocation_does_not_repl
         "run-1",
     ));
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.assignment_not_replayed");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED
+    );
     // And once the procedure has made a look, the borrowing cannot be changed at all.
     let frozen = refused(run.procedure.amend_borrowing(&borrowing(1.0), 5));
-    assert_eq!(frozen.detail, "adaptive_inference.borrowing_fixed_after_first_look");
+    assert_eq!(
+        frozen.detail,
+        antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK
+    );
 }
 
 #[test]
@@ -476,7 +509,10 @@ fn a_run_that_stopped_early_replays_and_a_later_look_than_the_stop_is_refused() 
     assert_eq!(longer.batches.len(), 5);
     let refusal = refused(capped.read_history(&longer, &ctx()));
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.stopping_not_replayed");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED
+    );
 }
 
 fn declaration_without_cap() -> ParticipantDeclaration {

@@ -136,7 +136,7 @@ fn fit_dose_basis(
     for (i, dose) in request.dose.iter().enumerate() {
         if antecedent_core::numerical_admission::is_cancelled() {
             return Err(execution_refusal(
-                "dose_grid.cancelled",
+                antecedent_core::reason_details::dose_grid::CANCELLED,
                 "dose design construction cancelled",
             ));
         }
@@ -226,14 +226,14 @@ fn validate(request: &DoseGridPosteriorRequest<'_>) -> Result<Vec<f64>, Estimati
     let invalid = |message: &str| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.invalid_request",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
             message,
         )
     };
     if request.design == DoseDesign::Observational {
         return Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "dose_grid.graph_not_certified",
+            antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED,
             "this row does not adjust; it requires a randomized dose",
         ));
     }
@@ -268,7 +268,7 @@ fn validate(request: &DoseGridPosteriorRequest<'_>) -> Result<Vec<f64>, Estimati
     if let Some(at) = points.iter().find(|d| **d < minimum || **d > maximum) {
         return Err(refuse(
             antecedent_core::reason_code!("positivity_violated"),
-            "dose_grid.unsupported_dose",
+            antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE,
             &format!("dose {at} is outside the observed dose support"),
         ));
     }
@@ -596,12 +596,20 @@ mod tests {
         let mut observational = request(DoseFunctional::Level, &grid, &DOSE, &OUTCOME);
         observational.design = DoseDesign::Observational;
         let refused = estimate_dose_grid_posterior(&observational).unwrap_err();
-        assert!(refused.to_string().contains("dose_grid.graph_not_certified"));
+        assert!(
+            refused
+                .to_string()
+                .contains(antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED)
+        );
 
         let outside = [0.01];
         let extrapolated = request(DoseFunctional::Level, &outside, &DOSE, &OUTCOME);
         let refused = estimate_dose_grid_posterior(&extrapolated).unwrap_err();
-        assert!(refused.to_string().contains("dose_grid.unsupported_dose"));
+        assert!(
+            refused
+                .to_string()
+                .contains(antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE)
+        );
 
         let mut flat = request(DoseFunctional::Derivative, &grid, &DOSE, &OUTCOME);
         flat.coefficient_scales = &[1.0];
@@ -650,7 +658,10 @@ impl CompiledDoseGridPosterior {
     ) -> Result<Self, EstimationError> {
         validate(request)?;
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal("dose_grid.cancelled", "compilation cancelled"));
+            return Err(execution_refusal(
+                antecedent_core::reason_details::dose_grid::CANCELLED,
+                "compilation cancelled",
+            ));
         }
         let cells = request
             .dose
@@ -659,30 +670,50 @@ impl CompiledDoseGridPosterior {
             .and_then(|n| n.checked_add(request.grid.len()))
             .and_then(|n| n.checked_add(request.coefficient_scales.len()))
             .ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "input size overflow")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "input size overflow",
+                )
             })?;
         let bytes = u64::try_from(cells).ok().and_then(|n| n.checked_mul(8)).ok_or_else(|| {
-            execution_refusal("dose_grid.resource_refused", "input byte size overflow")
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                "input byte size overflow",
+            )
         })?;
         if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
             return Err(execution_refusal(
-                "dose_grid.resource_refused",
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
                 "retained inputs exceed memory limit",
             ));
         }
-        let grid_bytes =
-            u64::try_from(request.grid.len()).ok().and_then(|n| n.checked_mul(8)).ok_or_else(
-                || execution_refusal("dose_grid.resource_refused", "grid byte size overflow"),
-            )?;
+        let grid_bytes = u64::try_from(request.grid.len())
+            .ok()
+            .and_then(|n| n.checked_mul(8))
+            .ok_or_else(|| {
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "grid byte size overflow",
+                )
+            })?;
         let source_bytes = bytes.checked_sub(grid_bytes).ok_or_else(|| {
-            execution_refusal("dose_grid.resource_refused", "input byte size overflow")
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                "input byte size overflow",
+            )
         })?;
-        let retained = ctx
-            .acquire_admission(0, source_bytes)
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
-        let grid_retention = ctx
-            .acquire_admission(0, grid_bytes)
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let retained = ctx.acquire_admission(0, source_bytes).map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?;
+        let grid_retention = ctx.acquire_admission(0, grid_bytes).map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?;
         Ok(Self {
             dose: request.dose.into(),
             outcome: request.outcome.into(),
@@ -726,7 +757,10 @@ impl CompiledDoseGridPosterior {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, EstimationError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal("dose_grid.cancelled", "retargeting cancelled"));
+            return Err(execution_refusal(
+                antecedent_core::reason_details::dose_grid::CANCELLED,
+                "retargeting cancelled",
+            ));
         }
         let mut request = self.request();
         request.grid = grid;
@@ -734,18 +768,27 @@ impl CompiledDoseGridPosterior {
         validate(&request)?;
         let bytes =
             u64::try_from(grid.len()).ok().and_then(|n| n.checked_mul(8)).ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "grid byte size overflow")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "grid byte size overflow",
+                )
             })?;
-        let retained = ctx
-            .acquire_admission(0, bytes)
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let retained = ctx.acquire_admission(0, bytes).map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?;
         let mut next = self.clone();
         next.source_bytes = self
             .source_bytes
             .checked_sub((self.grid.len() as u64) * 8)
             .and_then(|n| n.checked_add(bytes))
             .ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "retargeted input size overflow")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "retargeted input size overflow",
+                )
             })?;
         next.grid = grid.into();
         next.functional = functional;
@@ -763,9 +806,17 @@ impl CompiledDoseGridPosterior {
             .and_then(|n| n.checked_mul(8))
             .and_then(|n| n.checked_add(std::mem::size_of::<DoseGridPosterior>()));
         u64::try_from(cells.ok_or_else(|| {
-            execution_refusal("dose_grid.resource_refused", "output size overflow")
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                "output size overflow",
+            )
         })?)
-        .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))
+        .map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })
     }
     /// Execute the original conjugate engine and retained polynomial lowering.
     pub fn execute(
@@ -774,7 +825,10 @@ impl CompiledDoseGridPosterior {
     ) -> Result<DoseGridPosterior, EstimationError> {
         use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal("dose_grid.cancelled", "execution cancelled"));
+            return Err(execution_refusal(
+                antecedent_core::reason_details::dose_grid::CANCELLED,
+                "execution cancelled",
+            ));
         }
         self.source_retention.observe_current();
         self.grid_retention.observe_current();
@@ -793,25 +847,30 @@ impl CompiledDoseGridPosterior {
             .and_then(|n| n.checked_mul(8))
             .and_then(|n| n.checked_add(self.output_bytes(points.len()).ok()?))
             .ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "execution byte estimate overflow")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "execution byte estimate overflow",
+                )
             })?;
         if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
             return Err(execution_refusal(
-                "dose_grid.resource_refused",
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
                 "execution exceeds memory limit",
             ));
         }
-        let reservation = std::sync::Arc::new(
-            ctx.acquire_admission(0, bytes)
-                .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?,
-        );
+        let reservation = std::sync::Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?);
         antecedent_core::numerical_admission::with_context(ctx, || {
             antecedent_core::numerical_admission::with_reservation(
                 std::sync::Arc::clone(&reservation),
                 || {
                     let mut frozen = self.basis.lock().map_err(|_| {
                         execution_refusal(
-                            "dose_grid.resource_refused",
+                            antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
                             "frozen basis lock poisoned",
                         )
                     })?;
@@ -833,12 +892,15 @@ impl CompiledDoseGridPosterior {
                             .checked_mul(8)
                             .ok_or_else(|| {
                                 execution_refusal(
-                                    "dose_grid.resource_refused",
+                                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
                                     "fit retention overflow",
                                 )
                             })?;
                         let retention = reservation.acquire_child(0, bytes).map_err(|e| {
-                            execution_refusal("dose_grid.resource_refused", &e.to_string())
+                            execution_refusal(
+                                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                                &e.to_string(),
+                            )
                         })?;
                         record_physical(PhysicalEvent::RetainedBytes, bytes);
                         let posterior =
@@ -850,7 +912,10 @@ impl CompiledDoseGridPosterior {
                     let output_bytes = self.output_bytes(points.len())?;
                     let output_retention =
                         reservation.acquire_child(0, output_bytes).map_err(|e| {
-                            execution_refusal("dose_grid.resource_refused", &e.to_string())
+                            execution_refusal(
+                                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                                &e.to_string(),
+                            )
                         })?;
                     let mut result = evaluate_frozen_basis(&request, points, &posterior.posterior)?;
                     result.retention =
@@ -859,7 +924,7 @@ impl CompiledDoseGridPosterior {
                     record_physical(PhysicalEvent::RetainedFull, 1);
                     if ctx.cancellation.is_cancelled() {
                         return Err(execution_refusal(
-                            "dose_grid.cancelled",
+                            antecedent_core::reason_details::dose_grid::CANCELLED,
                             "execution cancelled",
                         ));
                     }

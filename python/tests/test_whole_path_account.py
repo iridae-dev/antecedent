@@ -14,6 +14,7 @@ is ``2029/44100``; the sampling variance of the mean is ``2526/264600``.
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cross_world_execution as cwx
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.outcomes import require_success
@@ -140,7 +141,7 @@ def test_an_account_of_other_units_is_refused_rather_than_annotated() -> None:
     with pytest.raises(cwx.CrossWorldExecutionRefusal) as mismatch:
         account.verify_against(other)
     assert_registered_refusal(mismatch.value)
-    assert mismatch.value.detail == "cross_world_uncertainty.account_mismatch"
+    assert mismatch.value.detail == reason_details.cross_world_uncertainty.ACCOUNT_MISMATCH
     assert mismatch.value.remedy
 
 

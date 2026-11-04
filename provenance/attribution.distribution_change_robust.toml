@@ -38,12 +38,14 @@ record_sha256 = "9dad7a1b0952b33987a12b0ccfbc72e2ffaa20dbc35712fc6536c9538af8d80
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/robust.rs"
-sha256 = "21b124997c06f4ca3fb2bc15e61426c8d5ad5b2ebbc49a0014247d6cb9d8998d"
+items = ["enum ParentSource", "fn admit_payoff_scratch", "fn default", "fn distribution_change_robust", "fn fit", "fn linear_beta", "fn model_slot_is_linear", "fn new", "fn robust_impl", "fn robust_samples_per_eval", "fn value", "struct McSampling", "struct NodeRegression", "struct RobustChangeOptions", "struct RobustLinearPayoff", "struct RobustMechanismPayoff"]
+sha256 = "c7cd2c993e10eeb4bd0d772e936057547d6d576f4d2fb3b36d15f5f6c962b71e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/distribution_change_reference.rs"
-sha256 = "e74e9ff0de986390749c68155e621a28faf4c1462569053372665a9b7a8fea0f"
+items = ["fn close", "fn f", "fn query", "fn reference", "fn registry_fits_equal_least_squares_with_the_unbiased_residual_variance", "fn regression_hybrid_path_equals_the_exact_mean_shapley_values", "fn rows_of", "fn sampling_path_matches_the_exact_laws_within_its_sampling_error", "fn setup", "fn table"]
+sha256 = "a6199c10d951d6d53aee41b7e3dcf454410b984a9ad11bd8a5662a68da60ea5d"
 
 [[method_review.artifacts]]
 role = "reference"

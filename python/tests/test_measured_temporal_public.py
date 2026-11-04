@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalCancelledError,
     CausalError,
@@ -213,7 +214,9 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
     token.cancel()
     with pytest.raises(CausalCancelledError):
         session.dependent_interval(execution=Execution(cancel=token))
-    with pytest.raises(CausalResourceError, match="measured_inference.memory_budget_exceeded"):
+    with pytest.raises(
+        CausalResourceError, match=reason_details.measured_inference.MEMORY_BUDGET_EXCEEDED
+    ):
         session.dependent_interval(execution=Execution(limits=ResourceLimits(memory_bytes=0)))
     calls = []
     session._handle = SimpleNamespace(measured_interval=lambda *a, **k: calls.append(1))

@@ -126,7 +126,7 @@ fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption
     wrong.units = "another-unit".into();
     assert_eq!(
         source.diagnostics_at(&wrong).unwrap_err().detail,
-        "source_evidence.coordinate_mismatch"
+        antecedent_core::reason_details::source_evidence::COORDINATE_MISMATCH
     );
 }
 #[test]
@@ -154,7 +154,7 @@ fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_
             .project(&contract_to_json(&contract).unwrap(), &["missing".into()])
             .unwrap_err()
             .detail,
-        "source_evidence.action_mismatch"
+        antecedent_core::reason_details::source_evidence::ACTION_MISMATCH
     );
 }
 #[test]
@@ -235,7 +235,7 @@ fn full_original_source_comparison_rejects_changed_science_and_seed() {
     for changed in [source_with(0.25, 51), source_with(0., 52)] {
         assert_eq!(
             original.require_same_source(&changed).unwrap_err().detail,
-            "source_evidence.source_binding_mismatch"
+            antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH
         );
     }
 }
@@ -256,7 +256,7 @@ fn opaque_resolution_executes_original_preparation_and_rejects_changed_science()
     let (_, changed, _) = produce_source(0.25, 51);
     assert_eq!(
         SourceResolution::execute(&evidence, &changed, &ctx).unwrap_err().detail,
-        "source_evidence.source_binding_mismatch"
+        antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH
     );
 }
 
@@ -274,7 +274,10 @@ fn bounded_evidence_refuses_oversized_logical_sections_before_decompression() {
     changed.extend(manifest);
     changed.extend(&bytes[16 + usize::try_from(old_len).unwrap()..]);
     let error = SourceEvidence::from_result(&changed).unwrap_err();
-    assert_eq!((error.code, error.detail), ("invalid_argument", "source_evidence.limits_exceeded"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("invalid_argument", antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED)
+    );
 }
 
 #[test]
@@ -336,7 +339,7 @@ fn original_external_attestation_retains_exact_support_request_and_source_withou
     changed.means[0] += 1.;
     assert_eq!(
         evidence.require_mean_source(&changed).unwrap_err().detail,
-        "source_evidence.point_binding_mismatch"
+        antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH
     );
     let declaration = contract(&evidence);
     let projected =

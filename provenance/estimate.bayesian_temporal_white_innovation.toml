@@ -41,17 +41,20 @@ record_sha256 = "80a28a35ece479a078dacddf0637e26051691189b57aa9e0f7933cd3f9a9ecb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/white_innovation_posterior.rs"
-sha256 = "11fc5c32b622dbfedc9058e3f6cb7fbe64015adad23219dfcb8b77b3ef098be4"
+items = ["const WHITE_INNOVATION_ASSUMPTION_ID", "fn fit_white_innovation_posterior", "fn innovation_whiteness_of", "fn invalid", "fn ljung_box", "fn white_innovation_assumption", "struct InnovationWhitenessGate", "struct InnovationWhitenessReport", "struct WhiteInnovationDeclaration", "struct WhiteInnovationPosterior"]
+sha256 = "1d15d4c64798edba154d31aa3d2c9ecbd12a4f4b0394446310b5801816800190"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
-sha256 = "cc9d7ff3f218a80ac33724c26308edeb0232a0f4a5fd4fee75af7e0e49ef779b"
+items = ["const LAPLACE_RANK_INTERVAL_BELOW_DRAWS", "enum BayesianBackendKind", "enum ReferenceArm", "fn adaptive_schedule", "fn add_modifier_mean_uncertainty", "fn apply_coefficient_names", "fn assemble_posterior_draws", "fn at", "fn center_interactions_on_arm", "fn check_sequential_prior", "fn coefficient_names_from_design", "fn conjugate", "fn default", "fn draw_budget", "fn effective_likelihood", "fn effects", "fn fit", "fn from_fit", "fn gcomp_evaluator", "fn glm_family", "fn new", "fn prepare", "fn prior_assumptions", "fn prior_in_force", "fn random_intercept_gls_whiten", "fn redraw", "fn temper_likelihood", "fn whiten_design", "fn with_n_draws", "fn with_prior_scale", "fn with_seed", "struct AdaptiveOutcome", "struct AdaptiveRedraw", "struct BackendInputs", "struct BayesianGCompWorkspace", "struct BayesianGComputationAte", "struct EffectEvaluation", "struct PreparedBayesianProblem", "struct ResidualVarianceDraws", "type CenteredDesign", "type WhitenedDesign"]
+sha256 = "456cb734dcce7d94fc2b1ff11d6f9ac3dd4d987d478d6ee205dbe132eb93fdda"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/white_innovation_ljung_box_reference.rs"
-sha256 = "f501a9a8e8fd1e217e800138a80228e00a22bc6914d2c6ff95c8504193dccfc3"
+items = ["fn a_multi_step_horizon_is_refused", "fn a_passing_gate_returns_the_untempered_conjugate_posterior_and_the_reference_statistic", "fn cases", "fn declaration", "fn design", "fn estimator", "fn floats", "fn invalid_gates_and_too_few_rows_are_refused", "fn prepared", "fn the_gate_refuses_exactly_when_the_reference_p_value_is_below_the_level", "fn the_ljung_box_statistic_and_p_value_match_the_exact_reference"]
+sha256 = "cc61c2c0a2fc08161d9c5ad00875bc9839c1b6851f0cdb64ce96add757838661"
 
 [[method_review.artifacts]]
 role = "reference"

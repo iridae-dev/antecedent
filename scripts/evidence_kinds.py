@@ -9,6 +9,8 @@ import json
 import re
 from pathlib import Path
 
+from review_items import artifact_problem
+
 EVIDENCE_KINDS = frozenset(
     {
         "implementation_exists",
@@ -263,8 +265,8 @@ def reference_review_problems(root: Path, oracle: dict) -> list[str]:
         path = (root / rel).resolve()
         if not path.is_relative_to(root.resolve()) or not path.is_file():
             problems.append(f"reference_review missing artifact: {rel}")
-        elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
-            problems.append(f"reference_review stale artifact: {rel}")
+        elif problem := artifact_problem(root, artifact, "reference_review"):
+            problems.append(problem)
     problems.extend(false_independence_problems(root, oracle, artifacts))
     bound = {
         (a.get("role"), a.get("path")) for a in artifacts if isinstance(a, dict)

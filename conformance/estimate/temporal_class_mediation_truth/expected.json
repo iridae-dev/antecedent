@@ -41,12 +41,59 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs",
-          "sha256": "31cab146397c62e38440c6bc237079f71242e97e71a25a9f5d48b9eaf6f183c3"
+          "items": [
+            "const CHECKED_DEPENDENCY",
+            "const MEDIATED_TRUTH",
+            "const N",
+            "const POSTERIOR_N",
+            "fn assert_theorem_targets",
+            "fn changed_cpdag",
+            "fn changed_posterior",
+            "fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordinates",
+            "fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates",
+            "fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structure",
+            "fn class_graph",
+            "fn confounded_series",
+            "fn has_cached_identification",
+            "fn known_truth_posterior",
+            "fn mediation_pin",
+            "fn mediation_query",
+            "fn oriented_cpdag",
+            "fn posterior_series",
+            "fn posterior_with_weights",
+            "struct MediationPin"
+          ],
+          "sha256": "6aa7ccd047f8e9603e83276dfd7c78d6ce89995f40bee2bb0ebe21a2358f8368"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_mediation_horizons.rs",
-          "sha256": "f3a9c7cab0ef978b4038db35cfbcab460740f6c09cd3f7907169ddcfe2482bbf"
+          "items": [
+            "const A",
+            "const B",
+            "const C_PRIME",
+            "const N",
+            "fn assert_horizon_one_mediated",
+            "fn class_mediation_study",
+            "fn col",
+            "fn confounded_mediation_series",
+            "fn estimate_h1",
+            "fn has_cached",
+            "fn mediation_truth",
+            "fn multi_horizon_parent_identification_is_the_conservative_join",
+            "fn named_z",
+            "fn oriented_mediation_cpdag",
+            "fn prepare_click",
+            "fn query",
+            "fn structural_mediated",
+            "fn temporal_class_bayesian_mediation_cheap_and_full_run",
+            "fn temporal_class_bayesian_mediation_returns_identified_sets",
+            "fn temporal_cpdag_mediation_cheap_and_full_run_per_completion",
+            "fn temporal_cpdag_mediation_returns_per_horizon_identified_sets",
+            "fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse",
+            "fn temporal_pag_mediation_is_a_window_route_and_reads_one_horizon"
+          ],
+          "sha256": "256048f868fc3db951b6e61d611736827f7c9dd876a64d022ccf10cf9b7b7f63"
         }
       ],
       "fixture_payload_sha256": "6d69ee4f7f29fbcc1ce9dc7cf08e860b21d810167b55e79aee059c524c3e4667"

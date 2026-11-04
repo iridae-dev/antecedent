@@ -41,14 +41,17 @@ record_sha256 = "d03c676212f82041baad72dbc848157d46ae1f10d32d79f65e2af5cde262469
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/backdoor.rs"
-sha256 = "0826af864daae96696f0b87f8a5945189a9a4580455262c07feb28e810566647"
+items = ["const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE", "fn adjustment", "fn charge_examination", "fn check_joint_adjustment", "fn dag", "fn declared_assumptions", "fn default", "fn dense_costs", "fn dense_first_wins", "fn enumerate", "fn exceeds_lag", "fn graph", "fn identify", "fn identify_ate", "fn is_backdoor_adjustment", "fn is_mandatory_fork_set", "fn lag_exceeds", "fn new", "fn node_map", "fn order_by_cost", "fn outcome", "fn prepare", "fn prepare_with_assumptions", "fn remove_outgoing", "fn remove_outgoing_set", "fn screen", "fn screen_ancestor_candidates", "fn total_cost", "fn treatments", "fn validate", "fn validate_costs", "fn with_assumptions", "fn wrap", "struct AdjustmentProblem", "struct AdjustmentSearchConfig", "struct BackdoorIdentifier", "struct CheckedJointAdjustment", "struct PreparedIdentificationGraph", "struct Screening", "struct SearchOutcome"]
+sha256 = "d354a537e2c14768cd151c98e654871c87ad4573932d02c99267d77921c1789c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/dsep.rs"
-sha256 = "354cadc168387afa5e95cebc2b842af31cac5b1ccae069363d523e115ea970a0"
+items = ["fn prepare"]
+sha256 = "da67f0ec3df42549e99f12b1b74ee1aecfa96adbdab37d8db4edf80612a59011"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/adjustment_enumeration_tests.rs"
-sha256 = "b9b99eb200e5f0958f791f8426b8a229e085a76390c78c6aa3531d481ee3692f"
+items = ["fn acyclic", "fn adjustment", "fn all_dags", "fn backdoor_report", "fn backdoor_search_matches_the_definition_and_adjustment_recovers_truth_on_every_four_node_dag", "fn backdoor_search_matches_the_definition_on_a_stride_of_the_five_node_dags", "fn backdoor_sweep", "fn d_separated", "fn dag_of", "fn do_effect", "fn forbidden_variables_are_never_adjusted_for_and_the_reference_agrees", "fn frontdoor", "fn frontdoor_five_node_sample_includes_multi_member_mediator_sets", "fn frontdoor_search_matches_the_definition_and_the_formula_recovers_truth_on_every_four_node_dag", "fn is_backdoor_adjustment", "fn is_subset", "fn new", "fn observed", "fn proper_subsets_of", "fn reported", "fn satisfies_definition", "fn subsets_of", "fn sweep", "fn the_references_reject_the_standard_counterexamples", "fn topological", "fn weight", "struct Scm", "type Arcs"]
+sha256 = "d453ce0ae23afba4f04f94a671a5b28b4881a60bcbc469e92d80079953838f7d"

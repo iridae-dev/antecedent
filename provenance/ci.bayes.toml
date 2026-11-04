@@ -36,14 +36,16 @@ record_sha256 = "ef769e49e7758734fa8adb4b4a46a2290d4b95b078fee8fd6dd8dae705b7f21
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/bayes.rs"
-sha256 = "41660d28c4fd2b056d884328b73812a2df7265d56199a508d082985160c3dc93"
+items = ["fn default", "fn new", "fn with_seed", "struct BayesFactorCi", "struct PosteriorDependenceCi", "struct PosteriorPredictiveCi"]
+sha256 = "d2126c466450175fa61f1c0f387cec55de0f0e96efc1aa684f1df33207730875"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/bayesian_ci_oracle.rs"
-sha256 = "fff309d8abed79d14a9d22c9c8508dac8969a5c609489cde9efc0d612eda5d69"
+items = ["fn columns", "fn fixture", "fn g_prior_bayes_factor_and_posterior_probability_match_closed_form", "fn partial_correlation", "fn posterior_predictive_statistic_and_tail_probability_match_external_calibration", "fn run"]
+sha256 = "f150a06ed33a3e5e02be17bcd5705936cd68cb1817f99d09d7f99fba7df0be68"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/bayesian_ci/expected.json"
-sha256 = "eb905f9d5371a6cefdb2ab3e149e09f8c97489265ddd3bf472345e1f7ac55dbf"
+sha256 = "c07498b981530b5a5f8ce7b9a877aab920cffc48b99f97fe554a4b7faade3e3b"

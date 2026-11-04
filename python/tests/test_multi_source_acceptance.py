@@ -70,6 +70,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition as comp
 from antecedent import composition_bundle as cb
 from antecedent import decision, external, program_claims
@@ -212,7 +213,7 @@ def test_the_native_claim_enters_composition_with_issued_authority_and_supported
             causal_contract_id=fx.program().identity,
             requirement="native",
         )
-    assert refused.value.detail == "composition_boundary.native_required"
+    assert refused.value.detail == reason_details.composition_boundary.NATIVE_REQUIRED
     assert_registered_refusal(refused.value)
 
 
@@ -229,7 +230,9 @@ def test_an_unsupported_action_is_reported_with_its_reason_and_the_rest_are_comp
     assert decided.verdict.compared and decided.evpi is None
     assert decided.unsupported_actions == ("extend",)
     assert decided.disposition("extend").reasons == (
-        comp.UnsupportedReason("native", 0, "composition_boundary.coordinate_missing", None),
+        comp.UnsupportedReason(
+            "native", 0, reason_details.composition_boundary.COORDINATE_MISSING, None
+        ),
     )
     with pytest.raises(comp.SupportRefusal) as refused:
         require_success(
@@ -237,7 +240,10 @@ def test_an_unsupported_action_is_reported_with_its_reason_and_the_rest_are_comp
                 contract, [fx.native_input()], comp.SupportPolicy.require_all()
             )
         )
-    assert refused.value.detail == "composition_boundary.unsupported_action_not_comparable"
+    assert (
+        refused.value.detail
+        == reason_details.composition_boundary.UNSUPPORTED_ACTION_NOT_COMPARABLE
+    )
     assert refused.value.offending == "extend"
     assert_registered_refusal(refused.value)
 
@@ -286,7 +292,7 @@ def test_when_every_action_is_unsupported_the_answer_is_a_state_not_an_error() -
         assert disposition.status == "unsupported"
         assert [r.support for r in disposition.reasons] == ["missing_evidence"]
         assert [r.issue for r in disposition.reasons] == [
-            "composition_boundary.coordinate_unsupported"
+            reason_details.composition_boundary.COORDINATE_UNSUPPORTED
         ]
     with pytest.raises(comp.SupportRefusal):
         require_success(
@@ -298,7 +304,7 @@ def test_when_every_action_is_unsupported_the_answer_is_a_state_not_an_error() -
     nothing = fx.native_view(point_status=("missing_evidence",) * 3, support="missing_evidence")
     with pytest.raises(external.ExternalRefusal) as caught:
         fx.native_claim(nothing).as_decision_source(fx.mean_contract())
-    assert caught.value.detail == "native_claims.projection_mismatch"
+    assert caught.value.detail == reason_details.native_claims.PROJECTION_MISMATCH
 
 
 # ---------------------------------------------------- the joint-law decision, independently
@@ -329,7 +335,7 @@ def test_the_joint_law_decision_matches_the_hand_derived_values() -> None:
     assert partial.unsupported_actions == ("extend",)
     (reason,) = partial.disposition("extend").reasons
     assert (reason.issue, reason.support) == (
-        "composition_boundary.coordinate_unsupported",
+        reason_details.composition_boundary.COORDINATE_UNSUPPORTED,
         fx.OUTSIDE,
     )
     assert fx.near(partial.evpi, 3.5 - 2.5)
@@ -370,7 +376,9 @@ def test_a_probability_or_quantile_is_answered_only_by_the_joint_law() -> None:
     for functional in (comp.Functional.probability(2.0, "upper"), comp.Functional.quantile(0.5)):
         with pytest.raises(comp.SupportRefusal) as refused:
             require_success(comp.evaluate_functional(fx.mean_contract(), "treat", functional, mean))
-        assert refused.value.detail == "composition_boundary.mean_is_not_a_distribution"
+        assert (
+            refused.value.detail == reason_details.composition_boundary.MEAN_IS_NOT_A_DISTRIBUTION
+        )
         assert refused.value.offending == "treat"
         assert_registered_refusal(refused.value)
 
@@ -378,11 +386,11 @@ def test_a_probability_or_quantile_is_answered_only_by_the_joint_law() -> None:
     quantile_contract = fx.mean_contract(decision.Criterion.quantile(0.5))
     with pytest.raises(decision.DecisionRefusal) as insufficient:
         require_success(quantile_contract.evaluate(fx.e2_claim()))
-    assert insufficient.value.detail == "decision_evaluation.mean_source_insufficient"
+    assert insufficient.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
     assert insufficient.value.reason_code == "decision_contract_unsatisfied"
     with pytest.raises(external.ExternalRefusal) as unsupplied:
         fx.native_claim().as_decision_source(quantile_contract)
-    assert unsupplied.value.detail == "native_claims.source_not_supplied"
+    assert unsupplied.value.detail == reason_details.native_claims.SOURCE_NOT_SUPPLIED
 
 
 def test_the_uncertainty_sensitive_inverse_query_runs_on_the_law_and_refuses_the_mean() -> None:
@@ -416,7 +424,7 @@ def test_the_uncertainty_sensitive_inverse_query_runs_on_the_law_and_refuses_the
         query = iq.InverseQuery(fx.mean_contract(), IDS, (constraint,))
         with pytest.raises(iq.InverseQueryRefusal) as refused:
             require_success(query.evaluate(fx.e2_claim()))
-        assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
+        assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
         assert refused.value.reason_code == "decision_contract_unsatisfied"
     # A target mean on affine utilities is answerable from means, without a sampling error.
     answered = require_success(
@@ -441,7 +449,9 @@ def test_shared_data_refuses_independent_pooling_and_supported_routes_lift_it() 
     inputs = [fx.native_input(), fx.e1_input(), fx.e2_law_input()]
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.check_composition(inputs, _relations(), "statistical_pooling"))
-    assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
+    assert (
+        refused.value.detail == reason_details.composition_boundary.SHARED_EVIDENCE_NOT_INDEPENDENT
+    )
     assert refused.value.offending == "native~e2law"
     assert refused.value.reason_code == "scenario_aggregate_not_supported"
     assert_registered_refusal(refused.value)
@@ -483,7 +493,9 @@ def test_paired_draws_refuse_a_mean_and_shared_data_without_a_supported_route() 
     )
     with pytest.raises(comp.DependenceRefusal) as refused:
         require_success(comp.check_paired_draws(pair, [shared]))
-    assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
+    assert (
+        refused.value.detail == reason_details.composition_boundary.SHARED_EVIDENCE_NOT_INDEPENDENT
+    )
 
     route = comp.DependenceRoute("joint_law", "jl-1", "e2law")
     supported = comp.PairRelation(
@@ -503,11 +515,16 @@ def test_unknown_dependence_is_never_independence_and_atoms_are_not_averaged() -
     for operation in comp.OPERATIONS:
         with pytest.raises(comp.DependenceRefusal) as refused:
             require_success(comp.check_composition(inputs, [], operation))
-        assert refused.value.detail == "composition_boundary.unknown_dependence_is_not_independence"
+        assert (
+            refused.value.detail
+            == reason_details.composition_boundary.UNKNOWN_DEPENDENCE_IS_NOT_INDEPENDENCE
+        )
     atoms = [comp.StructuralAtom("graph-a"), comp.StructuralAtom("graph-b")]
     with pytest.raises(comp.DependenceRefusal) as averaged:
         require_success(comp.check_atom_combination(atoms, "weighted_by_declared_probabilities"))
-    assert averaged.value.detail == "composition_boundary.conflicting_atoms_not_averaged"
+    assert (
+        averaged.value.detail == reason_details.composition_boundary.CONFLICTING_ATOMS_NOT_AVERAGED
+    )
     assert require_success(comp.check_atom_combination(atoms, "report_each")).kind == "report_each"
 
 

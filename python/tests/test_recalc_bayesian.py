@@ -11,6 +11,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalValueError
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
@@ -159,13 +160,13 @@ def test_bayesian_exact_refusals_preserve_native_rows_and_bounds():
         (
             replace(req, inference=ac.Bayesian(backend="hmc", n_draws=256)),
             "route_not_supported",
-            "recalc.bayesian_inference_unsupported",
+            reason_details.recalc.BAYESIAN_INFERENCE_UNSUPPORTED,
             "learner_folds_rng",
         ),
         (
             replace(req, summary=PosteriorSummary(0.9, 0.1)),
             "invalid_argument",
-            "recalc.bayesian_invalid_summary",
+            reason_details.recalc.BAYESIAN_INVALID_SUMMARY,
             "law",
         ),
     ]
@@ -186,7 +187,7 @@ def test_bayesian_exact_refusals_preserve_native_rows_and_bounds():
             )
         )
     assert error.value.reason_code == "invalid_argument"
-    assert "recalc.limits_exceeded" in str(error.value)
+    assert reason_details.recalc.LIMITS_EXCEEDED in str(error.value)
     assert (
         require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
         == 0
@@ -221,7 +222,7 @@ def test_bayesian_artifact_and_receipt_fresh_process_boundary(tmp_path):
         require_success(resumed.execute(req, execution=Execution(seed=41)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "score_table_unavailable",
-        "recalc.unavailable_data",
+        reason_details.recalc.UNAVAILABLE_DATA,
         "data_snapshot",
     )
     code = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, pathlib, sys\nimport antecedent as ac\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_bayesian import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext\nfrom antecedent.recalc_bayesian import BayesianSession\nartifact = ac.artifacts.accept(pathlib.Path(sys.argv[1]).read_bytes())\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nsession = require_success(BayesianSession.resume(receipt, ResumeContext(supplied_data=True, portable_fit=True)))\nresult = require_success(session.execute(request(), execution=Execution(seed=41)))\nprint(json.dumps({'verified': artifact['accepts_as_verified_program'], 'mean': result.law.mean, 'fits': result.receipt.totals.model_fits, 'draws': result.receipt.totals.posterior_draws, 'live': session.is_live}))\n"
@@ -249,7 +250,7 @@ def test_bayesian_owned_prior_source_independent_transfer_and_double_use():
         require_success(BayesianSession().execute(transfer, execution=Execution(seed=43)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
-        "recalc.bayesian_prior_likelihood_double_use",
+        reason_details.recalc.BAYESIAN_PRIOR_LIKELIHOOD_DOUBLE_USE,
         "prior.0",
     )
     changed = replace(transfer, data={**req.data, "y": req.data["y"] + 0.25})
@@ -276,7 +277,7 @@ def test_bayesian_owned_prior_source_independent_transfer_and_double_use():
         require_success(session.execute(invalid, execution=Execution(seed=43)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "route_not_supported",
-        "recalc.bayesian_prior_source_unverified",
+        reason_details.recalc.BAYESIAN_PRIOR_SOURCE_UNVERIFIED,
         "prior.0",
     )
 

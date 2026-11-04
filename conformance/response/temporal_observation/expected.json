@@ -75,7 +75,28 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_observation.rs",
-          "sha256": "f76eee324352793fe26b5bcb0b9211f1a6201bc42dac0562988486c6c89d3905"
+          "items": [
+            "const NAIVE_MISS",
+            "const SURFACE_ATOL",
+            "fn compile_refuses_unsupported_temporal_observation",
+            "fn curve_query",
+            "fn fixture",
+            "fn generate",
+            "fn graph",
+            "fn max_abs",
+            "fn observation_adjusted_curve_cannot_carry_a_lagged_outcome_adjustment",
+            "fn observation_adjusted_sequence_refuses_an_autoregressive_outcome",
+            "fn right_censored_series",
+            "fn run_curve",
+            "fn surface_of",
+            "fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands",
+            "fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy",
+            "fn temporal_right_censor_intervention_matches_fixture_path",
+            "fn temporal_sequence_observation_outer_block_bootstrap_returns_bands",
+            "fn temporal_spec",
+            "type GeneratedObservationData"
+          ],
+          "sha256": "7a4688d864b0d0c5566f1c031612c133992611db937912beb858f49462ec86fa"
         }
       ],
       "fixture_payload_sha256": "b6e36541fc6267d2ce996e43e78d4d861f456a36319e967d67d4baedc8be3a02"

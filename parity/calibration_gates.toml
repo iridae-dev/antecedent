@@ -1,7 +1,7 @@
 # Pass/fail calibration groups that emit no coverage record (CI Type I error,
 # permutation uniformity, discovery FPR/power, SBC, response calibration).
 #
-# One row per group log `scripts/gate_calibration.sh` wrote and
+# One row per group log `scripts/measure_calibration_groups.sh` wrote and
 # `scripts/collect_coverage_records.py` accepted: the group ran, passed at least
 # one test and failed none, at `calibration_sha`. Do not edit rows by hand; re-run
 # the collector. `scripts/gate_parity_schema.sh` checks every row.
@@ -499,11 +499,6 @@ calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 [[gate]]
 group = "evsi_precision_calibration__paired_crn_adaptive_rank_selection_precision.p2"
 passed = 1
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-
-[[gate]]
-group = "gate_response_calibration.sh"
-passed = 41
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 
 [[gate]]

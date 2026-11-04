@@ -24,6 +24,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent.ids import Estimator
 from antecedent.outcomes import require_success
 
@@ -303,7 +304,7 @@ def test_bayesian_request_with_a_frequentist_estimator_is_refused_by_code() -> N
             # A propensity posterior is not an effect posterior, so the boundary names the
             # missing outcome law and its next attempt instead of the generic mismatch.
             assert caught.value.reason_code == "route_not_supported"
-            assert "penalized_propensity.effect_posterior" in message
+            assert reason_details.penalized_propensity.EFFECT_POSTERIOR in message
             assert "Next attempt" in message
         else:
             assert caught.value.reason_code == "estimator_inference_mismatch"

@@ -38,17 +38,20 @@ record_sha256 = "d834a1b64a980bcb9ef2ec959b3c3d82abcfeb49023d16b9b3416a52a96bd52
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/penalized_propensity_posterior.rs"
-sha256 = "117e35eceefca270e922c9e24712b5bc2d6d41487964c41e002d2b3458857213"
+items = ["fn as_ref", "fn fit", "fn fit_borrowed", "fn is_exactly", "fn new", "fn score_at", "fn shape", "fn try_new", "struct PropensityCoefficientPosterior", "struct PropensityCoefficientPrior", "struct PropensityScoreSummary", "struct StaticPropensityDesign", "struct StaticPropensityDesignRef"]
+sha256 = "5c805e2c3ce8ca359d5b2e86abbedca1b9b22c81281c9e3d430bbd882b3b2b15"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/laplace.rs"
-sha256 = "32eb9e61f5484cd1025650db64f4d571bbe9926a99db9d552ebd6f0f2339accf"
+items = ["fn fit", "fn fit_gaussian_laplace", "fn fit_gaussian_laplace_known", "fn fit_laplace_glm", "fn fit_laplace_glm_inner", "fn fit_laplace_glm_owned", "fn gaussian_normal_equations", "fn sample_gaussian_mvn"]
+sha256 = "66a91428100162e1d8fbac3106e582dd1206a89070766f812793ced9af651a5e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/propensity_posterior_reference.rs"
-sha256 = "2f86cbc2d104cd1a5263acad62715a5855290e17fa4c2fecc41424ededf3c301"
+items = ["const DRAWS", "fn floats", "fn the_mode_and_the_score_summaries_match_the_exact_laplace_posterior"]
+sha256 = "afd95b55c174f880ee86dd5f782c046b56259e5311e91344b89c4c28d6b19be0"
 
 [[method_review.artifacts]]
 role = "reference"

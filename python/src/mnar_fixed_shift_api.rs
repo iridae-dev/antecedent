@@ -33,16 +33,17 @@ impl NativePreparedMnarFixedShift {
                 None,
             )),
             Err(antecedent_io::IoError::Refused { code, message }) => {
-                let (detail, text) = message
-                    .split_once(": ")
-                    .unwrap_or(("mnar_fixed_shift.interval_not_supported", &message));
+                let (detail, text) = message.split_once(": ").unwrap_or((
+                    antecedent_core::reason_details::mnar_fixed_shift::INTERVAL_NOT_SUPPORTED,
+                    &message,
+                ));
                 Ok((None, Some(refusal_json(code, detail, text))))
             }
             Err(error) => Ok((
                 None,
                 Some(refusal_json(
                     reason_code!("invalid_argument"),
-                    "mnar_fixed_shift.invalid_source",
+                    antecedent_core::reason_details::mnar_fixed_shift::INVALID_SOURCE,
                     &error.to_string(),
                 )),
             )),
@@ -73,7 +74,7 @@ fn mnar_fixed_shift_prepare(
             None,
             Some(refusal_json(
                 reason_code!("invalid_argument"),
-                "mnar_fixed_shift.invalid_source",
+                antecedent_core::reason_details::mnar_fixed_shift::INVALID_SOURCE,
                 "subject, treatment, and outcome row counts must match",
             )),
         ));
@@ -89,7 +90,7 @@ fn mnar_fixed_shift_prepare(
                 None,
                 Some(refusal_json(
                     reason_code!("invalid_argument"),
-                    "mnar_fixed_shift.invalid_source",
+                    antecedent_core::reason_details::mnar_fixed_shift::INVALID_SOURCE,
                     "treatment must be binary",
                 )),
             ));
@@ -107,14 +108,24 @@ fn mnar_fixed_shift_prepare(
         Ok(source) => source,
         Err(error) => {
             let detail = match error {
-                SourceError::InvalidDeclaration => "mnar_fixed_shift.invalid_declaration",
-                SourceError::DuplicateSubject => "mnar_fixed_shift.duplicate_subject",
-                SourceError::InvalidOutcome => "mnar_fixed_shift.invalid_outcome",
-                SourceError::InsufficientObservations => {
-                    "mnar_fixed_shift.insufficient_observations"
+                SourceError::InvalidDeclaration => {
+                    antecedent_core::reason_details::mnar_fixed_shift::INVALID_DECLARATION
                 }
-                SourceError::ConstantOutcome => "mnar_fixed_shift.constant_outcome",
-                SourceError::InvalidShift => "mnar_fixed_shift.invalid_shift",
+                SourceError::DuplicateSubject => {
+                    antecedent_core::reason_details::mnar_fixed_shift::DUPLICATE_SUBJECT
+                }
+                SourceError::InvalidOutcome => {
+                    antecedent_core::reason_details::mnar_fixed_shift::INVALID_OUTCOME
+                }
+                SourceError::InsufficientObservations => {
+                    antecedent_core::reason_details::mnar_fixed_shift::INSUFFICIENT_OBSERVATIONS
+                }
+                SourceError::ConstantOutcome => {
+                    antecedent_core::reason_details::mnar_fixed_shift::CONSTANT_OUTCOME
+                }
+                SourceError::InvalidShift => {
+                    antecedent_core::reason_details::mnar_fixed_shift::INVALID_SHIFT
+                }
             };
             return Ok((
                 None,
@@ -134,17 +145,17 @@ fn mnar_fixed_shift_prepare(
                 Some(match &error {
                     antecedent::CausalError::Cancelled { .. } => refusal_json(
                         reason_code!("execution_cancelled"),
-                        "mnar_fixed_shift.preparation_cancelled",
+                        antecedent_core::reason_details::mnar_fixed_shift::PREPARATION_CANCELLED,
                         &message,
                     ),
                     antecedent::CausalError::Resource { .. } => refusal_json(
                         reason_code!("execution_resource_limit"),
-                        "mnar_fixed_shift.preparation_resource_limit",
+                        antecedent_core::reason_details::mnar_fixed_shift::PREPARATION_RESOURCE_LIMIT,
                         &message,
                     ),
                     _ => refusal_json(
                         error.reason_code().unwrap_or("invalid_argument"),
-                        "mnar_fixed_shift.preparation",
+                        antecedent_core::reason_details::mnar_fixed_shift::PREPARATION,
                         &message,
                     ),
                 }),

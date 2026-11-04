@@ -166,7 +166,10 @@ mod internal {
 
     fn invert(information: &[f64]) -> Result<(Vec<f64>, f64), EstimationError> {
         let chol = cholesky_spd(information, PARAMETER_COUNT).ok_or_else(|| {
-            refusal("nested_markov.fisher_singular_information", "expected information is not SPD")
+            refusal(
+                antecedent_core::reason_details::nested_markov::FISHER_SINGULAR_INFORMATION,
+                "expected information is not SPD",
+            )
         })?;
         let covariance = antecedent_kernels::chol_inverse(&chol, PARAMETER_COUNT);
         let mut residual = 0.0_f64;
@@ -182,7 +185,7 @@ mod internal {
         }
         if !residual.is_finite() || residual > 1e-8 {
             return Err(refusal(
-                "nested_markov.fisher_singular_information",
+                antecedent_core::reason_details::nested_markov::FISHER_SINGULAR_INFORMATION,
                 "inverse failed residual check",
             ));
         }
@@ -194,7 +197,7 @@ mod internal {
             || counts.counts().iter().any(|n| *n <= 0. || n.fract() != 0.)
         {
             return Err(refusal(
-                "nested_markov.fisher_sampling_design",
+                antecedent_core::reason_details::nested_markov::FISHER_SAMPLING_DESIGN,
                 "requires positive integer IID multinomial counts",
             ));
         }
@@ -217,7 +220,7 @@ mod internal {
             && nominal_level.to_bits() != 0.95_f64.to_bits()
         {
             return Err(refusal(
-                "nested_markov.fisher_invalid_level",
+                antecedent_core::reason_details::nested_markov::FISHER_INVALID_LEVEL,
                 "the frozen pilot accepts only nominal levels 0.90 and 0.95",
             ));
         }
@@ -250,7 +253,7 @@ mod internal {
             let variance = effect_covariance[i][i];
             if !variance.is_finite() || variance < 0. || !z.is_finite() {
                 return Err(refusal(
-                    "nested_markov.fisher_invalid_covariance",
+                    antecedent_core::reason_details::nested_markov::FISHER_INVALID_COVARIANCE,
                     "delta variance or quantile is invalid",
                 ));
             }

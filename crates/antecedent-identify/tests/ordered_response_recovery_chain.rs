@@ -140,7 +140,7 @@ fn self_censoring_chain_is_nonrecoverable_with_an_exact_witness() {
     );
     assert_eq!(
         ChainRecoveryDetail::NonrecoverableWitness.detail(),
-        "recovery_chain.nonrecoverable_witness"
+        antecedent_core::reason_details::recovery_chain::NONRECOVERABLE_WITNESS
     );
 }
 
@@ -194,7 +194,10 @@ fn assert_not_supported(result: Result<ChainRecoveryDecision, ChainRecoveryError
     let error = result.unwrap_err();
     assert_eq!(error.detail, ChainRecoveryDetail::UnsupportedMechanism, "{error}");
     assert_eq!(error.reason_code(), "route_not_supported");
-    assert_eq!(error.detail.detail(), "recovery_chain.unsupported_mechanism");
+    assert_eq!(
+        error.detail.detail(),
+        antecedent_core::reason_details::recovery_chain::UNSUPPORTED_MECHANISM
+    );
 }
 
 #[test]
@@ -248,13 +251,19 @@ fn reason_codes_and_details_are_fixed_per_kind() {
         Positivity, UnsupportedMechanism,
     };
     let table = [
-        (NonrecoverableWitness, "recovery_chain.nonrecoverable_witness"),
-        (UnsupportedMechanism, "recovery_chain.unsupported_mechanism"),
-        (InvalidQuery, "recovery_chain.invalid_query"),
-        (Positivity, "recovery_chain.positivity"),
-        (InvalidObservedLaw, "recovery_chain.invalid_observed_law"),
-        (InvalidDerivation, "recovery_chain.invalid_derivation"),
-        (Budget, "recovery_chain.budget"),
+        (
+            NonrecoverableWitness,
+            antecedent_core::reason_details::recovery_chain::NONRECOVERABLE_WITNESS,
+        ),
+        (
+            UnsupportedMechanism,
+            antecedent_core::reason_details::recovery_chain::UNSUPPORTED_MECHANISM,
+        ),
+        (InvalidQuery, antecedent_core::reason_details::recovery_chain::INVALID_QUERY),
+        (Positivity, antecedent_core::reason_details::recovery_chain::POSITIVITY),
+        (InvalidObservedLaw, antecedent_core::reason_details::recovery_chain::INVALID_OBSERVED_LAW),
+        (InvalidDerivation, antecedent_core::reason_details::recovery_chain::INVALID_DERIVATION),
+        (Budget, antecedent_core::reason_details::recovery_chain::BUDGET),
     ];
     for (kind, detail) in table {
         assert_eq!(kind.detail(), detail);

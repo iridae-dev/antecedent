@@ -45,12 +45,14 @@ record_sha256 = "458d72d798ecdedd2c1b74e46a35f2623641ab23cb88268b977d6d7236a6520
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/functional_distribution.rs"
-sha256 = "a052777d984cab501066d3ee73c66ba7554be379d45517b2b2b4a5f436a9b583"
+items = ["const ACTIVE_FACTOR_CACHE", "const MAX_DISCRETE_LEVELS", "const MAX_RETAINED_FITS", "const MAX_RETAINED_VALUES", "enum ProbabilityInterval", "enum ProbabilityIntervalUnavailable", "enum RowResampling", "fn align_replicate_atoms", "fn average_over_free_variables", "fn binary_mean_interval", "fn block_length", "fn build_empirical_provider", "fn cartesian_codes", "fn clear", "fn collect_factor_signatures", "fn collect_observational_factors", "fn column", "fn complete_rows", "fn conditioning_points", "fn construct_cpt_entries", "fn cpt_entries", "fn cpt_entries_uncached", "fn default", "fn estimate", "fn estimate_point", "fn estimate_point_with", "fn eval_err", "fn factor_identity", "fn functional_cell_unevaluable", "fn functional_free_variables", "fn functional_program", "fn gather", "fn insert_cpt", "fn logit_probability_interval", "fn n", "fn new", "fn observed_codes", "fn ordered_domains", "fn pack_codes", "fn prepare", "fn program", "fn provider_from_columns", "fn push_debug_list", "fn push_free_variable_law", "fn read", "fn resample", "fn resample_rows", "fn set_assignments", "struct AtomUncertainty", "struct DistributionAtom", "struct EmpiricalFactorCache", "struct EncodedColumn", "struct EncodedColumns", "struct FunctionalDistribution", "struct FunctionalDistributionWorkspace", "struct FunctionalEffect", "struct InterventionalDistributionEstimate", "struct PreparedFunctionalDistribution", "struct RetainedFactorFits", "type AtomKey", "type FactorEntries", "type FactorKey", "type FactorSignature", "type RetainedFactorFit"]
+sha256 = "aabdc3e23c1059db3880645366e64a3ed04d853928f1ddda86524dc3a0f80b12"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/functional_distribution_reference.rs"
-sha256 = "ce9fb12b36478c50064dcb47485af9b0100ace9ed4fdbc50ddfb4d696c440458"
+items = ["fn a_cell_missing_under_one_arm_is_refused_for_that_contrast_only", "fn backdoor_dag", "fn backdoor_distribution_atoms_mean_and_effect_match_the_exact_identity", "fn case", "fn cases", "fn close", "fn distribution", "fn do_t", "fn expand", "fn frontdoor_effect_matches_the_exact_formula", "fn napkin_free_variable_is_averaged_by_its_empirical_law", "fn path_specific_mediation_functional_matches_the_exact_identity", "fn v"]
+sha256 = "366d843a4e3becf972b37bcb3928dd6bf78b83fd98c9be6c4bf30194ed0471fa"
 
 [[method_review.artifacts]]
 role = "reference"

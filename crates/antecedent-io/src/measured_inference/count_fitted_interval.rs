@@ -51,7 +51,7 @@ fn invalid(detail: &str, message: &str) -> IoError {
 }
 
 fn protocol(message: &str) -> IoError {
-    invalid("measured_interval.invalid_source", message)
+    invalid(antecedent_core::reason_details::measured_interval::INVALID_SOURCE, message)
 }
 
 #[allow(clippy::needless_pass_by_value, reason = "used as an owned map_err callback")]
@@ -62,7 +62,10 @@ fn estimation_error(error: antecedent_estimate::EstimationError) -> IoError {
             message: error.to_string(),
         }
     } else {
-        invalid("measured_inference.invalid_report", &error.to_string())
+        invalid(
+            antecedent_core::reason_details::measured_inference::INVALID_REPORT,
+            &error.to_string(),
+        )
     }
 }
 
@@ -119,7 +122,7 @@ impl CountFittedIntervalArtifactWire {
     fn resolve(&self) -> Result<Resolved, IoError> {
         if self.version != 1 || self.nodes.is_empty() {
             return Err(invalid(
-                "measured_inference.artifact_mismatch",
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                 "count-fitted source is not a version 1 model with at least one node",
             ));
         }
@@ -132,7 +135,7 @@ impl CountFittedIntervalArtifactWire {
                 }
                 _ => {
                     return Err(invalid(
-                        "measured_inference.artifact_mismatch",
+                        antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                         "a node carries both or neither of counts and a declared table",
                     ));
                 }
@@ -158,15 +161,13 @@ impl CountFittedIntervalArtifactWire {
             let node = self.nodes.iter().position(|n| n.name == name).ok_or_else(|| {
                 refused(
                     antecedent_core::reason_code!("unknown_variable"),
-                    "observation_query.unknown_variable",
+                    antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE,
                     name,
                 )
             })?;
-            let l = self.nodes[node]
-                .levels
-                .iter()
-                .position(|l| l == level)
-                .ok_or_else(|| invalid("observation_query.unknown_level", level))?;
+            let l = self.nodes[node].levels.iter().position(|l| l == level).ok_or_else(|| {
+                invalid(antecedent_core::reason_details::observation_query::UNKNOWN_LEVEL, level)
+            })?;
             Ok((node, l))
         };
         let (target, level_index) = find(&self.target, &self.target_level)?;
@@ -186,10 +187,12 @@ impl CountFittedIntervalArtifactWire {
     /// A malformed source, an unknown variable or level, or evidence of probability zero.
     pub fn point(&self) -> Result<f64, IoError> {
         let resolved = self.resolve()?;
-        resolved
-            .model
-            .point(&resolved.query, resolved.prior_alpha)
-            .map_err(|e| invalid("measured_inference.invalid_report", &e.to_string()))
+        resolved.model.point(&resolved.query, resolved.prior_alpha).map_err(|e| {
+            invalid(
+                antecedent_core::reason_details::measured_inference::INVALID_REPORT,
+                &e.to_string(),
+            )
+        })
     }
 
     /// Serialize a retained count-fitted source.
@@ -257,7 +260,7 @@ impl CountFittedIntervalArtifactWire {
         if fraction.is_nan() || fraction > mcse_tolerance {
             return Err(refused(
                 antecedent_core::reason_code!("posterior_draws_not_converged"),
-                "measured_interval.draws_not_converged",
+                antecedent_core::reason_details::measured_interval::DRAWS_NOT_CONVERGED,
                 &format!(
                     "the Monte Carlo standard error of an interval endpoint ({:.3e} lower, \
                      {:.3e} upper) is {fraction:.3} of the interval width, above the \
@@ -281,7 +284,7 @@ impl CountFittedIntervalArtifactWire {
         let wire: Self = crate::from_cbor(bytes)?;
         if crate::to_cbor(&wire)? != bytes {
             return Err(invalid(
-                "measured_inference.artifact_mismatch",
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                 "count-fitted source is not canonical",
             ));
         }
@@ -479,7 +482,11 @@ mod tests {
         // just below it, naming the error, the fraction and the tolerance.
         assert!(source.replay(fraction * 1.001).is_ok());
         let message = detail(&source.replay(fraction * 0.999).unwrap_err());
-        assert!(message.contains("measured_interval.draws_not_converged"), "{message}");
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::measured_interval::DRAWS_NOT_CONVERGED),
+            "{message}"
+        );
         assert!(message.contains("more posterior draws"), "{message}");
     }
 
@@ -501,7 +508,11 @@ mod tests {
         // error these draws have, as draws that mix poorly would leave) is refused with
         // the diagnostic, both endpoint errors and the tolerance named.
         let message = detail(&source.replay(fraction * 0.5).unwrap_err());
-        assert!(message.contains("measured_interval.draws_not_converged"), "{message}");
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::measured_interval::DRAWS_NOT_CONVERGED),
+            "{message}"
+        );
         assert!(message.contains("Monte Carlo standard error"), "{message}");
         assert!(message.contains(&format!("{:.3e} lower", interval.lower_mcse)), "{message}");
         assert!(message.contains(&format!("{:.3e} upper", interval.upper_mcse)), "{message}");

@@ -47,12 +47,14 @@ record_sha256 = "4a191ffe0ba96998accf08d76e911b5b08e9967810a37847bbe004569d777a3
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/generalized.rs"
-sha256 = "15e317a98a7f8a6158531b7ff0a373c8c390f3e3d2affc333b285ae6a97d7b0c"
+items = ["const GENERALIZED_PROPENSITY_PROVENANCE", "enum MultiLevelPopulation", "enum MultiLevelTarget", "fn as_str", "fn crossfit_scores", "fn fit", "fn fit_category_probabilities", "fn fit_full_population", "fn fit_pairwise", "fn full_population", "fn index_of", "fn multinomial_probabilities", "fn new", "fn population", "fn with_folds", "fn with_overlap", "fn with_target", "struct CategoryTrainingRows", "struct LevelMean", "struct LevelRows", "struct MultiLevelAipw", "struct MultiLevelEstimate", "struct PreparedLevels"]
+sha256 = "632be73b9604718712e713eea987150e98b76f83e561e9b393ffaebed96893b9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/generalized_propensity_aipw_reference.rs"
-sha256 = "db9cd1d848e9fe36301a7b05e55bfeb1ec19707b66f071682164ebc1040f2f80"
+items = ["fn an_undeclared_level_is_refused_and_a_trim_is_refused", "fn close", "fn data_for", "fn estimand", "fn floats", "fn level_means_and_pairwise_contrasts_match_the_fixed_fold_references"]
+sha256 = "f24343b752cde937cf9a1489af1bc480e1e6c8515eb874d007de414c2d685cb3"
 
 [[method_review.artifacts]]
 role = "reference"

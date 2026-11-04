@@ -33,9 +33,11 @@ record_sha256 = "6544286660ccf6c797b4db9b8ab6a15e67b6f90e34b4706b22e169c368e6e7e
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/mechanism_diag.rs"
-sha256 = "b8bd0a5a9d109d06efe4963070e190ed38f0994c55d97747532df50153da6999"
+items = ["fn append_batch", "fn append_row", "fn bytes_estimate", "fn bytes_for", "fn evict_oldest", "fn ncols", "fn new", "fn rebuild_ols_from_ring", "fn refresh_summaries", "struct RollingMechanismDiagnostics"]
+sha256 = "68e9dcdc26a95c5fdd4a277296c1f1834d731ce83909cefd14159c4dc147afef"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/tests/rolling_mechanism_oracle.rs"
-sha256 = "432afba73b24120adf3448c9282a18d0e6d36653f1da0e6fd160b3283d24a698"
+items = ["const FIXTURE", "fn close", "fn idx_f64", "fn json_usize", "fn rolling_summaries_match_independent_batch_windows", "fn row", "fn row_and_batch_append_replay_identically"]
+sha256 = "bab2946632031f7a309dfa51a6a8a7cbf71f1278584d5963e3fa0e174fbc1ca7"

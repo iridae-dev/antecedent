@@ -45,12 +45,14 @@ record_sha256 = "68a4f72c116cdb5be37288aee6060129a605d51306b681f3315dea656b45d04
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/suff_stats.rs"
-sha256 = "c36be002d88c6e0b2a3cf822898e9fd7af3fbabafc1ddcb76c0f495785dd00a5"
+items = ["const MAX_OLS_COLUMNS", "fn add_f64", "fn append", "fn append_batch", "fn append_row", "fn append_validated", "fn centered_residual_sse", "fn centred_moments", "fn chan_base_is_left", "fn chan_merge_scatter", "fn dim", "fn entries_finite", "fn m2", "fn mean", "fn mean_x", "fn mean_y", "fn merge", "fn merged", "fn moments_close", "fn n", "fn ncols", "fn new", "fn offset_dominates", "fn published_matches_scatter", "fn rebuilt_moment", "fn refine_solution", "fn residual_variance", "fn scatter_aligned", "fn solve_beta", "fn solve_centered", "fn solve_gram", "fn solve_shifted", "fn solve_shifted_normal", "fn square_len", "fn unsupported", "fn validate_row", "fn xtx", "fn xty", "fn xx", "fn xy", "fn yty", "struct CentredMoments", "struct LinearOlsSuffStats", "struct ShiftedNormalSolution", "struct StreamingCovariance"]
+sha256 = "268ba0ff7469b5a88c68d74802b2d470104a366f28b31a632058fc180bc7d84f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/tests/incremental_ols_reference.rs"
-sha256 = "76f1aa53878dca1262045d8a61cce87eb99378d4873f960d69fb193c3be26573"
+items = ["fn appended_rows_batches_and_merged_windows_equal_exact_least_squares", "fn check", "fn decimals", "fn numbers", "fn reference", "fn rows_of", "fn tolerance", "fn vector_error"]
+sha256 = "1710368cf662ca3f30a89f8eacaaeb37911c5bd1721681f2fdc93a695a8285a9"
 
 [[method_review.artifacts]]
 role = "reference"

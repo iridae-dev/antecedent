@@ -40,9 +40,11 @@ record_sha256 = "2ceddfc0f0a4907126ff61b8c1260bc41916d748be8a4161dc7fc29c09eaffe
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/engine.rs"
-sha256 = "0b72a8ee8cd0ca3480fc44c7a92252599de90cd2fd140801a4a18c67fc65ae24"
+items = ["const ABDUCTION_STREAM", "const PREDICT_STREAM", "const RANK_PRESERVING_ASSUMPTION", "enum AbductionMissingPolicy", "enum NoiseInferenceKind", "fn abduct", "fn abduct_impl", "fn admit_counterfactual", "fn allows_missing", "fn counterfactual_refusal", "fn evaluate_world_into", "fn from", "fn get", "fn individual_treatment_effect", "fn n_nodes", "fn n_units", "fn new", "fn outcome_column", "fn predict", "fn predict_impl", "fn predict_retaining_outcomes", "fn predict_world_stream", "fn resolve_outcomes", "fn retained_nodes", "fn shared", "fn slot_of", "fn stored_width", "fn try_get", "fn validate_prediction_inputs", "fn values", "struct CompiledCounterfactualPlan", "struct CounterfactualEngine", "struct CounterfactualResult", "struct CounterfactualWorld", "struct ExogenousPosterior", "struct PredictMode", "struct WorldEvaluation"]
+sha256 = "916c362b26b31382d2de0eb078735072569dde93d268dcb691683206e84d1f4c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/abduction_action_prediction_reference.rs"
-sha256 = "cbe5fe879348d67c9e0b3a7db1deb126433d1369e970a1b6790342674a96ef3f"
+items = ["const M", "const M0", "const MX", "const W", "const X", "const X0", "const XW", "const Y", "const Y0", "const YM", "const YW", "const YX", "fn a_unit_subset_and_the_individual_treatment_effect_follow_the_same_recursion", "fn engine", "fn every_unit_and_node_matches_the_structural_recursion_under_single_and_joint_interventions", "fn table", "fn the_empty_world_returns_the_observed_units", "fn units", "fn world", "struct Units"]
+sha256 = "056142c0b0e4d2c46470d4bbe4d5442478ad973bfbdb21a243d296f20dc43c65"

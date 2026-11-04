@@ -39,12 +39,14 @@ record_sha256 = "5d1d16e567fd925f081a997f0a94c8ff636339b78b542c4546b5e9442cfa80c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/confidence_sequence.rs"
-sha256 = "91574d9dd341bb6ba427777b13591c42bccd7798d5e70853d8aa248c75aa2463"
+items = ["const CANCEL_STRIDE", "const MAX_SEQUENCE_OBSERVATIONS", "const PLUG_IN_LAMBDA_CAP", "const SUB_GAUSSIAN_SD", "enum Boundary", "enum SequenceKind", "fn bounded_mean_confidence_sequence", "fn check_level", "fn count", "fn label", "fn mixture_hoeffding_radius", "fn new", "fn of_kind", "fn push", "fn read_sequence", "fn reading", "fn reading_for_coverage", "fn step", "struct ArmSequence", "struct PlugIn", "struct SequenceState"]
+sha256 = "d4d6a3101a0367b021648ffe223db959d5a5cebbb94a6e393485ca54a31d81d6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/confidence_sequence_reference.rs"
-sha256 = "f82eed495532820086c69bae60b69971cc5f24447db0793af191e5df774e1b1b"
+items = ["fn exact_miss_probability_equals_the_reference_and_respects_the_level", "fn fixed_streams_match_the_reference_at_every_checkpoint", "fn kind_of", "fn miss_probability", "fn mixture_radius_matches_the_reference_to_fifty_million_observations", "fn number", "fn reference"]
+sha256 = "bea1c92bc73381f5e6e9bb58e1f56024a4e827cc337de25731f6704a7be56bf3"
 
 [[method_review.artifacts]]
 role = "reference"

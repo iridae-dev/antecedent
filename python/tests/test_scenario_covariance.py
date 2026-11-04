@@ -12,6 +12,7 @@ import itertools
 
 import antecedent
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalSerializationError,
     CausalTypeError,
@@ -158,7 +159,7 @@ def test_shared_rows_exact_covariance_matches_closed_form_and_is_point_only():
     with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
         result.aggregate_interval()
     assert refused.value.reason_code == "scenario_aggregate_not_supported"
-    assert refused.value.detail == "scenarios.shared_data_aggregate"
+    assert refused.value.detail == reason_details.scenarios.SHARED_DATA_AGGREGATE
 
 
 def test_bootstrap_shares_one_replicate_selection_across_scenarios():
@@ -214,7 +215,7 @@ def test_scenario_permutation_reorders_rows_and_columns_identically():
 
 
 def test_independent_or_incompatible_rows_refuse_unknown_dependence():
-    unknown = ("route_not_supported", "scenario_covariance.unknown_dependence")
+    unknown = ("route_not_supported", reason_details.scenario_covariance.UNKNOWN_DEPENDENCE)
     different_snapshot = [estimator("a", snapshot="snap:one"), estimator("b", snapshot="snap:two")]
     assert refusal(lambda: exact(different_snapshot)) == unknown
     assert refusal(lambda: bootstrap(different_snapshot, replicates=10)) == unknown
@@ -243,9 +244,12 @@ def test_bounds_arguments_and_failures_refuse_with_typed_details():
     over = bootstrap(two, replicates=2001)
     assert over.replicates_total == 2001 and over.replicates_used == 2001
     under = refusal(lambda: bootstrap(two, replicates=1))
-    assert under == ("invalid_argument", "scenario_covariance.too_few_replicates")
+    assert under == ("invalid_argument", reason_details.scenario_covariance.TOO_FEW_REPLICATES)
     capped = refusal(lambda: exact(two, max_compositions=461))
-    assert capped == ("execution_resource_limit", "scenario_covariance.exact_enumeration_cap")
+    assert capped == (
+        "execution_resource_limit",
+        reason_details.scenario_covariance.EXACT_ENUMERATION_CAP,
+    )
     many = [transport.ScenarioEstimator(f"s{i}", estimator("a").functional) for i in range(65)]
     wide = exact(many)
     assert wide.scenario_ids == tuple(f"s{i}" for i in range(65))
@@ -254,20 +258,23 @@ def test_bounds_arguments_and_failures_refuse_with_typed_details():
     twins = [estimator("a"), estimator("a")]
     assert refusal(lambda: exact(twins)) == (
         "invalid_argument",
-        "scenario_covariance.duplicate_scenario_id",
+        reason_details.scenario_covariance.DUPLICATE_SCENARIO_ID,
     )
-    assert refusal(lambda: exact([])) == ("invalid_argument", "scenario_covariance.no_scenarios")
+    assert refusal(lambda: exact([])) == (
+        "invalid_argument",
+        reason_details.scenario_covariance.NO_SCENARIOS,
+    )
     one_row = transport.RowTable(["z", "x", "y"], [(0, 0, 0)], ["only"])
     assert refusal(lambda: transport.scenario_shared_covariance(one_row, [estimator("a")])) == (
         "invalid_argument",
-        "scenario_covariance.too_few_rows",
+        reason_details.scenario_covariance.TOO_FEW_ROWS,
     )
     unknown_column = transport.ScenarioEstimator(
         "q", transport.LinearScore([transport.ScoreTerm(1.0, {"nope": 1})])
     )
     assert refusal(lambda: exact([unknown_column])) == (
         "invalid_argument",
-        "scenario_covariance.invalid_functional",
+        reason_details.scenario_covariance.INVALID_FUNCTIONAL,
     )
     # An estimator that fails in every replicate is refused, never dropped silently.
     never_treated = transport.ScenarioEstimator(
@@ -276,13 +283,13 @@ def test_bounds_arguments_and_failures_refuse_with_typed_details():
     failing = [estimator("a"), never_treated]
     assert refusal(lambda: bootstrap(failing, replicates=50, max_failure_fraction=0.1)) == (
         "transport_numerical_failure",
-        "scenario_covariance.too_many_failed_replicates",
+        reason_details.scenario_covariance.TOO_MANY_FAILED_REPLICATES,
     )
     token = antecedent.state.CancellationToken()
     token.cancel()
     assert refusal(lambda: exact(two, execution=antecedent.Execution(cancel=token))) == (
         "cancelled_no_claim",
-        "scenario_covariance.cancelled",
+        reason_details.scenario_covariance.CANCELLED,
     )
 
 
@@ -333,7 +340,7 @@ def test_tampered_covariance_artifacts_refuse_with_typed_details():
     with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
         transport.consume_scenario_covariance_artifact(changed)
     assert refused.value.reason_code == "invalid_argument"
-    assert refused.value.detail == "scenario_covariance.data_identity_mismatch"
+    assert refused.value.detail == reason_details.scenario_covariance.DATA_IDENTITY_MISMATCH
     # A changed declared coefficient (-1.0 -> -2.0) is a premise: the premises digest refuses.
     # CBOR stores the shortest exact float: -1.0 is the half-float f9 bc00, -2.0 is f9 c000.
     coefficient = b"\xf9\xbc\x00"
@@ -341,7 +348,7 @@ def test_tampered_covariance_artifacts_refuse_with_typed_details():
     reweighted = artifact.replace(coefficient, b"\xf9\xc0\x00", 1)
     with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
         transport.consume_scenario_covariance_artifact(reweighted)
-    assert refused.value.detail == "scenario_covariance.premises_mismatch"
+    assert refused.value.detail == reason_details.scenario_covariance.PREMISES_MISMATCH
     # Damaged or foreign bytes are serialization failures, not refusals.
     with pytest.raises(CausalSerializationError):
         transport.consume_scenario_covariance_artifact(artifact[:-4])
@@ -354,8 +361,8 @@ def test_tampered_covariance_artifacts_refuse_with_typed_details():
         with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
             transport.consume_scenario_covariance_artifact(artifact, **limits)
         assert refused.value.reason_code == "execution_resource_limit"
-        assert refused.value.detail == "scenario_covariance.consumer_limit_exceeded"
+        assert refused.value.detail == reason_details.scenario_covariance.CONSUMER_LIMIT_EXCEEDED
     boot = bytes(bootstrap(family("a", "b"), replicates=300).export())
     with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
         transport.consume_scenario_covariance_artifact(boot, max_replicates=299)
-    assert refused.value.detail == "scenario_covariance.consumer_limit_exceeded"
+    assert refused.value.detail == reason_details.scenario_covariance.CONSUMER_LIMIT_EXCEEDED

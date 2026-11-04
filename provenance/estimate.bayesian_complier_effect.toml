@@ -38,17 +38,20 @@ record_sha256 = "1a12dd6ff06e5ef5dd408669bd3dc1e3a1f5e6ee66b7e0475d3346dc312c0c7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/complier_posterior.rs"
-sha256 = "183f7b17e7dba637c522fa4df5a424503a960d2fe033a7c8ef624b3b0664b1b1"
+items = ["fn bayesian_complier_effect", "struct ComplierEffectPosterior"]
+sha256 = "74077f84cfc924c67108acb66f4dcb54fb778da6e7fdd7eff74624eeefa708fc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/score_posterior.rs"
-sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
+items = ["const WEIGHT_STREAM", "fn bayesian_bootstrap_score_posteriors", "fn refused", "fn summarize", "struct ScorePosterior", "struct ScorePosteriorOptions"]
+sha256 = "5979e043fb37f715adc14786a072f6f3201b40281deb58d90e59247b4ce6933e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/complier_posterior_reference.rs"
-sha256 = "c4e8c13ec582ff3d7d062180d12328a7a73de7f4372ab73836639e6b49b66b01"
+items = ["const DRAWS", "fn empirical", "fn floats", "fn the_ratio_and_intention_to_treat_laws_match_the_exact_distribution_functions", "fn within"]
+sha256 = "fd6ba742937f345bbfd3dc30b159677c606fa6e4b7aebeb0e2993aaf110dc46d"
 
 [[method_review.artifacts]]
 role = "reference"

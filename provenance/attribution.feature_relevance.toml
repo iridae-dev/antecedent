@@ -37,14 +37,17 @@ record_sha256 = "f53d93c8d290939254742c3ae8f296026fa0a844487a0bbc88b81f0f3813581
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/feature_relevance.rs"
-sha256 = "0cb3f3a1867c1c4a0419367db2a6113520feec919286640cb4936d9d47dba9da"
+items = ["fn feature_relevance", "struct FeaturePayoff", "struct FeatureRelevanceOptions"]
+sha256 = "f538d4cfad12ce87c4fe824f096aa2e6bd2d17db1c215986b84c83e322bdffda"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/shapley.rs"
-sha256 = "339fe81ca86aab2b0c2814cca3e3e8b5f3ab98340d3bd8148f0987b3d7fd13e4"
+items = ["enum Evaluator", "fn fork", "fn new", "fn samples_per_evaluation", "fn value", "trait CoalitionPayoff"]
+sha256 = "b8c6821e105615e2ff53b5b1b45616ccdb42195d60e09ce464c2cf7c2f484bb5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/feature_relevance_reference.rs"
-sha256 = "7243b4d0f4834c7bdf9ab2405293d614db1ce5c8652005a954b1f6ae97122388"
+items = ["fn a_feature_that_does_not_reach_the_outcome_scores_zero", "fn a_repeated_feature_or_the_outcome_among_the_features_is_not_scored_silently", "fn an_additive_linear_game_gives_each_feature_its_own_coefficient_times_the_shift", "fn build", "fn intervening_on_a_mediator_severs_its_cause_and_splits_the_effect", "fn more_features_than_the_declared_limit_are_refused", "fn score_of", "fn scores", "fn series"]
+sha256 = "9b272464b5f73981fe0c823fa60688e1fa2be570210538897b178a35ebf39c98"

@@ -100,11 +100,8 @@ fn details(producer: &CallbackDeclaration, need: &Need) -> Result<(), Vec<String
     if let Some(meaning) = need.uncertainty {
         port = port.with_uncertainty(meaning);
     }
-    let consumer = InterfaceContract {
-        component: "consumer".into(),
-        produces: vec![],
-        consumes: vec![port],
-    };
+    let consumer =
+        InterfaceContract { component: "consumer".into(), produces: vec![], consumes: vec![port] };
     check_connection(&producer.interface_contract(), CALLBACK_OUTPUT_PORT, &consumer, "input")
         .map(|_| ())
         .map_err(|refusals| refusals.into_iter().map(|r| r.detail).collect())
@@ -146,7 +143,11 @@ fn each_semantic_field_refuses_alone_and_the_matching_consumer_connects() {
             "conditioning_mismatch",
         ),
         ("transform", |n| n.quantity.transform_id = "log".into(), "transform_mismatch"),
-        ("semantic identity", |n| n.semantic = "estimand:other".into(), "semantic_identity_mismatch"),
+        (
+            "semantic identity",
+            |n| n.semantic = "estimand:other".into(),
+            "semantic_identity_mismatch",
+        ),
     ];
     for (label, change, expected) in cases {
         let mut asked = need();
@@ -170,9 +171,9 @@ fn every_defect_is_reported_in_the_fixed_order() {
     assert_eq!(
         details(&full(), &asked),
         Err(vec![
-            "interface_contract.units_mismatch".to_owned(),
-            "interface_contract.population_mismatch".to_owned(),
-            "interface_contract.operation_unavailable".to_owned(),
+            antecedent_core::reason_details::interface_contract::UNITS_MISMATCH.to_owned(),
+            antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH.to_owned(),
+            antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE.to_owned(),
         ])
     );
 }
@@ -208,10 +209,16 @@ fn operations_connect_exactly_when_the_callback_offers_them() {
             }
             let mut expected = Vec::new();
             if !offered.contains(&wanted) {
-                expected.push("interface_contract.operation_unavailable".to_owned());
+                expected.push(
+                    antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE
+                        .to_owned(),
+                );
             }
             if states_meaning && !carries_uncertainty {
-                expected.push("interface_contract.uncertainty_meaning_missing".to_owned());
+                expected.push(
+                    antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISSING
+                        .to_owned(),
+                );
             }
             let expected = if expected.is_empty() { Ok(()) } else { Err(expected) };
             assert_eq!(details(&producer, &asked), expected, "{declared:?} / {wanted:?}");
@@ -230,15 +237,19 @@ fn the_uncertainty_meaning_the_consumer_names_must_be_the_one_produced() {
     assert_eq!(
         details(&mean_only, &need()),
         Err(vec![
-            "interface_contract.operation_unavailable".to_owned(),
-            "interface_contract.uncertainty_meaning_missing".to_owned(),
+            antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE.to_owned(),
+            antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISSING
+                .to_owned(),
         ])
     );
     let mut mean_consumer = need();
     mean_consumer.operations = vec![ContractOperation::Mean];
     assert_eq!(
         details(&mean_only, &mean_consumer),
-        Err(vec!["interface_contract.uncertainty_meaning_unused".to_owned()])
+        Err(vec![
+            antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_UNUSED
+                .to_owned()
+        ])
     );
     mean_consumer.uncertainty = None;
     assert_eq!(details(&mean_only, &mean_consumer), Ok(()));
@@ -263,13 +274,8 @@ fn the_uncertainty_meaning_the_consumer_names_must_be_the_one_produced() {
 #[test]
 fn the_consumers_support_must_contain_the_callbacks_support() {
     use SupportDomain as S;
-    let produced = [
-        S::Real,
-        S::NonNegative,
-        S::Binary,
-        S::interval(0.0, 1.0),
-        S::interval(-1.0, 3.0),
-    ];
+    let produced =
+        [S::Real, S::NonNegative, S::Binary, S::interval(0.0, 1.0), S::interval(-1.0, 3.0)];
     // Hand-tabulated acceptance: rows are the consumer's domain, columns the produced domains
     // in the order above.
     let consumers: Vec<(S, [bool; 5])> = vec![
@@ -287,7 +293,10 @@ fn the_consumers_support_must_contain_the_callbacks_support() {
             let expected = if accepted {
                 Ok(())
             } else {
-                Err(vec!["interface_contract.support_mismatch".to_owned()])
+                Err(vec![
+                    antecedent_core::reason_details::interface_contract::SUPPORT_MISMATCH
+                        .to_owned(),
+                ])
             };
             assert_eq!(details(&producer, &asked), expected, "{accepting:?} <- {offered:?}");
         }

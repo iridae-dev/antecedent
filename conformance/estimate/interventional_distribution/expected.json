@@ -42,7 +42,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/src/tests.rs",
-          "sha256": "7b71f70004a6465cb12ac9ace07b4f389211a0d2396c08334c1e3812d0759a8a"
+          "items": [
+            "fn end_to_end_interventional_distribution",
+            "fn run_binary_distribution"
+          ],
+          "sha256": "4cb3f771f1079adad4a0aedeb5a868beca261366f653d0e027864870c9246305"
         }
       ],
       "sources": [],

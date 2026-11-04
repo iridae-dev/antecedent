@@ -306,7 +306,10 @@ fn an_unresolved_structure_reports_no_interval() {
     let error = estimate_effect_on_split(&data, v(1), v(3), SPLIT_SEED, &ctx()).unwrap_err();
     let text = error.to_string();
     assert!(text.contains("discovered_structure_unresolved"), "{text}");
-    assert!(text.contains("split_effect.structure_unresolved"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::split_effect::STRUCTURE_UNRESOLVED),
+        "{text}"
+    );
 }
 
 #[test]
@@ -336,12 +339,16 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
     let mut other_version = source.clone();
     other_version.version = 2;
     let error = measure_source(&other_version.to_bytes().unwrap(), &ctx()).unwrap_err();
-    assert!(error.to_string().contains("split_effect.source_invalid"));
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::split_effect::SOURCE_INVALID)
+    );
 
     let mut same_role = source;
     same_role.outcome = same_role.treatment;
     let error = measure_source(&same_role.to_bytes().unwrap(), &ctx()).unwrap_err();
-    assert!(error.to_string().contains("split_effect.source_invalid"));
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::split_effect::SOURCE_INVALID)
+    );
 
     // Bytes that decode but are not the canonical encoding are refused before any replay.
     let mut padded = estimate.source_artifact().to_vec();

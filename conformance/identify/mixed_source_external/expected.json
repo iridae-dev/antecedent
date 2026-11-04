@@ -80,7 +80,23 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/mixed_source_external_parity.rs",
-          "sha256": "e3bd87c90339e6bac521e0862238e8216b4013f329f0d614113289aff0d36ba8"
+          "items": [
+            "fn ananke_gid_and_aid_cases_agree_and_every_disagreement_is_recorded",
+            "fn build_case",
+            "fn cited_by_proof",
+            "fn derive_agreement",
+            "fn fixture",
+            "fn formula_of",
+            "fn parse_terms",
+            "fn read_oracle",
+            "fn run",
+            "fn strings",
+            "fn top_level",
+            "fn verdict_of",
+            "struct Case",
+            "type Cited"
+          ],
+          "sha256": "a2ff353decaeb83cc453c64253f96cd07550f25b53f54f2f1ef359c3c6c4e386"
         }
       ],
       "fixture_payload_sha256": "341d4783a1202f93447c87a7f384b46ff801b122bdd2107e616cc554b5bf7856"

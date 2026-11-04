@@ -464,7 +464,12 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         assert_eq!(error.slot(), "obstruction");
         let (code, message) = error.refusal();
         assert_eq!(code, "transport_not_certified");
-        assert!(message.starts_with("counterfactual_transport.invalid_witness"), "{message}");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::counterfactual_transport::INVALID_WITNESS
+            ),
+            "{message}"
+        );
 
         // Stored values that the witness does not establish are refused too.
         let mut tampered = wire;
@@ -491,7 +496,11 @@ fn refusals_name_what_would_support_the_request() {
     let error = prepare(&case, &case.targets[0], false, &options_of(&case), &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.starts_with("counterfactual_transport.missing_regime"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::counterfactual_transport::MISSING_REGIME),
+        "{message}"
+    );
     assert!(message.contains("experiment on"), "{message}");
     assert!(message.contains("source"), "{message}");
 
@@ -502,7 +511,12 @@ fn refusals_name_what_would_support_the_request() {
     let error = prepare(&case, target, true, &options_of(&case), &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("counterfactual_transport.zero_conditioning_mass"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS
+        ),
+        "{message}"
+    );
     // The same query is defined, and enumerated, in the source population.
     let mut in_source = case.clone();
     in_source.target_population = "source";
@@ -522,7 +536,10 @@ fn refusals_name_what_would_support_the_request() {
     let error = prepare(&case, target, false, &starved, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_budget_cancel");
-    assert!(message.starts_with("counterfactual_transport.budget"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::counterfactual_transport::BUDGET),
+        "{message}"
+    );
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = prepare(&case, target, false, &options_of(&case), &cancelled).unwrap_err();
@@ -535,7 +552,12 @@ fn refusals_name_what_would_support_the_request() {
     let error = prepare(&case, target, false, &oversized, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("counterfactual_transport.bounds_exceeded"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
+        ),
+        "{message}"
+    );
     // Names that do not cover the variables are refused, not truncated.
     let misnamed = CounterfactualTransportOptions {
         variable_names: vec!["only".into()],
@@ -606,7 +628,12 @@ fn absent_mislabelled_and_counted_evidence_is_refused_before_a_number() {
     let error = prepared.evaluate(&empirical, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("counterfactual_transport.no_sampled_inference"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport::NO_SAMPLED_INFERENCE
+        ),
+        "{message}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -654,7 +681,12 @@ fn resealed_query_selection_table_and_derivation_mutations_are_refused_by_slot()
     assert_eq!(error.slot(), "derivation");
     let (code, message) = error.refusal();
     assert_eq!(code, "transport_not_certified");
-    assert!(message.starts_with("counterfactual_transport.invalid_derivation"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::counterfactual_transport::INVALID_DERIVATION
+        ),
+        "{message}"
+    );
 
     // Selection removed: the target marginal is no longer needed, so the
     // derivation differs (or the declaration is refused by name).
@@ -719,8 +751,11 @@ fn resealed_query_selection_table_and_derivation_mutations_are_refused_by_slot()
     let (code, message) = error.refusal();
     assert_eq!(code, "invalid_argument");
     assert!(
-        message.contains("counterfactual_transport.invalid_catalog")
-            || message.contains("counterfactual_transport.invalid_artifact"),
+        message
+            .contains(antecedent_core::reason_details::counterfactual_transport::INVALID_CATALOG)
+            || message.contains(
+                antecedent_core::reason_details::counterfactual_transport::INVALID_ARTIFACT
+            ),
         "{message}"
     );
     let mut mutated = wire.clone();

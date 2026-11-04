@@ -53,6 +53,8 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Literal, Protocol, cast
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -247,7 +249,7 @@ def _semantics(name: str, text: object) -> str:
         raise StudyCandidateRefusal(
             f"a candidate needs {name}",
             reason_code="design_signal_invalid",
-            detail="study_candidate.wrong_contract",
+            detail=_reason_details.study_candidate.WRONG_CONTRACT,
         )
     return text
 
@@ -433,7 +435,7 @@ class StudyCandidate:
                 raise StudyCandidateRefusal(
                     f"a candidate needs a positive {name.replace('_', ' ')}",
                     reason_code="design_signal_invalid",
-                    detail="study_candidate.wrong_contract",
+                    detail=_reason_details.study_candidate.WRONG_CONTRACT,
                 )
         if self.sample_budget is not None and _count(self.sample_budget, "sample_budget") < 0:
             raise CausalValueError("sample_budget must be non-negative")
@@ -1185,7 +1187,7 @@ class StudyTemplate:
             f"template {self.label!r} has no sample size, recruitment, timing, unit rules, "
             "cost or feasibility; those are caller declarations and are never defaulted",
             reason_code="design_signal_invalid",
-            detail="study_candidate.declarations_required",
+            detail=_reason_details.study_candidate.DECLARATIONS_REQUIRED,
         )
 
     def complete(
@@ -1216,7 +1218,7 @@ class StudyTemplate:
                 f"{self.minimum_sample_size} additional rows; the declared sample size is "
                 f"{sample_size}",
                 reason_code="design_signal_invalid",
-                detail="study_candidate.sample_below_obligation",
+                detail=_reason_details.study_candidate.SAMPLE_BELOW_OBLIGATION,
             )
         return StudyCandidate(
             label=self.label if label is None else label,

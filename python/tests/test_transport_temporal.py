@@ -14,6 +14,7 @@ import re
 import antecedent
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalCancelledError,
     CausalResourceError,
@@ -220,7 +221,7 @@ def test_the_support_report_is_local_to_each_history_and_step():
 
 def test_a_reached_history_without_source_support_refuses():
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.history_outside_support"
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
     ) as refused:
         prepare((1.0, 1.0), data=laws(skip=((1, 0, 1),)))
     assert refused.value.reason_code == "transport_support_failure"
@@ -228,37 +229,49 @@ def test_a_reached_history_without_source_support_refuses():
 
 
 def test_invalid_horizon_sequence_and_bounds_refuse():
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as three:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as three:
         spec(horizon=3)
     assert three.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as longer:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as longer:
         prepare((1.0, 0.0, 1.0))
     assert longer.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_sequence") as short:
+    with pytest.raises(
+        CausalValueError, match=reason_details.temporal_transport.INVALID_SEQUENCE
+    ) as short:
         prepare((1.0,))
     assert short.value.reason_code == "invalid_argument"
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_sequence"):
+    with pytest.raises(CausalValueError, match=reason_details.temporal_transport.INVALID_SEQUENCE):
         prepare((1.0, 2.0))
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_spec") as action:
+    with pytest.raises(
+        CausalValueError, match=reason_details.temporal_transport.INVALID_SPEC
+    ) as action:
         prepare(the_spec=spec(selections=("a1",)))
     assert action.value.reason_code == "invalid_argument"
     # The alphabet size has no fixed cap: a wide alphabet is bounded only by the one
     # shared search budget, whose stop is a receipt and never a verdict.
-    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
+    with pytest.raises(CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET):
         prepare(the_spec=spec(actions=9), max_steps=1)
 
 
 def test_one_shared_budget_stops_are_receipts_never_verdicts():
-    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget") as steps:
+    with pytest.raises(
+        CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET
+    ) as steps:
         prepare(max_steps=3)
     assert "search.operations" in str(steps.value)
-    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
+    with pytest.raises(CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET):
         prepare(max_depth=1)
-    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
+    with pytest.raises(CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET):
         prepare(execution=Execution(limits=ResourceLimits(memory_bytes=64)))
     token = antecedent.state.CancellationToken()
     token.cancel()
-    with pytest.raises(CausalCancelledError, match="temporal_transport.history_budget"):
+    with pytest.raises(
+        CausalCancelledError, match=reason_details.temporal_transport.HISTORY_BUDGET
+    ):
         prepare(execution=Execution(cancel=token))
     # The same premises decide under a modest budget: the stop said nothing about identification.
     assert json.loads(require_success(prepare(max_steps=1000).estimate()))["status"] == "available"
@@ -266,12 +279,12 @@ def test_one_shared_budget_stops_are_receipts_never_verdicts():
 
 def test_a_structural_obstruction_and_missing_evidence_refuse_with_their_own_reasons():
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.checked_obstruction"
+        CausalUnsupportedError, match=reason_details.temporal_transport.CHECKED_OBSTRUCTION
     ) as shifted:
         prepare(the_spec=spec(selections=("y",)))
     assert shifted.value.reason_code == "transport_proven_non_transportable"
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.missing_evidence"
+        CausalUnsupportedError, match=reason_details.temporal_transport.MISSING_EVIDENCE
     ) as missing:
         prepare(
             cat=catalog(with_history=False),
@@ -283,7 +296,7 @@ def test_a_structural_obstruction_and_missing_evidence_refuse_with_their_own_rea
 def test_an_interval_request_refuses_with_estimator_inference_mismatch():
     prepared = prepare()
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.interval_requested"
+        CausalUnsupportedError, match=reason_details.temporal_transport.INTERVAL_REQUESTED
     ) as refused:
         prepared.interval()
     assert refused.value.reason_code == "estimator_inference_mismatch"
@@ -304,11 +317,15 @@ def test_same_window_refresh_re_estimates_and_a_new_window_needs_a_new_preparati
     )
     # Without the source's history experiments the window is another window.
     only_target = transport.ExactTransportData(tuple(laws().laws[:1]))
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as changed:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as changed:
         require_success(prepared.refresh(only_target))
     assert changed.value.reason_code == "route_not_supported"
     # A dropped history experiment is a history outside support, not a new window.
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.history_outside_support"):
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
+    ):
         require_success(prepared.refresh(laws(skip=((1, 1, 1),))))
 
 
@@ -520,7 +537,7 @@ def test_a_source_law_that_does_not_serve_the_cited_leaf_supports_no_history():
     )
     only_obs = transport.ExactTransportData((laws().laws[0], obs_law))
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.history_outside_support"
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
     ) as refused:
         prepare(cat=catalog(extra=[_source_obs()]), data=only_obs)
     assert refused.value.reason_code == "transport_support_failure"
@@ -534,7 +551,9 @@ def test_a_source_law_that_does_not_serve_the_cited_leaf_supports_no_history():
         interventions=(("a1", 1.0), ("a2", 0.0)),
     )
     only_actions = transport.ExactTransportData((laws().laws[0], actions_law))
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.history_outside_support"):
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
+    ):
         prepare(cat=catalog(extra=[_source_actions()]), data=only_actions)
 
 
@@ -551,7 +570,9 @@ def test_a_refresh_that_moves_the_fixed_initial_state_needs_a_new_preparation():
     prepared = prepare((1.0, 0.0))
     moved = list(TARGET_P)
     moved[0] = 0.5
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as refused:
         require_success(prepared.refresh(laws(target_p=moved)))
     assert refused.value.reason_code == "route_not_supported"
     assert "initial-state" in str(refused.value)

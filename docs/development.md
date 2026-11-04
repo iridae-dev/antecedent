@@ -267,7 +267,7 @@ commit. It then works in four steps:
    probe first, so a record whose digests reproduce is not measured again. `scripts/calibration_groups.py` maps
    those records to the gate groups that measure them.
 2. It builds the selected test binaries once, then runs each group alone through
-   `scripts/gate_calibration.sh`, several at a time; a record-emitting group runs
+   `scripts/measure_calibration_groups.sh`, several at a time; a record-emitting group runs
    as one job per sample-size grid point
    (`ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`), so the points of a long group run
    side by side. The run includes the gate's inline 2000-replicate rechecks, per
@@ -297,7 +297,7 @@ Without `--all`, the selection has three parts:
 - the groups behind records that are not current;
 - any group in a calibration suite that has no record in the registry yet;
 - when anything else runs, the pass/fail gates that emit no record (CI Type I,
-  discovery FPR, SBC, `gate_response_calibration.sh`). No record describes
+  discovery FPR, SBC). No record describes
   those gates, so they run with every re-measurement.
 
 Formal runner measurements use `suite_coverage_fwer.v1` after the complete source
@@ -420,7 +420,7 @@ python3 scripts/calibration_probe.py bounded             # k = smallest stored p
 python3 scripts/calibration_probe.py bounded --record <id>
 ```
 
-Each probe runs the record's group through `scripts/gate_calibration.sh` under
+Each probe runs the record's group through `scripts/measure_calibration_groups.sh` under
 the measurement's frozen decision environment, in smoke mode (never gated), on a
 clean commit, with logs in `target/calibration-probe/`. It writes
 `parity/calibration_probe_attestations.toml`, one row per record and
@@ -571,7 +571,7 @@ measurement or coverage record.
 |------|------|
 | Unit / property | Algorithm invariants, graph witnesses, numeric edge cases |
 | Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
-| Calibration | Coverage / Type I / null FPR (`gate_calibration.sh`, measured locally by `measure_calibration.sh`) |
+| Calibration | Coverage / Type I / null FPR (`measure_calibration_groups.sh`, measured locally by `measure_calibration.sh`) |
 | Cross-language | Python bindings exercise the same semantics |
 | Criterion benches | Designated hot paths; release gate locally and in CI |
 | Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |

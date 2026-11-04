@@ -121,27 +121,34 @@ impl CpdagArtifactError {
     #[must_use]
     pub fn refusal(&self) -> (&'static str, &'static str) {
         match self {
-            Self::UnsupportedSemantics(_) => {
-                (reason_code!("route_not_supported"), "cpdag_scenarios.unsupported_semantics")
-            }
-            Self::LimitsExceeded(_) => {
-                (reason_code!("transport_budget_cancel"), "cpdag_scenarios.consumer_limit_exceeded")
-            }
-            Self::PremisesMismatch => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.premises_mismatch")
-            }
-            Self::DataIdentityMismatch => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.data_identity_mismatch")
-            }
-            Self::ReportMismatch => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.report_replay_mismatch")
-            }
-            Self::ProviderMismatch(_) => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.provider_mismatch")
-            }
-            Self::CancelledNotReplayable => {
-                (reason_code!("cancelled_no_claim"), "cpdag_scenarios.cancelled_not_exportable")
-            }
+            Self::UnsupportedSemantics(_) => (
+                reason_code!("route_not_supported"),
+                antecedent_core::reason_details::cpdag_scenarios::UNSUPPORTED_SEMANTICS,
+            ),
+            Self::LimitsExceeded(_) => (
+                reason_code!("transport_budget_cancel"),
+                antecedent_core::reason_details::cpdag_scenarios::CONSUMER_LIMIT_EXCEEDED,
+            ),
+            Self::PremisesMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::PREMISES_MISMATCH,
+            ),
+            Self::DataIdentityMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::DATA_IDENTITY_MISMATCH,
+            ),
+            Self::ReportMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH,
+            ),
+            Self::ProviderMismatch(_) => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::PROVIDER_MISMATCH,
+            ),
+            Self::CancelledNotReplayable => (
+                reason_code!("cancelled_no_claim"),
+                antecedent_core::reason_details::cpdag_scenarios::CANCELLED_NOT_EXPORTABLE,
+            ),
         }
     }
 }

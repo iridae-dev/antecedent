@@ -37,14 +37,17 @@ record_sha256 = "10c818d0d9383caa2162cbbc0b74cbd4468feaf2ffa40ed5acbf895d258ff51
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/temporal_iv.rs"
-sha256 = "75c3afcc790eacc6cf11d67c8845e712a7064d77809197da1ebf2a775d12c15b"
+items = ["const TEMPORAL_IV_METHOD", "fn assemble", "fn candidates", "fn derivation_header", "fn grow", "fn identified", "fn identify_temporal_iv", "fn identify_temporal_iv_within", "fn new", "fn of", "fn search", "fn seed_count", "fn stationarity", "struct InstrumentPlan", "struct Search", "struct TemporalIvIdentifier", "struct TemporalIvResult", "struct Window"]
+sha256 = "72e47c26099c37162c51e2fcad2d174c64867e9ad8cb172c0dc6614b1a263483"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/iv.rs"
-sha256 = "a38be948d40e6b91fc1befb1aa16b5e33ebdbfbf4a042c1a183feebacf296ba0"
+items = ["fn default", "fn new"]
+sha256 = "30dded68a05923a41c65ec37030335aca40f94e43558095b3fe78c7a3ce80e73"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/temporal_iv.rs"
-sha256 = "b7d6ccedca51b2da4517b11f0004f2dde7c891d3db6a14245671c08294b7df63"
+items = ["const U", "const X", "const Y", "const Z", "fn a_direct_path_from_the_lagged_instrument_to_the_outcome_violates_exclusion", "fn a_lagged_cause_of_the_treatment_is_the_instrument_and_the_confounder_is_not", "fn a_lagged_confounder_of_the_instrument_and_the_outcome_violates_exogeneity", "fn a_multi_step_schedule_is_unsupported", "fn an_autoregressive_instrument_chain_is_not_certified", "fn an_instrument_independent_of_the_treatment_is_irrelevant", "fn confounded_chain", "fn key", "fn node", "fn query"]
+sha256 = "c997502973f97e0b60c268afc4c7ffca04b901808fa4766da78392b583f8cc73"

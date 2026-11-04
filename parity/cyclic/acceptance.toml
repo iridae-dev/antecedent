@@ -7,7 +7,7 @@ excluded_processes = ["statistical_calibration", "release_attestation"]
 implementation_guide = "docs/development/cyclic-systems.md"
 research_provenance = "provenance/cyclic.general_systems.toml"
 python_acceptance = "python/tests/test_cyclic.py"
-test_registry = "parity/v3_test_registry.toml"
+test_registry = "parity/test_registry.toml"
 
 [[capability]]
 id = "Y18.1"

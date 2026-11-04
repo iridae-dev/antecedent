@@ -57,17 +57,20 @@ record_sha256 = "45eeb5b53bf2f72a122c0a9f1ffa3e5b72b1461f4804775b7232b5a0d8047ec
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-learn/src/bayesian_basis.rs"
-sha256 = "ff5876040f381e0e4a3fb2dea363ecd55305bd5dec2aa717a52113196d15cac5"
+items = ["enum BasisTargetPopulation", "fn admit_f64_cells", "fn default", "fn evaluate_draws", "fn fit", "fn is_binary_with_both_levels", "fn validate_inputs", "struct BasisData", "struct BayesianBasisEffect", "struct BayesianBasisGComputation", "struct BayesianBasisSpec"]
+sha256 = "1a2771790a27b377f487711ab208fd1518123dc6bd4aae5caf9333d98f680ac1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
+items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
+sha256 = "81480e7cac5f4ca97855d646a708ed4e96bc6043c32c4099dedb383a4798b9e2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-learn/tests/bayesian_basis_reference.rs"
-sha256 = "5b54311af06fddf5594a4a4fdd273ba05cb2f65be4a6bff3d145124a78f1f24d"
+items = ["const DRAWS", "fn ate_row_effects_and_control_outcomes_match_the_exact_posterior", "fn floats", "fn moments"]
+sha256 = "6c106481f9a50e4b146fdd22b0974d701ebf1896295b21a151697acf14091386"
 
 [[method_review.artifacts]]
 role = "reference"

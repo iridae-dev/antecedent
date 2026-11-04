@@ -124,7 +124,7 @@ evidence_assertion = "evidence_test"
     lib.write_text("#[test] fn evidence_test() {}\n", encoding="utf-8", newline="\n")
 
     (root / "parity").mkdir()
-    registry = root / "parity/v3_test_registry.toml"
+    registry = root / "parity/test_registry.toml"
     registry.write_text(
         '[[test]]\npath="crates/example/src/lib.rs"\ncrate="example"\n'
         'cargo_target="lib"\ncalibration_simulation_assertions=["evidence_test"]\n',

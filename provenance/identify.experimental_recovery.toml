@@ -41,12 +41,14 @@ record_sha256 = "59ce59365c8a5f04f4b6476e0aa108b4239690d9012d9d309f9d243d237ff72
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/experimental_recovery/decide.rs"
-sha256 = "ea6a3a7bec72f998e7d02d758d934f6b67408c7af1d82f136107e6cca5d9ec5a"
+items = ["enum AssembledCoefficientRecovery", "fn coefficients", "fn decide_clamp_set", "fn decide_experimental_recovery", "fn equation_rank", "fn experiment_partitions", "fn first_non_exogenous", "fn incoming", "fn missing_clamps", "fn pair_condition", "fn push_rank_deficiency", "fn recover", "fn recover_assembled_coefficients", "fn recovery_from_matrix", "fn refuse", "fn stability_stand_in", "fn validate_experiments", "fn validate_nullspace", "fn validate_ranks", "fn validated_nodes"]
+sha256 = "41afaf88c9bb1c4a02ff5d5cd2865f2b184911ce8911d8ce23497b4d5b794d67"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/experimental_recovery_reference.rs"
-sha256 = "e54bf726205a51f58e648330a4d9d3f0b5eb1ef3834e600c8f8bf95b60f4c66a"
+items = ["fn design", "fn node", "fn pair_coverage_equals_exact_generic_rank_on_every_small_experiment_set"]
+sha256 = "e8bb0b7516dc01cc6c9750d49d642413812e5d4933ba6010c4e857729216e2a9"
 
 [[method_review.artifacts]]
 role = "reference"

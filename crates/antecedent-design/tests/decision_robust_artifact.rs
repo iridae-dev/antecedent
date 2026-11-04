@@ -349,25 +349,34 @@ fn invalid_rules_refuse_with_structured_detail() {
     assert!(json.contains(ghost), "{json}");
     let unknown = json.replacen(ghost, "\"action_id\":\"ghost\",\"input\":0", 1);
     let refusal = admissible_contract_from_json_refusal(&unknown).unwrap_err();
-    assert_eq!(refusal.detail, "decision_admissibility.unknown_action");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_admissibility::UNKNOWN_ACTION
+    );
     assert_eq!(refusal.offending.as_deref(), Some("ghost"));
 
     let wrong_input = json.replacen(ghost, "\"action_id\":\"A\",\"input\":7", 1);
     let refusal = admissible_contract_from_json_refusal(&wrong_input).unwrap_err();
-    assert_eq!(refusal.detail, "decision_admissibility.unknown_input");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_admissibility::UNKNOWN_INPUT
+    );
     assert_eq!(refusal.offending.as_deref(), Some("A[7]"));
 
     let malformed = admissible_contract_from_json_refusal("{").unwrap_err();
-    assert_eq!(malformed.detail, "decision_contract.invalid_declaration");
+    assert_eq!(
+        malformed.detail,
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
+    );
     let unknown_field = json.replacen("\"rules\":{", "\"rules\":{\"bonus\":1,", 1);
     assert_eq!(
         admissible_contract_from_json_refusal(&unknown_field).unwrap_err().detail,
-        "decision_contract.invalid_declaration"
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
     );
     let bad_label = json.replace("\"weak_overlap\"", "\"mostly_fine\"");
     assert_eq!(
         admissible_contract_from_json_refusal(&bad_label).unwrap_err().detail,
-        "decision_contract.invalid_declaration"
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
     );
 
     let mut duplicate = c.clone();
@@ -397,7 +406,7 @@ fn decode_is_bounded_before_any_allocation() {
     let declaration = " ".repeat(MAX_DECISION_ARTIFACT_BYTES + 1);
     assert_eq!(
         admissible_contract_from_json_refusal(&declaration).unwrap_err().detail,
-        "decision_contract.invalid_declaration"
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
     );
     assert!(matches!(
         AdmissibleContractArtifact::from_bytes(b"not an artifact", "x").unwrap_err(),

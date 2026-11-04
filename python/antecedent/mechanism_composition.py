@@ -997,7 +997,7 @@ class PreparedMechanismComposition(ScientificResult):
     def interval(self, contrast: MeanContrast, level: float = 0.95) -> FirstOrderInterval:
         """The first-order interval of a contrast at ``level`` with its calibration slot.
 
-        The slot status is ``not_measured`` until a coverage record measures the delta-method
+        The slot status is ``not_measured`` while no coverage record measures the delta-method
         construction. Raises ``joint_law_required`` when the parameter dependence is unknown.
         """
         wire = json.loads(_unwrap(self._handle.interval(_dumps(contrast.to_wire()), level)))
@@ -1639,7 +1639,7 @@ class TransportedMechanismComposition(ScientificResult):
     def interval(self, contrast: MeanContrast, level: float = 0.95) -> FirstOrderInterval:
         """The first-order interval of a transported contrast at ``level``.
 
-        Carries its calibration slot (``not_measured`` until a coverage record measures the
+        Carries its calibration slot (``not_measured`` while no coverage record measures the
         construction) and is conditional on the declared transport premises.
         """
         wire = json.loads(_unwrap(self._handle.interval(_dumps(contrast.to_wire()), level)))

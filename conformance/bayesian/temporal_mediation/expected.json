@@ -41,7 +41,21 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/prepared_analysis.rs",
-          "sha256": "be85341c7b045bc00644cac9089a906c333f78b4628fe235bc84faf6501ddb5a"
+          "items": [
+            "const ROWS",
+            "fn binding",
+            "fn build_analysis",
+            "fn build_bayesian_analysis",
+            "fn frontdoor_do_mean",
+            "fn ols_treatment_coefficient",
+            "fn prepared_admg_ate_reuses_general_id_result",
+            "fn prepared_bayesian_reestimate_matches_fresh_analyze",
+            "fn prepared_reestimate_matches_fresh_analyze",
+            "fn prepared_temporal_mediation_reuses_identification",
+            "fn study",
+            "fn table"
+          ],
+          "sha256": "88129525badb93d3ceb3361ab249cce5f417e9eeccec12e021020dd54ef58416"
         }
       ],
       "fixture_payload_sha256": "729e63b8f0acf1976856f7fcbb2fe21abd50d80f807419638139c0d8b0be09f8"

@@ -67,15 +67,20 @@ pub const COUNTERFACTUAL_TRANSPORT_OBSTRUCTED: &str = "proven_non_transportable"
 /// Detail of an artifact that is not a replayable counterfactual transport
 /// artifact (malformed, resealed with a different conclusion, or a digest
 /// mismatch).
-const DETAIL_INVALID_ARTIFACT: &str = "counterfactual_transport.invalid_artifact";
+const DETAIL_INVALID_ARTIFACT: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_ARTIFACT;
 /// Detail of a stored bound above the consumer's or the contract's.
-const DETAIL_BOUNDS_EXCEEDED: &str = "counterfactual_transport.bounds_exceeded";
+const DETAIL_BOUNDS_EXCEEDED: &str =
+    antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED;
 /// Detail of a stored derivation the replay does not reproduce.
-const DETAIL_INVALID_DERIVATION: &str = "counterfactual_transport.invalid_derivation";
+const DETAIL_INVALID_DERIVATION: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_DERIVATION;
 /// Detail of a stored witness that does not verify.
-const DETAIL_INVALID_WITNESS: &str = "counterfactual_transport.invalid_witness";
+const DETAIL_INVALID_WITNESS: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_WITNESS;
 /// Detail of a stored law that is not a valid exact law.
-const DETAIL_INVALID_EVIDENCE: &str = "counterfactual_transport.invalid_evidence";
+const DETAIL_INVALID_EVIDENCE: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_EVIDENCE;
 
 /// Why a counterfactual transport artifact was refused. Every variant names the
 /// slot of the artifact it concerns ([`Self::slot`]) and carries the registered

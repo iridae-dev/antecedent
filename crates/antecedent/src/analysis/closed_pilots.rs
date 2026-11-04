@@ -190,12 +190,14 @@ fn from_estimation(error: &EstimationError) -> ClosedPilotRefusal {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => ClosedPilotRefusal::new(
             code,
-            message.detail().unwrap_or("nested_markov.invalid_input"),
+            message
+                .detail()
+                .unwrap_or(antecedent_core::reason_details::nested_markov::INVALID_INPUT),
             message.explanation(),
         ),
         other => ClosedPilotRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "nested_markov.invalid_input",
+            antecedent_core::reason_details::nested_markov::INVALID_INPUT,
             other.to_string(),
         ),
     }
@@ -392,6 +394,9 @@ mod tests {
             sampled_recovery_scope_refusal(&SampledRecoveryRequest { rows: &missing, ..request })
                 .expect("a zero cell");
         assert_eq!(zero.code, "route_not_supported");
-        assert_eq!(zero.detail, "sampled_recovery.unrecoverable_pattern");
+        assert_eq!(
+            zero.detail,
+            antecedent_core::reason_details::sampled_recovery::UNRECOVERABLE_PATTERN
+        );
     }
 }

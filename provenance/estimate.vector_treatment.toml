@@ -47,12 +47,14 @@ record_sha256 = "ab4814939f303fe5e25cd49173861c3a067c25046b5e14f695c19b37c2f19ee
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
-sha256 = "e1a4c389bd34f5adf822ca6ada553810ccf7b97c363e10f1b9eb48ca78fd5ec6"
+items = ["const LEVERAGE_TOLERANCE", "const RANK_TOLERANCE", "const VECTOR_TREATMENT_INTERCEPT", "const VECTOR_TREATMENT_NULL", "enum VectorCovariance", "fn apply_weights", "fn as_str", "fn assemble", "fn build_design", "fn check_design", "fn check_row_structure", "fn degenerate", "fn dependent_meat", "fn evaluate_contrasts", "fn first_dependent_column", "fn fit_joint", "fn fit_joint_retained", "fn fit_joint_retained_declared", "fn fit_ols", "fn fit_vector_treatment", "fn full_covariance", "fn joint_gram_addressable", "fn matmul", "fn new", "fn quadratic_form", "fn robust_meat", "fn row_of", "fn sandwich", "fn scores_of", "fn validate_input", "fn validate_shared", "fn wald_rows", "fn wald_test", "fn weight_vector", "struct CoefficientEstimate", "struct Contrast", "struct ContrastEstimate", "struct Design", "struct JointWald", "struct NamedColumn", "struct Ols", "struct RowStructure", "struct Solved", "struct TreatmentColumn", "struct VectorTreatmentFit", "struct VectorTreatmentInput", "struct VectorTreatmentOptions"]
+sha256 = "b636dc13c62c327cff05e1c77ab6c9baa734da0f5d9c06787a81a43e4bd619d2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/vector_treatment_reference.rs"
-sha256 = "c2b0b56583102d8384ffcc67a22464b03982968c622c9264461341bbae8e16cc"
+items = ["fn close", "fn contrasts", "fn every_covariance_kind_matches_the_multiprecision_fit", "fn fixture", "fn floats", "fn text"]
+sha256 = "23676c3b5c1954748cf7ce30ae4ecfba7c9a5122ff6549e3cfd3abcf4c041023"
 
 [[method_review.artifacts]]
 role = "reference"

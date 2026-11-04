@@ -20,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.extensibility import ProviderTrust
@@ -229,7 +230,7 @@ def test_refusal_details_match_the_strings_the_rust_tests_assert():
         spec.bind(gen.external_response(quantities=wrong_units))
     assert isinstance(units.value, gen.external.ExternalRefusal)
     assert units.value.reason_code == "quantity_semantics_mismatch"
-    assert units.value.detail == "external_response_binding.coordinate_units"
+    assert units.value.detail == reason_details.external_response_binding.COORDINATE_UNITS
     assert (units.value.offending, units.value.expected, units.value.supplied) == (
         "coordinate[1]",
         "mmHg",
@@ -244,7 +245,7 @@ def test_refusal_details_match_the_strings_the_rust_tests_assert():
     assert not refused.accepted and refused.answer.kind == "refused"
     refusal = refused.refusal
     assert refusal.code == "joint_law_required"
-    assert refusal.detail == "decision_evaluation.joint_law_required"
+    assert refusal.detail == reason_details.decision_evaluation.JOINT_LAW_REQUIRED
     assert refusal.stage == "evaluate"
     assert refusal.offending == "risky"
     assert (refusal.fields["expected"], refusal.fields["supplied"]) == (
@@ -289,7 +290,7 @@ def test_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surface_
         np.array([[0.0, 0.0], [1.0, 2.0]], dtype=np.float64),
         calibration="exact",
     )
-    with pytest.raises(REFUSED, match="aligned_joint_draws.marginals_not_joint"):
+    with pytest.raises(REFUSED, match=reason_details.aligned_joint_draws.MARGINALS_NOT_JOINT):
         marginals.covariance(0, 1)
 
 

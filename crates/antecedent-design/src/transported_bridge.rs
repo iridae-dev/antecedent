@@ -55,10 +55,10 @@ pub const SURROGATE_TRANSPORT_PREMISE_ID: &str = "surrogate_terminal_relation_in
 /// A selection node points into the terminal outcome or a modifier of the
 /// relation, contradicting the premise.
 pub const DETAIL_PREMISE_CONTRADICTED: &str =
-    "scientific_bridge.transport_premise_contradicted_by_selection_diagram";
+    antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_CONTRADICTED_BY_SELECTION_DIAGRAM;
 /// The declared diagram is not between the scopes the bridge moves across.
 pub const DETAIL_DIAGRAM_SCOPE_MISMATCH: &str =
-    "scientific_bridge.transport_diagram_scope_mismatch";
+    antecedent_core::reason_details::scientific_bridge::TRANSPORT_DIAGRAM_SCOPE_MISMATCH;
 
 const TAG_DIAGRAM: &str = "antecedent.design.transported_bridge.selection_diagram";
 

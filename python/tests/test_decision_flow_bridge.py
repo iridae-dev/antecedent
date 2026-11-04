@@ -25,6 +25,7 @@ from antecedent import (
     msm_sensitivity,
     rebind,
 )
+from antecedent import _reason_details as reason_details
 from antecedent import design as dr
 from antecedent import sensitivity_decision as sd
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -149,7 +150,7 @@ def test_a_mean_response_refuses_a_distributional_criterion_by_name() -> None:
     contract = _mean_contract(result, decision.Criterion.quantile(0.5))
     with pytest.raises(ExternalRefusal) as refused:
         require_success(contract.evaluate(result, outcome_units="mmHg", dose_units="mg"))
-    assert refused.value.detail == "native_claims.source_not_supplied"
+    assert refused.value.detail == reason_details.native_claims.SOURCE_NOT_SUPPLIED
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     assert refused.value.expected.endswith("joint_draws,marginal_draws")
     assert refused.value.supplied == "mean"
@@ -200,7 +201,7 @@ def test_scalar_effect_rejects_changed_value_and_joint_law_criteria() -> None:
     changed = copy_model(scalar, estimate=copy_model(scalar.estimate, ate=99.0))
     with pytest.raises(ExternalRefusal) as refused:
         require_success(contract.evaluate(changed))
-    assert refused.value.detail == "native_claims.projection_mismatch"
+    assert refused.value.detail == reason_details.native_claims.PROJECTION_MISMATCH
     assert refused.value.reason_code == "invalid_argument"
     distributional = decision.Contract(
         (action, decision.Action("wait", (effect,), decision.x(0) * 0.0)),

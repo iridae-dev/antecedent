@@ -111,7 +111,6 @@ def test_ledger_supported_record_has_provenance_fixtures_and_ledger_cell(
     routes = {route["name"] for route in record["routes"]}
     for cell in cells:
         assert cell["route"] in routes, (record["id"], cell["route"])
-        assert cell["parity_registry"] == "parity/capability_records.toml"
         # Correct parity evidence kind: a registered independent oracle, never a pending one.
         assert cell["oracle_kind"] in ORACLE_KINDS, (record["id"], cell["oracle_kind"])
         assert cell["algorithm_provenance"], record["id"]

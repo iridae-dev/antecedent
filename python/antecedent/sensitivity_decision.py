@@ -45,6 +45,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from antecedent import _reason_details
+
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -516,7 +518,8 @@ class SensitivityArtifact(ScientificResult):
             sampling
             if sampling is not None
             else SamplingWithheld(
-                "not_supported", "sensitivity_decision_composition.sampling_not_reported"
+                "not_supported",
+                _reason_details.sensitivity_decision_composition.SAMPLING_NOT_REPORTED,
             )
         )
         surface = {

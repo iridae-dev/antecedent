@@ -30,9 +30,11 @@ record_sha256 = "4591f593fcae6be62cc6d1dc4d85798b4000ab9caac2dfaaa6488f5d04947e7
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/inverse_outcome.rs"
-sha256 = "7d28b49c1a2fc22bc1df7588b98e171bb69a872f6537e70730593f7edae7bcfb"
+items = ["enum IntervalScope", "enum SupportBasis", "enum TargetDirection", "fn canonical_bits", "fn count", "fn flag", "fn float", "fn identity", "fn optional", "fn point_key", "struct ActionConstraint", "struct ActionSpec", "struct ForwardEvaluation", "struct ForwardInterval"]
+sha256 = "17026413ef14cf1db3c3b2464e8a5ee1d4cfff394ac8a0de0667c8fe342c99ef"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "python/tests/test_inverse_outcome.py"
-sha256 = "f17d6a6860a1a0e9c74c558bb257b3604052b2989f2900ee3790090cbc05899d"
+items = ["const GRID", "fn _actions", "fn _forward", "fn _law", "fn _refused", "fn test_a_changed_assumption_or_adjustment_changes_the_verdict_and_the_identity", "fn test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused", "fn test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constraint", "fn test_a_published_interval_adds_only_a_robustly_feasible_flag", "fn test_a_quantile_target_is_refused_until_the_interventional_distribution_cell", "fn test_a_static_curve_support_is_the_worst_case_copied_to_every_point", "fn test_action_and_forward_row_order_and_cost_ties_never_change_a_result", "fn test_action_constraints_are_booleans_not_truthy_strings", "fn test_an_incomplete_grid_leaves_the_missing_actions_unevaluated_not_interpolated", "fn test_an_unreachable_target_is_unreachable_only_within_the_enumerated_set", "fn test_constraints_and_budget_make_an_action_infeasible", "fn test_finite_forward_values_cannot_publish_an_infinite_target_margin", "fn test_forward_claim_and_snapshot_identity_are_bound_and_unsupported_input_refuses", "fn test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_route", "fn test_malformed_actions_and_targets_are_invalid_arguments", "fn test_observational_scenarios_are_refused_not_turned_into_an_action", "fn test_several_feasible_actions_keep_every_cost_tie", "fn test_study_options_and_sensitivity_are_separate_views_outside_the_classification", "fn test_temporal_reverse_forecast_uses_one_declared_horizon", "fn test_temporal_style_simultaneous_band_is_preferred_to_the_pointwise_band", "fn test_the_boundary_action_and_the_opposite_goal_follow_the_analytic_inverse", "fn test_unsupported_actions_are_not_classified_by_their_estimate", "fn test_verify_recomputes_the_report_and_detects_an_edited_one"]
+sha256 = "836a55cfbcb71dd65ee5690b7f69d188981e3a1f9aedb2487ff737089761a651"

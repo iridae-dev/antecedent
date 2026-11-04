@@ -237,7 +237,7 @@ fn cancelled_z_transport_repair_never_certifies_a_candidate() {
         &cancelled,
     )
     .unwrap_err();
-    assert_eq!(error.detail, "identification_repair.budget");
+    assert_eq!(error.detail, antecedent_core::reason_details::identification_repair::BUDGET);
     let candidate = experiment("correct", "source", false, true);
     assert!(family.check(&[&candidate], &cancelled).is_err());
 }
@@ -282,7 +282,10 @@ fn z_transport_repair_artifact_replays_full_and_stopped_searches_and_refuses_for
                 .unwrap()
                 .consume(RepairConsumeLimits::default(), &ctx())
                 .unwrap_err();
-            assert_eq!(error.detail, "repair_artifact.replay_mismatch");
+            assert_eq!(
+                error.detail,
+                antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH
+            );
         }
     }
 }

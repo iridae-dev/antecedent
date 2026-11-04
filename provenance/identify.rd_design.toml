@@ -40,9 +40,11 @@ record_sha256 = "211c65eaf7740c99ff97472dc2d4edada22a523faf0d50b6e41d39d36ddd2ee
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/rd.rs"
-sha256 = "07431e13c9c6be35e6697c638489fc14e5ad05597565c458c973672a5824766f"
+items = ["const RD_CONTINUITY_ID", "const RD_GRAPH_INCOMPATIBLE_DIAGNOSTIC_CODE", "const RD_LOCAL_ESTIMAND_DIAGNOSTIC_CODE", "const RD_NO_MANIPULATION_ID", "const RD_POPULATION_DIAGNOSTIC_CODE", "const RD_SHARP_ASSIGNMENT_ID", "fn design_assumptions", "fn graph_conflict", "fn identify", "fn identify_inner", "fn identify_inner_checked", "fn identify_on", "fn new", "fn refused", "fn target_population", "fn validate_design", "struct SharpRdConfig", "struct SharpRdIdentifier"]
+sha256 = "4bea25e6d84fa97a6b63a1110129bcc0618f867e7fa07105a872ac01f3271ac7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/rd_design_tests.rs"
-sha256 = "f55f0dea05ab61b617665c5151e377b541623a3ffc6104a84f7e77d5819fa2f2"
+items = ["const R", "const T", "const Y", "fn ate", "fn identify_with", "fn invalid_bandwidth_or_cutoff_is_refused_not_silently_accepted", "fn the_bandwidth_is_carried_with_the_design_but_does_not_change_the_functional", "fn the_cutoff_enters_the_functional_so_a_different_cutoff_is_a_different_estimand"]
+sha256 = "3a0e65958e73a593cbf37325f5ac2756d800e54329d9b9aa7b24c1f2c190e101"

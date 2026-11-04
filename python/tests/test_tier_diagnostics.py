@@ -10,6 +10,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import tier_diagnostics as td
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.graph import TieredBackground, WithinTier
@@ -53,7 +54,9 @@ def test_a_codetermined_result_reports_its_closure_overlap_and_point_evalue() ->
     # The interval E-value is a typed unavailable field on every result.
     assert report.evalue.interval.available is False
     assert report.evalue.interval.code == "diagnostic_not_available"
-    assert report.evalue.interval.detail == "tier_diagnostics.no_evalue_interval_method"
+    assert (
+        report.evalue.interval.detail == reason_details.tier_diagnostics.NO_EVALUE_INTERVAL_METHOD
+    )
 
 
 def test_the_prepared_study_and_its_result_give_the_same_diagnostics() -> None:
@@ -73,7 +76,7 @@ def test_a_non_tiered_result_is_refused_and_nothing_is_recomputed() -> None:
     with pytest.raises(CausalUnsupportedError) as raised:
         td.tier_diagnostics(_analyze(graph, data))
     assert raised.value.reason_code == "invalid_argument"
-    assert "tier_diagnostics.not_a_tiered_average_result" in str(raised.value)
+    assert reason_details.tier_diagnostics.NOT_A_TIERED_AVERAGE_RESULT in str(raised.value)
 
 
 def test_an_object_without_a_study_is_a_type_error() -> None:

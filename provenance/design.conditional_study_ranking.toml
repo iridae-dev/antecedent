@@ -19,9 +19,11 @@ record_sha256 = "5387bd81a7010c1667baa4ce16de7a35ef89e0d10a8d175fba0730121ba8652
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/conditional_study_ranking.rs"
-sha256 = "229e2c8ce97eadca86d7f211344ca1f54497c6545944dd90c6de693222afbe0d"
+items = ["const DEFAULT_MAX_BYTES", "fn consume", "fn consume_with_limits", "fn counts", "fn default", "fn entries", "fn execute", "fn execute_with_limits", "fn identity", "fn rank", "fn refuse", "fn retained_payload", "fn selected_action", "fn source", "fn to_bytes", "fn to_bytes_with_limits", "fn validate", "struct Action", "struct ConditionalBranch", "struct ConditionalCandidate", "struct ConditionalRankingEntry", "struct ConditionalRankingError", "struct ConditionalRankingLimits", "struct ConditionalStudyPolicy", "struct ConditionalStudyRanking", "struct IdentityFreeView", "struct Payload", "struct Source"]
+sha256 = "15cded5bfce6cd26096b8e5bd4566f42b5af4e8d12908d9991860232f5984f15"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_composite.rs"
-sha256 = "5dd0f1b3dac2c81263f33f3aadf99d64e0316271633f9615e15c36c35e5cb619"
+items = ["fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_consumption", "fn callback_failure_preserves_combined_native_and_foreign_success", "fn conditional_policy", "fn decision_contract", "fn declared_source_preference_selects_all_three_actual_sources_and_is_terminal_only", "fn execute", "fn fixture", "fn native_data_refresh_counts_real_factors_and_retains_both_providers", "fn native_proof_substitution_refuses_purely_and_preserves_shared_state", "fn native_two_provider_shared_receipt_and_selective_mutation", "fn seal_receipt"]
+sha256 = "239c407bc4776749b6b9a84dcd46e61bc9892091ef0f67a44d434f2ca9b4d04a"

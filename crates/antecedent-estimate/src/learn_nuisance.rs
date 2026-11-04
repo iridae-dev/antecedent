@@ -55,7 +55,7 @@ pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
 fn nuisance_cancelled() -> EstimationError {
     crate::util::refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "dml.cancelled",
+        antecedent_core::reason_details::dml::CANCELLED,
         "the cross-fitted nuisance fit was cancelled; no estimate or score table is reported \
          and the stop is not a verdict on the data",
     )
@@ -274,7 +274,7 @@ fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
     }
     Err(crate::util::refuse(
         antecedent_core::reason_code!("arm_not_populated"),
-        "dml.arm_not_populated",
+        antecedent_core::reason_details::dml::ARM_NOT_POPULATED,
         "both treatment arms must remain populated after complete-case selection",
     ))
 }
@@ -380,7 +380,7 @@ mod tests {
             let error = learn_err(input);
             assert!(
                 matches!(error, EstimationError::Refused { code: "cancelled_no_claim", ref message }
-                if message.detail() == Some("dml.cancelled"))
+                if message.detail() == Some(antecedent_core::reason_details::dml::CANCELLED))
             );
         }
         assert!(matches!(

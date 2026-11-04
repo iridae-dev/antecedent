@@ -36,17 +36,20 @@ record_sha256 = "a7ce5544ff5ffc57f8dcbc5c2e70f28a8076f1361cb5e248db5a4d1ac979efc
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
-sha256 = "7c15e0afc20715299b66570e166f856487d596205e9049247bd667b435209c78"
+items = ["const BOOTSTRAP_STREAM", "const MAX_FAILED_SHARE", "const MIN_REPLICATES", "fn censor_survival", "fn current_features", "fn fit_regime_survival", "fn ipw_procedure", "fn new", "fn period_feature", "fn person_periods", "fn probability", "fn risk_survival", "fn subjects", "fn treatment_features", "fn width", "struct Subject", "struct SurvivalFit", "struct Trajectories", "struct TrajectoryRows"]
+sha256 = "730135991189380892ae97682b84626a4558e212e5753a8b6f6ba2394b25b91d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/linalg.rs"
-sha256 = "45c728b8a80412e36794c6ed10071969b3e64a565cc09b7807f80f90f4fe3c85"
+items = ["module"]
+sha256 = "b981c92ab883668e27ddaaa569d28e1311cede0fee399ebab9cc5a935923a26f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_regime_survival_reference.rs"
-sha256 = "069115acbc6d74479114ec81ea11ace4f4431b01a8cbd0f6435e2f00b938b62e"
+items = ["fn close", "fn regime_survival_matches_the_multiprecision_reference"]
+sha256 = "eebad0496df4973a721da1704b0d91fe20d44662b6918c578a2663056aa3b940"
 
 [[method_review.artifacts]]
 role = "reference"

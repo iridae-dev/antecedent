@@ -404,7 +404,10 @@ fn weights_body() {
     let check = |what: &str, error: CausalError| {
         let text = error.to_string();
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{what}: {text}");
-        assert!(text.contains("sampling_weights.route_unsupported"), "{what}: {text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+            "{what}: {text}"
+        );
         assert!(text.contains("Next attempt"), "{what}: {text}");
     };
     let batch = |data: TabularData| {

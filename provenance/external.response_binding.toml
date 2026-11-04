@@ -32,19 +32,23 @@ record_sha256 = "8d14cd018a199714229ba84454a1369ff98efa07ee5f68ce1576b5280b77784
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/external.rs"
-sha256 = "493f1909f54584541698c0043e673651e10ec2d0adfed394994158a429c67fea"
+items = ["enum ExternalCapability", "fn capabilities", "fn identity", "struct ProviderObjectIdentity"]
+sha256 = "17ba608280a4b019831c88c2343168aa54bb0f63220e1e9d5417b26fa763d542"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/external_binding.rs"
-sha256 = "8626a38fe3ae8e4e2d7bc45df5faa1230e985469045ac8089a4d612b9cfdf9bc"
+items = ["const CLAIM_LINK_ID", "enum BoundTrustLevel", "fn capabilities", "fn equivalence_ids", "fn evidence_ids", "fn execution", "fn graph_id", "fn point_status", "fn provenance_chain", "fn provenance_label", "fn provider_meaning", "fn quantities", "fn trust", "fn values", "fn verification"]
+sha256 = "931fa441c8d6806c292ef43484fc1e96e05e68ab623fe09b399acd3a9d01d5b6"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/provider_verification.rs"
-sha256 = "054ebe483707ae53022df03339fd2d6981ccb758fea1e88389b005759cad1b43"
+items = ["enum VerifiedContractKind", "fn identity", "fn kind", "fn probes", "fn verified_kind"]
+sha256 = "7e473fd41bd7fb12c0ad73d3b7bb0b3eea373071fc6d46faf36e5c00c6a55d7a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/external_binding_wire.rs"
-sha256 = "0014d13eee762dbc13bdf4d80838cda118cfe23871d5d9ee81f1ae879742b7c6"
+items = ["const RECEIPT_TRUST", "fn attested_binding_matches_the_python_fixture", "fn bernoulli_contract", "fn bernoulli_response", "fn bernoulli_risk_difference_binds_under_exact_identity", "fn bind", "fn capability_set_and_request_fingerprint_are_retained", "fn contract", "fn convert_message", "fn observational_wrong_graph_population_and_missing_coordinate_refuse", "fn provider_contract_identity_is_retained_by_the_artifact", "fn provider_response", "fn quantity", "fn reload", "fn reseal", "fn response", "fn risk", "fn trust_tier_and_lineage_survive_without_upgrade", "fn units_mismatch_refuses_with_the_same_fields_python_reads", "fn verification_checks_are_retained_and_cover_only_the_fingerprint", "fn verified_probes", "fn verified_trust_uses_the_shared_provider_vocabulary"]
+sha256 = "c909de22530a6591137638bf242ee51272da2f750512501270ef333b5a92df81"

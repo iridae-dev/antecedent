@@ -41,9 +41,11 @@ record_sha256 = "9651c4c5e2e25c7fb45400a1ae1c09bc766f550bec40b173d5acf140b577525
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_initial_state.rs"
-sha256 = "04cb1116414952ae0d8c543821dead2752ac1cf9c9dadb46660a4a97d210262f"
+items = ["const INITIAL_STATE_MASS_TOLERANCE", "const INITIAL_STATE_MAX_STATES", "const INITIAL_STATE_SUPPORT_GAP", "const INITIAL_STATE_TOO_MANY_STATES", "const LABEL", "const LAW_DIGEST_TAG", "enum InitialStatePopulation", "enum InitialStateSpec", "fn contributions", "fn digest", "fn effect", "fn estimate", "fn label", "fn law", "fn new", "fn population", "fn response", "fn sequence", "fn snapshot_id", "fn states", "fn support_gap", "struct FixedStateEffect", "struct FixedStateQuery", "struct InitialStateLaw", "struct MarginalizedEffect", "struct MarginalizedQuery", "struct StateContribution"]
+sha256 = "59f7be2cbe21936f3f5d2623bed43de9b97671f005a8a3678405ee747e925c7a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_initial_state.rs"
-sha256 = "dbc13739b9b1bc9ca8283893f73e776128810ad58f7889ddf751d2d51d267c74"
+items = ["const M10", "const P_L1", "const SEQUENCE", "fn initial_state_posterior_consumer_replays_the_weighted_responses", "fn initial_state_posterior_mean_stays_at_the_hand_sum", "fn initial_state_posterior_refuses_a_mapped_prior", "fn initial_state_sum_differs_from_fixing_the_state_at_its_mode", "fn initial_state_sum_equals_the_hand_enumerated_target_sum", "fn initial_state_sum_follows_the_law_snapshot_and_zero_mass_states", "fn initial_state_sum_results_are_typed_and_labelled_distinctly", "fn law", "fn panel", "fn refused", "fn source_state_only_refuses_a_source_law_and_a_point_state", "fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws", "fn target_query", "fn truth_given_state"]
+sha256 = "6ffdc926456ad0bd9deb50256e7f538f1e18ca955bd2795aa8ad0883a95af9ba"

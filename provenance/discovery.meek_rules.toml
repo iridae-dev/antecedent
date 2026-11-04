@@ -39,9 +39,11 @@ record_sha256 = "0d61213d1eb5751c73a28107ca25b251df3a0da29413489fcdd4a8c582cbc57
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/orientation.rs"
-sha256 = "74a653ad0b61cc903d66ec4386f346cb3ca043c1ae96e450dbba05059624bd64"
+items = ["const MAX_ORIENTATION_ROUNDS", "enum OrientationError", "fn ambiguous_triple_key", "fn apply", "fn apply_meek_r1", "fn children", "fn drive_to_fixed_point", "fn edge_between", "fn enqueue_neighbors", "fn focus_nodes", "fn from", "fn has_edge", "fn is_ambiguous_triple", "fn is_contemporaneous_node", "fn is_empty", "fn is_parent", "fn len", "fn mark_ambiguous_triple", "fn mark_conflict", "fn name", "fn new", "fn node_count", "fn orient_undirected", "fn parents", "fn pop", "fn push", "fn record_conflict", "fn run_orientation_to_fixed_point", "fn run_static_orientation_to_fixed_point", "fn set_sepset", "fn try_orient_undirected", "fn undirected_neighbors", "struct ContempMeekR1", "struct ContempMeekR3", "struct ContempMeekR4", "struct MeekR1", "struct MeekR2", "struct MeekR3", "struct MeekR4", "struct OrientCollider", "struct OrientationQueue", "struct OrientationState", "struct RuleDelta", "trait CpdagOps", "trait OrientationRule"]
+sha256 = "56f27e0208f34c9e4ef0e66e971e62ac27f7713e77f1b0407623ba11286fb414"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/orientation_tests.rs"
-sha256 = "12d09bbe18a8964dfcbabd4fae69f301f9f2237a0812158fc2f119b87543dbf4"
+items = ["const N", "fn acyclic", "fn chain", "fn collider_fires_on_triple_with_directed_lagged_leg", "fn collider_opposite_direction_records_conflict", "fn collider_with_sepset", "fn contemp_meek_r1_matches_meek_r1_on_a_contemporaneous_chain", "fn contemp_meek_r1_orients_contemporaneous_chain", "fn contemp_meek_r1_skips_ambiguous_triple", "fn contemp_meek_r1_skips_lagged_undirected", "fn contemp_meek_r4_orients_discriminating_path", "fn context_and_lag_zero_are_contemporaneous", "fn context_nodes_share_the_contemporaneous_slice", "fn disagreements", "fn dropping_rule_three_leaves_an_orientation_undone", "fn fixed_point_runner", "fn meek_r1_cycle_records_conflict_and_continues", "fn meek_r1_orients_chain", "fn meek_r1_skips_ambiguous_triple", "fn meek_r3_and_contemp_r3_skip_ambiguous_triple", "fn meek_r3_orients_diagonal", "fn orient_collider_marks_missing_sepset_ambiguous", "fn quiet_pass_does_not_end_scheduling_before_a_full_scan", "fn rules_one_to_three_complete_every_four_node_pattern_to_its_essential_graph", "fn static_meek_r1_orients_chain", "fn v_structures"]
+sha256 = "f25bbba8af681b53682963bd90157dcbc20a79e66bb0bd549099471a97d98cd3"

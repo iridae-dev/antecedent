@@ -248,7 +248,7 @@ pub fn derive_whole_path_uncertainty(
     if unit_sampling == UnitSampling::Undeclared {
         return Err(refuse(
             antecedent_core::reason_code!("sampling_dependence_unknown"),
-            "cross_world_uncertainty.unit_sampling_undeclared",
+            antecedent_core::reason_details::cross_world_uncertainty::UNIT_SAMPLING_UNDECLARED,
             Some("unit_sampling".to_owned()),
             "declare whether the units are the whole set the claim is about (fixed units) or an \
              independent sample of a population; the estimand and its sampling variance depend on it",
@@ -257,7 +257,7 @@ pub fn derive_whole_path_uncertainty(
     if request.exogenous == ExogenousInference::PosteriorSampling {
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "cross_world_uncertainty.sampled_path_not_supported",
+            antecedent_core::reason_details::cross_world_uncertainty::SAMPLED_PATH_NOT_SUPPORTED,
             Some("posterior_sampling".to_owned()),
             "with declared mechanisms the exogenous posterior is enumerated exactly; a sampled \
              posterior only adds Monte Carlo and mixing error to a quantity that is exactly \
@@ -267,7 +267,7 @@ pub fn derive_whole_path_uncertainty(
     if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
         return Err(refuse(
             antecedent_core::reason_code!("transport_not_certified"),
-            "cross_world_uncertainty.no_transported_path_derivation",
+            antecedent_core::reason_details::cross_world_uncertainty::NO_TRANSPORTED_PATH_DERIVATION,
             request.target_population.clone(),
             "the uncertainty of a transported cross-world quantity composes the transport \
              identification with a target-population abduction, for which no derivation exists; \
@@ -277,7 +277,7 @@ pub fn derive_whole_path_uncertainty(
     if request.evidence_history != request.scm.history {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_uncertainty.incompatible_history",
+            antecedent_core::reason_details::cross_world_uncertainty::INCOMPATIBLE_HISTORY,
             Some(request.evidence_history.clone()),
             "declare the mechanisms for the history the evidence was gathered under",
         ));
@@ -288,7 +288,10 @@ pub fn derive_whole_path_uncertainty(
     validate_worlds(&request.scm, &request.worlds)?;
     request.quantity.validate(&request.scm, request.worlds.len())?;
     if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
-        return Err(invalid("cross_world_uncertainty.bounds_exceeded", "abduction_work"));
+        return Err(invalid(
+            antecedent_core::reason_details::cross_world_uncertainty::BOUNDS_EXCEEDED,
+            "abduction_work",
+        ));
     }
     if compiled
         .joint_states
@@ -296,7 +299,10 @@ pub fn derive_whole_path_uncertainty(
         .saturating_mul(request.worlds.len())
         > MAX_EVALUATION_WORK
     {
-        return Err(invalid("cross_world_uncertainty.bounds_exceeded", "evaluation_work"));
+        return Err(invalid(
+            antecedent_core::reason_details::cross_world_uncertainty::BOUNDS_EXCEEDED,
+            "evaluation_work",
+        ));
     }
     if result.units.len() != units.len() {
         return Err(mismatch("unit_count"));
@@ -488,7 +494,7 @@ pub fn derive_whole_path_uncertainty(
 fn mismatch(what: &str) -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "cross_world_uncertainty.result_mismatch",
+        antecedent_core::reason_details::cross_world_uncertainty::RESULT_MISMATCH,
         Some(what.to_owned()),
         "supply the result of executing this very request; the derivation re-abduces every unit and \
          refuses a result computed from other mechanisms, evidence, worlds or quantity",

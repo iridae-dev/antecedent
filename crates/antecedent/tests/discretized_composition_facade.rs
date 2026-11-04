@@ -158,7 +158,7 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
     for paradigm in [InferenceParadigm::Frequentist, InferenceParadigm::Bayesian] {
         let refusal = bridged.uncertainty(paradigm).unwrap_err();
         assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
-        assert_eq!(refusal.detail(), "discretized_scm.point_only");
+        assert_eq!(refusal.detail(), antecedent_core::reason_details::discretized_scm::POINT_ONLY);
         assert!(refusal.remedy().is_some());
     }
 

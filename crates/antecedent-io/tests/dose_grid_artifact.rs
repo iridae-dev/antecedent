@@ -158,7 +158,10 @@ fn resealed_table_change_is_refused() {
     let error = consume(&reseal(wire)).unwrap_err();
     assert_eq!(error, DoseGridArtifactError::ResultMismatch);
     let (code, detail) = error.refusal();
-    assert_eq!((code, detail.as_str()), ("invalid_argument", "dose_grid.result_replay_mismatch"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("invalid_argument", antecedent_core::reason_details::dose_grid::RESULT_REPLAY_MISMATCH)
+    );
 }
 
 #[test]
@@ -220,36 +223,48 @@ fn seal_refuses_unsupported_and_uncertified_requests() {
     let (code, why) = detail(band);
     assert_eq!(
         (code, why.as_str()),
-        ("route_not_supported", "dose_grid.no_simultaneous_band_method")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::dose_grid::NO_SIMULTANEOUS_BAND_METHOD
+        )
     );
 
     let mut observational = request("level", 0.1);
     observational.design = "observational".into();
     let (code, why) = detail(observational);
-    assert_eq!((code, why.as_str()), ("effect_not_identified", "dose_grid.graph_not_certified"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("effect_not_identified", antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED)
+    );
 
     let mut outside = request("level", 0.1);
     outside.grid.push(10.0);
     let (code, why) = detail(outside);
-    assert_eq!((code, why.as_str()), ("positivity_violated", "dose_grid.unsupported_dose"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("positivity_violated", antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE)
+    );
 
     let mut weak = request("level", 0.1);
     weak.minimum_local_ess = 1_000.0;
     let (code, why) = detail(weak);
     assert_eq!(
         (code, why.as_str()),
-        ("positivity_violated", "dose_grid.insufficient_local_weight")
+        (
+            "positivity_violated",
+            antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT
+        )
     );
 
     let mut derivative_without_claim = request("derivative", 0.1);
     derivative_without_claim.claims.derivative = false;
     let (_, why) = detail(derivative_without_claim);
-    assert_eq!(why, "dose_grid.derivative_without_claim");
+    assert_eq!(why, antecedent_core::reason_details::dose_grid::DERIVATIVE_WITHOUT_CLAIM);
 
     let mut bandwidth = request("level", 0.1);
     bandwidth.bandwidth = 2.0;
     let (_, why) = detail(bandwidth);
-    assert_eq!(why, "dose_grid.bandwidth_outside_range");
+    assert_eq!(why, antecedent_core::reason_details::dose_grid::BANDWIDTH_OUTSIDE_RANGE);
 }
 
 #[test]
@@ -318,7 +333,10 @@ fn support_table_labels_every_dose_without_refusing() {
     assert!(weak[0].local_ess > 10.0 && weak[0].local_ess < 1_000.0);
     // Bad inputs are the row's typed invalid-request refusal.
     let (code, why) = dose_support_table(&dose, &[], 0.4, 10.0).unwrap_err().refusal();
-    assert_eq!((code, why.as_str()), ("invalid_argument", "dose_grid.invalid_request"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("invalid_argument", antecedent_core::reason_details::dose_grid::INVALID_REQUEST)
+    );
 }
 
 #[test]
@@ -408,7 +426,10 @@ fn admission_errors_preserve_cancellation_and_resource_classification() {
         let refusal = DoseGridArtifactError::from(error);
         assert_eq!(
             refusal.refusal(),
-            ("transport_budget_cancel", "dose_grid.cancelled".to_owned())
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::CANCELLED.to_owned()
+            )
         );
     }
     for error in [
@@ -423,13 +444,22 @@ fn admission_errors_preserve_cancellation_and_resource_classification() {
         let refusal = DoseGridArtifactError::from(error);
         assert_eq!(
             refusal.refusal(),
-            ("transport_budget_cancel", "dose_grid.resource_limit".to_owned())
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.to_owned()
+            )
         );
     }
     let invalid = DoseGridArtifactError::from(EstimationError::Stats(StatsError::Shape {
         message: "invalid shape",
     }));
-    assert_eq!(invalid.refusal(), ("invalid_argument", "dose_grid.invalid_request".to_owned()));
+    assert_eq!(
+        invalid.refusal(),
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST.to_owned()
+        )
+    );
 }
 
 #[test]
@@ -440,7 +470,13 @@ fn entry_cancellation_and_workspace_exhaustion_are_distinct_for_grid_and_contras
         let before = cancelled.admission.available();
         let error =
             DoseGridArtifactWire::seal_with_context(request(kind, 0.01), &cancelled).unwrap_err();
-        assert_eq!(error.refusal(), ("transport_budget_cancel", "dose_grid.cancelled".to_owned()));
+        assert_eq!(
+            error.refusal(),
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::CANCELLED.to_owned()
+            )
+        );
         assert_eq!(cancelled.admission.available(), before);
 
         let limited =
@@ -450,14 +486,23 @@ fn entry_cancellation_and_workspace_exhaustion_are_distinct_for_grid_and_contras
             DoseGridArtifactWire::seal_with_context(request(kind, 0.01), &limited).unwrap_err();
         assert_eq!(
             error.refusal(),
-            ("transport_budget_cancel", "dose_grid.resource_limit".to_owned())
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.to_owned()
+            )
         );
         assert_eq!(limited.admission.available(), before);
     }
     let mut invalid = request("level", 0.01);
     invalid.outcome.pop();
     let error = DoseGridArtifactWire::seal(invalid).unwrap_err();
-    assert_eq!(error.refusal(), ("invalid_argument", "dose_grid.invalid_request".to_owned()));
+    assert_eq!(
+        error.refusal(),
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST.to_owned()
+        )
+    );
 }
 
 #[test]
@@ -470,7 +515,7 @@ fn context_cancellation_during_grid_work_never_seals_a_partial_artifact() {
         .expect_err("an incomplete grid cannot produce a sealed artifact");
     assert!(matches!(
         error,
-        DoseGridArtifactError::Refused { ref detail, .. } if detail == "dose_grid.cancelled"
+        DoseGridArtifactError::Refused { ref detail, .. } if detail == antecedent_core::reason_details::dose_grid::CANCELLED
     ));
     assert!(ctx.cancellation.is_requested());
     assert_eq!(ctx.admission.available(), available);
@@ -676,20 +721,26 @@ fn clusters_and_a_serial_lag_together_and_malformed_declarations_are_refused_by_
     let mut short = request("level", 0.1);
     short.sampling_weights = Some(vec![1.0; N - 1]);
     let (code, detail) = DoseGridArtifactWire::seal(short).expect_err("must refuse").refusal();
-    assert_eq!((code, detail.as_str()), ("invalid_argument", "dose_grid.invalid_request"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("invalid_argument", antecedent_core::reason_details::dose_grid::INVALID_REQUEST)
+    );
     let mut negative = request("level", 0.1);
     negative.sampling_weights = Some((0..N).map(|i| if i == 2 { -1.0 } else { 1.0 }).collect());
     let (code, detail) = DoseGridArtifactWire::seal(negative).unwrap_err().refusal();
-    assert_eq!((code, detail.as_str()), ("sampling_weights_invalid", "sampling_weights.invalid"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("sampling_weights_invalid", antecedent_core::reason_details::sampling_weights::INVALID)
+    );
     let mut single = request("level", 0.1);
     single.cluster = Some(vec![5; N]);
     let (_, detail) = DoseGridArtifactWire::seal(single).unwrap_err().refusal();
-    assert_eq!(detail, "dose_grid.too_few_clusters");
+    assert_eq!(detail, antecedent_core::reason_details::dose_grid::TOO_FEW_CLUSTERS);
     for lag in [0, N as u64, N as u64 + 9] {
         let mut serial = request("level", 0.1);
         serial.serial_lag = Some(lag);
         let (_, detail) = DoseGridArtifactWire::seal(serial).unwrap_err().refusal();
-        assert_eq!(detail, "dose_grid.invalid_lag", "lag {lag}");
+        assert_eq!(detail, antecedent_core::reason_details::dose_grid::INVALID_LAG, "lag {lag}");
     }
 }
 

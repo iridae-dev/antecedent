@@ -136,7 +136,10 @@ fn a_surrogate_validated_elsewhere_is_carried_when_the_diagram_leaves_the_relati
     // Still point-only: no interval is supported for the transported bridge.
     let interval = bridged.request_interval().unwrap_err();
     assert_eq!(interval.code, "route_not_supported");
-    assert_eq!(interval.detail, "scientific_bridge.interval_not_supported");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED
+    );
 }
 
 #[test]
@@ -207,7 +210,10 @@ fn a_surrogate_effect_outside_the_validated_range_is_refused_after_the_premise()
     assert_eq!(refusal.validate(), Ok(()));
     assert!(refusal.remedy.is_some());
     assert_eq!(refusal.code, "bridge_mapping_not_supported");
-    assert_eq!(refusal.detail, "scientific_bridge.outside_validated_range");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::scientific_bridge::OUTSIDE_VALIDATED_RANGE
+    );
     assert_eq!(refusal.expected.as_deref(), Some("[0, 1.5]"));
     assert_eq!(refusal.supplied.as_deref(), Some("9"));
     // The edge of the validated range is inside it: 0.06 + 0.92 * 1.5 = 1.44.

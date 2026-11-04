@@ -60,16 +60,25 @@ fn binding_quantities_override_is_refused_with_its_coordinate() {
         detail(&units),
         (
             "quantity_semantics_mismatch",
-            "program_binding.quantities_override_mismatch",
+            antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH,
             Some("coordinate[1]")
         )
     );
     let horizon = refused(|c| c.quantities[2].horizon = 3);
-    assert_eq!(horizon.detail, "program_binding.quantities_override_mismatch");
+    assert_eq!(
+        horizon.detail,
+        antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH
+    );
     let functional = refused(|c| c.quantities[0].functional_id = "risk".into());
-    assert_eq!(functional.detail, "program_binding.quantities_override_mismatch");
+    assert_eq!(
+        functional.detail,
+        antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH
+    );
     let transform = refused(|c| c.quantities[0].transform_id = "log".into());
-    assert_eq!(transform.detail, "program_binding.quantities_override_mismatch");
+    assert_eq!(
+        transform.detail,
+        antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH
+    );
 }
 
 #[test]
@@ -79,22 +88,31 @@ fn binding_treatment_and_outcome_substitution_is_refused() {
         detail(&outcome),
         (
             "external_binding_mismatch",
-            "program_binding.treatment_outcome_substitution",
+            antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION,
             Some("outcome_id")
         )
     );
     assert_eq!(outcome.expected.as_deref(), Some("schema:y"));
     assert_eq!(outcome.supplied.as_deref(), Some("schema:z"));
     let treatment = refused(|c| c.treatment_id = "schema:other".into());
-    assert_eq!(detail(&treatment).1, "program_binding.treatment_outcome_substitution");
+    assert_eq!(
+        detail(&treatment).1,
+        antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION
+    );
     assert_eq!(treatment.offending.as_deref(), Some("treatment_id"));
     // Substituting the variable inside a coordinate is the same failure.
     let variable = refused(|c| c.quantities[0].variable_id = "schema:z".into());
-    assert_eq!(detail(&variable).1, "program_binding.treatment_outcome_substitution");
+    assert_eq!(
+        detail(&variable).1,
+        antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION
+    );
     assert_eq!(variable.offending.as_deref(), Some("coordinate[0]"));
     // So is intervening on a different treatment in a coordinate's regime.
     let regime = refused(|c| c.quantities[1].regime_id = "do(schema:other=1)".into());
-    assert_eq!(detail(&regime).1, "program_binding.treatment_outcome_substitution");
+    assert_eq!(
+        detail(&regime).1,
+        antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION
+    );
 }
 
 #[test]
@@ -104,7 +122,7 @@ fn binding_population_mismatch_is_refused() {
         detail(&declared),
         (
             "quantity_semantics_mismatch",
-            "program_binding.population_mismatch",
+            antecedent_core::reason_details::program_binding::POPULATION_MISMATCH,
             Some("population_id")
         )
     );
@@ -114,7 +132,7 @@ fn binding_population_mismatch_is_refused() {
         detail(&coordinate),
         (
             "quantity_semantics_mismatch",
-            "program_binding.population_mismatch",
+            antecedent_core::reason_details::program_binding::POPULATION_MISMATCH,
             Some("coordinate[2]")
         )
     );
@@ -125,20 +143,27 @@ fn binding_dose_grid_change_is_refused() {
     let doses = refused(|c| c.doses[1] = 1.5);
     assert_eq!(
         detail(&doses),
-        ("quantity_semantics_mismatch", "program_binding.dose_grid_changed", Some("doses"))
+        (
+            "quantity_semantics_mismatch",
+            antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED,
+            Some("doses")
+        )
     );
     assert_eq!(doses.expected.as_deref(), Some("0.5,1,2"));
     assert_eq!(doses.supplied.as_deref(), Some("0.5,1.5,2"));
     let units = refused(|c| c.dose_units = "g".into());
-    assert_eq!(units.detail, "program_binding.dose_grid_changed");
+    assert_eq!(units.detail, antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED);
     assert_eq!(units.offending.as_deref(), Some("dose_units"));
     let count = refused(|c| {
         c.quantities.pop();
     });
-    assert_eq!(count.detail, "program_binding.dose_grid_changed");
+    assert_eq!(count.detail, antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED);
     assert_eq!((count.expected.as_deref(), count.supplied.as_deref()), (Some("3"), Some("2")));
     let regime = refused(|c| c.quantities[1].regime_id = "do(schema:dose=3)".into());
-    assert_eq!(detail(&regime).1, "program_binding.dose_grid_changed");
+    assert_eq!(
+        detail(&regime).1,
+        antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED
+    );
     assert_eq!(regime.expected.as_deref(), Some("do(schema:dose=1)"));
 }
 
@@ -149,12 +174,15 @@ fn binding_contract_identity_mismatch_is_refused() {
         detail(&contract),
         (
             "external_binding_mismatch",
-            "program_binding.contract_identity_mismatch",
+            antecedent_core::reason_details::program_binding::CONTRACT_IDENTITY_MISMATCH,
             Some("contract_id")
         )
     );
     let graph = refused(|c| c.graph_id = "graph:g2".into());
-    assert_eq!(detail(&graph).1, "program_binding.contract_identity_mismatch");
+    assert_eq!(
+        detail(&graph).1,
+        antecedent_core::reason_details::program_binding::CONTRACT_IDENTITY_MISMATCH
+    );
     assert_eq!(graph.offending.as_deref(), Some("graph_id"));
     // A well-formed identity of a different program does not certify this one.
     let mut other = binding();
@@ -164,7 +192,7 @@ fn binding_contract_identity_mismatch_is_refused() {
         detail(&stale),
         (
             "external_binding_mismatch",
-            "program_binding.contract_identity_mismatch",
+            antecedent_core::reason_details::program_binding::CONTRACT_IDENTITY_MISMATCH,
             Some("declared_identity")
         )
     );
@@ -185,7 +213,7 @@ fn binding_graph_only_identity_is_insufficient() {
             detail(&refusal),
             (
                 "external_binding_mismatch",
-                "program_binding.graph_only_identity",
+                antecedent_core::reason_details::program_binding::GRAPH_ONLY_IDENTITY,
                 Some("declared_identity")
             ),
             "{declared}"
@@ -238,7 +266,11 @@ fn binding_invalid_binding_is_refused_before_any_comparison() {
     let refusal = check_external_against_program(&program, &claim).unwrap_err();
     assert_eq!(
         detail(&refusal),
-        ("invalid_argument", "program_binding.invalid_binding", Some("dose_grid"))
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::program_binding::INVALID_BINDING,
+            Some("dose_grid")
+        )
     );
     program.dose_grid = vec![1.0];
     program.population_id = " ".into();
@@ -316,7 +348,7 @@ fn binding_refuses_a_contract_that_describes_another_request() {
         detail(&refusal),
         (
             "quantity_semantics_mismatch",
-            "program_binding.quantities_override_mismatch",
+            antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH,
             Some("coordinate[0]")
         )
     );
@@ -324,17 +356,23 @@ fn binding_refuses_a_contract_that_describes_another_request() {
     contract.graph_id = "graph:other".into();
     let refusal =
         bind_external_result_to_program(&program, &claim, &contract, &result).unwrap_err();
-    assert_eq!(refusal.detail, "program_binding.contract_identity_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::program_binding::CONTRACT_IDENTITY_MISMATCH
+    );
     let mut contract = contract_for(&program);
     contract.estimand.pop();
     let refusal =
         bind_external_result_to_program(&program, &claim, &contract, &result).unwrap_err();
-    assert_eq!(refusal.detail, "program_binding.dose_grid_changed");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED);
     // A program refusal comes before any contract or result check.
     let mut wrong = ExternalProgramClaim::declared_by(&program);
     wrong.population_id = "source".into();
     let refusal =
         bind_external_result_to_program(&program, &wrong, &contract_for(&program), &result)
             .unwrap_err();
-    assert_eq!(refusal.detail, "program_binding.population_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::program_binding::POPULATION_MISMATCH
+    );
 }

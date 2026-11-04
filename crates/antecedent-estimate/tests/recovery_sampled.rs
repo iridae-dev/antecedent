@@ -240,7 +240,10 @@ fn unrecoverable_pattern_zero_complete_case_cell_refuses_with_the_pattern() {
     let error =
         estimate_sampled_recovery(&derivation, &input(rows), &loose(1), &ctx()).unwrap_err();
     assert_eq!(error.detail, SampledRecoveryDetail::UnrecoverablePattern);
-    assert_eq!(error.detail.detail(), "sampled_recovery.unrecoverable_pattern");
+    assert_eq!(
+        error.detail.detail(),
+        antecedent_core::reason_details::sampled_recovery::UNRECOVERABLE_PATTERN
+    );
     assert_eq!(error.reason_code(), "route_not_supported");
     assert_eq!(error.patterns, vec![missing]);
 }
@@ -390,7 +393,10 @@ fn sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapshot_an
 fn sampled_recovery_component_variance_only_refuses() {
     let error = refuse_component_variance_only(&[0.01, 0.02, 0.03]);
     assert_eq!(error.detail, SampledRecoveryDetail::ComponentVarianceOnly);
-    assert_eq!(error.detail.detail(), "sampled_recovery.component_variance_only");
+    assert_eq!(
+        error.detail.detail(),
+        antecedent_core::reason_details::sampled_recovery::COMPONENT_VARIANCE_ONLY
+    );
     assert_eq!(error.reason_code(), "estimator_inference_mismatch");
     assert!(error.message.contains('3'), "{error}");
 }

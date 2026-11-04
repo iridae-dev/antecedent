@@ -843,7 +843,7 @@ jobs:
       - name: Test-suite controls
         run: |
           python3 scripts/test_assertion_scan.py --self-test
-          python3 scripts/check_v3_test_registry.py --self-test
+          python3 scripts/check_test_registry.py --self-test
           mkdir -p target
           python3 scripts/evidence_audit.py report > target/evidence-audit-report.md
 

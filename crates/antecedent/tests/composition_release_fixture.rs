@@ -240,7 +240,10 @@ fn shared_evidence_is_counted_once_and_dependence_is_declared_or_refused() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "evidence_ledger.diagonal_covariance_shared_rows");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::evidence_ledger::DIAGONAL_COVARIANCE_SHARED_ROWS
+    );
     assert_eq!(session.head_hex(), head, "refusals leave the ledger unchanged");
 
     // Undeclared observations are an unknown overlap, never independent.
@@ -488,7 +491,7 @@ fn new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated()
     // The stale pooled numbers are not served.
     let served = world.session.synthesis(before_pool).unwrap_err();
     assert_eq!(served.code, "evidence_source_withdrawn");
-    assert_eq!(served.detail, "evidence_ledger.result_not_valid");
+    assert_eq!(served.detail, antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID);
 
     // Recompute on the grown study, naming the result replaced.
     let (estimate, variance) = step.summary;
@@ -598,13 +601,13 @@ fn duplicated_evidence_cannot_be_counted_twice() {
         pool(&mut session, "twice", &[(a, est_a, var_a), (copy, est_a, var_a)], None, None)
             .unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "evidence_ledger.reentry_duplicate");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::REENTRY_DUPLICATE);
     // The same source listed twice.
     let refusal =
         pool(&mut session, "listed_twice", &[(a, est_a, var_a), (a, est_a, var_a)], None, None)
             .unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "evidence_ledger.repeated_source");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::REPEATED_SOURCE);
     assert_eq!(session.head_hex(), head, "a refused pool registers nothing");
     assert!(session.ledger().results().is_empty());
 
@@ -720,7 +723,10 @@ fn a_fresh_consumer_recomputes_the_decision_and_every_mutation_is_refused_as_exp
     mutated.ledger_identity = other_bundle.ledger_identity.clone();
     let refusal = consume(&mutated).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "composition_verification.ledger_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::LEDGER_MISMATCH
+    );
 
     // Evidence overlap: the second study re-uses rows of the first.
     let mut mutated = bundle.clone();
@@ -779,7 +785,7 @@ fn an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end() {
     )
     .unwrap_err();
     assert_eq!(again.code, "evidence_source_withdrawn");
-    assert_eq!(again.detail, "evidence_ledger.source_withdrawn");
+    assert_eq!(again.detail, antecedent_core::reason_details::evidence_ledger::SOURCE_WITHDRAWN);
 }
 
 #[test]

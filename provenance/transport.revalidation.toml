@@ -30,9 +30,11 @@ record_sha256 = "fdd0b7e0d142bb0e70cec342074db98640dc3aca6aa5485c320046daac70ecc
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/transport_revalidation.rs"
-sha256 = "134b35393cc9a052f7c6cbc93ea5890687b62be4132036a2a11d000483e23bf3"
+items = ["const CLAIM_PREFIX", "const DIAGRAM_KEY", "const SOURCE_PREFIX", "const TARGET_KEY", "const TRANSPORT_REVALIDATION_VERSION", "enum SceneCalibration", "enum SceneClaimKind", "enum TransportReason", "fn as_str", "fn calibration_withdrawn", "fn claim", "fn claim_key", "fn claims", "fn graph", "fn identity", "fn is_withdrawal", "fn keys_of", "fn new", "fn numerical_reason", "fn refusal", "fn removed", "fn revalidate_transport", "fn source_key", "fn strip", "fn transport_coordinate", "fn withdrawal_reason", "struct SceneClaim", "struct SceneSource", "struct SceneTarget", "struct TransportClaimRevalidation", "struct TransportRevalidation", "struct TransportScene"]
+sha256 = "7cb5762c01a19386037b739a2c1ed98e760848001396712bb530637cb280baf5"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/transport_revalidation.rs"
-sha256 = "6bbd3f197b224a41d828b004d06fd541eae1cc2dd601080ec4376fa00dba68c8"
+items = ["const DIAGRAM", "const QUANTITY", "const RECORD", "const TARGET", "fn base", "fn changed_selection_diagram_recomputes_transported_claims_and_what_rests_on_them", "fn changed_source_evidence_recomputes_exactly_the_claims_that_count_it", "fn changed_target_recomputes_a_point_claim_and_withdraws_a_claim_calibrated_elsewhere", "fn claim_level_support_and_provider_trust_withdraw_only_what_relies_on_them", "fn coordinate_depends_on_target_and_quantity", "fn d", "fn inheriting_a_record_from_another_target_is_withdrawn_even_when_upstream_holds_it", "fn none", "fn observed_staleness_and_own_changes_are_named_per_claim", "fn recalibrating_at_the_new_target_restores_the_claim_after_recomputation", "fn removed_source_retires_the_claims_that_counted_it", "fn unchanged_scene_keeps_every_claim_and_its_earlier_authority", "fn undeclared_references_are_refused_and_identity_ignores_declaration_order", "fn unsupported_target_withdraws_every_claim_for_support_with_the_coordinates"]
+sha256 = "be068355127da396ae4013a1fa94678bb858fabf0f0f22ffd908036f62decb54"

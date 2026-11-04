@@ -44,7 +44,16 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/multiplicity_oracle.rs",
-          "sha256": "b16c11e30f8066a806cc5aab40ebf0e6a180b17000f876af6de5484af9bb8ad3"
+          "items": [
+            "fn all_adjustment_methods_match_statsmodels",
+            "fn close",
+            "fn discovery_family_routing_matches_statsmodels_with_and_without_lag_zero",
+            "fn fixture",
+            "fn method",
+            "fn multiplicity_fixture_records_retained_generator_and_historical_pins",
+            "fn routing_links"
+          ],
+          "sha256": "989ec62412e72d5bd789e367bc6fe3d218a98b2364174c0ac4d443640ee2065b"
         }
       ],
       "fixture_payload_sha256": "c3062c2adfcff779e400065ed22fd3664d9331616cc7f088a86e2541d91dddd5"

@@ -597,7 +597,11 @@ fn retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and
     let refused = rebind_estimate(&mut original.clone(), weighted.clone(), &ctx)
         .err()
         .expect("weights on a distribution route must be refused");
-    assert!(format!("{refused:?}").contains("sampling_weights.route_unsupported"), "{refused:?}");
+    assert!(
+        format!("{refused:?}")
+            .contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{refused:?}"
+    );
     assert!(study(weighted).prepare(&ctx).is_err());
     for (label, rows) in [("mask", masked), ("validity", incomplete), ("values", changed)] {
         let mut prepared = original.clone();

@@ -20,7 +20,7 @@ pub fn policy_required(
 ) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("missing_policy_required"),
-        "missing_data.policy_required",
+        antecedent_core::reason_details::missing_data::POLICY_REQUIRED,
         &antecedent_data::policy_required_text(cell, route, available),
     )
 }
@@ -35,7 +35,7 @@ pub fn policy_not_applicable(
 ) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
-        "missing_data.policy_not_applicable",
+        antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE,
         &format!(
             "{route} cannot execute missing-data policy `{}`: {reason}; use one of: {}",
             declared.name(),
@@ -55,7 +55,7 @@ pub fn policy_not_applicable_next(
 ) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
-        "missing_data.policy_not_applicable",
+        antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE,
         &format!(
             "{route} cannot execute missing-data policy `{}`: {reason}; use one of: {}; next \
              attempt: declare `{}`",
@@ -71,7 +71,7 @@ pub fn policy_not_applicable_next(
 pub fn covariates_incomplete(cell: &MissingCell, route: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
-        "missing_data.covariates_incomplete",
+        antecedent_core::reason_details::missing_data::COVARIATES_INCOMPLETE,
         &format!(
             "{route} models the probability of an observed outcome on declared covariates, and \
              covariate `{}` is missing at row {}; the covariates must be complete (a missing \

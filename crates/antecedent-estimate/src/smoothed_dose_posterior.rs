@@ -270,7 +270,7 @@ pub fn smoothed_dose_posterior(
     if input.declares_rows() {
         return Err(crate::util::refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "dose_response.posterior_declared_rows",
+            antecedent_core::reason_details::dose_response::POSTERIOR_DECLARED_ROWS,
             "the conjugate Gaussian outcome posterior assumes independent homoskedastic source \
              rows and no sampling design, which declared sampling weights, clusters or serial \
              dependence contradict. Next attempt: the point estimate, which reads them, or a \
@@ -639,7 +639,12 @@ mod tests {
                 smoothed_dose_posterior(&standardize(), &query(), &declared, &model(&basis))
                     .unwrap_err()
                     .to_string();
-            assert!(error.contains("dose_response.posterior_declared_rows"), "{error}");
+            assert!(
+                error.contains(
+                    antecedent_core::reason_details::dose_response::POSTERIOR_DECLARED_ROWS
+                ),
+                "{error}"
+            );
         }
     }
 
@@ -659,7 +664,11 @@ mod tests {
         wide.bandwidth = 1.2;
         let refused =
             smoothed_dose_posterior(&standardize(), &wide, &input(), &model(&basis)).unwrap_err();
-        assert!(refused.to_string().contains("dose_response.grid_outside_dose_support"));
+        assert!(
+            refused.to_string().contains(
+                antecedent_core::reason_details::dose_response::GRID_OUTSIDE_DOSE_SUPPORT
+            )
+        );
 
         let mut strict = model(&basis);
         strict.min_local_rows = 12;

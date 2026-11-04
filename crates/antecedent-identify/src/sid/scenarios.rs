@@ -110,7 +110,8 @@ pub fn unaccounted_after(identified: f64) -> f64 {
 /// Detail of a scenario that a budget stop or cancellation left unevaluated.
 /// The stop itself (`search.operations`, `search.depth`, `search.memory` or
 /// `search.cancelled`) is carried beside it.
-pub const SCENARIO_UNEVALUATED_DETAIL: &str = "scenarios.unevaluated_budget";
+pub const SCENARIO_UNEVALUATED_DETAIL: &str =
+    antecedent_core::reason_details::scenarios::UNEVALUATED_BUDGET;
 /// Registered runtime-refusal code of an unevaluated scenario: the same
 /// `transport_budget_cancel` every transport search reports for a budget
 /// or cancellation stop, never a verdict about the scenario.
@@ -143,7 +144,7 @@ impl ScenarioSetRefusal {
     pub fn coordinate_mismatch(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("schema_mismatch"),
-            detail: "scenarios.coordinate_mismatch",
+            detail: antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH,
             message: message.into(),
         }
     }
@@ -305,11 +306,14 @@ impl TransportScenarioSet {
     ) -> Result<Self, ScenarioSetRefusal> {
         use ScenarioSetRefusal as R;
         if scenarios.is_empty() {
-            return Err(R::invalid("scenarios.empty", "a scenario set needs a scenario"));
+            return Err(R::invalid(
+                antecedent_core::reason_details::scenarios::EMPTY,
+                "a scenario set needs a scenario",
+            ));
         }
         if scenarios.len() > max_scenarios {
             return Err(R::bound(
-                "scenarios.count",
+                antecedent_core::reason_details::scenarios::COUNT,
                 format!("{} scenarios exceed the bound of {max_scenarios}", scenarios.len()),
             ));
         }
@@ -325,7 +329,7 @@ impl TransportScenarioSet {
         for scenario in &scenarios {
             if scenario.name.trim().is_empty() || !names.insert(scenario.name.clone()) {
                 return Err(R::invalid(
-                    "scenarios.duplicate_or_empty_name",
+                    antecedent_core::reason_details::scenarios::DUPLICATE_OR_EMPTY_NAME,
                     "scenario names must be unique and non-empty",
                 ));
             }
@@ -348,7 +352,7 @@ impl TransportScenarioSet {
             }
             if !signatures.insert(super::graph_signature(&scenario.diagram)) {
                 return Err(R::invalid(
-                    "scenarios.duplicate_scenario",
+                    antecedent_core::reason_details::scenarios::DUPLICATE_SCENARIO,
                     format!("scenario {} repeats another's graph and selections", scenario.name),
                 ));
             }
@@ -356,7 +360,7 @@ impl TransportScenarioSet {
         let weighted = scenarios[0].weight.is_some();
         let bad_weights = || {
             R::invalid(
-                "scenarios.invalid_weights",
+                antecedent_core::reason_details::scenarios::INVALID_WEIGHTS,
                 "weights are declared for all scenarios or none, finite, non-negative and \
                  summing to at most one",
             )
@@ -441,7 +445,7 @@ impl TransportScenarioSet {
         for environment in catalog.environments.iter() {
             if !environment.selection_targets.is_empty() {
                 return Err(ScenarioSetRefusal::invalid(
-                    "scenarios.catalog_selections",
+                    antecedent_core::reason_details::scenarios::CATALOG_SELECTIONS,
                     format!(
                         "catalog environment {} declares selection targets; selections belong \
                          to each scenario",
@@ -1040,35 +1044,38 @@ mod tests {
         assert_eq!(set.schema().len(), 2);
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![])),
-            ("invalid_argument", "scenarios.empty")
+            ("invalid_argument", antecedent_core::reason_details::scenarios::EMPTY)
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], None),
                 scenario("a", 2, &[1], None)
             ])),
-            ("invalid_argument", "scenarios.duplicate_or_empty_name")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::scenarios::DUPLICATE_OR_EMPTY_NAME
+            )
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[1], None),
                 scenario("b", 2, &[1], None)
             ])),
-            ("invalid_argument", "scenarios.duplicate_scenario")
+            ("invalid_argument", antecedent_core::reason_details::scenarios::DUPLICATE_SCENARIO)
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], None),
                 scenario("b", 3, &[], None)
             ])),
-            ("schema_mismatch", "scenarios.coordinate_mismatch")
+            ("schema_mismatch", antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH)
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], Some(-0.1)),
                 scenario("b", 2, &[1], Some(0.2))
             ])),
-            ("invalid_argument", "scenarios.invalid_weights")
+            ("invalid_argument", antecedent_core::reason_details::scenarios::INVALID_WEIGHTS)
         );
         let weighted = TransportScenarioSet::try_new(vec![
             scenario("a", 2, &[], Some(0.25)),
@@ -1095,13 +1102,17 @@ mod tests {
         assert_eq!(set(64).unwrap().scenarios().len(), 64);
         // Six nodes give only 64 distinct selection sets, so a 65th scenario is refused as
         // a duplicate, not as a count bound.
-        assert_eq!(code(set(65)), ("invalid_argument", "scenarios.duplicate_scenario"));
+        assert_eq!(
+            code(set(65)),
+            ("invalid_argument", antecedent_core::reason_details::scenarios::DUPLICATE_SCENARIO)
+        );
     }
 
     #[test]
     fn scenarios_must_share_names_domains_cardinalities_and_units() {
         let a = || scenario("a", 2, &[], None);
-        let mismatch = ("schema_mismatch", "scenarios.coordinate_mismatch");
+        let mismatch =
+            ("schema_mismatch", antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH);
         let name = edited(|c| c.name = Arc::from("renamed"));
         assert_eq!(code(TransportScenarioSet::try_new(vec![a(), name])), mismatch);
         let domain = edited(|c| c.domain = VariableDomain::Continuous);
@@ -1121,7 +1132,10 @@ mod tests {
         let set = TransportScenarioSet::try_new(vec![a()]).unwrap();
         assert!(set.check_value(VariableId::from_raw(1), &Value::f64(1.0), "law").is_ok());
         let outside = set.check_value(VariableId::from_raw(1), &Value::f64(2.0), "law");
-        assert_eq!(outside.unwrap_err().detail, "scenarios.coordinate_mismatch");
+        assert_eq!(
+            outside.unwrap_err().detail,
+            antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH
+        );
         assert!(set.check_value(VariableId::from_raw(7), &Value::f64(0.0), "law").is_err());
     }
 
@@ -1146,7 +1160,10 @@ mod tests {
             let refused = set.check_value(y, &value, "law").unwrap_err();
             assert_eq!(
                 (refused.code, refused.detail),
-                ("schema_mismatch", "scenarios.coordinate_mismatch"),
+                (
+                    "schema_mismatch",
+                    antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH
+                ),
                 "{value:?}"
             );
         }

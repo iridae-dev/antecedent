@@ -208,10 +208,18 @@ fn penalized_aipw_stops_at_a_penalty_without_a_partial_estimate() {
     let raw = draw(40, 6, 3);
     let est = penalized(&[1.0, 10.0]);
     let error = fit(&est, &raw, &pre_cancelled()).unwrap_err();
-    assert_cancelled(&error, "cancelled_no_claim", "penalized_propensity.cancelled");
+    assert_cancelled(
+        &error,
+        "cancelled_no_claim",
+        antecedent_core::reason_details::penalized_propensity::CANCELLED,
+    );
     for checks in [1, 2, 5] {
         let error = fit(&est, &raw, &tripping(checks)).unwrap_err();
-        assert_cancelled(&error, "cancelled_no_claim", "penalized_propensity.cancelled");
+        assert_cancelled(
+            &error,
+            "cancelled_no_claim",
+            antecedent_core::reason_details::penalized_propensity::CANCELLED,
+        );
     }
     let done = fit(&est, &raw, &ExecutionContext::for_tests(5)).unwrap();
     assert!(done.ate.is_finite() && done.scores.table.is_some());
@@ -240,10 +248,18 @@ fn clustered_dml_stops_at_a_fold_without_a_partial_estimate() {
     let two = draw_two_way(30, 3, 4, 4);
     for (name, est, raw) in [("one-way", one_way(&one), &one), ("two-way", two_way(&two), &two)] {
         let error = fit(&est, raw, &pre_cancelled()).unwrap_err();
-        assert_cancelled(&error, "cancelled_no_claim", "cluster_dml.cancelled");
+        assert_cancelled(
+            &error,
+            "cancelled_no_claim",
+            antecedent_core::reason_details::cluster_dml::CANCELLED,
+        );
         for checks in [1, 3] {
             let error = fit(&est, raw, &tripping(checks)).unwrap_err();
-            assert_cancelled(&error, "cancelled_no_claim", "cluster_dml.cancelled");
+            assert_cancelled(
+                &error,
+                "cancelled_no_claim",
+                antecedent_core::reason_details::cluster_dml::CANCELLED,
+            );
         }
         let done = fit(&est, raw, &ExecutionContext::for_tests(5)).unwrap();
         assert!(done.ate.is_finite() && done.scores.table.is_some(), "{name}");
@@ -326,10 +342,18 @@ fn factorized_joint_cells_stop_in_both_routes_without_a_partial_fit() {
     };
     for (name, config) in [("ridge", ridge), ("learner", learner)] {
         let error = joint_fit(&data, &config, &pre_cancelled()).unwrap_err();
-        assert_cancelled(&error, "cancelled_no_claim", "joint_cells.cancelled");
+        assert_cancelled(
+            &error,
+            "cancelled_no_claim",
+            antecedent_core::reason_details::joint_cells::CANCELLED,
+        );
         for checks in [1, 3, 8] {
             let error = joint_fit(&data, &config, &tripping(checks)).unwrap_err();
-            assert_cancelled(&error, "cancelled_no_claim", "joint_cells.cancelled");
+            assert_cancelled(
+                &error,
+                "cancelled_no_claim",
+                antecedent_core::reason_details::joint_cells::CANCELLED,
+            );
         }
         let live = joint_fit(&data, &config, &ExecutionContext::for_tests(5)).unwrap();
         let spared = joint_fit(&data, &config, &tripping(100_000)).unwrap();
@@ -361,13 +385,25 @@ fn pairs(discordant_cases: usize, discordant_controls: usize) -> (Vec<String>, V
 fn matched_case_control_stops_at_entry_and_at_an_iteration() {
     let (s, c, x) = pairs(7, 3);
     let error = conditional_odds_ratio(&s, &c, &x, &pre_cancelled()).unwrap_err();
-    assert_cancelled(&error, "transport_budget_cancel", "matched_case_control.budget");
+    assert_cancelled(
+        &error,
+        "transport_budget_cancel",
+        antecedent_core::reason_details::matched_case_control::BUDGET,
+    );
     let concordant: Vec<f64> = vec![1.0; s.len()];
     let error = conditional_odds_ratio(&s, &c, &concordant, &pre_cancelled()).unwrap_err();
-    assert_cancelled(&error, "transport_budget_cancel", "matched_case_control.budget");
+    assert_cancelled(
+        &error,
+        "transport_budget_cancel",
+        antecedent_core::reason_details::matched_case_control::BUDGET,
+    );
     for checks in [1, 2] {
         let error = conditional_odds_ratio(&s, &c, &x, &tripping(checks)).unwrap_err();
-        assert_cancelled(&error, "transport_budget_cancel", "matched_case_control.budget");
+        assert_cancelled(
+            &error,
+            "transport_budget_cancel",
+            antecedent_core::reason_details::matched_case_control::BUDGET,
+        );
     }
     let fitted = conditional_odds_ratio(&s, &c, &x, &ExecutionContext::for_tests(5)).unwrap();
     assert!((fitted.odds_ratio - 7.0 / 3.0).abs() < 1e-8, "{}", fitted.odds_ratio);
@@ -382,16 +418,28 @@ fn descriptive_comparison_stops_in_the_row_pass_without_a_contrast() {
     let outcome: Vec<f64> = (0..n).map(|i| (i % 7) as f64).collect();
     let treatment: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 3 == 0))).collect();
     let error = raw_contrast(&outcome, &treatment, &pre_cancelled()).unwrap_err();
-    assert_cancelled(&error, "cancelled_no_claim", "descriptive_comparison.cancelled");
+    assert_cancelled(
+        &error,
+        "cancelled_no_claim",
+        antecedent_core::reason_details::descriptive_comparison::CANCELLED,
+    );
     // Polls fall at rows 0, 4096 and 8192 and once after the pass, so a token that allows one,
     // two or three clean polls stops at row 4096, row 8192 and after the pass respectively.
     for checks in [1, 2, 3] {
         let error = raw_contrast(&outcome, &treatment, &tripping(checks)).unwrap_err();
-        assert_cancelled(&error, "cancelled_no_claim", "descriptive_comparison.cancelled");
+        assert_cancelled(
+            &error,
+            "cancelled_no_claim",
+            antecedent_core::reason_details::descriptive_comparison::CANCELLED,
+        );
     }
     let adjusted = AdjustedEstimate::mean_difference(0.1, Some(0.02));
     let error = compare_raw_adjusted(&outcome, &treatment, adjusted, &tripping(1)).unwrap_err();
-    assert_cancelled(&error, "cancelled_no_claim", "descriptive_comparison.cancelled");
+    assert_cancelled(
+        &error,
+        "cancelled_no_claim",
+        antecedent_core::reason_details::descriptive_comparison::CANCELLED,
+    );
     let live = ExecutionContext::for_tests(5);
     let raw = raw_contrast(&outcome, &treatment, &live).unwrap();
     assert_eq!(raw.active.n + raw.control.n, n);
@@ -523,7 +571,8 @@ fn dml_stops_at_a_fold_and_every_stop_is_the_typed_cancellation() {
         };
         let stop = |error: &EstimationError| {
             let (code, message) = refused(error);
-            code == "cancelled_no_claim" && message.contains("dml.cancelled")
+            code == "cancelled_no_claim"
+                && message.contains(antecedent_core::reason_details::dml::CANCELLED)
         };
         assert!(stop(&call(&pre_cancelled()).unwrap_err()));
         let made = polls(call);

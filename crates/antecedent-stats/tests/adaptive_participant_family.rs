@@ -361,7 +361,10 @@ fn borrowing_is_frozen_after_the_first_look() {
     // After the first look a different plan is refused with its own detail...
     match original.amend_borrowing(&proposed, 1) {
         Err(Error::PremiseFailed { detail, .. }) => {
-            assert_eq!(detail, "adaptive_inference.borrowing_fixed_after_first_look");
+            assert_eq!(
+                detail,
+                antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK
+            );
         }
         other => panic!("expected the frozen-borrowing refusal, got {other:?}"),
     }
@@ -832,7 +835,7 @@ fn a_retained_history_replays_and_a_tampered_one_is_refused() {
     edited.assignment[0][1] -= 1e-6;
     assert_eq!(
         detail(s.read_history(&edited, &never)),
-        "adaptive_inference.assignment_not_replayed"
+        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED
     );
 
     // The same history under other borrowing: the declared priors are not the ones the
@@ -854,12 +857,15 @@ fn a_retained_history_replays_and_a_tampered_one_is_refused() {
         .unwrap();
     assert_eq!(
         detail(other.read_history(&history, &never)),
-        "adaptive_inference.assignment_not_replayed"
+        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED
     );
 
     // A procedure that stopped without a declared decision (a prefix of a run that went on).
     let prefix = truncate(&history, 3, 1);
-    assert_eq!(detail(s.read_history(&prefix, &never)), "adaptive_inference.stopping_not_replayed");
+    assert_eq!(
+        detail(s.read_history(&prefix, &never)),
+        antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED
+    );
 
     // A procedure that went on past a look at which the declared decisions stop it.
     let capped = spec(|d| {
@@ -874,7 +880,7 @@ fn a_retained_history_replays_and_a_tampered_one_is_refused() {
     });
     assert_eq!(
         detail(capped.read_history(&history, &never)),
-        "adaptive_inference.stopping_not_replayed"
+        antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED
     );
 
     // Structural disagreements are shape errors, not replay refusals.
@@ -887,7 +893,10 @@ fn a_retained_history_replays_and_a_tampered_one_is_refused() {
     wrong_availability.successes[0] = None;
     assert!(matches!(
         s.read_history(&wrong_availability, &never),
-        Err(Error::PremiseFailed { detail: "adaptive_inference.batch_incomplete", .. })
+        Err(Error::PremiseFailed {
+            detail: antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE,
+            ..
+        })
     ));
     let mut too_many = history.clone();
     too_many.successes[0] = Some(9);
@@ -1048,13 +1057,13 @@ fn every_missing_element_is_its_own_refusal() {
     assert_eq!(
         details(&refused),
         vec![
-            "adaptive_inference.outcome_structure_missing",
-            "adaptive_inference.within_unit_correlation_missing",
-            "adaptive_inference.historical_borrowing_missing",
-            "adaptive_inference.interim_analyses_missing",
-            "adaptive_inference.policy_history_missing",
-            "adaptive_inference.stopping_rule_missing",
-            "adaptive_inference.anytime_settings_missing",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_STRUCTURE_MISSING,
+            antecedent_core::reason_details::adaptive_inference::WITHIN_UNIT_CORRELATION_MISSING,
+            antecedent_core::reason_details::adaptive_inference::HISTORICAL_BORROWING_MISSING,
+            antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
+            antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
+            antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
+            antecedent_core::reason_details::adaptive_inference::ANYTIME_SETTINGS_MISSING,
         ]
     );
     for gap in &refused {
@@ -1074,20 +1083,26 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
             d.arms = 5;
             d.borrowing = Some(BorrowingPlan::uniform(5, BetaPrior::UNIFORM));
         })),
-        "adaptive_inference.arms_invalid"
+        antecedent_core::reason_details::adaptive_inference::ARMS_INVALID
     );
-    assert_eq!(one(gaps(|d| d.responses = Some(1))), "adaptive_inference.measurements_invalid");
-    assert_eq!(one(gaps(|d| d.responses = Some(33))), "adaptive_inference.measurements_invalid");
+    assert_eq!(
+        one(gaps(|d| d.responses = Some(1))),
+        antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID
+    );
+    assert_eq!(
+        one(gaps(|d| d.responses = Some(33))),
+        antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID
+    );
     for rho in [1.0, -0.1, f64::NAN] {
         assert_eq!(
             one(gaps(|d| d.correlation = Some(rho))),
-            "adaptive_inference.correlation_invalid"
+            antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
         );
     }
     // The correlation is declared or estimated, never both, and a prior needs shapes of at least 1.
     assert_eq!(
         one(gaps(|d| d.correlation_prior = Some(CorrelationPrior { alpha: 1.0, beta: 1.0 }))),
-        "adaptive_inference.correlation_invalid"
+        antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
     );
     for prior in [(0.5, 1.0), (1.0, f64::NAN), (1.0, 1.0e5)] {
         assert_eq!(
@@ -1095,7 +1110,7 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
                 d.correlation = None;
                 d.correlation_prior = Some(CorrelationPrior { alpha: prior.0, beta: prior.1 });
             })),
-            "adaptive_inference.correlation_invalid"
+            antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
         );
     }
     let bad_source = |discount: f64| {
@@ -1112,30 +1127,33 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
     };
     assert_eq!(
         one(gaps(|d| d.borrowing = bad_source(1.5))),
-        "adaptive_inference.historical_prior_invalid"
+        antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID
     );
     assert_eq!(
         one(gaps(|d| d.borrowing = Some(BorrowingPlan::uniform(2, BetaPrior::UNIFORM)))),
-        "adaptive_inference.historical_prior_invalid",
+        antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID,
         "one prior per arm"
     );
     assert_eq!(
         one(gaps(
             |d| d.borrowing = Some(BorrowingPlan::uniform(3, BetaPrior { alpha: 0.5, beta: 1.0 }))
         )),
-        "adaptive_inference.historical_prior_invalid"
+        antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID
     );
-    assert_eq!(one(gaps(|d| d.lag_looks = 33)), "adaptive_inference.outcome_availability_invalid");
+    assert_eq!(
+        one(gaps(|d| d.lag_looks = 33)),
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID
+    );
     for enrolment in [vec![40], vec![0, 40], vec![40, 0, 40]] {
         assert_eq!(
             one(gaps(|d| d.enrolment = Some(enrolment))),
-            "adaptive_inference.looks_not_ordered"
+            antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
         );
     }
     for floor in [0.0, 0.4, f64::NAN] {
         assert_eq!(
             one(gaps(|d| d.min_exploration = Some(floor))),
-            "adaptive_inference.rule_mismatch"
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
         );
     }
     let rules =
@@ -1149,7 +1167,10 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
         rules(0.01, None, Some(0)),
         rules(0.01, None, Some(161)),
     ] {
-        assert_eq!(one(gaps(|d| d.decisions = decisions)), "adaptive_inference.rule_mismatch");
+        assert_eq!(
+            one(gaps(|d| d.decisions = decisions)),
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+        );
     }
     for settings in [
         AnytimeSettings { alpha: 0.0, tuning_samples: 10.0 },
@@ -1158,7 +1179,7 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
     ] {
         assert_eq!(
             one(gaps(|d| d.anytime = Some(settings))),
-            "adaptive_inference.anytime_settings_invalid"
+            antecedent_core::reason_details::adaptive_inference::ANYTIME_SETTINGS_INVALID
         );
     }
 }

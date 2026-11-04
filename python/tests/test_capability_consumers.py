@@ -5,6 +5,7 @@ import struct
 
 import pytest
 from antecedent import _native, estimate, prepare
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalCancelledError,
     CausalResourceError,
@@ -193,8 +194,8 @@ def test_mean_contrast_refusals_come_from_the_actual_native_method(unsupported):
     assert value is None
     refusal = json.loads(raw_refusal)
     assert refusal["code"] == "route_not_supported"
-    assert "mechanism_composition.request_unsupported" in str(refusal)
+    assert reason_details.mechanism_composition.REQUEST_UNSUPPORTED in str(refusal)
     with pytest.raises(MechanismCompositionRefusal) as caught:
         require_success(prepared.mean_contrast(contrast))
     assert caught.value.reason_code == refusal["code"]
-    assert caught.value.details == ("mechanism_composition.request_unsupported",)
+    assert caught.value.details == (reason_details.mechanism_composition.REQUEST_UNSUPPORTED,)

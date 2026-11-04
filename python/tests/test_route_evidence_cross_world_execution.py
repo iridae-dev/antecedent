@@ -16,6 +16,7 @@ import json
 
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import cross_world_execution as cw
 from antecedent.outcomes import require_success
 
@@ -94,7 +95,7 @@ def test_consume_replays_with_a_fresh_executor_and_enforces_the_retained_identit
         require_success(
             cw.consume_cross_world_execution_artifact(data, expected_identity=other.identity)
         )
-    assert error.value.detail == "cross_world_execution.artifact_changed"
+    assert error.value.detail == reason_details.cross_world_execution.ARTIFACT_CHANGED
 
 
 def test_the_native_seal_entry_returns_the_sealed_bytes_and_a_replayable_summary() -> None:

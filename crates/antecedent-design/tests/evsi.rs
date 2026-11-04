@@ -486,7 +486,7 @@ fn incompatible_cost_units_and_missing_maps_refuse() {
     .unwrap_err();
     assert!(matches!(error, EvsiError::CostUnitsMismatch(_)), "{error:?}");
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "evsi.cost_units_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evsi::COST_UNITS_MISMATCH);
     assert_eq!(refusal.code, "design_cost_units_mismatch");
 
     // A map into a different utility unit than the decision's.
@@ -513,7 +513,7 @@ fn incompatible_cost_units_and_missing_maps_refuse() {
     demanding.require_net_value = true;
     let error = run(&problem, &prior, &demanding).unwrap_err();
     assert_eq!(error, EvsiError::CostMapRequired);
-    assert_eq!(error.to_refusal().detail, "evsi.cost_map_required");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::COST_MAP_REQUIRED);
 
     // Nonpositive rates and negative costs are invalid, not silently clamped.
     let free = CostToUtilityMap { utility_per_cost: 0.0, ..utility_map() };
@@ -557,11 +557,17 @@ fn changed_terminal_action_set_and_incoherent_values_refuse() {
     // The provider evaluates a different action set ("other" instead of "bet").
     let error = attempt(values(["abstain", "other"], [-0.2, 0.0, 0.2]));
     assert_eq!(error, EvsiError::ActionSetChanged);
-    assert_eq!(error.to_refusal().detail, "evsi.action_set_changed");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::evsi::ACTION_SET_CHANGED
+    );
     // Branch values that do not average to the prior value (0.3125 * (-0.2 + 0.5) != 0).
     let error = attempt(values(["abstain", "bet"], [-0.2, 0.0, 0.5]));
     assert_eq!(error, EvsiError::DecisionValuesIncoherent(id.into()));
-    assert_eq!(error.to_refusal().detail, "evsi.decision_values_incoherent");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::evsi::DECISION_VALUES_INCOHERENT
+    );
 
     // A request whose action ids do not align with the problem is invalid.
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
@@ -591,7 +597,10 @@ fn external_law_for_other_prior_draws_or_sample_size_refuses() {
     )
     .unwrap_err();
     assert_eq!(error, EvsiError::PriorStatesMismatch("c".into()));
-    assert_eq!(error.to_refusal().detail, "evsi.prior_states_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::evsi::PRIOR_STATES_MISMATCH
+    );
 
     // The prepared signal's sample size is the request's `n`. A design row count
     // that differs is not a mismatch: the native provider overrides the design field.
@@ -669,7 +678,7 @@ fn source_overlap_between_prior_and_study_data_refuses() {
         run(&bet_problem(1.0, 0.0), &bet_prior(), &request(&BET_ACTIONS, vec![overlapping], None))
             .unwrap_err();
     assert_eq!(error, EvsiError::SourceOverlap(vec!["obs-prior".into()]));
-    assert_eq!(error.to_refusal().detail, "evsi.source_overlap");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::SOURCE_OVERLAP);
 
     // The successful path reports the (empty) overlap diagnostic it checked.
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
@@ -694,7 +703,10 @@ fn signal_provider_refusals_surface_with_their_namespace() {
     let mut altered = candidate("c", 2, provider, 0.0, "utility");
     altered.signal_request.rng_seed = 99;
     let error = run(&problem, &prior, &request(&BET_ACTIONS, vec![altered], None)).unwrap_err();
-    assert_eq!(error.to_refusal().detail, "signal_provider.request_fingerprint_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::signal_provider::REQUEST_FINGERPRINT_MISMATCH
+    );
 }
 
 #[test]
@@ -732,7 +744,7 @@ fn ties_truncation_and_cancellation_are_reported() {
         evaluate_evsi(&problem, &prior, &request(&BET_ACTIONS, vec![make("a")], None), &token)
             .unwrap_err();
     assert_eq!(error, EvsiError::Cancelled);
-    assert_eq!(error.to_refusal().detail, "evsi.cancelled");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::CANCELLED);
 
     // Duplicate semantic ids are ambiguous.
     let error = run(&problem, &prior, &request(&BET_ACTIONS, vec![make("a"), make("a")], None))
@@ -848,7 +860,7 @@ fn a_study_derived_from_the_priors_data_under_another_id_is_refused_as_shared() 
         panic!("expected shared overlap: {error:?}")
     };
     assert_eq!(ids.len(), 2);
-    assert_eq!(error.to_refusal().detail, "evsi.source_overlap");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::SOURCE_OVERLAP);
 
     // Disjoint data passes and reports the two sources' observations it compared (2 + 3).
     let report = evaluate_evsi_with_evidence(
@@ -895,7 +907,7 @@ fn unknown_lineage_or_an_unbound_candidate_is_refused_never_independent() {
         );
         let refusal = error.to_refusal();
         assert_eq!(refusal.code, "evidence_overlap_unknown");
-        assert_eq!(refusal.detail, "evsi.source_overlap_unknown");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::evsi::SOURCE_OVERLAP_UNKNOWN);
     }
 
     // The ledger is the only overlap model on this path: string lists are refused.

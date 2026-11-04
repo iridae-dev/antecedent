@@ -1012,16 +1012,16 @@ fn sde_error(error: antecedent_estimate::nonlinear_sde_fit::SdeFitError) -> Cycl
             detail: code,
             message: format!("{code}: {detail}"),
             next_attempt: match code {
-                "sde.unbounded_growth" => {
+                antecedent_core::reason_details::sde::UNBOUNDED_GROWTH => {
                     "declare finite lower and upper bounds on the states the nonlinearity multiplies"
                 }
-                "sde.milstein_noncommutative" => {
+                antecedent_core::reason_details::sde::MILSTEIN_NONCOMMUTATIVE => {
                     "use Euler-Maruyama, or make each diffusion depend only on its own state"
                 }
-                "sde.action_time_off_grid" => {
+                antecedent_core::reason_details::sde::ACTION_TIME_OFF_GRID => {
                     "place action times on the declared step grid"
                 }
-                "sde.input_outside_certified_envelope" => {
+                antecedent_core::reason_details::sde::INPUT_OUTSIDE_CERTIFIED_ENVELOPE => {
                     "widen the declared input envelope so the regularity certificate covers the schedule"
                 }
                 "sde_fit.observation_interval_too_coarse" => {

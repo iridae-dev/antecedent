@@ -25,25 +25,30 @@ impl SourceResolution {
         let refuse =
             |detail| SourceEvidenceError { code: reason_code!("invalid_argument"), detail };
         if !evidence.is_native_source() {
-            return Err(refuse("source_evidence.resolution_scope_unsupported"));
+            return Err(refuse(
+                antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
+            ));
         }
         if evidence
             .unresolved()
             .iter()
             .any(|dependency| dependency.as_ref() != "dependencies.checked_response_grid_operation")
         {
-            return Err(refuse("source_evidence.resolution_scope_unsupported"));
+            return Err(refuse(
+                antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
+            ));
         }
         let super::builder::DataInput::Tabular(data) = &prepared.study().data else {
-            return Err(refuse("source_evidence.resolution_scope_unsupported"));
+            return Err(refuse(
+                antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
+            ));
         };
-        let result = prepared
-            .estimate(data, ctx)
-            .map_err(|_| refuse("source_evidence.source_execution_failed"))?;
-        let first = evidence
-            .coordinates()
-            .first()
-            .ok_or_else(|| refuse("source_evidence.coordinates_unavailable"))?;
+        let result = prepared.estimate(data, ctx).map_err(|_| {
+            refuse(antecedent_core::reason_details::source_evidence::SOURCE_EXECUTION_FAILED)
+        })?;
+        let first = evidence.coordinates().first().ok_or_else(|| {
+            refuse(antecedent_core::reason_details::source_evidence::COORDINATES_UNAVAILABLE)
+        })?;
         let labels = ResponseCoordinateLabels {
             outcome_units: &first.units,
             population_id: &first.population_id,
@@ -56,12 +61,18 @@ impl SourceResolution {
                 ctx,
                 Some(&labels),
             )
-            .map_err(|_| refuse("source_evidence.source_encoding_failed"))?;
+            .map_err(|_| {
+                refuse(antecedent_core::reason_details::source_evidence::SOURCE_ENCODING_FAILED)
+            })?;
         evidence.require_same_source(&SourceEvidence::from_result(&bytes)?)?;
         Ok(Self {
             source_digest: evidence.summary()["source_artifact_digest"]
                 .as_str()
-                .ok_or_else(|| refuse("source_evidence.invalid_source_artifact"))?
+                .ok_or_else(|| {
+                    refuse(
+                        antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT,
+                    )
+                })?
                 .to_owned(),
             dependencies: evidence.unresolved().to_vec(),
         })

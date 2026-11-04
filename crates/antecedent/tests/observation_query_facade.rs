@@ -269,7 +269,10 @@ fn an_intervention_smuggled_into_a_conditioning_slot_is_refused_with_its_remedy(
     assigned.provenance = SlotProvenance::Assigned;
     let refusal = prepared.condition_on("Y", &[assigned], &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "quantity_semantics_mismatch");
-    assert_eq!(refusal_details(&refusal), ["observation_query.intervention_in_conditioning_slot"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT]
+    );
     assert_eq!(refusal.refusals[0].offending.as_deref(), Some("S"));
     assert!(refusal.refusals[0].remedy.is_some());
 
@@ -285,7 +288,10 @@ fn an_intervention_smuggled_into_a_conditioning_slot_is_refused_with_its_remedy(
         continuous: ContinuousAssignments::default(),
     };
     let refusal = prepared.observe(&smuggled, &ctx()).unwrap_err();
-    assert_eq!(refusal_details(&refusal), ["observation_query.intervention_in_conditioning_slot"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT]
+    );
 
     // Observations of another variable after an intervention are the interventional law
     // conditioned on them: P(Y=1 | do(S=1), Z=1) = 0.9, with P(Z=1) = 0.5 unchanged.
@@ -313,7 +319,7 @@ fn an_intervention_smuggled_into_a_conditioning_slot_is_refused_with_its_remedy(
     assert_eq!(refusal.code(), "route_not_supported");
     assert_eq!(
         refusal_details(&refusal),
-        ["observation_query.mixed_conditioning_and_intervention"]
+        [antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION]
     );
     assert!(refusal.refusals[0].remedy.is_some());
 }
@@ -324,7 +330,10 @@ fn a_measured_value_is_refused_as_the_construct_and_inverted_through_its_model()
     // The recorded value used as the construct: refused.
     let refusal = prepared.condition_on("Y", &[measured(None, "1")], &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "proxy_offered_as_construct");
-    assert_eq!(refusal_details(&refusal), ["observation_query.measured_as_construct"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::MEASURED_AS_CONSTRUCT]
+    );
 
     // Through the declared confusion matrix: exact Bayes.
     let positive =
@@ -343,7 +352,10 @@ fn a_measured_value_is_refused_as_the_construct_and_inverted_through_its_model()
         .condition_on("Y", &[measured(Some(assay_model("other_clinic")), "1")], &ctx())
         .unwrap_err();
     assert_eq!(refusal.code(), "measurement_binding_mismatch");
-    assert_eq!(refusal_details(&refusal), ["observation_query.population_mismatch"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::POPULATION_MISMATCH]
+    );
 }
 
 #[test]
@@ -358,7 +370,10 @@ fn a_threshold_no_observation_reaches_is_refused_with_the_supremum_reachable() {
     let refusal =
         prepared.threshold_crossing("Y", "1", "S", &[], 0.9, Direction::Raise, &ctx()).unwrap_err();
     assert_eq!(refusal.code(), "evidence_cannot_reach_level");
-    assert_eq!(refusal_details(&refusal), ["observation_query.level_unreachable"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::LEVEL_UNREACHABLE]
+    );
     let supplied: f64 = refusal.refusals[0].supplied.as_deref().unwrap().parse().unwrap();
     near(supplied, 0.78);
     assert_eq!(refusal.refusals[0].expected.as_deref(), Some("0.9"));
@@ -377,7 +392,10 @@ fn the_artifact_replays_and_every_semantic_mutation_is_refused() {
 
     // A wrong retained identity is refused.
     let refusal = consume_observation_query_artifact(&bytes, Some("00"), &ctx()).unwrap_err();
-    assert_eq!(refusal_details(&refusal), ["observation_query.artifact_refused"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::ARTIFACT_REFUSED]
+    );
 
     // Operation swapped without resealing: the identity no longer matches.
     let mut wire = ObservationQueryArtifactWire::decode(&bytes).unwrap();
@@ -395,7 +413,10 @@ fn the_artifact_replays_and_every_semantic_mutation_is_refused() {
     }
     let tampered = wire.export().unwrap();
     let refusal = consume_observation_query_artifact(&tampered, None, &ctx()).unwrap_err();
-    assert_eq!(refusal_details(&refusal), ["observation_query.artifact_refused"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::ARTIFACT_REFUSED]
+    );
 
     // Intervention swapped for conditioning in a resealed artifact would
     // change the stored result, which no longer replays.
@@ -458,12 +479,15 @@ fn unsupported_interval_and_calibration_routes_refuse() {
     assert_eq!(interval.code(), "uncertainty_representation_insufficient");
     assert_eq!(
         refusal_details(&interval),
-        ["observation_query.declared_model_has_no_sampling_interval"]
+        [antecedent_core::reason_details::observation_query::DECLARED_MODEL_HAS_NO_SAMPLING_INTERVAL]
     );
     assert!(interval.refusals[0].remedy.is_some());
     let calibrated = claim.calibrated_probability().unwrap_err();
     assert_eq!(calibrated.code(), "uncertainty_representation_insufficient");
-    assert_eq!(refusal_details(&calibrated), ["observation_query.no_calibrated_probability"]);
+    assert_eq!(
+        refusal_details(&calibrated),
+        [antecedent_core::reason_details::observation_query::NO_CALIBRATED_PROBABILITY]
+    );
 
     // The same posterior read from a fitted model is a labelled point value and
     // is still refused an interval or calibration.
@@ -577,7 +601,10 @@ fn an_unreachable_evidence_level_is_refused_through_the_facade() {
     )
     .unwrap_err();
     assert_eq!(refusal.code(), "evidence_cannot_reach_level");
-    assert_eq!(refusal_details(&refusal), ["observation_query.level_unreachable"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::LEVEL_UNREACHABLE]
+    );
     let supplied: f64 = refusal.refusals[0].supplied.as_deref().unwrap().parse().unwrap();
     near(supplied, 0.3);
     assert_eq!(refusal.refusals[0].expected.as_deref(), Some("0.9"));
@@ -701,13 +728,22 @@ fn a_linear_gaussian_composition_answers_typed_real_evidence_and_replays() {
     // The typed values are refused where they do not belong, each with a remedy.
     let levels = prepared.condition_on("Y", &[direct("M", "3")], &ctx()).unwrap_err();
     assert_eq!(levels.code(), "invalid_argument");
-    assert_eq!(refusal_details(&levels), ["observation_query.levels_for_continuous_model"]);
+    assert_eq!(
+        refusal_details(&levels),
+        [antecedent_core::reason_details::observation_query::LEVELS_FOR_CONTINUOUS_MODEL]
+    );
     assert!(levels.refusals[0].remedy.is_some());
     let both =
         prepared.observe_continuous("Y", &[real("X", 2.0)], &[real("X", 2.0)], &ctx()).unwrap_err();
-    assert_eq!(refusal_details(&both), ["observation_query.mixed_conditioning_and_intervention"]);
+    assert_eq!(
+        refusal_details(&both),
+        [antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION]
+    );
     let nan = prepared.observe_continuous("Y", &[], &[real("M", f64::NAN)], &ctx()).unwrap_err();
-    assert_eq!(refusal_details(&nan), ["observation_query.value_not_finite"]);
+    assert_eq!(
+        refusal_details(&nan),
+        [antecedent_core::reason_details::observation_query::VALUE_NOT_FINITE]
+    );
     let finite = confounded();
     let request = ObservationRequest {
         operation: ObservationOperation::Conditioning,
@@ -719,7 +755,7 @@ fn a_linear_gaussian_composition_answers_typed_real_evidence_and_replays() {
     let real_for_finite = finite.observe(&request, &ctx()).unwrap_err();
     assert_eq!(
         refusal_details(&real_for_finite),
-        ["observation_query.real_values_for_finite_model"]
+        [antecedent_core::reason_details::observation_query::REAL_VALUES_FOR_FINITE_MODEL]
     );
 }
 
@@ -1082,5 +1118,8 @@ fn a_redraw_of_a_measured_signal_is_refused_with_a_next_attempt() {
         )
         .unwrap_err();
     assert_eq!(refusal.code(), "route_not_supported");
-    assert_eq!(refusal_details(&refusal), ["observation_query.measured_signal_not_redrawn"]);
+    assert_eq!(
+        refusal_details(&refusal),
+        [antecedent_core::reason_details::observation_query::MEASURED_SIGNAL_NOT_REDRAWN]
+    );
 }

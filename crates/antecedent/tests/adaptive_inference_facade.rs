@@ -266,7 +266,9 @@ fn a_posterior_stopping_decision_follows_the_declared_expected_loss_rule() {
     close(v[3], 1.0, 0.0, "stop");
     assert_eq!(
         outcome.result.unsupported_claim,
-        Some("adaptive_inference.no_stopping_reliability_procedure")
+        Some(
+            antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE
+        )
     );
 }
 
@@ -276,7 +278,10 @@ fn decision_theoretic_stopping_is_not_supported_for_a_probability_best_rule() {
     let request = AdaptiveRequest::PosteriorStopping { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
 }
 
 // -- the paradigm gate ----------------------------------------------------------------------
@@ -286,13 +291,19 @@ fn fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs()
     let session = session(thompson_trial([0.3, 0.6], 80, &[40, 80], 1));
     let refusal: AdaptiveInferenceRefusal = session.fixed_sample().unwrap_err();
     assert_eq!(refusal.code, "adaptive_design_ignored");
-    assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
+    );
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     assert!(session.analyse(&request, &ctx()).is_ok());
     // No interval is supported for the whole procedure.
     let interval = session.interval().unwrap_err();
     assert_eq!(interval.code, "quantity_semantics_mismatch");
-    assert_eq!(interval.detail, "adaptive_inference.interval_names_no_quantity");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::adaptive_inference::INTERVAL_NAMES_NO_QUANTITY
+    );
 }
 
 #[test]
@@ -317,7 +328,10 @@ fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure
     };
     let refusal = session.measured_interval(&weighting, "weighting", &ctx()).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     // The measured construction at a horizon below the measured range is outside its record.
     let measured =
         AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
@@ -405,8 +419,8 @@ fn each_missing_element_is_refused_at_prepare_with_its_own_detail() {
     assert_eq!(
         details,
         [
-            "adaptive_inference.policy_history_missing",
-            "adaptive_inference.outcome_availability_missing"
+            antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING
         ]
     );
     assert!(refusals.iter().all(|r| r.code == "adaptive_contract_incomplete"));
@@ -462,7 +476,10 @@ fn the_probability_floor_is_enforced_and_never_clipped() {
     };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+    );
 }
 
 // -- repeated measurements --------------------------------------------------------------------
@@ -560,7 +577,10 @@ fn the_hierarchical_cluster_cell_is_not_delivered_not_analysed_as_repeated_measu
     let session = session(declaration);
     let refusal = session.analyse(&contrast_request(false), &ctx()).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.cell_not_delivered");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED
+    );
 }
 
 // -- anytime-valid confidence sequences -------------------------------------------------------------
@@ -654,7 +674,10 @@ fn a_group_sequential_rule_is_not_supported_for_a_thompson_assignment() {
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.pairing_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PAIRING_NOT_SUPPORTED
+    );
 }
 
 // -- artifacts -------------------------------------------------------------------------------
@@ -689,5 +712,5 @@ fn exported_contract_and_result_are_consumed_by_a_fresh_reader() {
         consume_adaptive_inference_result_artifact(&other_bytes, Some(result.identity()), &ctx())
             .unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.wrong_contract");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT);
 }

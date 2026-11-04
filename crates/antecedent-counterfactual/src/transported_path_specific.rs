@@ -631,7 +631,7 @@ fn check_diagram(
             || model.covariates.iter().any(|c| c == target);
         if !is_known {
             return Err(invalid(
-                "transported_counterfactual.invalid_diagram",
+                antecedent_core::reason_details::transported_counterfactual::INVALID_DIAGRAM,
                 format!("selection {} points to unknown variable {target}", selection.label),
             ));
         }
@@ -644,8 +644,9 @@ fn check_diagram(
     };
     let mut witness = None;
     for node in &mechanism_targets {
-        witness = witness_for(input, order, node)
-            .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
+        witness = witness_for(input, order, node).map_err(|m| {
+            invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+        })?;
         if witness.is_some() {
             break;
         }
@@ -657,7 +658,7 @@ fn check_diagram(
     };
     let mut refusal = refuse_with(
         code,
-        "transported_counterfactual.selection_on_mechanism",
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM,
         Some(witness.as_ref().map_or_else(|| first.to_owned(), |w| w.selected_node.clone())),
         "remove the selection node on the mediator or outcome mechanism or choose a class that \
          models the differing mechanism; the covariate-selected theorem does not apply",
@@ -670,11 +671,17 @@ fn check_assumptions(
     assumptions: DeclaredAssumptions,
 ) -> Result<(), Box<TransportedPathSpecificRefusal>> {
     let (detail, premise) = if !assumptions.additive_noise {
-        ("transported_counterfactual.nonadditive_mechanism", "additive_noise")
+        (
+            antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM,
+            "additive_noise",
+        )
     } else if !assumptions.noise_laws_shared {
-        ("transported_counterfactual.noise_law_not_shared", "noise_laws_shared")
+        (
+            antecedent_core::reason_details::transported_counterfactual::NOISE_LAW_NOT_SHARED,
+            "noise_laws_shared",
+        )
     } else if !assumptions.cross_world_independence {
-        ("transported_counterfactual.cross_world_independence_missing", "cross_world_independence")
+        (antecedent_core::reason_details::transported_counterfactual::CROSS_WORLD_INDEPENDENCE_MISSING, "cross_world_independence")
     } else {
         return Ok(());
     };
@@ -718,7 +725,7 @@ fn check_overlap(
         if !source.points.iter().any(|(s, _)| points_match(s, point)) {
             return Err(refuse_with(
                 antecedent_core::reason_code!("transport_support_failure"),
-                "transported_counterfactual.overlap_failure",
+                antecedent_core::reason_details::transported_counterfactual::OVERLAP_FAILURE,
                 Some(describe(point)),
                 "restrict the target covariate law to the source support or collect source data \
                  there",
@@ -743,23 +750,28 @@ fn check_overlap(
 pub fn evaluate_transported_path_specific(
     input: &TransportedPathSpecificInput<'_>,
 ) -> Result<TransportedPathSpecificResult, Box<TransportedPathSpecificRefusal>> {
-    let order = validate_model(input.model)
-        .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
-    validate_query(input.model, input.query)
-        .map_err(|m| invalid("transported_counterfactual.invalid_query", m))?;
+    let order = validate_model(input.model).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+    })?;
+    validate_query(input.model, input.query).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_QUERY, m)
+    })?;
     let covariates: BTreeSet<&str> = input.model.covariates.iter().map(String::as_str).collect();
-    validate_law("source", input.source_law, &covariates)
-        .map_err(|m| invalid("transported_counterfactual.invalid_law", m))?;
-    validate_law("target", input.target_law, &covariates)
-        .map_err(|m| invalid("transported_counterfactual.invalid_law", m))?;
+    validate_law("source", input.source_law, &covariates).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_LAW, m)
+    })?;
+    validate_law("target", input.target_law, &covariates).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_LAW, m)
+    })?;
     check_diagram(input, &order)?;
     check_assumptions(input.assumptions)?;
     check_factors(input.supplied_factors)?;
     check_overlap(input.source_law, input.target_law)?;
     let mut unit_contrasts = Vec::with_capacity(input.target_law.points.len());
     for (point, weight) in &input.target_law.points {
-        let contrast = unit_contrast(input.model, input.query, &order, point)
-            .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
+        let contrast = unit_contrast(input.model, input.query, &order, point).map_err(|m| {
+            invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+        })?;
         unit_contrasts.push(UnitContrast {
             point: point.clone(),
             target_weight: *weight,
@@ -768,7 +780,9 @@ pub fn evaluate_transported_path_specific(
     }
     let target_contrast: f64 = unit_contrasts.iter().map(|u| u.target_weight * u.contrast).sum();
     let source_contrast = law_contrast(input.model, input.query, &order, input.source_law)
-        .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
+        .map_err(|m| {
+            invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+        })?;
     Ok(TransportedPathSpecificResult {
         target_contrast,
         source_contrast,

@@ -120,7 +120,7 @@ fn premises_the_data_cannot_supply_are_refused_when_undeclared() {
             "{:?}",
             fit_latent_class_effects(&data, &single, &ExecutionContext::for_tests(1)).err()
         )
-        .contains("latent_class.degenerate_class"),
+        .contains(antecedent_core::reason_details::latent_class::DEGENERATE_CLASS),
         "one class is not a mixture"
     );
     let constant = vec![1.0; outcome.len()];

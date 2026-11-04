@@ -17,6 +17,7 @@ Every result is ``derived_unmeasured``; every refusal is ``adaptive_assumption_v
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
 from antecedent.outcomes import require_success
@@ -77,7 +78,9 @@ def test_a_missing_within_unit_correlation_is_its_own_refusal():
             structure=rm(4, 1.0, None),
             analysis=ai.FinalAnalysis.cluster_robust(),
         )
-    assert caught.value.details == ("adaptive_inference.within_unit_correlation_missing",)
+    assert caught.value.details == (
+        reason_details.adaptive_inference.WITHIN_UNIT_CORRELATION_MISSING,
+    )
     assert_registered_refusal(caught.value)
     assert caught.value.reason_code == "adaptive_contract_incomplete"
 
@@ -86,11 +89,11 @@ def test_every_missing_element_gives_its_own_detail():
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         ai.RepeatedMeasuresProcedure.declare(ai.RepeatedMeasuresDeclaration(arms=2))
     assert caught.value.details == (
-        "adaptive_inference.policy_history_missing",
-        "adaptive_inference.interim_analyses_missing",
-        "adaptive_inference.outcome_structure_missing",
-        "adaptive_inference.final_analysis_missing",
-        "adaptive_inference.stopping_rule_missing",
+        reason_details.adaptive_inference.POLICY_HISTORY_MISSING,
+        reason_details.adaptive_inference.INTERIM_ANALYSES_MISSING,
+        reason_details.adaptive_inference.OUTCOME_STRUCTURE_MISSING,
+        reason_details.adaptive_inference.FINAL_ANALYSIS_MISSING,
+        reason_details.adaptive_inference.STOPPING_RULE_MISSING,
     )
     assert caught.value.reason_code == "adaptive_contract_incomplete"
 
@@ -104,8 +107,8 @@ def test_a_missing_variance_component_of_a_cluster_is_its_own_refusal():
             analysis=ai.FinalAnalysis.cluster_robust(),
         )
     assert caught.value.details == (
-        "adaptive_inference.between_unit_variance_missing",
-        "adaptive_inference.within_unit_variance_missing",
+        reason_details.adaptive_inference.BETWEEN_UNIT_VARIANCE_MISSING,
+        reason_details.adaptive_inference.WITHIN_UNIT_VARIANCE_MISSING,
     )
 
 
@@ -117,7 +120,7 @@ def test_an_invalid_correlation_is_invalid_argument():
             structure=rm(4, 1.0, 1.0),
             analysis=ai.FinalAnalysis.cluster_robust(),
         )
-    assert caught.value.details == ("adaptive_inference.correlation_invalid",)
+    assert caught.value.details == (reason_details.adaptive_inference.CORRELATION_INVALID,)
     assert caught.value.reason_code == "invalid_argument"
 
 
@@ -227,7 +230,7 @@ def test_a_fixed_sample_analysis_after_adaptive_assignment_is_refused():
         structure=rm(3, 1.0, 0.4),
         analysis=ai.FinalAnalysis.cluster_robust(),
     )
-    detail = "adaptive_inference.fixed_sample_design_adaptive"
+    detail = reason_details.adaptive_inference.FIXED_SAMPLE_DESIGN_ADAPTIVE
     refused(lambda: require_success(procedure.derive((0.0, 0.5), replications=10, seed=1)), detail)
     refused(
         lambda: procedure.derive_paradigm(
@@ -246,7 +249,7 @@ def test_an_independence_assumption_for_dependent_measurements_is_refused():
     )
     refused(
         lambda: require_success(procedure.derive((0.0, 0.0), replications=10, seed=1)),
-        "adaptive_inference.independence_assumed_for_dependent_measurements",
+        reason_details.adaptive_inference.INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS,
     )
     # Independence declared as a zero correlation is admitted.
     independent = declare(
@@ -271,7 +274,7 @@ def test_a_paradigm_that_is_not_derived_for_the_cell_is_refused():
         lambda: procedure.derive_paradigm(
             "anytime_valid_frequentist", (0.0, 0.5), replications=10, seed=1
         ),
-        "adaptive_inference.repeated_measures_paradigm_not_derived",
+        reason_details.adaptive_inference.REPEATED_MEASURES_PARADIGM_NOT_DERIVED,
     )
 
 
@@ -303,7 +306,7 @@ def test_a_guarantee_is_not_paired_across_cells():
             lambda cell_id=cell_id, paradigm=paradigm: procedure.transfer_guarantee(
                 cell_id, paradigm
             ),
-            "adaptive_inference.guarantee_not_transferable",
+            reason_details.adaptive_inference.GUARANTEE_NOT_TRANSFERABLE,
         )
 
 
@@ -422,13 +425,13 @@ def test_an_unobserved_selection_and_an_unobserved_arm_are_refused_with_their_ne
                 selection="depends_on_unobserved",
             )
         ),
-        "adaptive_inference.selection_not_ignorable",
+        reason_details.adaptive_inference.SELECTION_NOT_IGNORABLE,
     )
     assert "model the selection jointly" in str(caught)
     only_one_arm = [(1, y, 0.5) for arm, y in POSTERIOR_UNITS if arm == 1]
     caught = refused(
         lambda: require_success(procedure.posterior(priors=POSTERIOR_PRIORS, units=only_one_arm)),
-        "adaptive_inference.arm_not_observed",
+        reason_details.adaptive_inference.ARM_NOT_OBSERVED,
     )
     assert "prior alone does not identify" in str(caught)
 

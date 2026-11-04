@@ -73,10 +73,10 @@ pub fn vector_treatment_posterior(
 ) -> Result<Vec<f64>, EstimationError> {
     let scale = scale_of(
         request,
-        "vector_posterior.non_positive_scale",
-        "vector_posterior.mapped_prior",
-        "vector_posterior.external_power_prior",
-        "vector_posterior.band_not_constructed",
+        antecedent_core::reason_details::vector_posterior::NON_POSITIVE_SCALE,
+        antecedent_core::reason_details::vector_posterior::MAPPED_PRIOR,
+        antecedent_core::reason_details::vector_posterior::EXTERNAL_POWER_PRIOR,
+        antecedent_core::reason_details::vector_posterior::BAND_NOT_CONSTRUCTED,
     )?;
     coefficient_posterior_mean(&summarize_vector_design(input)?, scale)
 }
@@ -95,10 +95,10 @@ pub fn categorical_treatment_posterior(
 ) -> Result<Vec<f64>, EstimationError> {
     let scale = scale_of(
         request,
-        "categorical_posterior.non_positive_scale",
-        "categorical_posterior.mapped_prior",
-        "categorical_posterior.external_power_prior",
-        "categorical_posterior.band_not_constructed",
+        antecedent_core::reason_details::categorical_posterior::NON_POSITIVE_SCALE,
+        antecedent_core::reason_details::categorical_posterior::MAPPED_PRIOR,
+        antecedent_core::reason_details::categorical_posterior::EXTERNAL_POWER_PRIOR,
+        antecedent_core::reason_details::categorical_posterior::BAND_NOT_CONSTRUCTED,
     )?;
     let summary = summarize_categorical_design(input, spec)?;
     coefficient_posterior_mean(&summary.design, scale)
@@ -149,18 +149,18 @@ impl LocalQuadraticNamespace {
     fn details(self) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
         match self {
             Self::QuadraticDose => (
-                "quadratic_posterior.non_positive_scale",
-                "quadratic_posterior.mapped_prior",
-                "quadratic_posterior.external_power_prior",
-                "quadratic_posterior.band_not_constructed",
-                "quadratic_posterior.insufficient_weight",
+                antecedent_core::reason_details::quadratic_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::quadratic_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::quadratic_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::quadratic_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::quadratic_posterior::INSUFFICIENT_WEIGHT,
             ),
             Self::DoseGrid => (
-                "dose_grid_posterior.non_positive_scale",
-                "dose_grid_posterior.mapped_prior",
-                "dose_grid_posterior.external_power_prior",
-                "dose_grid_posterior.band_not_constructed",
-                "dose_grid_posterior.insufficient_weight",
+                antecedent_core::reason_details::dose_grid_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::dose_grid_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::dose_grid_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::dose_grid_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::dose_grid_posterior::INSUFFICIENT_WEIGHT,
             ),
         }
     }
@@ -276,39 +276,39 @@ impl ScoreNamespace {
     fn details(self) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
         match self {
             Self::Penalized => (
-                "penalized_posterior.non_positive_scale",
-                "penalized_posterior.mapped_prior",
-                "penalized_posterior.external_power_prior",
-                "penalized_posterior.band_not_constructed",
-                "penalized_posterior.empty_scores",
+                antecedent_core::reason_details::penalized_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::penalized_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::penalized_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::penalized_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::penalized_posterior::EMPTY_SCORES,
             ),
             Self::Clustered => (
-                "clustered_posterior.non_positive_scale",
-                "clustered_posterior.mapped_prior",
-                "clustered_posterior.external_power_prior",
-                "clustered_posterior.band_not_constructed",
-                "clustered_posterior.empty_scores",
+                antecedent_core::reason_details::clustered_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::clustered_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::clustered_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::clustered_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::clustered_posterior::EMPTY_SCORES,
             ),
             Self::BatchRetarget => (
-                "batch_retarget_posterior.non_positive_scale",
-                "batch_retarget_posterior.mapped_prior",
-                "batch_retarget_posterior.external_power_prior",
-                "batch_retarget_posterior.band_not_constructed",
-                "batch_retarget_posterior.empty_scores",
+                antecedent_core::reason_details::batch_retarget_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::batch_retarget_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::batch_retarget_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::batch_retarget_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::batch_retarget_posterior::EMPTY_SCORES,
             ),
             Self::LearnedContinuous => (
-                "learned_continuous_posterior.non_positive_scale",
-                "learned_continuous_posterior.mapped_prior",
-                "learned_continuous_posterior.external_power_prior",
-                "learned_continuous_posterior.band_not_constructed",
-                "learned_continuous_posterior.empty_scores",
+                antecedent_core::reason_details::learned_continuous_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::learned_continuous_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::learned_continuous_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::learned_continuous_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::learned_continuous_posterior::EMPTY_SCORES,
             ),
             Self::SmoothedDose => (
-                "smoothed_dose_posterior.non_positive_scale",
-                "smoothed_dose_posterior.mapped_prior",
-                "smoothed_dose_posterior.external_power_prior",
-                "smoothed_dose_posterior.band_not_constructed",
-                "smoothed_dose_posterior.empty_scores",
+                antecedent_core::reason_details::smoothed_dose_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::smoothed_dose_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::smoothed_dose_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::smoothed_dose_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::smoothed_dose_posterior::EMPTY_SCORES,
             ),
         }
     }
@@ -404,74 +404,74 @@ impl DirichletNamespace {
     fn details(self) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
         match self {
             Self::Decision => (
-                "decision_posterior.non_positive_scale",
-                "decision_posterior.mapped_prior",
-                "decision_posterior.external_power_prior",
-                "decision_posterior.band_not_constructed",
-                "decision_posterior.empty_law",
+                antecedent_core::reason_details::decision_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::decision_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::decision_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::decision_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::decision_posterior::EMPTY_LAW,
             ),
             Self::FunctionalInverse => (
-                "functional_inverse_posterior.non_positive_scale",
-                "functional_inverse_posterior.mapped_prior",
-                "functional_inverse_posterior.external_power_prior",
-                "functional_inverse_posterior.band_not_constructed",
-                "functional_inverse_posterior.empty_law",
+                antecedent_core::reason_details::functional_inverse_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::functional_inverse_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::functional_inverse_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::functional_inverse_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::functional_inverse_posterior::EMPTY_LAW,
             ),
             Self::FiniteActionInverse => (
-                "finite_action_posterior.non_positive_scale",
-                "finite_action_posterior.mapped_prior",
-                "finite_action_posterior.external_power_prior",
-                "finite_action_posterior.band_not_constructed",
-                "finite_action_posterior.empty_law",
+                antecedent_core::reason_details::finite_action_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::finite_action_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::finite_action_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::finite_action_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::finite_action_posterior::EMPTY_LAW,
             ),
             Self::BinaryRecovery => (
-                "binary_recovery_posterior.non_positive_scale",
-                "binary_recovery_posterior.mapped_prior",
-                "binary_recovery_posterior.external_power_prior",
-                "binary_recovery_posterior.band_not_constructed",
-                "binary_recovery_posterior.empty_law",
+                antecedent_core::reason_details::binary_recovery_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::binary_recovery_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::binary_recovery_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::binary_recovery_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::binary_recovery_posterior::EMPTY_LAW,
             ),
             Self::ChainRecovery => (
-                "chain_recovery_posterior.non_positive_scale",
-                "chain_recovery_posterior.mapped_prior",
-                "chain_recovery_posterior.external_power_prior",
-                "chain_recovery_posterior.band_not_constructed",
-                "chain_recovery_posterior.empty_law",
+                antecedent_core::reason_details::chain_recovery_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::chain_recovery_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::chain_recovery_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::chain_recovery_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::chain_recovery_posterior::EMPTY_LAW,
             ),
             Self::MultiSource => (
-                "multi_source_posterior.non_positive_scale",
-                "multi_source_posterior.mapped_prior",
-                "multi_source_posterior.external_power_prior",
-                "multi_source_posterior.band_not_constructed",
-                "multi_source_posterior.empty_law",
+                antecedent_core::reason_details::multi_source_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::multi_source_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::multi_source_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::multi_source_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::multi_source_posterior::EMPTY_LAW,
             ),
             Self::TwoStepTemporal => (
-                "two_step_posterior.non_positive_scale",
-                "two_step_posterior.mapped_prior",
-                "two_step_posterior.external_power_prior",
-                "two_step_posterior.band_not_constructed",
-                "two_step_posterior.empty_law",
+                antecedent_core::reason_details::two_step_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::two_step_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::two_step_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::two_step_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::two_step_posterior::EMPTY_LAW,
             ),
             Self::AdmgConditional => (
-                "admg_conditional_posterior.non_positive_scale",
-                "admg_conditional_posterior.mapped_prior",
-                "admg_conditional_posterior.external_power_prior",
-                "admg_conditional_posterior.band_not_constructed",
-                "admg_conditional_posterior.empty_law",
+                antecedent_core::reason_details::admg_conditional_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::admg_conditional_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::admg_conditional_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::admg_conditional_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::admg_conditional_posterior::EMPTY_LAW,
             ),
             Self::InitialState => (
-                "initial_state_posterior.non_positive_scale",
-                "initial_state_posterior.mapped_prior",
-                "initial_state_posterior.external_power_prior",
-                "initial_state_posterior.band_not_constructed",
-                "initial_state_posterior.empty_law",
+                antecedent_core::reason_details::initial_state_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::initial_state_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::initial_state_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::initial_state_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::initial_state_posterior::EMPTY_LAW,
             ),
             Self::Msm => (
-                "msm_posterior.non_positive_scale",
-                "msm_posterior.mapped_prior",
-                "msm_posterior.external_power_prior",
-                "msm_posterior.band_not_constructed",
-                "msm_posterior.empty_law",
+                antecedent_core::reason_details::msm_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::msm_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::msm_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::msm_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::msm_posterior::EMPTY_LAW,
             ),
         }
     }
@@ -524,25 +524,25 @@ impl ScalarNamespace {
     fn details(self) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
         match self {
             Self::Refresh => (
-                "refresh_posterior.non_positive_scale",
-                "refresh_posterior.mapped_prior",
-                "refresh_posterior.external_power_prior",
-                "refresh_posterior.band_not_constructed",
-                "refresh_posterior.empty_values",
+                antecedent_core::reason_details::refresh_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::refresh_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::refresh_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::refresh_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::refresh_posterior::EMPTY_VALUES,
             ),
             Self::Constancy => (
-                "constancy_posterior.non_positive_scale",
-                "constancy_posterior.mapped_prior",
-                "constancy_posterior.external_power_prior",
-                "constancy_posterior.band_not_constructed",
-                "constancy_posterior.empty_contrast",
+                antecedent_core::reason_details::constancy_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::constancy_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::constancy_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::constancy_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::constancy_posterior::EMPTY_CONTRAST,
             ),
             Self::ScenarioCovariance => (
-                "scenario_covariance_posterior.non_positive_scale",
-                "scenario_covariance_posterior.mapped_prior",
-                "scenario_covariance_posterior.external_power_prior",
-                "scenario_covariance_posterior.band_not_constructed",
-                "scenario_covariance_posterior.empty_matrix",
+                antecedent_core::reason_details::scenario_covariance_posterior::NON_POSITIVE_SCALE,
+                antecedent_core::reason_details::scenario_covariance_posterior::MAPPED_PRIOR,
+                antecedent_core::reason_details::scenario_covariance_posterior::EXTERNAL_POWER_PRIOR,
+                antecedent_core::reason_details::scenario_covariance_posterior::BAND_NOT_CONSTRUCTED,
+                antecedent_core::reason_details::scenario_covariance_posterior::EMPTY_MATRIX,
             ),
         }
     }
@@ -659,13 +659,16 @@ pub fn mediation_coefficient_posterior(
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let scale = scale_of(
         request,
-        "mediation_posterior.non_positive_scale",
-        "mediation_posterior.mapped_prior",
-        "mediation_posterior.external_power_prior",
-        "mediation_posterior.band_not_constructed",
+        antecedent_core::reason_details::mediation_posterior::NON_POSITIVE_SCALE,
+        antecedent_core::reason_details::mediation_posterior::MAPPED_PRIOR,
+        antecedent_core::reason_details::mediation_posterior::EXTERNAL_POWER_PRIOR,
+        antecedent_core::reason_details::mediation_posterior::BAND_NOT_CONSTRUCTED,
     )?;
     if mediator.xty.is_empty() || outcome.xty.is_empty() {
-        return Err(refuse(reason_code!("invalid_argument"), "mediation_posterior.empty_design"));
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            antecedent_core::reason_details::mediation_posterior::EMPTY_DESIGN,
+        ));
     }
     Ok((
         full_coefficient_posterior_mean(mediator, scale)?,
@@ -690,15 +693,15 @@ pub fn latent_class_effect_posterior(
 ) -> Result<Vec<f64>, EstimationError> {
     let scale = scale_of(
         request,
-        "latent_class_posterior.non_positive_scale",
-        "latent_class_posterior.mapped_prior",
-        "latent_class_posterior.external_power_prior",
-        "latent_class_posterior.band_not_constructed",
+        antecedent_core::reason_details::latent_class_posterior::NON_POSITIVE_SCALE,
+        antecedent_core::reason_details::latent_class_posterior::MAPPED_PRIOR,
+        antecedent_core::reason_details::latent_class_posterior::EXTERNAL_POWER_PRIOR,
+        antecedent_core::reason_details::latent_class_posterior::BAND_NOT_CONSTRUCTED,
     )?;
     if designs.is_empty() {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "latent_class_posterior.empty_design",
+            antecedent_core::reason_details::latent_class_posterior::EMPTY_DESIGN,
         ));
     }
     designs
@@ -706,7 +709,10 @@ pub fn latent_class_effect_posterior(
         .map(|design| {
             let slopes = coefficient_posterior_mean(design, scale)?;
             slopes.first().copied().filter(|value| value.is_finite()).ok_or_else(|| {
-                refuse(reason_code!("invalid_argument"), "latent_class_posterior.empty_design")
+                refuse(
+                    reason_code!("invalid_argument"),
+                    antecedent_core::reason_details::latent_class_posterior::EMPTY_DESIGN,
+                )
             })
         })
         .collect()
@@ -729,13 +735,16 @@ pub fn mechanism_coefficient_posterior(
 ) -> Result<Vec<f64>, EstimationError> {
     let scale = scale_of(
         request,
-        "mechanism_posterior.non_positive_scale",
-        "mechanism_posterior.mapped_prior",
-        "mechanism_posterior.external_power_prior",
-        "mechanism_posterior.band_not_constructed",
+        antecedent_core::reason_details::mechanism_posterior::NON_POSITIVE_SCALE,
+        antecedent_core::reason_details::mechanism_posterior::MAPPED_PRIOR,
+        antecedent_core::reason_details::mechanism_posterior::EXTERNAL_POWER_PRIOR,
+        antecedent_core::reason_details::mechanism_posterior::BAND_NOT_CONSTRUCTED,
     )?;
     if summary.xty.len() < 2 || summary.xtx.len() != summary.xty.len() * summary.xty.len() {
-        return Err(refuse(reason_code!("invalid_argument"), "mechanism_posterior.empty_summary"));
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            antecedent_core::reason_details::mechanism_posterior::EMPTY_SUMMARY,
+        ));
     }
     let design = mechanism_design_summary(summary)?;
     full_coefficient_posterior_mean(&design, scale)
@@ -774,7 +783,7 @@ pub fn smoothed_dose_score_posterior(
     if grids.is_empty() {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "smoothed_dose_posterior.empty_scores",
+            antecedent_core::reason_details::smoothed_dose_posterior::EMPTY_SCORES,
         ));
     }
     grids

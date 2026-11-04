@@ -243,5 +243,8 @@ fn the_value_of_collecting_evidence_is_the_gain_over_the_best_commit_less_the_co
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.voi_collect_action");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::VOI_COLLECT_ACTION
+    );
 }

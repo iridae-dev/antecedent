@@ -43,17 +43,20 @@ record_sha256 = "137b80f2733058f4c2eb98654fc45e904e31bfe6e3b3d8b7fbe93f797ca7299
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_posterior.rs"
-sha256 = "fde689d830b56d88effabd4cef30166e309accb63022bbf80671027cf4eadf9e"
+items = ["fn derivative_coefficients", "fn estimate_dose_grid_posterior", "fn evaluate_frozen_basis", "fn exact_moments", "fn execution_refusal", "fn fit_dose_basis", "fn functional_rows", "fn grid_points", "fn request", "fn rescale", "fn tile_covariance", "fn tile_levels", "fn tile_request", "fn validate", "struct DoseGridPosterior", "struct DoseGridPosteriorRequest", "struct DoseOutputRetention"]
+sha256 = "5cd14ac49e9e604e4e9b00e70b0f1bbb45f0c693107a87e98de5476178f8c8c9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_basis_regression.rs"
-sha256 = "41f2eaef2dd900f95159d59a1c239fce104ca8afd0440d6f064e64545c41e94d"
+items = ["const MAX_BASIS_DRAWS", "const MIN_BASIS_DRAWS", "enum ResidualPrior", "fn checked_basis_prior", "fn fit_basis_regression", "struct BasisPosterior"]
+sha256 = "32c6220a7019d7446a7ed07dc0e3947e3e2c878026f2dd36ba7daf998fb63d63"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs"
-sha256 = "c345ba5f5258327b6629ac2aba16f6c44a1f22fa4a45d49183fdda3285cf7369"
+items = ["const DRAWS", "fn declarations_are_used_or_refused_never_ignored", "fn fit", "fn floats", "fn gaussian_intervals_are_the_normal_quantiles_of_the_exact_moments", "fn known_variance_exact_moments_equal_the_multiprecision_conjugate_posterior", "fn new", "fn reference", "fn refusal", "fn request", "fn retained_draws_reproduce_the_reference_moments_and_the_joint_covariance", "struct Case"]
+sha256 = "87fa3b46a3b992af4b617704e5a3db7f95a89c052057290f6484cf88a543602e"
 
 [[method_review.artifacts]]
 role = "reference"

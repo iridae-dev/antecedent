@@ -41,14 +41,17 @@ record_sha256 = "b3026e4951a70ded9e071ef3cf239cb27bbd74610fb7a89fe428e21da54291c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/response_id.rs"
-sha256 = "bc48a36bbf4750b79fda9d72ec44db98b6ad7a50ab6933f6f9828d3e9c5ce913"
+items = ["fn identify_pag_response_general"]
+sha256 = "2f9e692e42133458962638256efd1b32b78cc891458f76563747b708c051dc84"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/generalized.rs"
-sha256 = "93f3da9e8b07381357bc9577172655830af74e8e879eda7742ced87f31495a2d"
+items = ["fn default", "fn dense_u32", "fn invisible_directed_edges", "fn mag_to_admg", "fn mag_to_confounded_admg", "fn new"]
+sha256 = "3046001fd56f72b552bd4ef9c8a79c413b7df22f6e24c2062a231b721a37d512"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/mag_id_bruteforce.rs"
-sha256 = "901a1d10b95ba68ebb06a82ee9539c42e2c52df4dd47f64a1a70c7cd7f314d34"
+items = ["const MAX_NODES", "fn check", "fn children", "fn collider_path_witness_makes_the_edge_visible_and_the_mean_is_exact", "fn confounded_admg_contains_every_projection_and_identified_means_are_exact", "fn cross_check_library_projection", "fn d_separated", "fn dag_with", "fn direct_witness_makes_the_edge_visible_and_the_mean_is_exact", "fn do_one", "fn exhaustive_four_observed_two_latent", "fn factor", "fn from_index", "fn identified", "fn invisible_edge_is_refused_and_the_unconfounded_reading_is_numerically_wrong", "fn mag_of", "fn mean_under_do_one", "fn node", "fn observed", "fn observed_law", "fn outcome", "fn pag_from_marks", "fn projection_of", "fn random", "fn random_sweep", "fn route_error", "fn sweep", "fn useless_latent", "fn visible_edges_identify_a_causal_effect_that_no_adjustment_set_reaches", "fn worst_error", "struct ExactScm", "struct ObservedLaw", "struct PerMag", "struct SmallDag", "struct Tally", "type PairMarks", "type Pairs"]
+sha256 = "223cf3fbb763bd524284ba41e2c7fa9ee24053b2984faaade77f456f5fcdb483"

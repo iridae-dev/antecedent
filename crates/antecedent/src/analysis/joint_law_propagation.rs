@@ -76,7 +76,7 @@ impl JointLawPropagationRefusal {
             ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 JOINT_LAW_STAGE,
-                "joint_law_propagation.invalid_request",
+                antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST,
             )
             .with_offending(offending.to_owned())
             .with_remedy(remedy),
@@ -159,7 +159,7 @@ pub fn alignment_identity(artifact: &DistributionArtifact) -> Result<String, Ref
             ExternalRefusal::new(
                 antecedent_core::reason_code!("joint_law_required"),
                 JOINT_LAW_STAGE,
-                "joint_law_propagation.index_pairing_refused",
+                antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED,
             )
             .with_offending(identity.source_id.clone())
             .with_remedy(

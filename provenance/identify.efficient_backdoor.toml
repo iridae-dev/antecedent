@@ -38,9 +38,11 @@ record_sha256 = "92bfe9849f63ec5c2f16f13b13d9f7ce121297a3254a3c2558dd4cd1e4df944
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/efficient.rs"
-sha256 = "523ec2360d22c8e763166dadf92675741844280dbf97f8b2cfbcd678a9a43cde"
+items = ["fn compare", "fn finish", "fn identify", "fn identify_ate", "fn new", "fn optimal_adjustment_set", "fn prepare", "fn prepare_with_assumptions", "struct EfficientBackdoorIdentifier", "struct EfficientChoice", "struct SetRank"]
+sha256 = "1838383be1c3136ecc7ecb1d41fc4f18fed9c0820fbe55c131173022614dbbe2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/efficient_backdoor_optimality.rs"
-sha256 = "c04de88b572b55b05f001ad943ac90356d1ea14315a3ad744428261862022982"
+items = ["fn a_forbidden_optimal_member_falls_back_to_a_valid_set_that_may_cost_variance", "fn acyclic", "fn all_dags", "fn ancestors", "fn backdoor_valid", "fn conditional", "fn d_separated", "fn dag_of", "fn descendants", "fn new", "fn optimal_set", "fn regression", "fn reported", "fn reported_set_is_the_defined_optimal_set_on_a_stride_of_five_node_dags", "fn reported_set_is_the_defined_optimal_set_on_all_four_node_dags", "fn subsets", "fn sweep", "struct Gaussian", "type Arcs"]
+sha256 = "c2f2db8b59bee6e00ee41fd27fdb68ff9c76c1e571484cbc15a475320c3e8279"

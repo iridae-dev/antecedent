@@ -20,7 +20,7 @@
 //!   structure it averages over. Coverage of the weighted mean is printed as
 //!   an `info` line for the record.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -509,7 +509,7 @@ fn calibration_rule_band_recheck_and_precision_floor() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_dbn_pulse_shared_block_nominal_90_coverage() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_pulse_atom_truths(0.0));
     frequentist_dbn_case(
@@ -524,7 +524,7 @@ fn frequentist_dbn_pulse_shared_block_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_dbn_sustained_shared_block_nominal_90_coverage() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_pulse_atom_truths(0.0));
     frequentist_dbn_case(
@@ -539,7 +539,7 @@ fn frequentist_dbn_sustained_shared_block_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_multistep_atom_truths(0.0));
     frequentist_dbn_case(
@@ -555,7 +555,7 @@ fn frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage() {
 
 /// Single-atom baseline: the same shared-block path with one contributing atom.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
     let mut tally = FreqTally::new(
         "frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage",
@@ -580,7 +580,7 @@ fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
 macro_rules! frequentist_dbn_ar1 {
     ($name:ident, $label:literal, $query:expr, $truths:path, $rho:expr, $n:expr, $seed:expr) => {
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
         fn $name() {
             let truth = fixtures::dbn_mixture_truth($truths($rho));
             frequentist_dbn_case(stringify!($name), $label, &$query, truth, $rho, $n, $seed);
@@ -609,7 +609,7 @@ frequentist_dbn_ar1!(
 /// on most replicates (the mixture short-series threshold is set by this
 /// bias). The assertion is the band around the measured coverage.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_pulse_atom_truths(0.9));
     frequentist_dbn_tally(
@@ -709,7 +709,7 @@ fn frequentist_cpdag_tally(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage",
@@ -722,7 +722,7 @@ fn frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage",
@@ -735,7 +735,7 @@ fn frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -761,7 +761,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 const CPDAG_RHO09_MEASURED: [f64; GRID_POINTS] = [0.875, 0.885, 0.910];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band() {
     frequentist_cpdag_tally(
         "frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band",
@@ -775,7 +775,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -791,7 +791,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage() {
 /// (unidentified, mass 1/2), `t <-> z` identifies via MAG adjustment on
 /// `z[t-1]`. The reported aggregate is that single identified atom.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_pulse_envelope_nominal_90_coverage() {
     let truth = pag_identified_truth();
     let mut tally = FreqTally::new(
@@ -824,7 +824,7 @@ fn frequentist_temporal_pag_pulse_envelope_nominal_90_coverage() {
 /// Single-step Pulse through `Study::series(..).build().run`, so the
 /// staged prior / dispatch path is what gets calibrated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_pulse_staged_nominal_90_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
@@ -855,7 +855,7 @@ fn bayesian_temporal_dag_pulse_staged_nominal_90_coverage() {
 /// Both intervened lags carry distinct nonzero effects, so the composed
 /// truth `B1 + B2` tests propagation through every intervened time.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_multistep_sustained_nominal_90_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_multistep_sustained_nominal_90_coverage",
@@ -908,7 +908,7 @@ fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
 /// A single posterior atom removes between-graph uncertainty, leaving only
 /// the within-DBN Bayesian parameter interval to assess.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_coverage",
@@ -938,7 +938,7 @@ fn bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
     let query = CausalQuery::Response(
         ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -1018,7 +1018,7 @@ fn single_atom_xy_dbn_posterior() -> GraphPosterior {
 /// this scores the within-atom pointwise posterior interval without conflating
 /// between-graph dispersion or an identified-set range with interval width.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
     let test = "bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage";
     let key = RecordKey {
@@ -1079,7 +1079,7 @@ fn bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
 /// under `noisy_xy`. As above, the posterior has one DBN atom, so this scores
 /// parameter uncertainty conditional on the graph rather than graph spread.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage",
@@ -1165,7 +1165,7 @@ fn freq_response_interval(result: &StudyResult, index: usize) -> Option<(f64, f6
 /// identified DBN atom, so this scores the shared circular-block interval
 /// conditional on the graph rather than graph spread.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage() {
     const TEST: &str =
         "frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage";
@@ -1228,7 +1228,7 @@ fn frequentist_temporal_dag_graph_posterior_intervention_response_nominal_covera
 /// `a = 1`. Each grid point is scored against its own derived truth via the
 /// shared circular-block pointwise band.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
     const TEST: &str =
         "frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage";
@@ -1344,7 +1344,7 @@ fn bayesian_cpdag_class_prior_case(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage",
@@ -1356,7 +1356,7 @@ fn bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
@@ -1369,7 +1369,7 @@ fn bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage() {
 
 /// Unequal masses: the mixture must weight atoms by the caller's class prior.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn class_prior_mixture_functional_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "class_prior_mixture_functional_nominal_90_coverage",
@@ -1384,7 +1384,7 @@ fn class_prior_mixture_functional_nominal_90_coverage() {
 /// identified completion is that atom's posterior, and the unidentified
 /// completion's 0.4 must stay a separate axis.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_pag_pulse_nominal_90_coverage() {
     let prior = ClassPrior::from_ordered([0.4, 0.6]).unwrap();
     let truth = pag_identified_truth();
@@ -1417,7 +1417,7 @@ fn bayesian_temporal_pag_pulse_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_dbn_posterior_pulse_nominal_90_coverage() {
     let truths = fixtures::dbn_pulse_atom_truths(0.0);
     let mut tally = BmaTally::new(
@@ -1515,7 +1515,7 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
 /// Mediator-outcome confounding through `z[t-1] -> w[t-1] -> y` that does not
 /// confound `t -> y`: both completions identify the path product.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage() {
     bayesian_cpdag_mediation_case("Bayesian TemporalCpdag mediation", fixtures::MED_KAPPA, 25_000);
 }
@@ -1523,7 +1523,7 @@ fn bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage() {
 /// Same class without mediator-outcome confounding (`kappa = 0`): isolates
 /// interval calibration from the adjustment-set question.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage() {
     bayesian_cpdag_mediation_case("Bayesian TemporalCpdag mediation (kappa=0)", 0.0, 26_000);
 }
@@ -1547,7 +1547,7 @@ fn confounded_contrasts() -> [(&'static str, MediationContrast, f64); 3] {
 /// tally scores one functional of that draw against its own truth and is judged
 /// on its own marginal coverage, never combined into a joint claim.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_mediation_confounded_nominal_90_coverage",
@@ -1670,7 +1670,7 @@ fn run_single_atom_mediation(
 /// three executions of a replicate share one simulated series (one functional of
 /// a draw per tally, each judged on its own marginal coverage).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage",
@@ -1725,7 +1725,7 @@ fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_n
 /// to `kappa` because the mediation adjustment set blocks the `w` confounding
 /// path.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage()
 {
     const TEST: &str = "frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage";

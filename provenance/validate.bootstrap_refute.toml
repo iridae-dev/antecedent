@@ -37,12 +37,14 @@ record_sha256 = "e1c2a37e0303a2694142e2b9fe2a8717ffdd956d2f2963c0dbecd5009b5b706
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/bootstrap_refute.rs"
-sha256 = "e8bb2f1476d924327969c5d7548bb958e728acc35feb4b60d3ef34f28e60b52e"
+items = ["const BOOTSTRAP_REFUTE_STREAM", "const MIN_SURVIVOR_FRACTION", "const STAND_IN_MAX_GAP_SD", "fn coverage_report", "fn default", "fn new", "fn refute", "fn refute_composed", "fn refute_gapped_series", "fn refute_temporal_series", "fn require_survivors", "struct BootstrapRefute"]
+sha256 = "66874374832eaa0072c6ce0fe200b5f9f661e51298ba67baceae006f41fefdb1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/bootstrap_refute_reference.rs"
-sha256 = "9d33890dc37480e7c538094809999a6f21a3651dfc7123a105d71eb47a9e04c8"
+items = ["const SEED", "const STREAM", "fn build", "fn close", "fn coverage_report_equals_the_exact_percentile_interval", "fn emit_indices", "fn floats", "fn frozen_resample_indices_are_the_library_stream", "fn indices", "fn reference", "fn verdicts_cover_both_outcomes"]
+sha256 = "ba87180d853dc348b4bd9b5594896a09bf752799c954241528adcb290bccf43e"
 
 [[method_review.artifacts]]
 role = "reference"

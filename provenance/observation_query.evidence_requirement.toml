@@ -43,12 +43,14 @@ record_sha256 = "1ba21fac5ba2d4875d53d765400f0c376e19031c2b5e2188a0c128f194bd720
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/observation_query.rs"
-sha256 = "2d11276e06fb85a305c43f5b6084910b2749563068028157d902d19e59fae0dc"
+items = ["const EXACT", "const LEVEL_TOLERANCE", "const MAX_BAYES_HYPOTHESES", "const MAX_BAYES_OBSERVATION_LEVELS", "const MAX_BAYES_TABLE_CELLS", "const MAX_BAYES_UPDATE_WORK", "const MAX_REQUIRED_OBSERVATIONS", "const SIMPLEX_TOLERANCE", "enum Direction", "enum ObservationQueryError", "enum UnreachableBound", "fn alpha", "fn beta", "fn check_closed_probability", "fn check_open_probability", "fn check_update_work", "fn distinct_names", "fn from_log_odds", "fn hypotheses", "fn likelihood", "fn log_odds", "fn mean", "fn new", "fn observation_levels", "fn observations_required_binary_signal", "fn observations_required_conjugate", "fn posterior", "fn posterior_from_counts", "fn prior", "fn required_bayes_factor", "fn satisfied_log_odds", "fn update", "struct BayesPosterior", "struct BetaBernoulli", "struct EvidenceRequirement", "struct FiniteBayesModel", "struct RequiredBayesFactor"]
+sha256 = "af89b8c7dc138322622698d2786fff88207588129f49a217b12e4fab7c629119"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/evidence_requirement_reference.rs"
-sha256 = "03b0e301f60085e5794d5aafac7742175c5b157642036fb793b0598c159ee144"
+items = ["fn beta_updates_are_exact", "fn binary_signal_counts_match_exact_arithmetic", "fn close", "fn conjugate_counts_are_the_exact_rational_ceiling", "fn direction", "fn finite_bayes_posteriors_match_the_reference_at_large_counts", "fn number", "fn numbers", "fn reference", "fn required_bayes_factors_are_the_exact_odds_ratio"]
+sha256 = "c0ccba4a888307c33bb9b28323ea09c0c9393521fdda9aa4ef99d54b49196318"
 
 [[method_review.artifacts]]
 role = "reference"

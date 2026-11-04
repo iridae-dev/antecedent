@@ -27,14 +27,17 @@ record_sha256 = "58f0a156718152af1e61c96ebe2d3ea3d42d95650987d09145ca1d02ada2dd7
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/quantity.rs"
-sha256 = "be4c0e3fbbf28dfb0ccbacda87831069cf8df105ad7121ea223a22efae8ea6b5"
+items = ["enum QuantityRole", "struct QuantityCondition", "struct ScientificQuantity"]
+sha256 = "36536de5e68ccc771aa454d1c83e4d75efba081d6363811283884dc6b69dc2e8"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/distribution_artifact.rs"
-sha256 = "821fd1c5fd6a6f7908b304ea01fc6ec8fd905faf4b252c60cafb32c98cc57e27"
+items = ["const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn mean", "fn metadata", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn weights", "struct DistributionIdentity", "struct DistributionMetadata", "struct LegacyPosteriorBinding"]
+sha256 = "4deb851933b8b4786e26047f800ad7b835add06f58c23fe41a94f5411fdc3cbf"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "python/tests/test_composition.py"
-sha256 = "3c04bf805d994e967e4cac21d3d481053916fcf80b5b4122ba345444bcd0e681"
+items = ["class UnreadableDraws", "fn action", "fn affine", "fn contract", "fn joint", "fn joint_contract", "fn joint_input", "fn make", "fn mean_contract", "fn mean_input", "fn native_and_external_mean", "fn near", "fn q", "fn relation", "fn shared_data", "fn test_composition_boundary_a_mean_source_cannot_supply_paired_draws", "fn test_composition_boundary_a_missing_evidence_status_excludes_only_that_action", "fn test_composition_boundary_a_probability_is_never_answered_from_a_mean", "fn test_composition_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair", "fn test_composition_boundary_actions_answered_by_different_inputs_compare_by_value_only", "fn test_composition_boundary_all_actions_unsupported_is_a_state_not_an_error", "fn test_composition_boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot", "fn test_composition_boundary_an_undeclared_operation_is_refused", "fn test_composition_boundary_caller_native_constructor_refuses_before_coercion", "fn test_composition_boundary_conflicting_atoms_never_become_a_silent_average", "fn test_composition_boundary_declared_independence_is_overridden_by_a_shared_snapshot", "fn test_composition_boundary_exact_request_verification_needs_a_matching_receipt", "fn test_composition_boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated", "fn test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native", "fn test_composition_boundary_one_masked_coordinate_beside_a_supported_action_joint_source", "fn test_composition_boundary_one_missing_coordinate_beside_a_supported_action", "fn test_composition_boundary_operations_are_declared_separately", "fn test_composition_boundary_python_cannot_assert_a_native_or_verified_provider", "fn test_composition_boundary_shared_data_refuses_independent_pooling", "fn test_composition_boundary_shared_data_refuses_paired_draws_without_a_supported_route", "fn test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused", "fn test_composition_boundary_unknown_dependence_is_never_independence", "fn test_composition_boundary_weak_overlap_is_admitted_only_when_the_policy_allows_it", "fn test_means_length_mismatch_is_typed_error"]
+sha256 = "e6c12c1a1accca7a386f64291cd7c15f662b288a0c00eaf863b7919c67d6d728"

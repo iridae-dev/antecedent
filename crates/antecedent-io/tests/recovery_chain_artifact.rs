@@ -234,7 +234,13 @@ fn resealed_graph_changes_are_refused() {
     outside.graph.directed.push((2, 5));
     outside.graph.directed.sort_unstable();
     let error = RecoveryChainArtifactWire::consume_typed(&reseal(outside), &ctx()).unwrap_err();
-    assert_eq!(error.refusal(), ("route_not_supported", "recovery_chain.unsupported_mechanism"));
+    assert_eq!(
+        error.refusal(),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::recovery_chain::UNSUPPORTED_MECHANISM
+        )
+    );
 }
 
 #[test]
@@ -376,7 +382,10 @@ fn artifact_without_mass_in_a_required_cell_is_a_positivity_refusal() {
     let error = RecoveryChainArtifactWire::consume_typed(&reseal(wire), &ctx()).unwrap_err();
     assert!(matches!(&error, RecoveryChainArtifactError::Route(inner)
         if inner.detail == ChainRecoveryDetail::Positivity));
-    assert_eq!(error.refusal(), ("transport_support_failure", "recovery_chain.positivity"));
+    assert_eq!(
+        error.refusal(),
+        ("transport_support_failure", antecedent_core::reason_details::recovery_chain::POSITIVITY)
+    );
 }
 
 #[test]
@@ -384,7 +393,10 @@ fn artifact_invalid_observed_law_is_refused() {
     let (mut wire, _) = recovered_wire(0, true);
     wire.observed.as_mut().unwrap().neither += 0.5;
     let error = RecoveryChainArtifactWire::consume_typed(&reseal(wire), &ctx()).unwrap_err();
-    assert_eq!(error.refusal(), ("invalid_argument", "recovery_chain.invalid_observed_law"));
+    assert_eq!(
+        error.refusal(),
+        ("invalid_argument", antecedent_core::reason_details::recovery_chain::INVALID_OBSERVED_LAW)
+    );
 }
 
 #[test]

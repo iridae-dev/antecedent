@@ -16,6 +16,7 @@ and the exact missing gates, never an evaluation.
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalSerializationError,
     CausalTypeError,
@@ -162,7 +163,7 @@ def test_unpaired_histories_refuse_with_the_offending_unit_as_witness() -> None:
         plus=ActionHistory("always_treat", PLUS, units=("unit-0", "unit-1", "unit-2"))
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_counterfactual.unpaired_histories"
+    assert error.detail == reason_details.temporal_counterfactual.UNPAIRED_HISTORIES
     assert error.offending == "unit-3"
     assert error.witness["unit"] == "unit-3"
     assert error.witness["world"] == "always_treat"
@@ -173,19 +174,22 @@ def test_unpaired_histories_refuse_with_the_offending_unit_as_witness() -> None:
             "never_treat", MINUS, units=tuple(f"unit-{i}" for i in range(4)) + ("ghost",)
         )
     )
-    assert ghost.detail == "temporal_counterfactual.unpaired_histories"
+    assert ghost.detail == reason_details.temporal_counterfactual.UNPAIRED_HISTORIES
     assert ghost.witness["unit"] == "ghost"
     assert ghost.witness["world"] == "never_treat"
     assert ghost.witness["history"] is None
 
     duplicated = histories() + [histories()[0]]
-    assert refusal_of(histories=duplicated).detail == "temporal_counterfactual.unpaired_histories"
+    assert (
+        refusal_of(histories=duplicated).detail
+        == reason_details.temporal_counterfactual.UNPAIRED_HISTORIES
+    )
 
 
 def test_misaligned_times_and_missing_histories_refuse() -> None:
     error = refusal_of(plus=ActionHistory("always_treat", PLUS, times=(0, 2)))
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_counterfactual.time_misaligned"
+    assert error.detail == reason_details.temporal_counterfactual.TIME_MISALIGNED
     assert error.witness["unit"] == "unit-0"
     assert error.witness["world"] == "always_treat"
     empty = refusal_of(
@@ -193,14 +197,14 @@ def test_misaligned_times_and_missing_histories_refuse() -> None:
         plus=ActionHistory("always_treat", PLUS, units=()),
         minus=ActionHistory("never_treat", MINUS, units=()),
     )
-    assert empty.detail == "temporal_counterfactual.shared_history_missing"
+    assert empty.detail == reason_details.temporal_counterfactual.SHARED_HISTORY_MISSING
 
 
 def test_refuting_history_retains_node_residual_and_bound() -> None:
     # Unit 0's outcome noise is 0.5, outside the declared half-width 0.45.
     error = refusal_of(mechanisms=mechanisms(halfwidth=0.45))
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "temporal_counterfactual.refuting_history"
+    assert error.detail == reason_details.temporal_counterfactual.REFUTING_HISTORY
     assert error.witness["unit"] == "unit-0"
     assert error.witness["history"] == "hist-0"
     assert error.witness["node"] == "outcome"
@@ -214,35 +218,38 @@ def test_structure_outside_the_theorem_refuses() -> None:
     error = refusal_of(latent_confounding=True)
     assert (error.reason_code, error.detail) == (
         "route_not_supported",
-        "temporal_counterfactual.latent_confounding",
+        reason_details.temporal_counterfactual.LATENT_CONFOUNDING,
     )
     error = refusal_of(horizon=3)
     assert (error.reason_code, error.detail) == (
         "invalid_argument",
-        "temporal_counterfactual.horizon_exceeded",
+        reason_details.temporal_counterfactual.HORIZON_EXCEEDED,
     )
     partial = TemporalMechanisms("partial-fit", mechanisms().mechanisms[:2])
     error = refusal_of(mechanisms=partial)
     assert (error.reason_code, error.detail) == (
         "invalid_argument",
-        "temporal_counterfactual.fit_mismatch",
+        reason_details.temporal_counterfactual.FIT_MISMATCH,
     )
     same_name = refusal_of(minus=ActionHistory("always_treat", MINUS))
-    assert same_name.detail == "temporal_counterfactual.history_name_invalid"
+    assert same_name.detail == reason_details.temporal_counterfactual.HISTORY_NAME_INVALID
     unknown = TemporalMechanisms(
         "unknown-node", (*mechanisms().mechanisms[:2], NodeMechanism("revenue", 0.0, {}))
     )
-    assert refusal_of(mechanisms=unknown).detail == "temporal_counterfactual.invalid_graph"
+    assert (
+        refusal_of(mechanisms=unknown).detail
+        == reason_details.temporal_counterfactual.INVALID_GRAPH
+    )
 
 
 def test_non_finite_inputs_refuse_and_bad_types_raise() -> None:
     with pytest.raises(TemporalRefusal) as raised:
         UnitHistory("u", float("nan"), 0.0, 0.0, 0.0, 0.0)
-    assert raised.value.detail == "temporal_counterfactual.non_finite_history"
+    assert raised.value.detail == reason_details.temporal_counterfactual.NON_FINITE_HISTORY
     assert raised.value.reason_code == "invalid_argument"
     with pytest.raises(TemporalRefusal) as raised:
         ActionHistory("w", (float("inf"), 0.0))
-    assert raised.value.detail == "temporal_counterfactual.non_finite_history"
+    assert raised.value.detail == reason_details.temporal_counterfactual.NON_FINITE_HISTORY
     with pytest.raises(CausalTypeError):
         run(plus="always_treat")
     with pytest.raises(CausalTypeError):
@@ -293,7 +300,7 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
                 bytes(mutated.export()), expected_identity=original.identity
             )
         assert raised.value.reason_code == "route_not_supported"
-        assert raised.value.detail == "temporal_counterfactual.artifact_changed"
+        assert raised.value.detail == reason_details.temporal_counterfactual.ARTIFACT_CHANGED
         assert raised.value.offending == field, field
 
     # A different but self-consistent trajectory for unit 2.
@@ -350,13 +357,13 @@ GATES = (
 def test_transported_route_is_not_supported_with_every_missing_gate() -> None:
     error = transported(required_factors=["source:rct", "target:field"])
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_counterfactual.prerequisite_missing"
+    assert error.detail == reason_details.transported_counterfactual.PREREQUISITE_MISSING
     assert error.offending == "transport_support_missing"
     assert error.missing_gates == GATES
     assert error.missing_factors == ("source:rct", "target:field")
     assert error.stage == "identify"
     assert error.remedy is not None
-    assert "transported_counterfactual.prerequisite_missing" in str(error)
+    assert reason_details.transported_counterfactual.PREREQUISITE_MISSING in str(error)
 
 
 def test_transported_route_refusal_names_the_successor_route_and_its_scope() -> None:
@@ -382,7 +389,7 @@ def test_transported_route_refusal_names_the_successor_route_and_its_scope() -> 
 def test_transported_route_reports_only_the_gates_still_missing() -> None:
     error = transported(prerequisites=TransportedPrerequisites(transport_support=True))
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_counterfactual.prerequisite_missing"
+    assert error.detail == reason_details.transported_counterfactual.PREREQUISITE_MISSING
     assert error.offending == "fixed_population_temporal_support_missing"
     assert error.missing_gates == GATES[1:]
     error = transported(
@@ -401,7 +408,7 @@ def test_transported_route_with_a_missing_gate_never_reports_factors_as_the_caus
         supplied_factors={},
     )
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_counterfactual.prerequisite_missing"
+    assert error.detail == reason_details.transported_counterfactual.PREREQUISITE_MISSING
     assert error.missing_factors == ("source:rct", "target:field")
 
 
@@ -415,7 +422,7 @@ def test_transported_route_names_the_missing_regime_factor() -> None:
         supplied_factors={("target", "field"): "evidence-field"},
     )
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_counterfactual.factor_missing"
+    assert error.detail == reason_details.transported_counterfactual.FACTOR_MISSING
     assert error.offending == "source:rct"
     assert error.missing_factors == ("source:rct",)
     assert error.missing_gates == ()
@@ -428,7 +435,7 @@ def test_transported_route_is_not_supported_even_when_every_gate_and_factor_is_p
         supplied_factors={"source:rct": "e1", "target:field": "e2"},
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "transported_counterfactual.joint_theorem_not_derived"
+    assert error.detail == reason_details.transported_counterfactual.JOINT_THEOREM_NOT_DERIVED
     assert error.offending is None
     assert error.missing_gates == ()
     assert error.missing_factors == ()
@@ -601,7 +608,7 @@ def test_worlds_refusals_carry_the_unit_world_and_residual_witness() -> None:
     )
     assert (error.reason_code, error.detail) == (
         "route_not_supported",
-        "temporal_counterfactual.unpaired_histories",
+        reason_details.temporal_counterfactual.UNPAIRED_HISTORIES,
     )
     assert error.offending == "unit-3"
     assert error.witness["unit"] == "unit-3"
@@ -611,19 +618,19 @@ def test_worlds_refusals_carry_the_unit_world_and_residual_witness() -> None:
     ghost = worlds_refusal(
         worlds=[WorldActions("all", ALL, units=(*(f"unit-{i}" for i in range(4)), "ghost"))]
     )
-    assert ghost.detail == "temporal_counterfactual.unpaired_histories"
+    assert ghost.detail == reason_details.temporal_counterfactual.UNPAIRED_HISTORIES
     assert ghost.witness["unit"] == "ghost"
     assert ghost.witness["history"] is None
 
     misaligned = worlds_refusal(worlds=[WorldActions("all", ALL, times=(0, 1, 5))])
-    assert misaligned.detail == "temporal_counterfactual.time_misaligned"
+    assert misaligned.detail == reason_details.temporal_counterfactual.TIME_MISALIGNED
     assert misaligned.witness["world"] == "all"
 
     # Unit 0's covariate_2 noise is 0.5, outside the declared half-width 0.45.
     refuted = worlds_refusal(mechanisms=three_slice_mechanisms(halfwidth=0.45))
     assert (refuted.reason_code, refuted.detail) == (
         "route_not_supported",
-        "temporal_counterfactual.refuting_history",
+        reason_details.temporal_counterfactual.REFUTING_HISTORY,
     )
     assert refuted.witness["unit"] == "unit-0"
     assert refuted.witness["history"] == "hist-0"
@@ -634,9 +641,12 @@ def test_worlds_refusals_carry_the_unit_world_and_residual_witness() -> None:
     ) == pytest.approx(5.2, abs=1e-9)
 
     assert worlds_refusal(latent_confounding=True).detail == (
-        "temporal_counterfactual.latent_confounding"
+        reason_details.temporal_counterfactual.LATENT_CONFOUNDING
     )
-    assert worlds_refusal(histories=[]).detail == "temporal_counterfactual.shared_history_missing"
+    assert (
+        worlds_refusal(histories=[]).detail
+        == reason_details.temporal_counterfactual.SHARED_HISTORY_MISSING
+    )
 
 
 def test_worlds_invalid_declarations_refuse_as_invalid_argument() -> None:
@@ -646,27 +656,27 @@ def test_worlds_invalid_declarations_refuse_as_invalid_argument() -> None:
         return error
 
     assert invalid(worlds=[WorldActions("all", ALL), WorldActions("all", NONE)]).detail == (
-        "temporal_counterfactual.history_name_invalid"
+        reason_details.temporal_counterfactual.HISTORY_NAME_INVALID
     )
-    assert invalid(worlds=[]).detail == "temporal_counterfactual.history_name_invalid"
+    assert invalid(worlds=[]).detail == reason_details.temporal_counterfactual.HISTORY_NAME_INVALID
     short = invalid(worlds=[WorldActions("short", (1.0, 1.0))])
-    assert short.detail == "temporal_counterfactual.non_finite_history"
+    assert short.detail == reason_details.temporal_counterfactual.NON_FINITE_HISTORY
     assert short.offending == "short"
     assert invalid(histories=[WorldHistory("u", (0.0, 1.0))]).detail == (
-        "temporal_counterfactual.non_finite_history"
+        reason_details.temporal_counterfactual.NON_FINITE_HISTORY
     )
     partial = TemporalMechanisms("partial", three_slice_mechanisms().mechanisms[:3])
-    assert invalid(mechanisms=partial).detail == "temporal_counterfactual.fit_mismatch"
+    assert invalid(mechanisms=partial).detail == reason_details.temporal_counterfactual.FIT_MISMATCH
     zero = invalid(
         horizon=0,
         histories=[WorldHistory("u", (0.0,))],
         worlds=[WorldActions("w", ())],
         mechanisms=TemporalMechanisms("zero", (NodeMechanism("outcome", 0.0, {}),)),
     )
-    assert zero.detail == "temporal_counterfactual.invalid_graph"
+    assert zero.detail == reason_details.temporal_counterfactual.INVALID_GRAPH
     with pytest.raises(TemporalRefusal) as raised:
         WorldActions("w", (float("nan"), 0.0, 0.0))
-    assert raised.value.detail == "temporal_counterfactual.non_finite_history"
+    assert raised.value.detail == reason_details.temporal_counterfactual.NON_FINITE_HISTORY
     with pytest.raises(CausalValueError):
         run_worlds(
             mechanisms=TemporalMechanisms(
@@ -710,7 +720,7 @@ def test_worlds_artifact_replays_every_world_and_refuses_resealed_changes() -> N
                 bytes(mutated.export()), expected_identity=original.identity
             )
         assert raised.value.reason_code == "route_not_supported"
-        assert raised.value.detail == "temporal_counterfactual.artifact_changed"
+        assert raised.value.detail == reason_details.temporal_counterfactual.ARTIFACT_CHANGED
         assert raised.value.offending == field, field
 
     changed_noise = [list(n) for n in NOISE3]

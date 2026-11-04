@@ -189,7 +189,12 @@ fn incompatible_partition_estimand_units_and_regime_refuse() {
         let error = run_independent(&[part("a", 1.0, 0.5), changed]).unwrap_err();
         let (code, message) = refusal(error);
         assert_eq!(code, "route_not_supported");
-        assert!(message.contains("effect_constancy.incompatible_partitions"), "{message}");
+        assert!(
+            message.contains(
+                antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS
+            ),
+            "{message}"
+        );
     }
 }
 
@@ -200,11 +205,16 @@ fn incompatible_partition_unsupported_coordinate_and_duplicate_label_refuse() {
     let (code, message) =
         refusal(run_independent(&[part("a", 1.0, 0.5), unsupported]).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("effect_constancy.unsupported_partition"));
+    assert!(
+        message.contains(antecedent_core::reason_details::effect_constancy::UNSUPPORTED_PARTITION)
+    );
     let (code, message) =
         refusal(run_independent(&[part("a", 1.0, 0.5), part("a", 2.0, 0.5)]).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("effect_constancy.incompatible_partitions"));
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS)
+    );
     let mut partial = part("b", 1.0, 0.5);
     partial.support = PartitionSupport::Partial;
     let result = run_independent(&[part("a", 1.0, 0.5), partial]).unwrap();
@@ -215,22 +225,34 @@ fn incompatible_partition_unsupported_coordinate_and_duplicate_label_refuse() {
 fn incompatible_partition_too_few_and_non_finite_refuse() {
     let (code, message) = refusal(run_independent(&[part("a", 1.0, 0.5)]).unwrap_err());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("effect_constancy.too_few_partitions"));
+    assert!(
+        message.contains(antecedent_core::reason_details::effect_constancy::TOO_FEW_PARTITIONS)
+    );
     let (code, message) = refusal(run_independent(&[]).unwrap_err());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("effect_constancy.too_few_partitions"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::effect_constancy::TOO_FEW_PARTITIONS),
+        "{message}"
+    );
     for bad in [f64::NAN, f64::INFINITY] {
         let (code, message) =
             refusal(run_independent(&[part("a", 1.0, 0.5), part("b", bad, 0.5)]).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("effect_constancy.non_finite_estimate"));
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE)
+        );
     }
     let (_, message) =
         refusal(run_independent(&[part("a", 1.0, 0.5), part("b", 1.0, f64::NAN)]).unwrap_err());
-    assert!(message.contains("effect_constancy.non_finite_estimate"));
+    assert!(
+        message.contains(antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE)
+    );
     let (_, message) =
         refusal(run_independent(&[part("a", 1.0, 0.5), part("b", 1.0, 0.0)]).unwrap_err());
-    assert!(message.contains("effect_constancy.invalid_standard_error"));
+    assert!(
+        message.contains(antecedent_core::reason_details::effect_constancy::INVALID_STANDARD_ERROR)
+    );
 }
 
 #[test]
@@ -253,7 +275,10 @@ fn incompatible_partition_invalid_covariance_refuses() {
         .unwrap_err();
         let (code, message) = refusal(error);
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("effect_constancy.invalid_covariance"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE),
+            "{message}"
+        );
     }
     let error = test_effect_constancy(
         &parts,
@@ -262,7 +287,11 @@ fn incompatible_partition_invalid_covariance_refuses() {
         0.05,
     )
     .unwrap_err();
-    assert!(refusal(error).1.contains("effect_constancy.invalid_covariance"));
+    assert!(
+        refusal(error)
+            .1
+            .contains(antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE)
+    );
 }
 
 #[test]
@@ -271,7 +300,11 @@ fn incompatible_partition_unknown_reference_and_alpha_refuse() {
     let family = ContrastFamily::AgainstReference("zzz".into());
     let error = test_effect_constancy(&parts, &PartitionDependence::Independent, &family, 0.05)
         .unwrap_err();
-    assert!(refusal(error).1.contains("effect_constancy.unknown_reference"));
+    assert!(
+        refusal(error)
+            .1
+            .contains(antecedent_core::reason_details::effect_constancy::UNKNOWN_REFERENCE)
+    );
     let error = test_effect_constancy(
         &parts,
         &PartitionDependence::Independent,
@@ -279,7 +312,9 @@ fn incompatible_partition_unknown_reference_and_alpha_refuse() {
         1.5,
     )
     .unwrap_err();
-    assert!(refusal(error).1.contains("effect_constancy.invalid_alpha"));
+    assert!(
+        refusal(error).1.contains(antecedent_core::reason_details::effect_constancy::INVALID_ALPHA)
+    );
 }
 
 #[test]
@@ -333,7 +368,10 @@ fn covariance_validation_is_invariant_to_measurement_units() {
                 .unwrap_err(),
         );
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("effect_constancy.invalid_covariance"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE),
+            "{message}"
+        );
         let valid = PartitionDependence::Covariance(vec![s2, 0.5 * s2, 0.5 * s2, s2]);
         let result =
             test_effect_constancy(&parts, &valid, &ContrastFamily::AllPairs, 0.05).unwrap();
@@ -347,7 +385,12 @@ fn overflow_underflow_and_blank_identities_refuse() {
         let (code, message) =
             refusal(run_independent(&[part("a", 0.0, se), part("b", 1.0, se)]).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("effect_constancy.invalid_standard_error"), "{message}");
+        assert!(
+            message.contains(
+                antecedent_core::reason_details::effect_constancy::INVALID_STANDARD_ERROR
+            ),
+            "{message}"
+        );
     }
     let (code, message) =
         refusal(run_independent(&[part("a", -1e308, 1.0), part("b", 1e308, 1.0)]).unwrap_err());
@@ -356,14 +399,22 @@ fn overflow_underflow_and_blank_identities_refuse() {
     let (code, message) =
         refusal(run_independent(&[part(" ", 0.0, 1.0), part("b", 1.0, 1.0)]).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("effect_constancy.incompatible_partitions"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS),
+        "{message}"
+    );
     let mut parts = [part("a", 0.0, 1.0), part("b", 1.0, 1.0)];
     for p in &mut parts {
         p.estimand.population.clear();
     }
     let (code, message) = refusal(run_independent(&parts).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("effect_constancy.incompatible_partitions"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -390,7 +441,10 @@ fn constancy_posterior_refuses_a_mapped_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("constancy_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::constancy_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

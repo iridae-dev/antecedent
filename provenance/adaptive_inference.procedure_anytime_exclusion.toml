@@ -35,17 +35,20 @@ record_sha256 = "44fe2b9a789f57da30702c8e73b60fda4f77bc95a49c5b679a058b7599b1d98
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-sha256 = "112bab3fcbbca77119c10c1fa4e4cdbfea93744d0568048389b4cc82978b5f1d"
+items = ["const DERIVED_UNMEASURED", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn anytime_exclusion_probability", "fn anytime_valid_report", "fn as_str", "fn check_paradigm", "fn defined_mass", "fn mean", "fn premise", "struct AnytimeCellBound", "struct AnytimeReport"]
+sha256 = "68e081abf4a387759096f529e62c558cc420a71b9325f08793de2801f7d07c04"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_anytime_exclusion_reference.rs"
-sha256 = "1d652ca86ffafe01253cfc76a85aff77a71b6b15c84dce1c4478035c50f34dbb"
+items = ["fn exclusion_probabilities_match_the_exact_enumeration", "fn level", "fn reference", "fn reported_bounds_match_the_reference_radius"]
+sha256 = "f633093825117774fac4e6aa0b33cdd5b53e2de4a9e3f9b5763e0583bacbe183"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
+items = ["module"]
+sha256 = "571c1ccdbb1afe316020f1abae7a2567cdbf424d29355e0b9da9c809ddf610b6"
 
 [[method_review.artifacts]]
 role = "reference"

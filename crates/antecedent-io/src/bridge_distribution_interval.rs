@@ -36,7 +36,8 @@ use antecedent_io_core::bridge_distribution::BridgedDistribution;
 
 use crate::bridge_interval::{BridgedClaimInterval, bridged_claim_interval};
 
-const DETAIL_OUTSIDE_MEASURED: &str = "scientific_bridge.interval_scope_outside_measured";
+const DETAIL_OUTSIDE_MEASURED: &str =
+    antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED;
 
 fn outside_measured(message: &str) -> ExternalRefusal {
     ExternalRefusal::new(reason_code!("route_not_supported"), "bind", DETAIL_OUTSIDE_MEASURED)

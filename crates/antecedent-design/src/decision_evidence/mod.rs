@@ -178,21 +178,39 @@ impl EvidenceRefusal {
     #[must_use]
     pub fn reason_code(&self) -> &'static str {
         match self {
-            Self::Invalid(_) => "decision_evidence.invalid_declaration",
-            Self::Resource(_) => "decision_evidence.resource_limit",
-            Self::Cancelled => "decision_evidence.cancelled",
-            Self::IncompatiblePopulation { .. } => "decision_evidence.incompatible_population",
-            Self::IncompatibleIntervention { .. } => "decision_evidence.incompatible_intervention",
-            Self::IncompatibleHorizon { .. } => "decision_evidence.incompatible_horizon",
-            Self::UnsupportedAssignmentDesign(_) => {
-                "decision_evidence.unsupported_assignment_design"
+            Self::Invalid(_) => {
+                antecedent_core::reason_details::decision_evidence::INVALID_DECLARATION
             }
-            Self::DependenceUnknown { .. } => "decision_evidence.dependence_unknown",
-            Self::InterferenceUnspecified => "decision_evidence.interference_unspecified",
-            Self::DeploymentBridgeMissing => "decision_evidence.deployment_bridge_missing",
-            Self::AdjustmentNotAdmissible { .. } => "decision_evidence.adjustment_not_admissible",
-            Self::TooManyUnknowns(_) => "decision_evidence.too_many_unknowns",
-            Self::FrameShape => "decision_evidence.frame_shape",
+            Self::Resource(_) => antecedent_core::reason_details::decision_evidence::RESOURCE_LIMIT,
+            Self::Cancelled => antecedent_core::reason_details::decision_evidence::CANCELLED,
+            Self::IncompatiblePopulation { .. } => {
+                antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_POPULATION
+            }
+            Self::IncompatibleIntervention { .. } => {
+                antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_INTERVENTION
+            }
+            Self::IncompatibleHorizon { .. } => {
+                antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_HORIZON
+            }
+            Self::UnsupportedAssignmentDesign(_) => {
+                antecedent_core::reason_details::decision_evidence::UNSUPPORTED_ASSIGNMENT_DESIGN
+            }
+            Self::DependenceUnknown { .. } => {
+                antecedent_core::reason_details::decision_evidence::DEPENDENCE_UNKNOWN
+            }
+            Self::InterferenceUnspecified => {
+                antecedent_core::reason_details::decision_evidence::INTERFERENCE_UNSPECIFIED
+            }
+            Self::DeploymentBridgeMissing => {
+                antecedent_core::reason_details::decision_evidence::DEPLOYMENT_BRIDGE_MISSING
+            }
+            Self::AdjustmentNotAdmissible { .. } => {
+                antecedent_core::reason_details::decision_evidence::ADJUSTMENT_NOT_ADMISSIBLE
+            }
+            Self::TooManyUnknowns(_) => {
+                antecedent_core::reason_details::decision_evidence::TOO_MANY_UNKNOWNS
+            }
+            Self::FrameShape => antecedent_core::reason_details::decision_evidence::FRAME_SHAPE,
         }
     }
 

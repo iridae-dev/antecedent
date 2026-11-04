@@ -147,7 +147,9 @@ fn validate(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), TemporalR
         ));
     }
     if r.lag_alignment != lag_alignment(r.horizon) {
-        return Err(refusal("temporal_refresh.lag_alignment_changed"));
+        return Err(refusal(
+            antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED,
+        ));
     }
     if r.units.iter().flat_map(|u| &u.histories).any(|h| !h.is_well_formed(r.horizon))
         || r.functional.sequences().iter().any(|sequence| sequence.len() != r.horizon)
@@ -576,7 +578,7 @@ impl TemporalSession {
         if matches!(live.request.functional, TemporalFunctional::Response { .. }) {
             return Err(antecedent_estimate::EstimationError::refused_detail(
                 antecedent_core::reason_code!("route_not_supported"),
-                "temporal_interval.retired_response_method",
+                antecedent_core::reason_details::temporal_interval::RETIRED_RESPONSE_METHOD,
                 "checked responses require studentized",
             )
             .into());
@@ -801,7 +803,7 @@ fn source_conditional_means(joint: &ExactDistribution) -> Result<[f64; 2], Tempo
     if masses.iter().any(|p| *p <= 0.) {
         return Err(EstimationError::refused_detail(
             reason_code!("transport_support_failure"),
-            "initial_state.support_gap",
+            antecedent_core::reason_details::initial_state::SUPPORT_GAP,
             "every source S0 state must have positive intervention mass",
         )
         .into());

@@ -35,14 +35,17 @@ record_sha256 = "19f3a40029594e48118333f0a7fd137a0079984abeda314ff105b81d3a011d1
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/kind.rs"
-sha256 = "2e14629e026c5ecdf86ce353c2ac4c7337a2dcbd5cb9e9a15aaa8a58dbc5692d"
+items = ["enum AssumptionKind", "enum BridgeKind", "enum QuantityClass", "enum ValueKind", "fn allowed_mappings", "fn endpoint_pairs", "fn principal_assumption"]
+sha256 = "852932442e8822f52942a0a5beb3f72f9d3ec4f68b8d0aa9dfd269146961a188"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/claim.rs"
-sha256 = "f8ea7af10c7c1c249144bdf467978e5b5424fadc133c6a58633f28b933b25ef4"
+items = ["const BRIDGE_CLAIM_IDENTITY_VERSION", "const PROPAGATION_SECTION", "const TAG_CLAIM", "const TAG_TARGET", "fn assumptions", "fn bridge_receipt", "fn bridged_claim_id", "fn bridged_claim_id_with_propagation", "fn bridged_identities", "fn bridged_reasoning", "fn bridged_uncertainty", "fn derive_bridged_claim", "fn derive_bridged_claim_propagating", "fn freshness", "fn is_alignment_evidence", "fn kind", "fn mismatch_name", "fn node", "fn obligation", "fn request_interval", "fn require_value_kind", "fn source_point_value", "struct BridgeSource", "struct BridgedClaim"]
+sha256 = "0011418f5b056de92267fe27bac17e71c04b8e8d04b29828ba5a2eef11b6342d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/scientific_bridge.rs"
-sha256 = "3b666cdd6801d250ff39ae5319185bee70f738acae19ea8069650d96f4333cba"
+items = ["fn a_bridge_established_elsewhere_names_its_transportability_premise", "fn a_bridged_claim_shares_its_sources_evidence_and_is_not_poolable_with_it", "fn a_mean_a_law_a_posterior_a_set_and_a_joint_law_are_not_interchangeable", "fn a_measured_prevalence_is_the_latent_prevalence_only_through_the_model", "fn a_model_parameter_is_an_intervention_response_only_through_its_declared_contrast", "fn a_proxy_is_never_the_construct_without_a_measurement_model", "fn a_scientific_endpoint_is_a_utility_only_through_a_declared_utility_function", "fn a_stated_preference_is_realized_behavior_only_under_a_declared_linkage", "fn a_withdrawn_source_makes_the_bridged_claim_inapplicable", "fn an_association_is_a_causal_quantity_only_under_a_named_identification", "fn an_associational_claim_is_never_a_bridge_source", "fn an_associational_quantity_is_refused_as_a_causal_quantity_until_identified", "fn assert_refused", "fn associational_contract", "fn assumption", "fn claim", "fn clinic_model", "fn close", "fn confounded_model_truth", "fn contract", "fn correction_contract", "fn digest", "fn every_kind_and_class_has_a_stable_name_and_a_principal_assumption", "fn identity_binds_the_contract_the_assumptions_and_the_source_claim", "fn malformed_declarations_and_unusable_sources_are_refused", "fn measured_to_latent", "fn population_regime_conditioning_and_the_claimed_quantity_must_agree", "fn predictive_contract", "fn predictive_importance_and_model_scores_are_not_supported_whatever_is_declared", "fn prevalence", "fn quantity", "fn scope", "fn surrogate_bridge_matches_the_hand_computed_trial_level_regression", "fn surrogate_contract", "fn surrogate_quantity", "fn terminal_quantity", "fn the_correction_refuses_what_the_declared_rates_cannot_produce", "fn the_fit_is_the_ordinary_least_squares_line_at_every_trial_order", "fn the_measurement_model_binding_is_checked_against_the_bridge", "fn validation_minimums_and_the_validated_range_are_enforced", "fn validation_trials"]
+sha256 = "0b7dba388e66f9dac5765a5246e1204bef0a5eb9a1a13c0e1cf46b7800f43c71"

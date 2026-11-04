@@ -30,7 +30,7 @@
 //! usefulness: the median half-width stays within the acceptance ratio to the
 //! root-mean-square study standard error at that study count.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

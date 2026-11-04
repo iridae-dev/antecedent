@@ -41,9 +41,15 @@ pub(crate) fn error_refusal(error: &BundleError) -> String {
                 IoError::UnsupportedVersion { .. } | IoError::UnsupportedFormat { .. }
             ) =>
         {
-            (reason_code!("schema_mismatch"), "composition_bundle.incompatible_version")
+            (
+                reason_code!("schema_mismatch"),
+                antecedent_core::reason_details::composition_bundle::INCOMPATIBLE_VERSION,
+            )
         }
-        _ => (reason_code!("invalid_argument"), "composition_bundle.invalid_container"),
+        _ => (
+            reason_code!("invalid_argument"),
+            antecedent_core::reason_details::composition_bundle::INVALID_CONTAINER,
+        ),
     };
     external_refusal_json(&ExternalRefusal {
         code,

@@ -56,7 +56,7 @@ fn invalid_json(message: String) -> String {
     json!({
         "code": antecedent_core::reason_code!("invalid_argument"),
         "stage": STAGE,
-        "detail": "joint_law_propagation.invalid_request",
+        "detail": antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST,
         "message": message,
         "offending": Json::Null,
         "remedy": Json::Null,

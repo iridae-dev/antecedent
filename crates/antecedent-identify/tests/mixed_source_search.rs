@@ -222,7 +222,10 @@ fn separate_marginals_never_stand_in_for_a_joint() {
     let c = catalog(vec![regime(1, "study-1", &[], &[X, Z]), marginals]);
     let decision = decide(&g, &query(), &c);
     assert_eq!(decision.reason_code(), Some("transport_missing_evidence"));
-    assert_eq!(decision.detail_code(), Some("mixed_search.missing_joint"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::mixed_search::MISSING_JOINT)
+    );
     let MixedSourceDecision::MissingEvidence(missing) = decision else {
         panic!("the relaxed pass names the joint");
     };
@@ -259,7 +262,10 @@ fn an_unsolved_query_is_not_certified_never_proven_unidentifiable() {
     let c = catalog(vec![regime(1, "study", &[], &[0, 1])]);
     let decision = decide(&g, &q, &c);
     assert_eq!(decision.reason_code(), Some("transport_not_certified"));
-    assert_eq!(decision.detail_code(), Some("mixed_search.not_certified"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::mixed_search::NOT_CERTIFIED)
+    );
     let MixedSourceDecision::NotCertified(inspection) = decision else {
         panic!("not certified");
     };
@@ -311,7 +317,9 @@ fn a_model_artifact_offered_as_an_experimental_law_is_refused() {
     .unwrap_err();
     assert_eq!(
         error,
-        IdentificationError::UnsupportedInput { code: "mixed_search.posterior_as_law" }
+        IdentificationError::UnsupportedInput {
+            code: antecedent_core::reason_details::mixed_search::POSTERIOR_AS_LAW
+        }
     );
     // An observational model artifact is only excluded.
     let mut fitted = regime(2, "fitted", &[], &[Z, Y]);
@@ -329,7 +337,10 @@ fn named_routes_run_first_and_a_solved_query_is_never_searched() {
     let g = chain();
     let c = catalog(vec![regime(1, "full", &[], &[X, Z, Y])]);
     let decision = decide(&g, &query(), &c);
-    assert_eq!(decision.detail_code(), Some("mixed_search.named_route"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::mixed_search::NAMED_ROUTE)
+    );
     assert_eq!(decision.reason_code(), Some("route_not_supported"));
     let MixedSourceDecision::NamedRoute { route, stages } = decision else {
         panic!("a named route solves it");
@@ -409,7 +420,10 @@ fn a_meta_only_query_is_returned_as_the_meta_named_route_and_never_searched() {
     let q = meta_query(&[X, Z, Y]);
     let c = meta_catalog();
     let decision = decide(&g, &q, &c);
-    assert_eq!(decision.detail_code(), Some("mixed_search.named_route"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::mixed_search::NAMED_ROUTE)
+    );
     let MixedSourceDecision::NamedRoute { route, stages } = decision else {
         panic!("the meta route solves it");
     };
@@ -433,7 +447,10 @@ fn the_meta_route_is_outside_the_contract_for_restricted_or_single_sources() {
     // meta's: the meta theorem assumes the unrestricted family. Nothing searches
     // the source populations' regimes, so the frozen refusal is returned.
     let restricted = decide(&g, &meta_query(&[X, Z]), &c);
-    assert_eq!(restricted.detail_code(), Some("mixed_search.not_certified"));
+    assert_eq!(
+        restricted.detail_code(),
+        Some(antecedent_core::reason_details::mixed_search::NOT_CERTIFIED)
+    );
     let MixedSourceDecision::NotCertified(inspection) = restricted else {
         panic!("outside the meta contract and the target population's regimes");
     };
@@ -555,7 +572,7 @@ fn exhausted_search_returns_a_receipt_never_a_verdict() {
     )
     .unwrap();
     assert_eq!(decision.reason_code(), Some("transport_budget_cancel"));
-    assert_eq!(decision.detail_code(), Some("mixed_search.budget"));
+    assert_eq!(decision.detail_code(), Some(antecedent_core::reason_details::mixed_search::BUDGET));
 }
 
 #[test]
@@ -609,7 +626,9 @@ fn one_budget_is_shared_by_every_stage() {
 #[test]
 fn bounds_refuse_as_bounds_exceeded() {
     let ctx = ExecutionContext::for_tests(1);
-    let bounds = IdentificationError::UnsupportedInput { code: "mixed_search.bounds_exceeded" };
+    let bounds = IdentificationError::UnsupportedInput {
+        code: antecedent_core::reason_details::mixed_search::BOUNDS_EXCEEDED,
+    };
     let g = chain();
     for limits in [
         SearchLimits { operations: MIXED_SOURCE_DEFAULT_LIMITS.operations + 1, depth: 16 },
@@ -635,7 +654,7 @@ fn malformed_queries_are_invalid_not_unidentified() {
                 .unwrap_err();
         assert!(
             matches!(&error, IdentificationError::InvalidInput { message }
-            if message.starts_with("mixed_search.invalid_query")),
+            if message.starts_with(antecedent_core::reason_details::mixed_search::INVALID_QUERY)),
             "{error:?}"
         );
     }
@@ -664,7 +683,9 @@ fn a_tampered_record_or_expression_fails_the_replay() {
             &ctx,
         )
     };
-    let bad = IdentificationError::InvalidDerivation { code: "mixed_search.invalid_derivation" };
+    let bad = IdentificationError::InvalidDerivation {
+        code: antecedent_core::reason_details::mixed_search::INVALID_DERIVATION,
+    };
     let record = derivation.to_record();
     replay(&record, derivation.arena(), &complementary()).unwrap();
     let mut legacy = record.clone();
@@ -734,7 +755,9 @@ fn a_sealed_proof_replays_and_any_other_version_or_edit_refuses() {
     assert_eq!(replayed.to_record(), sealed);
     assert_eq!(replayed.root(), derivation.root());
     // Tampering is refused; no other version is accepted.
-    let bad = IdentificationError::InvalidDerivation { code: "mixed_search.invalid_derivation" };
+    let bad = IdentificationError::InvalidDerivation {
+        code: antecedent_core::reason_details::mixed_search::INVALID_DERIVATION,
+    };
     let mut other_version = sealed.clone();
     other_version.rule_set = MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
     assert_eq!(replay(&other_version).unwrap_err(), bad);
@@ -829,7 +852,11 @@ fn availability_alone_decides_identification() {
             &query(),
             &with(DistributionAvailability::SeparateMarginals { variables: variables.into() }),
         );
-        assert_eq!(decision.detail_code(), Some("mixed_search.missing_joint"), "{decision:?}");
+        assert_eq!(
+            decision.detail_code(),
+            Some(antecedent_core::reason_details::mixed_search::MISSING_JOINT),
+            "{decision:?}"
+        );
     }
 }
 

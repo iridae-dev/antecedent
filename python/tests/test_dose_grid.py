@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.dose_grid import (
     DoseClaims,
     DoseGridRefusal,
@@ -154,18 +155,18 @@ def test_claims_are_separate_and_the_simultaneous_band_is_refused() -> None:
     band = DoseClaims(pointwise_level=True, simultaneous_band=True)
     refused(
         lambda: run("level", noise=0.1, claims=band),
-        "dose_grid.no_simultaneous_band_method",
+        reason_details.dose_grid.NO_SIMULTANEOUS_BAND_METHOD,
         "route_not_supported",
     )
     # A level claim does not support a derivative, nor a derivative claim a level.
     refused(
         lambda: run("derivative", noise=0.1, claims=DoseClaims(pointwise_level=True)),
-        "dose_grid.derivative_without_claim",
+        reason_details.dose_grid.DERIVATIVE_WITHOUT_CLAIM,
         "option_not_applicable",
     )
     refused(
         lambda: run("level", noise=0.1, claims=DoseClaims(derivative=True)),
-        "dose_grid.level_without_claim",
+        reason_details.dose_grid.LEVEL_WITHOUT_CLAIM,
         "option_not_applicable",
     )
 
@@ -183,12 +184,12 @@ def test_unsupported_doses_refuse_and_the_support_table_labels_them() -> None:
     assert 10.0 < weak[0].local_ess < 1000.0
     refused(
         lambda: run("level", grid=[*GRID, 10.0]),
-        "dose_grid.unsupported_dose",
+        reason_details.dose_grid.UNSUPPORTED_DOSE,
         "positivity_violated",
     )
     refused(
         lambda: run("level", minimum_local_ess=1000.0),
-        "dose_grid.insufficient_local_weight",
+        reason_details.dose_grid.INSUFFICIENT_LOCAL_WEIGHT,
         "positivity_violated",
     )
 
@@ -196,17 +197,17 @@ def test_unsupported_doses_refuse_and_the_support_table_labels_them() -> None:
 def test_observational_design_and_bad_inputs_refuse() -> None:
     refused(
         lambda: run("level", design="observational"),
-        "dose_grid.graph_not_certified",
+        reason_details.dose_grid.GRAPH_NOT_CERTIFIED,
         "effect_not_identified",
     )
     refused(
         lambda: run("level", bandwidth=2.0),
-        "dose_grid.bandwidth_outside_range",
+        reason_details.dose_grid.BANDWIDTH_OUTSIDE_RANGE,
         "invalid_argument",
     )
     refused(
         lambda: run("level", grid=[0.5, float("nan")]),
-        "dose_grid.invalid_request",
+        reason_details.dose_grid.INVALID_REQUEST,
         "invalid_argument",
     )
     dose, outcome = design()
@@ -218,7 +219,7 @@ def test_observational_design_and_bad_inputs_refuse() -> None:
             bandwidth=0.4,
             bandwidth_range=(0.1, 1.0),
         ),
-        "dose_grid.invalid_request",
+        reason_details.dose_grid.INVALID_REQUEST,
         "invalid_argument",
     )
 
@@ -242,7 +243,7 @@ def test_consumer_limits_and_corrupt_artifacts_refuse() -> None:
     artifact = bytes(run("level", noise=0.1).export())
     with pytest.raises(DoseGridRefusal) as info:
         consume_dose_grid_artifact(artifact, max_rows=10)
-    assert info.value.detail == "dose_grid.consumer_limit_exceeded"
+    assert info.value.detail == reason_details.dose_grid.CONSUMER_LIMIT_EXCEEDED
     assert_registered_refusal(info.value)
     with pytest.raises(CausalSerializationError):
         consume_dose_grid_artifact(artifact[:-5])
@@ -307,7 +308,7 @@ def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -
         lambda: quadratic_dose_functional(
             dose, outcome, grid=[10.0], bandwidth=0.4, bandwidth_range=(0.1, 1.0)
         ),
-        "dose_grid.unsupported_dose",
+        reason_details.dose_grid.UNSUPPORTED_DOSE,
         "positivity_violated",
     )
     refused(
@@ -319,7 +320,7 @@ def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -
             bandwidth_range=(0.1, 1.0),
             claims=DoseClaims(pointwise_level=True, simultaneous_band=True),
         ),
-        "dose_grid.no_simultaneous_band_method",
+        reason_details.dose_grid.NO_SIMULTANEOUS_BAND_METHOD,
         "route_not_supported",
     )
 

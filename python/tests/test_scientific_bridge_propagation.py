@@ -21,6 +21,7 @@ import math
 from dataclasses import replace
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import scientific_bridge as sb
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
@@ -132,12 +133,12 @@ def test_the_interval_stays_gated_by_the_measured_coverage_rule():
     refused(
         claim.interval,
         "route_not_supported",
-        "scientific_bridge.interval_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
     )
     refused(
         lambda: claim.interval(0.95),
         "route_not_supported",
-        "scientific_bridge.interval_scope_outside_measured",
+        reason_details.scientific_bridge.INTERVAL_SCOPE_OUTSIDE_MEASURED,
     )
 
 
@@ -169,7 +170,7 @@ def test_an_undeclared_dependence_is_refused_not_assumed_independent():
     error = refused(
         lambda: derive(None),
         "sampling_dependence_unknown",
-        "scientific_bridge.source_dependence_missing",
+        reason_details.scientific_bridge.SOURCE_DEPENDENCE_MISSING,
     )
     assert error.remedy
     # Without a standard error the plug-in derivation stands and the propagation is refused.
@@ -178,7 +179,7 @@ def test_an_undeclared_dependence_is_refused_not_assumed_independent():
     refused(
         claim.propagated_uncertainty,
         "scientific_bridge_invalid",
-        "scientific_bridge.source_variance_invalid",
+        reason_details.scientific_bridge.SOURCE_VARIANCE_INVALID,
     )
 
 

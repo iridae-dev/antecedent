@@ -217,7 +217,10 @@ fn the_same_observations_cannot_count_as_native_and_as_transported() {
         &pool(),
     )
     .unwrap_err();
-    assert_eq!(err.detail(), "evidence_ledger.native_and_transported");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::evidence_ledger::NATIVE_AND_TRANSPORTED
+    );
     // Atomic: nothing was registered.
     assert_eq!(ledger.state_digest(), before);
     assert!(ledger.results().is_empty());
@@ -365,7 +368,10 @@ fn a_transported_claim_is_the_prior_of_a_native_likelihood() {
     )
     .unwrap_err();
     assert_eq!(err.code(), "evidence_double_counted");
-    assert_eq!(err.detail(), "evidence_ledger.reentry_prior_plus_likelihood");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::evidence_ledger::REENTRY_PRIOR_PLUS_LIKELIHOOD
+    );
     assert!(reused.results().is_empty());
 }
 
@@ -530,7 +536,7 @@ fn a_transport_with_no_assumption_or_a_self_target_is_refused_at_the_ledger() {
     };
     let err = add(&mut ledger, 1_000, TransportIdentity { assumptions: vec![], ..transport(3) })
         .unwrap_err();
-    assert_eq!(err.detail, "evidence_ledger.invalid_declaration");
+    assert_eq!(err.detail, antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION);
     // The design-level guard stays for identities that reach synthesis.
     assert!(add(&mut ledger, 1_000, transport(3)).is_ok());
 }

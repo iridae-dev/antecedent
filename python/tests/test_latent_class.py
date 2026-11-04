@@ -20,6 +20,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
 from antecedent.latent_class import (
     LatentClassRefusal,
@@ -87,17 +88,17 @@ def test_latent_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_
     assert again.identity == result.identity
     with pytest.raises(LatentClassRefusal) as refused:
         consume_latent_class_artifact(bound)
-    assert refused.value.detail == "latent_class.data_required"
+    assert refused.value.detail == reason_details.latent_class.DATA_REQUIRED
     other = {**columns, "outcome": d["y"] + 1e-9}
     with pytest.raises(LatentClassRefusal) as refused:
         consume_latent_class_artifact(bound, **other)
-    assert refused.value.detail == "latent_class.wrong_contract"
+    assert refused.value.detail == reason_details.latent_class.WRONG_CONTRACT
     with pytest.raises(LatentClassRefusal) as refused:
         consume_latent_class_artifact(
             bytes(fit(d).export()),
             execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1_000)),
         )
-    assert refused.value.detail == "latent_class.memory_budget_exceeded"
+    assert refused.value.detail == reason_details.latent_class.MEMORY_BUDGET_EXCEEDED
 
 
 def test_latent_recovers_hand_derived_two_class_fixed_point() -> None:
@@ -228,7 +229,7 @@ def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
 def test_latent_weak_class_weight_refuses() -> None:
     with pytest.raises(LatentClassRefusal) as caught:
         fit(min_class_weight=0.5)  # the smaller class has weight 0.4
-    assert caught.value.detail == "latent_class.weak_class"
+    assert caught.value.detail == reason_details.latent_class.WEAK_CLASS
     assert caught.value.reason_code == "population_not_estimable"
     assert isinstance(caught.value, CausalUnsupportedError)
     assert_registered_refusal(caught.value)
@@ -237,7 +238,7 @@ def test_latent_weak_class_weight_refuses() -> None:
 def test_latent_single_and_noise_free_regimes_are_degenerate() -> None:
     with pytest.raises(LatentClassRefusal) as caught:
         fit(classes=1)
-    assert caught.value.detail == "latent_class.degenerate_class"
+    assert caught.value.detail == reason_details.latent_class.DEGENERATE_CLASS
     a, x, y = [], [], []
     for arm in (0.0, 1.0):
         for xv in (-1.0, 0.0, 1.0):
@@ -248,7 +249,7 @@ def test_latent_single_and_noise_free_regimes_are_degenerate() -> None:
     single = {"y": np.array(y), "a": np.array(a), "x": np.array(x)}
     with pytest.raises(LatentClassRefusal) as caught:
         fit(single, seed=1)
-    assert caught.value.detail == "latent_class.degenerate_class"
+    assert caught.value.detail == reason_details.latent_class.DEGENERATE_CLASS
     assert caught.value.reason_code == "population_not_estimable"
 
 
@@ -256,25 +257,25 @@ def test_latent_premise_and_configuration_refusals() -> None:
     d = build()
     with pytest.raises(LatentClassRefusal) as caught:
         latent_class_effects(d["y"], d["a"], {"x": d["x"]}, classes=2, seed=1)
-    assert caught.value.detail == "latent_class.randomization_not_declared"
+    assert caught.value.detail == reason_details.latent_class.RANDOMIZATION_NOT_DECLARED
     assert caught.value.reason_code == "required_option_missing"
     assert_registered_refusal(caught.value)
     with pytest.raises(LatentClassRefusal) as caught:
         fit(d, classes=5)
     # The class count is declared, not capped: five classes need at least d + K - 1 = 7 distinct
     # treatment-covariate points, and this design has six.
-    assert caught.value.detail == "latent_class.design_support_too_small"
+    assert caught.value.detail == reason_details.latent_class.DESIGN_SUPPORT_TOO_SMALL
     assert caught.value.reason_code == "design_rank_deficient"
     assert_registered_refusal(caught.value)
     constant = {**d, "a": np.ones_like(d["a"])}
     with pytest.raises(LatentClassRefusal) as caught:
         fit(constant)
-    assert caught.value.detail == "latent_class.treatment_constant"
+    assert caught.value.detail == reason_details.latent_class.TREATMENT_CONSTANT
     assert caught.value.reason_code == "effect_not_identified"
     labels = [int(1 - c) if i % 4 == 3 else int(c) for i, c in enumerate(d["cls"])]
     with pytest.raises(LatentClassRefusal) as caught:
         fit(d, seed=1, initial_labels=labels, max_iterations=1)
-    assert caught.value.detail == "latent_class.not_converged"
+    assert caught.value.detail == reason_details.latent_class.NOT_CONVERGED
     assert caught.value.reason_code == "mechanism_fit_not_converged"
 
 
@@ -301,7 +302,7 @@ def test_latent_artifact_refuses_a_resealed_change_against_retained_identity() -
     assert consume_latent_class_artifact(bytes(resealed.export())).identity == resealed.identity
     with pytest.raises(LatentClassRefusal) as caught:
         consume_latent_class_artifact(bytes(resealed.export()), expected_identity=original.identity)
-    assert caught.value.detail == "latent_class.wrong_contract"
+    assert caught.value.detail == reason_details.latent_class.WRONG_CONTRACT
     assert caught.value.offending == "data"
     assert caught.value.reason_code == "route_not_supported"
     assert_registered_refusal(caught.value)

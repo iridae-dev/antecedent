@@ -38,27 +38,32 @@ record_sha256 = "8541124f0aa62bfe4ecbb022d5deba78d38e6ddb435316b0e7cb9a1ef7e87a1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/notears/acyclicity.rs"
-sha256 = "201f82c363590cdc4d7c648b282855c98b14c12425ffbaf691f8a7e0d55a3a99"
+items = ["const TAYLOR_TERMS", "fn grad_h", "fn grow", "fn h_of_w", "fn matmul", "fn matrix_exp_inplace", "fn prepare", "struct AcyclicityWorkspace"]
+sha256 = "e0d030b320ae46a7fd73d22392304b74a160e124bc6f55b1937aa2e4e3cd6851"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/notears/solver.rs"
-sha256 = "48e69d931870038e503c5f786439bb69f7df494aa476aa8c6a4a4187cfb43af8"
+items = ["fn default", "fn from"]
+sha256 = "307d44b1841021c7b8843e252caef8d9b906aba5729e8b874c7138f12b11d394"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/notears/mod.rs"
-sha256 = "18246220911942cfa49fd73162d49402dca6e8ced1d12563869597360a88d0ba"
+items = ["const ALGORITHM", "fn default", "fn dense_edge_ids", "fn new", "fn notears_cycle_refusal", "fn pairwise_accounting", "fn pairwise_factor", "fn run", "fn with_lambda", "fn with_standardize", "fn with_threshold", "struct Notears", "struct NotearsDiscoveryResult", "struct PairwiseFactor"]
+sha256 = "fcfcd7a400bed65b5f30a9fba8a2a42925475886871da4cebe6a85440e729806"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/notears_reference.rs"
-sha256 = "9a39f9c2504e4cd1847d6b4a09868997313a38195e7ec47c1bc4d1a64ac6430b"
+items = ["fn cases", "fn float", "fn objective", "fn weights_reach_the_exhaustive_constrained_optimum"]
+sha256 = "691f1acace5ceec22a9664361cc3adbce014acd249ca62fb305294d5e8828471"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/notears/acyclicity_oracle_tests.rs"
-sha256 = "bb8adebfbd6e581ecdee07db72974e5c174888944e0e0ebaef6ae60ad8e34c20"
+items = ["fn constraint_and_gradient_match_the_multiprecision_exponential", "fn number"]
+sha256 = "85e921398f3688b7cdd6fe6d3a66820367c0c63d0344b11b2ebff594e043a794"
 
 [[method_review.artifacts]]
 role = "reference"

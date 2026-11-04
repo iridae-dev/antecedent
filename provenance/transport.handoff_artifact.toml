@@ -27,9 +27,11 @@ record_sha256 = "be575096a6a12486041d70bb50da1d53ef45f5751f806992c52c13d095465c1
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/transport_handoff_artifact.rs"
-sha256 = "1db0f33e09e0dc8caa5c3bf1fc7df9fa26e08784cef8f267ef2230eb560e9bea"
+items = ["const ARTIFACT_KIND", "const MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES", "const META_SECTION", "const TRANSPORT_HANDOFF_ARTIFACT_FEATURE", "const TRANSPORT_HANDOFF_ARTIFACT_TAG", "const TRANSPORT_HANDOFF_ARTIFACT_VERSION", "fn build_meta", "fn check", "fn compute_identity", "fn consumed_port", "fn consumer", "fn decode_meta", "fn derive", "fn encode_meta", "fn first_refusal", "fn from_bytes", "fn from_bytes_within", "fn from_contract_error", "fn from_meta", "fn handoff", "fn handoff_identity", "fn identity", "fn is_hex_digest", "fn is_native_target_data", "fn malformed", "fn meta_to_bytes", "fn offer", "fn parse_provider_trust", "fn provider_trust", "fn refusal", "fn refused", "fn reseal_identity", "fn seal_for_callback", "fn selection_diagram", "fn strictly_increasing", "fn transport", "fn transport_from_wire", "fn transport_to_wire", "fn verify_against_callback", "struct Derived", "struct TransportHandoffArtifact", "struct TransportHandoffMeta", "struct TransportIdentityWire", "type Failure"]
+sha256 = "415a74362f38d8b5272dd218b19971022847de4824f4f04f2afab1506858c50b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io-core/tests/transport_handoff_artifact.rs"
-sha256 = "2c04f7021778e1426aba4a0f5799fd75801f493d85abd921efb02908beece7ba"
+items = ["fn a_handoff_that_the_library_refuses_does_not_seal", "fn a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it", "fn an_edited_or_resealed_handoff_is_refused", "fn callback", "fn digest", "fn offer", "fn quantity", "fn sealed"]
+sha256 = "bee30fc16834353d60d69d0d63967deafb7ec79543e6d5a809163657f686c856"

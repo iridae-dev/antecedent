@@ -68,7 +68,7 @@ crate::sectioned_artifact_error!(
 fn invalid_request(message: &str) -> MechanismDiscrepancyArtifactError {
     MechanismDiscrepancyArtifactError::refused(
         antecedent_core::reason_code!("invalid_argument"),
-        "mechanism_discrepancy.invalid_request",
+        antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST,
         message,
     )
 }

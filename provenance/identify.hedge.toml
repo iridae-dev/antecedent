@@ -42,19 +42,23 @@ record_sha256 = "0eef605b48c40c9b4c5378e621d0a73b923a13632bde0e4a84b8f37b92194f5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/hedge.rs"
-sha256 = "c5ecbcc52378ada503edf7e53cefb4c1099ee0607ff9afc46d8e9b7ae4a4d08f"
+items = ["fn from_sets", "fn prepare", "fn verify", "struct HedgeCertificate", "struct HedgeProblem"]
+sha256 = "966088b64ebedfc7d8a78ff05900e8f6c890d9e7f5a61fb17d2ad1bcac0834c9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/id.rs"
-sha256 = "6447e4ae8f4880d42031e3bc2c1b174491b7d3f9fb63d1665ffbbd4fc3f43be8"
+items = ["enum DistCtx", "enum Factor", "enum IdOutcome", "fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn enter", "fn expectation_contrast", "fn get", "fn id_body", "fn id_lines_5_to_7", "fn id_recurse", "fn id_recurse_shared", "fn identify", "fn identify_ate", "fn identify_ate_impl", "fn identify_response", "fn identify_schedule_contrast", "fn identify_sets", "fn insert", "fn intern_nodes", "fn intervention_for_factor", "fn intervention_value", "fn leave", "fn len", "fn marginal_conditionals", "fn marginalize", "fn markov_product", "fn new", "fn not_identified_with_hedge", "fn observational_marginal", "fn prepare", "fn prepare_with_assumptions", "fn product_of", "fn q_component_product", "fn require_disjoint", "fn subproblem_hash", "fn sum_out_if_any", "fn unmetered", "fn validate_distribution_query", "fn var", "fn with_causal_markov", "struct IdIdentifier", "struct IdMemo", "struct IdMeter", "struct IdQuery", "struct IdRun", "struct Law", "struct ScheduleContrast", "struct SubproblemKey", "type Assign"]
+sha256 = "6995085dfc6f100925d6c5ed6351dd61bc3e995055f715d76342da8188e18265"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/hedge_definition_enumeration.rs"
-sha256 = "4d9698532e5c13f9c2061b0ca5410d5388744df0d765c9688e6fb5beace1747a"
+items = ["fn admg", "fn ancestors_after_cut", "fn bidirected_connected", "fn bitset", "fn choose", "fn d", "fn forest_pair_exists", "fn from_masks", "fn id_refuses_exactly_when_a_hedge_exists_on_every_four_node_single_query", "fn id_refuses_exactly_when_a_hedge_exists_on_every_three_node_admg", "fn id_refuses_exactly_when_a_hedge_exists_on_four_node_joint_queries", "fn is_hedge", "fn members", "fn query", "fn some_hedge", "fn some_hedge_for_a_sub_outcome", "fn sweep", "fn the_reference_recovers_the_textbook_hedges", "fn the_shipped_verifier_matches_the_definition_on_every_three_node_admg", "fn the_shipped_verifier_matches_the_definition_on_sampled_four_node_admgs", "fn v", "fn verifier_agrees", "struct Graph"]
+sha256 = "5cd5a1d4ab95e3f070a1cd9771db11f5326afa7f1297db0381808ccb35bf04f1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/id_completeness.rs"
-sha256 = "301c042f801515e92a17f6036156359465621af7ff8185271c3632a49569482a"
+items = ["const PARAMETERIZATIONS", "fn admg", "fn assert_matches_truth", "fn bit", "fn constraints", "fn d", "fn distribution_query", "fn every_small_admg_query_is_identified_correctly_or_refuted_by_a_verified_hedge", "fn frontdoor_with_confounded_mediator_is_a_verified_hedge", "fn frozen_id_cases_keep_status_lines_certificate_and_truth", "fn has_ratio", "fn idc_matches_exact_conditional_intervention_on_every_three_node_admg", "fn idc_post_treatment_conditioning_with_confounded_mediator", "fn inputs", "fn joint", "fn level", "fn mass", "fn napkin", "fn napkin_ate_contrast_matches_exact_intervention", "fn napkin_distribution_matches_exact_intervention_for_every_z", "fn nested_napkin_needs_a_conditional_of_a_conditional", "fn overlapping_outcome_and_intervention_is_refused", "fn random", "fn ratio_depth", "fn sampled_larger_admgs_with_joint_queries_keep_the_two_way_contract", "fn v", "fn walk", "struct JointProvider", "struct Scm"]
+sha256 = "0e09e5f2cd0cc1c6155a03c50c8aeb031c21eda5206fc977f590722896759e02"

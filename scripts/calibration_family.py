@@ -25,7 +25,9 @@ from _rust_source import lex
 
 MANIFEST_PATH = "scripts/calibration_family_manifest.json"
 AUDIT_PATH = "scripts/calibration_family_labels.json"
-GATE_PATH = "scripts/gate_calibration.sh"
+GATE_PATH = "scripts/measure_calibration_groups.sh"
+# Commits that measured a record before the driver took its present name hold it here.
+EARLIER_GATE_PATH = "scripts/gate_calibration.sh"
 ACCEPTANCE_PATH = "parity/acceptance_manifest.toml"
 SCHEMA = "source_fixed_calibration_family.v1"
 
@@ -177,6 +179,15 @@ def _immutable_source(root: Path, path: str, sha: str) -> bytes:
 
 
 def read_source(root: Path, path: str, sha: str | None = None) -> bytes:
+    if sha and path == GATE_PATH:
+        try:
+            return _read_source_at(root, path, sha)
+        except subprocess.CalledProcessError:
+            return _read_source_at(root, EARLIER_GATE_PATH, sha)
+    return _read_source_at(root, path, sha)
+
+
+def _read_source_at(root: Path, path: str, sha: str | None) -> bytes:
     if sha:
         # Cache complete object identities; mutable refs and live files stay fresh.
         if re.fullmatch(r"[0-9a-f]{40}", sha):

@@ -41,14 +41,17 @@ record_sha256 = "14d07ecc9047df54f31a85445f2c7688173cf67bcc7bb2aa062d99c7d4090fb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
-sha256 = "7e99ed2821b5677124c9a38bc981d1176f739df0a59ffd2ae2da79b5234f5a1c"
+items = ["enum GraphPosteriorAtomKind", "fn accumulate_marginals", "fn adjacency_mask_from_cpdag", "fn algorithm", "fn atom_kind", "fn atoms", "fn dag_from_adjacency_mask", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_bit", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn has_edge", "fn into_word", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n", "fn n_directed_edges", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn require_word_capacity", "fn set_edge", "fn to_equivalence_classes", "fn to_temporal_equivalence_classes", "fn uniform", "fn weights", "fn with_algorithm", "fn with_atom_kind", "fn with_lag_masks", "fn with_lagged_marginals", "struct GraphPosterior", "struct GraphPrior", "struct SamplingSummary"]
+sha256 = "6f6385b0c3766070687d46106e2c7b5b08d8e54eaac227ef1d1e23470aea6c63"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/ges.rs"
-sha256 = "31e8f7bc6104122d63de42cb33634680228a4cd3e1239b3061383cd8b4317f81"
+items = ["const ALGORITHM", "const GES_SCHEDULE", "enum SearchPhase", "fn assemble", "fn contains", "fn default", "fn empty_cpdag", "fn ges_score_data", "fn get", "fn has_edge", "fn local_score_or_degenerate", "fn new", "fn orient_by_knowledge", "fn pc_skeleton_pairs", "fn pdag_to_dag", "fn run", "fn run_ges_schedule", "fn score_family_label", "fn score_gain_tolerance", "fn seed_required_edges", "fn validate_request", "fn with_ci", "fn with_constraints", "fn with_fdr_adjustment", "struct Footprint", "struct Ges", "struct GesDeltaCache", "struct GesSearch", "struct InsertPairCache", "struct PairInsert", "struct ReverseCache", "struct ReverseInsert"]
+sha256 = "5095bbe77f139cf6103d03825fb859eae56aba2162180e1aae5085dd8001b379"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
-sha256 = "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"
+items = ["fn class_collapse_partitions_every_dag_by_skeleton_and_unshielded_colliders", "fn equivalence_signature", "type Signature"]
+sha256 = "fad817ae1dcdb2b0500b3f4507d3cfd3194069b668e92c0cf2ef7efa285ba358"

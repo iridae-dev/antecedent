@@ -70,7 +70,7 @@ impl EvidencePlanError {
     fn invalid(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("invalid_argument"),
-            detail: "evidence_plan.invalid_request",
+            detail: antecedent_core::reason_details::evidence_plan::INVALID_REQUEST,
             message: message.into(),
         }
     }
@@ -78,7 +78,7 @@ impl EvidencePlanError {
     fn units(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("design_cost_units_mismatch"),
-            detail: "evidence_plan.cost_units_mismatch",
+            detail: antecedent_core::reason_details::evidence_plan::COST_UNITS_MISMATCH,
             message: message.into(),
         }
     }
@@ -574,9 +574,10 @@ impl EvidencePlan {
     pub fn status(&self) -> Option<(&'static str, &'static str)> {
         match self.outcome {
             PlanOutcome::Closing => None,
-            PlanOutcome::BudgetExhausted => {
-                Some((reason_code!("transport_budget_cancel"), "evidence_plan.budget"))
-            }
+            PlanOutcome::BudgetExhausted => Some((
+                reason_code!("transport_budget_cancel"),
+                antecedent_core::reason_details::evidence_plan::BUDGET,
+            )),
             PlanOutcome::NoneCertified => {
                 if self.options.iter().any(|o| {
                     o.gate == RepairClassification::NotCertified
@@ -584,10 +585,13 @@ impl EvidencePlan {
                 }) {
                     Some((
                         reason_code!("transport_missing_evidence"),
-                        "evidence_obligations.wrong_contract",
+                        antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT,
                     ))
                 } else {
-                    Some((reason_code!("transport_not_certified"), "evidence_plan.none_certified"))
+                    Some((
+                        reason_code!("transport_not_certified"),
+                        antecedent_core::reason_details::evidence_plan::NONE_CERTIFIED,
+                    ))
                 }
             }
         }

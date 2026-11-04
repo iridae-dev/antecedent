@@ -133,7 +133,12 @@ fn a_declared_export_with_a_forged_marker_is_refused_with_its_own_detail() {
     let bytes = antecedent_io::to_cbor(&wire).unwrap();
     let error = CohortIntervalArtifactWire::measure(&bytes, &ctx()).unwrap_err();
     let text = format!("{error:?}");
-    assert!(text.contains("cohort_decision.interval_requires_native_fit"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT
+        ),
+        "{text}"
+    );
     let _ = fit_cohort_linear_effect(&y, &t, &[&x]).unwrap();
 }
 

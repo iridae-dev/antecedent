@@ -109,7 +109,10 @@ fn an_unsealed_edit_is_refused_and_a_resealed_edit_is_caught_by_a_retained_ident
     let mut edited = meta.clone();
     edited.receipts[1].p_value_bits = 0.6_f64.to_bits();
     let err = SelectiveDiscoveryArtifact::from_meta(&edited, None).unwrap_err();
-    assert_eq!(err.refusal().unwrap().1, "selective_discovery.receipts_identity");
+    assert_eq!(
+        err.refusal().unwrap().1,
+        antecedent_core::reason_details::selective_discovery::RECEIPTS_IDENTITY
+    );
 
     // The receipt identity and the artifact identity are recomputed by an editor: the
     // artifact is internally consistent, so only a retained identity (or a replay against
@@ -150,7 +153,10 @@ fn graph_receipt_and_label_mutations_are_refused() {
         digest_hex(&StatisticStore::receipts_identity(&invalid.receipts));
     SelectiveDiscoveryArtifact::reseal_identity(&mut invalid_meta);
     let err = SelectiveDiscoveryArtifact::from_meta(&invalid_meta, None).unwrap_err();
-    assert_eq!(err.refusal().unwrap().1, "selective_discovery.receipt_invalid");
+    assert_eq!(
+        err.refusal().unwrap().1,
+        antecedent_core::reason_details::selective_discovery::RECEIPT_INVALID
+    );
     assert_eq!(err.refusal().unwrap().0, "discovery_statistics_invalid");
 
     // A stronger inference label than this format states.
@@ -198,7 +204,7 @@ fn incomplete_declarations_and_corruption_are_refused() {
     assert!(matches!(
         SelectiveDiscoveryArtifact::from_meta(&missing, None),
         Err(SelectiveDiscoveryArtifactError::Refused { detail, .. })
-            if detail == "selective_discovery.contract_identity"
+            if detail == antecedent_core::reason_details::selective_discovery::CONTRACT_IDENTITY
     ));
 
     let mut bytes = bytes_of(&state);
@@ -251,7 +257,7 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     assert!(matches!(
         SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_receipts),
         Err(SelectiveDiscoveryArtifactError::Refused { detail, .. })
-            if detail == "selective_discovery.receipt_limit"
+            if detail == antecedent_core::reason_details::selective_discovery::RECEIPT_LIMIT
     ));
     let few_items = SelectiveDiscoveryIntakeLimits { max_structure_items: 1, ..defaults };
     assert!(matches!(

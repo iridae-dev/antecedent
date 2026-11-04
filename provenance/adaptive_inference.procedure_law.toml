@@ -36,17 +36,20 @@ record_sha256 = "d269e3bd3018e5573f2a1267b70c549af474648338d329eaa6bbba75c0b97cc
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
-sha256 = "af5e4a47308e50ad4728c8afe0e61d826a27dfee5a08327e5c0d66b95ae55286"
+items = ["const CANCEL_STRIDE", "const MAX_LAW_STATES", "const MAX_LAW_WORK", "const THRESHOLD_TOLERANCE", "enum OutcomeKernel", "fn apply_exploration_floor", "fn assess", "fn best_probabilities", "fn check", "fn check_states", "fn composition_law", "fn current_offset", "fn deliveries", "fn enrol", "fn enumerate_law", "fn first_maximum", "fn first_maximum_within_tolerance", "fn futility_exceedance", "fn is_predictive", "fn losses", "fn new", "fn normalize_probabilities", "fn policy_row", "fn posteriors", "fn remember", "fn reveal", "fn reveal_unit", "fn select", "fn thompson_row", "fn tick", "struct Assessment", "struct Engine", "struct Layout", "struct ProcedureLaw", "struct Rules", "struct TerminalAtom", "type StateMap"]
+sha256 = "8e5168a8cf5592ae4b2aba760bb3c7e699055e0892bbf574401d6af55d726c38"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_procedure_law_reference.rs"
-sha256 = "9e76fa1311ff093152810bf7453504c5a0f2954bda27d083fb67ec83ca90b3ad"
+items = ["fn every_terminal_state_matches_the_exact_path_enumeration", "fn reference"]
+sha256 = "6525a9d45d490d84648b2b5298cb7c906b8b3d5908c0c4231a58990b1b0544db"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
+items = ["module"]
+sha256 = "571c1ccdbb1afe316020f1abae7a2567cdbf424d29355e0b9da9c809ddf610b6"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -11,7 +11,7 @@ have not been re-stamped or marked supported.
 python3 scripts/evidence_audit.py report
 python3 scripts/evidence_audit.py report --json
 python3 scripts/verify_provenance_citations.py --check
-python3 scripts/check_v3_test_registry.py
+python3 scripts/check_test_registry.py
 ```
 
 The inventory joins existing registries; it is not another source of supports.
@@ -82,7 +82,7 @@ unresolved DOI or title mismatch; explicit `--fetch` uses Crossref/DataCite.
 
 No numerical case or acceptance budget was deleted. The assertion rename,
 measurement separation, repaired citations and duplicated documentation check
-have explicit coverage dispositions in `parity/test_refactor_dispositions.toml`.
+are recorded in the commit history.
 
 ## Feedback measurements
 

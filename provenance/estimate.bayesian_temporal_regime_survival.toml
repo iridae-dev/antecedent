@@ -38,17 +38,20 @@ record_sha256 = "d8cfeb1a16bb471dceda05c6fa9389b617078bb1a590884b262e5306665a0d7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
-sha256 = "7c15e0afc20715299b66570e166f856487d596205e9049247bd667b435209c78"
+items = ["const POSTERIOR_STREAM", "fn current_features", "fn draw_coefficients", "fn fit_joint", "fn fit_regime_survival_posterior", "fn new", "fn period_feature", "fn person_periods", "fn subjects", "fn transition_features", "fn treatment_features", "fn width", "struct JointPosterior", "struct Subject", "struct SurvivalFit", "struct Trajectories", "struct TrajectoryRows"]
+sha256 = "902afbc4f779a11e04283085579f321ed132b63ffb530c2b868633ee70cfe82e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/linalg.rs"
-sha256 = "45c728b8a80412e36794c6ed10071969b3e64a565cc09b7807f80f90f4fe3c85"
+items = ["module"]
+sha256 = "b981c92ab883668e27ddaaa569d28e1311cede0fee399ebab9cc5a935923a26f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_temporal_regime_survival_reference.rs"
-sha256 = "0165d4a371862cedc908d96818ab44f179ef28d1e8c616eeb7a21b6f3d25bf49"
+items = ["const DRAWS", "const SIGMAS", "fn bayesian_regime_survival_matches_the_independent_g_formula", "fn check_laplace_kernel", "fn floats", "fn matrix", "fn reference_cdf", "fn the_exact_check_resolves_the_posterior_spread_of_the_hazard"]
+sha256 = "151bd17ade5d7b0f4ed80d083aa3ff0f0d1a492ec4372803a6af526a46b743b6"
 
 [[method_review.artifacts]]
 role = "reference"

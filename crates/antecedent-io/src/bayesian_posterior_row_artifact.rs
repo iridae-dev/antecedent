@@ -706,37 +706,54 @@ impl PosteriorRowArtifactWire {
             }
         }
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal("dose_grid.cancelled", "artifact export cancelled"));
+            return Err(execution_refusal(
+                antecedent_core::reason_details::dose_grid::CANCELLED,
+                "artifact export cancelled",
+            ));
         }
         let mut counter = Counter { bytes: 0, ctx };
         if let Err(error) = ciborium::ser::into_writer(self, &mut counter) {
             return Err(if ctx.cancellation.is_cancelled() {
-                execution_refusal("dose_grid.cancelled", "artifact export cancelled")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::CANCELLED,
+                    "artifact export cancelled",
+                )
             } else {
-                execution_refusal("dose_grid.resource_refused", &error.to_string())
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    &error.to_string(),
+                )
             });
         }
-        let scratch = counter
-            .bytes
-            .checked_mul(3)
-            .and_then(|bytes| bytes.checked_add(4096))
-            .ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "artifact encoding size overflow")
-            })?;
+        let scratch =
+            counter.bytes.checked_mul(3).and_then(|bytes| bytes.checked_add(4096)).ok_or_else(
+                || {
+                    execution_refusal(
+                        antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                        "artifact encoding size overflow",
+                    )
+                },
+            )?;
         if ctx.memory_limit_bytes().is_some_and(|limit| scratch > limit) {
             return Err(execution_refusal(
-                "dose_grid.resource_refused",
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
                 "artifact encoding exceeds memory limit",
             ));
         }
-        let _encoding = ctx
-            .acquire_admission(0, scratch)
-            .map_err(|error| execution_refusal("dose_grid.resource_refused", &error.to_string()))?;
+        let _encoding = ctx.acquire_admission(0, scratch).map_err(|error| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &error.to_string(),
+            )
+        })?;
         let bytes = self
             .export()
             .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))?;
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal("dose_grid.cancelled", "artifact export cancelled"));
+            return Err(execution_refusal(
+                antecedent_core::reason_details::dose_grid::CANCELLED,
+                "artifact export cancelled",
+            ));
         }
         Ok(bytes)
     }
@@ -800,20 +817,29 @@ impl PosteriorRowArtifactWire {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<(Self, CompiledPosteriorRow), PosteriorRowArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal("dose_grid.cancelled", "artifact consumption cancelled"));
+            return Err(execution_refusal(
+                antecedent_core::reason_details::dose_grid::CANCELLED,
+                "artifact consumption cancelled",
+            ));
         }
         let bound = (bytes.len() as u64).checked_mul(8).ok_or_else(|| {
-            execution_refusal("dose_grid.resource_refused", "artifact byte size overflow")
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                "artifact byte size overflow",
+            )
         })?;
         if ctx.memory_limit_bytes().is_some_and(|limit| bound > limit) {
             return Err(execution_refusal(
-                "dose_grid.resource_refused",
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
                 "artifact decoding exceeds memory limit",
             ));
         }
-        let _decode = ctx
-            .acquire_admission(0, bound)
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let _decode = ctx.acquire_admission(0, bound).map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?;
         let mut wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => PosteriorRowArtifactError::UnsupportedSemantics("shape"),
             other => PosteriorRowArtifactError::Undecodable(other.to_string()),
@@ -837,11 +863,20 @@ impl PosteriorRowArtifactWire {
             return Err(PosteriorRowArtifactError::ResultMismatch);
         }
         wire.retention = crate::retained_allocation::RetainedAllocation::acquire(
-            crate::retained_allocation::allocation_bytes(&wire)
-                .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?,
+            crate::retained_allocation::allocation_bytes(&wire).map_err(|e| {
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    &e.to_string(),
+                )
+            })?,
             ctx,
         )
-        .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        .map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?;
         antecedent_core::execution_attempt::record_physical(
             antecedent_core::execution_attempt::PhysicalEvent::RetainedFull,
             1,
@@ -882,11 +917,17 @@ impl CompiledPosteriorRow {
             .data_digest()
             .map_err(|e| PosteriorRowArtifactError::Undecodable(e.to_string()))?;
         let bytes = program.retained_source_bytes().checked_mul(2).ok_or_else(|| {
-            execution_refusal("dose_grid.resource_refused", "retained wire size overflow")
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                "retained wire size overflow",
+            )
         })?;
-        let retention = ctx
-            .acquire_admission(0, bytes)
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let retention = ctx.acquire_admission(0, bytes).map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?;
         Ok(Self {
             request: std::sync::Arc::new(request),
             program,
@@ -931,7 +972,10 @@ impl CompiledPosteriorRow {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, PosteriorRowArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal("dose_grid.cancelled", "retargeting cancelled"));
+            return Err(execution_refusal(
+                antecedent_core::reason_details::dose_grid::CANCELLED,
+                "retargeting cancelled",
+            ));
         }
         let bytes = self
             .program
@@ -939,11 +983,17 @@ impl CompiledPosteriorRow {
             .checked_mul(2)
             .and_then(|n| n.checked_add((grid.len() as u64).checked_mul(16)?))
             .ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "retargeted wire size overflow")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "retargeted wire size overflow",
+                )
             })?;
-        let retention = ctx
-            .acquire_admission(0, bytes)
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let retention = ctx.acquire_admission(0, bytes).map_err(|e| {
+            execution_refusal(
+                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                &e.to_string(),
+            )
+        })?;
         let mut request = self.request.as_ref().clone();
         let PosteriorRowRequestWire::DoseGrid(wire) = &mut request;
         wire.grid = grid;
@@ -979,16 +1029,32 @@ impl CompiledPosteriorRow {
             .and_then(|n| n.checked_add(points.checked_mul(16)?))
             .and_then(|n| n.checked_mul(16))
             .ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "artifact output size overflow")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "artifact output size overflow",
+                )
             })? as u64;
-        let source = crate::retained_allocation::allocation_bytes(self.request.as_ref())
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let source =
+            crate::retained_allocation::allocation_bytes(self.request.as_ref()).map_err(|e| {
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    &e.to_string(),
+                )
+            })?;
         let bytes =
             source.checked_add(numeric).and_then(|n| n.checked_add(16384)).ok_or_else(|| {
-                execution_refusal("dose_grid.resource_refused", "artifact output size overflow")
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    "artifact output size overflow",
+                )
             })?;
         let retention = crate::retained_allocation::RetainedAllocation::acquire(bytes, ctx)
-            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+            .map_err(|e| {
+                execution_refusal(
+                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                    &e.to_string(),
+                )
+            })?;
         let mut artifact = PosteriorRowArtifactWire::from_executed(
             self.request.as_ref().clone(),
             self.execute(ctx)?,

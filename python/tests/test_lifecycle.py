@@ -16,6 +16,7 @@ from pathlib import Path
 
 import antecedent as ac
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import decision, external
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
@@ -210,7 +211,7 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
     )
     nonlinear_refusal = _refused(nonlinear.evaluate(claim))
     assert nonlinear_refusal.reason_code == "decision_contract_unsatisfied"
-    assert nonlinear_refusal.detail == "decision_evaluation.mean_source_insufficient"
+    assert nonlinear_refusal.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
     assert nonlinear_refusal.supplied == "mean"
     assert nonlinear_refusal.remedy is not None
 
@@ -223,7 +224,7 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
         constraints=(cap,),
     )
     constraint_refusal = _refused(constrained.evaluate(claim))
-    assert constraint_refusal.detail == "decision_evaluation.mean_source_insufficient"
+    assert constraint_refusal.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
 
     # An outcome-law input cannot be read from a mean grid.
     outcome = decision.Contract(
@@ -247,7 +248,9 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
     with pytest.raises(decision.DecisionRefusal) as export_refusal:
         bytes(result.export())
     assert export_refusal.value.reason_code == "route_not_supported"
-    assert export_refusal.value.detail == "decision_evaluation.mean_source_not_replayable"
+    assert (
+        export_refusal.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE
+    )
 
 
 def _refused(outcome):

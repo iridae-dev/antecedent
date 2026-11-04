@@ -108,7 +108,7 @@ pub fn parse_matched_sampling(name: &str) -> Result<(), EstimationError> {
     } else {
         Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "matched_case_control.sampling_design",
+            antecedent_core::reason_details::matched_case_control::SAMPLING_DESIGN,
             &format!(
                 "sampling '{name}' is not the declared design; the cell takes matched sets \
                  sampled on the outcome ('{MATCHED_SAMPLING}')"
@@ -130,7 +130,7 @@ pub fn parse_matched_estimand(name: &str) -> Result<(), EstimationError> {
         MATCHED_ESTIMAND => Ok(()),
         "population_risk" | "absolute_risk" | "risk_difference" | "risk_ratio" => Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "matched_case_control.absolute_risk_not_identified",
+            antecedent_core::reason_details::matched_case_control::ABSOLUTE_RISK_NOT_IDENTIFIED,
             &format!(
                 "'{name}' is not identified from matched sets sampled on the outcome: the case \
                  fraction is fixed by design, so absolute risks need outcome prevalence or \
@@ -140,7 +140,7 @@ pub fn parse_matched_estimand(name: &str) -> Result<(), EstimationError> {
         )),
         other => Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "matched_case_control.estimand_not_supported",
+            antecedent_core::reason_details::matched_case_control::ESTIMAND_NOT_SUPPORTED,
             &format!("estimand '{other}' is not supported; only '{MATCHED_ESTIMAND}' is"),
         )),
     }
@@ -224,7 +224,7 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     if ctx.cancellation.is_cancelled() {
         Err(refuse(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "matched_case_control.budget",
+            antecedent_core::reason_details::matched_case_control::BUDGET,
             "conditional odds ratio solve cancelled; no estimate is reported, which is not a \
              verdict on the data",
         ))
@@ -272,7 +272,7 @@ fn classify(
     let invalid = |message: &str| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "matched_case_control.invalid_data",
+            antecedent_core::reason_details::matched_case_control::INVALID_DATA,
             message,
         )
     };
@@ -326,7 +326,7 @@ fn classify(
     if counts.informative == 0 {
         return Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "matched_case_control.no_informative_sets",
+            antecedent_core::reason_details::matched_case_control::NO_INFORMATIVE_SETS,
             &format!(
                 "none of the {} matched sets is informative ({} outcome-degenerate, {} exposure-\
                  concordant): concordant sets carry no information about the odds ratio",
@@ -340,7 +340,7 @@ fn classify(
 fn not_finite(informative: usize, which: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "matched_case_control.estimate_not_finite",
+        antecedent_core::reason_details::matched_case_control::ESTIMATE_NOT_FINITE,
         &format!(
             "the conditional likelihood is monotone in the log odds ratio over the {informative} \
              informative sets ({which}): the maximum likelihood estimate does not exist"

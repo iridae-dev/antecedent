@@ -39,9 +39,11 @@ record_sha256 = "96f2fc9fdad911ff0062fe8261f5635997374bf61ecf1a7bbc3ea9516cfbdb2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/response.rs"
-sha256 = "621d73dcbdbc5478655f5fb6dc777941a7808681c5c400af70f90e9e50a8e8bd"
+items = ["fn append_observation_assumptions", "fn identify", "fn identify_multi_treatment_joint", "fn multi_treatment_joint_route", "fn new", "fn prepare_with_assumptions", "fn require_observation_claim", "fn response_pairs", "struct ResponseIdentifier"]
+sha256 = "202fa13e4731fe4498df7ac7fa6386edf684cc45ddae3f727cb82e06cb738fe0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/joint_response.rs"
-sha256 = "3caed53c5b66316bf912725b0d8daadb73e22c26349349df7e8208755f768ea3"
+items = ["const JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE", "fn backdoor_graph", "fn identify_joint_admg_response", "fn identify_joint_dag_response", "fn identify_joint_within", "fn joint", "fn joint_and_response_delegation_share_context_without_changing_the_claim", "fn joint_result", "fn joint_result_bounded", "fn joint_scientifically_unidentified", "fn n", "fn prepare_joint_response", "struct PreparedJointResponse"]
+sha256 = "8b4e81892cfa9f83273a2eecad99b31fafbb90102afa5ab64d1fc7423963b64b"

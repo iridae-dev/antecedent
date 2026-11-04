@@ -4,6 +4,7 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent._artifact_protocol import ExportedArtifact
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
 from antecedent.execution import Execution
@@ -170,7 +171,7 @@ def test_prepare_estimate_joint_sensitivity_export_and_independent_consume():
     with pytest.raises(CausalUnsupportedError) as caught:
         transport.consume_joint_mechanism_sensitivity_artifact(artifact, max_search_operations=10)
     assert caught.value.reason_code == "route_not_supported"
-    assert "joint_sensitivity.consumer_limits" in str(caught.value)
+    assert reason_details.joint_sensitivity.CONSUMER_LIMITS in str(caught.value)
 
 
 def counted_stage():
@@ -228,7 +229,7 @@ def test_the_endpoint_bootstrap_interval_replays():
         with pytest.raises(CausalUnsupportedError) as caught:
             transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, **kwargs)
         assert caught.value.reason_code == "route_not_supported"
-        assert "joint_sensitivity.bounds_exceeded" in str(caught.value)
+        assert reason_details.joint_sensitivity.BOUNDS_EXCEEDED in str(caught.value)
     with pytest.raises(CausalUnsupportedError) as exact:
         transport.joint_mechanism_sensitivity_interval(prepared_stage(), DEVIATION, replicates=199)
     assert exact.value.reason_code == "transport_numerical_failure"
@@ -242,55 +243,55 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
             transport.JointDeviation({"outcome_kernel": 0.1}, total_budget=0.1),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.budget_coupling",
+            reason_details.joint_sensitivity.BUDGET_COUPLING,
         ),
         (
             transport.JointDeviation({"outcome_kernel": 0.1, "fixed_graph_parent": 0.1}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.fixed_graph_parent",
+            reason_details.joint_sensitivity.FIXED_GRAPH_PARENT,
         ),
         (
             transport.JointDeviation({"fixed_graph_conditional": 0.1}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.fixed_graph_conditional",
+            reason_details.joint_sensitivity.FIXED_GRAPH_CONDITIONAL,
         ),
         (
             transport.JointDeviation({"source_target_discrepancy": 0.1}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.source_target_discrepancy",
+            reason_details.joint_sensitivity.SOURCE_TARGET_DISCREPANCY,
         ),
         (
             transport.JointDeviation({"treatment_mechanism": 0.1}),
             CausalValueError,
             "invalid_argument",
-            "joint_sensitivity.treatment_factor",
+            reason_details.joint_sensitivity.TREATMENT_FACTOR,
         ),
         (
             transport.JointDeviation({"outcome_kernel": 1.5}),
             CausalValueError,
             "invalid_argument",
-            "joint_sensitivity.invalid_fraction",
+            reason_details.joint_sensitivity.INVALID_FRACTION,
         ),
         (
             transport.JointDeviation({"latent_mechanism": 0.1}),
             CausalValueError,
             "invalid_argument",
-            "joint_sensitivity.unknown_factor",
+            reason_details.joint_sensitivity.UNKNOWN_FACTOR,
         ),
         (
             transport.JointDeviation({"outcome_kernel": 0.1}, frontier_points=258),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.bounds_exceeded",
+            reason_details.joint_sensitivity.BOUNDS_EXCEEDED,
         ),
         (
             transport.JointDeviation({}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.factor_count",
+            reason_details.joint_sensitivity.FACTOR_COUNT,
         ),
     ]
     for deviation, error, code, detail in cases:
@@ -304,14 +305,16 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
             {"outcome_kernel": 0.1, "shared_parent_marginal": 0.1, third: 0.1}
         )
         with pytest.raises(
-            CausalUnsupportedError, match="joint_sensitivity.factor_count"
+            CausalUnsupportedError, match=reason_details.joint_sensitivity.FACTOR_COUNT
         ) as caught:
             transport.joint_mechanism_sensitivity(prepared, deviation)
         assert caught.value.reason_code == "route_not_supported"
     # A non-finite threshold refuses at construction with the same reason code and
     # detail as the Rust contract (invalid_argument / joint_sensitivity.invalid_threshold).
     for bad in (float("nan"), float("inf"), float("-inf")):
-        with pytest.raises(CausalValueError, match="joint_sensitivity.invalid_threshold") as caught:
+        with pytest.raises(
+            CausalValueError, match=reason_details.joint_sensitivity.INVALID_THRESHOLD
+        ) as caught:
             transport.JointDeviation({"outcome_kernel": 0.1}, decision_threshold=bad)
         assert caught.value.reason_code == "invalid_argument"
 
@@ -350,13 +353,13 @@ def test_a_budget_or_cancellation_stop_keeps_the_exact_range_and_its_receipt():
     # The range is exact whatever the frontier budget; the frontier is not.
     assert stopped["assumption_range"] == full["assumption_range"]
     assert stopped["receipt"]["stop"] == "search.operations"
-    assert stopped["unresolved_detail"] == "joint_sensitivity.budget"
+    assert stopped["unresolved_detail"] == reason_details.joint_sensitivity.BUDGET
     assert stopped["receipt"]["unevaluated"]
     assert any(point["status"] == "unevaluated" for point in stopped["frontier"])
     assert len(stopped["frontier"]) == len(full["frontier"])
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(CausalError, match="joint_sensitivity.budget") as cancelled:
+    with pytest.raises(CausalError, match=reason_details.joint_sensitivity.BUDGET) as cancelled:
         transport.joint_mechanism_sensitivity(
             prepared, DEVIATION, execution=Execution(cancel=token)
         )

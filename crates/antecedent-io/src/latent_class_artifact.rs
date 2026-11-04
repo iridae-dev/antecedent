@@ -79,9 +79,12 @@ const ARTIFACT_KIND: &str = crate::artifact_kinds::LATENT_CLASS_EFFECTS;
 const META_SECTION: &str = "latent_class_meta";
 const DATA_SECTION: &str = "latent_class_data";
 const BUDGET: BudgetDetails = BudgetDetails {
-    cancelled: (antecedent_core::reason_code!("cancelled_no_claim"), "latent_class.cancelled"),
-    memory: "latent_class.memory_budget_exceeded",
-    export: "latent_class.export_budget_exceeded",
+    cancelled: (
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::latent_class::CANCELLED,
+    ),
+    memory: antecedent_core::reason_details::latent_class::MEMORY_BUDGET_EXCEEDED,
+    export: antecedent_core::reason_details::latent_class::EXPORT_BUDGET_EXCEEDED,
 };
 /// `LatentClassMeta::data_binding` of a record that holds no dataset, only its digest.
 const DATA_BOUND_BY_DIGEST: &str = "digest";
@@ -102,7 +105,7 @@ fn budget_refusal((code, detail, explanation): BudgetRefusal) -> LatentClassArti
 fn invalid_request(message: &str) -> LatentClassArtifactError {
     LatentClassArtifactError::refused(
         antecedent_core::reason_code!("invalid_argument"),
-        "latent_class.invalid_request",
+        antecedent_core::reason_details::latent_class::INVALID_REQUEST,
         message,
     )
 }
@@ -864,7 +867,7 @@ impl LatentClassArtifact {
             (Some(DATA_BOUND_BY_DIGEST), None) => {
                 return Err(LatentClassArtifactError::refused(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "latent_class.data_required",
+                    antecedent_core::reason_details::latent_class::DATA_REQUIRED,
                     format!(
                         "the artifact is bound to its dataset by digest {}; supply the dataset \
                          to replay it",

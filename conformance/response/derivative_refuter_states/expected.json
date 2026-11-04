@@ -58,7 +58,26 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/derivative_refuter_known_truth.rs",
-          "sha256": "20037a82452cfca5e5cb834312ca53b9f8d197034ca822ba29379ed73730e652"
+          "items": [
+            "const ROWS",
+            "fn a_derivative_without_a_directed_path_is_the_exact_structural_zero",
+            "fn average",
+            "fn dag",
+            "fn derivative_bootstrap_stability_runs_under_declared_independent_subjects",
+            "fn derivative_refuter_planted_violations_are_detected",
+            "fn derivative_refuter_states_known_truth",
+            "fn fixture",
+            "fn graph_without_a_path_to_the_outcome",
+            "fn ids",
+            "fn number",
+            "fn numbers",
+            "fn point",
+            "fn report",
+            "fn study",
+            "fn table",
+            "fn values"
+          ],
+          "sha256": "1d92712fbf8ac16a7c39c994dc4213898d36b55fca5c7714e2c28236179ad308"
         }
       ],
       "fixture_payload_sha256": "3afddd65c0e6763829ecdb8fe4ea1f57d4d515c65302897395cfbc8767b6a0c0"

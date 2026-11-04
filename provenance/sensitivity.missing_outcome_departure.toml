@@ -40,7 +40,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "mnar_sensitivity and arm_mean in crates/antecedent-validate/src/mnar_sensitivity.rs for the difference-in-means estimator (the adjusted estimators in mnar_adjusted.rs are exercised only through the saturated-covariate stratified closed form): the pattern-mixture shift and exponential-tilting selection means of each arm, the combination pi ybar + (1 - pi) g, the delta-method sampling variance with the observed-fraction term, the grid, assumption range and tipping search. The current public route withholds sampling intervals and excludes-null tipping; the numerical sampling checks remain available under calibration-internal. Not a review of whether any departure parameter is plausible, of coverage of the sampling interval, or of the bootstrap interval of adjusted estimators."
+scope = "mnar_sensitivity and arm_mean in crates/antecedent-validate/src/mnar_sensitivity.rs for the difference-in-means estimator (the adjusted estimators in mnar_adjusted.rs are exercised only through the saturated-covariate stratified closed form): the pattern-mixture shift and exponential-tilting selection means of each arm, the combination pi ybar + (1 - pi) g, the delta-method sampling variance with the observed-fraction term, the grid, assumption range and tipping search. The public route reports the delta-method sampling interval and the excludes-null tipping, with the interval's calibration slot recorded as not measured; the numerical sampling checks run through that same route. Not a review of whether any departure parameter is plausible, of coverage of the sampling interval, or of the bootstrap interval of adjusted estimators."
 assumptions = ["Randomized or ignorable treatment assignment held fixed; only the outcome-missingness mechanism departs from missing at random, by a one-parameter family declared in advance.", "The tilt is evaluated on the empirical observed outcome law of each arm, so the departure is bounded by the observed range.", "The delta-method variance treats the observed fraction as binomial and the observed outcomes as an independent sample given it."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and the retained reference; no upstream implementation or test source was consulted or copied."
 redistribution = "The reference and its frozen output are repository-authored under MIT OR Apache-2.0; the primary sources are not redistributed."
@@ -52,14 +52,16 @@ record_sha256 = "114201977a6488fb7b91e86a446256b61b06c4330afad1f10cae14e7c926c52
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/mnar_sensitivity.rs"
-sha256 = "3e07ab75c46da6e197266a3340e087d6e145b5c307ca3589eb4d621349903f0e"
+items = ["const MNAR_ASSIGNMENT_ASSUMPTION_ID", "const MNAR_ASSUMPTION_RANGE_CLAIM", "const MNAR_CELL_SUBSTEPS", "const MNAR_DEPARTURE_ASSUMPTION_ID", "const MNAR_DEPARTURE_ASSUMPTION_STATUS", "const MNAR_EMPIRICAL_STATUS", "const MNAR_FAMILY", "const MNAR_INTERPRETATION", "const MNAR_MAX_BISECTIONS", "const MNAR_MAX_BOOTSTRAP", "const MNAR_MAX_COVARIATES", "const MNAR_MAX_DECISIONS", "const MNAR_MAX_DELTA", "const MNAR_MAX_GRID_POINTS", "const MNAR_MAX_ROWS", "const MNAR_MAX_TILT", "const MNAR_MAX_TOLERANCE", "const MNAR_MAX_WORK", "const MNAR_METHOD", "const MNAR_MIN_BOOTSTRAP", "const MNAR_MIN_TOLERANCE", "const MNAR_SAMPLING_BASIS", "const MNAR_SAMPLING_DETAIL", "const MNAR_SAMPLING_STATUS", "const MNAR_TARGET", "enum MnarConclusionKind", "enum MnarEstimator", "enum MnarModel", "fn arm_mean", "fn assumptions", "fn cheap_interval", "fn check_spec", "fn detail", "fn first_change", "fn make_arm", "fn max_magnitude", "fn mnar_sensitivity", "fn mnar_sensitivity_impl", "fn name", "fn new", "fn null_label", "fn parameter_grid", "fn point", "fn prepare", "fn reason_code", "fn refuse", "fn sample_variance", "fn sign_label", "fn size", "fn tipping_of", "fn try_point", "fn uses_covariates", "struct Arm", "struct ArmLoading", "struct Context", "struct MnarAssumptionRange", "struct MnarAssumptionRecord", "struct MnarData", "struct MnarDecision", "struct MnarDecisionReport", "struct MnarMechanism", "struct MnarPoint", "struct MnarSamplingInterval", "struct MnarSensitivityError", "struct MnarSensitivityResult", "struct MnarSensitivitySpec", "struct MnarTipping", "struct MnarTippingSide", "struct Prepared"]
+sha256 = "a79a4decf83535b9c865637de86a6dc41148c88e023cc9224627ddc7c2a96882"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/mnar_sensitivity.rs"
-sha256 = "611ec3fec4e5ccf68d6c86b5ac4635e21bf469f094df07fb9b77b7780dc444f3"
+items = ["fn close", "fn mnar_matches_the_independent_reference", "fn run"]
+sha256 = "94ff5b062b71945e8c10b5fbb29555486e3ef699d0e07d777751ed6dd63ac3fa"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/validate/mnar_sensitivity/expected.json"
-sha256 = "a45a8bc6645700b5c85c7c3754a78077fd3a6eed38ba03aa40061850e40056f4"
+sha256 = "61f482b5f904a511b8b4343cc8a97f0a80d03c682d738b9510daffe74679f96b"

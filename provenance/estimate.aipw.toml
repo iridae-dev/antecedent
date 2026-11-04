@@ -48,17 +48,20 @@ record_sha256 = "f8819b29dceb32866dfbe2772676626eee0ca5525d33ee40bc123512007ddb8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/aipw.rs"
-sha256 = "1d477267b848ed1d437d4c2a03a9e98d0dfc45f5c592fa4cedfd5cc14ec9a15d"
+items = ["fn adjust_influence", "fn assemble_full_sample", "fn attach_bootstrap", "fn cluster_dml_se", "fn contrast_influence", "fn crossfit_table", "fn default", "fn fit", "fn fit_crossfit_scores", "fn fit_custom", "fn fit_full_sample", "fn fit_point", "fn has_second_units", "fn new", "fn prepare", "fn record_cluster_dml", "fn require_no_interval_request", "fn require_penalized_scope", "fn require_point_route", "fn require_weighted_scope", "fn robust_influence_se", "fn score_contrast", "fn unit_labels", "fn with_overlap", "fn with_sampling_weights", "struct AipwAte", "struct AipwWorkspace"]
+sha256 = "48f0f3df1ca7279c3ac7e3dd5c486a01b5f11e3ca8880f0633bf2cd52f282d7d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/aipw/scores.rs"
-sha256 = "c3e8e263c161459599377b1470258d3db58ad4610df1b07a9ebc71d784dd2e9c"
+items = ["module"]
+sha256 = "a9cd8ccf7e8cdf405bde6591a03bf01fae68c9d201279ab8213762b7882fe16e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/aipw_reference.rs"
-sha256 = "89786d5ca884f516776fc0aa63e6e95a9aa8494a0b8d8901d7f3e5b15708a059"
+items = ["fn close", "fn fit", "fn floats", "fn reference", "fn untrimmed_ate_is_the_cross_fitted_score_on_the_recorded_folds"]
+sha256 = "2b5615c5fc492ecab8c364fc2842798c89de3c5da35c1fea96634d563e1d0ee1"
 
 [[method_review.artifacts]]
 role = "reference"

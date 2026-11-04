@@ -51,27 +51,32 @@ record_sha256 = "35e8ace7e6a28687de075157f8c6b417e3b3e9172d645574e19ced3cdd9bae4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/mcmc_stats.rs"
-sha256 = "3414579c1e737fdc0284624d4a9df9f3e9f4a611f055c919bce9f3ba40603095"
+items = ["fn diagnostics_one", "fn empirical_quantiles", "fn fold_about_median", "fn geyer_ess_split", "fn has_variation", "fn lag_autocovariance", "fn mcmc_summary", "fn min_bulk_ess", "fn min_tail_ess", "fn parameter_mcmc_diagnostics", "fn rank_normalize", "fn sample_at", "fn split_rhat_on_segments", "fn split_segment_stats", "fn summarize", "fn valid_layout", "struct McmcSummary", "struct ParameterMcmcDiagnostics", "struct SegmentStats"]
+sha256 = "687d5d440e12d84bbcb4c91e12ed6b481705264b22fce8429f08e53385cc75bb"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/numeric.rs"
-sha256 = "c17444482d21c072e7c4b92e3be0379cc2089f5c9c616652964ef2b18da42afa"
+items = ["module"]
+sha256 = "090b1b721ff0a4520d8c7d2364ddc3e45ca1c0e7174cb509f7b9c80a07cb8b7c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/special.rs"
-sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
+items = ["module"]
+sha256 = "c7d8d437ff37891a6438fa250f17dc8feb2081c0be66d55439188106c92259c0"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/posterior_reduce.rs"
-sha256 = "2cb35cee439e32e55b017400146bca4a4c8236a0bd39f1ce5f08279f3d4e71b8"
+items = ["module"]
+sha256 = "af40f50fcdfff37a0ac59533a879c2af7d6a91a04e1b07908c1342bf9244fd4f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs"
-sha256 = "81d05ea53fbecbfdf3bb5cce6d15cbee0e02947b65dab8ce0cedfbd7b5be80e7"
+items = ["fn full_pair_diagnostics_match_the_high_precision_primary_equations", "fn rank_rhat_and_compatible_ess_cases_match_pinned_arviz_chains", "fn summary"]
+sha256 = "dc408f58a6e3ef70a30c976787598d224cb729996c29c534c15aceb92fb27875"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -91,9 +96,9 @@ sha256 = "23a3114c84b925ae79875d049c8f71aa90b13d5eb12a383313bad7b48ab99e2d"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/validate/bayesian_checks/diagnostics_oracle.json"
-sha256 = "025b4f90ef6a8ac182994c209f5ca3bd5d4521dd3a845a234a2482c2a03896da"
+sha256 = "8748eac55d36502d0b86b73d74bf2361ae3cd25f5bb2eb9930bf720061e2562a"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/validate/bayesian_checks/independent_ips.json"
-sha256 = "3f13a45dfaa90629f4eac9814ccddc9660584c7bf29ff4412e17f4fd51d3a9f6"
+sha256 = "4703e0bf91c11a4d0f0ef8bcb36918de7ef79cbd73b7b7b69e7b5753308af9c9"

@@ -41,17 +41,20 @@ record_sha256 = "299d941d864c7aa4d09dad34940131b13e2153151df90eeed50e7804338b1c0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/synthesis_transport.rs"
-sha256 = "6c86d5e6406b709b85a23d907289b61fea67604d75370cc35010ab7e07f966bc"
+items = ["const DIAGONAL_RELATIVE_TOLERANCE", "const MAX_TRANSPORTED_SUMMARIES", "enum SummaryOrigin", "enum TransportedSynthesisError", "fn borrow_transported", "fn pool_transported", "fn transport_aware_covariance", "fn transported_prior_update", "fn validate", "struct TransportAwareSummary", "struct TransportedBorrowing", "struct TransportedPooled", "struct TransportedPriorUpdate"]
+sha256 = "9b147a7fc6c2eb5180d57834d2026cc7f4f0ff876808965dab55fa7df79fc170"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/synthesis.rs"
-sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+items = ["const MAX_JACOBI_SWEEPS", "const MAX_STUDIES", "const MAX_TAU_SUPPORT", "const PRIOR_SUM_TOLERANCE", "const PSD_RELATIVE_TOLERANCE", "const SYMMETRY_RELATIVE_TOLERANCE", "enum MeanPrior", "enum SynthesisError", "fn check_covariance", "fn check_summaries", "fn conditional_on_tau", "fn denominator", "fn estimate", "fn fixed_effect_gls", "fn hierarchical_normal_borrowing", "fn scaled_eigenvalue_extremes", "fn symmetric_eigenvalues", "fn variance", "struct ConditionalPosterior", "struct CovarianceCheck", "struct HierarchicalPosterior", "struct PooledEstimate", "struct TauPrior"]
+sha256 = "c7f1082adc40eb979fbe1cb6758ba0926054e79422a9a5c24a846b946e77f450"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/transport_synthesis_reference.rs"
-sha256 = "51e07138d056c4f4a85513aa397e884024019af50682ee98aeba1a52f0cbb8d6"
+items = ["fn borrowing_matches_the_marginal_likelihood_definition_at_fifty_digits", "fn declarations_the_route_cannot_honour_are_refused_not_ignored", "fn near", "fn num", "fn pooling_matches_exact_generalized_least_squares", "fn reference", "fn summary", "fn transported_prior_update_matches_exact_precision_weighting"]
+sha256 = "5a2eddcb45049f8ee7c3f493d6bae299a8b7109e9f3696b6c17155cdc103b6b0"
 
 [[method_review.artifacts]]
 role = "reference"

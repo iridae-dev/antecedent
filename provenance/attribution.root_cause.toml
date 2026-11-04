@@ -42,9 +42,11 @@ record_sha256 = "5ef456b822a2150c255e2eebebd0430e220d0e59026413127a2fdc25d027bff
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/root_cause.rs"
-sha256 = "119952ebca0880abf2e329fbb07fc34cc798bce1ac2f76bbeacd58073de0555a"
+items = ["fn add", "fn rank", "fn rank_with_graph_uncertainty", "fn root_cause_rank", "fn weight_scale", "struct ContributionMoments"]
+sha256 = "00b31fae7413ec542cc2573bf107e7fb290d1bad46f1f0649e432c71084cd017"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/root_cause_ranking.rs"
-sha256 = "a47cf6608c729fddae436302f96845881725807ed27c67d383be5d924815d6c0"
+items = ["fn attribution", "fn draws", "fn graphs", "fn half_an_ensemble_is_refused_not_silently_ignored", "fn weighted_graph_ranks_match_a_hand_computed_weighted_mean_and_spread"]
+sha256 = "7a3719bd9cb7febcb5beb55abfac64936594018227ea0a5aa4003e5490edf237"

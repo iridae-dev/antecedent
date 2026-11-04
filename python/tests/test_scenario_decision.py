@@ -23,6 +23,7 @@ import re
 
 import pytest
 from antecedent import Admg, Cpdag, decision
+from antecedent import _reason_details as reason_details
 from antecedent import scenario_decision as sd
 from antecedent.decision_robust import Support, admissible_contract
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -296,7 +297,7 @@ def test_b_claims_unresolved_scenarios_leave_invariance_and_worst_case_unchecked
 def test_b_claims_bayes_is_refused_without_declared_weights():
     with pytest.raises(sd.ScenarioDecisionRefusal) as refused:
         decide(two(), 0.2, "bayes_over_structures")
-    assert refused.value.detail == "decision_claims.probabilities_not_declared"
+    assert refused.value.detail == reason_details.decision_claims.PROBABILITIES_NOT_DECLARED
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     assert refused.value.supplied == "none"
     assert isinstance(refused.value, CausalUnsupportedError)
@@ -328,12 +329,12 @@ def test_b_claims_weights_must_be_the_scenario_sets_own():
     # Weights the set did not declare are not applied to it.
     with pytest.raises(sd.ScenarioDecisionRefusal) as other:
         decide(stage, 0.2, "bayes_over_structures", {"standardize": 0.9, "direct": 0.1})
-    assert other.value.detail == "decision_claims.identity_mismatch"
+    assert other.value.detail == reason_details.decision_claims.IDENTITY_MISMATCH
     assert other.value.offending == "weights"
     # An unweighted set cannot be weighted from outside.
     with pytest.raises(sd.ScenarioDecisionRefusal) as undeclared:
         decide(two(), 0.2, "bayes_over_structures", {"standardize": 0.5, "direct": 0.5})
-    assert undeclared.value.detail == "decision_claims.unsupported_claim_shape"
+    assert undeclared.value.detail == reason_details.decision_claims.UNSUPPORTED_CLAIM_SHAPE
 
 
 def test_b_claims_a_policy_or_causal_identity_other_than_the_contracts_is_refused():
@@ -347,10 +348,10 @@ def test_b_claims_a_policy_or_causal_identity_other_than_the_contracts_is_refuse
             outcomes=[sd.OutcomeBinding("y", quantity())],
             causal_contract_id=CAUSAL,
         )
-    assert policy.value.detail == "decision_adapters.policy_mismatch"
+    assert policy.value.detail == reason_details.decision_adapters.POLICY_MISMATCH
     with pytest.raises(sd.ScenarioDecisionRefusal) as foreign:
         decide(stage, expected_causal_contract_id="another-identification")
-    assert foreign.value.detail == "decision_claims.identity_mismatch"
+    assert foreign.value.detail == reason_details.decision_claims.IDENTITY_MISMATCH
     assert foreign.value.offending == "causal_contract_id"
 
 
@@ -483,12 +484,12 @@ def test_b_claims_cpdag_completion_counts_are_never_probabilities():
     result = completion_run()
     with pytest.raises(sd.ScenarioDecisionRefusal) as bayes:
         decide_completions(result, "bayes_over_structures")
-    assert bayes.value.detail == "decision_claims.probabilities_not_declared"
+    assert bayes.value.detail == reason_details.decision_claims.PROBABILITIES_NOT_DECLARED
     assert bayes.value.supplied == "completion counts (never probabilities)"
     # Weights cannot be declared for completions either.
     with pytest.raises(sd.ScenarioDecisionRefusal) as weighted:
         decide_completions(result, weights={c.id: 1 / 3 for c in result.completions})
-    assert weighted.value.detail == "decision_claims.unsupported_claim_shape"
+    assert weighted.value.detail == reason_details.decision_claims.UNSUPPORTED_CLAIM_SHAPE
     assert_registered_refusal(weighted.value)
 
 
@@ -529,7 +530,7 @@ def test_identified_utilities_are_the_envelope_of_the_identified_scenarios():
         sd.identified_utilities_from_scenarios(
             contract(0.2, "report_only"), two(), **utility_options(route="weighted")
         )
-    assert unweighted.value.detail == "decision_claims.range_unavailable"
+    assert unweighted.value.detail == reason_details.decision_claims.RANGE_UNAVAILABLE
     assert_registered_refusal(unweighted.value)
 
 
@@ -569,7 +570,7 @@ def test_a_weighted_scenario_set_reads_its_mixture_range_on_the_weighted_and_rep
                 causal_contract_id=CAUSAL,
                 route=route,
             )
-        assert missing.value.detail == "decision_claims.missing_scenario_utility"
+        assert missing.value.detail == reason_details.decision_claims.MISSING_SCENARIO_UTILITY
         assert_registered_refusal(missing.value)
 
 
@@ -578,7 +579,7 @@ def test_an_unresolved_scenario_blocks_an_envelope_reading():
         sd.identified_utilities_from_scenarios(
             contract(0.2, "report_only"), mixed(), **utility_options()
         )
-    assert unresolved.value.detail == "decision_claims.unresolved_scenarios"
+    assert unresolved.value.detail == reason_details.decision_claims.UNRESOLVED_SCENARIOS
     assert_registered_refusal(unresolved.value)
     with pytest.raises(
         CausalValueError, match=re.escape("route is one of report, envelope, weighted; got 'mean'")
@@ -655,13 +656,13 @@ def test_interval_utilities_refuse_a_truncated_enumeration_and_a_missing_input()
     truncated = [(quantity(), interval(0.3, 0.6, 0.35, 0.56, truncated=True))]
     with pytest.raises(sd.ScenarioDecisionRefusal) as cut:
         sd.identified_utilities_from_intervals(contract(0.2, "report_only"), truncated)
-    assert cut.value.detail == "decision_claims.unresolved_scenarios"
+    assert cut.value.detail == reason_details.decision_claims.UNRESOLVED_SCENARIOS
     assert_registered_refusal(cut.value)
 
     elsewhere = [(quantity("w"), interval(0.3, 0.6, 0.35, 0.56))]
     with pytest.raises(sd.ScenarioDecisionRefusal) as missing:
         sd.identified_utilities_from_intervals(contract(0.2, "report_only"), elsewhere)
-    assert missing.value.detail == "decision_claims.missing_scenario_utility"
+    assert missing.value.detail == reason_details.decision_claims.MISSING_SCENARIO_UTILITY
     with pytest.raises(
         CausalValueError,
         match=re.escape("reading is one of estimated_bounds, coverage_interval; got 'midpoint'"),

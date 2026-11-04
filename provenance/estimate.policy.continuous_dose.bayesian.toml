@@ -39,17 +39,20 @@ record_sha256 = "644916a9746a4b195ba6244765fae6e450f4da94cad9a94c3c216621a7841de
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/continuous_dose_posterior.rs"
-sha256 = "b8c1ca7f79d13fb38056b9d08570d45f9ffc9bab949fdebf5421005a37a293f3"
+items = ["const WINDOW_NODES", "fn accumulate", "fn add", "fn default", "fn fit_group", "fn fixed_dose_policy_posterior", "fn mapping", "fn rescale", "fn window_functional", "fn window_nodes", "struct DoseCurvePrior", "struct DosePolicyPosterior", "struct DoseResponseRows", "struct Exact", "struct PolicyWindow"]
+sha256 = "6e2fd9bac6d2d7c7a9813396eedf72de8ac30091a1ce7c0ff3145bc2d9bfcf3d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_basis_regression.rs"
-sha256 = "41f2eaef2dd900f95159d59a1c239fce104ca8afd0440d6f064e64545c41e94d"
+items = ["const MAX_BASIS_DRAWS", "const MIN_BASIS_DRAWS", "enum ResidualPrior", "fn checked_basis_prior", "fn fit_basis_regression", "struct BasisPosterior"]
+sha256 = "32c6220a7019d7446a7ed07dc0e3947e3e2c878026f2dd36ba7daf998fb63d63"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dose_posterior_reference.rs"
-sha256 = "51c50a721b51764de80c46f1ced762bd38523e7841d43681db6e17bc899a57fb"
+items = ["fn a_loose_prior_approaches_the_unpenalized_fit_and_a_tight_prior_flattens_the_curvature", "fn close", "fn fixture", "fn floats", "fn inverse_gamma_residual_prior_gives_the_student_t_moments", "fn known_variance_policy_moments_equal_the_exact_conjugate_window_integrals", "fn local_quadratic_level_and_derivative_equal_the_penalized_weighted_fit", "fn policy_case", "fn run_policy", "fn text", "struct PolicyCase"]
+sha256 = "2c727c58661276f8aca92b89ef4844f1b8f6c9fad4a87e0b8c348274d7b02974"
 
 [[method_review.artifacts]]
 role = "reference"

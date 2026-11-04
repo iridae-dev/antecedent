@@ -14,7 +14,7 @@ import calibration_family as family
 
 class FamilyTests(unittest.TestCase):
     def test_joint_runner_only_on_explicit_live_unsharded_or_shard_zero(self):
-        gate = (Path(__file__).resolve().parent / "gate_calibration.sh").read_text(encoding="utf-8")
+        gate = (Path(__file__).resolve().parent / "measure_calibration_groups.sh").read_text(encoding="utf-8")
         start = gate.index('if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ]')
         end = gate.index("# This complete 200-replicate", start)
         block = gate[start:end]

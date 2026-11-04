@@ -36,14 +36,17 @@ record_sha256 = "98eaa06036cdb3964d7af698503f3b4b7a28a120f53be80edb52ca2e594f894
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cpdag.rs"
-sha256 = "d35c41ac7e1ace37f70b1e46c341eb89766f0b81e0a4b0e9482f81e1be743aa5"
+items = ["fn add_context", "fn add_lagged", "fn add_node", "fn empty", "fn insert_directed", "fn insert_marked", "fn insert_undirected", "fn orient_undirected", "fn to_directed_skeleton", "fn try_into_temporal_dag", "struct TemporalCpdag"]
+sha256 = "82ed39373cdbbf97af94e5afe04d744d3cda4e9f76e2b0ac3138b44830deaba8"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/marked_storage.rs"
-sha256 = "ae810ffcb5d706bd3daf372a8973979f6f097adea7c73b850acc382bb905d6af"
+items = ["fn all_marked_edges", "fn children", "fn directed_children", "fn directed_parents", "fn edge_between", "fn edges", "fn is_directed_out", "fn is_empty", "fn new", "fn nodes", "fn parents", "struct AdjEntry"]
+sha256 = "9a97c5c9db85fb8652e4c254cb39540bbcb80f88377862a420453827b4db935c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs"
-sha256 = "c5c6197f2438f526cbd5853fd1e3a29451fba203c9a16a57f2cd59ff228572db"
+items = ["const LAGGED", "enum Node", "fn a_context_may_cause_present_system_nodes_but_not_past_ones", "fn a_directed_edge_into_a_context_is_refused_with_a_typed_error", "fn a_fully_directed_graph_with_contexts_converts_with_contexts_as_lag_zero_roots", "fn context_and_lagged", "fn contexts_a_temporal_dag_cannot_represent_are_refused_with_a_typed_reason", "fn cycles_longer_than_two_are_rejected_after_orientation_too", "fn every_short_operation_sequence_matches_the_independent_model", "fn nodes_with_context"]
+sha256 = "7f91d80940f4de95240fbd503a8ace1482173b9a753ef8fea4888e4ca5d4ea98"

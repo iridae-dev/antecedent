@@ -5,7 +5,7 @@
 # self-ownership, closed or absent owners and a decision without a rationale.
 
 schema = 1
-count = 172
+count = 166
 
 [[limitation]]
 id = "phrase.declaration.0aa33e3f48"
@@ -656,30 +656,6 @@ rationale = ""
 rule = "whole_procedure_calibration_of_narrowed_routes"
 
 [[limitation]]
-id = "counterpart.P15.conditional.temporal.bayesian"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P15.conditional.temporal.bayesian"
-text = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported Next attempt: measure the whole-procedure coverage of this interval and record its boundary"
-item = "P15"
-owner = "Q08"
-decision = ""
-rationale = ""
-rule = "whole_procedure_calibration_of_narrowed_routes"
-
-[[limitation]]
-id = "counterpart.P15.conditional.temporal.frequentist"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P15.conditional.temporal.frequentist"
-text = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported Next attempt: measure the whole-procedure coverage of this interval and record its boundary"
-item = "P15"
-owner = "Q08"
-decision = ""
-rationale = ""
-rule = "whole_procedure_calibration_of_narrowed_routes"
-
-[[limitation]]
 id = "counterpart.P15.pulse.static.bayesian"
 kind = "theory_reason"
 source = "parity/counterparts.toml"
@@ -704,30 +680,6 @@ rationale = "The estimand is indexed by time, a lag, a horizon, an adoption coho
 rule = "estimand_has_no_static_design"
 
 [[limitation]]
-id = "counterpart.P15.pulse.temporal.bayesian"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P15.pulse.temporal.bayesian"
-text = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported Next attempt: measure the whole-procedure coverage of this interval and record its boundary"
-item = "P15"
-owner = "Q08"
-decision = ""
-rationale = ""
-rule = "whole_procedure_calibration_of_narrowed_routes"
-
-[[limitation]]
-id = "counterpart.P15.pulse.temporal.frequentist"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P15.pulse.temporal.frequentist"
-text = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported Next attempt: measure the whole-procedure coverage of this interval and record its boundary"
-item = "P15"
-owner = "Q08"
-decision = ""
-rationale = ""
-rule = "whole_procedure_calibration_of_narrowed_routes"
-
-[[limitation]]
 id = "counterpart.P15.sustained.static.bayesian"
 kind = "theory_reason"
 source = "parity/counterparts.toml"
@@ -750,30 +702,6 @@ owner = ""
 decision = "scope"
 rationale = "The estimand is indexed by time, a lag, a horizon, an adoption cohort or a panel path, so a static design cell has no such target. The row closes the cell with its typed refusal and theory reason, which is the intended behaviour; a static route would answer a different question."
 rule = "estimand_has_no_static_design"
-
-[[limitation]]
-id = "counterpart.P15.sustained.temporal.bayesian"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P15.sustained.temporal.bayesian"
-text = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported Next attempt: measure the whole-procedure coverage of this interval and record its boundary"
-item = "P15"
-owner = "Q08"
-decision = ""
-rationale = ""
-rule = "whole_procedure_calibration_of_narrowed_routes"
-
-[[limitation]]
-id = "counterpart.P15.sustained.temporal.frequentist"
-kind = "narrowed_promise"
-source = "parity/counterparts.toml"
-locator = "P15.sustained.temporal.frequentist"
-text = "no coverage record measures the block interval or the block Dirichlet posterior of this route, which executes unsupported Next attempt: measure the whole-procedure coverage of this interval and record its boundary"
-item = "P15"
-owner = "Q08"
-decision = ""
-rationale = ""
-rule = "whole_procedure_calibration_of_narrowed_routes"
 
 [[limitation]]
 id = "counterpart.P16.static.bayesian"
@@ -1724,18 +1652,6 @@ rationale = ""
 rule = "evidence_row_coverage_measurement"
 
 [[limitation]]
-id = "evidence.estimate.9ea87075cb"
-kind = "evidence_limit"
-source = "parity/estimate.toml"
-locator = "1 row"
-text = "Its coverage cells (frontdoor_functional_saturated_ci_coverage and frontdoor_functional_arm_linear_ci_coverage in crates/antecedent-estimate/src/calibration_coverage.rs, on a design with unequal arms and a latent confounder that modifies the mediator's effect) are wired into scripts/gate_calibration.sh but have not been measured: no record in this row's calibration list is a frontdoor.functional record, and until one is, every frontdoor.functional result carries the runtime calibration reason estimator_grid_not_measured."
-item = ""
-owner = "Q08"
-decision = ""
-rationale = ""
-rule = "evidence_row_coverage_measurement"
-
-[[limitation]]
 id = "evidence.estimate.c107239695"
 kind = "evidence_limit"
 source = "parity/estimate.toml"
@@ -1753,6 +1669,18 @@ kind = "evidence_limit"
 source = "parity/estimate.toml"
 locator = "3 rows"
 text = "The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains unmeasured on this branch."
+item = ""
+owner = "Q08"
+decision = ""
+rationale = ""
+rule = "evidence_row_coverage_measurement"
+
+[[limitation]]
+id = "evidence.estimate.f0deb91156"
+kind = "evidence_limit"
+source = "parity/estimate.toml"
+locator = "1 row"
+text = "Its coverage cells (frontdoor_functional_saturated_ci_coverage and frontdoor_functional_arm_linear_ci_coverage in crates/antecedent-estimate/src/calibration_coverage.rs, on a design with unequal arms and a latent confounder that modifies the mediator's effect) are wired into scripts/measure_calibration_groups.sh but have not been measured: no record in this row's calibration list is a frontdoor.functional record, and until one is, every frontdoor.functional result carries the runtime calibration reason estimator_grid_not_measured."
 item = ""
 owner = "Q08"
 decision = ""

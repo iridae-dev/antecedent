@@ -451,7 +451,12 @@ fn adjusted_causal_and_support_refusals_preserve_live_fit() {
     invalid.adjustment.clear();
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut session, &invalid, &ctx()));
-    assert!(result.unwrap_err().to_string().contains("recalc.adjustment_not_identified"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED)
+    );
     assert_eq!(fits, 0);
     assert_eq!(run(&mut session, &request).receipt.totals().model_fits, 0);
     // A joint coefficient fit cannot stand in for a shared causal adjustment proof.
@@ -460,7 +465,12 @@ fn adjusted_causal_and_support_refusals_preserve_live_fit() {
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut AdjustedSession::new(), &vector, &ctx())
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.adjustment_not_identified"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED)
+    );
     assert_eq!(fits, 0);
     // Dummy regressions must pass that same proof screen.
     let mut cat = categorical();
@@ -469,7 +479,12 @@ fn adjusted_causal_and_support_refusals_preserve_live_fit() {
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut AdjustedSession::new(), &cat, &ctx())
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.adjustment_not_identified"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED)
+    );
     assert_eq!(fits, 0);
 }
 
@@ -577,17 +592,26 @@ fn adjusted_sparse_categories_and_invalid_predictions_do_no_model_work() {
     let (result, fits) = count_adjusted_model_fits(|| session.predict(&[vec![1.0, 1.0]]));
     assert_eq!(
         result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(),
-        "recalc.adjusted_prediction_out_of_support",
+        antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT,
         "two active dummy levels are not a categorical regime"
     );
     assert_eq!(fits, 0);
     let mut numeric_session = AdjustedSession::new();
     run(&mut numeric_session, &linear());
     for (row, code) in [
-        (vec![0.0], "recalc.adjusted_prediction_schema_mismatch"),
-        (vec![0.0, f64::NAN], "recalc.adjusted_prediction_schema_mismatch"),
-        (vec![0.0, 0.5], "recalc.adjusted_prediction_out_of_support"),
-        (vec![0.0, 2.0], "recalc.adjusted_prediction_out_of_support"),
+        (vec![0.0], antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH),
+        (
+            vec![0.0, f64::NAN],
+            antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
+        ),
+        (
+            vec![0.0, 0.5],
+            antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT,
+        ),
+        (
+            vec![0.0, 2.0],
+            antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT,
+        ),
     ] {
         let (result, fits) = count_adjusted_model_fits(|| numeric_session.predict(&[row]));
         assert_eq!(
@@ -632,7 +656,12 @@ fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut session, &original, &cancelled)
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.cancelled"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::CANCELLED)
+    );
     assert_eq!(fits, 0);
     let mut changed = original.clone();
     changed.columns[1].1[0] += 0.1;
@@ -641,7 +670,12 @@ fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut session, &changed, &constrained)
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.memory_budget_exceeded"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED)
+    );
     assert_eq!(fits, 0);
     // Collinear design has no unique retained covariance. The failed numerical refit
     // must leave the previous checked model and its allocation available for reuse.

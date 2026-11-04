@@ -17,7 +17,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.linear_adjustment",
 ]
@@ -41,7 +41,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.gcomp",
 ]
@@ -65,7 +65,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "PulseEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.temporal_linear_adjustment",
   "estimate.temporal_response.gcomp",
@@ -91,7 +91,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "PulseEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_least_squares_posterior_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_least_squares_posterior_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_white_innovation",
 ]
@@ -116,7 +116,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_wald_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_wald_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.iv_2sls",
 ]
@@ -140,7 +140,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_specialist_route_evidence.rs::bayesian_specialists_execute_from_retained_plan_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_specialist_route_evidence.rs::bayesian_specialists_execute_from_retained_plan_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_iv",
 ]
@@ -160,11 +160,11 @@ references = [
 id = "P01.iv.temporal.frequentist"
 parent = "P01"
 gap = "none"
-route = "temporal.lagged_instrument"
+route = "supported.PulseEffect.TemporalDag"
 target = "lagged instrument Wald ratio"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_lagged_instrument",
   "estimate.temporal_lagged_instrument",
@@ -185,11 +185,11 @@ references = [
 id = "P01.iv.temporal.bayesian"
 parent = "P01"
 gap = "none"
-route = "bayesian.temporal.lagged_instrument"
+route = "supported.PulseEffect.TemporalDag"
 target = "lagged instrument posterior ratio"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_lagged_instrument",
   "estimate.temporal_lagged_instrument",
@@ -214,7 +214,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.gcomp",
   "estimate.glm",
@@ -264,11 +264,11 @@ references = [
 id = "P02.glm.temporal.frequentist"
 parent = "P02"
 gap = "none"
-route = "temporal.glm_link_contrast"
+route = "supported.PulseEffect.TemporalDag"
 target = "decision-time mean-scale contrast"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_glm_link_contrast",
   "estimate.temporal_glm_link_contrast",
@@ -289,11 +289,11 @@ references = [
 id = "P02.glm.temporal.bayesian"
 parent = "P02"
 gap = "none"
-route = "bayesian.temporal.glm_link_contrast"
+route = "supported.PulseEffect.TemporalDag"
 target = "decision-time mean-scale contrast"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_glm_link_contrast",
   "estimate.temporal_glm_link_contrast",
@@ -415,7 +415,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_explicit_frequentist_aipw_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_explicit_frequentist_aipw_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.aipw",
 ]
@@ -439,7 +439,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_robust_ate.rs::bayesian_robust_ate_all_observed_staged_known_truth; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_robust_ate.rs::bayesian_robust_ate_all_observed_staged_known_truth; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_robust_ate",
 ]
@@ -615,7 +615,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/estimate_conformance.rs::estimate_propensity_matching_recovers_att; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/estimate_conformance.rs::estimate_propensity_matching_recovers_att; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.distance_matching",
   "estimate.knn_distance_matching",
@@ -817,7 +817,7 @@ route = "supported.AverageEffect.Cpdag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/cpdag_ate_numeric_pins.rs::cpdag_ate_envelope_numeric_pin; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/cpdag_ate_numeric_pins.rs::cpdag_ate_envelope_numeric_pin; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.envelope",
 ]
@@ -841,7 +841,7 @@ route = "supported.AverageEffect.Pag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs::bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs::bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "validate.dbn_posterior",
 ]
@@ -917,7 +917,7 @@ route = "supported.ResponseCurve.Dag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/response_facade.rs::response_curve_runs_through_public_study_facade; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/response_facade.rs::response_curve_runs_through_public_study_facade; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.intervention_gcomp",
   "estimate.response.kennedy_dr",
@@ -942,7 +942,7 @@ route = "supported.ResponseCurve.Dag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.response.bayesian",
   "estimate.response.point_derivative",
@@ -967,7 +967,7 @@ route = "supported.ResponseCurve.TemporalDag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_response_facade.rs::temporal_dose_horizon_surface_matches_fixture_and_prepared_path; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_response_facade.rs::temporal_dose_horizon_surface_matches_fixture_and_prepared_path; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
@@ -992,7 +992,7 @@ route = "supported.ResponseCurve.TemporalDag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_curve_at_one_step_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_curve_at_one_step_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.temporal.bayesian",
 ]
@@ -1017,7 +1017,7 @@ route = "supported.AverageDerivative.Dag"
 target = "AverageDerivative"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.point_derivative",
   "estimate.response.riesz_ade",
@@ -1042,7 +1042,7 @@ route = "supported.AverageDerivative.Dag"
 target = "AverageDerivative"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.response.point_derivative",
   "estimate.response.riesz_ade",
@@ -1220,7 +1220,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "estimate.smoothed_dose",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 36 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 35 of 38 public items reviewed"
 identifying_result = "The bandwidth and the kernel are part of the estimand: psi_h is a different target for each h."
 assumptions = "A randomized continuous source dose A drawn from a known conditional density pi(a | x) on a declared bounded support, a continuous outcome Y, complete baseline covariates X equal to the certified standardizers, and an overlap-supported target population. For each declared grid dose a, one declared bandwidth h and the Epanechnikov kernel K, the estimand is"
 sampling_units = "Every fold model is exported as a provider-independent PortablePredictor and every prediction - the point's and a consumer's replay - is made through it, which makes the point replayable bit for bit from the stored models."
@@ -1437,12 +1437,13 @@ references = [
 id = "P07.quantile.static.bayesian"
 parent = "P07"
 gap = "none"
-route = "bayesian.randomized_quantile"
+route = "supported.AverageEffect.Dag"
 target = "QuantileEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
+  "estimate.bayesian_randomized_quantile",
   "estimate.quantile.bayesian",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 2 of 2 public items reviewed"
@@ -1514,7 +1515,7 @@ route = "supported.MediationEffect.Dag"
 target = "MediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::static_mediation_plan_executes_every_contrast_and_supported_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::static_mediation_plan_executes_every_contrast_and_supported_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
 provenance = [
   "estimate.mediation.linear",
 ]
@@ -1538,7 +1539,7 @@ route = "supported.MediationEffect.Dag"
 target = "MediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.mediation.linear",
 ]
@@ -1562,7 +1563,7 @@ route = "supported.TemporalMediationEffect.TemporalDag"
 target = "TemporalMediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs::checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs::checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
 provenance = [
   "estimate.temporal_mediation",
 ]
@@ -1586,7 +1587,7 @@ route = "supported.TemporalMediationEffect.TemporalDag"
 target = "TemporalMediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs::checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs::checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_mediation",
 ]
@@ -1836,7 +1837,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "estimate.categorical_treatment.bayesian",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 6 of 11 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 9 of 11 public items reviewed"
 identifying_result = "Every contrast w' b then has an exact Student-t posterior (crate::gaussian_linear_posterior)."
 assumptions = "The same coefficients as crate::categorical_treatment: in y = b0 + A g + sum_{L != ref} b_L 1[level = L] + e the effect of level L against the declared reference is b_L, and the effect of to relative to from is b_to - b_from. The prior is declared by the caller and has no default: a prior alone never identifies a level contrast, the rows do, and the prior only regularizes."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -2110,7 +2111,7 @@ provenance = [
   "adaptive_inference.guarantees_closed",
   "adaptive_inference.repeated_measures_weighting",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 21 of 23 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 20 of 25 public items reviewed"
 identifying_result = "AdaptiveExperimentContrast"
 assumptions = "Valid under any assignment rule that depends on the observed history only (the likelihood principle); the caller states that premise by routing here. expected_loss_stopping: a stop-or-continue decision from posterior expected loss."
 sampling_units = "Howard, Ramdas, McAuliffe and Sekhon 2021), reported as an uncalibrated sequence. group_sequential_boundaries and group_sequential_decision: Lan-DeMets alpha-spending boundaries for pre-specified looks with independent increments, and the first look at which the statistic crosses."
@@ -2232,7 +2233,7 @@ route = "supported.InterferenceQuery.Dag"
 target = "InterferenceQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_interference_lifecycle.rs::conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_interference_lifecycle.rs::conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.interference.cluster_bayesian_bootstrap",
   "estimate.interference.cluster_neyman",
@@ -2800,7 +2801,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/estimate_conformance.rs::estimate_rd_sharp_recovers_jump; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/estimate_conformance.rs::estimate_rd_sharp_recovers_jump; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.rd",
 ]
@@ -2824,7 +2825,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_iv_rd_staged.rs::bayesian_rd_executes_staged_and_checks_bandwidth_conditioning; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_iv_rd_staged.rs::bayesian_rd_executes_staged_and_checks_bandwidth_conditioning; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_rd",
 ]
@@ -2870,9 +2871,11 @@ provenance = [
   "decision.contract",
   "decision.functional_inverse",
   "decision.functionals",
+  "decision.robust_verdicts",
   "decision.sensitivity_composition",
   "decision.structural_policy",
   "decision.structural_robustness",
+  "decision.transported_decision_artifact",
   "decision.transported_source",
   "decision_evidence.adaptive_regime",
   "decision_evidence.decision_classification",
@@ -2880,11 +2883,15 @@ provenance = [
   "decision_evidence.joint_excursion",
   "decision_evidence.static_regime",
   "decision_reliability.combined_uncertainty",
+  "decision_reliability.derived_numerical_interval",
   "decision_reliability.derived_uncertainty",
+  "decision_reliability.optimality_confidence_set",
+  "decision_reliability.producer_carrier",
   "decision_reliability.ranking_probability_interval",
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "decision_reliability.selection_corrected_interval",
   "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
@@ -2899,14 +2906,19 @@ provenance = [
   "design.prior_signal_planning",
   "design.proposal_receipt",
   "design.ranking_artifact",
+  "design.repair_search_receipt",
   "design.study_candidate",
+  "design.study_planning",
   "estimate.bayesian_temporal_design_excursion",
   "estimate.bayesian_temporal_regime_survival",
   "estimate.joint_design",
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "inverse.cohort_forward_source",
+  "inverse.composed_forward_source",
   "inverse.observational_scenarios",
+  "inverse.transported_forward_source",
   "recalculation.design_specific",
   "sequential_evaluation.policy_evaluation",
   "transport.adaptive_trial_source",
@@ -2916,6 +2928,9 @@ provenance = [
   "transport.policy_evaluation",
   "transport.surrogate_bridge_premise",
   "transport.synthesis",
+  "transport.synthesis_borrowing",
+  "transport.synthesis_pooling",
+  "transport.synthesis_transported_prior",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "local_polynomial_ratio"
@@ -2960,9 +2975,11 @@ provenance = [
   "decision.contract",
   "decision.functional_inverse",
   "decision.functionals",
+  "decision.robust_verdicts",
   "decision.sensitivity_composition",
   "decision.structural_policy",
   "decision.structural_robustness",
+  "decision.transported_decision_artifact",
   "decision.transported_source",
   "decision_evidence.adaptive_regime",
   "decision_evidence.decision_classification",
@@ -2970,11 +2987,15 @@ provenance = [
   "decision_evidence.joint_excursion",
   "decision_evidence.static_regime",
   "decision_reliability.combined_uncertainty",
+  "decision_reliability.derived_numerical_interval",
   "decision_reliability.derived_uncertainty",
+  "decision_reliability.optimality_confidence_set",
+  "decision_reliability.producer_carrier",
   "decision_reliability.ranking_probability_interval",
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "decision_reliability.selection_corrected_interval",
   "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
@@ -2989,14 +3010,19 @@ provenance = [
   "design.prior_signal_planning",
   "design.proposal_receipt",
   "design.ranking_artifact",
+  "design.repair_search_receipt",
   "design.study_candidate",
+  "design.study_planning",
   "estimate.bayesian_temporal_design_excursion",
   "estimate.bayesian_temporal_regime_survival",
   "estimate.joint_design",
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "inverse.cohort_forward_source",
+  "inverse.composed_forward_source",
   "inverse.observational_scenarios",
+  "inverse.transported_forward_source",
   "recalculation.design_specific",
   "sequential_evaluation.policy_evaluation",
   "transport.adaptive_trial_source",
@@ -3006,6 +3032,9 @@ provenance = [
   "transport.policy_evaluation",
   "transport.surrogate_bridge_premise",
   "transport.synthesis",
+  "transport.synthesis_borrowing",
+  "transport.synthesis_pooling",
+  "transport.synthesis_transported_prior",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "local_polynomial_ratio"
@@ -3099,9 +3128,11 @@ provenance = [
   "decision.contract",
   "decision.functional_inverse",
   "decision.functionals",
+  "decision.robust_verdicts",
   "decision.sensitivity_composition",
   "decision.structural_policy",
   "decision.structural_robustness",
+  "decision.transported_decision_artifact",
   "decision.transported_source",
   "decision_evidence.adaptive_regime",
   "decision_evidence.decision_classification",
@@ -3109,11 +3140,15 @@ provenance = [
   "decision_evidence.joint_excursion",
   "decision_evidence.static_regime",
   "decision_reliability.combined_uncertainty",
+  "decision_reliability.derived_numerical_interval",
   "decision_reliability.derived_uncertainty",
+  "decision_reliability.optimality_confidence_set",
+  "decision_reliability.producer_carrier",
   "decision_reliability.ranking_probability_interval",
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "decision_reliability.selection_corrected_interval",
   "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
@@ -3128,14 +3163,19 @@ provenance = [
   "design.prior_signal_planning",
   "design.proposal_receipt",
   "design.ranking_artifact",
+  "design.repair_search_receipt",
   "design.study_candidate",
+  "design.study_planning",
   "estimate.bayesian_temporal_design_excursion",
   "estimate.bayesian_temporal_regime_survival",
   "estimate.joint_design",
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "inverse.cohort_forward_source",
+  "inverse.composed_forward_source",
   "inverse.observational_scenarios",
+  "inverse.transported_forward_source",
   "recalculation.design_specific",
   "sequential_evaluation.policy_evaluation",
   "transport.adaptive_trial_source",
@@ -3145,6 +3185,9 @@ provenance = [
   "transport.policy_evaluation",
   "transport.surrogate_bridge_premise",
   "transport.synthesis",
+  "transport.synthesis_borrowing",
+  "transport.synthesis_pooling",
+  "transport.synthesis_transported_prior",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "Local_polynomial_ratio"
@@ -3189,9 +3232,11 @@ provenance = [
   "decision.contract",
   "decision.functional_inverse",
   "decision.functionals",
+  "decision.robust_verdicts",
   "decision.sensitivity_composition",
   "decision.structural_policy",
   "decision.structural_robustness",
+  "decision.transported_decision_artifact",
   "decision.transported_source",
   "decision_evidence.adaptive_regime",
   "decision_evidence.decision_classification",
@@ -3199,11 +3244,15 @@ provenance = [
   "decision_evidence.joint_excursion",
   "decision_evidence.static_regime",
   "decision_reliability.combined_uncertainty",
+  "decision_reliability.derived_numerical_interval",
   "decision_reliability.derived_uncertainty",
+  "decision_reliability.optimality_confidence_set",
+  "decision_reliability.producer_carrier",
   "decision_reliability.ranking_probability_interval",
   "decision_reliability.ranking_statement",
   "decision_reliability.sampled_decision",
   "decision_reliability.selection_aware_evaluation",
+  "decision_reliability.selection_corrected_interval",
   "design.adaptive_policy_search",
   "design.compiled_program_search",
   "design.decision",
@@ -3218,14 +3267,19 @@ provenance = [
   "design.prior_signal_planning",
   "design.proposal_receipt",
   "design.ranking_artifact",
+  "design.repair_search_receipt",
   "design.study_candidate",
+  "design.study_planning",
   "estimate.bayesian_temporal_design_excursion",
   "estimate.bayesian_temporal_regime_survival",
   "estimate.joint_design",
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "inverse.cohort_forward_source",
+  "inverse.composed_forward_source",
   "inverse.observational_scenarios",
+  "inverse.transported_forward_source",
   "recalculation.design_specific",
   "sequential_evaluation.policy_evaluation",
   "transport.adaptive_trial_source",
@@ -3235,6 +3289,9 @@ provenance = [
   "transport.policy_evaluation",
   "transport.surrogate_bridge_premise",
   "transport.synthesis",
+  "transport.synthesis_borrowing",
+  "transport.synthesis_pooling",
+  "transport.synthesis_transported_prior",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "Local_polynomial_ratio"
@@ -3257,7 +3314,7 @@ route = "supported.InterventionResponse.Dag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_dag_response_route_evidence.rs::intervention_gcomp_explicit_and_accepted_cover_each_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_dag_response_route_evidence.rs::intervention_gcomp_explicit_and_accepted_cover_each_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "composition.panel_experiment_update",
   "estimate.interference.bayesian_gaussian",
@@ -3307,7 +3364,7 @@ route = "supported.InterventionResponse.Dag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.response.bayesian",
   "estimate.response.point_derivative",
@@ -3332,7 +3389,7 @@ route = "supported.InterventionResponse.TemporalDag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_response_route_evidence.rs::temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_response_route_evidence.rs::temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
@@ -3357,7 +3414,7 @@ route = "supported.InterventionResponse.TemporalDag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.temporal.bayesian",
 ]
@@ -3416,7 +3473,7 @@ route = "supported.Counterfactual.Dag"
 target = "Counterfactual"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/counterfactual_noise_posterior.rs::bayesian_unit_effects_integrate_the_categorical_noise_posterior; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/counterfactual_noise_posterior.rs::bayesian_unit_effects_integrate_the_categorical_noise_posterior; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "attribution.basic",
   "counterfactual.aap",
@@ -3524,7 +3581,7 @@ route = "supported.AnomalyAttribution.Dag"
 target = "AnomalyAttribution"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/calibration_anomaly_bayesian.rs; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/calibration_anomaly_bayesian.rs; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (construction_fixture)"
 provenance = [
   "attribution.basic",
 ]
@@ -3603,7 +3660,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "validate.target_native_refuters",
 ]
-api_review = "parity/public_api/antecedent-validate.txt: 56 of 58 public items reviewed"
+api_review = "parity/public_api/antecedent-validate.txt: 58 of 58 public items reviewed"
 identifying_result = "ATE refuters do not certify conditional, derivative, mediation, or world-valued targets"
 assumptions = "Manifest states this refusal on derivative and attribution routes."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -3752,7 +3809,7 @@ route = "supported.TransportQuery.Admg"
 target = "TransportQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "identify.interference.design",
 ]
@@ -3776,7 +3833,7 @@ route = "supported.TransportQuery.Admg"
 target = "TransportQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_trial_transport.rs::bayesian_trial_transport_matches_two_source_row_dirichlet_moments; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_trial_transport.rs::bayesian_trial_transport_matches_two_source_row_dirichlet_moments; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "identify.interference.design",
 ]
@@ -3893,12 +3950,12 @@ references = [
 [[spec]]
 id = "P15.conditional.temporal.frequentist"
 parent = "P15"
-gap = "validation"
-route = "closed.TemporalConditionalPulse.TemporalAdmg"
+gap = "none"
+route = "supported.TemporalConditionalPulse.TemporalAdmg"
 target = "ConditionalEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -3908,7 +3965,7 @@ assumptions = "Supported temporal conditional targets on TemporalDag are Tempora
 sampling_units = "The template is unrolled over the periods the policy needs (antecedent_identify::temporal_admg), the contrast is identified on that window as a functional over its coordinates, and the estimator reads one lag-aligned row of the series per window position: the window table."
 estimator = "functional.effect: Pulse, sustained and conditional contrasts on a temporal ADMG, prepared on the window."
 diagnostics = "Rows of the window table overlap: row i holds the series times i .. i + periods, so a row-level resample or Dirichlet draw would treat shared observations as independent."
-failure_policy = "Adjusted claim: the temporal conditional contrast is the TemporalEffect with effect modifiers, identified by IDC on the same unrolled window with the modifiers read at the first treated period (a modifier a treated period can reach is refused with its next attempt) and averaged over their observed law by the functional plug-in; the static ConditionalEffect on a TemporalAdmg stays refused because tabular rows are the contemporaneous projection, a different target. It executes unsupported with the same block resampling design, stationarity reading and discrete-data premise as the pulse; no coverage record measures it.. A variable at more than one lag is refused rather than retargeted onto a different estimand. A declared independent-subject or clustered-panel design refuses the draw with a typed reason naming the next attempt (a row-level draw is not allowed under either, and the table has no subject or cluster labels); without replicates the frequentist point stands."
+failure_policy = "A window that holds a hedge is refused with the next attempts, and a modifier a treated period can reach is refused. Contemporaneous atoms and multiple outcome horizons are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3917,12 +3974,12 @@ references = [
 [[spec]]
 id = "P15.conditional.temporal.bayesian"
 parent = "P15"
-gap = "validation"
-route = "closed.TemporalConditionalPulse.TemporalAdmg"
+gap = "none"
+route = "supported.TemporalConditionalPulse.TemporalAdmg"
 target = "ConditionalEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -3932,7 +3989,7 @@ assumptions = "The same identification block as the frequentist cell. A prior do
 sampling_units = "The template is unrolled over the periods the policy needs (antecedent_identify::temporal_admg), the contrast is identified on that window as a functional over its coordinates, and the estimator reads one lag-aligned row of the series per window position: the window table."
 estimator = "functional.effect: Pulse, sustained and conditional contrasts on a temporal ADMG, prepared on the window."
 diagnostics = "Rows of the window table overlap: row i holds the series times i .. i + periods, so a row-level resample or Dirichlet draw would treat shared observations as independent."
-failure_policy = "Adjusted claim: the temporal conditional contrast is the TemporalEffect with effect modifiers, identified by IDC on the same unrolled window with the modifiers read at the first treated period (a modifier a treated period can reach is refused with its next attempt) and averaged over their observed law by the functional plug-in; the static ConditionalEffect on a TemporalAdmg stays refused because tabular rows are the contemporaneous projection, a different target. It executes unsupported with the same block resampling design, stationarity reading and discrete-data premise as the pulse; no coverage record measures it; the posterior shares one Dirichlet weight per block of consecutive windows, and a prior does not identify a hedged window.. A variable at more than one lag is refused rather than retargeted onto a different estimand. A declared independent-subject or clustered-panel design refuses the draw with a typed reason naming the next attempt (a row-level draw is not allowed under either, and the table has no subject or cluster labels); without replicates the frequentist point stands."
+failure_policy = "A window that holds a hedge is refused with the next attempts, and a modifier a treated period can reach is refused. Contemporaneous atoms and multiple outcome horizons are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3946,7 +4003,7 @@ route = "supported.AverageEffect.Admg"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_frequentist_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_frequentist_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
 provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
@@ -3971,7 +4028,7 @@ route = "supported.AverageEffect.Admg"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
@@ -4093,12 +4150,12 @@ references = [
 [[spec]]
 id = "P15.pulse.temporal.frequentist"
 parent = "P15"
-gap = "validation"
-route = "closed.PulseEffect.TemporalAdmg"
+gap = "none"
+route = "supported.PulseEffect.TemporalAdmg"
 target = "PulseEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4108,7 +4165,7 @@ assumptions = "closed.TemporalConditionalPulse.TemporalAdmg is the same boundary
 sampling_units = "The template is unrolled over the periods the policy needs (antecedent_identify::temporal_admg), the contrast is identified on that window as a functional over its coordinates, and the estimator reads one lag-aligned row of the series per window position: the window table."
 estimator = "functional.effect: Pulse, sustained and conditional contrasts on a temporal ADMG, prepared on the window."
 diagnostics = "Rows of the window table overlap: row i holds the series times i .. i + periods, so a row-level resample or Dirichlet draw would treat shared observations as independent."
-failure_policy = "Adjusted claim: the contrast is identified on the unrolled window of the template (antecedent_identify::temporal_admg: a cause that precedes the window is a latent common cause of its in-window effects) and lowered as the TemporalEffectAdmg route: the lag-aligned window table, a circular-block resampling design whose block is never shorter than the window (overlapping windows invalidate a row-level draw), and the discrete functional plug-in. It executes unsupported: no coverage record measures the block interval or the block Dirichlet posterior, the series is read as stationary over the template, and data are discrete (a saturated table over the ancestors of the outcome). A window that holds a hedge is refused with the variables and periods that carry it.. A variable at more than one lag is refused rather than retargeted onto a different estimand. A declared independent-subject or clustered-panel design refuses the draw with a typed reason naming the next attempt (a row-level draw is not allowed under either, and the table has no subject or cluster labels); without replicates the frequentist point stands."
+failure_policy = "A window that holds a hedge is refused with the next attempts, and a modifier a treated period can reach is refused. Contemporaneous atoms and multiple outcome horizons are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4118,12 +4175,12 @@ references = [
 [[spec]]
 id = "P15.pulse.temporal.bayesian"
 parent = "P15"
-gap = "validation"
-route = "closed.PulseEffect.TemporalAdmg"
+gap = "none"
+route = "supported.PulseEffect.TemporalAdmg"
 target = "PulseEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4133,7 +4190,7 @@ assumptions = "The estimator resamples (frequentist) or reweights (Bayesian) cir
 sampling_units = "The template is unrolled over the periods the policy needs (antecedent_identify::temporal_admg), the contrast is identified on that window as a functional over its coordinates, and the estimator reads one lag-aligned row of the series per window position: the window table."
 estimator = "functional.effect: Pulse, sustained and conditional contrasts on a temporal ADMG, prepared on the window."
 diagnostics = "Rows of the window table overlap: row i holds the series times i .. i + periods, so a row-level resample or Dirichlet draw would treat shared observations as independent."
-failure_policy = "Adjusted claim: the contrast is identified on the unrolled window of the template (antecedent_identify::temporal_admg: a cause that precedes the window is a latent common cause of its in-window effects) and lowered as the TemporalEffectAdmg route: the lag-aligned window table, a circular-block resampling design whose block is never shorter than the window (overlapping windows invalidate a row-level draw), and the discrete functional plug-in. It executes unsupported: no coverage record measures the block interval or the block Dirichlet posterior, the series is read as stationary over the template, and data are discrete (a saturated table over the ancestors of the outcome). A window that holds a hedge is refused with the variables and periods that carry it; the posterior shares one Dirichlet weight per block of consecutive windows, and a prior does not identify a hedged window.. A variable at more than one lag is refused rather than retargeted onto a different estimand. A declared independent-subject or clustered-panel design refuses the draw with a typed reason naming the next attempt (a row-level draw is not allowed under either, and the table has no subject or cluster labels); without replicates the frequentist point stands."
+failure_policy = "A window that holds a hedge is refused with the next attempts, and a modifier a treated period can reach is refused. Contemporaneous atoms and multiple outcome horizons are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4191,12 +4248,12 @@ references = [
 [[spec]]
 id = "P15.sustained.temporal.frequentist"
 parent = "P15"
-gap = "validation"
-route = "closed.SustainedEffect.TemporalAdmg"
+gap = "none"
+route = "supported.SustainedEffect.TemporalAdmg"
 target = "SustainedEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4206,7 +4263,7 @@ assumptions = "closed.TemporalConditionalSustained.TemporalAdmg is the same boun
 sampling_units = "The template is unrolled over the periods the policy needs (antecedent_identify::temporal_admg), the contrast is identified on that window as a functional over its coordinates, and the estimator reads one lag-aligned row of the series per window position: the window table."
 estimator = "functional.effect: Pulse, sustained and conditional contrasts on a temporal ADMG, prepared on the window."
 diagnostics = "Rows of the window table overlap: row i holds the series times i .. i + periods, so a row-level resample or Dirichlet draw would treat shared observations as independent."
-failure_policy = "Adjusted claim: the contrast is identified on the unrolled window of the template (antecedent_identify::temporal_admg: a cause that precedes the window is a latent common cause of its in-window effects) and lowered as the TemporalEffectAdmg route: the lag-aligned window table, a circular-block resampling design whose block is never shorter than the window (overlapping windows invalidate a row-level draw), and the discrete functional plug-in. It executes unsupported: no coverage record measures the block interval or the block Dirichlet posterior, the series is read as stationary over the template, and data are discrete (a saturated table over the ancestors of the outcome). A window that holds a hedge is refused with the variables and periods that carry it.. A variable at more than one lag is refused rather than retargeted onto a different estimand. A declared independent-subject or clustered-panel design refuses the draw with a typed reason naming the next attempt (a row-level draw is not allowed under either, and the table has no subject or cluster labels); without replicates the frequentist point stands."
+failure_policy = "A window that holds a hedge is refused with the next attempts, and a modifier a treated period can reach is refused. Contemporaneous atoms and multiple outcome horizons are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4216,12 +4273,12 @@ references = [
 [[spec]]
 id = "P15.sustained.temporal.bayesian"
 parent = "P15"
-gap = "validation"
-route = "closed.SustainedEffect.TemporalAdmg"
+gap = "none"
+route = "supported.SustainedEffect.TemporalAdmg"
 target = "SustainedEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4231,7 +4288,7 @@ assumptions = "The estimator resamples (frequentist) or reweights (Bayesian) cir
 sampling_units = "The template is unrolled over the periods the policy needs (antecedent_identify::temporal_admg), the contrast is identified on that window as a functional over its coordinates, and the estimator reads one lag-aligned row of the series per window position: the window table."
 estimator = "functional.effect: Pulse, sustained and conditional contrasts on a temporal ADMG, prepared on the window."
 diagnostics = "Rows of the window table overlap: row i holds the series times i .. i + periods, so a row-level resample or Dirichlet draw would treat shared observations as independent."
-failure_policy = "Adjusted claim: the contrast is identified on the unrolled window of the template (antecedent_identify::temporal_admg: a cause that precedes the window is a latent common cause of its in-window effects) and lowered as the TemporalEffectAdmg route: the lag-aligned window table, a circular-block resampling design whose block is never shorter than the window (overlapping windows invalidate a row-level draw), and the discrete functional plug-in. It executes unsupported: no coverage record measures the block interval or the block Dirichlet posterior, the series is read as stationary over the template, and data are discrete (a saturated table over the ancestors of the outcome). A window that holds a hedge is refused with the variables and periods that carry it; the posterior shares one Dirichlet weight per block of consecutive windows, and a prior does not identify a hedged window.. A variable at more than one lag is refused rather than retargeted onto a different estimand. A declared independent-subject or clustered-panel design refuses the draw with a typed reason naming the next attempt (a row-level draw is not allowed under either, and the table has no subject or cluster labels); without replicates the frequentist point stands."
+failure_policy = "A window that holds a hedge is refused with the next attempts, and a modifier a treated period can reach is refused. Contemporaneous atoms and multiple outcome horizons are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4751,7 +4808,7 @@ route = "supported.InterventionResponse.Dag"
 target = "joint intervention contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal; consumer crates/antecedent/src/analysis/batch.rs::prepare_cells; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal; consumer crates/antecedent/src/analysis/batch.rs::prepare_cells; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.cell.aipw",
   "estimate.response.intervention_gcomp",
@@ -4778,11 +4835,11 @@ route = "supported.InterventionResponse.Dag"
 target = "joint intervention contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/numeric_pins.rs::batch_family_posterior_draws_the_whole_interaction_on_shared_row_weights; consumer crates/antecedent/src/analysis/batch.rs::family_posterior; uncertainty posterior (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/numeric_pins.rs::batch_family_posterior_draws_the_whole_interaction_on_shared_row_weights; consumer crates/antecedent/src/analysis/batch.rs::family_posterior; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.response.bayesian",
 ]
-api_review = "parity/public_api/antecedent.txt: 52 of 52 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 53 of 53 public items reviewed"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
 sampling_units = "Each query draws its own crossfit_fold_plan from that shared seed."
@@ -4804,7 +4861,7 @@ route = "supported.InterventionResponse.TemporalDag"
 target = "joint intervention contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs::scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences; consumer python/src/joint_panel_api.rs::scheduled_contrast; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs::scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences; consumer python/src/joint_panel_api.rs::scheduled_contrast; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.temporal_response.gcomp",
 ]
@@ -4830,7 +4887,7 @@ route = "supported.InterventionResponse.TemporalDag"
 target = "joint intervention contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs::scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences; consumer python/src/joint_panel_api.rs::scheduled_contrast; uncertainty analytic (measured_record)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs::scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences; consumer python/src/joint_panel_api.rs::scheduled_contrast; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.temporal.bayesian",
 ]

@@ -16,6 +16,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import categorical_treatment as ct
 from antecedent.dose_grid import (
     DoseClaims,
@@ -134,17 +135,17 @@ def test_dose_grid_declarations_the_rows_cannot_honour_are_refused_by_name():
         call(cluster=[0] * 100 + [1] * 101, serial_lag=2)
     with pytest.raises(DoseGridRefusal) as info:
         call(sampling_weights=[1.0] * 200)
-    assert info.value.detail == "dose_grid.invalid_request"
+    assert info.value.detail == reason_details.dose_grid.INVALID_REQUEST
     with pytest.raises(DoseGridRefusal) as info:
         call(cluster=[5] * 201)
-    assert info.value.detail == "dose_grid.too_few_clusters"
+    assert info.value.detail == reason_details.dose_grid.TOO_FEW_CLUSTERS
     for lag in (201, 500):
         with pytest.raises(DoseGridRefusal) as info:
             call(serial_lag=lag)
-        assert info.value.detail == "dose_grid.invalid_lag"
+        assert info.value.detail == reason_details.dose_grid.INVALID_LAG
     with pytest.raises(DoseGridRefusal) as info:
         call(serial_lag=0)
-    assert info.value.detail == "dose_grid.invalid_request"
+    assert info.value.detail == reason_details.dose_grid.INVALID_REQUEST
     with pytest.raises(CausalUnsupportedError) as info:
         call(sampling_weights=[-1.0] + [1.0] * 200)
     assert info.value.reason_code == "sampling_weights_invalid"

@@ -38,9 +38,11 @@ record_sha256 = "78a5f63910ced17b42eaa531f10fbb41402bdb56a822101fb918bb8ffaf1657
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-sha256 = "a3130b1c2c96e3bff61878b3f817e9a451cedec93fabc5257ddf508883481029"
+items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn retained_len", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
+sha256 = "4d941f96b7d463d5f352ddd1b6368c299393c4af5d8eeaba2aaf0e93e5585206"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/cross_world_execution_sampled_and_interval_readings.rs"
-sha256 = "c37595d2317a64f1593d3070a3f77040daf0d221cbcc694c886278203f1a2ca2"
+items = ["const COUPLINGS", "fn a_sampled_posterior_is_refused_before_any_work_for_every_request_shape", "fn atom", "fn ctx", "fn detail", "fn do_x", "fn envelope_reading_is_refused_before_any_work_and_spread_is_the_exact_noise_variance", "fn interval_and_posterior_readings_are_not_supported_for_every_quantity_and_coupling", "fn quantities", "fn request", "fn scm", "fn the_point_reading_of_the_exact_row_is_the_enumerated_value_with_no_draws"]
+sha256 = "cb19a09ea032fde327e1bc384d92bc3598db652b3203aaacecc28bd4bb363227"

@@ -148,7 +148,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq)]
     TransportedCounterfactualArtifactError {
         noun: "transported counterfactual",
-        identity: "transported_counterfactual.artifact_changed",
+        identity: antecedent_core::reason_details::transported_counterfactual::ARTIFACT_CHANGED,
         variants {
             /// A stored contrast, per-unit contrast or derivation differs from the recomputed one.
             ResultMismatch(&'static str),
@@ -175,7 +175,9 @@ impl TransportedCounterfactualArtifactError {
             Self::IdentityMismatch { field } => Some(TransportedCounterfactualRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
-                detail: "transported_counterfactual.artifact_changed".to_owned(),
+                detail:
+                    antecedent_core::reason_details::transported_counterfactual::ARTIFACT_CHANGED
+                        .to_owned(),
                 offending: Some((*field).to_owned()),
                 remedy: Some(
                     "consume the artifact the producer exported, or retain the identity of the \
@@ -567,7 +569,7 @@ fn law_of(wire: &LawWire, label: &str) -> Result<CovariateLaw, Failure> {
         for (name, value) in &point.values {
             if values.insert(name.clone(), *value).is_some() {
                 return Err(invalid(
-                    "transported_counterfactual.invalid_law",
+                    antecedent_core::reason_details::transported_counterfactual::INVALID_LAW,
                     &format!("{label}: repeated covariate {name}"),
                 ));
             }
@@ -608,7 +610,10 @@ fn role_of(tag: &str) -> Result<PopulationRole, Failure> {
     match tag {
         "source" => Ok(PopulationRole::Source),
         "target" => Ok(PopulationRole::Target),
-        other => Err(invalid("transported_counterfactual.invalid_factor", other)),
+        other => Err(invalid(
+            antecedent_core::reason_details::transported_counterfactual::INVALID_FACTOR,
+            other,
+        )),
     }
 }
 
@@ -664,7 +669,7 @@ fn evaluate(
         let key = RegimeFactorKey { role: role_of(&item.role)?, regime: item.regime.clone() };
         if factors.insert(key.clone(), item.label.clone()).is_some() {
             return Err(invalid(
-                "transported_counterfactual.invalid_factor",
+                antecedent_core::reason_details::transported_counterfactual::INVALID_FACTOR,
                 &format!("repeated factor {}", key.label()),
             ));
         }

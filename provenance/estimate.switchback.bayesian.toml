@@ -40,17 +40,20 @@ record_sha256 = "806f2367ddd76c8bb5d022abeb7f304c03204e293a62c0873bcd63501a5cffa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/switchback_posterior.rs"
-sha256 = "5b10b684c0977ac42c2665c1258060f771bb369f3531576faa20c120cb35ba98"
+items = ["const SWITCHBACK_POSTERIOR_ESTIMAND", "enum CarryoverDeclaration", "enum PeriodAdjustment", "enum SequenceDependence", "fn accumulate", "fn correlation", "fn design_row", "fn group_sequences", "fn invalid", "fn posterior_switchback", "fn residual_quadratic_form", "struct Sufficient", "struct SwitchbackEvidence", "struct SwitchbackMarginals", "struct SwitchbackModel", "struct SwitchbackPosterior", "struct SwitchbackPrior", "struct SwitchbackRows"]
+sha256 = "5a145dbc7201160ed9aa9a40544d7300b5692723263522c9577684aedcef1c39"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/gaussian_linear_posterior.rs"
-sha256 = "8449b10fb0d8e07845ed4777a5d6ad4b289a93728e8b35d9e96f90e4ca581034"
+items = ["fn mean", "fn probability_above", "fn standard_deviation", "fn summary", "fn variance_shape_and_scale", "struct PosteriorSummary"]
+sha256 = "61f6c9df88b4a32754e7030713271791711e586e769e8f798023e9c2c11265b5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/switchback_posterior_reference.rs"
-sha256 = "b273e141ea033e9701ee8cfdd689f77116a6a61ea2b373b95902d5e9345ff54c"
+items = ["fn check", "fn close", "fn every_effect_matches_the_exact_posterior", "fn f", "fn reference", "fn run"]
+sha256 = "1bdfb920f142f342a1dac73f2089e680bf64e59db7afdd0105d32177e2d45717"
 
 [[method_review.artifacts]]
 role = "reference"

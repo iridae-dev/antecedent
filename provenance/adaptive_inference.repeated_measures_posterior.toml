@@ -39,17 +39,20 @@ record_sha256 = "5e3d6811acc46fdc0c13c16f20e36ab55afdf75c96566ec4afb745956f7db72
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs"
-sha256 = "41ad4877bf14be8d330c1c9f1476a9644416b696d0d51b35b9dda40833d6d78a"
+items = ["const MAX_POSTERIOR_UNITS", "const REPEATED_MEASURES_POSTERIOR_LIKELIHOOD", "const SELECTION_IGNORABILITY_PREMISE", "enum SelectionMechanism", "fn accumulate_units", "fn premise_failure", "fn repeated_measures_posterior", "struct ArmMeanPosterior", "struct ContrastPosterior", "struct NormalMeanPrior", "struct RepeatedMeasuresPosterior", "struct RepeatedMeasuresPosteriorRequest", "struct SelectionEvidence", "struct UnitRecord"]
+sha256 = "b7d6ba7892e4339f4ee1eb4eeff0429197e1e34fca3baa9dfb68a434c9f5b770"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs"
-sha256 = "878293138762566668ce6dc293b7c8c2c3c517dc7100119d574e52650a13d3d5"
+items = ["enum AnalysisEstimator", "enum Dependence", "enum OutcomeStructure", "enum UnitSummary", "enum WithinUnitCorrelation", "fn analysis", "fn analysis_summary", "fn arms", "fn build", "fn correlation_matrix", "fn defined_mass", "fn gls_unit_summary", "fn marginal_variance", "fn mean", "fn measurements", "fn structure", "fn summary_variance", "fn unit_summary_variance", "fn variance", "fn weights", "struct Covariance", "struct FinalAnalysis"]
+sha256 = "f8c50e8a53423c64544c00c018b6ed6da8b69f2f8aa2d3b660e426d75103c23b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/repeated_measures_posterior_reference.rs"
-sha256 = "aee306270ee16a1c256ed19c943838c8f137c3581eabc1c343a412c3c6851cd7"
+items = ["fn close", "fn number", "fn posteriors_match_the_multivariate_normal_reference", "fn reference", "fn structure"]
+sha256 = "b9e0b6d3e71fec35f0fc4fad4c5af23915de0f9813d43a6c1aa4aab8b0193dcd"
 
 [[method_review.artifacts]]
 role = "reference"

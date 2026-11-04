@@ -39,12 +39,14 @@ record_sha256 = "33102e7520c9ef36d107925c94ac6816139017fd7301fc0d2ed941c277808c4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/divergence.rs"
-sha256 = "be11ced6140340247662351d504432e6674464ed05aecbb236033ba94eb76be3"
+items = ["const DEFAULT_MECHANISM_PERMUTATIONS", "const LR_ASYMPTOTIC_MIN_SEGMENT", "const MEDIAN_HEURISTIC_EXACT_PAIR_CAP", "const MEDIAN_HEURISTIC_SAMPLE_SIZE", "const MMD_GRAM_CACHE_MAX_POOLED", "const MMD_TIE_TOLERANCE", "fn biased_mmd2", "fn classifier_two_sample", "fn draw_index", "fn fisher_yates_shuffle", "fn fisher_yates_shuffle_index", "fn gaussian_kl", "fn gaussian_segment_lr", "fn is_constant", "fn kernel_two_sample_with_permutations", "fn mean_diff_two_sample", "fn mean_var", "fn mmd2_from_labels", "fn new", "fn partition_labels", "fn pooled_rbf_gram", "fn rbf", "fn rbf_bandwidth_median_heuristic", "fn residual_likelihood_ratio", "fn segment_order_seed", "fn x_minus_ln1p", "struct PermutationTestResult"]
+sha256 = "f868daf87c4266dac0ff978268f6c8bf067ccddba10136a62e47578a9f8a9e9f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/divergence_reference.rs"
-sha256 = "32983cffd3da03b30300bbac9c4953591720f6181e2d0791c292bb27d6a34663"
+items = ["fn asymptotic_likelihood_ratio_matches_statistic_and_chi_square_tail", "fn close", "fn f", "fn fixture", "fn gaussian_kl_matches_multiprecision_including_near_equal_and_overflowing_cases", "fn kernel_statistic_and_permutation_p_match_exact_enumeration", "fn mann_whitney_p_uses_the_exact_tie_corrected_permutation_variance", "fn small_segment_likelihood_ratio_p_is_the_exact_randomization_p_within_sampling_error", "fn vec_f", "fn welch_statistic_and_p_value_match_multiprecision"]
+sha256 = "1d01405b639a73d199e9a0e575ac83486c73b3a36e31879a0308ce55018c7180"
 
 [[method_review.artifacts]]
 role = "reference"

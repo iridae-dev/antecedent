@@ -197,7 +197,7 @@ pub type SequentialResult<T> = Result<T, SequentialEvaluationError>;
 pub(crate) fn cancelled() -> SequentialEvaluationError {
     SequentialEvaluationError::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "sequential_evaluation.cancelled",
+        antecedent_core::reason_details::sequential_evaluation::CANCELLED,
         "the evaluation was cancelled before it produced a value",
         "re-run the evaluation; a partial enumeration is not a result",
     )

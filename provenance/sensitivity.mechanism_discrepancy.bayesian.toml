@@ -30,14 +30,17 @@ record_sha256 = "477a297af5ebad253b733f8ccbf415780a91b003daa2e472b2dad20e25e772a
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn mechanism_coefficient_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "87b7e71bed3b34b68fddbd529c03d4181389fcb4fa4f3e50292a75d86ada1e4c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs"
-sha256 = "b9e5be405f8606bbc15006b84dddfd141c5e3380d9200421176a167232ac2ede"
+items = ["const A", "const B", "const X", "const Y6", "const Y6_TARGET", "const YS", "const YT_BIG", "const YT_BOTH", "const YT_SLOPE", "fn close", "fn discrepancy_degenerate_inputs_refuse", "fn discrepancy_dependence_unknown_refuses", "fn discrepancy_identical_fits_give_statistic_zero_exactly", "fn discrepancy_incomparable_measurements_refuse", "fn discrepancy_intercept_and_slope_shift_matches_df2_closed_form", "fn discrepancy_minimal_detectable_difference_uses_normal_quantiles", "fn discrepancy_non_rejection_never_certifies_invariance", "fn discrepancy_ols_fits_and_summed_covariance_match_hand_algebra", "fn discrepancy_parent_order_is_irrelevant", "fn discrepancy_slope_shift_matches_df1_closed_form", "fn discrepancy_summaries_replay_the_raw_data_result", "fn discrepancy_two_parent_statistic_matches_slope_block_algebra", "fn measurement", "fn mechanism_posterior_consumer_replays_the_normal_equations", "fn mechanism_posterior_mean_stays_at_the_hand_coefficients", "fn mechanism_posterior_refuses_an_unmeasured_band", "fn one_parent", "fn opts", "fn refusal", "fn sample", "fn sample_with", "fn two_parents"]
+sha256 = "9559e56f6e28da450fd1472d3371540799a7916b4842b4c80f08ec6986ccb4c4"

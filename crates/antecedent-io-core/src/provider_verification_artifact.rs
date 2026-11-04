@@ -238,7 +238,7 @@ pub fn verify_execution_requests(
     let malformed = |message: String| ExternalBindingRefusalWire {
         code: antecedent_core::reason_code!("invalid_argument").to_owned(),
         stage: "verify".into(),
-        detail: "external_object_verification.invalid_probe".into(),
+        detail: antecedent_core::reason_details::external_object_verification::INVALID_PROBE.into(),
         offending: Some(message),
         expected: None,
         supplied: None,
@@ -399,7 +399,10 @@ mod tests {
         let refusal =
             verify_execution_requests(&wire(vec![request("r1", 0.0), request("r2", 1.0)]))
                 .unwrap_err();
-        assert_eq!(refusal.detail, "external_object_verification.failed_probe");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::external_object_verification::FAILED_PROBE
+        );
         assert_eq!(refusal.offending.as_deref(), Some("request[1].known_truth"));
     }
 

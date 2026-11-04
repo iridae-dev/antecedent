@@ -270,12 +270,12 @@ fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit()
     let mut wrong_selection = r.clone();
     wrong_selection.selection_targets = vec![2];
     for (invalid, refusal) in [
-        (horizon, "temporal_refresh.lag_alignment_changed"),
-        (lag, "temporal_refresh.lag_alignment_changed"),
+        (horizon, antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED),
+        (lag, antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED),
         (incomplete_window, "InvalidTemporalWindow"),
         (missing_units, "InvalidTemporalWindow"),
         (unsupported, "temporal_recalc.binary_history_scope"),
-        (missing_state, "initial_state.support_gap"),
+        (missing_state, antecedent_core::reason_details::initial_state::SUPPORT_GAP),
         (wrong_selection, "temporal_initial_shift.source_scope"),
     ] {
         let error = execute_temporal_with_receipt(&mut session, &invalid, &ctx())
@@ -528,7 +528,9 @@ fn checked_response_retired_intervals_refuse_before_resampling() {
         let (result, work) =
             count_static_work(|| session.candidate_interval_internal(&config, &ctx()));
         assert!(
-            result.unwrap_err().to_string().contains("temporal_interval.retired_response_method")
+            result.unwrap_err().to_string().contains(
+                antecedent_core::reason_details::temporal_interval::RETIRED_RESPONSE_METHOD
+            )
         );
         assert_eq!(work.factor_builds, 0);
         assert_eq!(work.factor_evaluations, 0);

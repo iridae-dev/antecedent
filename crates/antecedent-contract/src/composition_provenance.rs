@@ -118,25 +118,47 @@ impl ProvenanceChainError {
         match self {
             Self::InvalidLink => crate::ExternalRefusal {
                 offending: None,
-                ..refusal(invalid, "composition_provenance.invalid_link", "")
+                ..refusal(
+                    invalid,
+                    antecedent_core::reason_details::composition_provenance::INVALID_LINK,
+                    "",
+                )
             },
-            Self::DuplicateLink(id) => {
-                refusal(invalid, "composition_provenance.duplicate_link", id)
-            }
+            Self::DuplicateLink(id) => refusal(
+                invalid,
+                antecedent_core::reason_details::composition_provenance::DUPLICATE_LINK,
+                id,
+            ),
             Self::UnresolvedParent { child, parent } => crate::ExternalRefusal {
                 expected: Some(parent.clone()),
-                ..refusal(mismatch, "composition_provenance.unresolved_parent", child)
+                ..refusal(
+                    mismatch,
+                    antecedent_core::reason_details::composition_provenance::UNRESOLVED_PARENT,
+                    child,
+                )
             },
-            Self::UnknownLink(id) => refusal(mismatch, "composition_provenance.unknown_link", id),
+            Self::UnknownLink(id) => refusal(
+                mismatch,
+                antecedent_core::reason_details::composition_provenance::UNKNOWN_LINK,
+                id,
+            ),
             Self::MissingStage(stage) => crate::ExternalRefusal {
                 offending: Some(stage.as_str().to_owned()),
-                ..refusal(mismatch, "composition_provenance.missing_stage", "")
+                ..refusal(
+                    mismatch,
+                    antecedent_core::reason_details::composition_provenance::MISSING_STAGE,
+                    "",
+                )
             },
             Self::DigestMismatch { link, expected, supplied } => crate::ExternalRefusal {
                 expected: Some(expected.clone()),
                 supplied: Some(supplied.clone()),
                 remedy: Some("rebuild the lineage from the retained digests of every predecessor"),
-                ..refusal(mismatch, "composition_provenance.digest_mismatch", link)
+                ..refusal(
+                    mismatch,
+                    antecedent_core::reason_details::composition_provenance::DIGEST_MISMATCH,
+                    link,
+                )
             },
         }
     }

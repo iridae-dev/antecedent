@@ -13,6 +13,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent._freeze import thaw
 from antecedent.errors import CausalTypeError
@@ -139,7 +140,7 @@ def test_the_transported_artifact_is_the_existing_one_and_replays() -> None:
             expected_identity="0" * 64,
         ),
         "measurement_binding_mismatch",
-        "measurement_model.transport_receipt_mismatch",
+        reason_details.measurement_model.TRANSPORT_RECEIPT_MISMATCH,
     )
 
 
@@ -204,7 +205,7 @@ def test_every_unmet_premise_is_named() -> None:
     missing = refused(
         lambda: require_success(mm.transport_measurement_model(source, analysis(), DATA)),
         "transport_missing_evidence",
-        "measurement_model.invariance_premise_required",
+        reason_details.measurement_model.INVARIANCE_PREMISE_REQUIRED,
     )
     assert missing.remedy
     # A premise about specificity alone does not support a sensitivity-and-specificity correction.
@@ -215,7 +216,7 @@ def test_every_unmet_premise_is_named() -> None:
             )
         ),
         "transport_not_certified",
-        "measurement_model.invariance_not_declared",
+        reason_details.measurement_model.INVARIANCE_NOT_DECLARED,
     )
     # A declared population-differential error never falls back to another population's rates.
     refused(
@@ -225,7 +226,7 @@ def test_every_unmet_premise_is_named() -> None:
             )
         ),
         "differential_error_not_pooled",
-        "measurement_model.differential_population_unestablished",
+        reason_details.measurement_model.DIFFERENTIAL_POPULATION_UNESTABLISHED,
     )
     # A premise for another target or an unknown source.
     refused(
@@ -235,7 +236,7 @@ def test_every_unmet_premise_is_named() -> None:
             )
         ),
         "transport_not_certified",
-        "measurement_model.invariance_target_mismatch",
+        reason_details.measurement_model.INVARIANCE_TARGET_MISMATCH,
     )
     refused(
         lambda: require_success(
@@ -244,7 +245,7 @@ def test_every_unmet_premise_is_named() -> None:
             )
         ),
         "transport_not_certified",
-        "measurement_model.invariance_source_unknown",
+        reason_details.measurement_model.INVARIANCE_SOURCE_UNKNOWN,
     )
     # The premise covers the population only: a model of another regime is not carried.
     refused(
@@ -254,7 +255,7 @@ def test_every_unmet_premise_is_named() -> None:
             )
         ),
         "measurement_binding_mismatch",
-        "measurement_model.regime_mismatch",
+        reason_details.measurement_model.REGIME_MISMATCH,
     )
 
 
@@ -268,7 +269,7 @@ def test_a_route_with_nothing_to_carry_is_refused() -> None:
             )
         ),
         "route_not_supported",
-        "measurement_model.nothing_to_transport",
+        reason_details.measurement_model.NOTHING_TO_TRANSPORT,
     )
 
 

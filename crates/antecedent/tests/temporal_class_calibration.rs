@@ -7,7 +7,7 @@
 //! `conformance/estimate/temporal_class_envelope/identified_pag.json`): six
 //! identified completions at two different effects plus one unidentified.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -382,7 +382,7 @@ fn frequentist_cpdag_multistep_case_at(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage() {
     frequentist_cpdag_multistep_case(
         "frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage",
@@ -392,7 +392,7 @@ fn frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage() {
     frequentist_cpdag_multistep_case_at(
         "frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -405,7 +405,7 @@ fn frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_multistep_sustained_nominal_90_coverage() {
     frequentist_chain_pag_case(
         "frequentist_temporal_pag_multistep_sustained_nominal_90_coverage",
@@ -419,7 +419,7 @@ fn frequentist_temporal_pag_multistep_sustained_nominal_90_coverage() {
 macro_rules! frequentist_pag_gate {
     ($name:ident, $what:literal, $query:expr, $design:expr, $seed:expr) => {
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
         fn $name() {
             frequentist_chain_pag_case(stringify!($name), $what, &$query, $design, $seed);
         }
@@ -453,7 +453,7 @@ frequentist_pag_gate!(
 /// (0.888 at 2000 replicates in `short_series_measurement`): measured,
 /// warned, not gated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary() {
     frequentist_chain_pag_boundary(
         "frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary",
@@ -465,7 +465,7 @@ fn frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary() {
     frequentist_chain_pag_boundary(
         "frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary",
@@ -483,7 +483,7 @@ fn frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary() {
 /// has a weak, slowly decaying component the block-length reading sees), and
 /// coverage is recorded.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary() {
     const RHO: f64 = 0.95;
     let mut tally = FreqTally::new(
@@ -602,7 +602,7 @@ fn bayesian_circle_pag_class_prior_case(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage() {
     bayesian_circle_pag_class_prior_case(
         "bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
@@ -614,7 +614,7 @@ fn bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage() {
     bayesian_circle_pag_class_prior_case(
         "bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -626,7 +626,7 @@ fn bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage() 
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage() {
     bayesian_circle_pag_class_prior_case(
         "bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -670,7 +670,7 @@ fn frequentist_circle_pag_case(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage() {
     frequentist_circle_pag_case(
         "frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -837,7 +837,7 @@ fn set_key(test: &'static str, dgp: &'static str) -> RecordKey {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_identified_set_interval_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
     let key = set_key(
@@ -867,7 +867,7 @@ fn frequentist_temporal_pag_identified_set_interval_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
     let key = set_key(
@@ -895,7 +895,7 @@ fn frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverag
 
 /// `confounded_series` is generated by the `z -> t` completion (adjust `z`), `θ = B1`.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage() {
     let [unadjusted, adjusted] = fixtures::cpdag_completion_truths(0.0);
     let key = set_key(
@@ -918,7 +918,7 @@ fn frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage() {
 /// `circle_pag` identifies one completion: the set is a point and the interval
 /// is the two-sided interval of that completion.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage() {
     let key = set_key(
         "frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage",
@@ -941,7 +941,7 @@ fn frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage() 
 /// posteriors only (no blended posterior). The identified-set credible interval
 /// from those draws is what carries a coverage claim.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
     let key = set_key(
@@ -976,7 +976,7 @@ fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
     let key = set_key(
@@ -1080,7 +1080,7 @@ where
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion() {
     heterogeneous_se_case("frequentist TemporalCpdag Pulse heterogeneous SDs", |s| {
         run(
@@ -1096,7 +1096,7 @@ fn frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_no
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion() {
     heterogeneous_se_case("Bayesian TemporalCpdag Pulse heterogeneous SDs (no ClassPrior)", |s| {
         run(

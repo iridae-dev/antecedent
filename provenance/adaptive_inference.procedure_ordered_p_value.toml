@@ -40,17 +40,20 @@ record_sha256 = "9d65b5accb68add36e8439f8a803d495eb22b351ad0a499dab87208f0e1a5e6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-sha256 = "112bab3fcbbca77119c10c1fa4e4cdbfea93744d0568048389b4cc82978b5f1d"
+items = ["const DERIVED_UNMEASURED", "const MAX_INVERSION_LAWS", "const TIE_TOLERANCE", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn as_str", "fn check_paradigm", "fn compare", "fn inversion_interval", "fn ordering_p_values", "fn premise", "fn rank_of", "struct InversionGrid", "struct InversionInterval", "struct ObservedTerminal", "struct OrderingPValues", "struct Rank"]
+sha256 = "0ba77ed19cc4e38c065f1e5f3656c853efa506d0fd8ff58352870da648fa595d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_ordered_p_value_reference.rs"
-sha256 = "97e44ea6aded397b87e2eaf4e78f4cb325e5fdf329df339275fdbd75767b218c"
+items = ["fn observed", "fn reference", "fn tail_probabilities_match_the_exact_stagewise_ordering", "fn the_inversion_accepts_exactly_the_contrasts_the_exact_tails_allow"]
+sha256 = "6f76b8f78d6db44cbf0c3adeb3f63c564a3a2525b87aa9f6f7d9e531a337e977"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
+items = ["module"]
+sha256 = "571c1ccdbb1afe316020f1abae7a2567cdbf424d29355e0b9da9c809ddf610b6"
 
 [[method_review.artifacts]]
 role = "reference"

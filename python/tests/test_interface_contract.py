@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import interface_contract as ic
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.interface_contract import InterfaceContractRefusal
@@ -100,9 +101,9 @@ def test_a_pair_that_matches_syntactically_fails_scientifically():
         )
     )
     assert [r.detail for r in error.refusals] == [
-        "interface_contract.population_mismatch",
-        "interface_contract.operation_unavailable",
-        "interface_contract.uncertainty_meaning_missing",
+        reason_details.interface_contract.POPULATION_MISMATCH,
+        reason_details.interface_contract.OPERATION_UNAVAILABLE,
+        reason_details.interface_contract.UNCERTAINTY_MEANING_MISSING,
     ]
     assert error.reason_code == "interface_contract_quantity_mismatch"
     population = error.refusals[0]
@@ -119,7 +120,9 @@ def test_a_mean_does_not_supply_a_law_and_a_sampling_interval_is_not_a_posterior
             "effect",
         )
     )
-    assert "interface_contract.operation_unavailable" in [r.detail for r in error.refusals]
+    assert reason_details.interface_contract.OPERATION_UNAVAILABLE in [
+        r.detail for r in error.refusals
+    ]
     error = refusal_of(
         lambda: ic.check_connection(
             producer(operations=("interval",), uncertainty="estimator_sampling"),
@@ -129,7 +132,7 @@ def test_a_mean_does_not_supply_a_law_and_a_sampling_interval_is_not_a_posterior
         )
     )
     details = [r.detail for r in error.refusals]
-    assert "interface_contract.uncertainty_paradigm_mismatch" in details
+    assert reason_details.interface_contract.UNCERTAINTY_PARADIGM_MISMATCH in details
 
 
 def test_measured_calibration_is_carried_never_raised():
@@ -152,7 +155,7 @@ def test_a_malformed_declaration_is_refused_alone():
             producer(operations=("interval",)), "effect", consumer(), "effect"
         )
     )
-    assert error.detail == "interface_contract.uncertainty_meaning_required"
+    assert error.detail == reason_details.interface_contract.UNCERTAINTY_MEANING_REQUIRED
     assert error.reason_code == "interface_contract_invalid"
     with pytest.raises(CausalValueError):
         ic.SupportDomain.interval(float("nan"), 1.0)
@@ -191,7 +194,7 @@ def test_a_feed_forward_composition_is_ordered_and_a_cycle_is_refused_with_its_p
         )
     )
     assert error.reason_code == "interface_contract_cyclic_composition"
-    assert error.detail == "interface_contract.cyclic_composition"
+    assert error.detail == reason_details.interface_contract.CYCLIC_COMPOSITION
     assert error.offending == "a -> b -> c -> a"
     assert error.remedy
 
@@ -236,7 +239,7 @@ def test_inputs_required_disjoint_cannot_share_evidence():
             )
         )
         assert error.reason_code == "interface_contract_assumption_mismatch"
-        assert error.detail == "interface_contract.dependence_unknown"
+        assert error.detail == reason_details.interface_contract.DEPENDENCE_UNKNOWN
         assert error.remedy
 
 
@@ -299,10 +302,10 @@ def test_a_ledger_decides_disjoint_evidence_at_row_level():
     assert {c.consumed_port for c in composed.connections} == {"left", "right"}
     # Rows 0..50 and 25..75 share 25 observations.
     error = refusal_of(lambda: check(overlapping))
-    assert error.detail == "interface_contract.shared_evidence"
+    assert error.detail == reason_details.interface_contract.SHARED_EVIDENCE
     # A source whose observations are not computable is unknown, never disjoint.
     unknown = refusal_of(lambda: check(undeclared))
-    assert unknown.detail == "interface_contract.dependence_unknown"
+    assert unknown.detail == reason_details.interface_contract.DEPENDENCE_UNKNOWN
     assert_registered_refusal(unknown)
     with pytest.raises(CausalTypeError):
         ic.check_composition_with_ledger([pool], [], object())
@@ -363,7 +366,7 @@ def test_an_exported_contract_round_trips_and_is_inspectable():
     assert meta["identity"] == exported.expectation.identity
     assert meta["contract"]["produces"][0]["name"] == "effect"
     error = refusal_of(lambda: ic.consume_interface_contract_artifact(exported.data, "0" * 64))
-    assert error.detail == "interface_contract.identity_mismatch"
+    assert error.detail == reason_details.interface_contract.IDENTITY_MISMATCH
 
 
 def test_bytes_that_are_not_a_contract_artifact_are_refused_by_inspection_and_consumption():
@@ -438,7 +441,7 @@ def test_a_fresh_process_consumes_the_artifact_against_a_retained_identity(tmp_p
         cwd=tmp_path,
     )
     assert refused.returncode != 0
-    assert "interface_contract.identity_mismatch" in refused.stderr
+    assert reason_details.interface_contract.IDENTITY_MISMATCH in refused.stderr
 
 
 def test_non_string_connection_element_refused():

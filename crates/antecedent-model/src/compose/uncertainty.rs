@@ -102,7 +102,7 @@ pub fn assemble_parameter_covariance(
     if !is_positive_semidefinite(&cov, p) {
         let finding = CoherenceFinding::new(
             CoherenceKind::UncertaintyAlignment,
-            "mechanism_composition.uncertainty_assembled_not_psd",
+            antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_ASSEMBLED_NOT_PSD,
             "composition",
             "the declared marginals and cross-covariances do not form one valid joint law; supply a positive semidefinite joint covariance",
         );

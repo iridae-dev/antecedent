@@ -53,7 +53,33 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/conditional.rs",
-          "sha256": "9354695138a4f7325ba9827e974f34c0320471ea338479b26f7926f63330e227"
+          "items": [
+            "const MULTI_MODIFIER_REMEDY",
+            "fn conditional_effect_matches_pinned_statsmodels_oracle",
+            "fn default",
+            "fn estimate",
+            "fn estimate_ate",
+            "fn estimate_with_means",
+            "fn fit",
+            "fn gram_inverse",
+            "fn interaction",
+            "fn inverse_weighted_leverage",
+            "fn joint_modifier_record",
+            "fn mean_response",
+            "fn modifier_mean_variance",
+            "fn ncols",
+            "fn new",
+            "fn plugin_arm_influence",
+            "fn refuse_undeclared_levels",
+            "fn z_start",
+            "struct ConditionalArmScores",
+            "struct ConditionalLinearAdjustment",
+            "struct InteractionFit",
+            "struct InteractionLayout",
+            "struct WeightedInteraction",
+            "struct WeightedInteractionFit"
+          ],
+          "sha256": "f2f1dc13ed67355d554c8fecc7ec7728d5e8f2c17e064b61233ee7a2d0bd191a"
         }
       ],
       "fixture_payload_sha256": "0813b6be0eccb05ecacd0e49da2cb4a381b0745de8b6b7b050250fe14d5bf325"

@@ -46,6 +46,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition as comp
 from antecedent import composition_bundle as cb
 from antecedent import decision, external, program_claims, recalc
@@ -182,7 +183,7 @@ def test_mutation_quantity_is_refused_at_the_program_and_recomputes_the_native_c
     )
     with pytest.raises(external.ExternalRefusal) as units:
         program_claims.bind_to_program(override, program)
-    assert units.value.detail == "program_binding.quantities_override_mismatch"
+    assert units.value.detail == reason_details.program_binding.QUANTITIES_OVERRIDE_MISMATCH
     assert units.value.reason_code == "quantity_semantics_mismatch"
     assert units.value.offending == "coordinate[1]"
     assert_registered_refusal(units.value)
@@ -190,18 +191,18 @@ def test_mutation_quantity_is_refused_at_the_program_and_recomputes_the_native_c
     grams = replace(program, dose_units="g")
     with pytest.raises(external.ExternalRefusal) as grid:
         program_claims.bind_to_program(spec, grams)
-    assert grid.value.detail == "program_binding.dose_grid_changed"
+    assert grid.value.detail == reason_details.program_binding.DOSE_GRID_CHANGED
     assert grid.value.offending == "dose_units"
     with pytest.raises(external.ExternalRefusal) as native:
         fx.native_claim(fx.native_view(grid=(0.0, 1.0, 3.0)))
-    assert native.value.detail == "native_claims.program_mismatch"
+    assert native.value.detail == reason_details.native_claims.PROGRAM_MISMATCH
 
     wrong = tuple(replace(q, units="kPa") if i == 1 else q for i, q in enumerate(spec.quantities))
     provider = fx.provider_object("lab-1", "snap-e1", "req-e1")
     response = replace(fx.provider_response(provider, fx.E1_MEANS, "study:e1"), quantities=wrong)
     with pytest.raises(external.ExternalRefusal) as bound:
         program_claims.bind_to_program(spec, program).bind(response)
-    assert bound.value.detail == "external_response_binding.coordinate_units"
+    assert bound.value.detail == reason_details.external_response_binding.COORDINATE_UNITS
     assert (bound.value.offending, bound.value.expected, bound.value.supplied) == (
         "coordinate[1]",
         "mmHg",
@@ -223,7 +224,7 @@ def test_mutation_quantity_is_refused_at_the_program_and_recomputes_the_native_c
     assert decided.unsupported_actions == ("treat",)
     assert decided.verdict.kind == "only_one_evaluated" and decided.verdict.selected == "wait"
     (reason,) = decided.disposition("treat").reasons
-    assert reason.issue == "composition_boundary.coordinate_missing"
+    assert reason.issue == reason_details.composition_boundary.COORDINATE_MISSING
 
     plan, unchanged = _plan(query=replace(program, dose_units="g").identity)
     assert _recomputed(plan) == {
@@ -285,7 +286,7 @@ def test_mutation_law_a_mean_a_marginal_or_another_meaning_never_stands_in() -> 
                 fx.mean_contract(), "treat", comp.Functional.probability(2.5, "upper"), mean
             )
         )
-    assert refused.value.detail == "composition_boundary.mean_is_not_a_distribution"
+    assert refused.value.detail == reason_details.composition_boundary.MEAN_IS_NOT_A_DISTRIBUTION
 
     product = decision.Contract(
         actions=(
@@ -303,7 +304,7 @@ def test_mutation_law_a_mean_a_marginal_or_another_meaning_never_stands_in() -> 
     marginals = fx.law(alignment="independent_marginals")
     with pytest.raises(decision.DecisionRefusal) as independent:
         require_success(product.evaluate(marginals))
-    assert independent.value.detail == "decision_evaluation.joint_law_required"
+    assert independent.value.detail == reason_details.decision_evaluation.JOINT_LAW_REQUIRED
     assert independent.value.reason_code == "joint_law_required"
     assert (independent.value.expected, independent.value.supplied) == (
         "joint",
@@ -356,13 +357,13 @@ def test_mutation_structure_a_changed_graph_or_premise_is_refused_and_reidentifi
     ):
         with pytest.raises(external.ExternalRefusal) as refused:
             call()
-        assert refused.value.detail == "program_binding.contract_identity_mismatch"
+        assert refused.value.detail == reason_details.program_binding.CONTRACT_IDENTITY_MISMATCH
         assert_registered_refusal(refused.value)
 
     premises = fx.spec(require_evidence=("factor:z",))
     with pytest.raises(external.ExternalRefusal) as premise:
         program_claims.bind_to_program(premises, program)
-    assert premise.value.detail == "program_binding.contract_identity_mismatch"
+    assert premise.value.detail == reason_details.program_binding.CONTRACT_IDENTITY_MISMATCH
     assert premise.value.offending == "contract_id"
 
     provider = fx.provider_object("lab-1", "snap-e1", "req-e1")
@@ -374,7 +375,9 @@ def test_mutation_structure_a_changed_graph_or_premise_is_refused_and_reidentifi
     atoms = [comp.StructuralAtom("graph-a", 0.25), comp.StructuralAtom("graph-b")]
     with pytest.raises(comp.DependenceRefusal) as averaged:
         require_success(comp.check_atom_combination(atoms, "weighted_by_declared_probabilities"))
-    assert averaged.value.detail == "composition_boundary.conflicting_atoms_not_averaged"
+    assert (
+        averaged.value.detail == reason_details.composition_boundary.CONFLICTING_ATOMS_NOT_AVERAGED
+    )
     assert require_success(comp.check_atom_combination(atoms, "worst_case")).kind == "worst_case"
 
     plan, unchanged = _plan(graph=changed_spec.graph_id)
@@ -427,7 +430,7 @@ def test_mutation_support_withdrawn_from_a_study_excludes_only_the_affected_acti
     assert (reason.input_id, reason.coordinate, reason.issue, reason.support) == (
         "e1",
         0,
-        "composition_boundary.coordinate_unsupported",
+        reason_details.composition_boundary.COORDINATE_UNSUPPORTED,
         fx.OUTSIDE,
     )
     with pytest.raises(comp.SupportRefusal) as refused:
@@ -436,7 +439,10 @@ def test_mutation_support_withdrawn_from_a_study_excludes_only_the_affected_acti
                 fx.mean_contract(), [fx.e1_input(claim)], comp.SupportPolicy.require_all()
             )
         )
-    assert refused.value.detail == "composition_boundary.unsupported_action_not_comparable"
+    assert (
+        refused.value.detail
+        == reason_details.composition_boundary.UNSUPPORTED_ACTION_NOT_COMPARABLE
+    )
 
     # A weakly supported coordinate is admitted only when the policy says so.
     weak_input = fx.e1_input(fx.e1_claim(support=weak))
@@ -456,7 +462,7 @@ def test_mutation_support_withdrawn_from_a_study_excludes_only_the_affected_acti
     )
     with pytest.raises(external.ExternalRefusal) as summary:
         fx.native_claim(hidden)
-    assert summary.value.detail == "native_claims.projection_mismatch"
+    assert summary.value.detail == reason_details.native_claims.PROJECTION_MISMATCH
 
     # The changed study invalidates its own branch and the decision; the rest stays valid.
     plan, unchanged = _plan(**{"external_study.0": _claim_identity(claim)})
@@ -499,7 +505,9 @@ def test_mutation_snapshot_recomputes_dependents_and_keeps_the_external_branches
         require_success(
             comp.check_composition([fx.native_input(), same], [independent], "statistical_pooling")
         )
-    assert shared.value.detail == "composition_boundary.shared_evidence_not_independent"
+    assert (
+        shared.value.detail == reason_details.composition_boundary.SHARED_EVIDENCE_NOT_INDEPENDENT
+    )
     receipt = require_success(
         comp.check_composition(
             [fx.native_input(), fx.e1_input()], [independent], "statistical_pooling"
@@ -554,7 +562,7 @@ def test_mutation_provider_operation_unknown_changed_or_unavailable() -> None:
     with pytest.raises(external.ExternalRefusal) as unknown:
         fx.bound_claim(fx.provider_response(provider, fx.E1_MEANS, "study:e1"))
     assert unknown.value.reason_code == "invalid_argument"
-    assert unknown.value.detail == "external_response_binding.malformed_capability"
+    assert unknown.value.detail == reason_details.external_response_binding.MALFORMED_CAPABILITY
 
     # A reference that must answer one exact request refuses another and an absent provider.
     builder = cb.Bundle.builder()
@@ -600,7 +608,7 @@ def test_mutation_provider_operation_unknown_changed_or_unavailable() -> None:
     )
     with pytest.raises(dr.SignalProviderRefusal) as candidate:
         fx.rank(candidate_list=[dr.Candidate("external-trial", 2, mismatched, cost=0.05)])
-    assert candidate.value.detail == "signal_provider.candidate_mismatch"
+    assert candidate.value.detail == reason_details.signal_provider.CANDIDATE_MISMATCH
     assert candidate.value.reason_code == "design_signal_invalid"
     incoherent = require_success(
         dr.ExternalLaw.posterior(
@@ -612,7 +620,7 @@ def test_mutation_provider_operation_unknown_changed_or_unavailable() -> None:
     )
     with pytest.raises(dr.SignalProviderRefusal) as coherence:
         fx.rank(candidate_list=fx.candidates(law_of_signal=incoherent))
-    assert coherence.value.detail == "signal_provider.posterior_incoherent"
+    assert coherence.value.detail == reason_details.signal_provider.POSTERIOR_INCOHERENT
 
     # A changed request recomputes that provider branch and the decision, not its prior.
     plan, unchanged = _plan(**{"provider_request.0": "lab-1@v1#req-CHANGED"})
@@ -679,7 +687,10 @@ def test_mutation_overlap_is_never_pooled_or_counted_twice() -> None:
     for operation in ("statistical_pooling", "bayesian_borrowing"):
         with pytest.raises(comp.DependenceRefusal) as refused:
             require_success(comp.check_composition(inputs, relations, operation))
-        assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
+        assert (
+            refused.value.detail
+            == reason_details.composition_boundary.SHARED_EVIDENCE_NOT_INDEPENDENT
+        )
         assert refused.value.offending == "native~e1"
         assert_registered_refusal(refused.value)
     # Declared reuse and transport report the registry once, however many pairs share it.
@@ -717,7 +728,7 @@ def test_mutation_overlap_is_never_pooled_or_counted_twice() -> None:
     # A candidate study that reuses the prior's observations would count them twice.
     with pytest.raises(dr.SourceOverlapRefusal) as overlap:
         fx.rank(candidate_list=fx.candidates(external_reuses=("obs:e2-registry",)))
-    assert overlap.value.detail == "evsi.source_overlap"
+    assert overlap.value.detail == reason_details.evsi.SOURCE_OVERLAP
     assert overlap.value.offending == "obs:e2-registry"
     clean = fx.rank(candidate_list=fx.candidates(external_reuses=("obs:future",)))
     assert clean.candidate("external-trial").source_overlap.overlapping == ()
@@ -784,7 +795,7 @@ def test_mutation_target_weights_reuse_frozen_scores_and_the_dose_grid_refuses_o
         require_success(cold.execute(request, execution=Execution(seed=SEED)))
     assert (off_grid.value.stage, off_grid.value.detail) == (
         "treatment_grid",
-        "recalc.off_grid_request",
+        reason_details.recalc.OFF_GRID_REQUEST,
     )
     assert off_grid.value.plan is not None
     assert off_grid.value.plan.status(Stage.TREATMENT_GRID).text == (

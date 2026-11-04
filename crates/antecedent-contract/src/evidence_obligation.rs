@@ -160,7 +160,7 @@ impl EvidenceObligationError {
     fn invalid(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "evidence_obligations.invalid_obligation",
+            detail: antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION,
             message: message.into(),
         }
     }
@@ -171,7 +171,7 @@ impl EvidenceObligationError {
     pub fn wrong_contract(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("transport_missing_evidence"),
-            detail: "evidence_obligations.wrong_contract",
+            detail: antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT,
             message: message.into(),
         }
     }

@@ -110,7 +110,7 @@ fn ensure_seed(expected: u64, ctx: &ExecutionContext) -> Result<(), SelectiveDis
         Ok(())
     } else {
         Err(invalid(
-            "selective_discovery.rng_mismatch",
+            antecedent_core::reason_details::selective_discovery::RNG_MISMATCH,
             "the execution context's master seed differs from the seed frozen in the contract; \
              build the context from the contract's seed or change the contract",
         ))
@@ -130,7 +130,7 @@ fn counts_of(native: &NativeResult) -> (u64, u64) {
 fn map_failure(store: &StatisticStore, error: DiscoveryError) -> SelectiveDiscoveryError {
     if store.replay_missed() {
         statistics_invalid(
-            "selective_discovery.replay_miss",
+            antecedent_core::reason_details::selective_discovery::REPLAY_MISS,
             "the retained statistics do not cover a test this contract requests; resume needs \
              the receipts of a run of this exact contract on this data",
         )
@@ -462,7 +462,7 @@ impl StaticSelectiveDiscovery {
     pub fn export_state(&self) -> Result<PortableDiscoveryState, SelectiveDiscoveryError> {
         let live = self.live.as_ref().ok_or_else(|| {
             invalid(
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "run discovery before exporting its state",
             )
         })?;
@@ -514,7 +514,7 @@ impl StaticSelectiveDiscovery {
 
 fn missing_raw_data() -> SelectiveDiscoveryError {
     statistics_invalid(
-        "selective_discovery.raw_data_missing",
+        antecedent_core::reason_details::selective_discovery::RAW_DATA_MISSING,
         "resume needs the raw data the statistics were computed from; receipts and graph \
          identities remain inspectable without it, but they cannot be validated or extended",
     )
@@ -628,7 +628,7 @@ impl TemporalSelectiveDiscovery {
     pub fn export_state(&self) -> Result<PortableDiscoveryState, SelectiveDiscoveryError> {
         let live = self.live.as_ref().ok_or_else(|| {
             invalid(
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "run discovery before exporting its state",
             )
         })?;

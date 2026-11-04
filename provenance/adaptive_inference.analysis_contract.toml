@@ -31,14 +31,17 @@ record_sha256 = "d85c442309e39e96190665df5772826868c9402d4290c3a3aa1b3c5cf04fccc
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
-sha256 = "8b2552e5d8f8171ae5e7a476bee69dba692eec929de93391d5be8cd6cf01e5dd"
+items = ["const ADAPTIVE_DESIGN_VERSION", "const MAX_CONTRACT_UNITS", "const PROBABILITY_ROW_TOLERANCE", "const STAGE_BIND", "const STAGE_DECLARE", "enum BoundarySidedness", "enum DelayMechanism", "enum SpendingKind", "enum StoppingSpec", "fn admit_paradigm", "fn analysis_units", "fn arms", "fn as_str", "fn authorize_cell", "fn cell", "fn check_history", "fn check_monitoring", "fn check_rule", "fn check_shapes", "fn declaration", "fn declare", "fn declare_bind", "fn details", "fn identity", "fn identity_of", "fn invalid", "fn is_adaptive", "fn is_binary", "fn looks", "fn missing", "fn new", "fn required_elements", "fn units", "struct AdaptiveContractError", "struct AdaptiveDesignContract", "struct AdaptiveDesignDeclaration", "struct InterimAnalysis", "struct OutcomeAvailability", "struct PolicyEpoch", "struct RouteAuthorization", "struct StoppingRuleDeclaration"]
+sha256 = "f273dce9c5e792ddc6c495b6dd45645a4cc73d045596ffbc2a9b2decb07d9ce0"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/accounting.rs"
-sha256 = "8b211480077899d5129ce72c805e56fd5088aafe0e659dfe8f0e4b89fa90b13f"
+items = ["const INTERIM_REUSE_STAGE", "fn interim_evidence", "fn ledger_refusal", "fn observation_id", "fn refuse_independent_pooling_of_looks", "struct InterimEvidence"]
+sha256 = "7c802e692f54c202eb6cabf38859cccf492749b790d35be26537f0f06ab55ffd"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/adaptive_design.rs"
-sha256 = "99dead6a461c4f4dc11cc675c0cd0433cbff5615becbf55814ee5b9ef8dfbb0e"
+items = ["fn a_choice_outcome_has_no_assignment_among_arms", "fn a_complete_declaration_is_accepted", "fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_identity", "fn a_paradigm_never_transfers_to_a_cell_it_is_not_supported_for", "fn cell", "fn declaration", "fn delayed_outcomes_enter_the_analysis_only_when_observed", "fn delays_change_the_accounting_by_the_sizes_of_the_nested_looks", "fn details", "fn digest", "fn every_missing_element_is_its_own_typed_refusal", "fn exactly_the_delivered_cells_are_supported_with_their_own_paradigms", "fn fixed_sample_inference_of_adaptive_data_is_refused", "fn futility_declaration", "fn identity_is_deterministic_and_sensitive_to_every_element", "fn incoherent_undelivered_and_unpaired_cells_are_refused_with_their_own_details", "fn inconsistent_records_are_refused_with_distinct_details", "fn interim_looks_count_each_observation_once", "fn noncompliance_and_outcome_dependent_delay_are_refused_before_any_number", "fn observation_identities_are_stable_per_contract_and_unit", "fn registry_rows", "fn rule_for", "fn the_looks_are_never_pooled_as_independent_evidence", "fn the_matrix_lists_every_combination_once_and_classifies_each", "fn the_registry_table_and_the_executable_matrix_agree_cell_by_cell", "fn thompson", "fn thompson_cell", "type Strip"]
+sha256 = "29fcc1fb36f8c2a1b642e417bb1b016b89480d475990286c1ed148d1b5890026"

@@ -130,7 +130,10 @@ fn offered_to_other_consumers(claim: &PropagationClaim) {
     )
     .expect_err("a spread is not a decision-reliability artifact");
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "decision_reliability.artifact_kind_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
+    );
     assert!(refusal.message.contains("expected decision_reliability_v1"));
     assert!(refusal.message.contains("supplied joint_law_propagation_v1"));
     assert!(refusal.remedy.is_some_and(|r| r.contains("joint-law propagation consumer")));
@@ -138,7 +141,10 @@ fn offered_to_other_consumers(claim: &PropagationClaim) {
     let refusal = consume_mechanism_composition_artifact(&bytes, None, &ctx())
         .expect_err("a spread is not a mechanism composition");
     assert_eq!(refusal.code(), "invalid_argument");
-    assert_eq!(refusal.details(), vec!["mechanism_composition.artifact_kind_mismatch"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::ARTIFACT_KIND_MISMATCH]
+    );
     let first = &refusal.refusals[0];
     assert_eq!(first.supplied.as_deref(), Some("joint_law_propagation_v1"));
     assert_eq!(first.expected.as_deref(), Some("mechanism_composition_v1"));
@@ -149,7 +155,10 @@ fn offered_to_other_consumers(claim: &PropagationClaim) {
     assert_eq!(error.reason_code(), Some("invalid_argument"));
     let refusal = antecedent_design::inverse_query_artifact::artifact_refusal(&error);
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "functional_inverse_query.artifact_kind_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::functional_inverse_query::ARTIFACT_KIND_MISMATCH
+    );
     assert_eq!(refusal.expected.as_deref(), Some("inverse_functional_query_v1"));
     assert_eq!(refusal.supplied.as_deref(), Some("joint_law_propagation_v1"));
     assert!(refusal.remedy.is_some_and(|r| r.contains("joint-law propagation consumer")));
@@ -204,12 +213,15 @@ fn malformed_bytes_keep_their_generic_refusals() {
         &ctx(),
     )
     .expect_err("junk");
-    assert_eq!(refusal.detail, "decision_reliability.artifact");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_reliability::ARTIFACT);
     let refusal = consume_mechanism_composition_artifact(&junk, None, &ctx()).expect_err("junk");
-    assert_eq!(refusal.details(), vec!["mechanism_composition.artifact_invalid"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID]
+    );
     let error = inverse_query::consume(&junk, None).expect_err("junk");
     assert_ne!(
         antecedent_design::inverse_query_artifact::artifact_refusal(&error).detail,
-        "functional_inverse_query.artifact_kind_mismatch"
+        antecedent_core::reason_details::functional_inverse_query::ARTIFACT_KIND_MISMATCH
     );
 }

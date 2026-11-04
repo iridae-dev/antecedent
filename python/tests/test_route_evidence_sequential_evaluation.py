@@ -11,6 +11,7 @@ choosing is worth ``-1/4 + 1/2 (-3/2) + 1/2 (5) = 3/2``.
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import sequential_evaluation as se
 from antecedent.errors import CausalTypeError, CausalValueError
@@ -112,13 +113,15 @@ def test_consume_replays_the_stored_value_bit_for_bit_and_enforces_retained_iden
     with pytest.raises(se.SequentialEvaluationRefusal) as wrong:
         require_success(se.consume_artifact(data, model="0" * 64))
     assert wrong.value.reason_code == "route_not_supported"
-    assert wrong.value.detail == "sequential_evaluation.identity_mismatch"
+    assert wrong.value.detail == reason_details.sequential_evaluation.IDENTITY_MISMATCH
     # Damaged and truncated bytes are refused, and bytes only.
     damaged = bytearray(data)
     damaged[len(damaged) // 2] ^= 0x55
     with pytest.raises(se.SequentialEvaluationRefusal, match="checksum mismatch for section"):
         require_success(se.consume_artifact(bytes(damaged)))
-    with pytest.raises(se.SequentialEvaluationRefusal, match="sequential_evaluation.malformed"):
+    with pytest.raises(
+        se.SequentialEvaluationRefusal, match=reason_details.sequential_evaluation.MALFORMED
+    ):
         require_success(se.consume_artifact(data[:30]))
     with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         require_success(se.consume_artifact("not bytes"))  # type: ignore[arg-type]

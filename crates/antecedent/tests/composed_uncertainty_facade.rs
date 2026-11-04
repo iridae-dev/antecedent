@@ -227,7 +227,10 @@ fn a_spread_of_unpaired_draws_or_on_a_mismatched_route_is_refused() {
     )
     .expect_err("index pairing");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.index_pairing_refused"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED]
+    );
 
     // A contrast is a linear operation: its spread is read through the linear
     // route, not through a nonlinear functional's numbers.
@@ -241,7 +244,10 @@ fn a_spread_of_unpaired_draws_or_on_a_mismatched_route_is_refused() {
     )
     .expect_err("numbers do not fit the route");
     assert_eq!(error.code(), "invalid_argument");
-    assert_eq!(error.details(), vec!["joint_law_propagation.invalid_request"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
+    );
 
     // Draws of two different joint laws are not paired.
     let (_, other_y) = pair("snap-other", 1);
@@ -253,7 +259,10 @@ fn a_spread_of_unpaired_draws_or_on_a_mismatched_route_is_refused() {
         &ctx(),
     )
     .expect_err("alignment");
-    assert_eq!(error.details(), vec!["joint_law_propagation.alignment_mismatch"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH]
+    );
 }
 
 // ------------------------------------------------------------------ interval
@@ -312,7 +321,10 @@ fn a_composed_interval_is_reported_with_its_calibration_at_its_coordinate() {
     // An interval of the whole composition without a named construction is refused.
     let refusal = claim.interval().expect_err("unqualified");
     assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
-    assert_eq!(refusal.details(), vec!["joint_law_propagation.no_interval_construction"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION]
+    );
 }
 
 #[test]
@@ -329,7 +341,12 @@ fn an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused() {
     let error =
         envelope.check_composed_interval("normal_approximation", 200).expect_err("envelope");
     assert_eq!(error.code(), "uncertainty_representation_insufficient");
-    assert_eq!(error.details(), vec!["joint_law_propagation.spread_needs_supported_dependence"]);
+    assert_eq!(
+        error.details(),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::SPREAD_NEEDS_SUPPORTED_DEPENDENCE
+        ]
+    );
     assert!(envelope.coordinate_id().is_err());
 
     // A truncated artifact does not rebuild a claim.
@@ -423,7 +440,10 @@ fn an_exceedance_with_a_cutoff_outside_the_unit_interval_is_refused() {
     )
     .expect_err("cutoff");
     assert_eq!(error.code(), "invalid_argument");
-    assert_eq!(error.details(), vec!["joint_law_propagation.invalid_request"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
+    );
 }
 
 #[test]
@@ -486,7 +506,10 @@ fn a_transported_spread_needs_all_three_pieces_and_their_dependence() {
         propagate_transported_spread(&all[..2], &[1.0, 1.0], &two_covariance, "pieces", &ctx())
             .expect_err("incomplete");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.transport_pieces_incomplete"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::TRANSPORT_PIECES_INCOMPLETE]
+    );
     assert_eq!(error.refusals[0].offending.as_deref(), Some("transport_functional"));
 
     // Declared independence of the pieces is not accepted for a transported claim.
@@ -501,7 +524,12 @@ fn a_transported_spread_needs_all_three_pieces_and_their_dependence() {
     )
     .expect_err("independence");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.transported_dependence_required"]);
+    assert_eq!(
+        error.details(),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+        ]
+    );
 }
 
 #[test]
@@ -518,7 +546,10 @@ fn a_transported_spread_from_aligned_pieces_matches_the_row_sums() {
     let error = propagate_transported_spread_aligned(&s, &other_t, &f, [1.0, 1.0, 1.0], &ctx())
         .expect_err("alignment");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.alignment_mismatch"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH]
+    );
 
     // Independently sampled pieces are never paired by index.
     let [a, b, c] = pieces();
@@ -528,5 +559,8 @@ fn a_transported_spread_from_aligned_pieces_matches_the_row_sums() {
     let mf = PropagationDraws::from_artifact_column("functional", &marginals, 2).expect("f");
     let error = propagate_transported_spread_aligned(&ms, &mt, &mf, [1.0, 1.0, 1.0], &ctx())
         .expect_err("index pairing");
-    assert_eq!(error.details(), vec!["joint_law_propagation.index_pairing_refused"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED]
+    );
 }

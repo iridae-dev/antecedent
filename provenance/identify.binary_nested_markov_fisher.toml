@@ -39,12 +39,14 @@ record_sha256 = "442ca87969a187dd2658c094c0e5f6449398bd5970f438db0f02b110cd838ed
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/nested_markov_uncertainty.rs"
-sha256 = "902137d07622881338e85406d1208781ee355e413699419530d8f6a35144c802"
+items = ["const PARAMETER_COUNT", "fn information", "fn invert", "fn nested_markov_fisher_internal", "fn refusal", "fn validate_counts", "struct NestedMarkovUncertainty"]
+sha256 = "65938157414903223bf85374bbf1a116dda3a791f1bdbf3fff40d0ddaf44fcce"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/nested_markov_fisher_reference.rs"
-sha256 = "f653719e3e82058639a096ceeea29a38265c78d74a3afdd1e0df4242435ea95c"
+items = ["fn delta_covariance_matches_high_precision_information_inverse"]
+sha256 = "a8b3b674902aa821768574af2635e71f55bc3114d88c58b1b10cfae0a840492a"
 
 [[method_review.artifacts]]
 role = "reference"

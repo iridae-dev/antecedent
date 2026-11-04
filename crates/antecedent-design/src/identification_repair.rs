@@ -1666,12 +1666,18 @@ mod tests {
         let observed = [v(0), v(1), v(2)];
         let refused =
             FrontDoorRepairFamily::try_new(graph.clone(), v(0), v(2), "pop", observed).unwrap_err();
-        assert_eq!(refused.detail, "identification_repair.not_a_failure");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::identification_repair::NOT_A_FAILURE
+        );
         // Back-door adjustment over everything observed, with U measured as well.
         let all = [v(0), v(1), v(2), v(3)];
         let refused =
             BackdoorRepairFamily::try_new(graph, v(0), v(2), "pop", all, &[]).unwrap_err();
-        assert_eq!(refused.detail, "identification_repair.not_a_failure");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::identification_repair::NOT_A_FAILURE
+        );
         // An identified result owes nothing.
         let mut identified = failed(0, 1);
         identified.status = IdentificationStatus::NonparametricallyIdentified;
@@ -1679,7 +1685,10 @@ mod tests {
         let refused =
             identification_failure_obligations(&identified, &graph, &[v(0), v(1)], "pop", None)
                 .unwrap_err();
-        assert_eq!(refused.detail, "identification_repair.not_a_failure");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::identification_repair::NOT_A_FAILURE
+        );
     }
 
     /// Z=0 -> T=1 -> Y=2 with U=3 confounding T and Y; Z is not observed.
@@ -1719,7 +1728,7 @@ mod tests {
             report.status(),
             Some((
                 antecedent_core::reason_code!("transport_missing_evidence"),
-                "evidence_obligations.wrong_contract"
+                antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT
             ))
         );
     }
@@ -1782,7 +1791,10 @@ mod tests {
         let graph = admg(2, &[(0, 1)], &[]);
         let refused =
             HedgeRepairFamily::try_new(graph, v(0), v(1), "pop", [v(0), v(1)]).unwrap_err();
-        assert_eq!(refused.detail, "identification_repair.not_a_failure");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::identification_repair::NOT_A_FAILURE
+        );
     }
 
     #[test]
@@ -1831,6 +1843,9 @@ mod tests {
         let refused =
             SensitivityRepairFamily::try_new(graph, v(0), v(1), "pop", [v(0), v(1), v(2)], robust)
                 .unwrap_err();
-        assert_eq!(refused.detail, "identification_repair.not_a_failure");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::identification_repair::NOT_A_FAILURE
+        );
     }
 }

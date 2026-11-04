@@ -43,14 +43,17 @@ record_sha256 = "5128b4d7ea2fecb38a2b739c6669d2b5fd0328700abbd91711dca8241ca8987
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/temporal_window.rs"
-sha256 = "90a412944238a7a30a9834b1fa6276ba6536ba70a92591339d1a47b21e7957b0"
+items = ["fn ancestry_touches_boundary", "fn check_cancelled", "fn children", "fn from_template", "fn grow_window", "fn has_cut_parent", "fn history_cap_refusal", "fn parents", "fn shift", "struct GrownWindow", "struct StationaryEdges"]
+sha256 = "09cef2140629f08ff1975563f0a3c04e19e38a7df748a08794ed484cc74c1a66"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/backdoor.rs"
-sha256 = "0826af864daae96696f0b87f8a5945189a9a4580455262c07feb28e810566647"
+items = ["const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE", "fn adjustment", "fn charge_examination", "fn dag", "fn declared_assumptions", "fn default", "fn dense_costs", "fn dense_first_wins", "fn enumerate", "fn exceeds_lag", "fn graph", "fn identify", "fn identify_ate", "fn is_backdoor_adjustment", "fn is_mandatory_fork_set", "fn lag_exceeds", "fn new", "fn node_map", "fn order_by_cost", "fn outcome", "fn prepare", "fn prepare_with_assumptions", "fn remove_outgoing", "fn remove_outgoing_set", "fn screen", "fn screen_ancestor_candidates", "fn total_cost", "fn validate", "fn validate_costs", "fn with_assumptions", "fn wrap", "struct AdjustmentProblem", "struct AdjustmentSearchConfig", "struct BackdoorIdentifier", "struct PreparedIdentificationGraph", "struct Screening", "struct SearchOutcome"]
+sha256 = "1696b716c28fbc4bdb274c185db68881255c6af0c8cb4774afa84b90cd101ad7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/temporal_backdoor.rs"
-sha256 = "8615a0413da8059c34d338d028e53b03ed20e6c4fbb6c60183c9125d4c2e41ee"
+items = ["const PARENT_ADJUSTMENT_RULE", "fn adjustment_keys", "fn admit_graph_copy", "fn annotate_temporal", "fn apply_history_lag_filter", "fn autoregressive_ancestry_refusal_names_the_lagged_cycle", "fn autoregressive_confounded_template", "fn autoregressive_pulse_is_identified_by_parent_adjustment", "fn caller_history_cap_below_the_chain_bound_names_max_history_lag", "fn certified_windows_hold_every_ancestor_with_all_its_template_parents", "fn chain_identifies_with_empty_adjustment", "fn confounded_chain_requires_lagged_confounder", "fn deep_confounder_chain_grows_window_and_adjusts", "fn deep_confounder_chain_refuses_at_capped_history", "fn deep_confounder_template", "fn dynamic_policy_identifies_like_schedule", "fn dynamic_schedule_grows_for_every_treatment_offset", "fn dynamic_schedule_refuses_at_capped_history", "fn enormous_sustained_schedule_refuses_before_expansion", "fn identify_active_offsets", "fn identify_pulse_by_parent_adjustment", "fn identify_temporal", "fn identify_temporal_schedule", "fn identify_temporal_with_history", "fn lag_one_pulse", "fn lag_two_autoregressive_ancestry_never_certifies", "fn map_admission_error", "fn map_graph_error", "fn map_temporal_error", "fn new", "fn parent_adjustment", "fn parent_adjustment_does_not_reach_multi_step_schedules", "fn parent_adjustment_on_a_certifiable_graph_names_the_parents", "fn parent_adjustment_refuses_a_parent_beyond_max_history_lag", "fn required_variable_count", "fn resolve_schedule_active_level", "fn retarget", "fn schedule_identifies_the_requested_dose_not_a_fabricated_one", "fn schedule_refuses_mixed_dose_levels_instead_of_picking_one", "fn single_step_sustained_and_dynamic_reuse_pulse_backdoor_set", "fn sustained_contrast_encodes_both_levels_numerically", "fn sustained_policy_identifies_on_simple_chain", "fn template_max_lag", "fn temporal_budget", "fn temporal_window_observes_the_backdoor_execution_context", "fn with_parent_adjustment_fallback", "struct TemporalBackdoorIdentifier", "struct TemporalIdentificationResult"]
+sha256 = "7854c9938d85fe6aa14b39f1e19d69de4794aaeb2477c6b7d092bd0ff36519dd"

@@ -132,7 +132,10 @@ fn history_indexed_law_supports_the_two_step_horizon_and_reloads() {
     assert_eq!(bare.shared_temporal_horizon(), Some(2));
     let missing = prepare(data.clone(), &bare, &sequence(0.0, 1.0)).unwrap_err();
     let missing = refusal(&missing);
-    assert!(missing.contains("temporal_transport.target_law_missing"), "{missing}");
+    assert!(
+        missing.contains(antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISSING),
+        "{missing}"
+    );
     assert!(missing.contains("unit histories do not supply the target law"), "{missing}");
 
     let source_laws = data
@@ -147,7 +150,8 @@ fn history_indexed_law_supports_the_two_step_horizon_and_reloads() {
     let from_experiments = prepare(source_only, &with_law, &sequence(0.0, 1.0)).unwrap_err();
     let from_experiments = refusal(&from_experiments);
     assert!(
-        from_experiments.contains("temporal_transport.target_law_missing"),
+        from_experiments
+            .contains(antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISSING),
         "{from_experiments}"
     );
     assert!(
@@ -167,7 +171,11 @@ fn history_indexed_law_supports_the_two_step_horizon_and_reloads() {
         ExactTransportData::try_new(vec![fit_binary_history_joint(&panel).unwrap()], 4096).unwrap();
     let from_histories = prepare(histories, &with_law, &sequence(0.0, 1.0)).unwrap_err();
     let from_histories = refusal(&from_histories);
-    assert!(from_histories.contains("temporal_transport.target_law_missing"), "{from_histories}");
+    assert!(
+        from_histories
+            .contains(antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISSING),
+        "{from_histories}"
+    );
     assert!(
         from_histories.contains("unit histories do not supply the target law"),
         "{from_histories}"
@@ -182,13 +190,19 @@ fn history_indexed_law_supports_the_two_step_horizon_and_reloads() {
     let mismatched = scientific_target(2, Some(wrong));
     let mismatch = prepare(data.clone(), &mismatched, &sequence(0.0, 1.0)).unwrap_err();
     let mismatch = refusal(&mismatch);
-    assert!(mismatch.contains("temporal_transport.target_law_mismatch"), "{mismatch}");
+    assert!(
+        mismatch.contains(antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISMATCH),
+        "{mismatch}"
+    );
 
     let short = scientific_target(1, Some(law));
     assert_eq!(short.shared_temporal_horizon(), Some(1));
     let horizon = prepare(data.clone(), &short, &sequence(0.0, 1.0)).unwrap_err();
     let horizon = refusal(&horizon);
-    assert!(horizon.contains("temporal_transport.horizon"), "{horizon}");
+    assert!(
+        horizon.contains(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{horizon}"
+    );
 
     let supported = scientific_target(2, Some(declared_law(&data)));
     assert_eq!(supported.shared_temporal_horizon(), Some(2));

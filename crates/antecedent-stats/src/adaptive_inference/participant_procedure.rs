@@ -258,12 +258,16 @@ impl ParticipantSpec {
         let mut gaps = Vec::new();
         let arms = declaration.arms;
         if !(2..=MAX_PROCEDURE_ARMS).contains(&arms) {
-            gaps.push(ContractGap::Invalid("adaptive_inference.arms_invalid"));
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::ARMS_INVALID,
+            ));
         }
         match declaration.responses {
             None => gaps.push(ContractGap::OutcomeStructureMissing),
             Some(m) if !(2..=MAX_PARTICIPANT_RESPONSES).contains(&m) => {
-                gaps.push(ContractGap::Invalid("adaptive_inference.measurements_invalid"));
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
+                ));
             }
             Some(_) => {}
         }
@@ -277,7 +281,9 @@ impl ParticipantSpec {
             }
             (None, Some(prior)) if prior.is_valid() => Some(CorrelationModel::Estimated(prior)),
             _ => {
-                gaps.push(ContractGap::Invalid("adaptive_inference.correlation_invalid"));
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
+                ));
                 None
             }
         };
@@ -289,7 +295,7 @@ impl ParticipantSpec {
             Some(plan) => {
                 let resolved = plan.resolve().filter(|r| r.len() == arms);
                 if resolved.is_none() {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.historical_prior_invalid"));
+                    gaps.push(ContractGap::Invalid(antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID));
                 }
                 resolved
             }
@@ -300,7 +306,9 @@ impl ParticipantSpec {
             Some(schedule) => {
                 total = schedule.iter().map(|&n| u64::from(n)).sum();
                 if schedule.len() < 2 || schedule.contains(&0) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.looks_not_ordered"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
+                    ));
                 }
                 if schedule.len() > MAX_PARTICIPANT_LOOKS {
                     gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
@@ -317,13 +325,17 @@ impl ParticipantSpec {
             }
         }
         if declaration.lag_looks > MAX_UNIT_LAG {
-            gaps.push(ContractGap::Invalid("adaptive_inference.outcome_availability_invalid"));
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
+            ));
         }
         match declaration.min_exploration {
             None => gaps.push(ContractGap::AssignmentPolicyMissing),
             Some(floor) => {
                 if !(floor.is_finite() && floor > 0.0 && floor <= 1.0 / arms as f64) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.rule_mismatch"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    ));
                 }
             }
         }
@@ -341,7 +353,9 @@ impl ParticipantSpec {
                     rules.participant_cap.is_none_or(|cap| cap > 0 && u64::from(cap) <= total);
                 let loss_ok = rules.loss_threshold.is_finite() && rules.loss_threshold > 0.0;
                 if !(loss_ok && futility_ok && cap_ok) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.rule_mismatch"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    ));
                 }
             }
         }
@@ -352,7 +366,7 @@ impl ParticipantSpec {
                     && settings.tuning_samples.is_finite()
                     && settings.tuning_samples > 0.0)
                 {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.anytime_settings_invalid"));
+                    gaps.push(ContractGap::Invalid(antecedent_core::reason_details::adaptive_inference::ANYTIME_SETTINGS_INVALID));
                 }
             }
         }
@@ -633,7 +647,7 @@ impl ParticipantSpec {
         }
         if looks_performed > 0 {
             return Err(Error::PremiseFailed {
-                detail: "adaptive_inference.borrowing_fixed_after_first_look",
+                detail: antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK,
                 message: "historical borrowing is part of the declared procedure and is frozen before recruitment; a change after the first look would let the data choose the prior",
             });
         }
@@ -1658,7 +1672,7 @@ impl Enrolment for Replayed<'_> {
     fn batch(&mut self, look: usize, size: u32, row: &[f64]) -> Result<Vec<Participant>, Error> {
         if look >= self.history.batches.len() {
             return Err(Error::PremiseFailed {
-                detail: "adaptive_inference.stopping_not_replayed",
+                detail: antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED,
                 message: "the retained history ends at a look where the declared decisions do not stop the procedure",
             });
         }
@@ -1670,7 +1684,8 @@ impl Enrolment for Replayed<'_> {
                 || recorded.iter().zip(row).any(|(a, b)| (a - b).abs() > REPLAY_TOLERANCE)
             {
                 return Err(Error::PremiseFailed {
-                    detail: "adaptive_inference.assignment_not_replayed",
+                    detail:
+                        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED,
                     message: "the retained assignment probabilities are not the declared policy's allocation from the completed participants and the declared priors",
                 });
             }
@@ -1752,7 +1767,7 @@ impl ParticipantSpec {
             }
             if incomplete > 0 {
                 return Err(Error::PremiseFailed {
-                    detail: "adaptive_inference.batch_incomplete",
+                    detail: antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE,
                     message: "a batch whose follow-up delay has elapsed holds participants without complete responses; decisions are taken only on batches of completed participants, never on a partial batch",
                 });
             }
@@ -1765,7 +1780,7 @@ impl ParticipantSpec {
         })?;
         if walk.looks_run != performed {
             return Err(Error::PremiseFailed {
-                detail: "adaptive_inference.stopping_not_replayed",
+                detail: antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED,
                 message: "the procedure continued past a look at which the declared decisions stop it",
             });
         }

@@ -99,7 +99,10 @@ fn a_point_only_cohort_mean_refuses_for_want_of_a_joint_law() {
     ));
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "joint_law_required");
-    assert_eq!(refusal.detail, "decision_reliability.producer_point_only");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY
+    );
     assert!(refusal.offending.unwrap().contains("an_affine_mean_contrast_without_a_law"));
     assert!(refusal.remedy.unwrap().contains("aligned joint law"));
 }
@@ -117,7 +120,10 @@ fn point_only_sequential_estimates_refuse_because_no_per_draw_utilities_were_kep
         .unwrap_err();
         let refusal = error.to_refusal();
         assert_eq!(refusal.code, "diagnostic_not_available");
-        assert_eq!(refusal.detail, "decision_reliability.producer_point_only");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY
+        );
         assert!(refusal.offending.unwrap().contains(held));
         assert!(refusal.remedy.is_some());
     }
@@ -153,7 +159,10 @@ fn cohort_utilities_from_one_law_reach_the_carrier_and_reproduce_the_reported_me
             &ctx(),
         )
         .unwrap_err();
-    assert_eq!(refused.to_refusal().detail, "decision_reliability.effective_sample_size_too_small");
+    assert_eq!(
+        refused.to_refusal().detail,
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL
+    );
 }
 
 #[test]

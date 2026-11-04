@@ -163,7 +163,10 @@ fn exhausted_search_bound_refuses_and_names_the_unresolved_pairs() {
     r.exhausted_search_bounds = 1;
     let refused = refusal(transport_across_class(&r, &query()).unwrap_err());
     assert_eq!(refused.code, "discovered_structure_unresolved");
-    assert_eq!(refused.detail, "discovered_transport.search_incomplete");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE
+    );
     assert_eq!(refused.exhausted_search_bounds, 1);
     let pairs: Vec<(u32, u32)> =
         refused.unresolved.iter().map(|p| (p.a.raw(), p.b.raw())).collect();
@@ -179,20 +182,29 @@ fn orientation_conflict_unknown_target_and_zero_bound_are_refused() {
     let targets = [v(1)];
     let refused =
         refusal(transport_across_class(&request(&conflicted, &targets), &query()).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.orientation_conflict");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::ORIENTATION_CONFLICT
+    );
     assert!(refused.unresolved.iter().any(|p| p.reason == "orientation_conflict"));
 
     let class = chain(3);
     let unknown = [v(9)];
     let refused =
         refusal(transport_across_class(&request(&class, &unknown), &query()).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.selection_target_unknown");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN
+    );
     assert_eq!(refused.unknown_selection_targets, vec![v(9)]);
 
     let mut zero = request(&class, &targets);
     zero.member_bound = 0;
     let refused = refusal(transport_across_class(&zero, &query()).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.member_bound_zero");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::MEMBER_BOUND_ZERO
+    );
 }
 
 /// `E[outcome | do(treatment)]` from an experiment on `treatment`.
@@ -317,7 +329,10 @@ fn pag_search_bound_target_and_bound_refusals_name_the_unresolved_marks() {
     let mut exhausted = pag_request(&class, &targets);
     exhausted.exhausted_search_bounds = 2;
     let refused = refusal(transport_across_pag(&exhausted, &effect_query(1, 0)).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.search_incomplete");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE
+    );
     assert_eq!(refused.exhausted_search_bounds, 2);
     assert!(refused.unresolved.iter().all(|p| p.reason == "circle_endpoint"));
     assert_eq!(refused.unresolved.len(), 2);
@@ -326,20 +341,29 @@ fn pag_search_bound_target_and_bound_refusals_name_the_unresolved_marks() {
     let refused = refusal(
         transport_across_pag(&pag_request(&class, &unknown), &effect_query(1, 0)).unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.selection_target_unknown");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN
+    );
     assert_eq!(refused.unknown_selection_targets, vec![v(7)]);
 
     let mut zero = pag_request(&class, &targets);
     zero.member_bound = 0;
     let refused = refusal(transport_across_pag(&zero, &effect_query(1, 0)).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.member_bound_zero");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::MEMBER_BOUND_ZERO
+    );
 
     let mut conflicted = class.clone();
     conflicted.mark_conflict(d(0), d(1)).unwrap();
     let refused = refusal(
         transport_across_pag(&pag_request(&conflicted, &targets), &effect_query(1, 0)).unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.orientation_conflict");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::ORIENTATION_CONFLICT
+    );
 }
 
 #[test]
@@ -363,7 +387,10 @@ fn a_pag_member_bound_or_walk_budget_leaves_the_envelope_partial() {
     match transport_across_pag(&starved, &effect_query(1, 0)) {
         Ok(envelope) => assert_eq!(envelope.status(), EnvelopeStatus::Partial),
         Err(error) => {
-            assert_eq!(refusal(error).detail, "discovered_transport.class_too_large");
+            assert_eq!(
+                refusal(error).detail,
+                antecedent_core::reason_details::discovered_transport::CLASS_TOO_LARGE
+            );
         }
     }
 }
@@ -592,7 +619,10 @@ fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treat
         )
         .unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.temporal_query_invalid");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_INVALID
+    );
 
     let unknown = [v(8)];
     let refused = refusal(
@@ -602,7 +632,10 @@ fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treat
         )
         .unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.selection_target_unknown");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN
+    );
 
     // An experiment on a variable other than the treatment is not unrolled.
     let mut other_experiment = effect_query(1, 0);
@@ -614,7 +647,10 @@ fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treat
         )
         .unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.temporal_query_invalid");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_INVALID
+    );
 }
 
 #[test]

@@ -174,20 +174,20 @@ fn model_refusal(error: CompositionError) -> MechanismCompositionRefusal {
         CompositionError::Unsupported { message } => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("route_not_supported"),
             "compose",
-            "mechanism_composition.request_unsupported",
+            antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             message,
         ),
         CompositionError::Cancelled => cancelled(),
         CompositionError::Numerical { message } => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "compose",
-            "mechanism_composition.numerical_failure",
+            antecedent_core::reason_details::mechanism_composition::NUMERICAL_FAILURE,
             message,
         ),
         other => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("route_not_supported"),
             "compose",
-            "mechanism_composition.request_unsupported",
+            antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             other.to_string(),
         ),
     }
@@ -197,7 +197,7 @@ fn cancelled() -> MechanismCompositionRefusal {
     MechanismCompositionRefusal::of(
         antecedent_core::reason_code!("cancelled_no_claim"),
         "compose",
-        "mechanism_composition.cancelled",
+        antecedent_core::reason_details::mechanism_composition::CANCELLED,
         "cancelled before a composed result was formed; this is not a verdict on the mechanisms",
     )
 }
@@ -210,13 +210,13 @@ fn artifact_refusal(error: MechanismCompositionArtifactError) -> MechanismCompos
         MechanismCompositionArtifactError::PremisesMismatch => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("mechanism_composition_incoherent"),
             "consume",
-            "mechanism_composition.premises_mismatch",
+            antecedent_core::reason_details::mechanism_composition::PREMISES_MISMATCH,
             "the premises and query do not hash to the stored or the retained identity",
         ),
         MechanismCompositionArtifactError::ResultMismatch => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("mechanism_composition_incoherent"),
             "consume",
-            "mechanism_composition.result_mismatch",
+            antecedent_core::reason_details::mechanism_composition::RESULT_MISMATCH,
             "the stored result is not the replay of the stored premises and query",
         ),
         MechanismCompositionArtifactError::Replay(text)
@@ -227,7 +227,7 @@ fn artifact_refusal(error: MechanismCompositionArtifactError) -> MechanismCompos
         other => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "consume",
-            "mechanism_composition.artifact_invalid",
+            antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
             other.to_string(),
         ),
     }
@@ -287,7 +287,7 @@ impl MechanismSource {
                     return Err(MechanismCompositionRefusal::of(
                         antecedent_core::reason_code!("invalid_argument"),
                         "compose",
-                        "mechanism_composition.shape_coefficient_parent_mismatch",
+                        antecedent_core::reason_details::mechanism_composition::SHAPE_COEFFICIENT_PARENT_MISMATCH,
                         format!(
                             "the slot has {} coefficients and {} parents were named",
                             coeffs.len(),
@@ -308,7 +308,7 @@ impl MechanismSource {
             _ => Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("mechanism_composition_incoherent"),
                 "compose",
-                "mechanism_composition.slot_not_linear_gaussian",
+                antecedent_core::reason_details::mechanism_composition::SLOT_NOT_LINEAR_GAUSSIAN,
                 "only a plain linear-Gaussian slot composes; a basis expansion, discrete, \
                  constant, vacant or pending slot is outside the bounded family",
             )),
@@ -541,7 +541,7 @@ fn build(
         MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "compose",
-            "mechanism_composition.numbers_unbound",
+            antecedent_core::reason_details::mechanism_composition::NUMBERS_UNBOUND,
             error.to_string(),
         )
     })?;
@@ -614,7 +614,7 @@ impl FirstOrderInterval {
             return Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("invalid_argument"),
                 "uncertainty",
-                "mechanism_composition.interval_invalid",
+                antecedent_core::reason_details::mechanism_composition::INTERVAL_INVALID,
                 "the interval needs a level strictly between 0 and 1 and a finite non-negative variance",
             ));
         }
@@ -718,7 +718,7 @@ impl PreparedMechanismComposition {
             Executable::Finite(_) => Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("route_not_supported"),
                 "compose",
-                "mechanism_composition.request_unsupported",
+                antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
                 "a Gaussian query was asked of a finite-table composition",
             )),
         }
@@ -730,7 +730,7 @@ impl PreparedMechanismComposition {
             Executable::Gaussian(_) => Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("route_not_supported"),
                 "compose",
-                "mechanism_composition.request_unsupported",
+                antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
                 "a finite-law query was asked of a linear-Gaussian composition",
             )),
         }
@@ -857,7 +857,7 @@ impl PreparedMechanismComposition {
                 return Err(MechanismCompositionRefusal::of(
                     antecedent_core::reason_code!("quantity_semantics_mismatch"),
                     "compose",
-                    "mechanism_composition.identity_declaration_unknown_variable",
+                    antecedent_core::reason_details::mechanism_composition::IDENTITY_DECLARATION_UNKNOWN_VARIABLE,
                     format!("`{}` has no mechanism in this composition", refit.variable_id),
                 ));
             };
@@ -865,7 +865,7 @@ impl PreparedMechanismComposition {
                 return Err(MechanismCompositionRefusal::of(
                     antecedent_core::reason_code!("mechanism_composition_incoherent"),
                     "compose",
-                    "mechanism_composition.family_mixed",
+                    antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED,
                     format!("the refit of `{}` changes its mechanism family", refit.variable_id),
                 ));
             }
@@ -888,7 +888,7 @@ impl PreparedMechanismComposition {
                         ExternalRefusal::new(
                             antecedent_core::reason_code!("joint_law_required"),
                             "compose",
-                            "mechanism_composition.posterior_dependence_unknown",
+                            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN,
                         )
                         .with_offending("composition")
                         .with_expected("a dependence law for the refitted estimates")
@@ -1023,7 +1023,7 @@ pub fn consume_mechanism_composition_artifact(
             ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 "consume",
-                "mechanism_composition.artifact_kind_mismatch",
+                antecedent_core::reason_details::mechanism_composition::ARTIFACT_KIND_MISMATCH,
             )
             .with_offending(format!("expected {expected}, supplied {kind}"))
             .with_expected(expected)

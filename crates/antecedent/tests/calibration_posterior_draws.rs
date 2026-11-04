@@ -13,7 +13,7 @@
 //! least 90% of replicates report an interval, whose median width is at most 1.5 times the
 //! effect, and which excludes zero in at least 75% of replicates (power against no effect).
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -132,25 +132,25 @@ fn coverage_at_draws(test: &'static str, draws: usize, salt: u64) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn posterior_draws_2000_rows_1000_l95() {
     coverage_at_draws("posterior_draws_2000_rows_1000_l95", 2000, 3_272_793);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn posterior_draws_3000_rows_1000_l95() {
     coverage_at_draws("posterior_draws_3000_rows_1000_l95", 3000, 1_520_647);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn posterior_draws_4000_rows_1000_l95() {
     coverage_at_draws("posterior_draws_4000_rows_1000_l95", 4000, 5_482_399);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn posterior_draws_8000_rows_1000_l95() {
     coverage_at_draws("posterior_draws_8000_rows_1000_l95", 8000, 4_550_226);
 }

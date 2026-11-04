@@ -28,19 +28,23 @@ record_sha256 = "bd58e298fb8ba36c582bfaacf10a4c82a2751ed81f4631f9f21757305ccc638
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
-sha256 = "7ff6a63e8696df9cab9133c55d855adee807b3cf352afe6725d5cd7fec4c8c10"
+items = ["enum Loss", "enum Plan", "enum Retire", "fn account", "fn add_source", "fn apply", "fn canonical_source", "fn check_borrowing", "fn check_combination", "fn check_listed", "fn check_new_source", "fn check_pooling", "fn check_repeated_use", "fn check_replaced_result", "fn check_reuse", "fn check_transport", "fn combine", "fn default", "fn dependence", "fn double_counting", "fn finish_combination", "fn head", "fn insert_source", "fn lineage_closure", "fn loss_of", "fn mass_account", "fn native_and_transported", "fn new", "fn operation_identity", "fn operations", "fn overlap", "fn overlap_of", "fn overlaps_with_existing", "fn plan", "fn plan_retire", "fn reclassify", "fn reentry_between", "fn relation", "fn replace_source", "fn require_disjoint_groups", "fn require_known", "fn require_pairwise_independent", "fn require_pairwise_independent_for_diagonal", "fn require_usable", "fn require_valid", "fn resolve_effective", "fn result", "fn result_sources", "fn results", "fn revalidate_downstream", "fn shared_observations", "fn source", "fn source_loss_class", "fn source_loss_classification", "fn sources", "fn standing", "fn state_digest", "fn supersede_source", "fn text_ok", "fn unknown_overlap", "fn update_source", "fn withdraw_source", "struct CanonicalSource", "struct CheckedCombination", "struct CombinationFacts", "struct EvidenceLedger"]
+sha256 = "667b79ee7284586a3475c19438d28291220d07a4d0954b40c424a6037f7323cc"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_ledger/overlap.rs"
-sha256 = "ae372d36e48c7548c37f6791e85ae986692621fca3dec9820bd743bd80bb15f7"
+items = ["enum Overlap", "enum RelationKind", "fn as_str", "fn dependence"]
+sha256 = "c3d355017843018e319afde445570e7a08cae7bfff98b2627eef1b981506578b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_ledger/operation.rs"
-sha256 = "cbb9c297f4417deea28956b4a42760234f4291b99c9a9567ad4221296c239d28"
+items = ["enum ClaimClass", "enum LedgerOperation", "enum PoolingDependence", "enum SynthesisKind", "enum SynthesisOperation", "fn as_str", "fn kind", "fn name", "fn revalidation", "struct CombinationRequest"]
+sha256 = "757965d5f186f405de448d36fcaae30f67c7909ef1ed4cc388ab99b6ec4d8f7c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/evidence_ledger.rs"
-sha256 = "51749cc651acc9a5364cf14fe2aa36d3c842bd6ac45e1dc92cc2ef46eac03e27"
+items = ["fn a_duplicate_re_entering_is_refused", "fn a_refused_operation_leaves_the_ledger_unchanged", "fn a_registered_result_records_the_once_counted_mass", "fn a_result_identity_ignores_the_order_of_its_sources", "fn a_reuse_of_a_stale_result_is_refused", "fn a_transform_re_entering_is_refused", "fn a_transported_claim_never_counts_as_native_target_data", "fn add", "fn an_empty_observation_set_overlaps_nothing_even_unknown_evidence", "fn an_external_claim_built_from_used_data_is_refused", "fn an_update_of_unknown_observations_is_not_verifiable", "fn assumption_ranges_must_stay_inside_the_definite_interval", "fn counts_are_not_capped_and_blank_labels_are_refused", "fn data", "fn digest", "fn each_operation_has_its_own_policy_on_the_same_overlapping_pair", "fn entry_overlaps_are_reported_but_not_refused", "fn evidence_reuse_counts_the_cited_result_once", "fn expect_refusal", "fn independent_disjoint_sources_pool", "fn lineage_must_agree_with_declared_rows", "fn mass_accounting_counts_each_observation_once", "fn no_interval_or_posterior_is_supported_from_pooled_evidence", "fn obs", "fn operation_arity_and_kinds_are_checked", "fn operation_identities_chain_and_replay_identically", "fn pooling", "fn prior_plus_likelihood_re_entry_is_refused", "fn relations_use_the_composition_vocabulary", "fn repeated_observation_use_is_flagged_and_stays_flagged_when_cited", "fn scenario", "fn superseding_a_model_marks_dependents_for_recompute_and_a_recompute_replaces_them", "fn the_same_evidence_is_not_added_twice_and_rows_are_not_repeated_in_a_source", "fn the_same_source_native_and_transported_is_refused_even_with_a_covariance", "fn transport", "fn undeclared_lineage_with_shared_rows_and_repeated_sources_are_refused", "fn unknown_dependence_is_refused_by_every_operation_that_needs_it_known", "fn unknown_overlap_is_never_promoted_to_independent", "fn update_replace_and_supersede_have_distinct_rules", "fn updating_a_source_marks_dependents_for_recompute", "fn withdrawing_a_source_classifies_and_refuses_dependents", "struct Scenario"]
+sha256 = "1e104f8a6e6139d7a381900d58d794cac897eac04f9c6146505169f933a0db71"

@@ -17,7 +17,7 @@ class DirectGatePreflight(unittest.TestCase):
                 preflight.validate_inherited(text, config)
         preflight.validate_inherited(decision.canonical_json(config), config)
     def test_gate_preflight_is_skipped_for_dry_run_and_smoke(self):
-        source = Path(__file__).with_name("gate_calibration.sh").read_text(encoding="utf-8")
+        source = Path(__file__).with_name("measure_calibration_groups.sh").read_text(encoding="utf-8")
         start = source.index('# Ordinary direct execution must carry')
         end = source.index('\nFAILED=""', start)
         prefix = source[start:end]

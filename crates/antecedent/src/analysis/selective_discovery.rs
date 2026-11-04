@@ -98,7 +98,7 @@ pub fn accepted_graph_stage_identity(
     if outcome.search_incomplete {
         return Err(DiscoveredStructureRefusal {
             code,
-            detail: "selective_discovery.search_incomplete",
+            detail: antecedent_core::reason_details::selective_discovery::SEARCH_INCOMPLETE,
             unresolved_edges: outcome.structure.unresolved_edges(),
             bounded_search_receipts: outcome.bounded_search_receipts.clone(),
             remedy: "the search exhausted a bound, so absent edges are not established; rerun \
@@ -110,7 +110,7 @@ pub fn accepted_graph_stage_identity(
     if !unresolved.is_empty() && acceptance.completion.is_none() {
         return Err(DiscoveredStructureRefusal {
             code,
-            detail: "selective_discovery.unresolved_structure",
+            detail: antecedent_core::reason_details::selective_discovery::UNRESOLVED_STRUCTURE,
             remedy: format!(
                 "{} edge(s) are not resolved within the equivalence class; declare a \
                  completion (with its own label and identity) or orient them with background \

@@ -106,7 +106,6 @@ fn joint_obligation() -> EvidenceObligation {
     .unwrap()
 }
 
-
 const W: u32 = 3;
 
 fn variant(
@@ -197,5 +196,5 @@ fn a_joint_claim_without_joint_measurement_is_refused() {
     let mut c = candidate_c();
     c.joint_measurement = false;
     let error = c.validate().unwrap_err();
-    assert_eq!(error.detail, "study_candidate.wrong_contract");
+    assert_eq!(error.detail, antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
 }

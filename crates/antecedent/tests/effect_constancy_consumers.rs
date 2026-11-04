@@ -137,7 +137,10 @@ fn original_covariance_aware_contrast_replays_and_does_not_support_transport() {
     let reversed = consumer(&original).transport_diagnostic("b", "a").unwrap_err();
     assert_eq!(
         (reversed.code, reversed.detail.as_ref()),
-        ("invalid_argument", "effect_constancy_consumer.contrast_missing")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::effect_constancy_consumer::CONTRAST_MISSING
+        )
     );
     req.partitions[0].effect = 1.1;
     let changed = EffectConstancy::evaluate(&req).unwrap();
@@ -146,7 +149,10 @@ fn original_covariance_aware_contrast_replays_and_does_not_support_transport() {
             .unwrap_err();
     assert_eq!(
         (refused.code, refused.detail.as_ref()),
-        ("invalid_argument", "effect_constancy_consumer.artifact_invalid")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::effect_constancy_consumer::ARTIFACT_INVALID
+        )
     );
 }
 #[test]
@@ -196,7 +202,10 @@ fn actual_bank_filtering_and_effect_ranking_remain_data_dependent_advice() {
     let unbound = c.rank_prior_sources(&bank, &target, "p2", &bindings[..2]).unwrap_err();
     assert_eq!(
         (unbound.code, unbound.detail.as_ref()),
-        ("invalid_argument", "effect_constancy_consumer.catalog_binding_invalid")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::effect_constancy_consumer::CATALOG_BINDING_INVALID
+        )
     );
 }
 #[test]
@@ -222,6 +231,9 @@ fn actual_affine_policy_engine_retains_ties_and_empty_generalization_intersectio
         consumer(&original(&[1.0, 2.0])).policy_review(&contract(), &mismatch).unwrap_err();
     assert_eq!(
         (refused.code, refused.detail.as_ref()),
-        ("invalid_argument", "effect_constancy_consumer.quantity_mismatch")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::effect_constancy_consumer::QUANTITY_MISMATCH
+        )
     );
 }

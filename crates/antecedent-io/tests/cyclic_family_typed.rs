@@ -878,11 +878,11 @@ fn sde_refusals_are_registered_and_name_their_detail() {
         error,
         CyclicArtifactError::ScientificRefusal {
             code: "route_not_supported",
-            detail: "sde.unbounded_growth",
+            detail: antecedent_core::reason_details::sde::UNBOUNDED_GROWTH,
             ..
         }
     ));
-    assert!(refusal_text(error).contains("sde.unbounded_growth"));
+    assert!(refusal_text(error).contains(antecedent_core::reason_details::sde::UNBOUNDED_GROWTH));
     let snapshots = sde_request(serde_json::json!({
         "parameters": [0],
         "trajectories": [{ "id": "u", "observations": [{ "time": 0.0, "values": [3.0] }] }]

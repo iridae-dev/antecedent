@@ -43,9 +43,11 @@ record_sha256 = "124c9e8a94abab2087e8c8f94cb498f62905ecafe25a9d83b43098ac8411402
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-learn/src/transported_effect.rs"
-sha256 = "31b63ec571529c6614776a3eaaf7542e615dbbb6c66ed1cc43220bc8d3e5d769"
+items = ["const COHORT_TAG", "const IDENTITY_TAG", "const SELECTION_SHIFT_ASSUMPTION", "const TRANSPORT_WEIGHT_SUM_TOLERANCE", "fn assess_overlap", "fn check_declaration", "fn check_model", "fn digest", "fn fully_covered", "fn identity", "fn invalid", "fn invalid_input", "fn new", "fn not_certified", "fn refusal", "fn schema_mismatch", "fn support_failure", "fn total", "fn transport_cohort_effect", "fn validate", "fn write_canonical", "struct FeatureOverlap", "struct OverlapAssessment", "struct SelectionShiftDeclaration", "struct TargetCohort", "struct TransportRefusal", "struct TransportedCohortEffect"]
+sha256 = "9d74596cd44e565a6f38b0c256a129961ccf08eeddb2e67d7f284028ce129c44"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-learn/src/transported_effect_premise_tests.rs"
-sha256 = "5d78ce2ab561470264fa37bf80a31a9632130e70aef63d801bea76eb4c844505"
+items = ["fn a_cohort_column_with_another_name_is_a_schema_mismatch", "fn a_probability_scale_predictor_is_not_a_treatment_contrast", "fn cohort", "fn cohort_weights_must_be_nonnegative_and_normalized", "fn model", "fn run", "fn the_fitted_support_box_is_closed_and_a_zero_weight_row_outside_it_still_refuses", "fn the_mean_is_a_weighted_mean_of_row_contrasts_and_ignores_row_order"]
+sha256 = "bd7fc93e1a47110b0d80907472cbcf38eb8985c07ef52a53fd25715703af3db6"

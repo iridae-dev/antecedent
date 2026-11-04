@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalError, CausalTypeError, CausalValueError
 from antecedent.missing import ImputationSpec, MissingPolicy, coerce_missing, native_declaration
 from antecedent.outcomes import require_success
@@ -258,12 +259,12 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     with pytest.raises(GraphSelectionImputationRefusal) as interval:
         result.interval()
     assert interval.value.reason_code == "not_supported"
-    assert interval.value.detail == "graph_selection_imputation.interval_unmeasured"
+    assert interval.value.detail == reason_details.graph_selection_imputation.INTERVAL_UNMEASURED
     assert result.total >= result.within and result.between >= 0.0
 
     with pytest.raises(GraphSelectionImputationRefusal) as unknown:
         multiple_imputation_with_graph_selection(data, treatment="t", outcome="nope")
-    assert unknown.value.detail == "graph_selection_imputation.variables"
+    assert unknown.value.detail == reason_details.graph_selection_imputation.VARIABLES
 
 
 def test_explicit_constant_domains_are_carried_and_change_identity():

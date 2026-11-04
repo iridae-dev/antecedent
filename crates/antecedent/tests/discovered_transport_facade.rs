@@ -313,13 +313,19 @@ fn an_exhausted_search_bound_refuses_and_names_the_unresolved_pairs() {
     let refusal =
         refused(transport_discovered_structure(&bounded, &[v(1)], &query(2), 64).unwrap_err());
     assert_eq!(refusal.code, "discovered_structure_unresolved");
-    assert_eq!(refusal.detail, "discovered_transport.search_incomplete");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE
+    );
     assert_eq!(refusal.exhausted_search_bounds, 1);
     assert_eq!(refusal.unresolved.len(), 2);
 
     let external = discovered_transport_refusal(&refusal);
     external.validate().unwrap();
-    assert_eq!(external.detail, "discovered_transport.search_incomplete");
+    assert_eq!(
+        external.detail,
+        antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE
+    );
     let offending = external.offending.as_deref().unwrap();
     assert_eq!(offending.split(';').count(), 2);
     assert!(offending.contains("undirected_in_equivalence_class"));
@@ -334,14 +340,20 @@ fn a_selection_target_outside_the_structure_and_a_zero_bound_are_refused() {
 
     let unknown =
         refused(transport_discovered_structure(outcome, &[v(9)], &query(2), 64).unwrap_err());
-    assert_eq!(unknown.detail, "discovered_transport.selection_target_unknown");
+    assert_eq!(
+        unknown.detail,
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN
+    );
     assert_eq!(unknown.unknown_selection_targets, vec![v(9)]);
     let external = discovered_transport_refusal(&unknown);
     external.validate().unwrap();
     assert_eq!(external.offending.as_deref(), Some("v9"));
 
     let zero = refused(transport_discovered_structure(outcome, &[v(1)], &query(2), 0).unwrap_err());
-    assert_eq!(zero.detail, "discovered_transport.member_bound_zero");
+    assert_eq!(
+        zero.detail,
+        antecedent_core::reason_details::discovered_transport::MEMBER_BOUND_ZERO
+    );
 }
 
 #[test]
@@ -605,7 +617,10 @@ fn a_selected_cause_that_may_share_a_latent_cause_with_the_outcome_is_refused_wi
     )
     .unwrap_err();
     let refusal = refused(error);
-    assert_eq!(refusal.detail, "discovered_transport.class_not_identified");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED
+    );
     assert!(!refusal.member_reasons.is_empty());
     let external = discovered_transport_refusal(&refusal);
     external.validate().unwrap();
@@ -628,7 +643,10 @@ fn evidence_that_is_not_integer_coded_or_is_incomplete_is_refused_precisely() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(refused(error).detail, "discovered_transport.evidence_invalid");
+    assert_eq!(
+        refused(error).detail,
+        antecedent_core::reason_details::discovered_transport::EVIDENCE_INVALID
+    );
 }
 
 // -- temporal ----------------------------------------------------------------------------------------
@@ -755,7 +773,10 @@ fn a_temporal_pag_with_a_confoundable_selected_cause_is_refused_not_estimated() 
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(refused(error).detail, "discovered_transport.class_not_identified");
+    assert_eq!(
+        refused(error).detail,
+        antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED
+    );
 }
 
 #[test]
@@ -781,7 +802,10 @@ fn a_variable_with_more_levels_than_supported_is_refused() {
     )
     .unwrap_err();
     let refusal = refused(error);
-    assert_eq!(refusal.detail, "discovered_transport.evidence_invalid");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::discovered_transport::EVIDENCE_INVALID
+    );
     assert!(refusal.remedy.contains("joint domain"), "{}", refusal.remedy);
 }
 

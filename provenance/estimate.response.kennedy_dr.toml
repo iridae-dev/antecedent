@@ -52,22 +52,26 @@ record_sha256 = "2f7b32c4da84ee7723eb0a7a80a8eb95d6db26bf415783df0ac84757a06c403
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/curve.rs"
-sha256 = "5fa78688d2f823851d49bff4d82cf3aa001508792536cd80802c0ede83370b26"
+items = ["fn mean_curve"]
+sha256 = "ef3dc0f86341a2b7f3371174289ad9f5992c04400d5919d26fa651a97b57500b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/nuisance.rs"
-sha256 = "f7373375cd341791a862bc5b53bd0052333dc39950d1d9f7f3b6f3a2f7f3dbe6"
+items = ["module"]
+sha256 = "20fbcd5973b1c287519f98d9786ec268a1ed7f4432f7af4dfa61d8c27c057c18"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/crossfit.rs"
-sha256 = "251565bc32f124e1010e3aa63917a4f0d41eeaf04ab9c4890b9573ad44a8e268"
+items = ["module"]
+sha256 = "0c9165bc55551208ed4fd3887025d8df13661f5d2a38c0d805db9856fc96bc1c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_kennedy_dr_reference.rs"
-sha256 = "46c61085f3c190c19a56ee0f07109cbdfe0be512804d0ff2cf904889c6aaa923"
+items = ["fn diagnostic", "fn floats", "fn the_pseudo_outcome_level_and_influence_match_the_exact_pipeline"]
+sha256 = "51bd4aee051ed60678755ebf97935700054fb0a927203f08228a2f834f1df2d4"
 
 [[method_review.artifacts]]
 role = "reference"

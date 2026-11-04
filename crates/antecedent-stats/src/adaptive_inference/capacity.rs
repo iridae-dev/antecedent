@@ -120,16 +120,16 @@ impl CapacityError {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::DeclaredUnits { .. } => "adaptive_inference.declared_units_exceeded",
-            Self::DeclaredLooks { .. } => "adaptive_inference.declared_looks_exceeded",
-            Self::LawStates { .. } => "adaptive_inference.exact_law_states_exceeded",
-            Self::LawWork { .. } => "adaptive_inference.exact_law_work_exceeded",
+            Self::DeclaredUnits { .. } => antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED,
+            Self::DeclaredLooks { .. } => antecedent_core::reason_details::adaptive_inference::DECLARED_LOOKS_EXCEEDED,
+            Self::LawStates { .. } => antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED,
+            Self::LawWork { .. } => antecedent_core::reason_details::adaptive_inference::EXACT_LAW_WORK_EXCEEDED,
             Self::SimulationReplications { .. } => {
-                "adaptive_inference.simulation_replications_exceeded"
+                antecedent_core::reason_details::adaptive_inference::SIMULATION_REPLICATIONS_EXCEEDED
             }
-            Self::SimulationWork { .. } => "adaptive_inference.simulation_work_exceeded",
-            Self::SimulationMemory { .. } => "adaptive_inference.simulation_memory_exceeded",
-            Self::RetainedRecord { .. } => "adaptive_inference.retained_record_exceeded",
+            Self::SimulationWork { .. } => antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED,
+            Self::SimulationMemory { .. } => antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED,
+            Self::RetainedRecord { .. } => antecedent_core::reason_details::adaptive_inference::RETAINED_RECORD_EXCEEDED,
         }
     }
 

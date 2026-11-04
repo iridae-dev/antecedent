@@ -37,19 +37,23 @@ record_sha256 = "13ec69e9557cee642e85f0e8198df32008682a1aead73fb93194182162b827c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/dbn_posterior.rs"
-sha256 = "a668db1b653fdc7a3945937d4b1c92d18a1c789fd5764720164923acc480b5a9"
+items = ["const DBN_EXACT_MAX_TEMPLATES", "const LABELED_DAG_COUNTS", "fn accumulate_lagged_marginals", "fn build_lagged_score_data", "fn exact_fits_budget", "fn has_lag_edge", "fn initial_dbn_state", "fn lag_bit", "fn new", "fn run", "fn run_exact", "fn run_mcmc", "fn run_panel", "fn run_units", "fn score_cache", "fn score_dbn_template", "struct DbnPosterior", "struct DbnTarget", "struct DbnWalker"]
+sha256 = "da2368d0c81ad8203bae82395a8ec0907c294a025fc8196e0aa97f2abf96f97a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
+items = ["enum GraphScoreFamily", "fn content_fingerprint", "fn fingerprint", "fn new"]
+sha256 = "d476d5e163fff24927af3414c10c34ef896c67a4d5f9db37911a3c58b41d66e6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
-sha256 = "7e99ed2821b5677124c9a38bc981d1176f739df0a59ffd2ae2da79b5234f5a1c"
+items = ["enum GraphPosteriorAtomKind", "fn algorithm", "fn atom_kind", "fn atoms", "fn bernoulli_edges", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn uniform", "fn weights", "struct GraphPrior", "struct SamplingSummary"]
+sha256 = "3d0aa1e926e55f303e6307f556e3fa1ac59f798c441af049e0d4ebda935e3f3c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
-sha256 = "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"
+items = ["fn dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel", "fn naive_rss", "fn series_unit", "fn time_series"]
+sha256 = "157e038d2f543be3fa2175013d94b00344d334d32fbfd062e0a62064dacf7019"

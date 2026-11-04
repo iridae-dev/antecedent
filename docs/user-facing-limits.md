@@ -145,7 +145,7 @@ whole range and reports `measured_below_nominal`, and a result stays
 | Frequentist temporal Pulse (horizons 1 and 2), single-step Sustained and Total, Direct and Mediated mediation effects (each contrast its own record), circular-block interval; default Bayesian Pulse and Bayesian mediation | 320 to 4,160 steps, so series of 1,024 and 4,096 steps with up to three lags are inside | Not assessed above 4,160 steps; the earlier records still cover 80 to 320 steps |
 | Bernoulli ITT score, ANCOVA (one or two covariates) and fixed CUPED interval | No row count: 30 observed and 40 expected rows in each arm, probabilities 0.2 to 0.8 (ANCOVA: one common probability) | Refused with the arm rule named; 300 balanced rows, a 2:1 allocation and a 200-row trial at probability 0.2 are supported. Known-truth coverage is 2,000 allocations per cell from 80 to 600 rows ([graphless support matrix](graphless-support-matrix.md)) |
 | Complete-randomization Neyman difference in means | 30 units per arm, unchanged | Its own construction; neither the arm rule above nor a row count applies |
-| Small-arm Student interval of a complete randomization's difference in means and of the Bernoulli ANCOVA (one or two covariates): HC2 variance with Bell-McCaffrey degrees of freedom | A smaller arm of 20 of 300 participants, at the sample sizes 150 to 600 of its grid | Offered where the construction above is unsupported, from 100 rows with at least 2 in each arm and positive variance; it is its own construction (standard-error kind `hc2`), carries no calibration claim until a coverage record covers the execution, and is never graphless-supported. Below 2 rows in an arm, below 100 rows or with zero variance the interval is withheld with the arm rule named |
+| Small-arm Student interval of a complete randomization's difference in means and of the Bernoulli ANCOVA (one or two covariates): HC2 variance with Bell-McCaffrey degrees of freedom | A smaller arm of 20 of 300 participants, at the sample sizes 150 to 600 of its grid | Offered where the construction above is unsupported, from 100 rows with at least 2 in each arm and positive variance; it is its own construction (standard-error kind `hc2`), carries no calibration claim while no coverage record covers the execution, and is never graphless-supported. Below 2 rows in an arm, below 100 rows or with zero variance the interval is withheld with the arm rule named |
 
 Memory for the practitioner designs is bounded by the table: a 100,000-row,
 22-column table is 17.6 MB, and the calibration replicates hold one table per
@@ -157,6 +157,6 @@ files, Parquet datasets and Arrow IPC files are read in bounded chunks under the
 admission pool, row ids are checked 64-bit, and the weighted Gaussian / OLS
 summary streams a file one chunk at a time ([large tables](guides/large-tables.md)).
 Executing a larger table does not extend a measured range: its intervals remain
-`outside_measured_scope` until a coverage record measures that size. A route that
+`outside_measured_scope` while no coverage record measures that size. A route that
 needs the whole table resident is quoted before reading and refused, with the
 quote and the next attempt, when the pool cannot hold it.

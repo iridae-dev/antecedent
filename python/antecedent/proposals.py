@@ -49,6 +49,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from antecedent import _reason_details
+
 from . import _native, design, repair
 from ._artifact_protocol import container_bytes
 from ._native import proposal_bundle_build as _build
@@ -531,7 +533,7 @@ class ProposalBundle:
                 {
                     "code": "invalid_argument",
                     "stage": "proposal",
-                    "detail": "proposal_receipt.contract_required",
+                    "detail": _reason_details.proposal_receipt.CONTRACT_REQUIRED,
                     "message": "on_arrival needs the failed repair contract the bundle was made for",
                 }
             )
@@ -573,7 +575,8 @@ class ProposalBundle:
         )
         if original_repair is None or original_ranking is None:
             raise CausalValueError(
-                "proposal_arrival.original_artifacts_required", reason_code="invalid_argument"
+                _reason_details.proposal_arrival.ORIGINAL_ARTIFACTS_REQUIRED,
+                reason_code="invalid_argument",
             )
         return _estimate(
             original_repair, original_ranking, candidate_id, study, self.identity, execution

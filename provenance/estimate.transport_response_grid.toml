@@ -43,12 +43,14 @@ record_sha256 = "79278c3a34d627ab45598b6bca1a7a8928b542276601aaad4c4aba7e679500b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/transport.rs"
-sha256 = "415ca5b17cad401b182cc7646e2d0bc1d9673953f63182b5b023451a2266ac6c"
+items = ["const EXTREME_WEIGHT_THRESHOLD", "fn diagnostic", "fn kish_effective_sample_size", "fn require_dahabreh_compatible_formula", "fn signed_weight_effective_sample_size", "fn transport_augmented_response_grid", "struct ResponseGridInputs", "struct TransportOverlapDiagnostic", "struct TransportResponseGridEstimate"]
+sha256 = "37ff1b888b751233db6f3bdb9a9d1758243039b757f7653a522a61dbd6022e1d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/transport_response_grid_reference.rs"
-sha256 = "5f805cedfb60111acf2ca2ea17b17c6b1cafcbcee77b6b23199a41d5d8879904"
+items = ["fn a_recursive_factorization_certificate_is_refused_not_evaluated", "fn cases", "fn direct", "fn floats", "fn run", "fn table", "fn the_declared_input_contract_is_enforced", "fn the_grid_mean_and_overlap_match_the_exact_rational_reference", "struct Table"]
+sha256 = "7a1694945a74944e3a88bcddab97d55234bac89a8251e8a329e5658325796053"
 
 [[method_review.artifacts]]
 role = "reference"

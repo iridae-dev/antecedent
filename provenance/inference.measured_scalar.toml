@@ -24,9 +24,11 @@ record_sha256 = "d1891c1c95938c0e9ac7ec5b64353de9d3acd7ae8b2116a8fd59e8a670bb9e7
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference.rs"
-sha256 = "9bce0c996861aaf4485b375b6ba105c5ba1d3f195d6aed73facb4a4e4129e735"
+items = ["fn refusal", "fn report", "struct MeasuredExpectation", "struct MeasuredInference", "struct MeasuredInferenceReport", "struct MeasuredScalarReport"]
+sha256 = "e4164588e019db7780696220b39b0e1047fa22c0deaca64e48e7aeda11b02280"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "python/tests/test_measured_inference.py"
-sha256 = "9f8862148cc8762a44f752a112d65540366f52a2938ef47502f5af98eb25dfe8"
+items = ["const CONSTRUCTOR_REFUSAL", "fn identity", "fn test_bounds_and_missing_native_cannot_be_overridden_by_basis", "fn test_expectation_immutable_and_independent_declaration", "fn test_expected_identity_domain_guards", "fn test_foreign_payload_callback_is_not_invoked", "fn test_native_input_exceptions_preserve_class_without_scientific_reason", "fn test_public_constructors_cannot_mint_authority", "fn test_source_report_unreachable_route_guard_is_class_only"]
+sha256 = "fe141378aa10d1a08c8d74661f7bcb30b926715d9f5eda29cc9f1fe8f9ad540d"

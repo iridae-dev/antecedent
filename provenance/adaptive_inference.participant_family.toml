@@ -49,32 +49,38 @@ record_sha256 = "fc833d13952652ab65345aa7483174d6b0cd545200184e73d5b178a73778283
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs"
-sha256 = "47e8cd9f5393d7954172da7b971a644aea22c3cd0332778bfa5038e5b750e4a9"
+items = ["const CANCEL_STRIDE", "const EDGE_LOG_TOLERANCE", "const MAX_ARMS", "const MAX_PANELS", "const MAX_RESPONSES", "const MAX_RHO_PASSES", "const MAX_WIDENINGS", "const NEGLIGIBLE_WEIGHT_LOG", "const NODES", "const PANEL_SIGMAS", "const RHO_PANELS_FIRST", "const RHO_PANELS_MAX", "const RHO_PANELS_REFINED", "const RHO_PANEL_SIGMAS", "const RHO_WINDOW_SIGMAS", "const RULE", "const TAIL_DECAY", "const U_LIMIT", "const WINDOW_SIGMAS", "enum CorrelationModel", "fn arm_log_density", "fn assemble", "fn at", "fn build_layout", "fn build_rule", "fn cdf_at_nodes", "fn correlation_nodes", "fn design_effect", "fn evaluate", "fn exact_posterior", "fn is_valid", "fn ln_sigmoid", "fn log_pmf_table", "fn log_sum_exp_weighted", "fn mean", "fn new", "fn node_functionals", "fn normalized", "fn rule", "fn settle_correlation", "fn whole", "fn window", "struct ArmEvidence", "struct ArmStats", "struct Cdf", "struct CorrelationPrior", "struct Evaluation", "struct ExactPosterior", "struct Layout", "struct NodeFunctionals", "struct PosteriorRequest", "struct Rule"]
+sha256 = "5dd707f92eadcf39c36189db491ceeb3c51c6d1c1ee4396e185adea1bbf28407"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/historical_prior.rs"
-sha256 = "a95dbeedbe9d9ada10f1c4e5088b9ceec444f8f5980b3b9999fb49516d8f2a28"
+items = ["const MAX_HISTORICAL_TRIALS", "const MAX_SOURCE_LABEL_BYTES", "fn borrowed_trials", "fn is_valid", "fn resolve", "fn uniform", "fn without_history", "struct ArmPrior", "struct BorrowingPlan", "struct HistoricalPrior", "struct ResolvedArmPrior"]
+sha256 = "75314b70ef5bbdc0f5f62f0ef84fbecad94e0f4691957bd2fe891bfa2e979232"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/participant_procedure.rs"
-sha256 = "593236a8b27e43fbba3370f2d3232808b68231c0689df109df070056f1c2aa24"
+items = ["const MAX_PARTICIPANT_LOOKS", "const MAX_PARTICIPANT_RESPONSES", "const THRESHOLD_BAND", "enum Detail", "enum LookDecision", "enum StopReason", "fn alpha_per_arm", "fn anytime", "fn arms", "fn assignment_row", "fn batch", "fn beta_binomial_pmf", "fn borrowing", "fn completed_count", "fn correlation", "fn correlation_prior", "fn decisions", "fn declaration", "fn enrolment", "fn exact", "fn fired", "fn in_open_unit", "fn lag_looks", "fn margin_needed", "fn means", "fn min_exploration", "fn new", "fn numbers", "fn posterior", "fn priors", "fn read_history", "fn reading", "fn record", "fn responses", "fn view", "fn walk", "struct AnytimeSettings", "struct ArmReading", "struct ComparisonReading", "struct DecisionRules", "struct FrequentistClaim", "struct FutilityRule", "struct LookReading", "struct LookSnapshot", "struct Participant", "struct ParticipantDeclaration", "struct ParticipantHistory", "struct ParticipantSpec", "struct PosteriorClaim", "struct Replayed", "struct Tally", "struct View", "struct Walk", "trait Enrolment"]
+sha256 = "fd12e0467f5ae785075bdfda1871ff5576c1d64fd8107ddd43acc420834f027a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
-sha256 = "af5e4a47308e50ad4728c8afe0e61d826a27dfee5a08327e5c0d66b95ae55286"
+items = ["fn apply_exploration_floor", "fn check", "fn new"]
+sha256 = "67aac4b076e7b6ca9b6e718e784c7136c1dcb5d8ea524a34c08a7c494c6e8836"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_participant_exact_reference.rs"
-sha256 = "7bdeb019df65f6e1c5f9d50de7405ba72cfabb0e2cc1648c1151308045a527a2"
+items = ["fn an_expected_loss_threshold_equal_to_the_exact_loss_does_not_stop", "fn borrowed_priors_resolve_to_the_power_prior_shapes", "fn numbers", "fn reference", "fn the_beta_binomial_mass_matches_the_exact_product_form", "fn the_declared_correlation_posterior_matches_the_exact_polynomial_integrals", "fn the_exploration_floor_is_the_normalized_clamp_of_its_definition"]
+sha256 = "e052f6aa4fbed822c94141eb42376e3712e44f72176243de274c4209f9c7283d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
+items = ["module"]
+sha256 = "571c1ccdbb1afe316020f1abae7a2567cdbf424d29355e0b9da9c809ddf610b6"
 
 [[method_review.artifacts]]
 role = "reference"

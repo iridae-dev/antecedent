@@ -468,7 +468,7 @@ pub fn estimate_trial_compatible_discovered_transport(
     if retained.is_empty() {
         return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
             code: antecedent_core::reason_code!("discovered_structure_unresolved"),
-            detail: "discovered_transport.trial_rejects_every_member",
+            detail: antecedent_core::reason_details::discovered_transport::TRIAL_REJECTS_EVERY_MEMBER,
             unresolved: report.envelope().unresolved().to_vec(),
             exhausted_search_bounds: 0,
             unknown_selection_targets: Vec::new(),
@@ -516,27 +516,27 @@ fn trial_compatibility_proof(
         || !(alpha > 0.0 && alpha < 0.5)
     {
         return Err(refuse(
-            "discovered_transport.trial_compatibility_invalid",
+            antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
             "declare an independence-test level in (0,.5) and independent randomized trial rows"
                 .into(),
         ));
     }
     if !report.envelope().enumeration_complete() {
         return Err(refuse(
-            "discovered_transport.class_enumeration_partial",
+            antecedent_core::reason_details::discovered_transport::CLASS_ENUMERATION_PARTIAL,
             "experimental compatibility cannot certify unenumerated members".into(),
         ));
     }
     let (treatment, outcome) = query.response.functional.primary_pair().ok_or_else(|| {
         refuse(
-            "discovered_transport.trial_compatibility_invalid",
+            antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
             "the query needs one treatment and outcome".into(),
         )
     })?;
     let columns = columns_of(evidence.source, &[treatment, outcome])?;
     if columns[&treatment].len() > 1_000_000 {
         return Err(refuse(
-            "discovered_transport.trial_compatibility_invalid",
+            antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
             "the bounded exact test accepts at most one million source rows".into(),
         ));
     }
@@ -545,7 +545,7 @@ fn trial_compatibility_proof(
     for (x, y) in columns[&treatment].iter().zip(&columns[&outcome]) {
         let (Some(x), Some(y)) = (*x, *y) else {
             return Err(refuse(
-                "discovered_transport.trial_compatibility_invalid",
+                antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
                 "the binary trial has a missing assignment or outcome".into(),
             ));
         };
@@ -560,7 +560,7 @@ fn trial_compatibility_proof(
         };
         let (Some(x), Some(y)) = (code(x), code(y)) else {
             return Err(refuse(
-                "discovered_transport.trial_compatibility_invalid",
+                antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
                 "this exact test requires binary zero/one assignments and outcomes".into(),
             ));
         };
@@ -892,7 +892,7 @@ fn confidence_set_input_identity(
 // The legacy summary detail prefers unidentified over unestimable when both occur.
 // Permit only completed scientific verdicts, never mixed provider/support/budget failures.
 fn scientific_nonidentification(refusal: &DiscoveredTransportRefusal) -> bool {
-    refusal.detail == "discovered_transport.class_not_identified"
+    refusal.detail == antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED
         && refusal.exhausted_search_bounds == 0
         && refusal.unknown_selection_targets.is_empty()
         && !refusal.member_reasons.is_empty()
@@ -1788,7 +1788,7 @@ mod tests {
     fn mixed_missing_evidence_is_not_scientific_nonidentification() {
         let refusal = |reasons: Vec<&str>| DiscoveredTransportRefusal {
             code: antecedent_core::reason_code!("discovered_structure_unresolved"),
-            detail: "discovered_transport.class_not_identified",
+            detail: antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED,
             unresolved: Vec::new(),
             exhausted_search_bounds: 0,
             unknown_selection_targets: Vec::new(),

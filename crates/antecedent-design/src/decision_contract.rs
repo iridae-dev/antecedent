@@ -1286,16 +1286,24 @@ impl AdmissibilityError {
         match self {
             Self::Contract(error) => error.to_refusal(),
             Self::UnknownAction(id) => {
-                build("decision_admissibility.unknown_action").offending(id.clone()).build()
+                build(antecedent_core::reason_details::decision_admissibility::UNKNOWN_ACTION)
+                    .offending(id.clone())
+                    .build()
             }
-            Self::UnknownInput { action, input } => build("decision_admissibility.unknown_input")
-                .offending(format!("{action}[{input}]"))
-                .build(),
+            Self::UnknownInput { action, input } => {
+                build(antecedent_core::reason_details::decision_admissibility::UNKNOWN_INPUT)
+                    .offending(format!("{action}[{input}]"))
+                    .build()
+            }
             Self::DuplicateRule(key) => {
-                build("decision_admissibility.duplicate_rule").offending(key.clone()).build()
+                build(antecedent_core::reason_details::decision_admissibility::DUPLICATE_RULE)
+                    .offending(key.clone())
+                    .build()
             }
             Self::InvalidRule(why) => {
-                build("decision_admissibility.invalid_rule").expected(*why).build()
+                build(antecedent_core::reason_details::decision_admissibility::INVALID_RULE)
+                    .expected(*why)
+                    .build()
             }
         }
     }

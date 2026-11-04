@@ -384,21 +384,21 @@ impl ObservationalPolicyValue {
         let repeated = sorted.windows(2).any(|pair| pair[0] == pair[1]);
         if levels.len() < 2 || levels.iter().any(|l| !l.is_finite()) || repeated {
             return Err(invalid(
-                "policy_value.invalid_support",
+                antecedent_core::reason_details::policy_value::INVALID_SUPPORT,
                 "the declared treatment support must be at least two distinct finite values",
             ));
         }
         if let Some(reference) = self.reference {
             if self.index_of(reference).is_none() {
                 return Err(invalid(
-                    "policy_value.reference_outside_support",
+                    antecedent_core::reason_details::policy_value::REFERENCE_OUTSIDE_SUPPORT,
                     "the reference action is not a level of the declared treatment support",
                 ));
             }
         }
         if !self.min_propensity.is_finite() || !(0.0..0.5).contains(&self.min_propensity) {
             return Err(invalid(
-                "policy_value.invalid_propensity_floor",
+                antecedent_core::reason_details::policy_value::INVALID_PROPENSITY_FLOOR,
                 "the positivity floor must be finite and in [0, 0.5)",
             ));
         }
@@ -408,13 +408,13 @@ impl ObservationalPolicyValue {
                 || *evaluation_fraction == 0.0
             {
                 return Err(invalid(
-                    "policy_value.invalid_evaluation_fraction",
+                    antecedent_core::reason_details::policy_value::INVALID_EVALUATION_FRACTION,
                     "the held-out evaluation fraction must be strictly between 0 and 1",
                 ));
             }
         } else if self.folds < 2 {
             return Err(invalid(
-                "policy_value.invalid_folds",
+                antecedent_core::reason_details::policy_value::INVALID_FOLDS,
                 "cross-fitting requires at least two folds",
             ));
         }
@@ -425,7 +425,7 @@ impl ObservationalPolicyValue {
         {
             return Err(refuse(
                 antecedent_core::reason_code!("policy_learned_on_evaluation_rows"),
-                "policy_value.policy_learned_on_evaluation_rows",
+                antecedent_core::reason_details::policy_value::POLICY_LEARNED_ON_EVALUATION_ROWS,
                 "a policy learned on the rows that score it has a value estimated too high; evaluate it on independent held-out rows (held_out) or learn and score it by cross-fitting (cross_fitted_learning)",
             ));
         }
@@ -458,7 +458,7 @@ impl ObservationalPolicyValue {
         if let Some(missing) = counts.iter().position(|&seen| seen == 0) {
             return Err(refuse(
                 antecedent_core::reason_code!("arm_not_populated"),
-                "policy_value.training_split_missing_action",
+                antecedent_core::reason_details::policy_value::TRAINING_SPLIT_MISSING_ACTION,
                 &format!(
                     "a training split has no row at action {}; use fewer folds or a smaller held-out fraction",
                     self.support[missing]
@@ -500,7 +500,7 @@ impl ObservationalPolicyValue {
             if level_train.len() <= ncols {
                 return Err(refuse(
                     antecedent_core::reason_code!("arm_not_populated"),
-                    "policy_value.sparse_action",
+                    antecedent_core::reason_details::policy_value::SPARSE_ACTION,
                     &format!(
                         "a training split has no more rows at action {} than design columns, so its outcome model has no residual degrees of freedom",
                         self.support[c]
@@ -535,7 +535,7 @@ impl ObservationalPolicyValue {
         if m < MIN_EVALUATION_ROWS {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.too_few_evaluation_rows",
+                antecedent_core::reason_details::policy_value::TOO_FEW_EVALUATION_ROWS,
                 &format!(
                     "the value is scored on {m} rows; at least {MIN_EVALUATION_ROWS} are required"
                 ),
@@ -549,7 +549,7 @@ impl ObservationalPolicyValue {
         {
             return Err(refuse(
                 antecedent_core::reason_code!("positivity_violated"),
-                "policy_value.action_propensity_below_floor",
+                antecedent_core::reason_details::policy_value::ACTION_PROPENSITY_BELOW_FLOOR,
                 &format!(
                     "the propensity of action {} falls to {lowest:.6} on a scored row, below the declared floor {}; the doubly robust score weights by its inverse. Drop the action from the declared support, restrict the population, or lower the floor knowingly",
                     self.support[c], self.min_propensity
@@ -614,7 +614,7 @@ struct PolicyFits {
 fn policy_cancelled() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "policy_value.cancelled",
+        antecedent_core::reason_details::policy_value::CANCELLED,
         "the cross-fitted policy-value fit was cancelled before every split was fit; no estimate is reported",
     )
 }
@@ -745,7 +745,7 @@ impl Splits {
         if folds > prepared.n {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.invalid_folds",
+                antecedent_core::reason_details::policy_value::INVALID_FOLDS,
                 "cross-fitting folds cannot exceed the complete-case rows",
             ));
         }
@@ -796,7 +796,7 @@ impl Splits {
         if train.is_empty() || valid.is_empty() {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.invalid_evaluation_fraction",
+                antecedent_core::reason_details::policy_value::INVALID_EVALUATION_FRACTION,
                 "the held-out split leaves no learning or no evaluation rows",
             ));
         }
@@ -852,7 +852,7 @@ impl Prepared {
             || declared.is_some_and(|actions| actions.len() != rows)
         {
             return Err(invalid(
-                "policy_value.invalid_data",
+                antecedent_core::reason_details::policy_value::INVALID_DATA,
                 "outcome, treatment, covariates and the declared policy must be non-empty and of equal length",
             ));
         }
@@ -862,7 +862,10 @@ impl Prepared {
             || data.covariates.iter().any(|c| infinite(c))
             || declared.is_some_and(infinite)
         {
-            return Err(invalid("policy_value.invalid_data", "no value may be infinite"));
+            return Err(invalid(
+                antecedent_core::reason_details::policy_value::INVALID_DATA,
+                "no value may be infinite",
+            ));
         }
         let k = request.support.len();
         let per_row: &[Arc<[f64]>] = match &request.known_propensity {
@@ -879,7 +882,7 @@ impl Prepared {
         if !known_shape_ok {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.invalid_known_propensity",
+                antecedent_core::reason_details::policy_value::INVALID_KNOWN_PROPENSITY,
                 "known propensities need one value (constant) or one column of one value per row (per-row) per declared action",
             ));
         }
@@ -896,7 +899,7 @@ impl Prepared {
         let ncols = 1 + data.covariates.len();
         if n <= ncols * k {
             return Err(invalid(
-                "policy_value.too_few_rows",
+                antecedent_core::reason_details::policy_value::TOO_FEW_ROWS,
                 "the complete-case rows cannot support an outcome model per action",
             ));
         }
@@ -907,7 +910,7 @@ impl Prepared {
             let Some(c) = request.index_of(data.treatment[i]) else {
                 return Err(refuse(
                     antecedent_core::reason_code!("treatment_level_undeclared"),
-                    "policy_value.undeclared_level",
+                    antecedent_core::reason_details::policy_value::UNDECLARED_LEVEL,
                     &format!(
                         "row {i} has treatment {}, which is not a level of the declared treatment support; declare the level or remove the row",
                         data.treatment[i]
@@ -920,7 +923,7 @@ impl Prepared {
                 let Some(a) = request.index_of(actions[i]) else {
                     return Err(refuse(
                         antecedent_core::reason_code!("positivity_violated"),
-                        "policy_value.action_outside_support",
+                        antecedent_core::reason_details::policy_value::ACTION_OUTSIDE_SUPPORT,
                         &format!(
                             "the policy takes action {} at row {i}, which is outside the declared treatment support, so its value is not identified from these data",
                             actions[i]
@@ -935,7 +938,7 @@ impl Prepared {
         if let Some(empty) = rows_by_level.iter().position(|&r| r == 0) {
             return Err(refuse(
                 antecedent_core::reason_code!("arm_not_populated"),
-                "policy_value.action_not_populated",
+                antecedent_core::reason_details::policy_value::ACTION_NOT_POPULATED,
                 &format!("no complete-case row has the declared action {}", request.support[empty]),
             ));
         }
@@ -980,7 +983,7 @@ impl Prepared {
                 {
                     return Err(refuse(
                         antecedent_core::reason_code!("invalid_argument"),
-                        "policy_value.invalid_known_propensity",
+                        antecedent_core::reason_details::policy_value::INVALID_KNOWN_PROPENSITY,
                         "known propensities must be one probability in (0, 1] per declared action and row, summing to one over the actions",
                     ));
                 }

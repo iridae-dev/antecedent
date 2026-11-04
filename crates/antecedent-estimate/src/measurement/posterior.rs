@@ -98,14 +98,14 @@ pub fn correct_latent_posterior_linear_effect(
     else {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             "posterior route needs external-posterior parameters",
         ));
     };
     if data.draw_count < *min_draws as usize {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.insufficient_draws",
+            antecedent_core::reason_details::measurement_model::INSUFFICIENT_DRAWS,
             format!(
                 "{} joint draws supplied; the model declares at least {min_draws}",
                 data.draw_count

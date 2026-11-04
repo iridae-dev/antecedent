@@ -54,22 +54,73 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_facade.rs",
-          "sha256": "c31118ffbd6fd46f32951dfd37cb1df060afc9186539008ddaea47f0e7dd3de1"
+          "items": [
+            "fn assert_block_band_diagnostics",
+            "fn assert_close_rel",
+            "fn assert_surface",
+            "fn bayesian_sequence_band_matches_posterior_quantiles",
+            "fn bayesian_temporal_response_and_sustained_window_known_truth",
+            "fn fixture",
+            "fn fixture_f64s",
+            "fn joint_ab_series",
+            "fn joint_sequence_refuses_when_a_coordinate_is_not_on_the_graph",
+            "fn joint_sequence_refuses_when_a_coordinate_is_the_outcome",
+            "fn multi_step_sequence_matches_two_step_truth_and_does_not_collapse",
+            "fn multi_step_sustained_refuses_end_to_end",
+            "fn nested_sequence_refuses_end_to_end",
+            "fn noisy_pulse_series",
+            "fn pointwise_halfwidths",
+            "fn pulse_and_single_step_sustained_match_surface_projection",
+            "fn pulse_sustained_and_surface_share_study_bootstrap_ses",
+            "fn sequence_steps",
+            "fn target_population_other_than_all_observed_refuses_end_to_end",
+            "fn temporal_dose_horizon_point_and_block_bands_match_fixture",
+            "fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path",
+            "fn temporal_fixture_series",
+            "fn temporal_intervention_path_matches_fixture",
+            "fn temporal_intervention_path_soft_additive_shift_matches_fixture",
+            "fn temporal_intervention_path_soft_constant_matches_fixture",
+            "fn temporal_single_step_sequence_matches_bare_intervention",
+            "fn temporal_spec"
+          ],
+          "sha256": "06caecda4a9cd521a0cad751a784d88d8a3626f18e4966ca8ccaedf3468368c2"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "0403758f56684fdf88399c8d98a515c6f10da46262c9d42ab99b03a93db2b060"
+          "items": [
+            "fn class_response_posterior_not_mixed_fires_only_when_uncertainty_is_dropped",
+            "fn curve_joint_influence_has_sample_mean_scaling",
+            "fn exceedance_level_refutation_refits_the_exceedance_target",
+            "fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters",
+            "fn graph_posterior_response_different_adjustments_publish_atoms_not_a_mean",
+            "fn graph_posterior_response_known_truth_conditional_on_identified",
+            "fn intervention_response_conforms_to_known_truth_fixture",
+            "fn intervention_response_runs_through_public_study_facade_with_its_own_strategy",
+            "fn known_truth_mixture_posterior",
+            "fn known_truth_response_data",
+            "fn mean_curve_study",
+            "fn prepared_response_curve_reuses_identification",
+            "fn report",
+            "fn response_curve_runs_through_public_study_facade",
+            "fn response_values",
+            "fn selected_outcome_curve_runs_through_facade_without_complete_data_bands",
+            "fn simultaneous_curve_band_runs_through_public_study_facade",
+            "fn two_adjustment_posterior",
+            "fn two_covariate_response_data",
+            "fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
+          ],
+          "sha256": "62a88d599936d92dd74364a2aa360b2b69d03425ffd2a9d8d5affd180fef731c"
         },
         {
           "role": "input_fixture",
           "path": "conformance/response/two_point_curve_average_effect/expected.json",
-          "sha256": "83936e23c61a0efad00d0efcdf253027076ab4586170c42beeefa7058a071759"
+          "sha256": "07fada19dfcabe6a144a0f9edc4586c4a51e176b0d704e0ceac646dc2fcb1834"
         },
         {
           "role": "input_fixture",
           "path": "conformance/response/temporal_dose_horizon/expected.json",
-          "sha256": "9079f061ada2a0b798b0f12c9613d4649bc4d9e9468161bb975d3a70c6b4cfdd"
+          "sha256": "8cd6c855615103423cc201882cf7547c3294d965149bd7b9f354c82ef9a197b9"
         }
       ],
       "fixture_payload_sha256": "ae3e0167465bd27441c5cfb3acc76c05fe22d477a2fefe773018b2b10e77b828"

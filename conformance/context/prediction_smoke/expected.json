@@ -40,7 +40,18 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/context_effects.rs",
-          "sha256": "4733f9c64001f525840a53edd43cd966252d0f68e5f51a934e783aab198750e3"
+          "items": [
+            "fn conditional_effect_pin",
+            "fn fixture_dir",
+            "fn jpcmci_plus_space_dummy_mv_pin",
+            "fn jpcmci_plus_two_env_pin",
+            "fn prediction_smoke_pin",
+            "fn rpcmci_two_regime_pin",
+            "fn temporal_mediation_numeric_pin",
+            "fn toy_env",
+            "fn two_regime_toy"
+          ],
+          "sha256": "20146b1af8006949db2c45999cfe97dd6189dc2aa49e57968d8d9c29ba896ab2"
         }
       ],
       "fixture_payload_sha256": "149b3c61f53179258556fa6cf609097c30ed2f27d4a996e996c1b506a77bc1aa"

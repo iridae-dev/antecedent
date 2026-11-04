@@ -228,13 +228,28 @@ fn each_world_must_cover_exactly_the_factual_units() {
     let s = spec(&case);
     let mut short = s.clone();
     short.plus.units.pop();
-    assert_refusal(&short, "temporal_counterfactual.unpaired_histories", "u06", "plus");
+    assert_refusal(
+        &short,
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES,
+        "u06",
+        "plus",
+    );
     let mut extra = s.clone();
     extra.minus.units.push(UnitId::new("ghost"));
-    assert_refusal(&extra, "temporal_counterfactual.unpaired_histories", "ghost", "minus");
+    assert_refusal(
+        &extra,
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES,
+        "ghost",
+        "minus",
+    );
     let mut shifted = s;
     shifted.minus.times = [0, 2];
-    assert_refusal(&shifted, "temporal_counterfactual.time_misaligned", "u00", "minus");
+    assert_refusal(
+        &shifted,
+        antecedent_core::reason_details::temporal_counterfactual::TIME_MISALIGNED,
+        "u00",
+        "minus",
+    );
 }
 
 fn assert_refusal(s: &TemporalCounterfactualSpec, detail: &str, unit: &str, world: &str) {

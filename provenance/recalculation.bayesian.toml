@@ -23,12 +23,14 @@ record_sha256 = "3e0b8f1009b7c7651e72e337498c1d6430798006a5153a30a4c88672fa128c4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_bayesian.rs"
-sha256 = "23bbb9b9ee00961cfa8f1bc40cf711d149781a29a3b95c9ee537ddf4e4afce7d"
+items = ["fn empirical_quantile", "fn summarize_issued_values", "struct BayesianLaw", "struct PosteriorSummarySpec"]
+sha256 = "c21fe34be3aa49cab1e6e3bd8c2c626d7f71d1a2422647ca773e830e18117ba8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/src/analysis/recalc_bayesian_summary_tests.rs"
-sha256 = "5eeeea1c426df1b9baea696d424cb854c17a3e14387dae060747c332e7ece56a"
+items = ["fn close", "fn floats", "fn projections_equal_the_exact_rational_mean_sd_type7_quantiles_and_strict_proportion"]
+sha256 = "824ec0da928b8721e47423eba2a282e85d8e104bd45a8dc9b67eb7fa1d8d0152"
 
 [[method_review.artifacts]]
 role = "reference"

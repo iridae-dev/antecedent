@@ -133,7 +133,7 @@ pub(crate) fn classify_treatment_levels(
     if let (Some(value), OtherLevels::Refuse) = (first_other, other_levels) {
         return Err(crate::util::refuse(
             antecedent_core::reason_code!("treatment_level_undeclared"),
-            "treatment_levels.undeclared_level",
+            antecedent_core::reason_details::treatment_levels::UNDECLARED_LEVEL,
             &format!(
                 "{excluded_rows} complete-case rows have a treatment value at neither declared \
                  level (active {active}, control {control}); first found {value}; {}. Excluding \

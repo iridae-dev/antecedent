@@ -585,7 +585,10 @@ mod tests {
             center: 0.0,
         };
         let error = moments.propagate(0.0, 1.0, 0.9).unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.dependence_not_a_covariance");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::DEPENDENCE_NOT_A_COVARIANCE
+        );
         let mixed = super::AffineMoments {
             slope: 0.0,
             intercept_variance: 1e-300,
@@ -701,9 +704,15 @@ mod tests {
     fn a_nonlinear_map_of_a_mean_alone_is_refused() {
         let contract = preference(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 });
         let error = derive(&contract, 0.4, None, Some(NonlinearMap::Square)).unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.nonlinear_mean_not_expectation");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::NONLINEAR_MEAN_NOT_EXPECTATION
+        );
         let error = derive(&contract, 0.4, Some(0.1), Some(NonlinearMap::Exponential)).unwrap_err();
-        assert_eq!(error.detail, "scientific_bridge.nonlinear_law_insufficient");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::NONLINEAR_LAW_INSUFFICIENT
+        );
     }
 
     #[test]
@@ -712,7 +721,10 @@ mod tests {
         contract.source_dependence = None;
         let error = derive(&contract, 0.4, Some(0.1), None).unwrap_err();
         assert_eq!(error.code, "sampling_dependence_unknown");
-        assert_eq!(error.detail, "scientific_bridge.source_dependence_missing");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
+        );
         assert!(error.remedy.is_some());
         // Without a standard error nothing is propagated and the plug-in derivation stands.
         assert!(derive(&contract, 0.4, None, None).unwrap().propagation.is_none());

@@ -515,7 +515,8 @@ fn a_classical_standard_error_request_with_weights_is_refused() {
         .unwrap_err()
         .to_string();
     assert!(
-        error.contains("sampling_weights.route_unsupported") && error.contains("hc0..hc3"),
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED)
+            && error.contains("hc0..hc3"),
         "{error}"
     );
 }
@@ -1458,7 +1459,10 @@ fn aipw_refuses_a_non_mean_functional_under_weights() {
         .prepare(&data, &estimand, &non_mean)
         .unwrap_err()
         .to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1582,7 +1586,10 @@ fn glm_refuses_the_classical_se_under_weights() {
         .with_family(GlmFamily::BinomialLogit)
         .with_sampling_weights(study.weights());
     let error = classical.prepare(&data, &estimand, &query()).unwrap_err().to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
     assert!(error.contains("precision"), "{error}");
 }
 
@@ -1758,7 +1765,10 @@ fn a_learner_without_prior_weights_is_refused_naming_it() {
         .with_sampling_weights(study.weights());
     let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
     let error = estimator.fit(&prepared, &ctx(), AssumptionSet::new()).unwrap_err().to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
     assert!(error.contains("elastic_net"), "{error}");
 }
 

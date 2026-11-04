@@ -54,7 +54,28 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/tiered_average_effect_closed_form.rs",
-          "sha256": "2ac060d4c8a6da3aee2c51d54fbe9a0a8e99e7138be9ebaee35241d4246ea3e0"
+          "items": [
+            "const DRAWS",
+            "const EM",
+            "const REPLICATES",
+            "fn background",
+            "fn bayes",
+            "fn codetermined_average_effect_matches_the_closure_functional",
+            "fn codetermined_background",
+            "fn codetermined_closure_functional",
+            "fn codetermined_data",
+            "fn codetermined_joint_cell_aipw_matches_the_closed_form_additive_level",
+            "fn codetermined_law",
+            "fn codetermined_naive_contrast",
+            "fn codetermined_rows",
+            "fn draw_mean_tolerance",
+            "fn query",
+            "fn truths",
+            "fn unknown_background",
+            "fn unknown_data",
+            "fn unknown_tier_order_average_effects_match_the_scenario_functionals"
+          ],
+          "sha256": "c455d4677cfb650b72cee1e2f240ecc25d157c2efeaad88ebad0b6b365167517"
         }
       ],
       "fixture_payload_sha256": "6386214df18133dd12d808ffc9372f9e1d6c0e5baf2214ad98875544b0267322"

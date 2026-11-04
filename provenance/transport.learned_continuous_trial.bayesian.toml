@@ -30,14 +30,17 @@ record_sha256 = "f84e33afee8124d44f36606fc5d0b609118a4f68527f792312b6b55313ecd75
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn learned_continuous_score_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "aca3d0c1fffe3ee01602f4dddde2eead5f9e2600a3ed1ea763b703a2e68e56ff"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
-sha256 = "bdfbc4063f7a7e8ef50098f4a8015b51f0c9f954f764290f388224306db47960"
+items = ["const DESIGNS", "const TOLERANCE", "fn a_learned_continuous_artifact_is_refused_by_other_trial_consumers", "fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error", "fn a_resealed_source_relabel_changes_the_consumed_identity", "fn assert_held_in_only", "fn declared_bounds_and_designs_refuse_with_their_details", "fn estimate_reuses_the_prepared_certificate_and_refresh_keeps_it", "fn every_nuisance_prediction_is_out_of_fold_and_fold_edits_never_reach_it", "fn exported", "fn good_overlap_known_truth_under_both_designs", "fn learned_continuous_posterior_consumer_replays_the_score_mean", "fn learned_continuous_posterior_mean_stays_at_the_known_truth", "fn learned_continuous_posterior_refuses_a_mapped_prior", "fn menu_lists_refused_estimators_with_reasons_consistent_with_the_graph", "fn misspecified_nuisance_cases_match_only_the_claimed_robustness", "fn mutate", "fn options", "fn outcome_plug_in", "fn prepare", "fn refit_and_predict", "fn refused", "fn refused_code", "fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses", "fn the_estimator_layer_returns_the_point_with_recorded_diagnostics_and_refuses_directly", "fn the_exported_point_is_replayed_by_an_independent_consumer", "fn the_free_menu_function_follows_its_learner_argument_without_the_builder", "fn the_io_wire_consumes_bytes_directly_under_its_own_limits", "fn thread_budget_changes_leave_seeded_results_identical", "fn trial_only_contrast", "fn triple", "fn weak_overlap_refuses_rather_than_extrapolating"]
+sha256 = "306025368581a90c1d7f53ef3466ab1cc85bb7d6e00ea9a7bd5ec75589f2d391"

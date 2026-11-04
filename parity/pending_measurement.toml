@@ -115,42 +115,6 @@ owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
-row = "P15.conditional.temporal.bayesian"
-facet = "suite.temporal_class_calibration"
-owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P15.conditional.temporal.frequentist"
-facet = "suite.temporal_class_calibration"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P15.pulse.temporal.bayesian"
-facet = "suite.temporal_class_calibration"
-owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P15.pulse.temporal.frequentist"
-facet = "suite.temporal_class_calibration"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P15.sustained.temporal.bayesian"
-facet = "suite.temporal_class_calibration"
-owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P15.sustained.temporal.frequentist"
-facet = "suite.temporal_class_calibration"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
 row = "P16.static.bayesian"
 facet = "suite.joint_law_composed_interval_calibration"
 owed = "posterior_calibration"

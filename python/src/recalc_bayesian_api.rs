@@ -43,7 +43,10 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
         ]
         .contains(&key.as_str())
         {
-            return Err(invalid("recalc.bayesian_invalid_inference", "unknown inference field"));
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
+                "unknown inference field",
+            ));
         }
     }
     let get = |key| -> PyResult<Option<Bound<'_, PyAny>>> {
@@ -51,18 +54,26 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
     };
     if let Some(bytes) = get("prior_artifact")? {
         if bytes.cast::<PyBytes>()?.as_bytes().len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
-            return Err(invalid("recalc.limits_exceeded", "prior artifact exceeds byte bound"));
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                "prior artifact exceeds byte bound",
+            ));
         }
     }
     let n = get("n_draws")?.map(|value| value.extract::<usize>()).transpose()?.unwrap_or(256);
     if n == 0 || n > 100_000 || n.checked_mul(features).is_none_or(|cells| cells > 1_000_000) {
         return Err(invalid(
-            "recalc.limits_exceeded",
+            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
             "posterior rows/features exceed bounded draw matrix",
         ));
     }
     let mode = get("mode")?
-        .ok_or_else(|| invalid("recalc.bayesian_invalid_inference", "missing Bayesian mode"))?
+        .ok_or_else(|| {
+            invalid(
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
+                "missing Bayesian mode",
+            )
+        })?
         .extract::<String>()?;
     let scale =
         get("prior_scale")?.map(|value| value.extract::<f64>()).transpose()?.unwrap_or(10.0);
@@ -70,7 +81,12 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
         "bayesian.conjugate" | "conjugate" => BayesianConfig::conjugate(),
         "bayesian.laplace" | "bayesian" | "laplace" => BayesianConfig::laplace(),
         "bayesian.hmc" | "hmc" => BayesianConfig::hmc(),
-        _ => return Err(invalid("recalc.bayesian_invalid_inference", "unknown Bayesian backend")),
+        _ => {
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
+                "unknown Bayesian backend",
+            ));
+        }
     }
     .n_draws(n)
     .prior_scale(scale);
@@ -94,15 +110,21 @@ fn request(
 ) -> PyResult<BayesianRequest> {
     check_columns(columns, ctx)?;
     if names.len() != columns.len() {
-        return Err(invalid("recalc.bayesian_invalid_data", "column names/data dimensions differ"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::BAYESIAN_INVALID_DATA,
+            "column names/data dimensions differ",
+        ));
     }
     if names.len() > 64 {
-        return Err(invalid("recalc.limits_exceeded", "Bayesian feature count exceeds64"));
+        return Err(invalid(
+            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            "Bayesian feature count exceeds64",
+        ));
     }
     for (i, name) in names.iter().enumerate() {
         if name.is_empty() || names[..i].contains(name) {
             return Err(invalid(
-                "recalc.bayesian_invalid_data",
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_DATA,
                 "column names must be non-empty and unique",
             ));
         }
@@ -110,7 +132,10 @@ fn request(
     let wire: RequestWire = parse_json(specification, "Bayesian request")?;
     let locate = |name: &str| -> PyResult<VariableId> {
         let Some(i) = names.iter().position(|n| n == name) else {
-            return Err(invalid("recalc.bayesian_invalid_query", "unknown role variable"));
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_QUERY,
+                "unknown role variable",
+            ));
         };
         Ok(VariableId::from_raw(crate::fit_u32(i)?))
     };
@@ -125,7 +150,10 @@ fn request(
         "gaussian" => BayesianModel::Gaussian,
         "quadratic_basis" => BayesianModel::QuadraticBasis,
         _ => {
-            return Err(invalid("recalc.bayesian_invalid_query", "unknown checked Bayesian model"));
+            return Err(invalid(
+                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_QUERY,
+                "unknown checked Bayesian model",
+            ));
         }
     };
     let inference = inference(config, names.len() + 1)?;
@@ -224,13 +252,26 @@ impl PyBayesianSession {
             "law":{"mean":out.law.mean,"standard_deviation":out.law.standard_deviation,"lower_quantile":out.law.lower_quantile,"upper_quantile":out.law.upper_quantile,"probability_below":out.law.probability_below,"draws":out.law.draws},
             "decision":{"net_benefit":out.decision.net_benefit,"treat":out.decision.treat}}),
             ),
-            Err(error) => Ok((None, None, Some(run_error(&error, "recalc.bayesian_fit_refused")))),
+            Err(error) => Ok((
+                None,
+                None,
+                Some(run_error(
+                    &error,
+                    antecedent_core::reason_details::recalc::BAYESIAN_FIT_REFUSED,
+                )),
+            )),
         }
     }
     fn export_prior_source(&self) -> (Option<Vec<u8>>, Option<String>) {
         match self.inner.export_prior_source() {
             Ok(bytes) => (Some(bytes), None),
-            Err(error) => (None, Some(run_error(&error, "recalc.bayesian_fit_refused"))),
+            Err(error) => (
+                None,
+                Some(run_error(
+                    &error,
+                    antecedent_core::reason_details::recalc::BAYESIAN_FIT_REFUSED,
+                )),
+            ),
         }
     }
     fn effect_draws(&self) -> Option<Vec<f64>> {
@@ -248,7 +289,13 @@ impl PyBayesianSession {
         let ctx = crate::recalc_api::bounded_context(seed, threads, None, cancel);
         crate::detach_catch(py, || match self.inner.export_result(&ctx) {
             Ok(bytes) => Ok((Some(bytes), None)),
-            Err(error) => Ok((None, Some(run_error(&error, "recalc.bayesian_fit_refused")))),
+            Err(error) => Ok((
+                None,
+                Some(run_error(
+                    &error,
+                    antecedent_core::reason_details::recalc::BAYESIAN_FIT_REFUSED,
+                )),
+            )),
         })
     }
 }

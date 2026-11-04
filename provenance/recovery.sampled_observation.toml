@@ -57,12 +57,14 @@ record_sha256 = "47dbb8acd6ed4d346c2a6dd9bd7fd0da212c0f8a80b8e48d9a349ed547fc366
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/recovery_sampled.rs"
-sha256 = "1771eb35f16343311b333dfd8b20690e6a7834ba6cb4f0fe64b5bd0aad6c948a"
+items = ["const SAMPLED_RECOVERY_CALIBRATION", "const SAMPLED_RECOVERY_INTERVAL_LEVEL", "const SAMPLED_RECOVERY_MAX_ROWS", "enum Role", "enum SampledIntervalMethod", "enum SampledRecoveryDetail", "fn bca", "fn bca_receipt", "fn bootstrap", "fn cancelled", "fn cell", "fn check_input", "fn covariance", "fn derive_sampled_recovery", "fn detail", "fn diagnostics", "fn effect_variables", "fn estimate_sampled_recovery", "fn from_recovery", "fn hex_digest", "fn input_digest", "fn jackknife", "fn level", "fn level_probability", "fn name", "fn new", "fn outcome_one_probability", "fn pattern", "fn recompute_digest", "fn recover", "fn refusal", "fn replicate", "fn resample", "fn tabulate", "fn to_u64", "fn too_many_failed", "fn type7_quantile", "fn unrecoverable", "fn valid", "fn validate_config", "fn write_pattern", "fn zero_complete_cells", "struct Bootstrap", "struct Layout", "struct ObservationPattern", "struct ObservationRow", "struct Replicated", "struct Run", "struct SampledBcaReceipt", "struct SampledEffectInterval", "struct SampledJackknifeRecord", "struct SampledObservationInput", "struct SampledRecoveryConfig", "struct SampledRecoveryDiagnostics", "struct SampledRecoveryError", "struct SampledRecoveryReceipt", "struct SampledRecoveryResult", "struct SampledReplicateRecord"]
+sha256 = "486743c0472cfde1372569d274e493e5c23adec535dbbbec66c6ab3ab14b5fe9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/recovery_sampled_observation_reference.rs"
-sha256 = "c86586f7e22464b7d6000e29c96d26b603ab1cb6dfa2ae85fdc56a4112e8c1e0"
+items = ["const EDGES", "const SEED", "fn an_exact_count_table_recovers_the_exact_backdoor_effect_and_joint", "fn config", "fn ctx", "fn derivation", "fn dump_replicate_stream", "fn model", "fn pattern", "fn point_delete_one_effects_and_the_bca_interval_equal_the_multiprecision_construction", "fn reference", "fn rows"]
+sha256 = "1d10bc884a01bb63cde12b0d10f2d994bb9e2fd9e604ff285ab9a659006f2447"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -50,17 +50,20 @@ record_sha256 = "b08ba41d891736e505c186472c9e6f45ab9572d9ce9cfc5f021531bf9d6c323
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/evsi.rs"
-sha256 = "360444f2558e14e9360d5cf9549ccb10952622a3543e1fb7d3dedc03fd889d2f"
+items = ["enum FutureStudyError", "enum IntegrationMethod", "fn actions", "fn as_str", "fn bayes_expected_utility", "fn evaluate_future_study", "fn finite_nonnegative", "fn finite_positive", "fn gap_lines", "fn gross_evsi", "fn id", "fn mean", "fn net_of", "fn noise_variance", "fn preposterior_spread", "fn sample_size", "fn score", "fn study_cost", "fn try_new", "fn update", "fn updated_decision", "fn variance", "struct AffineStateUtility", "struct FutureStudyProgram", "struct FutureStudyValue", "struct NormalMeanFutureData", "struct NormalMeanKnownVarianceUpdate", "struct NormalPosterior", "struct NormalStateBelief", "struct PreposteriorScore", "struct StudyAction", "struct UpdatedDecision"]
+sha256 = "0f4926886e2e7e51df8ed9856441169d549d5737be470a38821ab84a3d37d86b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/preposterior.rs"
-sha256 = "f7af3a81df1ff33379d6b0bb4e00e84aefdc44c7e55b1bf50737086a5bd371c9"
+items = ["fn expected_max_affine", "fn name", "fn noise_variance", "fn prior_expected_utility"]
+sha256 = "37925c90c7858104942bff742e3c5bbcd80e8263fe6624f360e43d1d73f87758"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/evsi_conjugate_reference.rs"
-sha256 = "6dc59e8129bbe7fe67186af3b309ed595d77665ae3557ffde5fadb7b86bccdcf"
+items = ["fn f", "fn floats", "fn gross_evsi_matches_high_precision_quadrature", "fn net_value_subtracts_the_declared_cost_only", "fn program", "fn reference", "fn updated_decision_matches_the_exact_conjugate_posterior"]
+sha256 = "bce1a66d6a0a8291d4f92111f38025a8689fc128aada7e53348629d4d3ef927c"
 
 [[method_review.artifacts]]
 role = "reference"

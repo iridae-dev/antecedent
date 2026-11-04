@@ -46,22 +46,26 @@ record_sha256 = "99961c6abedad366fb88a0b8ee7dd0ff29416a7d140e9c2514559a626816b9c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/observational_policy.rs"
-sha256 = "7cb348b80714414f5af465c569b81980b3470dbc278cdae681d6ad3b40003a7d"
+items = ["const DEFAULT_MIN_PROPENSITY", "const DEFAULT_POLICY_FOLDS", "const MIN_EVALUATION_ROWS", "enum KnownPropensity", "enum PolicyEvaluation", "enum PolicyObjective", "enum PolicyOrigin", "fn add_split", "fn as_str", "fn best_action", "fn estimate", "fn finish", "fn fit_split", "fn fit_splits", "fn flatten_action_scores", "fn folds", "fn held_out", "fn index_of", "fn new", "fn nuisance_key", "fn policy_cancelled", "fn splits", "fn validate", "struct ActionValue", "struct FitWorkspace", "struct ObservationalPolicyValue", "struct PolicyData", "struct PolicyFits", "struct PolicyValueEstimate", "struct Prepared", "struct ReferenceComparison", "struct Scored", "struct SplitNuisance", "struct SplitRows", "struct Splits"]
+sha256 = "c531183ef84f91afc5edf4e74a2d98a592a9bd3496fd15c4bf7309e64b7f4b64"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/glm/multinomial.rs"
-sha256 = "8423b2691b9a0e7c6c674fbcb74c849e0813c655d95ebbd871ed8e6c7fecf49f"
+items = ["fn accumulate_multinomial_score_and_information", "fn fill_multinomial_probabilities", "fn fit_multinomial_binary", "fn fit_multinomial_fisher", "fn fit_multinomial_logit_weighted", "fn max_linear_predictor_step", "fn multinomial_diagnostics_at", "fn weighted_gram_is_full_rank", "struct MultinomialDesignRef", "struct MultinomialFit"]
+sha256 = "8ea083b7ae944d84e0d59f525abcba8e1c792f3fdb9a9eca398998a818c6190a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/observational_policy_reference.rs"
-sha256 = "f1ab9f2bc07d6ad48627d9b52d1659cea5230620c616e15c3baccb4c14faf563"
+items = ["const SEED", "fn blocks", "fn close", "fn floats", "fn indices", "fn run", "fn try_run", "fn values_scores_and_comparisons_match_the_recorded_split_reference"]
+sha256 = "dd9b6d58590233ba0cecca710bff9ca9efdbd11f2a384e4beacc30346d9f10a5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/multinomial_offset_reference.rs"
-sha256 = "5124384f64a8287578c807695dfd7e3983ee9d30916e96bde80d83fd96f93fe4"
+items = ["fn a_location_shift_of_a_covariate_does_not_change_the_fitted_probabilities", "fn data", "fn design", "fn fit", "fn lcg", "fn probabilities", "fn score_residual"]
+sha256 = "5c0d821512382abbeeaac977f563e7295f2ad0491a64533fff39435d3ba89f5a"
 
 [[method_review.artifacts]]
 role = "reference"

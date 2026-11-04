@@ -99,7 +99,12 @@ fn complete_case_equals_the_run_on_the_complete_rows_and_reports_the_rest() {
 fn a_policy_this_route_cannot_execute_is_refused_even_on_complete_data() {
     let data = table(&chain(300));
     let error = run(&Notears::new().with_missing(MissingPolicy::BalancedPanel), &data).unwrap_err();
-    assert!(error.to_string().contains("missing_data.policy_not_applicable"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE),
+        "{error}"
+    );
 }
 
 #[test]

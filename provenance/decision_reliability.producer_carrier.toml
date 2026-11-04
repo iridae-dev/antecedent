@@ -29,9 +29,11 @@ record_sha256 = "6690a439a1622c5be2d578eabaad5fdcdd6d2aa487d3d1f8cecd49128cb0c8c
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/producer.rs"
-sha256 = "e3d0167cc2049c3baf564c76adf002e8fc361dd85f68c1ef3d8878d84cd9f5ee"
+items = ["enum JointLawDeclaration", "enum JointLawStanding", "enum ProducerKind", "enum ProducerOutput", "enum RolloutNoise", "fn as_str", "fn assess", "fn build", "fn carrier_label", "fn check_functional", "fn check_ranking", "fn check_reported", "fn cohort", "fn derive_uncertainty", "fn draws", "fn joint_law", "fn off_policy", "fn point_only_held", "fn producer", "fn rank", "fn reach_carrier", "fn require_named", "fn rollout", "struct CohortUtilityDraws", "struct OffPolicyReturnDraws", "struct PointOnlyOutput", "struct ProducerCarrier", "struct RolloutUtilityDraws"]
+sha256 = "6eb5ebe928d4b2e64157b655325d3453156e5436807098a464536b40475ee092"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability_producers.rs"
-sha256 = "d17742610fd6393b137b25f4f5e46ebb3f3daca8b900aba5ddc4a2b1c4ee41d0"
+items = ["fn a_point_only_cohort_mean_refuses_for_want_of_a_joint_law", "fn a_rollout_reported_value_the_draws_do_not_reproduce_is_refused", "fn changed_inputs_at_unchanged_shape_change_the_carrier_identity", "fn cohort_draws_that_disagree_with_the_reported_point_are_refused", "fn cohort_input", "fn cohort_utilities_from_one_law_reach_the_carrier_and_reproduce_the_reported_mean", "fn cohort_utilities_without_a_declared_shared_law_or_with_a_known_law_are_refused", "fn ctx", "fn implementation_keyed_rollouts_report_functionals_but_refuse_ranking", "fn off_policy_contributions_carry_the_expected_utility_only", "fn off_policy_input", "fn point_only_sequential_estimates_refuse_because_no_per_draw_utilities_were_kept", "fn rollout_input", "fn structurally_shared_rollout_noise_supports_ranking_to_the_carrier", "fn with_ranking"]
+sha256 = "0bf38fc3bf9a7315d8a7d4bb2a21e671e74d8bfdb52a07b1acdf0abb80c6936a"

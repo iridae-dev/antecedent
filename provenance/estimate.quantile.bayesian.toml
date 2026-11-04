@@ -38,17 +38,20 @@ record_sha256 = "10f212eb6ad740e90b653995f8e154eeddcfcd9634c0558d8cc8bc49e5d9b9b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/quantile_posterior.rs"
-sha256 = "b95852fdc95b7f7d0396f28ea6bbfe3a023480544d026d180100195e86942da5"
+items = ["const MAX_QUANTILE_POSTERIOR_DRAWS", "const MAX_UNRESOLVED_QUANTILE_SHARE", "const MIN_QUANTILE_POSTERIOR_DRAWS", "fn bin_counts", "fn cdf_mean", "fn draw_quantile", "fn randomized_quantile_posterior", "fn validate", "struct QuantilePosterior"]
+sha256 = "a59977ed19008f8cc32e00c1fa9cdab9008cf8431346dc7ce5b81138eed5e4bb"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/quantile.rs"
-sha256 = "18043a81ef1d13df5d4e7964ad0e48010b23ae3ff394d1a1409d6329c3a627cf"
+items = ["const MIN_QUANTILE_DENSITY", "fn invert_cdf_quantile"]
+sha256 = "173a9b0841fd133ee3a1ca2a9612181da6eea9f12b171ff567ce2ffeecc6f00a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/quantile_posterior_reference.rs"
-sha256 = "51491274bad2417d9f862f1b270333448b4f5971be2b3c1dfb1d0b902e20a172"
+items = ["fn arm_quantile_posteriors_match_the_exact_beta_integral", "fn empirical", "fn f", "fn floats"]
+sha256 = "cd882f195945491abd3587c5aa695f0326aa3abb103e755ca1e853a54295ad81"
 
 [[method_review.artifacts]]
 role = "reference"

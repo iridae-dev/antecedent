@@ -38,9 +38,11 @@ record_sha256 = "a66b80be2b05f980227d405e34f59f6633d50fd62db4add896be392b7bf2ec2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference.rs"
-sha256 = "c0f6109a74e91195861e83e8bf168a5cabe79abc033860917e9eb0971b6b936a"
+items = ["fn estimate_cluster_interference_total_with_inference", "struct ClusterTotalInterval", "struct InterferenceEstimate"]
+sha256 = "db8cc9a9b00dcf5342e1fc286d5a8ff19305a0d8ae78bb8afb1d19d861eee973"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/interference_interval_route.rs"
-sha256 = "68cc6f0b32eb664fc36fee835230efb08e48739b82b7a5e30ced25044eb2d537"
+items = ["const K", "const TREATED", "fn assert_support_round_trips_and_refuses_forgery", "fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spread", "fn cluster_bayesian_bootstrap_refuses_a_thin_arm_at_prepare", "fn cluster_fixture", "fn externally_estimated_observational_stays_point_only", "fn group_mean_contrast", "fn run", "fn supported_cluster_total_interval_round_trips_and_refuses_forgery", "fn supported_observational_known_interval_round_trips_and_refuses_forgery", "fn supported_saturation_interval_round_trips_and_refuses_forgery", "fn thin_cluster_total_cannot_forge_a_support"]
+sha256 = "ddf7fa47e8902614cbf952d989f9b226ea4bdb78f5d44f2ff85ebed0f2be23c4"

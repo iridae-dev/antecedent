@@ -40,12 +40,14 @@ record_sha256 = "0846a58a1374b82803f11ccee53cf743551ecc208b868ffaf71bd27c84dc8dd
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/conditional.rs"
-sha256 = "9354695138a4f7325ba9827e974f34c0320471ea338479b26f7926f63330e227"
+items = ["const MULTI_MODIFIER_REMEDY", "fn aipw_conditional_arm_scores", "fn binary_zero_one", "fn crossfit_substitution_record", "fn default", "fn estimate", "fn estimate_ate", "fn estimate_with_arm_scores", "fn estimate_with_means", "fn fit", "fn gram_inverse", "fn interaction", "fn inverse_weighted_leverage", "fn joint_modifier_record", "fn mean_response", "fn modifier_mean_variance", "fn ncols", "fn new", "fn plugin_arm_influence", "fn refuse_undeclared_levels", "fn with_means", "fn z_start", "struct ConditionalArmScores", "struct ConditionalLinearAdjustment", "struct InteractionFit", "struct InteractionLayout", "struct WeightedInteraction", "struct WeightedInteractionFit"]
+sha256 = "546f7c7e1047a10905f3a4400eeb3aa7b7753ca90a61001e9f68cc522f74ac8f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/conditional_reference.rs"
-sha256 = "aa50a3c00afad0a62239f2ec6dcf6705d702ce4abd7c5822b0ae72b444dc72d3"
+items = ["fn a_threshold_functional_is_refused_not_read_as_the_mean_contrast", "fn case", "fn declared_levels_modifiers_and_population_are_used_or_refused", "fn effect_standard_error_arm_means_and_influences_equal_the_multiprecision_fit", "fn floats", "fn near", "fn near_vec", "fn reference", "struct Case"]
+sha256 = "dce7ea2ebdcc845946b0077848b13801aa19ff4fa250218c5fcebe76dc8c4bed"
 
 [[method_review.artifacts]]
 role = "reference"

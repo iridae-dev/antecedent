@@ -73,7 +73,11 @@ fn projections_refuse_too_few_or_non_finite_draws_and_invalid_summaries() {
             refused,
             RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable)
         ));
-        assert_eq!(refused.to_string(), "recalc.bayesian_effect_unavailable", "{draws:?}");
+        assert_eq!(
+            refused.to_string(),
+            antecedent_core::reason_details::recalc::BAYESIAN_EFFECT_UNAVAILABLE,
+            "{draws:?}"
+        );
     }
     for (lo, hi) in [(0.0, 0.9), (0.1, 1.0), (0.6, 0.4), (0.5, 0.5), (f64::NAN, 0.9)] {
         let bad =
@@ -83,6 +87,10 @@ fn projections_refuse_too_few_or_non_finite_draws_and_invalid_summaries() {
             refused,
             RecalcRunError::Request(RecalcRequestCode::BayesianInvalidSummary)
         ));
-        assert_eq!(refused.to_string(), "recalc.bayesian_invalid_summary", "{lo} {hi}");
+        assert_eq!(
+            refused.to_string(),
+            antecedent_core::reason_details::recalc::BAYESIAN_INVALID_SUMMARY,
+            "{lo} {hi}"
+        );
     }
 }

@@ -433,7 +433,7 @@ impl SmoothedDoseUncertainty {
             (
                 DOSE_WITHHELD,
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
-                Some("dose_response.bootstrap_below_floor"),
+                Some(antecedent_core::reason_details::dose_response::BOOTSTRAP_BELOW_FLOOR),
             )
         } else {
             (DOSE_BOOTSTRAP_INTERVAL, "joint_outer_bootstrap", None)
@@ -624,7 +624,7 @@ pub fn parse_smoothed_dose_sampling(name: &str) -> Result<TrialSampling, Estimat
         "independent_samples" => Ok(TrialSampling::IndependentSamples),
         other => Err(refuse(
             antecedent_core::reason_code!("sampling_dependence_unknown"),
-            "dose_response.non_iid_design",
+            antecedent_core::reason_details::dose_response::NON_IID_DESIGN,
             &format!(
                 "sampling '{other}' is not a declared IID design; only nested_cohort and \
                  independent_samples are supported"
@@ -645,7 +645,7 @@ pub fn parse_smoothed_dose_target(name: &str) -> Result<(), EstimationError> {
         SMOOTHED_DOSE_TARGET => Ok(()),
         "cate" | "conditional" | "heterogeneous" | "simultaneous_band" | "uniform_band" => {
             Err(unsupported(
-                "dose_response.cate_or_simultaneous",
+                antecedent_core::reason_details::dose_response::CATE_OR_SIMULTANEOUS,
                 &format!(
                     "target '{name}' is conditional or simultaneous; only the pointwise \
                      population smoothed response is supported"
@@ -653,7 +653,7 @@ pub fn parse_smoothed_dose_target(name: &str) -> Result<(), EstimationError> {
             ))
         }
         other => Err(unsupported(
-            "dose_response.target_not_smoothed",
+            antecedent_core::reason_details::dose_response::TARGET_NOT_SMOOTHED,
             &format!(
                 "target '{other}' is not the fixed-bandwidth smoothed response psi_h; point \
                  curves, stochastic, coarsened, incremental and derivative targets are not \
@@ -672,7 +672,7 @@ pub(crate) fn parse_dose_density_provenance(name: &str) -> Result<(), Estimation
         return Ok(());
     }
     Err(unsupported(
-        "dose_response.estimated_dose_density",
+        antecedent_core::reason_details::dose_response::ESTIMATED_DOSE_DENSITY,
         &format!(
             "dose density provenance '{name}' is not known by design; an estimated \
              (generalized-propensity) density is not supported"
@@ -690,13 +690,13 @@ pub fn parse_smoothing_kernel(name: &str) -> Result<SmoothingKernel, EstimationE
         return Ok(SmoothingKernel::Epanechnikov);
     }
     Err(unsupported(
-        "dose_response.kernel_not_supported",
+        antecedent_core::reason_details::dose_response::KERNEL_NOT_SUPPORTED,
         &format!("kernel '{name}' is not supported; the estimand fixes the Epanechnikov kernel"),
     ))
 }
 
 fn bounds_refusal(message: &str) -> EstimationError {
-    unsupported("dose_response.bounds_exceeded", message)
+    unsupported(antecedent_core::reason_details::dose_response::BOUNDS_EXCEEDED, message)
 }
 
 /// Every grid window `[a - h, a + h]` lies inside the declared dose support; there are
@@ -709,7 +709,7 @@ pub(crate) fn check_grid_windows(
     for &a in query.grid.iter() {
         if a - h < lo || a + h > hi {
             return Err(support_refusal(
-                "dose_response.grid_outside_dose_support",
+                antecedent_core::reason_details::dose_response::GRID_OUTSIDE_DOSE_SUPPORT,
                 &format!(
                     "window [{}, {}] of grid dose {a} leaves the declared dose support \
                      [{lo}, {hi}]; boundary kernels are not supported",
@@ -751,7 +751,7 @@ fn check_learners(options: &SmoothedDoseOptions) -> Result<(), EstimationError> 
         spec.validate().map_err(crate::learn_nuisance::learn_err)?;
         if matches!(spec, LearnerSpec::NeuralNet(_)) {
             return Err(unsupported(
-                "dose_response.learner_not_portable",
+                antecedent_core::reason_details::dose_response::LEARNER_NOT_PORTABLE,
                 "the neural learner exports no portable predictor, so its predictions cannot \
                  be replayed bit for bit",
             ));
@@ -908,13 +908,13 @@ fn check_declared_rows(
     if let Some(groups) = &input.cluster {
         if groups.len() != n {
             return Err(declared_rows_refusal(
-                "dose_response.invalid_declared_rows",
+                antecedent_core::reason_details::dose_response::INVALID_DECLARED_ROWS,
                 &format!("{} cluster ids were declared for {n} rows", groups.len()),
             ));
         }
         if input.serial_lag.is_some() {
             return Err(declared_rows_refusal(
-                "dose_response.invalid_declared_rows",
+                antecedent_core::reason_details::dose_response::INVALID_DECLARED_ROWS,
                 "clusters and a serial lag are not offered together: a panel needs a unit and a time",
             ));
         }
@@ -922,7 +922,7 @@ fn check_declared_rows(
     if let Some(lag) = input.serial_lag {
         if lag == 0 || usize::try_from(lag).map_or(true, |lag| lag >= n) {
             return Err(declared_rows_refusal(
-                "dose_response.invalid_declared_rows",
+                antecedent_core::reason_details::dose_response::INVALID_DECLARED_ROWS,
                 &format!(
                     "the serial-dependence lag must be at least one and below the {n} rows; it \
                      is never silently capped"
@@ -934,7 +934,7 @@ fn check_declared_rows(
         && smoothed_dose_fold_assignment(input, options.folds).is_empty()
     {
         return Err(declared_rows_refusal(
-            "dose_response.declared_folds_unbalanced",
+            antecedent_core::reason_details::dose_response::DECLARED_FOLDS_UNBALANCED,
             "the declared clusters (kept whole in one fold) or row blocks leave some fold with \
              no source row or no target row, or fewer clusters than folds. Next attempt: fewer \
              folds, more or smaller clusters, or a lag-free declaration",
@@ -1013,7 +1013,7 @@ pub fn validate_smoothed_dose(
         }
         if !dose.is_finite() || !density.is_finite() || density <= 0.0 || dose < lo || dose > hi {
             return Err(support_refusal(
-                "dose_response.dose_density_invalid",
+                antecedent_core::reason_details::dose_response::DOSE_DENSITY_INVALID,
                 &format!(
                     "source row {i}: dose {dose} with known density {density} is not a \
                      positive density inside the declared support [{lo}, {hi}]"
@@ -1022,7 +1022,7 @@ pub fn validate_smoothed_dose(
         }
         if density < options.min_dose_density {
             return Err(support_refusal(
-                "dose_response.dose_density_floor",
+                antecedent_core::reason_details::dose_response::DOSE_DENSITY_FLOOR,
                 &format!(
                     "source row {i}: known dose density {density} is below the declared {}",
                     options.min_dose_density
@@ -1040,7 +1040,7 @@ pub fn validate_smoothed_dose(
         let support = local_support(query, input, a);
         if support.effective_sample_size < options.min_local_ess {
             return Err(support_refusal(
-                "dose_response.local_dose_ess",
+                antecedent_core::reason_details::dose_response::LOCAL_DOSE_ESS,
                 &format!(
                     "local dose effective sample size {} at grid dose {a} is below the \
                      declared {}",
@@ -1051,7 +1051,7 @@ pub fn validate_smoothed_dose(
         if support.distinct_doses < options.min_distinct_doses {
             return Err(refuse(
                 antecedent_core::reason_code!("treatment_support_too_discrete"),
-                "dose_response.dose_too_discrete",
+                antecedent_core::reason_details::dose_response::DOSE_TOO_DISCRETE,
                 &format!(
                     "{} distinct source doses carry kernel weight at grid dose {a}; at least \
                      {} are declared",
@@ -1130,7 +1130,7 @@ fn predict(
 
 fn not_portable(error: &antecedent_learn::LearnError) -> EstimationError {
     unsupported(
-        "dose_response.learner_not_portable",
+        antecedent_core::reason_details::dose_response::LEARNER_NOT_PORTABLE,
         &format!("a fitted nuisance exports no portable predictor: {error}"),
     )
 }
@@ -1423,7 +1423,7 @@ pub fn evaluate_smoothed_dose_models(
     let highest = membership.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     if lowest < options.min_membership_probability || membership.iter().any(|p| !p.is_finite()) {
         return Err(support_refusal(
-            "dose_response.membership_overlap",
+            antecedent_core::reason_details::dose_response::MEMBERSHIP_OVERLAP,
             &format!(
                 "out-of-fold membership probability {lowest} is below the declared {}",
                 options.min_membership_probability
@@ -1515,7 +1515,7 @@ pub fn evaluate_smoothed_dose_models(
         {
             return Err(refuse(
                 antecedent_core::reason_code!("transport_numerical_failure"),
-                "dose_response.quadrature_tolerance",
+                antecedent_core::reason_details::dose_response::QUADRATURE_TOLERANCE,
                 &format!(
                     "at grid dose {a} the {}-node and {}-node quadratures of a target row's \
                      fitted curve differ by up to {max_row_error}, above the declared tolerance \
@@ -2084,7 +2084,7 @@ pub fn smoothed_dose_estimator_menu(
             "not pathwise differentiable: bandwidth error enters the interval; not supported",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
-                Some("dose_response.target_not_smoothed"),
+                Some(antecedent_core::reason_details::dose_response::TARGET_NOT_SMOOTHED),
                 "the point curve is not the fixed-bandwidth smoothed response psi_h",
             ),
         ),
@@ -2096,7 +2096,7 @@ pub fn smoothed_dose_estimator_menu(
             "not supported: a second nuisance with its own calibration surface",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
-                Some("dose_response.estimated_dose_density"),
+                Some(antecedent_core::reason_details::dose_response::ESTIMATED_DOSE_DENSITY),
                 "the observational estimated-density path is not part of this cell",
             ),
         ),
@@ -2108,7 +2108,7 @@ pub fn smoothed_dose_estimator_menu(
             "not supported: no simultaneous or conditional claim",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
-                Some("dose_response.cate_or_simultaneous"),
+                Some(antecedent_core::reason_details::dose_response::CATE_OR_SIMULTANEOUS),
                 "simultaneous bands and conditional targets are not supported in this cell",
             ),
         ),
@@ -2193,7 +2193,7 @@ pub fn smoothed_dose_interval_internal(
     if options.bootstrap < SMOOTHED_DOSE_MIN_BOOTSTRAP {
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "dose_response.bootstrap_below_floor",
+            antecedent_core::reason_details::dose_response::BOOTSTRAP_BELOW_FLOOR,
             &format!(
                 "{} replicates is below the floor of {SMOOTHED_DOSE_MIN_BOOTSTRAP}",
                 options.bootstrap
@@ -2302,9 +2302,15 @@ mod tests {
             ("point_only", "no_interval_requested")
         );
         let low = SmoothedDoseUncertainty::for_request(1);
-        assert_eq!(low.detail.as_deref(), Some("dose_response.bootstrap_below_floor"));
+        assert_eq!(
+            low.detail.as_deref(),
+            Some(antecedent_core::reason_details::dose_response::BOOTSTRAP_BELOW_FLOOR)
+        );
         let one = SmoothedDoseUncertainty::for_request(1);
-        assert_eq!(one.detail.as_deref(), Some("dose_response.bootstrap_below_floor"));
+        assert_eq!(
+            one.detail.as_deref(),
+            Some(antecedent_core::reason_details::dose_response::BOOTSTRAP_BELOW_FLOOR)
+        );
         let requested = SmoothedDoseUncertainty::for_request(199);
         assert_eq!(
             (requested.status.as_str(), requested.reason.as_str()),

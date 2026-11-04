@@ -380,14 +380,14 @@ fn validate_config(config: &LatentClassConfig) -> Result<(), EstimationError> {
     if config.classes < 2 {
         return Err(refuse(
             reason_code!("population_not_estimable"),
-            "latent_class.degenerate_class",
+            antecedent_core::reason_details::latent_class::DEGENERATE_CLASS,
             "a single class is the ordinary regression, not a mixture; declare at least two classes",
         ));
     }
     if !config.assume_conditional_randomization {
         return Err(refuse(
             reason_code!("required_option_missing"),
-            "latent_class.randomization_not_declared",
+            antecedent_core::reason_details::latent_class::RANDOMIZATION_NOT_DECLARED,
             "declare that treatment is as-if randomized within class given the covariates",
         ));
     }
@@ -402,7 +402,7 @@ fn validate_config(config: &LatentClassConfig) -> Result<(), EstimationError> {
     if bad {
         return Err(refuse(
             invalid,
-            "latent_class.invalid_config",
+            antecedent_core::reason_details::latent_class::INVALID_CONFIG,
             "restarts, iterations, tolerance, weight, separation, floor or bootstrap count is out of range",
         ));
     }
@@ -438,20 +438,24 @@ fn validate_data(
     if data.treatment.len() != n || data.covariates.iter().any(|c| c.len() != n) {
         return Err(refuse(
             invalid,
-            "latent_class.length_mismatch",
+            antecedent_core::reason_details::latent_class::LENGTH_MISMATCH,
             "outcome, treatment and covariate columns must share one length",
         ));
     }
     let finite = data.outcome.iter().chain(data.treatment).all(|v| v.is_finite())
         && data.covariates.iter().all(|c| c.iter().all(|v| v.is_finite()));
     if !finite {
-        return Err(refuse(invalid, "latent_class.non_finite_input", "inputs must be finite"));
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::latent_class::NON_FINITE_INPUT,
+            "inputs must be finite",
+        ));
     }
     let d = p + 2;
     if n < config.classes.saturating_mul(d + 1) {
         return Err(refuse(
             invalid,
-            "latent_class.too_few_rows",
+            antecedent_core::reason_details::latent_class::TOO_FEW_ROWS,
             "fewer rows than classes times regression dimension plus one",
         ));
     }
@@ -459,7 +463,7 @@ fn validate_data(
         if labels.len() != n || labels.iter().any(|&l| l >= config.classes) {
             return Err(refuse(
                 invalid,
-                "latent_class.invalid_config",
+                antecedent_core::reason_details::latent_class::INVALID_CONFIG,
                 "initial labels must give one label below the class count per row",
             ));
         }
@@ -477,14 +481,14 @@ fn validate_data(
     if data.treatment.iter().all(|v| v.total_cmp(&first) == Ordering::Equal) {
         return Err(refuse(
             reason_code!("effect_not_identified"),
-            "latent_class.treatment_constant",
+            antecedent_core::reason_details::latent_class::TREATMENT_CONSTANT,
             "the treatment does not vary, so no class effect is identified",
         ));
     }
     if distinct_design_points(&problem) < d + config.classes - 1 {
         return Err(refuse(
             reason_code!("design_rank_deficient"),
-            "latent_class.design_support_too_small",
+            antecedent_core::reason_details::latent_class::DESIGN_SUPPORT_TOO_SMALL,
             "too few distinct treatment and covariate points to identify the mixture",
         ));
     }
@@ -493,7 +497,7 @@ fn validate_data(
     if variance.is_nan() || variance <= 0.0 {
         return Err(refuse(
             reason_code!("population_not_estimable"),
-            "latent_class.constant_outcome",
+            antecedent_core::reason_details::latent_class::CONSTANT_OUTCOME,
             "the outcome is constant, so no class structure exists",
         ));
     }
@@ -736,18 +740,18 @@ fn best_fit(
         Some(fit) => Ok((fit, attempted, succeeded)),
         None if degenerate == attempted => Err(refuse(
             reason_code!("population_not_estimable"),
-            "latent_class.degenerate_class",
+            antecedent_core::reason_details::latent_class::DEGENERATE_CLASS,
             "every start collapsed a class: the data show no separable class structure \
              (a single regime, a noise-free fit or a class too small to estimate)",
         )),
         None if non_monotone > 0 => Err(refuse(
             reason_code!("mechanism_fit_not_converged"),
-            "latent_class.likelihood_not_monotone",
+            antecedent_core::reason_details::latent_class::LIKELIHOOD_NOT_MONOTONE,
             "the EM log-likelihood decreased; the numerical fit is unreliable",
         )),
         None => Err(refuse(
             reason_code!("mechanism_fit_not_converged"),
-            "latent_class.not_converged",
+            antecedent_core::reason_details::latent_class::NOT_CONVERGED,
             "no start converged within the iteration bound; raise the bound or the tolerance",
         )),
     }
@@ -875,7 +879,7 @@ type Replicate = (Vec<f64>, Vec<f64>, f64);
 fn cancelled_fit() -> EstimationError {
     refuse(
         reason_code!("cancelled_no_claim"),
-        "latent_class.cancelled",
+        antecedent_core::reason_details::latent_class::CANCELLED,
         "the latent-class fit was cancelled; no estimate is reported",
     )
 }
@@ -971,7 +975,7 @@ fn bootstrap_se(
     if succeeded < 2 {
         return Err(refuse(
             reason_code!("mechanism_fit_not_converged"),
-            "latent_class.not_converged",
+            antecedent_core::reason_details::latent_class::NOT_CONVERGED,
             "fewer than two bootstrap replicates converged to a non-degenerate fit",
         ));
     }
@@ -1090,14 +1094,14 @@ fn check_identification(
     if params.weights.iter().any(|&w| w < config.min_class_weight) {
         return Err(refuse(
             weak,
-            "latent_class.weak_class",
+            antecedent_core::reason_details::latent_class::WEAK_CLASS,
             "a class weight is below the declared minimum class weight",
         ));
     }
     if separation < config.min_separation {
         return Err(refuse(
             weak,
-            "latent_class.weak_class",
+            antecedent_core::reason_details::latent_class::WEAK_CLASS,
             "the classes overlap: the mean largest posterior responsibility is below the \
              declared minimum separation",
         ));

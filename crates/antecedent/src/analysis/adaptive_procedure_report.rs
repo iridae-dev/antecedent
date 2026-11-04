@@ -227,62 +227,62 @@ pub struct ProcedureSimulationReport {
 
 fn premise_remedy(detail: &str) -> &'static str {
     match detail {
-        "adaptive_inference.posterior_premise_outcome_dependent_delay" => {
+        antecedent_core::reason_details::adaptive_inference::POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY => {
             "model the outcome-dependent loss explicitly (a selection model) or use a route that does not condition on observed counts alone"
         }
-        "adaptive_inference.fixed_sample_design_adaptive" => {
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE => {
             "analyse an adaptive procedure with the posterior, adaptive-weighting or anytime-valid paradigm"
         }
-        "adaptive_inference.fixed_sample_data_dependent_stopping" => {
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DATA_DEPENDENT_STOPPING => {
             "analyse a stopped procedure with a paradigm that accounts for the stopping time"
         }
-        "adaptive_inference.group_sequential_assignment_adaptive" => {
+        antecedent_core::reason_details::adaptive_inference::GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE => {
             "use a fixed assignment with pre-specified boundaries, or a paradigm valid under adaptive assignment"
         }
-        "adaptive_inference.outcome_dependent_delay" => {
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY => {
             "declare an ignorable delay and loss, or model the dependence of loss on the outcome"
         }
-        "adaptive_inference.anytime_premise_contexts" => {
+        antecedent_core::reason_details::adaptive_inference::ANYTIME_PREMISE_CONTEXTS => {
             "analyse one context at a time with a fixed within-context assignment, or use a paradigm for contextual assignment"
         }
-        "adaptive_inference.inversion_premise_contexts" => "declare a single-context procedure",
-        "adaptive_inference.independence_assumed_for_dependent_measurements" => {
+        antecedent_core::reason_details::adaptive_inference::INVERSION_PREMISE_CONTEXTS => "declare a single-context procedure",
+        antecedent_core::reason_details::adaptive_inference::INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS => {
             "analyse the unit-level summaries with a cluster-robust variance, or declare the within-unit dependence as zero if the measurements are independent"
         }
-        "adaptive_inference.repeated_measures_paradigm_not_derived" => {
+        antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_PARADIGM_NOT_DERIVED => {
             "request the fixed-sample paradigm for a fixed assignment or the adaptive-weighting paradigm for an adaptive one; other paradigms are separate cells that are not derived for repeated measures"
         }
-        "adaptive_inference.paradigm_rule_mismatch" => {
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH => {
             "declare the stopping rule the paradigm presumes: boundaries over the looks for group-sequential inference, a posterior expected-loss or futility rule for decision-theoretic stopping"
         }
-        "adaptive_inference.analysis_route_mismatch" => {
+        antecedent_core::reason_details::adaptive_inference::ANALYSIS_ROUTE_MISMATCH => {
             "declare the final analysis whose route is the requested paradigm's"
         }
-        "adaptive_inference.guarantee_not_transferable" => {
+        antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE => {
             "derive the guarantee for the cell in question; evidence for one cell is not evidence for another"
         }
-        "adaptive_inference.exact_law_unavailable" => {
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_UNAVAILABLE => {
             "use the simulated whole-procedure law, which has no closed form for an adaptive assignment or a weighted score"
         }
-        "adaptive_inference.borrowing_fixed_after_first_look" => {
+        antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK => {
             "declare the borrowing before recruitment and keep it: a new borrowing plan is a new declaration, not an amendment of a procedure that has made a look"
         }
-        "adaptive_inference.assignment_not_replayed" => {
+        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED => {
             "retain the allocation probabilities the declared procedure computed, or declare the priors, correlation, exploration floor and decisions the procedure actually ran under"
         }
-        "adaptive_inference.stopping_not_replayed" => {
+        antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED => {
             "retain the looks the declared decisions performed, or declare the decisions the procedure actually ran under"
         }
-        "adaptive_inference.batch_incomplete" => {
+        antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE => {
             "retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed"
         }
-        "adaptive_inference.selection_not_ignorable" => {
+        antecedent_core::reason_details::adaptive_inference::SELECTION_NOT_IGNORABLE => {
             "model the selection jointly with the outcome, or randomize independently of unobserved quantities"
         }
-        "adaptive_inference.arm_not_observed" => {
+        antecedent_core::reason_details::adaptive_inference::ARM_NOT_OBSERVED => {
             "observe a completed unit in both contrast arms; a prior alone does not identify the contrast"
         }
-        "adaptive_inference.structure_incomplete" => {
+        antecedent_core::reason_details::adaptive_inference::STRUCTURE_INCOMPLETE => {
             "declare the within-unit variance and a valid correlation or hierarchy"
         }
         _ => {
@@ -294,10 +294,10 @@ fn premise_remedy(detail: &str) -> &'static str {
 /// Details whose premise is an assumption of the retained history or of a
 /// frozen declaration, not the support of a cell.
 const ASSUMPTION_DETAILS: [&str; 4] = [
-    "adaptive_inference.borrowing_fixed_after_first_look",
-    "adaptive_inference.assignment_not_replayed",
-    "adaptive_inference.stopping_not_replayed",
-    "adaptive_inference.batch_incomplete",
+    antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK,
+    antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED,
+    antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED,
+    antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE,
 ];
 
 /// Map a numerical refusal to the facade's coded refusal.
@@ -320,7 +320,8 @@ pub(super) fn refusal_of(error: &AdaptiveInferenceError) -> AdaptiveInferenceRef
         AdaptiveInferenceError::Positivity { unit, arm, probability, floor } => {
             AdaptiveInferenceRefusal {
                 code: antecedent_core::reason_code!("adaptive_assumption_violated"),
-                detail: "adaptive_inference.positivity_floor".to_owned(),
+                detail: antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+                    .to_owned(),
                 message: format!(
                     "arm {arm} had assignment probability {probability} below the floor {floor} at unit {unit} of the simulated procedure: the weighted estimator is not supported under a deterministic or near-deterministic rule; use a randomized assignment"
                 ),
@@ -328,25 +329,27 @@ pub(super) fn refusal_of(error: &AdaptiveInferenceError) -> AdaptiveInferenceRef
         }
         AdaptiveInferenceError::Limit(what) => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.procedure_limit_exceeded".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::PROCEDURE_LIMIT_EXCEEDED
+                .to_owned(),
             message: format!(
                 "{what}; reduce the units, looks, cells or delay of the declared procedure, or use the simulation route"
             ),
         },
         AdaptiveInferenceError::Numerical(what) => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.numerical_failure".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::NUMERICAL_FAILURE
+                .to_owned(),
             message: format!("{what}; no value is reported"),
         },
         AdaptiveInferenceError::Cancelled => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("cancelled_no_claim"),
-            detail: "adaptive_inference.cancelled".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::CANCELLED.to_owned(),
             message: "cancelled before a result was formed; this is not a verdict on the data"
                 .to_owned(),
         },
         other => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.input_invalid".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
             message: other.to_string(),
         },
     }
@@ -470,7 +473,7 @@ impl AdaptiveProcedure {
                 admit(spec, UncertaintyParadigm::FrequentistGroupSequential).map_err(fail)?;
                 let StoppingRule::WaldBoundaries { critical, sidedness } = spec.stopping() else {
                     return Err(refusal_of(&AdaptiveInferenceError::PremiseFailed {
-                        detail: "adaptive_inference.paradigm_rule_mismatch",
+                        detail: antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH,
                         message: "group-sequential inference needs declared boundaries over the looks",
                     }));
                 };

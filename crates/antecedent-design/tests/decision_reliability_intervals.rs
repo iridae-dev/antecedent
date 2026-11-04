@@ -436,7 +436,10 @@ fn an_effective_sample_size_below_the_floor_refuses_with_a_typed_detail() {
     ));
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "decision_reliability.effective_sample_size_too_small");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL
+    );
     assert!(refusal.remedy.is_some());
 }
 

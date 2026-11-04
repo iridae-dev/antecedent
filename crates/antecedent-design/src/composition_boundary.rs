@@ -708,84 +708,84 @@ impl BoundaryError {
         let pair = |left: &String, right: &String| format!("{left}~{right}");
         match self {
             Self::InvalidInput(why) => {
-                refusal(invalid, "composition_boundary.invalid_input").expected(*why).build()
+                refusal(invalid, antecedent_core::reason_details::composition_boundary::INVALID_INPUT).expected(*why).build()
             }
             Self::Artifact(error) => {
-                refusal(invalid, "composition_boundary.artifact_rebuild_failed")
+                refusal(invalid, antecedent_core::reason_details::composition_boundary::ARTIFACT_REBUILD_FAILED)
                     .supplied(error.to_string())
                     .build()
             }
             Self::MetadataOnlyNativeClaim { input } => {
-                refusal(unverifiable, "composition_boundary.metadata_only_native_claim")
+                refusal(unverifiable, antecedent_core::reason_details::composition_boundary::METADATA_ONLY_NATIVE_CLAIM)
                     .offending(input.clone())
                     .remedy("supply a native execution record for this provider and snapshot")
                     .build()
             }
             Self::NativeRequired { input } => {
-                refusal(unverifiable, "composition_boundary.native_required")
+                refusal(unverifiable, antecedent_core::reason_details::composition_boundary::NATIVE_REQUIRED)
                     .offending(input.clone())
                     .remedy("supply a native execution record, or relax the requirement")
                     .build()
             }
             Self::VerificationReceiptMissing { input } => refusal(
                 antecedent_core::reason_code!("external_verification_failed"),
-                "composition_boundary.verification_receipt_missing",
+                antecedent_core::reason_details::composition_boundary::VERIFICATION_RECEIPT_MISSING,
             )
             .offending(input.clone())
             .remedy("supply an exact-request verification receipt for this object")
             .build(),
             Self::Eval(error) => at_stage(error.to_refusal(), "compose"),
             Self::UnsupportedActions { actions } => {
-                refusal(unsatisfied, "composition_boundary.unsupported_action_not_comparable")
+                refusal(unsatisfied, antecedent_core::reason_details::composition_boundary::UNSUPPORTED_ACTION_NOT_COMPARABLE)
                     .offending(actions.join(","))
                     .remedy("compare supported actions, or supply the missing coordinates")
                     .build()
             }
             Self::MeanIsNotADistribution { action } => {
-                refusal(unsatisfied, "composition_boundary.mean_is_not_a_distribution")
+                refusal(unsatisfied, antecedent_core::reason_details::composition_boundary::MEAN_IS_NOT_A_DISTRIBUTION)
                     .offending(action.clone())
                     .remedy("supply an aligned joint law for this functional")
                     .build()
             }
             Self::PairedDrawsAcrossSources => refusal(
                 antecedent_core::reason_code!("joint_law_required"),
-                "composition_boundary.paired_draws_across_sources",
+                antecedent_core::reason_details::composition_boundary::PAIRED_DRAWS_ACROSS_SOURCES,
             )
             .remedy("supply one aligned joint law covering every compared action")
             .build(),
             Self::OperationNotDeclared => {
-                refusal(invalid, "composition_boundary.operation_not_declared")
+                refusal(invalid, antecedent_core::reason_details::composition_boundary::OPERATION_NOT_DECLARED)
                     .remedy("declare pooling, borrowing, transport or evidence reuse")
                     .build()
             }
             Self::SharedEvidenceNotIndependent { left, right } => {
-                refusal(shared, "composition_boundary.shared_evidence_not_independent")
+                refusal(shared, antecedent_core::reason_details::composition_boundary::SHARED_EVIDENCE_NOT_INDEPENDENT)
                     .offending(pair(left, right))
                     .remedy("declare a covariance or joint-law route, or use another operation")
                     .build()
             }
             Self::UnknownDependence { left, right } => {
-                refusal(dependence, "composition_boundary.unknown_dependence_is_not_independence")
+                refusal(dependence, antecedent_core::reason_details::composition_boundary::UNKNOWN_DEPENDENCE_IS_NOT_INDEPENDENCE)
                     .offending(pair(left, right))
                     .remedy("declare how the two inputs depend on each other")
                     .build()
             }
             Self::DependenceRouteNotSupported { left, right } => {
-                refusal(dependence, "composition_boundary.dependence_route_not_supported")
+                refusal(dependence, antecedent_core::reason_details::composition_boundary::DEPENDENCE_ROUTE_NOT_SUPPORTED)
                     .offending(pair(left, right))
                     .remedy("name an aligned joint-law input that is one of the pair")
                     .build()
             }
             Self::ConflictingAtomsNotAveraged => {
-                refusal(shared, "composition_boundary.conflicting_atoms_not_averaged")
+                refusal(shared, antecedent_core::reason_details::composition_boundary::CONFLICTING_ATOMS_NOT_AVERAGED)
                     .remedy("declare a probability for every atom, or report each atom")
                     .build()
             }
             Self::InvalidAtomProbabilities => {
-                refusal(unsatisfied, "composition_boundary.atom_probabilities_invalid").build()
+                refusal(unsatisfied, antecedent_core::reason_details::composition_boundary::ATOM_PROBABILITIES_INVALID).build()
             }
             Self::UnknownInput(id) => {
-                refusal(invalid, "composition_boundary.unknown_input").offending(id.clone()).build()
+                refusal(invalid, antecedent_core::reason_details::composition_boundary::UNKNOWN_INPUT).offending(id.clone()).build()
             }
         }
     }
@@ -849,8 +849,12 @@ impl CoordinateIssue {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::NotInSource => "composition_boundary.coordinate_missing",
-            Self::BelowSupport(_) => "composition_boundary.coordinate_unsupported",
+            Self::NotInSource => {
+                antecedent_core::reason_details::composition_boundary::COORDINATE_MISSING
+            }
+            Self::BelowSupport(_) => {
+                antecedent_core::reason_details::composition_boundary::COORDINATE_UNSUPPORTED
+            }
         }
     }
 }
@@ -881,9 +885,11 @@ impl UnevaluatedReason {
     pub const fn detail(self) -> &'static str {
         match self {
             Self::NonAffineUtilityNeedsJointLaw => {
-                "composition_boundary.non_affine_needs_joint_law"
+                antecedent_core::reason_details::composition_boundary::NON_AFFINE_NEEDS_JOINT_LAW
             }
-            Self::OutcomeLawNeedsJointLaw => "composition_boundary.outcome_law_needs_joint_law",
+            Self::OutcomeLawNeedsJointLaw => {
+                antecedent_core::reason_details::composition_boundary::OUTCOME_LAW_NEEDS_JOINT_LAW
+            }
         }
     }
 }

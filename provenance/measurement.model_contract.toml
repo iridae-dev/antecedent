@@ -35,4 +35,5 @@ record_sha256 = "dc8fdb7aa39b734cad8c2c0963bcbceace1bcf33ea4313115dc1945a8b4a8c8
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/measurement.rs"
-sha256 = "fa0c36bc67e98c88963e102195174efc2dbcf7aab6f20496831dd1ec7f9d8339"
+items = ["module"]
+sha256 = "735779e4cbeacd37dc454e86fb0343b54d6d1b9b941c8766238236971b3d847f"

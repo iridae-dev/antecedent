@@ -39,7 +39,14 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/functional_distribution.rs",
-          "sha256": "a052777d984cab501066d3ee73c66ba7554be379d45517b2b2b4a5f436a9b583"
+          "items": [
+            "enum RowResampling",
+            "fn binary_confounding_table",
+            "fn default",
+            "fn n",
+            "fn new"
+          ],
+          "sha256": "fc7130fce18d867dad0a486898bda4c109099016c1fe6d11969aa5a81ef31ae1"
         }
       ],
       "sources": [],

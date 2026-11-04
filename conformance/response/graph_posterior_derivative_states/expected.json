@@ -56,7 +56,31 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs",
-          "sha256": "b342981f51a6adc6c9260995ff880413e09a4573132f6a05f7e4240753c3567d"
+          "items": [
+            "const CONFOUNDED_EDGES",
+            "const CYCLIC_EDGES",
+            "const NO_PATH_EDGES",
+            "const PLAIN_EDGES",
+            "const ROWS",
+            "fn a_posterior_atom_without_a_directed_path_contributes_the_structural_zero",
+            "fn cases",
+            "fn expected_estimator",
+            "fn fixture",
+            "fn frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured",
+            "fn graph_posterior_derivative_lost_mass_is_stated_and_the_identified_mixture_is_the_truth",
+            "fn graph_posterior_derivative_mixtures_and_refuter_states_known_truth",
+            "fn graph_posterior_derivative_planted_off_support_point_is_detected",
+            "fn number",
+            "fn numbers",
+            "fn point",
+            "fn posterior",
+            "fn published",
+            "fn report",
+            "fn study",
+            "fn table",
+            "fn v"
+          ],
+          "sha256": "f50dadac6d0633b6633a59fac87a134098e9ce805962f79d52832f27dd1a3f77"
         }
       ],
       "fixture_payload_sha256": "26a8cc79672d7b22fe4b495b568dca176fab17aa1c00270c074a22eb235096ea"

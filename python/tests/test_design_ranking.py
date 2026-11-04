@@ -13,6 +13,7 @@ design_ranking_artifact}.rs``, derived by hand and not read from the code under 
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import design as dr
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
@@ -222,9 +223,12 @@ def test_every_update_mode_executes_end_to_end() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "detail"),
     [
-        ({"attested_candidate_id": "someone-else"}, "signal_provider.candidate_mismatch"),
-        ({"attested_prior_id": "other-prior"}, "signal_provider.prior_mismatch"),
-        ({"attested_sample_size": 3}, "signal_provider.sample_size_mismatch"),
+        (
+            {"attested_candidate_id": "someone-else"},
+            reason_details.signal_provider.CANDIDATE_MISMATCH,
+        ),
+        ({"attested_prior_id": "other-prior"}, reason_details.signal_provider.PRIOR_MISMATCH),
+        ({"attested_sample_size": 3}, reason_details.signal_provider.SAMPLE_SIZE_MISMATCH),
     ],
 )
 def test_wrong_candidate_prior_or_sample_id_refuses(kwargs: dict[str, object], detail: str) -> None:
@@ -247,7 +251,7 @@ def test_predictive_law_without_a_coherent_update_refuses() -> None:
     )
     with pytest.raises(dr.SignalProviderRefusal) as caught:
         dr.evsi(GUESS, dr.Candidate("study", 1, _external(incoherent)), signal=_signal())
-    assert caught.value.detail == "signal_provider.posterior_incoherent"
+    assert caught.value.detail == reason_details.signal_provider.POSTERIOR_INCOHERENT
     unnormalised = dr.ExternalLaw.likelihood(
         states=[0.0, 1.0],
         statistics=[0.0, 1.0],
@@ -255,7 +259,7 @@ def test_predictive_law_without_a_coherent_update_refuses() -> None:
     )
     with pytest.raises(dr.SignalProviderRefusal) as caught:
         dr.evsi(GUESS, dr.Candidate("study", 1, _external(unnormalised)), signal=_signal())
-    assert caught.value.detail == "signal_provider.law_incoherent"
+    assert caught.value.detail == reason_details.signal_provider.LAW_INCOHERENT
 
 
 def test_a_request_without_lineage_or_independence_refuses() -> None:
@@ -267,7 +271,7 @@ def test_a_request_without_lineage_or_independence_refuses() -> None:
     )
     with pytest.raises(dr.SignalProviderRefusal) as caught:
         dr.evsi(_bet(), _bet_candidate("native", dr.BinomialSignal()), signal=bad)
-    assert caught.value.detail == "signal_provider.missing_lineage"
+    assert caught.value.detail == reason_details.signal_provider.MISSING_LINEAGE
     with pytest.raises(CausalValueError):
         dr.evsi(_bet(), _bet_candidate("native", dr.BinomialSignal()))  # no signal request
 
@@ -302,16 +306,16 @@ def test_currency_without_a_mapping_and_missing_maps_refuse() -> None:
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         _rank([_guess_candidate("study", 0.75, 0.1, "usd")], cost_map=UTILITY_MAP)
     assert caught.value.reason_code == "design_cost_units_mismatch"
-    assert caught.value.detail == "evsi.cost_units_mismatch"
+    assert caught.value.detail == reason_details.evsi.COST_UNITS_MISMATCH
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         _rank(
             [_guess_candidate("study", 0.75, 0.1, "usd")],
             cost_map=dr.CostMap("usd", "qaly", 1.0),
         )
-    assert caught.value.detail == "evsi.cost_units_mismatch"
+    assert caught.value.detail == reason_details.evsi.COST_UNITS_MISMATCH
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         _rank([_guess_candidate("study", 0.75, 0.1, "usd")], require_net_value=True)
-    assert caught.value.detail == "evsi.cost_map_required"
+    assert caught.value.detail == reason_details.evsi.COST_MAP_REQUIRED
 
 
 def test_changed_terminal_action_set_refuses() -> None:
@@ -322,7 +326,7 @@ def test_changed_terminal_action_set_refuses() -> None:
     )
     with pytest.raises(dr.DesignRankingRefusal) as caught:
         dr.evsi(_bet(), _bet_candidate("values", _external(other_actions)), signal=_signal())
-    assert caught.value.detail == "evsi.action_set_changed"
+    assert caught.value.detail == reason_details.evsi.ACTION_SET_CHANGED
     assert caught.value.reason_code == "decision_contract_unsatisfied"
     incoherent = dr.ExternalLaw.decision_values(
         branch_probabilities=[0.3125, 0.375, 0.3125],
@@ -331,7 +335,7 @@ def test_changed_terminal_action_set_refuses() -> None:
     )
     with pytest.raises(dr.DesignRankingRefusal) as caught:
         dr.evsi(_bet(), _bet_candidate("values", _external(incoherent)), signal=_signal())
-    assert caught.value.detail == "evsi.decision_values_incoherent"
+    assert caught.value.detail == reason_details.evsi.DECISION_VALUES_INCOHERENT
 
 
 def test_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() -> None:
@@ -464,11 +468,11 @@ def test_altered_signal_or_update_refuses_replay_against_retained_identities() -
         require_success(
             dr.consume(bytes(altered.export()), expected_identity=original.expectation())
         )
-    assert caught.value.detail == "design_ranking.identity_mismatch"
+    assert caught.value.detail == reason_details.design_ranking.IDENTITY_MISMATCH
     signals_only = dr.Expectation(signal_identities=original.expectation().signal_identities)
     with pytest.raises(dr.DesignRankingRefusal) as caught:
         require_success(dr.consume(bytes(altered.export()), expected_identity=signals_only))
-    assert caught.value.detail == "design_ranking.signal_mismatch"
+    assert caught.value.detail == reason_details.design_ranking.SIGNAL_MISMATCH
     assert caught.value.offending == "cand-1"
     # An altered RNG seed is a different exact request, hence a different fingerprint.
     reseeded_spec = dr.SignalSpec(
@@ -497,7 +501,7 @@ def test_overlapping_source_data_and_incompatible_cost_units_refuse() -> None:
     overlapping = [_guess_candidate("cand-1", 0.75, reused_observations=("obs-prior",))]
     with pytest.raises(dr.SourceOverlapRefusal) as caught:
         _rank(overlapping, cost_map=UTILITY_MAP, prior_observations=("obs-prior",))
-    assert caught.value.detail == "evsi.source_overlap"
+    assert caught.value.detail == reason_details.evsi.SOURCE_OVERLAP
     assert caught.value.offending == "obs-prior"
     ok = _rank(
         [_guess_candidate("cand-1", 0.75, reused_observations=("obs-future",))],
@@ -512,7 +516,7 @@ def test_overlapping_source_data_and_incompatible_cost_units_refuse() -> None:
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         require_success(dr.consume(bytes(ranking.export()), expected_identity=other))
     assert caught.value.reason_code == "design_cost_units_mismatch"
-    assert caught.value.detail == "design_ranking.cost_units_mismatch"
+    assert caught.value.detail == reason_details.design_ranking.COST_UNITS_MISMATCH
     with pytest.raises(dr.CostUnitsRefusal):
         require_success(
             dr.consume(bytes(ranking.export()), expected_identity=dr.Expectation(no_cost_map=True))
@@ -582,7 +586,7 @@ def test_structural_order_is_preserved_when_no_probabilistic_model_is_supported(
         dr.rank_structural(
             [dr.StructuralCandidate("a", True, 1), dr.StructuralCandidate("a", False, 2)]
         )
-    assert caught.value.detail == "design_ranking.duplicate_candidate"
+    assert caught.value.detail == reason_details.design_ranking.DUPLICATE_CANDIDATE
 
 
 # -- the unified surface: basis, typed plans, gate --------------------------------------------

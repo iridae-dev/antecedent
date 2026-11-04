@@ -29,6 +29,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_verification as cv
 from antecedent import decision
 from antecedent import evidence_ledger as el
@@ -160,7 +161,7 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     )  # fmt: skip
     assert (error.reason_code, error.detail) == (
         "evidence_double_counted",
-        "evidence_ledger.diagonal_covariance_shared_rows",
+        reason_details.evidence_ledger.DIAGONAL_COVARIANCE_SHARED_ROWS,
     )
     assert ledger.head == head
 
@@ -328,7 +329,7 @@ def test_new_observations_revalidate_the_claim_graph_and_the_decision_is_reevalu
     error = refused(lambda: world.ledger.synthesis(before), el.EvidenceLedgerRefusal)
     assert (error.reason_code, error.detail) == (
         "evidence_source_withdrawn",
-        "evidence_ledger.result_not_valid",
+        reason_details.evidence_ledger.RESULT_NOT_VALID,
     )
 
     # Recompute on the grown study, naming the result replaced:
@@ -398,13 +399,13 @@ def test_duplicated_evidence_cannot_be_counted_twice(tmp_path):
     error = refused(lambda: rb.pool(ledger, "twice", [(a, est, var), (copy, est, var)]))
     assert (error.reason_code, error.detail) == (
         "evidence_double_counted",
-        "evidence_ledger.reentry_duplicate",
+        reason_details.evidence_ledger.REENTRY_DUPLICATE,
     )
     # The same source listed twice.
     error = refused(lambda: rb.pool(ledger, "listed_twice", [(a, est, var), (a, est, var)]))
     assert (error.reason_code, error.detail) == (
         "evidence_double_counted",
-        "evidence_ledger.repeated_source",
+        reason_details.evidence_ledger.REPEATED_SOURCE,
     )
     assert ledger.head == head
     assert ledger.results == ()
@@ -570,7 +571,7 @@ def test_a_claim_graph_verified_at_another_ledger_state_is_refused_by_the_consum
     )
     assert (error.reason_code, error.detail) == (
         "invalid_argument",
-        "composition_verification.ledger_mismatch",
+        reason_details.composition_verification.LEDGER_MISMATCH,
     )
 
 
@@ -613,7 +614,7 @@ def test_an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end(
     )
     assert (error.reason_code, error.detail) == (
         "evidence_source_withdrawn",
-        "evidence_ledger.source_withdrawn",
+        reason_details.evidence_ledger.SOURCE_WITHDRAWN,
     )
 
 

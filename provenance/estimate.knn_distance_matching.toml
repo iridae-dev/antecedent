@@ -40,22 +40,26 @@ record_sha256 = "121aeb7a985a2808f4d3e66d438ab09b4157924af79579a7454d85cb3eeff1d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/knn.rs"
-sha256 = "1a176d9faaab79843689fa0ff00e631e1b81a9c19ee6a475e7291b81da3ea5e2"
+items = ["fn fit", "fn new", "fn prepare", "struct KnnDistanceMatching"]
+sha256 = "53c49608841fb60c789558f77468d2fee9253729eb6a4d9861de67e299c1bdd1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
-sha256 = "1c83542bfff721d9d767671869ca147cd6c84f525279d9d9eaacfcc482a5b085"
+items = ["const BOUNDING_BOX_MIN_DIMENSION", "const DIRECT_RUN", "const MATCH_CANCELLATION_CHUNK", "enum CaliperScale", "enum SpatialIndex", "fn add_donor_usage", "fn analytic_se", "fn bias_adjusted_coefficient_norm", "fn check_label_lengths", "fn coefficients", "fn control_to_treated", "fn custom_unit_coefficients", "fn default", "fn donor_usage", "fn fit", "fn fit_linear_mean", "fn for_dimension", "fn from_donors", "fn match_diffs", "fn match_diffs_with", "fn match_nearest_k", "fn match_nearest_tied", "fn match_scalar_sorted", "fn match_target", "fn match_with_box_tree", "fn matched_outcome_diffs", "fn matched_point_effect", "fn matching_contrast", "fn mean_noise_inflation", "fn nearest", "fn new", "fn population_matching_se", "fn population_se", "fn predict_linear", "fn prepare", "fn quote_exact_matching", "fn require_match_counts", "fn require_read_inference", "fn set_sizes", "fn treated_to_control", "fn validate_caliper", "fn weighted_abadie_imbens_se", "fn with_caliper", "fn with_overlap", "fn with_sampling_weights", "struct MatchSide", "struct MatchedArms", "struct MatchedDiffs", "struct MatchedEffects", "struct MatchedEstimate", "struct MatchedVariance", "struct MatchingSample", "struct SortedScalarIndex", "struct TiedDonors"]
+sha256 = "c07de183e76edff0f87f966f997921506e79e6f84b329c8957e59dc671ce3280"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/distance.rs"
-sha256 = "711dfe01d18185164ced666009b256210acc5b64abda95b527f16620e355c46f"
+items = ["fn default", "fn fit", "fn fit_with_matches", "fn new", "fn prepare", "fn require_read_inference", "fn standardize_rowmajor_inplace", "fn with_caliper", "fn with_overlap", "fn with_sampling_weights", "struct DistanceMatching"]
+sha256 = "cff0ab7f97771f7d318d5d2763ee073d18be9fb9c5435375c0f433cf366e416c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/knn_distance_matching_reference.rs"
-sha256 = "9db3b774694e1ad11927b885e975dad7e79b451aa1be754b43ac87d20999aefd"
+items = ["fn cases", "fn close", "fn floats", "fn knn_matched_effect_and_standard_error_match_the_exhaustive_reference"]
+sha256 = "d338e7a73897f9936d5664dfa301b6730139c8603875f7a908b4355ca47f1e44"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -37,9 +37,11 @@ record_sha256 = "9915f965ba20aeb8afdbafc4c962dd498fc39ec44a42fff60b6ce4dc7744f25
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_neyman.rs"
-sha256 = "a7060969b1e833ec35c19baa145e2e7a38ad102f5d09612598eb41138b99a33c"
+items = ["const MIN_CLUSTERS_PER_ARM_FOR_INTERVAL", "const MIN_UNITS_PER_ARM_FOR_INTERVAL", "const MIN_UNITS_PER_BLOCK_ARM_FOR_INTERVAL", "const MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL", "fn blocked_unit_itt", "fn complete_cluster_itt", "fn complete_unit_itt", "fn factorial_2x2", "fn stratified_neyman_effect", "fn weighted_itt", "struct BlockedItt", "struct ClusterItt", "struct CompleteItt", "struct Factorial2x2", "struct StratifiedNeymanEffect", "struct WeightedItt"]
+sha256 = "2732fc3ff337adf7b2e40b7ed480a8068919ef48723a61e6030dd186f19d2f04"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/neyman_randomization_enumeration.rs"
-sha256 = "aeb2f37c3932d56ca630b6ef071985c22bb9bec7e0fb8766e4a86e2aac0c48dd"
+items = ["const TAU", "const Y0", "fn blocked_randomization_matches_the_independent_block_law", "fn close", "fn cluster_totals_estimate_the_per_row_effect_with_the_cluster_neyman_variance", "fn combinations", "fn complete_law", "fn complete_randomization_is_unbiased_with_the_neyman_variance_and_exact_slack", "fn factorial_main_effects_and_interaction_match_the_four_cell_randomization_law", "fn hajek_contrast_with_constant_arm_probabilities_is_the_complete_randomization_contrast", "fn mean", "fn pop_var", "fn rec", "fn y1", "struct Law"]
+sha256 = "55357bccb4706277b1e0afdd8641a2ed1854fbf9a3370fac086a2d4afe7d2ade"

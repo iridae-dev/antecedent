@@ -1678,7 +1678,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
-          "sha256": "3292303fd8deb689a3e773e5450b5e861d9c4ccbd6827654b9a0d88dccb8adca"
+          "items": [
+            "fn floats",
+            "fn update_gam_oracle_fixture"
+          ],
+          "sha256": "b752b81c898ea254bebca445cbb155445061b02eec364fea637fa487e7239eca"
         }
       ],
       "fixture_payload_sha256": "b34f694feac898eebd6f532616e92389ca982f9c53f3c8a5c437d087475272e3"

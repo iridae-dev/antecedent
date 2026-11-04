@@ -50,9 +50,11 @@ record_sha256 = "49d70b200e4ec5048b46c427709ddf490417cacd9798b90095e21934799cfee
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/prior_signal.rs"
-sha256 = "201211ca7f7920aa024222622a0c3c9963cf85d5142ed7bba871c88fe3902d91"
+items = ["const MAX_PRIOR_RESOLUTION", "enum CandidateSignalSource", "enum NativeSignalFamily", "enum PriorSignalError", "enum SourceToTarget", "fn adapt_prior_to_signal", "fn allocate", "fn apply", "fn check_catalog", "fn check_overlap", "fn check_source", "fn combine", "fn resolve_signal", "fn to_refusal", "fn valid", "struct CandidateSignalPrior", "struct PriorSignalDiagnostics", "struct PriorSignalRequest", "struct PriorSourceInput", "struct TransportPolicyDecl"]
+sha256 = "50810359cbda6ad78960776c661e6d37703a1722d88a307fcd7477541f96e4cb"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/prior_signal.rs"
-sha256 = "acc361f9fee34abc1535c98f4af98bdd4b5ed4fff3f7f02cf50249738caddfc8"
+items = ["fn a_coefficient_prior_or_unlock_list_alone_is_not_a_signal", "fn a_provider_can_supply_the_future_signal", "fn catalog", "fn close_all", "fn conflict_shrinkage_pulls_a_source_to_the_pooled_mean", "fn draws_of", "fn equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal", "fn incompatible_or_unknown_artifacts_refuse", "fn invalid_parameters_and_resolution_refuse", "fn meta", "fn population_change_needs_a_declared_transport_policy", "fn prior_data_overlap_refuses", "fn prior_strength_inflates_the_spread_about_the_source_mean", "fn refusal_detail", "fn request", "fn shrinkage_preserves_within_source_spread", "fn source", "fn source_order_does_not_change_the_prior_or_its_digest", "fn source_to_target_map_is_applied_before_pooling", "fn target", "fn two_sources", "fn weights_set_the_allocation"]
+sha256 = "79baaac70a2b225dce1f84da18ae889a44dc5c3f7f7d3395da0df4add2e9d900"

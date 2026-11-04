@@ -41,12 +41,14 @@ record_sha256 = "60008ee03b99f44346b6740fa9bf6b297e9dc5d7038129ae9da2cfce30ecc1f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
-sha256 = "cc9d7ff3f218a80ac33724c26308edeb0232a0f4a5fd4fee75af7e0e49ef779b"
+items = ["const LAPLACE_RANK_INTERVAL_BELOW_DRAWS", "enum BayesianBackendKind", "enum ReferenceArm", "fn adaptive_schedule", "fn add_modifier_mean_uncertainty", "fn apply_coefficient_names", "fn assemble_posterior_draws", "fn at", "fn center_interactions_on_arm", "fn check_sequential_prior", "fn coefficient_names_from_design", "fn conjugate", "fn default", "fn draw_budget", "fn effective_likelihood", "fn effects", "fn fit", "fn from_fit", "fn from_prepared_estimation", "fn gcomp_evaluator", "fn glm_family", "fn new", "fn prepare", "fn prior_assumptions", "fn prior_in_force", "fn random_intercept_gls_whiten", "fn redraw", "fn temper_likelihood", "fn whiten_design", "fn with_inner", "fn with_n_draws", "fn with_prior", "fn with_prior_scale", "fn with_seed", "struct AdaptiveOutcome", "struct AdaptiveRedraw", "struct BackendInputs", "struct BayesianGCompWorkspace", "struct BayesianGComputationAte", "struct BayesianTemporalGcomp", "struct EffectEvaluation", "struct PreparedBayesianProblem", "struct ResidualVarianceDraws", "type CenteredDesign", "type WhitenedDesign"]
+sha256 = "9610d2c96cdeb518797f3e8f0fd7743f311241249ff9bcdff7ef8e0a70dbc51a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs"
-sha256 = "554be29dfad553d17344acd4ef6094ffc760e979fcbf35db5f7fb016b17c1ed1"
+items = ["const DRAWS", "fn cases", "fn effect_summary", "fn estimator", "fn fit", "fn floats", "fn problem", "fn the_temporal_wrapper_is_the_same_fit_on_the_same_design"]
+sha256 = "c5d8424063195f10ac63caaabafedb170f1320a795702e81d2ae1c501228b826"
 
 [[method_review.artifacts]]
 role = "reference"

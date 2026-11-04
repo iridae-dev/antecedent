@@ -55,7 +55,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-prob/tests/prior_support_oracle.rs",
-          "sha256": "6b515f07aca3ffeb9fcab2f8ee9491b8b0a1023e39740c6d1f1bf7fa5df2616d"
+          "items": [
+            "fn fixture",
+            "fn prior_fixture_records_retained_scipy_harness_and_historical_metadata"
+          ],
+          "sha256": "7021b71a6f426854818fc3d4dbb75dca4d696ea5ab92b48eec8625110ed73e0f"
         }
       ],
       "fixture_payload_sha256": "3817f8c8f06d951724f8addd58ab3d94bc18f58e8fad989cca888a80fb904230"

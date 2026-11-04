@@ -80,22 +80,26 @@ impl ScenarioCovarianceArtifactError {
     #[must_use]
     pub fn refusal(&self) -> (&'static str, &'static str) {
         match self {
-            Self::UnsupportedSemantics(_) => {
-                (reason_code!("route_not_supported"), "scenario_covariance.unsupported_semantics")
-            }
+            Self::UnsupportedSemantics(_) => (
+                reason_code!("route_not_supported"),
+                antecedent_core::reason_details::scenario_covariance::UNSUPPORTED_SEMANTICS,
+            ),
             Self::LimitsExceeded(_) => (
                 reason_code!("execution_resource_limit"),
-                "scenario_covariance.consumer_limit_exceeded",
+                antecedent_core::reason_details::scenario_covariance::CONSUMER_LIMIT_EXCEEDED,
             ),
-            Self::PremisesMismatch => {
-                (reason_code!("invalid_argument"), "scenario_covariance.premises_mismatch")
-            }
-            Self::DataIdentityMismatch => {
-                (reason_code!("invalid_argument"), "scenario_covariance.data_identity_mismatch")
-            }
-            Self::ReplayMismatch => {
-                (reason_code!("invalid_argument"), "scenario_covariance.replay_mismatch")
-            }
+            Self::PremisesMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::scenario_covariance::PREMISES_MISMATCH,
+            ),
+            Self::DataIdentityMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::scenario_covariance::DATA_IDENTITY_MISMATCH,
+            ),
+            Self::ReplayMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::scenario_covariance::REPLAY_MISMATCH,
+            ),
         }
     }
 }
@@ -163,29 +167,32 @@ impl RowTableWire {
     fn check(&self) -> Result<(), IoError> {
         if self.rows.is_empty() {
             return Err(invalid(
-                "scenario_covariance.invalid_row_table",
+                antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE,
                 "the row table has no rows",
             ));
         }
         if self.columns.is_empty() {
             return Err(invalid(
-                "scenario_covariance.invalid_row_table",
+                antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE,
                 "the row table has no column",
             ));
         }
         let mut seen = std::collections::BTreeSet::new();
         if !self.columns.iter().all(|c| seen.insert(c.as_str())) {
-            return Err(invalid("scenario_covariance.invalid_row_table", "column names repeat"));
+            return Err(invalid(
+                antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE,
+                "column names repeat",
+            ));
         }
         if self.rows.len() != self.unit_ids.len() {
             return Err(invalid(
-                "scenario_covariance.invalid_row_table",
+                antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE,
                 "the table needs exactly one unit id per row",
             ));
         }
         if self.rows.iter().any(|row| row.len() != self.columns.len()) {
             return Err(invalid(
-                "scenario_covariance.invalid_row_table",
+                antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE,
                 "every row needs exactly one code per column",
             ));
         }
@@ -194,7 +201,10 @@ impl RowTableWire {
 
     fn column(&self, name: &str) -> Result<usize, IoError> {
         self.columns.iter().position(|c| c == name).ok_or_else(|| {
-            invalid("scenario_covariance.invalid_functional", &format!("unknown column '{name}'"))
+            invalid(
+                antecedent_core::reason_details::scenario_covariance::INVALID_FUNCTIONAL,
+                &format!("unknown column '{name}'"),
+            )
         })
     }
 }
@@ -246,7 +256,7 @@ fn matches_pattern(row: &[i64], pattern: &[(usize, i64)]) -> bool {
 fn linear_estimator(table: &RowTableWire, terms: &[ScoreTermWire]) -> Result<Estimator, IoError> {
     if terms.is_empty() {
         return Err(invalid(
-            "scenario_covariance.invalid_functional",
+            antecedent_core::reason_details::scenario_covariance::INVALID_FUNCTIONAL,
             "a linear score needs a term",
         ));
     }
@@ -260,7 +270,7 @@ fn linear_estimator(table: &RowTableWire, terms: &[ScoreTermWire]) -> Result<Est
     for term in terms {
         if !term.coefficient.is_finite() {
             return Err(invalid(
-                "scenario_covariance.invalid_functional",
+                antecedent_core::reason_details::scenario_covariance::INVALID_FUNCTIONAL,
                 "a score coefficient must be finite",
             ));
         }
@@ -312,7 +322,7 @@ fn adjusted_estimator(
 ) -> Result<Estimator, IoError> {
     if treated == control {
         return Err(invalid(
-            "scenario_covariance.invalid_functional",
+            antecedent_core::reason_details::scenario_covariance::INVALID_FUNCTIONAL,
             "the treated and control codes must differ",
         ));
     }
@@ -466,7 +476,10 @@ fn dependence_of(label: &str) -> Result<RowDependence, IoError> {
         "shared_rows" => Ok(RowDependence::SharedRows),
         "independent_sample" => Ok(RowDependence::IndependentSample),
         "unknown" => Ok(RowDependence::Unknown),
-        _ => Err(invalid("scenario_covariance.invalid_dependence", "unknown dependence label")),
+        _ => Err(invalid(
+            antecedent_core::reason_details::scenario_covariance::INVALID_DEPENDENCE,
+            "unknown dependence label",
+        )),
     }
 }
 

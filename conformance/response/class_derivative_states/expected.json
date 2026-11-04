@@ -49,7 +49,31 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_derivative_known_truth.rs",
-          "sha256": "97f2802624edf720d26f44b5d51d3fb0121219711fd7976c94f7a365b5657c47"
+          "items": [
+            "const N",
+            "enum Structure",
+            "fn admg",
+            "fn cases",
+            "fn class_derivative_planted_off_support_point_is_detected",
+            "fn class_derivative_routes_and_refuter_states_known_truth",
+            "fn cpdag",
+            "fn d",
+            "fn data",
+            "fn expected_estimator",
+            "fn fixture",
+            "fn frequentist_class_vector_derivatives_report_bands_or_withhold",
+            "fn ids",
+            "fn new",
+            "fn number",
+            "fn pag",
+            "fn point",
+            "fn published",
+            "fn report",
+            "fn study",
+            "fn v",
+            "struct Fixture"
+          ],
+          "sha256": "2481b58eac7871a31407f70fefab21d82a9da255bc768a76507bc357dc0c8ea7"
         }
       ],
       "fixture_payload_sha256": "554cbebe073c84964f9ec480ece4c5f74704c93137cd798f1e21a062662c2c59"

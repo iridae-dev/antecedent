@@ -41,7 +41,11 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-validate/src/tests.rs",
-          "sha256": "f98e9a8192a2a5950fb98f7012918e375a9672e0176af04a0feb68ca6ff29f76"
+          "items": [
+            "fn neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals",
+            "fn nonlinear_confounded"
+          ],
+          "sha256": "fe9a44f727d6324110451659e2809fd5be14b61a582c221e683c1fbce3afe885"
         }
       ],
       "fixture_payload_sha256": "bb803e6df4611ad322e9823ffa75968ba44107ad4f819b2a667b876cebd4aa2d"

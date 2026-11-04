@@ -256,11 +256,11 @@ fn declared_weights_are_never_renormalized_over_survivors() {
     partial[0].weight = None;
     assert_eq!(
         TransportScenarioSet::try_new(partial).unwrap_err().detail,
-        "scenarios.invalid_weights"
+        antecedent_core::reason_details::scenarios::INVALID_WEIGHTS
     );
     assert_eq!(
         TransportScenarioSet::try_new(three(Some([0.6, 0.3, 0.4]))).unwrap_err().detail,
-        "scenarios.invalid_weights"
+        antecedent_core::reason_details::scenarios::INVALID_WEIGHTS
     );
 }
 
@@ -390,7 +390,10 @@ fn inference_across_scenarios_is_refused() {
         other => panic!("expected a coded refusal, got {other:?}"),
     };
     assert_eq!(code, "scenario_aggregate_not_supported");
-    assert!(message.starts_with("scenarios.shared_data_aggregate"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::SHARED_DATA_AGGREGATE),
+        "{message}"
+    );
 }
 
 #[test]
@@ -525,7 +528,7 @@ fn scenarios_disagreeing_on_names_domains_or_units_refuse_with_schema_mismatch()
     ] {
         assert_eq!(
             (refusal.code, refusal.detail),
-            ("schema_mismatch", "scenarios.coordinate_mismatch")
+            ("schema_mismatch", antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH)
         );
     }
 }
@@ -551,7 +554,10 @@ fn laws_requests_and_catalogs_are_validated_against_the_shared_schema() {
     let (code, message) =
         refused_code(try_prepare(three(None), catalog(false), data, BUDGET, &ctx));
     assert_eq!(code, "schema_mismatch");
-    assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH),
+        "{message}"
+    );
     // A request outside the declared domain of the treatment.
     let set = TransportScenarioSet::try_new(three(None)).unwrap();
     let outside = StudyBuilder::transport_scenarios(
@@ -601,7 +607,10 @@ fn laws_requests_and_catalogs_are_validated_against_the_shared_schema() {
     let (code, message) =
         refused_code(try_prepare(three(None), pinned, laws(SOURCE, true), BUDGET, &ctx));
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("scenarios.catalog_selections"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::CATALOG_SELECTIONS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -1002,7 +1011,10 @@ fn sample_rows_are_validated_against_the_shared_schema() {
             input.samples[1].columns.get_mut(&v(Y)).unwrap()[0] = Some(bad);
         }));
         assert_eq!(code, "schema_mismatch", "{bad}");
-        assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH),
+            "{message}"
+        );
     }
     // A column for a variable the schema does not declare.
     let (code, _) = refused_code(attempt(&|input| {

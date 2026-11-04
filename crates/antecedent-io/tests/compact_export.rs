@@ -172,7 +172,7 @@ fn assert_tamper_refused(
     let (_, forged_body) = read_body(&resealed);
     assert_ne!(forged_body.identity, identity, "the mutation must change the identity");
     let err = refusal(CompactExport::consume(&resealed, &limits(), &identity));
-    assert_eq!(err.detail, "compact_export.identity_unexpected");
+    assert_eq!(err.detail, antecedent_core::reason_details::compact_export::IDENTITY_UNEXPECTED);
     assert_eq!(err.code, "invalid_argument");
 }
 
@@ -246,16 +246,44 @@ fn compact_out_of_support_queries_refuse_with_exact_details() {
             ExportRefusal { code: "invalid_argument", detail, subject: subject.into() }
         );
     };
-    expect(xg_query(10.5, "a"), "compact_export.out_of_support", "x");
-    expect(xg_query(-0.001, "a"), "compact_export.out_of_support", "x");
-    expect(xg_query(1.0, "d"), "compact_export.out_of_support", "g");
-    expect(ExportQuery::new().with_number("x", 1.0), "compact_export.missing_quantity", "g");
-    expect(xg_query(1.0, "a").with_number("z", 3.0), "compact_export.unknown_quantity", "z");
-    expect(xg_query(f64::NAN, "a"), "compact_export.non_finite_input", "x");
-    expect(xg_query(f64::INFINITY, "a"), "compact_export.non_finite_input", "x");
+    expect(
+        xg_query(10.5, "a"),
+        antecedent_core::reason_details::compact_export::OUT_OF_SUPPORT,
+        "x",
+    );
+    expect(
+        xg_query(-0.001, "a"),
+        antecedent_core::reason_details::compact_export::OUT_OF_SUPPORT,
+        "x",
+    );
+    expect(
+        xg_query(1.0, "d"),
+        antecedent_core::reason_details::compact_export::OUT_OF_SUPPORT,
+        "g",
+    );
+    expect(
+        ExportQuery::new().with_number("x", 1.0),
+        antecedent_core::reason_details::compact_export::MISSING_QUANTITY,
+        "g",
+    );
+    expect(
+        xg_query(1.0, "a").with_number("z", 3.0),
+        antecedent_core::reason_details::compact_export::UNKNOWN_QUANTITY,
+        "z",
+    );
+    expect(
+        xg_query(f64::NAN, "a"),
+        antecedent_core::reason_details::compact_export::NON_FINITE_INPUT,
+        "x",
+    );
+    expect(
+        xg_query(f64::INFINITY, "a"),
+        antecedent_core::reason_details::compact_export::NON_FINITE_INPUT,
+        "x",
+    );
     expect(
         ExportQuery::new().with_level("x", "a").with_level("g", "a"),
-        "compact_export.query_type_mismatch",
+        antecedent_core::reason_details::compact_export::QUERY_TYPE_MISMATCH,
         "x",
     );
     // The closed bounds themselves are inside the support.
@@ -268,7 +296,7 @@ fn compact_masked_region_refuses_even_inside_the_support() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     let masked = ExportRefusal {
         code: "invalid_argument",
-        detail: "compact_export.masked_region",
+        detail: antecedent_core::reason_details::compact_export::MASKED_REGION,
         subject: "high_dose_group_c".into(),
     };
     assert_eq!(export.evaluate(&xg_query(9.0, "c")).unwrap_err(), masked);
@@ -296,11 +324,11 @@ fn compact_verifier_round_trip_matches_the_producer() {
     // The consumed export keeps refusing the same regions.
     assert_eq!(
         consumed.evaluate(&xg_query(9.0, "c")).unwrap_err().detail,
-        "compact_export.masked_region"
+        antecedent_core::reason_details::compact_export::MASKED_REGION
     );
     assert_eq!(
         consumed.evaluate(&xg_query(11.0, "a")).unwrap_err().detail,
-        "compact_export.out_of_support"
+        antecedent_core::reason_details::compact_export::OUT_OF_SUPPORT
     );
 }
 
@@ -309,7 +337,7 @@ fn compact_wrong_expected_identity_refused() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("expected").unwrap();
     let err = refusal(CompactExport::consume(&bytes, &limits(), "deadbeef"));
-    assert_eq!(err.detail, "compact_export.identity_unexpected");
+    assert_eq!(err.detail, antecedent_core::reason_details::compact_export::IDENTITY_UNEXPECTED);
     assert_eq!(err.subject, "deadbeef");
     // A different model has a different identity and is refused under the first.
     let mut other = quadratic_spec();
@@ -318,7 +346,7 @@ fn compact_wrong_expected_identity_refused() {
     assert_ne!(other.identity(), export.identity());
     let other_bytes = other.to_bytes("expected").unwrap();
     let err = refusal(CompactExport::consume(&other_bytes, &limits(), export.identity()));
-    assert_eq!(err.detail, "compact_export.identity_unexpected");
+    assert_eq!(err.detail, antecedent_core::reason_details::compact_export::IDENTITY_UNEXPECTED);
 }
 
 #[test]
@@ -327,7 +355,7 @@ fn compact_tampered_coefficient_refused_even_when_resealed() {
     assert_tamper_refused(
         &export,
         |body| body.coefficients[1] += 0.5,
-        "compact_export.data_digest_mismatch",
+        antecedent_core::reason_details::compact_export::DATA_DIGEST_MISMATCH,
     );
 }
 
@@ -338,7 +366,7 @@ fn compact_tampered_covariance_refused_even_when_resealed() {
     assert_tamper_refused(
         &export,
         |body| body.covariance[0] = 0.0001,
-        "compact_export.data_digest_mismatch",
+        antecedent_core::reason_details::compact_export::DATA_DIGEST_MISMATCH,
     );
 }
 
@@ -348,7 +376,7 @@ fn compact_tampered_support_refused_even_when_resealed() {
     assert_tamper_refused(
         &export,
         |body| body.inputs[0].support = InputSupport::Range { lo: 0.0, hi: 100.0 },
-        "compact_export.premises_digest_mismatch",
+        antecedent_core::reason_details::compact_export::PREMISES_DIGEST_MISMATCH,
     );
 }
 
@@ -359,12 +387,12 @@ fn compact_tampered_mask_refused_even_when_resealed() {
     assert_tamper_refused(
         &export,
         |body| body.mask.clear(),
-        "compact_export.premises_digest_mismatch",
+        antecedent_core::reason_details::compact_export::PREMISES_DIGEST_MISMATCH,
     );
     assert_tamper_refused(
         &export,
         |body| body.mask[0].conditions[1].within = InputSupport::Range { lo: 9.5, hi: 10.0 },
-        "compact_export.premises_digest_mismatch",
+        antecedent_core::reason_details::compact_export::PREMISES_DIGEST_MISMATCH,
     );
 }
 
@@ -374,17 +402,17 @@ fn compact_tampered_units_scope_and_term_spec_refused_even_when_resealed() {
     assert_tamper_refused(
         &export,
         |body| body.response.units = "g".into(),
-        "compact_export.premises_digest_mismatch",
+        antecedent_core::reason_details::compact_export::PREMISES_DIGEST_MISMATCH,
     );
     assert_tamper_refused(
         &export,
         |body| body.scope.calibration = "calibrated".into(),
-        "compact_export.premises_digest_mismatch",
+        antecedent_core::reason_details::compact_export::PREMISES_DIGEST_MISMATCH,
     );
     assert_tamper_refused(
         &export,
         |body| body.terms[2] = one_hot("g", "a"),
-        "compact_export.premises_digest_mismatch",
+        antecedent_core::reason_details::compact_export::PREMISES_DIGEST_MISMATCH,
     );
 }
 
@@ -397,7 +425,7 @@ fn compact_tampered_identity_string_refused() {
     // be the recomputed digest of the stored fields.
     for pinned in [export.identity().to_owned(), "0".repeat(64)] {
         let err = refusal(CompactExport::consume(&forged, &limits(), &pinned));
-        assert_eq!(err.detail, "compact_export.identity_mismatch");
+        assert_eq!(err.detail, antecedent_core::reason_details::compact_export::IDENTITY_MISMATCH);
     }
 }
 
@@ -411,7 +439,7 @@ fn compact_resealed_forgery_passes_only_under_the_forgers_own_identity() {
     // which is why the consumer must retain the identity independently.
     assert_eq!(
         CompactExport::consume(&forged, &limits(), export.identity()).unwrap_err().detail,
-        "compact_export.identity_unexpected"
+        antecedent_core::reason_details::compact_export::IDENTITY_UNEXPECTED
     );
     let accepted = CompactExport::consume(&forged, &limits(), &forged_body.identity).unwrap();
     approx(accepted.evaluate(&x_query(0.0)).unwrap().point, 9.0);
@@ -423,10 +451,22 @@ fn compact_verifier_validates_semantics_even_when_identity_is_pinned() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("semantics").unwrap();
     let cases: [Case; 4] = [
-        (|body| body.terms.swap(0, 1), "compact_export.terms_not_canonical"),
-        (|body| body.covariance[1] = 0.5, "compact_export.covariance_asymmetric"),
-        (|body| body.coefficients[2] = f64::INFINITY, "compact_export.non_finite_value"),
-        (|body| body.covariance[4] = -0.01, "compact_export.covariance_not_psd"),
+        (
+            |body| body.terms.swap(0, 1),
+            antecedent_core::reason_details::compact_export::TERMS_NOT_CANONICAL,
+        ),
+        (
+            |body| body.covariance[1] = 0.5,
+            antecedent_core::reason_details::compact_export::COVARIANCE_ASYMMETRIC,
+        ),
+        (
+            |body| body.coefficients[2] = f64::INFINITY,
+            antecedent_core::reason_details::compact_export::NON_FINITE_VALUE,
+        ),
+        (
+            |body| body.covariance[4] = -0.01,
+            antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD,
+        ),
     ];
     for (mutate, detail) in cases {
         let forged = forge(&bytes, true, mutate);
@@ -444,13 +484,13 @@ fn compact_unknown_versions_refused() {
     let forged = forge(&bytes, true, |body| body.version = 2);
     let (_, body) = read_body(&forged);
     let err = refusal(CompactExport::consume(&forged, &limits(), &body.identity));
-    assert_eq!(err.detail, "compact_export.unsupported_version");
+    assert_eq!(err.detail, antecedent_core::reason_details::compact_export::UNSUPPORTED_VERSION);
     assert_eq!(err.subject, "2");
     // Container version bytes follow the 8-byte magic.
     let mut container = bytes.clone();
     container[8..12].copy_from_slice(&(CONTAINER_VERSION + 1).to_le_bytes());
     let err = refusal(CompactExport::consume(&container, &limits(), export.identity()));
-    assert_eq!(err.detail, "compact_export.unsupported_version");
+    assert_eq!(err.detail, antecedent_core::reason_details::compact_export::UNSUPPORTED_VERSION);
 }
 
 #[test]
@@ -477,7 +517,7 @@ fn compact_oversized_claim_refused_before_decode() {
     raw.extend_from_slice(&u32::try_from(payload.len()).unwrap().to_le_bytes());
     raw.extend_from_slice(&payload);
     let err = refusal(CompactExport::consume(&raw, &limits(), export.identity()));
-    assert_eq!(err.detail, "compact_export.oversized");
+    assert_eq!(err.detail, antecedent_core::reason_details::compact_export::OVERSIZED);
     assert_eq!(err.subject, "declared_uncompressed_size");
 }
 
@@ -489,27 +529,27 @@ fn compact_limits_bound_bytes_and_counts() {
     let tight_bytes = ExportLimits { max_bytes: 64, ..limits() };
     assert_eq!(
         refusal(CompactExport::consume(&bytes, &tight_bytes, id)).detail,
-        "compact_export.oversized"
+        antecedent_core::reason_details::compact_export::OVERSIZED
     );
     let tight_terms = ExportLimits { max_terms: 2, ..limits() };
     assert_eq!(
         refusal(CompactExport::consume(&bytes, &tight_terms, id)).detail,
-        "compact_export.too_many_terms"
+        antecedent_core::reason_details::compact_export::TOO_MANY_TERMS
     );
     let tight_inputs = ExportLimits { max_inputs: 1, ..limits() };
     assert_eq!(
         refusal(CompactExport::consume(&bytes, &tight_inputs, id)).detail,
-        "compact_export.too_many_inputs"
+        antecedent_core::reason_details::compact_export::TOO_MANY_INPUTS
     );
     let tight_mask = ExportLimits { max_mask_regions: 0, ..limits() };
     assert_eq!(
         refusal(CompactExport::consume(&bytes, &tight_mask, id)).detail,
-        "compact_export.too_many_mask_regions"
+        antecedent_core::reason_details::compact_export::TOO_MANY_MASK_REGIONS
     );
     let tight_levels = ExportLimits { max_levels: 2, ..limits() };
     assert_eq!(
         refusal(CompactExport::consume(&bytes, &tight_levels, id)).detail,
-        "compact_export.too_many_levels"
+        antecedent_core::reason_details::compact_export::TOO_MANY_LEVELS
     );
     CompactExport::consume(&bytes, &limits(), id).unwrap();
 }
@@ -567,73 +607,82 @@ fn compact_build_refuses_malformed_specifications() {
 
     let mut spec = quadratic_spec();
     spec.covariance[1] = 0.5;
-    assert_eq!(detail(spec), "compact_export.covariance_asymmetric");
+    assert_eq!(
+        detail(spec),
+        antecedent_core::reason_details::compact_export::COVARIANCE_ASYMMETRIC
+    );
 
     let mut spec = quadratic_spec();
     spec.covariance[0] = -0.04;
-    assert_eq!(detail(spec), "compact_export.covariance_not_psd");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD);
 
     // |V02| = 0.01 exceeds sqrt(0.04 * 0.0004) = 0.004.
     let mut spec = quadratic_spec();
     spec.covariance[2] = 0.01;
     spec.covariance[6] = 0.01;
-    assert_eq!(detail(spec), "compact_export.covariance_not_psd");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD);
 
     let mut spec = quadratic_spec();
     spec.coefficients[0] = f64::INFINITY;
-    assert_eq!(detail(spec), "compact_export.non_finite_value");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::NON_FINITE_VALUE);
 
     let mut spec = quadratic_spec();
     spec.covariance.pop();
-    assert_eq!(detail(spec), "compact_export.dimension_mismatch");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH);
 
     let mut spec = quadratic_spec();
     spec.coefficients.pop();
-    assert_eq!(detail(spec), "compact_export.dimension_mismatch");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH);
 
     let mut spec = quadratic_spec();
     spec.terms[2] = linear("x");
-    assert_eq!(detail(spec), "compact_export.duplicate_term");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::DUPLICATE_TERM);
 
     let mut spec = quadratic_spec();
     spec.terms[1] = linear("z");
-    assert_eq!(detail(spec), "compact_export.unknown_quantity");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::UNKNOWN_QUANTITY);
 
     let mut spec = quadratic_spec();
     spec.terms[1] = one_hot("x", "a");
-    assert_eq!(detail(spec), "compact_export.term_support_mismatch");
+    assert_eq!(
+        detail(spec),
+        antecedent_core::reason_details::compact_export::TERM_SUPPORT_MISMATCH
+    );
 
     let mut spec = one_hot_spec();
     spec.terms[2] = one_hot("g", "d");
-    assert_eq!(detail(spec), "compact_export.unknown_level");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::UNKNOWN_LEVEL);
 
     let mut spec = quadratic_spec();
     spec.terms[2] = TermSpec::Power { quantity: "x".into(), degree: 1 };
-    assert_eq!(detail(spec), "compact_export.invalid_degree");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::INVALID_DEGREE);
 
     let mut spec = quadratic_spec();
     spec.terms[2] = TermSpec::Power { quantity: "x".into(), degree: 9 };
-    assert_eq!(detail(spec), "compact_export.invalid_degree");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::INVALID_DEGREE);
 
     let mut spec = quadratic_spec();
     spec.inputs[0].support = InputSupport::Range { lo: 5.0, hi: 1.0 };
-    assert_eq!(detail(spec), "compact_export.invalid_support");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::INVALID_SUPPORT);
 
     let mut spec = one_hot_spec();
     spec.mask[0].conditions[0].quantity = "z".into();
-    assert_eq!(detail(spec), "compact_export.unknown_quantity");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::UNKNOWN_QUANTITY);
 
     let mut spec = one_hot_spec();
     spec.mask[0].conditions[1].within = InputSupport::Levels { levels: vec!["zz".into()] };
-    assert_eq!(detail(spec), "compact_export.unknown_level");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::UNKNOWN_LEVEL);
 
     let mut spec = one_hot_spec();
     spec.mask[0].conditions[0].within = InputSupport::Levels { levels: vec!["a".into()] };
-    assert_eq!(detail(spec), "compact_export.mask_support_mismatch");
+    assert_eq!(
+        detail(spec),
+        antecedent_core::reason_details::compact_export::MASK_SUPPORT_MISMATCH
+    );
 
     let mut spec = quadratic_spec();
     spec.response.units = String::new();
-    assert_eq!(detail(spec), "compact_export.invalid_quantity");
+    assert_eq!(detail(spec), antecedent_core::reason_details::compact_export::INVALID_QUANTITY);
 }
 
 // Exact rational reference: `oracle_data/compact_export_reference.py` evaluates f(x) = b'phi(x)
@@ -740,16 +789,16 @@ fn compact_indefinite_asymmetric_and_negative_covariances_are_refused() {
     // 1 + 2abc - a^2 - b^2 - c^2 is negative, so the matrix is not positive semidefinite.
     let indefinite = vec![1.0, 0.9, -0.9, 0.9, 1.0, 0.9, -0.9, 0.9, 1.0];
     let refusal = CompactExport::build(base(indefinite)).unwrap_err();
-    assert_eq!(refusal.detail, "compact_export.covariance_not_psd");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD);
     assert!(refusal.subject.starts_with("pivot"), "pairwise bounds hold: {}", refusal.subject);
     let asymmetric = vec![1.0, 0.3, 0.0, 0.1, 1.0, 0.0, 0.0, 0.0, 1.0];
     assert_eq!(
         CompactExport::build(base(asymmetric)).unwrap_err().detail,
-        "compact_export.covariance_asymmetric"
+        antecedent_core::reason_details::compact_export::COVARIANCE_ASYMMETRIC
     );
     let negative = vec![-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
     let refusal = CompactExport::build(base(negative)).unwrap_err();
-    assert_eq!(refusal.detail, "compact_export.covariance_not_psd");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD);
     assert_eq!(refusal.subject, "diagonal 0");
     let identity = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
     assert!(CompactExport::build(base(identity)).is_ok());

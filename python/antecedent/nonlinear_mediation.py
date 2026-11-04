@@ -51,6 +51,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -478,7 +480,9 @@ _real = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        MediationRefusal, stage="estimate", detail="nonlinear_mediation.non_finite_option"
+        MediationRefusal,
+        stage="estimate",
+        detail=_reason_details.nonlinear_mediation.NON_FINITE_OPTION,
     ),
 )
 

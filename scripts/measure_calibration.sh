@@ -9,7 +9,7 @@
 #      status`, through scripts/calibration_groups.py) and the gate groups that
 #      measure them. Try `python3 scripts/calibration_probe.py bounded` first: a
 #      record whose stored replicate digests reproduce at HEAD becomes current;
-#   2. run exactly those groups through scripts/gate_calibration.sh, in parallel,
+#   2. run exactly those groups through scripts/measure_calibration_groups.sh, in parallel,
 #      one job per sample-size grid point of a record-emitting group, including
 #      the 2000-replicate recheck of each point; logs land in
 #      target/calibration-records/ (`<group>.p<k>.log`), where the collector

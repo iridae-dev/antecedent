@@ -42,9 +42,11 @@ record_sha256 = "52814d6df1c390ae7a6e754e943e79a9b806b274b024ef2dc546abaf2e7385a
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/native_claims.rs"
-sha256 = "fc64f9e3f59277f21184f42e21dfa73ddd7bec88aad5d76872183427751f843a"
+items = ["enum NativeDecisionSource", "fn aligned_draws", "fn bind_refusal", "fn calibration", "fn check", "fn coordinates", "fn decision_source", "fn from_response", "fn has_joint_law", "fn into_decision_source", "fn joint_artifact", "fn mean_curve", "fn mean_source", "fn means", "fn names", "fn native_response_coordinates", "fn point_status", "fn point_surface", "fn program_identity", "fn provenance_id", "fn refusal", "fn representation_name", "fn support_status", "fn trust", "fn variable_name", "struct NativeDecisionInput", "struct NativeResponseClaim", "struct NativeResponseContext", "struct WithheldCoordinate"]
+sha256 = "5b4713ea0423433494a38b53a0aa4337bcf158e6ddce58ffb1d25bc73f39c953"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/native_claims.rs"
-sha256 = "237f8ba905eb629c155f5660488e6928c66cad1eb2836f2c545c350545b41513"
+items = ["fn artifact_contract", "fn close", "fn context", "fn contract", "fn contract_expected_utility", "fn joint_response", "fn mean_response", "fn native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals", "fn native_mean_only_result_is_refused_for_probability_and_quantile_sources", "fn native_mean_response_feeds_an_affine_decision_on_hand_values", "fn native_non_point_or_unlabeled_responses_are_refused", "fn native_response_exposes_coordinates_support_and_native_trust", "fn native_response_for_another_request_is_refused_against_the_program", "fn native_unsupported_coordinates_are_withheld_not_silently_used", "fn program", "fn quantity", "fn response_on", "fn schema", "fn supported"]
+sha256 = "96c9fd90dc407161357493fe3473f7f3134d55ff08ea76a46c528b17f4271d88"

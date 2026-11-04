@@ -67,9 +67,9 @@ pub const BRIDGE_INTERVAL_ASSUMPTIONS: &str = "the source estimate is approximat
 
 const BRIDGE_INTERVAL_STAGE: &str = "bind";
 const BRIDGE_INTERVAL_DETAIL_SOURCE_UNCERTAINTY: &str =
-    "scientific_bridge.interval_source_uncertainty_required";
+    antecedent_core::reason_details::scientific_bridge::INTERVAL_SOURCE_UNCERTAINTY_REQUIRED;
 const BRIDGE_INTERVAL_DETAIL_OUTSIDE_MEASURED: &str =
-    "scientific_bridge.interval_scope_outside_measured";
+    antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED;
 
 /// The interval of a bridged value.
 #[derive(Clone, Debug, PartialEq)]

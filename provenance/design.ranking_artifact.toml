@@ -56,12 +56,14 @@ record_sha256 = "d71ae3588df4e73ee2768ed945550ff7af1b8da1b8c1e099d730a0becf14282
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/design_ranking_artifact.rs"
-sha256 = "40a674170104612ffc4444237114808824c165ac3c8f21a784d76e99bf9897de"
+items = ["const BODY_SECTION", "const DESIGN_RANKING_ARTIFACT_KIND", "const DESIGN_RANKING_ARTIFACT_VERSION", "const DESIGN_RANKING_CALIBRATION", "const DESIGN_RANKING_CLAIM_LINK_ID", "const MASS_TOLERANCE", "const MAX_DESIGN_RANKING_ARTIFACT_BYTES", "const MAX_RANKING_CANDIDATES", "const MAX_RANKING_CELLS", "const MAX_RANKING_STATES", "const REPLAY_TOLERANCE", "enum DesignRankingArtifactError", "enum LawWire", "enum PriorWire", "enum ReplayKind", "enum UtilityWire", "fn admissible_indices", "fn as_str", "fn baseline", "fn binomial_table", "fn canonical", "fn check_bounds", "fn check_costs", "fn check_decision", "fn check_signal", "fn close", "fn column_masses_ok", "fn compute_digest", "fn consume", "fn consume_wire_with_limits", "fn consume_with_limits", "fn decision_wire", "fn default", "fn finite_rows", "fn from", "fn from_bytes_with_limits", "fn from_scored", "fn is_native", "fn law_wire", "fn likelihood_law", "fn parse_method", "fn parse_mode", "fn parse_trust", "fn posterior_to_likelihood", "fn prepared_for_seal", "fn probabilities", "fn provenance_chain", "fn provider_wire", "fn rank_basis", "fn rank_key", "fn rebuild_ranking", "fn recompute", "fn rectangular", "fn request_wire", "fn reseal", "fn seal", "fn seal_with_laws", "fn signal_request_of", "fn to_bytes", "fn trust_limit", "fn trust_limit_unreceipted", "fn try_from", "fn value_after", "fn verify_candidate", "fn verify_order", "fn verify_search", "struct Baseline", "struct ConsumeExpectation", "struct ConsumedCandidate", "struct ConsumedDesignRanking", "struct CostMapWire", "struct DecisionWire", "struct DesignRankingArtifactWire", "struct DesignRankingReadLimits", "struct EvsiCandidateWire", "struct ProviderWire", "struct RankConfigWire", "struct Recomputed", "struct SealInputs", "struct SearchWire", "struct SignalRequestWire", "type Error", "type Result"]
+sha256 = "c0ce51438fa6604b85e5fbc2bfd72ba1ca33c4428cd63651b917545f23369f51"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/design_ranking_replay_reference.rs"
-sha256 = "3a8f24f1f841f5740d7417fab9b7121158b854876caa3fa27937caed5a5ed790"
+items = ["fn candidate", "fn close", "fn floats", "fn quantity", "fn request", "fn seal_and_replay", "fn sealed_and_replayed_binomial_values_match_the_exact_rational_reference", "fn sealed_and_replayed_gaussian_values_match_the_quadrature_reference"]
+sha256 = "a7481883c8be58cd27bc4436854e05b3948b74e580b3e2ac419f6c915dc2be6b"
 
 [[method_review.artifacts]]
 role = "reference"

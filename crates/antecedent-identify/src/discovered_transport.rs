@@ -489,7 +489,7 @@ pub(crate) fn check_request(
 ) -> Result<(), DiscoveredTransportError> {
     if request.exhausted_search_bounds > 0 {
         return Err(refusal(
-            "discovered_transport.search_incomplete",
+            antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE,
             request,
             unresolved.to_vec(),
             format!(
@@ -502,7 +502,7 @@ pub(crate) fn check_request(
     }
     if unresolved.iter().any(|pair| pair.reason == "orientation_conflict") {
         return Err(refusal(
-            "discovered_transport.orientation_conflict",
+            antecedent_core::reason_details::discovered_transport::ORIENTATION_CONFLICT,
             request,
             unresolved.to_vec(),
             "orientation evidence conflicted on at least one edge, so the structure is not a \
@@ -516,7 +516,7 @@ pub(crate) fn check_request(
     if !unknown.is_empty() {
         let names: Vec<String> = unknown.iter().map(|v| format!("v{}", v.raw())).collect();
         let mut error = refusal(
-            "discovered_transport.selection_target_unknown",
+            antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN,
             request,
             unresolved.to_vec(),
             format!(
@@ -532,7 +532,7 @@ pub(crate) fn check_request(
     }
     if request.member_bound == 0 {
         return Err(refusal(
-            "discovered_transport.member_bound_zero",
+            antecedent_core::reason_details::discovered_transport::MEMBER_BOUND_ZERO,
             request,
             unresolved.to_vec(),
             "the member bound is zero; give a positive bound on the members to enumerate"
@@ -689,7 +689,7 @@ pub fn transport_across_class_with_context(
     )
     .map_err(|error| {
         refusal(
-            "discovered_transport.class_too_large",
+            antecedent_core::reason_details::discovered_transport::CLASS_TOO_LARGE,
             &facts,
             unresolved.clone(),
             format!(
@@ -709,7 +709,7 @@ pub fn transport_across_class_with_context(
             )));
         }
         return Err(refusal(
-            "discovered_transport.no_members",
+            antecedent_core::reason_details::discovered_transport::NO_MEMBERS,
             &facts,
             unresolved,
             "the structure has no acyclic completion without a new unshielded collider, so it \
@@ -957,7 +957,7 @@ pub fn transport_across_pag_with_context(
     let mut sampler = CompletionSampler::with_budget(class, request.member_bound, limits, ctx)
         .map_err(|error| {
             refusal(
-                "discovered_transport.class_too_large",
+                antecedent_core::reason_details::discovered_transport::CLASS_TOO_LARGE,
                 &facts,
                 unresolved.clone(),
                 format!(
@@ -971,7 +971,7 @@ pub fn transport_across_pag_with_context(
         .map_err(DiscoveredTransportError::Identification)?;
     if sampler.validation_report().ambiguous_global_class {
         return Err(refusal(
-            "discovered_transport.pag_class_ambiguous",
+            antecedent_core::reason_details::discovered_transport::PAG_CLASS_AMBIGUOUS,
             &facts,
             unresolved,
             "the circle endpoints admit completions from more than one Markov equivalence \
@@ -983,7 +983,7 @@ pub fn transport_across_pag_with_context(
     if mags.is_empty() {
         return Err(match sampler.search_stop() {
             Some(stop) => refusal(
-                "discovered_transport.class_too_large",
+                antecedent_core::reason_details::discovered_transport::CLASS_TOO_LARGE,
                 &facts,
                 unresolved,
                 format!(
@@ -994,7 +994,7 @@ pub fn transport_across_pag_with_context(
                 ),
             ),
             None => refusal(
-                "discovered_transport.no_members",
+                antecedent_core::reason_details::discovered_transport::NO_MEMBERS,
                 &facts,
                 unresolved,
                 "the structure has no maximal ancestral completion that agrees with its \
@@ -1013,7 +1013,7 @@ pub fn transport_across_pag_with_context(
         check_transport_context(ctx)?;
         let Some(member) = mag_member(mag, |id| static_variable(mag, id))? else {
             return Err(refusal(
-                "discovered_transport.pag_selection_bias_edge",
+                antecedent_core::reason_details::discovered_transport::PAG_SELECTION_BIAS_EDGE,
                 &facts,
                 unresolved,
                 "a completion has a tail-tail edge, which stands for selection bias in the \

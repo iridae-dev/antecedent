@@ -213,11 +213,13 @@ fn invalid_input(
 fn io_refusal(error: &IoError) -> CohortRefusal {
     let detail = match error {
         IoError::UnsupportedVersion { .. } | IoError::UnsupportedFormat { .. } => {
-            "cohort_decision.unsupported_version"
+            antecedent_core::reason_details::cohort_decision::UNSUPPORTED_VERSION
         }
-        IoError::TooLarge => "cohort_decision.oversized",
-        IoError::ChecksumMismatch { .. } => "cohort_decision.container_checksum_mismatch",
-        _ => "cohort_decision.container_invalid",
+        IoError::TooLarge => antecedent_core::reason_details::cohort_decision::OVERSIZED,
+        IoError::ChecksumMismatch { .. } => {
+            antecedent_core::reason_details::cohort_decision::CONTAINER_CHECKSUM_MISMATCH
+        }
+        _ => antecedent_core::reason_details::cohort_decision::CONTAINER_INVALID,
     };
     invalid(detail, error.to_string(), "supply an artifact written by this library version")
 }
@@ -244,7 +246,7 @@ impl LawRequest {
         match self {
             Self::Probability | Self::Quantile | Self::NonlinearUtility => CohortRefusal::new(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                "cohort_decision.law_not_supplied",
+                antecedent_core::reason_details::cohort_decision::LAW_NOT_SUPPLIED,
                 match self {
                     Self::Probability => "probability",
                     Self::Quantile => "quantile",
@@ -259,7 +261,7 @@ impl LawRequest {
             ),
             Self::JointLaw => CohortRefusal::new(
                 antecedent_core::reason_code!("joint_law_required"),
-                "cohort_decision.joint_law_required",
+                antecedent_core::reason_details::cohort_decision::JOINT_LAW_REQUIRED,
                 "joint_law",
                 "not defined: conditional contrasts supply no pairing across units or with \
                  other quantities, and a coupling is a premise no mean determines; supply \
@@ -268,7 +270,7 @@ impl LawRequest {
             ),
             Self::Interval => CohortRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cohort_decision.interval_not_supported",
+                antecedent_core::reason_details::cohort_decision::INTERVAL_NOT_SUPPORTED,
                 "interval",
                 "a shifted cohort and a portable model are point-only: the point value (and for \
                  a linear compact model an uncalibrated model-based standard error) is the \
@@ -380,11 +382,19 @@ impl CohortBinding {
     pub fn normalize_weights(raw: &[f64]) -> Result<Vec<f64>, CohortRefusal> {
         let remedy = "supply finite nonnegative weights with a positive total";
         if raw.is_empty() || raw.iter().any(|w| !w.is_finite() || *w < 0.0) {
-            return Err(invalid("cohort_decision.weights_invalid", "weights", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::cohort_decision::WEIGHTS_INVALID,
+                "weights",
+                remedy,
+            ));
         }
         let total = compensated_sum(raw.iter().copied());
         if !(total.is_finite() && total > 0.0) {
-            return Err(invalid("cohort_decision.weights_invalid", "weights", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::cohort_decision::WEIGHTS_INVALID,
+                "weights",
+                remedy,
+            ));
         }
         Ok(raw.iter().map(|w| w / total).collect())
     }
@@ -396,7 +406,7 @@ impl CohortBinding {
     pub fn uniform_weights(rows: usize) -> Result<Vec<f64>, CohortRefusal> {
         if rows == 0 {
             return Err(invalid(
-                "cohort_decision.cohort_empty",
+                antecedent_core::reason_details::cohort_decision::COHORT_EMPTY,
                 "rows",
                 "bind at least one cohort row",
             ));
@@ -425,30 +435,46 @@ impl CohortBinding {
         let remedy = "declare a cohort with named finite feature rows and normalized weights";
         if self.snapshot_id.trim().is_empty() || self.population_id.trim().is_empty() {
             return Err(invalid(
-                "cohort_decision.cohort_invalid",
+                antecedent_core::reason_details::cohort_decision::COHORT_INVALID,
                 "snapshot_or_population",
                 remedy,
             ));
         }
         let rows = self.weights.len();
         if rows == 0 {
-            return Err(invalid("cohort_decision.cohort_empty", "rows", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::cohort_decision::COHORT_EMPTY,
+                "rows",
+                remedy,
+            ));
         }
         if rows > limits.max_rows {
-            return Err(invalid("cohort_decision.cohort_too_large", rows.to_string(), remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::cohort_decision::COHORT_TOO_LARGE,
+                rows.to_string(),
+                remedy,
+            ));
         }
         if self.features.is_empty()
             || self.features.iter().any(|name| name.trim().is_empty())
             || self.features.iter().collect::<BTreeSet<_>>().len() != self.features.len()
             || self.columns.len() != self.features.len()
         {
-            return Err(invalid("cohort_decision.cohort_invalid", "features", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::cohort_decision::COHORT_INVALID,
+                "features",
+                remedy,
+            ));
         }
         if self.row_ids.len() != rows
             || self.row_ids.iter().any(|id| id.trim().is_empty())
             || self.row_ids.iter().collect::<BTreeSet<_>>().len() != rows
         {
-            return Err(invalid("cohort_decision.cohort_invalid", "row_ids", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::cohort_decision::COHORT_INVALID,
+                "row_ids",
+                remedy,
+            ));
         }
         for (name, column) in self.features.iter().zip(&self.columns) {
             let finite = match column {
@@ -456,16 +482,24 @@ impl CohortBinding {
                 CohortColumn::Categorical(values) => values.iter().all(|v| !v.trim().is_empty()),
             };
             if column.len() != rows || !finite {
-                return Err(invalid("cohort_decision.cohort_invalid", name.clone(), remedy));
+                return Err(invalid(
+                    antecedent_core::reason_details::cohort_decision::COHORT_INVALID,
+                    name.clone(),
+                    remedy,
+                ));
             }
         }
         if self.weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
-            return Err(invalid("cohort_decision.weights_invalid", "weights", remedy));
+            return Err(invalid(
+                antecedent_core::reason_details::cohort_decision::WEIGHTS_INVALID,
+                "weights",
+                remedy,
+            ));
         }
         let total = compensated_sum(self.weights.iter().copied());
         if (total - 1.0).abs() > WEIGHT_SUM_TOLERANCE {
             return Err(invalid(
-                "cohort_decision.weights_not_normalized",
+                antecedent_core::reason_details::cohort_decision::WEIGHTS_NOT_NORMALIZED,
                 format!("sum={total}"),
                 "normalize the weights to sum to one (CohortBinding::normalize_weights)",
             ));
@@ -676,18 +710,24 @@ impl RetainedEffectModel {
         let consumed = crate::consume_analysis_result(bytes).map_err(|e| io_refusal(&e))?;
         if !consumed.acceptance.accepts_as_claim() {
             return Err(parent_refusal(
-                "cohort_decision.parent_not_verified",
+                antecedent_core::reason_details::cohort_decision::PARENT_NOT_VERIFIED,
                 "analysis_result",
                 "supply an analysis result whose contract section verifies against its body",
             ));
         }
         let claim =
             consumed.contract.as_ref().and_then(|contract| contract.claim.as_ref()).ok_or_else(
-                || parent_refusal("cohort_decision.parent_not_verified", "claim", remedy),
+                || {
+                    parent_refusal(
+                        antecedent_core::reason_details::cohort_decision::PARENT_NOT_VERIFIED,
+                        "claim",
+                        remedy,
+                    )
+                },
             )?;
         if !claim.attested.is_empty() {
             return Err(parent_refusal(
-                "cohort_decision.parent_attested_not_native",
+                antecedent_core::reason_details::cohort_decision::PARENT_ATTESTED_NOT_NATIVE,
                 "attested_evidence",
                 "an attested external estimate supplies no native fitted payload; refit natively",
             ));
@@ -695,7 +735,7 @@ impl RetainedEffectModel {
         let claim_id = antecedent_core::to_hex(&claim.claim_id);
         if expected_claim.is_some_and(|expected| expected != claim_id) {
             return Err(parent_refusal(
-                "cohort_decision.wrong_parent_identity",
+                antecedent_core::reason_details::cohort_decision::WRONG_PARENT_IDENTITY,
                 claim_id,
                 "load the model from the claim the consumer retained",
             ));
@@ -711,7 +751,7 @@ impl RetainedEffectModel {
         } = &consumed.body.query
         else {
             return Err(parent_refusal(
-                "cohort_decision.parent_query_unsupported",
+                antecedent_core::reason_details::cohort_decision::PARENT_QUERY_UNSUPPORTED,
                 "query",
                 remedy,
             ));
@@ -719,7 +759,7 @@ impl RetainedEffectModel {
         if !outcome_functional.is_mean() || *target_population != TargetPopulationWire::AllObserved
         {
             return Err(parent_refusal(
-                "cohort_decision.parent_query_unsupported",
+                antecedent_core::reason_details::cohort_decision::PARENT_QUERY_UNSUPPORTED,
                 "outcome_functional_or_population",
                 "only a mean-effect contrast over all observed units retains a CATE map",
             ));
@@ -728,14 +768,18 @@ impl RetainedEffectModel {
             (level_of(control, *treatment), level_of(active, *treatment))
         else {
             return Err(parent_refusal(
-                "cohort_decision.parent_query_unsupported",
+                antecedent_core::reason_details::cohort_decision::PARENT_QUERY_UNSUPPORTED,
                 "intervention",
                 "the contrast must be two hard-set levels of the treatment",
             ));
         };
         let name = |id: u32| {
             consumed.header.variable_names.get(id as usize).cloned().ok_or_else(|| {
-                parent_refusal("cohort_decision.parent_query_unsupported", "variable_names", remedy)
+                parent_refusal(
+                    antecedent_core::reason_details::cohort_decision::PARENT_QUERY_UNSUPPORTED,
+                    "variable_names",
+                    remedy,
+                )
             })
         };
         let treatment_name = name(*treatment)?;
@@ -743,7 +787,7 @@ impl RetainedEffectModel {
         let effect = consumed.body.fitted_effect.as_deref().cloned().ok_or_else(|| {
             CohortRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cohort_decision.fitted_model_absent",
+                antecedent_core::reason_details::cohort_decision::FITTED_MODEL_ABSENT,
                 "fitted_effect",
                 "fit with a DR-learner or causal-forest estimator, which retain a portable \
                  CATE map; other estimators retain none",
@@ -782,14 +826,14 @@ impl RetainedEffectModel {
     ) -> Result<Self, CohortRefusal> {
         effect.validate().map_err(|_| {
             invalid(
-                "cohort_decision.fitted_model_invalid",
+                antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                 "fitted_effect",
                 "refit; the retained payload does not validate",
             )
         })?;
         if features.len() != effect.features.len() || features.iter().any(|f| f.trim().is_empty()) {
             return Err(invalid(
-                "cohort_decision.fitted_model_invalid",
+                antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                 "feature_names",
                 "name every retained feature",
             ));
@@ -800,7 +844,7 @@ impl RetainedEffectModel {
         };
         if !identity_link {
             return Err(semantics_mismatch(
-                "cohort_decision.link_not_identity",
+                antecedent_core::reason_details::cohort_decision::LINK_NOT_IDENTITY,
                 "predictor",
                 "a probability-scale predictor is not a treatment contrast; the cohort mean \
                  needs the identity-scale CATE map",
@@ -826,14 +870,18 @@ impl RetainedEffectModel {
             || response.transform_id != "identity"
         {
             return Err(semantics_mismatch(
-                "cohort_decision.contrast_not_declared",
+                antecedent_core::reason_details::cohort_decision::CONTRAST_NOT_DECLARED,
                 response.variable_id.clone(),
                 "build the export with an outcome response whose functional is \
                  conditional_mean_difference and whose regime is contrast:do(t=a)-do(t=b)",
             ));
         }
         let bytes = export.to_bytes("cohort_decision_model").map_err(|e| {
-            invalid("cohort_decision.fitted_model_invalid", e.to_string(), "rebuild the export")
+            invalid(
+                antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
+                e.to_string(),
+                "rebuild the export",
+            )
         })?;
         let contrast = ContrastDeclaration {
             outcome: response.variable_id.clone(),
@@ -1057,11 +1105,12 @@ pub struct CohortDecisionSource {
 
 fn map_export_refusal(refusal: &ExportRefusal, row_id: &str, shifted: bool) -> CohortRefusal {
     match refusal.detail {
-        "compact_export.out_of_support" | "compact_export.masked_region" => {
+        antecedent_core::reason_details::compact_export::OUT_OF_SUPPORT
+        | antecedent_core::reason_details::compact_export::MASKED_REGION => {
             outside_refusal(shifted, format!("row={row_id} feature_or_region={}", refusal.subject))
         }
         _ => schema_mismatch(
-            "cohort_decision.feature_schema_mismatch",
+            antecedent_core::reason_details::cohort_decision::FEATURE_SCHEMA_MISMATCH,
             format!("{}: {}", refusal.detail, refusal.subject),
             "supply exactly the model's named features with their declared types",
         ),
@@ -1072,14 +1121,14 @@ fn outside_refusal(shifted: bool, subject: String) -> CohortRefusal {
     if shifted {
         CohortRefusal::new(
             antecedent_core::reason_code!("transport_support_failure"),
-            "cohort_decision.shift_support_failure",
+            antecedent_core::reason_details::cohort_decision::SHIFT_SUPPORT_FAILURE,
             subject,
             "restrict the cohort to rows inside the fitted support, or supply a model fitted \
              on rows that cover the target population",
         )
     } else {
         invalid_input(
-            "cohort_decision.outside_support",
+            antecedent_core::reason_details::cohort_decision::OUTSIDE_SUPPORT,
             subject,
             "restrict the cohort to rows inside the retained support contract (building a \
              restricted cohort is a new, separately identified cohort)",
@@ -1096,13 +1145,13 @@ fn resolve_shift(
     match (same, shift) {
         (true, None) => Ok(false),
         (true, Some(_)) => Err(semantics_mismatch(
-            "cohort_decision.shift_declaration_unneeded",
+            antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_UNNEEDED,
             cohort.population_id.clone(),
             "drop the shift declaration: the cohort is declared to be the model's population",
         )),
         (false, None) => Err(CohortRefusal::new(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "cohort_decision.shift_declaration_required",
+            antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_REQUIRED,
             format!("model={} cohort={}", model.population_id, cohort.population_id),
             "declare a covariate shift: source and target population and the effect \
              modifiers (the model's features) given which the conditional contrast is \
@@ -1120,7 +1169,7 @@ fn resolve_shift(
             } else {
                 Err(CohortRefusal::new(
                     antecedent_core::reason_code!("transport_not_certified"),
-                    "cohort_decision.shift_declaration_mismatch",
+                    antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_MISMATCH,
                     format!("model={} cohort={}", model.population_id, cohort.population_id),
                     "the declaration must name the model's population as source, the \
                      cohort's population as target and exactly the model's features as the \
@@ -1140,7 +1189,7 @@ fn require_exact_schema(
     if expected != supplied {
         let difference: Vec<String> = expected.symmetric_difference(&supplied).cloned().collect();
         return Err(schema_mismatch(
-            "cohort_decision.feature_schema_mismatch",
+            antecedent_core::reason_details::cohort_decision::FEATURE_SCHEMA_MISMATCH,
             difference.join(","),
             "supply exactly the model's named features: none missing and none extra",
         ));
@@ -1164,7 +1213,7 @@ fn portable_predictions(
 ) -> Result<Predictions, CohortRefusal> {
     let Some(contract) = &effect.support else {
         return Err(invalid_input(
-            "cohort_decision.support_contract_absent",
+            antecedent_core::reason_details::cohort_decision::SUPPORT_CONTRACT_ABSENT,
             "fitted_effect.support",
             "refit with a producer that retains the fitted-row support contract; row-level \
              support cannot be checked without it",
@@ -1174,7 +1223,7 @@ fn portable_predictions(
     for name in names {
         let column = cohort.numeric(name).ok_or_else(|| {
             schema_mismatch(
-                "cohort_decision.feature_type_mismatch",
+                antecedent_core::reason_details::cohort_decision::FEATURE_TYPE_MISMATCH,
                 name.clone(),
                 "supply this feature as a finite numeric column",
             )
@@ -1185,14 +1234,14 @@ fn portable_predictions(
         .check_support(&columns, cohort.rows())
         .map_err(|e| {
             schema_mismatch(
-                "cohort_decision.feature_schema_mismatch",
+                antecedent_core::reason_details::cohort_decision::FEATURE_SCHEMA_MISMATCH,
                 e.to_string(),
                 "supply the model's features",
             )
         })?
         .ok_or_else(|| {
             invalid_input(
-                "cohort_decision.support_contract_absent",
+                antecedent_core::reason_details::cohort_decision::SUPPORT_CONTRACT_ABSENT,
                 "fitted_effect.support",
                 "refit with a producer that retains the fitted-row support contract",
             )
@@ -1209,7 +1258,7 @@ fn portable_predictions(
     let ids: Vec<VariableId> = effect.features.iter().map(|v| VariableId::from_raw(*v)).collect();
     let row_contrasts = effect.predict(&ids, &columns, cohort.rows(), ctx).map_err(|e| {
         invalid_input(
-            "cohort_decision.prediction_refused",
+            antecedent_core::reason_details::cohort_decision::PREDICTION_REFUSED,
             e.to_string(),
             "the retained model could not predict at these rows; check the cohort features",
         )
@@ -1229,7 +1278,7 @@ fn basis_row(
 ) -> Result<Vec<f64>, CohortRefusal> {
     let mismatch = |quantity: &str| {
         schema_mismatch(
-            "cohort_decision.feature_type_mismatch",
+            antecedent_core::reason_details::cohort_decision::FEATURE_TYPE_MISMATCH,
             quantity.to_owned(),
             "supply each feature with the type its declared support has",
         )
@@ -1267,7 +1316,7 @@ fn compact_predictions(
     for row in 0..rows {
         if ctx.cancellation.is_cancelled() {
             return Err(invalid(
-                "cohort_decision.cancelled",
+                antecedent_core::reason_details::cohort_decision::CANCELLED,
                 "cohort",
                 "re-run without cancellation; no value was issued",
             ));
@@ -1298,7 +1347,7 @@ fn compact_predictions(
         body.covariance.iter().step_by(width + 1).zip(&phibar).map(|(v, p)| v * p * p).sum();
     if variance < -NEGATIVE_VARIANCE_TOLERANCE * (1.0 + scale.abs()) || !variance.is_finite() {
         return Err(invalid_input(
-            "cohort_decision.negative_variance",
+            antecedent_core::reason_details::cohort_decision::NEGATIVE_VARIANCE,
             "phibar_v_phibar",
             "the stored covariance is not positive semidefinite on this cohort; refit",
         ));
@@ -1374,7 +1423,7 @@ impl CohortDecisionSource {
         cohort.validate_within(limits)?;
         if outcome_units.trim().is_empty() {
             return Err(invalid(
-                "cohort_decision.outcome_units_required",
+                antecedent_core::reason_details::cohort_decision::OUTCOME_UNITS_REQUIRED,
                 "outcome_units",
                 "declare the outcome units; they are never inferred and never converted",
             ));
@@ -1382,7 +1431,7 @@ impl CohortDecisionSource {
         if let Some(expected) = &options.expected_contrast_regime {
             if *expected != model.contrast.regime_id {
                 return Err(semantics_mismatch(
-                    "cohort_decision.contrast_mismatch",
+                    antecedent_core::reason_details::cohort_decision::CONTRAST_MISMATCH,
                     format!("expected={expected} model={}", model.contrast.regime_id),
                     "load the model fitted for the contrast the decision names",
                 ));
@@ -1391,7 +1440,7 @@ impl CohortDecisionSource {
         if let ModelKind::Compact { export, .. } = &model.kind {
             if export.body().response.units != outcome_units {
                 return Err(semantics_mismatch(
-                    "cohort_decision.units_mismatch",
+                    antecedent_core::reason_details::cohort_decision::UNITS_MISMATCH,
                     format!("model={} declared={outcome_units}", export.body().response.units),
                     "declare the units the model's response is expressed in; none are converted",
                 ));
@@ -1410,7 +1459,7 @@ impl CohortDecisionSource {
         );
         if !mean_contrast.is_finite() {
             return Err(invalid_input(
-                "cohort_decision.non_finite_result",
+                antecedent_core::reason_details::cohort_decision::NON_FINITE_RESULT,
                 "mean_contrast",
                 "the cohort mean is not finite; check the model and the cohort",
             ));
@@ -1558,7 +1607,7 @@ impl CohortDecisionSource {
         if self.shift.is_none() && self.model.is_linear_compact() {
             return CohortRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cohort_decision.interval_requires_native_fit",
+                antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT,
                 "interval",
                 "an interval is issued only through the measured native-fit route, which \
                  retains the fit rows and replays the fit: fit the effect natively (outcome on \
@@ -1691,7 +1740,7 @@ impl CohortDecisionSource {
     ) -> Result<Vec<u8>, CohortRefusal> {
         if artifact_id.trim().is_empty() {
             return Err(invalid(
-                "cohort_decision.missing_artifact_id",
+                antecedent_core::reason_details::cohort_decision::MISSING_ARTIFACT_ID,
                 "artifact_id",
                 "name the artifact",
             ));
@@ -1721,7 +1770,7 @@ impl CohortDecisionSource {
         encoded.write_to(&mut bytes).map_err(|e| io_refusal(&e))?;
         if bytes.len() > max_bytes {
             return Err(invalid(
-                "cohort_decision.oversized",
+                antecedent_core::reason_details::cohort_decision::OVERSIZED,
                 bytes.len().to_string(),
                 "bind a smaller cohort",
             ));
@@ -1790,7 +1839,7 @@ impl CohortDecisionSource {
             || recomputed.mean_contrast.to_bits() != body.mean_contrast.to_bits()
         {
             return Err(invalid(
-                "cohort_decision.replay_mismatch",
+                antecedent_core::reason_details::cohort_decision::REPLAY_MISMATCH,
                 "body",
                 "the stored value, support or quantity differs from its recomputation; \
                  re-export from the producer",
@@ -1798,7 +1847,7 @@ impl CohortDecisionSource {
         }
         if recomputed.identity != expectation.identity {
             return Err(invalid(
-                "cohort_decision.identity_unexpected",
+                antecedent_core::reason_details::cohort_decision::IDENTITY_UNEXPECTED,
                 expectation.identity.clone(),
                 "the artifact is not the source whose identity was retained",
             ));
@@ -1810,7 +1859,7 @@ impl CohortDecisionSource {
 fn decode_body(bytes: &[u8], max_bytes: usize) -> Result<SourceBody, CohortRefusal> {
     if bytes.len() > max_bytes {
         return Err(invalid(
-            "cohort_decision.oversized",
+            antecedent_core::reason_details::cohort_decision::OVERSIZED,
             bytes.len().to_string(),
             "bind a smaller cohort",
         ));
@@ -1831,26 +1880,30 @@ fn decode_body(bytes: &[u8], max_bytes: usize) -> Result<SourceBody, CohortRefus
     };
     if !layout_ok {
         return Err(invalid(
-            "cohort_decision.layout_invalid",
+            antecedent_core::reason_details::cohort_decision::LAYOUT_INVALID,
             "manifest",
             "supply a cohort decision source",
         ));
     }
     if crate::error::declared_exceeds_usize_limit(declared, max_bytes) {
         return Err(invalid(
-            "cohort_decision.oversized",
+            antecedent_core::reason_details::cohort_decision::OVERSIZED,
             "declared_uncompressed_size",
             "bind a smaller cohort",
         ));
     }
     let section = reader.load_section(COHORT_DECISION_SECTION).map_err(|e| io_refusal(&e))?;
     if section.as_bytes().len() > max_bytes {
-        return Err(invalid("cohort_decision.oversized", "section", "bind a smaller cohort"));
+        return Err(invalid(
+            antecedent_core::reason_details::cohort_decision::OVERSIZED,
+            "section",
+            "bind a smaller cohort",
+        ));
     }
     let body: SourceBody = from_cbor(section.as_bytes()).map_err(|e| io_refusal(&e))?;
     if body.version != COHORT_DECISION_VERSION {
         return Err(invalid(
-            "cohort_decision.unsupported_version",
+            antecedent_core::reason_details::cohort_decision::UNSUPPORTED_VERSION,
             body.version.to_string(),
             "supply an artifact written by this library version",
         ));
@@ -1873,7 +1926,7 @@ fn rebuild_model(body: &SourceBody) -> Result<RetainedEffectModel, CohortRefusal
             let export = CompactExport::consume(original_bytes, &ExportLimits::default(), identity)
                 .map_err(|refusal| {
                     invalid(
-                        "cohort_decision.fitted_model_invalid",
+                        antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                         format!("{}: {}", refusal.detail, refusal.subject),
                         "re-export the model from the producer",
                     )
@@ -1888,7 +1941,7 @@ fn rebuild_model(body: &SourceBody) -> Result<RetainedEffectModel, CohortRefusal
     };
     if model.identity != body.model_identity {
         return Err(invalid(
-            "cohort_decision.model_identity_mismatch",
+            antecedent_core::reason_details::cohort_decision::MODEL_IDENTITY_MISMATCH,
             body.model_identity.clone(),
             "the stored model identity differs from the model's recomputed identity",
         ));
@@ -1902,21 +1955,21 @@ fn check_expectation(
 ) -> Result<(), CohortRefusal> {
     if expectation.parent_claim.as_deref().is_some_and(|c| c != source.model.parent.claim_id) {
         return Err(invalid(
-            "cohort_decision.wrong_parent_identity",
+            antecedent_core::reason_details::cohort_decision::WRONG_PARENT_IDENTITY,
             source.model.parent.claim_id.clone(),
             "the artifact was issued from a different parent claim than the one retained",
         ));
     }
     if expectation.population_id.as_deref().is_some_and(|p| p != source.cohort.population_id) {
         return Err(semantics_mismatch(
-            "cohort_decision.population_mismatch",
+            antecedent_core::reason_details::cohort_decision::POPULATION_MISMATCH,
             source.cohort.population_id.clone(),
             "the cohort population differs from the retained population",
         ));
     }
     if expectation.outcome_units.as_deref().is_some_and(|u| u != source.outcome_units) {
         return Err(semantics_mismatch(
-            "cohort_decision.units_mismatch",
+            antecedent_core::reason_details::cohort_decision::UNITS_MISMATCH,
             source.outcome_units.clone(),
             "the declared outcome units differ from the retained units; none are converted",
         ));
@@ -1924,14 +1977,14 @@ fn check_expectation(
     if expectation.contrast_regime.as_deref().is_some_and(|c| c != source.model.contrast.regime_id)
     {
         return Err(semantics_mismatch(
-            "cohort_decision.contrast_mismatch",
+            antecedent_core::reason_details::cohort_decision::CONTRAST_MISMATCH,
             source.model.contrast.regime_id.clone(),
             "the model estimates a different contrast than the one retained",
         ));
     }
     if expectation.cohort_digest.as_deref().is_some_and(|d| d != source.cohort_digest) {
         return Err(invalid(
-            "cohort_decision.cohort_changed",
+            antecedent_core::reason_details::cohort_decision::COHORT_CHANGED,
             source.cohort_digest.clone(),
             "the rows, weights or identities differ from the retained cohort snapshot",
         ));

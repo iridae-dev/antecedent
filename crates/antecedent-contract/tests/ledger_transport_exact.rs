@@ -12,8 +12,8 @@
 use std::ops::Range;
 
 use antecedent_contract::evidence_ledger::{
-    CombinationRequest, EvidenceLedger, LedgerError, ObservationId, PoolingDependence, Revalidation,
-    SourceDeclaration, SourceId, SourceKind, SynthesisOperation, TransportIdentity,
+    CombinationRequest, EvidenceLedger, LedgerError, ObservationId, PoolingDependence,
+    Revalidation, SourceDeclaration, SourceId, SourceKind, SynthesisOperation, TransportIdentity,
 };
 use antecedent_core::SemanticDigest;
 
@@ -32,7 +32,9 @@ fn identity(target: &str) -> TransportIdentity {
 
 fn native(ledger: &mut EvidenceLedger, label: &str, rows: Range<u32>) -> SourceId {
     ledger
-        .add_source(SourceDeclaration::new(label, SourceKind::ObservationSet).with_observations(obs(rows)))
+        .add_source(
+            SourceDeclaration::new(label, SourceKind::ObservationSet).with_observations(obs(rows)),
+        )
         .expect("native source")
 }
 
@@ -92,7 +94,11 @@ fn the_reported_identity_follows_the_declared_content() {
     assert_ne!(identity("target").digest(), identity("elsewhere").digest());
     let mut fewer = identity("target");
     fewer.assumptions.clear();
-    assert_ne!(identity("target").digest(), fewer.digest(), "the declared assumptions are part of it");
+    assert_ne!(
+        identity("target").digest(),
+        fewer.digest(),
+        "the declared assumptions are part of it"
+    );
 }
 
 /// A transported claim fitted on rows 20..50 shares rows 20..30 with a native cohort of rows
@@ -105,7 +111,11 @@ fn a_transported_claim_that_reuses_ten_native_rows_is_refused() {
     let error = ledger
         .combine(transport_request("transport", claim, cohort))
         .expect_err("ten rows are shared");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.native_and_transported");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::NATIVE_AND_TRANSPORTED,
+    );
 
     // Moving the transported rows to 30..60 removes the overlap and the same request is accepted.
     let mut ledger = EvidenceLedger::new();
@@ -130,12 +140,20 @@ fn the_transported_and_native_slots_are_not_interchangeable() {
     let error = ledger
         .combine(transport_request("bare", bare, cohort))
         .expect_err("no identity, not transported");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.transport_identity_missing");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::TRANSPORT_IDENTITY_MISSING,
+    );
 
     let error = ledger
         .combine(transport_request("swapped", claim, other))
         .expect_err("a transported claim is not native");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.transported_as_native");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::TRANSPORTED_AS_NATIVE,
+    );
 }
 
 fn covariance_pool(label: &str, ids: &[SourceId]) -> CombinationRequest {
@@ -160,7 +178,8 @@ fn overlapping_transported_claims_pool_with_hand_counted_union_and_two_identitie
     let mut ledger = EvidenceLedger::new();
     let a = transported(&mut ledger, "trial_a_claim", 100..160, "target");
     let b = transported(&mut ledger, "trial_b_claim", 140..200, "target");
-    let result = ledger.combine(covariance_pool("pool", &[a, b])).expect("covariance carries overlap");
+    let result =
+        ledger.combine(covariance_pool("pool", &[a, b])).expect("covariance carries overlap");
     let record = ledger.result(result).expect("record");
     assert_eq!(record.mass.declared_slots, 120);
     assert_eq!(record.mass.distinct_observations, 100);
@@ -173,7 +192,8 @@ fn overlapping_transported_claims_pool_with_hand_counted_union_and_two_identitie
     let mut ledger = EvidenceLedger::new();
     let a = transported(&mut ledger, "trial_a_claim", 100..160, "target");
     let b = transported(&mut ledger, "trial_b_claim", 140..200, "elsewhere");
-    let result = ledger.combine(covariance_pool("pool", &[a, b])).expect("covariance carries overlap");
+    let result =
+        ledger.combine(covariance_pool("pool", &[a, b])).expect("covariance carries overlap");
     let record = ledger.result(result).expect("record");
     assert_eq!(record.transport_identities.len(), 2);
     assert!(record.transport_identities.contains(&identity("target").digest()));
@@ -251,10 +271,14 @@ fn withdrawing_an_overlapping_source_reclassifies_and_the_recompute_recounts_the
     };
     let s = ledger.combine(independent).expect("S");
     let before = ledger.result(r).expect("R").mass.clone();
-    assert_eq!((before.declared_slots, before.distinct_observations, before.repeated_slots), (120, 100, 20));
+    assert_eq!(
+        (before.declared_slots, before.distinct_observations, before.repeated_slots),
+        (120, 100, 20)
+    );
 
     let applied = ledger.withdraw_source(b, "consent withdrawn").expect("withdraw").clone();
-    let class = |id| applied.effect.revalidation.iter().find(|x| x.result == id).expect("classified").class;
+    let class =
+        |id| applied.effect.revalidation.iter().find(|x| x.result == id).expect("classified").class;
     assert_eq!(class(p), Revalidation::Withdrawn);
     assert_eq!(class(q), Revalidation::Withdrawn);
     assert_eq!(class(r), Revalidation::Recompute);

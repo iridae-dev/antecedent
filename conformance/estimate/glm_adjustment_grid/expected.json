@@ -50,7 +50,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/glm_adjustment/tests.rs",
-          "sha256": "3b9e2afff9dab6f025f266efbcb8bb785d17f67af6e334b2aa6db3fcc8b4f58d"
+          "items": [
+            "fn ctx",
+            "fn glm_adjustment_matches_pinned_statsmodels_oracle",
+            "fn oracle_cell_table"
+          ],
+          "sha256": "e0634ce76ad6b90306e7272bc615e3ec100e2a9a252293dd5f7e099dcdda5c4b"
         }
       ],
       "fixture_payload_sha256": "a2f9bfbf56b2e14dbb3d851416c0bae85a2edafcb21f29860e905fb97f82cf64"

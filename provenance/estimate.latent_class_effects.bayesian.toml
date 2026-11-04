@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The published numbers are the posterior means of the class treatment coefficients under independent normal priors, with the class residual variance plugged in. No interval is produced.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported).",
 ]
 
 upstream_implementations_observed = []
@@ -25,19 +25,22 @@ rationale = "Posterior mean of each class's treatment coefficient under independ
 no_independent_algorithm = "latent_class_effect_posterior calls full_coefficient_posterior_mean per class design and keeps the first slope; the class designs are produced by the covered latent-class estimator. No interval."
 covered_by = ["estimate.posterior_mean_kernel", "estimate.latent_class_effects"]
 derivation = "Normal likelihood with plug-in variance sigma2 = rss / (n - p) and independent N(0, tau^2) priors on the non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2 / tau^2) D)^-1 X'y; checked against the exact penalized normal equations in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "9f8ee91e68dc507e557e9f893feb0a4699d1d4789a742e57067a9af60e0fcafd"
+record_sha256 = "f25a26c04e53a715495b6127dda38648ecaad15f7405eb5775857d05f14454c7"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn latent_class_effect_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "c7f310b60481f022dd082b2c17f5395c379317e74951870827bf2750fd66d4b6"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/latent_class_effects.rs"
-sha256 = "ddfd59dfda028910955436a8e98f3f444dcab9c1ec97cdc4cff9df6c8e4755c7"
+items = ["const NOISE", "const NOISE_VARIANCE", "fn a_cancelled_context_stops_the_fit_without_a_claim", "fn assert_canonical_equal", "fn build", "fn close", "fn config", "fn fit", "fn latent_class_posterior_consumer_replays_the_class_design", "fn latent_class_posterior_mean_stays_at_the_class_effects", "fn latent_class_posterior_refuses_an_external_power_prior", "fn latent_deterministic_replay_given_seed_and_bootstrap_uncertainty", "fn latent_label_permutation_gives_identical_canonical_output", "fn latent_log_likelihood_is_non_decreasing_across_iterations", "fn latent_mixture_average_is_the_weighted_sum_of_class_effects", "fn latent_overlapping_classes_are_never_reported_as_separated", "fn latent_premise_and_configuration_refusals", "fn latent_recovers_hand_derived_two_class_fixed_point", "fn latent_responsibilities_are_the_exact_class_indicators", "fn latent_seeds_and_row_order_do_not_change_the_canonical_result", "fn latent_single_class_is_degenerate", "fn latent_weak_class_weight_refuses", "fn push", "fn refusal", "fn reversed", "struct Data"]
+sha256 = "462dec890ae589c8cf1aef615e33d2e9654dea46cc4aac2d3453bb5581e8d682"

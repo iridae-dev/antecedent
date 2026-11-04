@@ -30,19 +30,23 @@ record_sha256 = "413d88e007854e030c49e463d9566a6f3c994d2fba7d048a2b956cc22b9747c
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "4d92ec840144292fc528750bee65061fc89dca05b4e2cb417d05c4db01db6fa1"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/msm_sensitivity.rs"
-sha256 = "c49c84c50b4da61e7331956c61f7dc8df8141e19de6db890746db774cd9a689a"
+items = ["const MSM_ASSUMPTION_RANGE_CLAIM", "const MSM_FAMILY", "const MSM_INTERPRETATION", "const MSM_INTERVAL_WITHHELD", "const MSM_MAX_BISECTIONS", "const MSM_MAX_GRID_POINTS", "const MSM_MAX_LAMBDA", "const MSM_MAX_LAW_CELLS", "const MSM_MAX_OUTCOME_ATOMS", "const MSM_MAX_STRATA", "const MSM_MAX_TOLERANCE", "const MSM_MAX_WORK", "const MSM_METHOD", "const MSM_MIN_TOLERANCE", "const MSM_NORMALIZATION", "const MSM_PERTURBATION_SCALE", "const MSM_SAMPLING_STATEMENT", "const MSM_TARGET", "const MSM_UNIT_MASS_TOLERANCE", "enum MsmTippingDirection", "fn arm_bounds", "fn ate_bounds", "fn check_lambda", "fn detail", "fn grid_of", "fn invalid_law", "fn mass_sum", "fn msm_ate_bounds_at", "fn msm_ate_sensitivity", "fn msm_dirichlet_posterior", "fn new", "fn prepare", "fn prepare_arm", "fn reason_code", "fn refuse", "fn tipping_of", "fn validate_spec", "fn with_threshold", "fn withheld", "struct Arm", "struct MsmOutcomeLaw", "struct MsmPoint", "struct MsmSensitivityError", "struct MsmSensitivityResult", "struct MsmSensitivitySpec", "struct MsmSensitivityUncertainty", "struct MsmStratum", "struct MsmTipping", "struct Prepared"]
+sha256 = "69dfc9eaa983935ea0af8b16a48658c0027002fc6023603a48c60418cb0e098f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/msm_sensitivity.rs"
-sha256 = "df80ebcdaa69339b5a15f4ad607e8f9ab55a4ab53eecadb28af292fb46635538"
+items = ["fn binary", "fn close", "fn msm_bounds_widen_with_lambda", "fn msm_is_invariant_to_stratum_order", "fn msm_keeps_the_assumption_range_distinct_from_sampling", "fn msm_lambda_one_is_the_stratified_identified_value", "fn msm_posterior_consumer_replays_the_dirichlet_laws", "fn msm_posterior_mean_stays_at_the_identified_ate", "fn msm_posterior_refuses_a_mapped_prior", "fn msm_refuses_lambda_below_one", "fn msm_refuses_malformed_inputs_and_sampling_composition", "fn msm_refuses_propensities_on_the_boundary", "fn msm_sharp_bounds_at_lambda_two_match_the_hand_derivation", "fn msm_three_atom_fractional_split_matches_the_hand_derivation", "fn msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form", "fn msm_upper_tipping_origin_and_unreached_statuses", "fn refusal", "fn stratum", "fn two_strata"]
+sha256 = "db5e6182a9b04618b4ea5ae0b392235ec72e831f5e5f0b17192590efe13eb23b"

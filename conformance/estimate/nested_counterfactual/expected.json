@@ -40,12 +40,19 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/nested_counterfactual_route_evidence.rs",
-          "sha256": "20ef5a7d088fe7a9a4bfac89c0c6a8e6830daf10b5077121ae4d10a40bc8a621"
+          "items": [
+            "fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interval"
+          ],
+          "sha256": "8929c752b5ef92eaf5699aa503909701fe14d7d3a1abda36fd74ad984cda0fde"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/staged_static_kinds.rs",
-          "sha256": "7761e069fb0814d5a7d4c2e3e14cc897d662de3446dea0ab19d77815f107d987"
+          "items": [
+            "fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs",
+            "fn rebind_estimate"
+          ],
+          "sha256": "0a7e840f63c167d4c5fc98a47d059a4e7f208a7e7b3716ecac3dc84c70794ff2"
         }
       ],
       "fixture_payload_sha256": "a10abe1470f93454a9d4451790c28a5d02082c731b060c23f864c4c1c0d47cf6"

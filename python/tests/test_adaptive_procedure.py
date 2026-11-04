@@ -18,6 +18,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
 
@@ -70,12 +71,12 @@ def test_each_missing_element_is_its_own_refusal():
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         ai.AdaptiveProcedure.declare(ai.ProcedureDeclaration(arms=2))
     assert caught.value.details == (
-        "adaptive_inference.policy_history_missing",
-        "adaptive_inference.interim_analyses_missing",
-        "adaptive_inference.outcome_availability_missing",
-        "adaptive_inference.exposure_history_missing",
-        "adaptive_inference.stopping_rule_missing",
-        "adaptive_inference.policy_selection_missing",
+        reason_details.adaptive_inference.POLICY_HISTORY_MISSING,
+        reason_details.adaptive_inference.INTERIM_ANALYSES_MISSING,
+        reason_details.adaptive_inference.OUTCOME_AVAILABILITY_MISSING,
+        reason_details.adaptive_inference.EXPOSURE_HISTORY_MISSING,
+        reason_details.adaptive_inference.STOPPING_RULE_MISSING,
+        reason_details.adaptive_inference.POLICY_SELECTION_MISSING,
     )
     assert_registered_refusal(caught.value)
     assert caught.value.reason_code == "adaptive_contract_incomplete"
@@ -143,15 +144,15 @@ def test_every_paradigm_whose_premise_fails_is_refused():
     truth = (0.3, 0.6)
     refused(
         lambda: adaptive.report(ai.FixedSampleProcedureReport(truth=truth)),
-        "adaptive_inference.fixed_sample_design_adaptive",
+        reason_details.adaptive_inference.FIXED_SAMPLE_DESIGN_ADAPTIVE,
     )
     refused(
         lambda: adaptive.report(ai.GroupSequentialProcedureReport(truth=truth)),
-        "adaptive_inference.group_sequential_assignment_adaptive",
+        reason_details.adaptive_inference.GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE,
     )
     refused(
         lambda: adaptive.report(ai.DecisionProcedureReport(truth=truth)),
-        "adaptive_inference.paradigm_rule_mismatch",
+        reason_details.adaptive_inference.PARADIGM_RULE_MISMATCH,
     )
     lossy = declare(
         THOMPSON,
@@ -160,15 +161,15 @@ def test_every_paradigm_whose_premise_fails_is_refused():
     )
     refused(
         lambda: lossy.report(ai.BayesianProcedureReport()),
-        "adaptive_inference.posterior_premise_outcome_dependent_delay",
+        reason_details.adaptive_inference.POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY,
     )
     refused(
         lambda: lossy.report(ai.AnytimeProcedureReport(truth=truth)),
-        "adaptive_inference.outcome_dependent_delay",
+        reason_details.adaptive_inference.OUTCOME_DEPENDENT_DELAY,
     )
     refused(
         lambda: lossy.simulate(ai.WeightingProcedureReport(truth, 10, 1)),
-        "adaptive_inference.outcome_dependent_delay",
+        reason_details.adaptive_inference.OUTCOME_DEPENDENT_DELAY,
     )
 
 
@@ -239,7 +240,7 @@ def test_a_deterministic_rule_has_no_weighted_estimate():
     )
     refused(
         lambda: procedure.simulate(ai.WeightingProcedureReport((0.3, 0.6), 5, 1)),
-        "adaptive_inference.positivity_floor",
+        reason_details.adaptive_inference.POSITIVITY_FLOOR,
         code="adaptive_assumption_violated",
     )
 

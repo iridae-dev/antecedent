@@ -38,9 +38,11 @@ record_sha256 = "b89645359a7aa59f450cbf337eabe75afbb5c0c02fffea02b5e629314d130d6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
+items = ["const LAD_MAX_SWEEPS", "const LAD_OBJECTIVE_TOLERANCE", "const LAD_POLISH_MOVES_PER_COEFFICIENT", "const LAD_RESIDUAL_FLOOR", "fn centered_column", "fn col", "fn compensated_sum", "fn content_fingerprint", "fn fingerprint", "fn laplace_bic_local", "fn new", "fn polish_lad_vertex", "fn solve_spd", "fn solve_square", "struct GraphScoreData"]
+sha256 = "55541a8d018cc50f8df7d326ad417bfbb199efc5cb5a0d0edf7fe97743c7cb11"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/src/graph_score_laplace_tests.rs"
-sha256 = "2b5d113955385a2ee6d7c217ff6d3aafb01323b344efabe955fe51168c0d705d"
+items = ["fn lad_minimum", "fn laplace", "fn laplace_score_equals_the_exhaustive_lad_optimum", "fn laplace_score_is_unchanged_by_rescaling_and_shifting_the_outcome", "fn reference_enumeration_solves_known_least_absolute_deviation_problems", "fn reference_score", "fn score", "fn solve", "fn unit", "struct Lcg"]
+sha256 = "5172567943ae2df3b86b7a309af8c4a8b0bef37fdaee41bffc69802c1a0cb049"

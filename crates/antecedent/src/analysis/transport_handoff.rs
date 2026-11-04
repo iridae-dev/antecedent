@@ -79,7 +79,8 @@ impl From<TransportHandoffArtifactError> for TransportHandoffRefusal {
             Some((code, detail, message)) => Self { code, detail, message },
             None => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "provider_transport.artifact_invalid".to_owned(),
+                detail: antecedent_core::reason_details::provider_transport::ARTIFACT_INVALID
+                    .to_owned(),
                 message: error.to_string(),
             },
         }

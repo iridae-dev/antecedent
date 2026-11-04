@@ -244,7 +244,10 @@ fn a_cross_world_spread_uses_the_shared_exogenous_joint_law() {
         &ctx(),
     ));
     assert_eq!(code, "joint_law_required");
-    assert_eq!(detail, "joint_law_propagation.nonlinear_needs_aligned_joint_law");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::joint_law_propagation::NONLINEAR_NEEDS_ALIGNED_JOINT_LAW
+    );
     let undeclared = FiniteExecutionRequest { coupling: NoiseCoupling::Undeclared, ..contrast };
     let result = execute(&undeclared);
     let (code, detail) = refusal(derive_whole_path_uncertainty(
@@ -254,7 +257,10 @@ fn a_cross_world_spread_uses_the_shared_exogenous_joint_law() {
         &ctx(),
     ));
     assert_eq!(code, "joint_law_required");
-    assert_eq!(detail, "joint_law_propagation.index_pairing_refused");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+    );
 }
 
 #[test]
@@ -264,14 +270,20 @@ fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused() {
     let (code, detail) =
         refusal(derive_whole_path_uncertainty(&req, &result, UnitSampling::Undeclared, &ctx()));
     assert_eq!(code, "sampling_dependence_unknown");
-    assert_eq!(detail, "cross_world_uncertainty.unit_sampling_undeclared");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::cross_world_uncertainty::UNIT_SAMPLING_UNDECLARED
+    );
 
     let sampled =
         FiniteExecutionRequest { exogenous: ExogenousInference::PosteriorSampling, ..req.clone() };
     let (code, detail) =
         refusal(derive_whole_path_uncertainty(&sampled, &result, UnitSampling::FixedUnits, &ctx()));
     assert_eq!(code, "estimator_inference_mismatch");
-    assert_eq!(detail, "cross_world_uncertainty.sampled_path_not_supported");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::cross_world_uncertainty::SAMPLED_PATH_NOT_SUPPORTED
+    );
 
     let transported =
         FiniteExecutionRequest { target_population: Some("pop-b".to_owned()), ..req.clone() };
@@ -282,7 +294,10 @@ fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused() {
         &ctx(),
     ));
     assert_eq!(code, "transport_not_certified");
-    assert_eq!(detail, "cross_world_uncertainty.no_transported_path_derivation");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::cross_world_uncertainty::NO_TRANSPORTED_PATH_DERIVATION
+    );
 }
 
 // A result is never annotated for a different request: the mechanism table at
@@ -305,7 +320,7 @@ fn a_result_of_another_request_is_refused_even_at_an_unchanged_shape() {
         &ctx(),
     ));
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "cross_world_uncertainty.result_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::cross_world_uncertainty::RESULT_MISMATCH);
 
     // Same unit id, evidence (X = 0, Y = 0): another posterior.
     let mut other_evidence = req.clone();
@@ -316,18 +331,18 @@ fn a_result_of_another_request_is_refused_even_at_an_unchanged_shape() {
         UnitSampling::FixedUnits,
         &ctx(),
     ));
-    assert_eq!(detail, "cross_world_uncertainty.result_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::cross_world_uncertainty::RESULT_MISMATCH);
 
     let mut edited = result.clone();
     edited.units[0].value += 1e-9;
     let (_, detail) =
         refusal(derive_whole_path_uncertainty(&req, &edited, UnitSampling::FixedUnits, &ctx()));
-    assert_eq!(detail, "cross_world_uncertainty.result_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::cross_world_uncertainty::RESULT_MISMATCH);
     let mut renamed = result.clone();
     renamed.units[0].unit = "other".to_owned();
     let (_, detail) =
         refusal(derive_whole_path_uncertainty(&req, &renamed, UnitSampling::FixedUnits, &ctx()));
-    assert_eq!(detail, "cross_world_uncertainty.result_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::cross_world_uncertainty::RESULT_MISMATCH);
 }
 
 #[test]

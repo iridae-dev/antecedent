@@ -41,17 +41,20 @@ record_sha256 = "2fca9bdda2311a1af37c9c93fe9a7c5c01539b6b13ee84515ae56ad76f203be
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/overlap.rs"
-sha256 = "e3db2193ec22a4052cf62105d48372f5a63d77c0991f8be4d0c532ebe6e8f807"
+items = ["fn binary_report", "fn continuous_report", "fn continuous_support", "fn default", "fn estimation_row_count", "fn new", "fn refute", "fn refute_with_propensity", "fn separated_report", "struct OverlapRefuter"]
+sha256 = "c840e1ad4cb1d451c3199ec95c0d9349e0184095ad4a4ebebd0430df6415b359"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/overlap_rule.rs"
-sha256 = "6ecb4a7103f6d9b4a7dc84d74835cbca276fb537bfbee363dca9fa4bbefe0956"
+items = ["fn default", "fn diagnostic_report", "fn new", "fn refute", "fn refute_with_propensity", "fn separated_report", "struct OverlapRuleRefuter"]
+sha256 = "b54c1a059a0489071860ae11f72a350e951b0edd1c101efe555686657aa157de"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/diagnostic_propensity_reference.rs"
-sha256 = "58df861de4d261e789cfe6afcab90d5f5389349aee7adba82cc246f62f4b17a5"
+items = ["fn column", "fn continuous_treatment_support_counts_rows_with_both_doses_inside_the_residual_band", "fn estimate", "fn f", "fn near", "fn overlap_assessment_reports_unsupported_ess_mass_and_judges_range_and_ess", "fn overlap_rule_retains_the_mass_inside_the_declared_band", "fn reference", "fn riesz_tips_at_the_first_grid_delta_whose_worst_case_bias_reaches_the_estimate", "fn study"]
+sha256 = "d4db74c2200ce294275c75d2c88f3e43deb57ddddf8c8600d158ebaf9ca4d464"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -39,12 +39,14 @@ record_sha256 = "80ad24fa034898c26b1e34f9a4e48337f670ebc36521efdb48b47503da688a9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/period_refresh.rs"
-sha256 = "3161065a4a8fa26c84c16d04ca144c22b376d7fb0d6441c79322c0cb5a5135c9"
+items = ["enum PeriodRefreshOutcome", "fn beta", "fn check_against_fresh", "fn data_identity", "fn estimation", "fn events", "fn expected_len", "fn extend", "fn fit", "fn invalid", "fn lagged_rows", "fn lags", "fn last_invalidated", "fn n", "fn prior", "fn refresh", "fn restart", "fn series_id", "fn source", "fn standing", "fn start", "fn summary", "fn summary_close", "fn tail_of", "fn temporal_factors", "fn window", "fn window_stats", "struct BlockSpan", "struct PeriodRefresh", "struct PeriodRefreshSpec", "struct RefreshEvent"]
+sha256 = "f9b0a3adb0729d1990106d9d4c9deebdc8a3895eb985c84864e7825f3bb21c1d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/period_refresh_reference.rs"
-sha256 = "c624e985bc67446fd1a840dbaac2cf3dfc529b017d015c442318e782828e30c6"
+items = ["fn cadence", "fn check", "fn close", "fn every_period_outcome_matches_the_exact_replay", "fn num", "fn nums", "fn prior", "fn set", "fn window", "struct Tolerance"]
+sha256 = "69870c88e670c27f9170ffeb08fc37e21d454f6f9c36027bde1743eb9c582efb"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -56,12 +56,14 @@ record_sha256 = "4e57f5dab3c08d26a2a6845a9e62ba151ead7d2e83903a6022e007cfb7ed537
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_iv.rs"
-sha256 = "d82ec4477ad84d07a64b54f8f068b51c250da5310731d1b9b0d0520586a5e482"
+items = ["const VARIANCE_FLOOR_FRACTION", "fn centred", "fn centred_ols_rss", "fn first_stage_draws", "fn first_stage_f", "fn first_stage_posterior", "fn fit_bayesian_iv", "fn fit_bayesian_iv_fixed_variances", "fn fit_bayesian_iv_inner", "fn fit_bayesian_iv_joint_fixed_loading", "fn fit_bayesian_iv_joint_fixed_loading_design", "fn normal_posterior", "fn plug_in_variance", "fn quantile", "fn validate", "fn weighted_resample", "struct BayesianIvEstimate", "struct IvDesignSample", "struct IvSample", "struct NormalPosterior", "struct StageVariances"]
+sha256 = "2af136880b4f45c0538f12051d7a458287222c6571ad99a0fcbb77bc1076bca5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_iv_reference.rs"
-sha256 = "00535e97be2c75c9ec0c1ec716068abe6a154e16558d933d5f232c3872a456bb"
+items = ["const DRAWS", "fn cases", "fn check", "fn columns", "fn floats", "fn the_design_function_matches_the_exact_posterior_with_instrument_blocks_and_covariates", "fn the_single_instrument_function_matches_the_exact_posterior", "fn the_weak_instrument_screen_refuses_exactly_above_the_reference_statistic", "fn variances"]
+sha256 = "8f2eb1003182540bc7918c80934f1ba8f86f5330074e668ffd0b26042eab9a86"
 
 [[method_review.artifacts]]
 role = "reference"

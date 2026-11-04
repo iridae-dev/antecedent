@@ -89,7 +89,10 @@ fn run(vertices: usize, self_loops: bool, lines: &mut std::str::Lines<'_>, expec
             cyclic += 1;
             let refusals = result.expect_err(&format!("mask {mask} is cyclic"));
             assert_eq!(refusals.len(), 1, "mask {mask}: a cycle is reported alone");
-            assert_eq!(refusals[0].detail, "interface_contract.cyclic_composition");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::interface_contract::CYCLIC_COMPOSITION
+            );
             let path = refusals[0].offending.clone().expect("cycle path");
             let nodes: Vec<&str> = path.split(" -> ").collect();
             assert!(nodes.len() >= 2 && nodes.first() == nodes.last(), "mask {mask}: {path}");

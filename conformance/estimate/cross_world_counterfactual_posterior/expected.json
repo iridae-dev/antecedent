@@ -359,7 +359,30 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs",
-          "sha256": "17d7ee286814fae11c11bc7d9693ab79316d2e9ad91814139f0df29a27662cbb"
+          "items": [
+            "fn a_validated_pag_counterfactual_posterior_is_refused_with_its_reason",
+            "fn admg",
+            "fn counterfactual",
+            "fn counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder",
+            "fn counterfactual_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite",
+            "fn dag_mask",
+            "fn gaussian_table",
+            "fn gp",
+            "fn line_table",
+            "fn next",
+            "fn node",
+            "fn on_large_stack",
+            "fn pin",
+            "fn posteriors",
+            "fn run",
+            "fn sampling",
+            "fn table",
+            "fn uniform",
+            "fn v",
+            "struct Normals",
+            "struct Posterior"
+          ],
+          "sha256": "58860f358075851e07ba06b1d56871370d326555e9df0083d3b4e6db944748ec"
         }
       ],
       "fixture_payload_sha256": "56a086db8f05edaf02cbafc8ac65a3ad5cf7317c9e52d4f9f17a420fd5c91797"

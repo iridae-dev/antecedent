@@ -43,7 +43,16 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/bayesian_ci_oracle.rs",
-          "sha256": "fff309d8abed79d14a9d22c9c8508dac8969a5c609489cde9efc0d612eda5d69"
+          "items": [
+            "fn bayesian_ci_fixture_records_model_pins_and_its_retained_generator",
+            "fn columns",
+            "fn fixture",
+            "fn g_prior_bayes_factor_and_posterior_probability_match_closed_form",
+            "fn partial_correlation",
+            "fn posterior_predictive_statistic_and_tail_probability_match_external_calibration",
+            "fn run"
+          ],
+          "sha256": "868d71ba963a3a4c09f82ab0667443a45a5070a4f8a4f76f888e3959c6a5d6b2"
         }
       ],
       "fixture_payload_sha256": "c07498b981530b5a5f8ce7b9a877aab920cffc48b99f97fe554a4b7faade3e3b"

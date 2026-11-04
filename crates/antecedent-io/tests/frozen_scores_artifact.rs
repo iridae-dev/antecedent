@@ -165,7 +165,7 @@ fn scores_resealed_mutation_is_refused_by_a_retained_identity() {
     let stale = FrozenScoreTable::from_meta(meta.clone(), None).unwrap_err();
     assert_eq!(stale, FrozenScoresArtifactError::IdentityMismatch { field: "identity" });
     let (code, detail, _) = stale.refusal().unwrap();
-    assert_eq!(detail, "frozen_scores.identity_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::frozen_scores::IDENTITY_MISMATCH);
     assert_eq!(code, antecedent_core::reason_code!("route_not_supported"));
 
     // Resealed consistently: valid on its own, refused by the identity the consumer kept.

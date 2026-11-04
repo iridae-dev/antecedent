@@ -48,7 +48,16 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/src/registry/mod.rs",
-          "sha256": "33aa0f53568b5b7c3b65ec51097b559bdbb7a1f3ca7fa66306dfb4e5b80009f2"
+          "items": [
+            "enum MechanismFamily",
+            "fn default",
+            "fn fit_gp",
+            "fn gaussian_process_matches_exact_logdet_oracle",
+            "fn gp_oracle_table",
+            "fn reference",
+            "fn standard"
+          ],
+          "sha256": "5f48463352188cca2d90be3eca84fad2d8cdcfdc85772a158093126349507b83"
         }
       ],
       "sources": [],

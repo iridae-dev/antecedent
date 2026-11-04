@@ -51,16 +51,20 @@ pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_unmeasured";
 pub const INTERVAL_CALIBRATION_STATUS: &str = "unmeasured";
 
 /// Detail: unit ownership, time order or dependence is absent or incompatible.
-pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str = "temporal_interval.unknown_units";
+pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str =
+    antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS;
 /// Detail: too few repeated units for a dependent interval.
-pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str = "temporal_interval.too_few_units";
+pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str =
+    antecedent_core::reason_details::temporal_interval::TOO_FEW_UNITS;
 /// Detail: a history the estimator needs has no support.
-pub const TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str = "temporal_interval.unsupported_history";
+pub const TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str =
+    antecedent_core::reason_details::temporal_interval::UNSUPPORTED_HISTORY;
 /// Detail: more replicates than the cap.
-pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str = "temporal_interval.too_many_replicates";
+pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str =
+    antecedent_core::reason_details::temporal_interval::TOO_MANY_REPLICATES;
 /// Refusal detail: more units than the bootstrap-t is certified for.
 pub(crate) const TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED: &str =
-    "temporal_interval.studentized_bounds_exceeded";
+    antecedent_core::reason_details::temporal_interval::STUDENTIZED_BOUNDS_EXCEEDED;
 
 fn unknown_units(message: impl AsRef<str>) -> EstimationError {
     EstimationError::refused_detail(
@@ -597,7 +601,7 @@ pub fn balanced_linear_unit_scores<E: TemporalEstimator + ?Sized>(
     {
         return Err(EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_interval.studentized_unbalanced",
+            antecedent_core::reason_details::temporal_interval::STUDENTIZED_UNBALANCED,
             "exact unit scores require identical complete binary history multiplicities",
         ));
     }
@@ -928,7 +932,7 @@ fn prepare_studentization<E: TemporalEstimator + ?Sized>(
     let scores = estimator.balanced_unit_scores(&all, ctx)?.ok_or_else(|| {
         EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_interval.studentized_estimator_not_certified",
+            antecedent_core::reason_details::temporal_interval::STUDENTIZED_ESTIMATOR_NOT_CERTIFIED,
             "",
         )
     })?;
@@ -938,7 +942,9 @@ fn prepare_studentization<E: TemporalEstimator + ?Sized>(
     })?;
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
     if scores.len() != all.len() || !close(mean, point) {
-        return Err(unsupported_history("temporal_interval.studentized_score_mismatch"));
+        return Err(unsupported_history(
+            antecedent_core::reason_details::temporal_interval::STUDENTIZED_SCORE_MISMATCH,
+        ));
     }
     Ok(StudentizationReceipt {
         standard_error,
@@ -971,7 +977,9 @@ fn studentize_replicates(
         let variance = mean_se(&selected_scores);
         if let (Some(estimate), Some((mean, _))) = (record.point, variance) {
             if !close(mean, estimate) {
-                return Err(unsupported_history("temporal_interval.studentized_score_mismatch"));
+                return Err(unsupported_history(
+                    antecedent_core::reason_details::temporal_interval::STUDENTIZED_SCORE_MISMATCH,
+                ));
             }
         }
         let pair = record
@@ -1008,7 +1016,7 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     if config.method != IntervalMethod::Studentized {
         return Err(EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_interval.retired_method",
+            antecedent_core::reason_details::temporal_interval::RETIRED_METHOD,
             "direct intervals require studentized",
         ));
     }

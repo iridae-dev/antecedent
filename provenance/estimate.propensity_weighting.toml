@@ -42,12 +42,14 @@ record_sha256 = "49292292a6029aa084a7a29eae0882399d23ed954a6be166dc6b7ee92d1521f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/weighting.rs"
-sha256 = "61dedf95a0aefc361c0807c260f9d29fcb1626f1170be810ec3540545f97899e"
+items = ["fn apply_target_weights", "fn arm_weighted_sums", "fn attach_bootstrap", "fn bootstrap_se", "fn clusters", "fn compute_ipw_weights", "fn compute_ipw_weights_into", "fn default", "fn fit", "fn fit_point", "fn fit_point_influence", "fn hajek_difference", "fn hajek_iid_se", "fn hajek_influence_values", "fn hajek_weighted_mean", "fn new", "fn prepare", "fn replicate_ate", "fn with_overlap", "fn with_sampling_weights", "struct HajekPropensity", "struct IpwReplicate", "struct PropensityWeighting"]
+sha256 = "ea3935f2594338350d4d2df736d11677ce08fe0e2e141fb9d167612103818c4d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/ipw_weighting_reference.rs"
-sha256 = "bde7ddffb483317bcf32d6f6b8578d1a975a6962a4d16da63b9d88680e27301d"
+items = ["fn cases", "fn close", "fn floats", "fn weighted_effect_and_standard_error_match_the_multiprecision_refit"]
+sha256 = "63d4e268b67d1436a3765ae973b4336b0b66819b3b4501993f74677e367261e0"
 
 [[method_review.artifacts]]
 role = "reference"

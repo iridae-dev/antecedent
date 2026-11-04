@@ -276,7 +276,10 @@ fn the_sharp_discontinuity_refuses_observation_weights_instead_of_answering_unwe
         let error = sharp_weighted(0, None, Some(weights)).expect_err("weights were ignored");
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
         let text = error.to_string();
-        assert!(text.contains("sampling_weights.route_unsupported"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+            "{text}"
+        );
         assert!(text.contains("Next attempt"), "{text}");
     }
 }
@@ -442,7 +445,10 @@ fn the_policy_value_matches_its_hand_score_and_refuses_weights_and_declared_depe
         let error = policy_study(Some(weights), None).0.expect_err("weights were ignored");
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
         let text = error.to_string();
-        assert!(text.contains("sampling_weights.route_unsupported"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+            "{text}"
+        );
         assert!(text.contains("Next attempt"), "{text}");
     }
 }

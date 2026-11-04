@@ -349,5 +349,8 @@ fn zero_weight_rows_are_excluded_and_counted_and_unequal_weights_are_carried() {
         SplitRule::Explicit { discovery_rows: (0..100).collect() },
     )
     .unwrap_err();
-    assert_eq!(refusal.detail(), Some("selective_discovery.split_part_weight_invalid"));
+    assert_eq!(
+        refusal.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::SPLIT_PART_WEIGHT_INVALID)
+    );
 }

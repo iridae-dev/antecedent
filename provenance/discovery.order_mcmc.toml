@@ -40,12 +40,14 @@ record_sha256 = "2e400cb68ba3180e9ef2b137d6d75caf0bd8af04d56acde640eaed618e295c5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/order_mcmc.rs"
-sha256 = "f6f221e1765a5fd88522e0b94e949a6acee694eb45e566eb88ef432d372a60b6"
+items = ["const ORDER_DP_MAX_STATES", "fn default", "fn log_topological_order_count", "fn new", "fn order_dp_max_nodes", "fn run", "fn run_via_structure_mcmc", "fn schedule", "fn with_diagnostics_gate", "fn with_schedule", "struct OrderMcmc", "struct OrderWalker"]
+sha256 = "cf091c5bb6b92a4564dc1208b90d9aed4c15a897ce807682aae91094da76b974"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
-sha256 = "6806340d5893a5429ed954e0322b719de2d7fa19743561520e98fc798803f651"
+items = ["fn dynamic_programme_matches_brute_force_enumeration_of_every_dag", "fn link", "fn order_and_structure_samplers_match_the_enumerated_marginals_under_priors_and_constraints", "fn problems", "struct Problem"]
+sha256 = "2a2679b69ade0650702ac3cb42a6295f4e1cd7d79e8e0142a003d636be62c621"
 
 [[method_review.artifacts]]
 role = "reference"

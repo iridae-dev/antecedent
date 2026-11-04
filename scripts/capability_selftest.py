@@ -31,6 +31,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import route_behaviour
 from _repo import REPO_ROOT as ROOT
 
 CHECKER = ROOT / "scripts/check_capability_records.py"
@@ -343,6 +344,44 @@ QUALIFIED_INTERNAL = 'surface_internal = [{ name = "hidden_helper", why = "self-
 
 def rec(old, new):
     return ("record.toml", old, new)
+
+# Generated behaviour (scripts/route_behaviour.py): the registry of details, the generated file
+# and the record/stage edits that move a synthetic registry into generated mode.
+GEN_PAIRS = [
+    ("invalid_argument", "self_test_cell.invalid_query"),
+    ("transport_not_certified", "self_test_cell.search_incomplete"),
+    ("transport_missing_evidence", "self_test_cell.checked_obstruction"),
+]
+GEN_ROUTES = [
+    {"route": "self_test_cell.identify_route", "stage": "identify", "status": "supported", "claim": "none"},
+    {"route": "self_test_cell.point_route", "stage": "evaluate", "status": "supported", "claim": "point_only"},
+    {"route": "self_test_cell.uncertainty_route", "stage": "uncertainty", "status": "closed",
+     "reason_code": REASON, "claim": "point_only"},
+]
+GENERATED_TEXT = route_behaviour.render(
+    {"xt.cell": {"status": "supported", "refusals": GEN_PAIRS, "routes": GEN_ROUTES}}
+)
+DETAILS_TEXT = "".join(
+    f'[[detail]]\nid = "{d}"\ncodes = ["{c}"]\nmeaning = "self-test"\n\n' for c, d in GEN_PAIRS
+)
+GEN_FILES = [
+    ("generated/route_behaviour.toml", None, GENERATED_TEXT),
+    ("reason_details.toml", None, DETAILS_TEXT),
+]
+GEN_REFUSALS = [
+    rec(FIRST_REFUSAL, '  { detail = "self_test_cell.invalid_query" },\n'),
+    rec('{ code = "transport_not_certified", detail = "self_test_cell.search_incomplete", when = "search finished without a verdict" }',
+        '{ detail = "self_test_cell.search_incomplete" }'),
+    rec('{ code = "transport_missing_evidence", detail = "self_test_cell.checked_obstruction", when = "an obstruction was replayed" }',
+        '{ detail = "self_test_cell.checked_obstruction" }'),
+]
+GEN_STAGES = (
+    "stages.toml",
+    STAGES,
+    'version = 1\n\n[[routes]]\nroute = "self_test_cell.point_route"\nnotes = "a stage note"\n',
+)
+GEN_MODE = [*GEN_FILES, *GEN_REFUSALS, GEN_STAGES]
+
 
 
 def covering(route_line, *entries):
@@ -1408,10 +1447,39 @@ cases = [
         "owned_exports entry not_exported is not in __all__",
         None,
     ),
+    (
+        "refusal_code_handwritten",
+        "supported refusal row restating its code",
+        [*GEN_FILES, *GEN_REFUSALS[1:], GEN_STAGES],
+        "states its code invalid_argument",
+        None,
+    ),
+    (
+        "refusal_detail_unregistered",
+        "supported refusal detail missing from the reason-detail registry",
+        [*GEN_MODE, ("reason_details.toml", '[[detail]]\nid = "self_test_cell.invalid_query"\ncodes = ["invalid_argument"]\nmeaning = "self-test"\n\n', "")],
+        "self_test_cell.invalid_query is not in parity/reason_details.toml",
+        None,
+    ),
+    (
+        "route_behaviour_drift",
+        "generated file differs from the derived behaviour",
+        [*GEN_MODE, ("generated/route_behaviour.toml", 'code = "invalid_argument"', 'code = "not_supported"')],
+        "differs from the derived behaviour",
+        None,
+    ),
+    (
+        "stage_row_restates",
+        "stage row of a record-owned route states its status",
+        [*GEN_FILES, *GEN_REFUSALS],
+        "stage row states",
+        None,
+    ),
 ]
 
 # Constructs the checker must ACCEPT: (label, edits).
 positives = [
+    ("generated behaviour supplies the refusal codes and the stage rows", GEN_MODE),
     (
         "an interval record whose interval routes are all closed needs no construction fixture",
         [rec('inference_claim = "point_only"\n', 'inference_claim = "interval"\n')],
@@ -1628,8 +1696,8 @@ def synthetic(index: int, edits, *, baseline: bool = False, disable: str | None 
     base = FILES
     texts = dict(base)
     for name, old, new in edits:
-        if old is None:  # append
-            texts[name] += new
+        if old is None:  # append (or create a file the baseline lacks)
+            texts[name] = texts.get(name, "") + new
             continue
         if old not in texts[name]:
             raise LookupError(f"{old[:70]!r} not found in synthetic {name}")
@@ -1638,6 +1706,7 @@ def synthetic(index: int, edits, *, baseline: bool = False, disable: str | None 
         texts[name] = texts[name].replace(old, new, 1)
     for name, body in texts.items():
         target = REGISTRY_FILE if name == "record.toml" else name
+        (case / target).parent.mkdir(parents=True, exist_ok=True)
         (case / target).write_text(body.replace("{D}", str(case)), encoding="utf-8", newline="\n")
     env = {key: str(case / name) for key, name in ENV_FILES.items()}
     env["CAPABILITY_EXTRA_SOURCES"] = os.pathsep.join(str(case / n) for n in ("code.rs", "code.py"))

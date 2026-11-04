@@ -194,7 +194,10 @@ fn unsupported_policies_are_refused_at_build_with_the_next_attempt() {
     ))
     .unwrap_err();
     let text = refusal_text(&not_at_random);
-    assert!(text.contains("multiple_imputation.not_at_random"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::multiple_imputation::NOT_AT_RANDOM),
+        "{text}"
+    );
     assert!(text.contains("sensitivity analysis"), "{text}");
 
     let too_few = built(imputation(ImputationSpec::new().with_imputations(1))).unwrap_err();
@@ -219,7 +222,10 @@ fn unsupported_policies_are_refused_at_build_with_the_next_attempt() {
         .build()
         .unwrap_err();
     let text = refusal_text(&clustered);
-    assert!(text.contains("multiple_imputation.clusters_required"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::multiple_imputation::CLUSTERS_REQUIRED),
+        "{text}"
+    );
 
     // Covariates are auxiliary variables under imputation, and refused under complete case.
     let covariates = built(

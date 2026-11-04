@@ -52,9 +52,10 @@ use super::{BoundTransportFunctional, ClassicalTransportDerivation, Rule, SHedge
 
 /// Detail of a report refused because the derivation and its formula disagree.
 pub(crate) const INVARIANCE_INCONSISTENT_DETAIL: &str =
-    "scenario_invariance.derivation_inconsistent";
+    antecedent_core::reason_details::scenario_invariance::DERIVATION_INCONSISTENT;
 /// Detail of a report refused because the graph holds a non-static node.
-pub(crate) const INVARIANCE_NON_STATIC_DETAIL: &str = "scenario_invariance.non_static_node";
+pub(crate) const INVARIANCE_NON_STATIC_DETAIL: &str =
+    antecedent_core::reason_details::scenario_invariance::NON_STATIC_NODE;
 
 /// A refused invariance report.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

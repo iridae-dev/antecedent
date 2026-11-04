@@ -38,12 +38,14 @@ record_sha256 = "6d3c10d151aa367854b9cf210bf2930d57ac8fb325660360c6807805e0b9a86
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
-sha256 = "1dd13dac12b1583e3b1a6ed1839e9766b8d2627329d8873fff7ea1f1fd16351c"
+items = ["const MIN_CLUSTERS", "const NOMINAL_LEVEL", "const POSTERIOR_STREAM", "fn bayesian_bootstrap", "fn clusters", "fn estimate", "fn invalid", "fn posterior_by_cluster_weights", "fn summarize_draws", "fn weighted_estimate", "struct ClusterScores", "struct PosteriorSummary"]
+sha256 = "649eebbff91ce63c0dd93375cc5cb417d32dc334ff577e62cd293c0a9c6df19e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_design_excursion_bayesian_bootstrap_reference.rs"
-sha256 = "1646fb555b90bcdcb4f14b0b539678fe1eac944ee6de33806839539a78221b8b"
+items = ["const DRAWS", "fn floats", "fn the_posterior_of_the_ratio_matches_the_exact_dirichlet_integrals"]
+sha256 = "78f5d046f59bde5938d261e47b2b4f604ecb582dc178cfb82d00b7b447e3d7fa"
 
 [[method_review.artifacts]]
 role = "reference"

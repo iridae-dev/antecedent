@@ -1059,7 +1059,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   2016), conditional on the realized arm sizes. It needs 100 rows, at least two
   in each arm and positive variance, carries its own uncertainty label and
   standard-error kind (`hc2`), is never graphless-supported, and reports calibration
-  `not_measured` until a coverage record of a 20-of-300 smaller arm covers the
+  `not_measured` while no coverage record of a 20-of-300 smaller arm covers the
   execution. The Bernoulli score and fixed CUPED intervals keep the arm rule.
   Complete-randomization Neyman keeps its own construction and 30-unit-per-arm
   rule; contrasts among three or more actions and the receipt-adjusted contrasts

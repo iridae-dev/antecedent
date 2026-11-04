@@ -41,22 +41,26 @@ record_sha256 = "50f3f1ed33a274d060880cd8628e159c97f9d9106c4ee97a63ac47bb1eb8357
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs"
-sha256 = "abcb47d4b7f73cf71f2635f7b1e4c562075f5ffe1f35618418960b3f52898738"
+items = ["const MAX_WORLDS", "enum FiniteQuantity", "fn bounds", "fn from_validated", "fn new", "fn unique_nonempty", "fn validate_unique_routes", "fn validate_worlds", "struct ExogenousVariable", "struct FactualUnit", "struct FiniteScm", "struct FiniteVariable", "struct FiniteWorld", "struct WorldAtom", "struct WorldRoute"]
+sha256 = "fe9e9bb0ab6e4f220575f032de99e75d556c9ed577b324095485bcf735b16e64"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-sha256 = "a3130b1c2c96e3bff61878b3f817e9a451cedec93fabc5257ddf508883481029"
+items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
+sha256 = "3f083488f41851aaf7a01f2c758f09943e61d25443c392e0cf3e47c5cb231289"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/factorized.rs"
-sha256 = "d8c585ea46710179a19aeeca7e9ae3561143810f201bbbfdd375d1aad9163375"
+items = ["module"]
+sha256 = "35d807482c9b17cefa5b3a0932778c56dd58e1c7b4481bce5851ac24fafeb7ca"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/finite_scm_reference.rs"
-sha256 = "d3773575742c5ba906880b57871b299115b3ed8e5932620988707d9dfe6b34ae"
+items = ["fn a_model_beyond_the_enumeration_bound_is_executed_exactly_by_variable_elimination", "fn atom", "fn check", "fn index", "fn random_finite_models_match_brute_force_enumeration", "fn reference", "fn request", "fn scm"]
+sha256 = "3548506d0a2d3a36890648440cd61fb84868e802d53740ef9f59eb3c0fe51430"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The published numbers are the posterior means of the mediator and outcome coefficients under independent normal priors on every non-intercept column, with the ordinary-least-squares residual variance plugged in. No interval is produced.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported).",
 ]
 
 upstream_implementations_observed = []
@@ -25,19 +25,22 @@ rationale = "Posterior means of the mediator and outcome coefficient vectors und
 no_independent_algorithm = "mediation_coefficient_posterior calls full_coefficient_posterior_mean on the mediator and outcome design summaries produced by the covered mediation estimator. No interval."
 covered_by = ["estimate.posterior_mean_kernel", "estimate.nonlinear_mediation"]
 derivation = "Normal likelihood with plug-in variance sigma2 = rss / (n - p) and independent N(0, tau^2) priors on the non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2 / tau^2) D)^-1 X'y; checked against the exact penalized normal equations in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "b2e98bc5bae25c6e6d08f0d3c07d3215d593712abcfab03c3f3cf6177bbef3b1"
+record_sha256 = "1522c2a856674d423a541539766fec1f15ef96f6a2e2db2b05a2f8569ba34823"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn mediation_coefficient_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "7188f334c43370b183abe5818c30aac6a80ad8ef120f56224ff2d86b5cb46d6c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/nonlinear_mediation.rs"
-sha256 = "e1d523a870757ec9d5524d84d82c6ed075703da6627f7db3ce848d7d9683a333"
+items = ["const EX", "const EX2", "const EX3", "const XS", "fn a_cancelled_context_stops_the_estimate_without_a_claim", "fn base_scm", "fn config", "fn grid", "fn m1", "fn m2", "fn m3", "fn mediation_bootstrap_is_deterministic_and_has_no_intervals", "fn mediation_closed_form_algebra_is_self_consistent", "fn mediation_confounding_and_cross_world_premises_are_refused", "fn mediation_exact_scm_recovers_closed_form_effects", "fn mediation_linear_g_matches_product_of_coefficients_cross_check", "fn mediation_posterior_consumer_replays_the_design_summary", "fn mediation_posterior_mean_stays_at_the_exact_scm_coefficients", "fn mediation_posterior_refuses_a_mapped_prior", "fn mediation_quadrature_error_check_reports_and_refuses", "fn mediation_refuses_a_degree_or_node_count_above_the_supported_maximum", "fn mediation_total_equals_direct_plus_indirect", "fn mediation_weak_overlap_is_refused", "fn refusal_message", "fn run", "fn theta", "fn truth", "struct Grid", "struct Scm"]
+sha256 = "23171aea4d9ab21f63410eacc9fd8d1f69972907e5cb1bd1a12fe849f828418a"

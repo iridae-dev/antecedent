@@ -39,7 +39,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_trial_transport.rs",
-          "sha256": "62f52fc3121e403e594c2b69e35924affeff28b25cf762f53cb582c1aaf1d98c"
+          "items": [
+            "fn bayesian_trial_transport_matches_two_source_row_dirichlet_moments"
+          ],
+          "sha256": "ee3ba8ae2949ae1312a03f43575f2ad60136526b60f1d8034e5f379720b9dadd"
         }
       ],
       "fixture_payload_sha256": "14e4b67a58414c093d7e5e294415bcc988fde41d7c5c3a0d2bab70fad56b3ff6"

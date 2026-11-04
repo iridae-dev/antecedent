@@ -109,32 +109,45 @@ const TAG_SHIFT: &str = "antecedent.transported_response.covariate_shift";
 const STAGE: &str = "transported_decision";
 
 /// Detail: the transport identity names no source, target or assumption.
-pub const DETAIL_IDENTITY_INCOMPLETE: &str = "transported_decision.transport_identity_incomplete";
+pub const DETAIL_IDENTITY_INCOMPLETE: &str =
+    antecedent_core::reason_details::transported_decision::TRANSPORT_IDENTITY_INCOMPLETE;
 /// Detail: a cohort or policy that was not carried anywhere was offered as transported.
-pub const DETAIL_NOT_TRANSPORTED: &str = "transported_decision.not_transported";
+pub const DETAIL_NOT_TRANSPORTED: &str =
+    antecedent_core::reason_details::transported_decision::NOT_TRANSPORTED;
 /// Detail: a coordinate is not stated in the target population.
-pub const DETAIL_NOT_IN_TARGET: &str = "transported_decision.coordinate_not_in_target";
+pub const DETAIL_NOT_IN_TARGET: &str =
+    antecedent_core::reason_details::transported_decision::COORDINATE_NOT_IN_TARGET;
 /// Detail: a transported value was labelled `Supported`.
-pub const DETAIL_SUPPORT_INFLATED: &str = "transported_decision.support_label_inflated";
+pub const DETAIL_SUPPORT_INFLATED: &str =
+    antecedent_core::reason_details::transported_decision::SUPPORT_LABEL_INFLATED;
 /// Detail: a transported law was labelled exact or measured.
-pub const DETAIL_CALIBRATION_INFLATED: &str = "transported_decision.calibration_label_inflated";
+pub const DETAIL_CALIBRATION_INFLATED: &str =
+    antecedent_core::reason_details::transported_decision::CALIBRATION_LABEL_INFLATED;
 /// Detail: a transported law was labelled native.
-pub const DETAIL_NATIVE_LABEL: &str = "transported_decision.native_label_on_transported_value";
+pub const DETAIL_NATIVE_LABEL: &str =
+    antecedent_core::reason_details::transported_decision::NATIVE_LABEL_ON_TRANSPORTED_VALUE;
 /// Detail: the value is malformed.
-pub const DETAIL_INVALID_VALUE: &str = "transported_decision.invalid_value";
+pub const DETAIL_INVALID_VALUE: &str =
+    antecedent_core::reason_details::transported_decision::INVALID_VALUE;
 /// Detail: the request needs a law and the transported value is a point.
-pub const DETAIL_LAW_NOT_SUPPLIED: &str = "transported_decision.law_not_supplied";
+pub const DETAIL_LAW_NOT_SUPPLIED: &str =
+    antecedent_core::reason_details::transported_decision::LAW_NOT_SUPPLIED;
 /// Detail: the request needs an interval.
-pub const DETAIL_INTERVAL_NOT_SUPPORTED: &str = "transported_decision.interval_not_supported";
+pub const DETAIL_INTERVAL_NOT_SUPPORTED: &str =
+    antecedent_core::reason_details::transported_decision::INTERVAL_NOT_SUPPORTED;
 /// Detail: responses merged into one grid were not carried by one transport.
-pub const DETAIL_MIXED_TRANSPORTS: &str = "transported_decision.mixed_transports";
+pub const DETAIL_MIXED_TRANSPORTS: &str =
+    antecedent_core::reason_details::transported_decision::MIXED_TRANSPORTS;
 /// Detail: a transport identity of a typed route is not a 32-byte digest.
-pub const DETAIL_IDENTITY_NOT_DIGEST: &str = "transported_decision.transport_identity_not_digest";
+pub const DETAIL_IDENTITY_NOT_DIGEST: &str =
+    antecedent_core::reason_details::transported_decision::TRANSPORT_IDENTITY_NOT_DIGEST;
 /// Detail: a route that has a typed constructor was declared by hand.
-pub const DETAIL_ROUTE_NEEDS_TYPED_SOURCE: &str = "transported_decision.route_needs_typed_source";
+pub const DETAIL_ROUTE_NEEDS_TYPED_SOURCE: &str =
+    antecedent_core::reason_details::transported_decision::ROUTE_NEEDS_TYPED_SOURCE;
 /// Detail: the consumer's policy does not accept the transported support
 /// label (the decision-side form of `inverse_forward_source.transported_not_accepted`).
-pub const DETAIL_SUPPORT_BELOW_POLICY: &str = "transported_decision.transported_not_accepted";
+pub const DETAIL_SUPPORT_BELOW_POLICY: &str =
+    antecedent_core::reason_details::transported_decision::TRANSPORTED_NOT_ACCEPTED;
 
 /// The route a transported value was carried by.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

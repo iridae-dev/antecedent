@@ -40,12 +40,14 @@ record_sha256 = "2ae7ad17a15efc32bc19353ce2d8a8b69570da712a230ef7c20ce1803ed5dba
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/identified_set.rs"
-sha256 = "31102ab8d419488908236d6176db34dcdcc3d63316290e9cfc31d1a84d274b75"
+items = ["enum IdentifiedSetIntervalMethod", "fn finish", "fn imbens_manski_critical_value", "fn imbens_manski_influence", "fn imbens_manski_posterior_draws", "fn imbens_manski_shared_replicates", "fn new", "fn quantile", "fn sample_sd", "fn width_sd", "struct BoundDraws", "struct IdentifiedSetInterval", "struct Selection"]
+sha256 = "2326ec60899d789ee7e5acc70dbbceb505d153a747169e140664d1f7276403ff"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/identified_set_reference.rs"
-sha256 = "64cc7151359972bea8b8ff0a246f07b5b02ba8f9cc2421c36d5fc34cc089040b"
+items = ["fn a_single_replicate_or_a_non_finite_point_gives_no_interval", "fn check", "fn close", "fn floats", "fn reference", "fn the_critical_value_solves_the_imbens_manski_equation", "fn the_influence_interval_matches_the_exact_construction", "fn the_shared_replicate_interval_matches_the_exact_construction"]
+sha256 = "a9c7af500064683d2568104aeba32cb5c89f48ccc85d9eeec4a7245f863040e9"
 
 [[method_review.artifacts]]
 role = "reference"

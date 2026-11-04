@@ -42,12 +42,14 @@ record_sha256 = "f1a57d1d10d993f742ffa50b2a824ba605b8e28a7ed7f8cbbc6f572b54a7e7c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/group_sequential.rs"
-sha256 = "befc3e7f55ae272f38bd02c3b6c227857bc10e8f4144892e8e86fee66646f5b4"
+items = ["const BISECTIONS", "const BRACKET_HIGH", "const BRACKET_LOW_ONE_SIDED", "const BRACKET_WIDTH", "const LOWER_TRUNCATION", "const MAX_LOOKS", "const MAX_STAGE_PANELS", "const PANELS_PER_TRANSITION_SD", "const PANEL_WIDTH", "const STAGEWISE_BRACKET", "enum Sidedness", "enum SpendingFunction", "fn advance", "fn as_str", "fn boundaries", "fn check_fractions", "fn crossing", "fn crossing_probabilities", "fn first_crossing", "fn new", "fn side_crossing", "fn solve", "fn spend", "fn stagewise_inference", "fn stagewise_upper_p_value", "struct Boundaries", "struct Recursion", "struct Stage", "struct StagewiseInference", "struct StagewiseLook"]
+sha256 = "59d58a9bd18ddc37b0d7b5b38e1de4d8adc9f98a441072bc98f1d16f92372bac"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/group_sequential_reference.rs"
-sha256 = "de5c29628e8fb2e743e1c48fabb8ecc99a5de7ad6f1708a91d3c1c5c3f55796b"
+items = ["fn boundaries_and_crossing_probabilities_match_the_independent_recursion", "fn looks_too_close_for_the_quadrature_are_refused_not_summed_inaccurately", "fn never", "fn number", "fn numbers", "fn reference", "fn side", "fn spending", "fn stagewise_limits_solve_their_defining_equations", "fn stagewise_p_values_match_the_independent_recursion", "fn two_look_probabilities_match_the_bivariate_normal_integral"]
+sha256 = "d307f283c0b9c51e1b5dcd2c5dced6c5943429d688a1d0887218d11ac8ecf783"
 
 [[method_review.artifacts]]
 role = "reference"

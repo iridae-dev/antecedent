@@ -25,6 +25,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import msm_sensitivity as msm
 from antecedent import sensitivity_decision as sd
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -190,7 +191,7 @@ def test_msm_keeps_the_sampling_interval_withheld_and_the_range_an_assumption_ra
     assert result.inference_claim == "assumption_range"
     assert result.uncertainty.sampling_interval == "sampling interval: not reported"
     assert result.uncertainty.reason_code == "uncertainty_representation_insufficient"
-    assert result.uncertainty.detail == "msm_sensitivity.no_interval_method"
+    assert result.uncertainty.detail == reason_details.msm_sensitivity.NO_INTERVAL_METHOD
     assert "not a confidence interval" in result.interpretation
     assert "not a sampling interval" in result.interpretation
     assert "population constraint" in result.normalization
@@ -206,7 +207,7 @@ def test_msm_sampling_composition_request_refuses():
             _two_strata(), 2.0, sampling_composition="percentile_bootstrap_of_bounds"
         ),
         "route_not_supported",
-        "msm_sensitivity.composition_not_supported",
+        reason_details.msm_sensitivity.COMPOSITION_NOT_SUPPORTED,
     )
     assert "percentile_bootstrap_of_bounds" in error.message
 
@@ -219,17 +220,17 @@ def test_msm_refuses_lambda_below_one_and_an_empty_range():
         _refusal(
             lambda lambda_max=lambda_max: msm.msm_ate_sensitivity(_two_strata(), lambda_max),
             "invalid_argument",
-            "msm_sensitivity.lambda_below_one",
+            reason_details.msm_sensitivity.LAMBDA_BELOW_ONE,
         )
     _refusal(
         lambda: msm.msm_ate_sensitivity(_two_strata(), 1.0),
         "invalid_argument",
-        "msm_sensitivity.lambda_range_empty",
+        reason_details.msm_sensitivity.LAMBDA_RANGE_EMPTY,
     )
     _refusal(
         lambda: msm.msm_ate_sensitivity(_two_strata(), 1.0e13),
         "route_not_supported",
-        "msm_sensitivity.bounds_exceeded",
+        reason_details.msm_sensitivity.BOUNDS_EXCEEDED,
     )
 
 
@@ -242,7 +243,7 @@ def test_msm_refuses_propensities_on_the_boundary():
         _refusal(
             lambda strata=strata: msm.msm_ate_sensitivity(strata, 2.0),
             "route_not_supported",
-            "msm_sensitivity.positivity",
+            reason_details.msm_sensitivity.POSITIVITY,
         )
 
 
@@ -252,14 +253,14 @@ def test_msm_refuses_malformed_inputs():
     _refusal(
         lambda: msm.msm_ate_sensitivity(bad_mass, 2.0),
         "invalid_argument",
-        "msm_sensitivity.stratum_mass",
+        reason_details.msm_sensitivity.STRATUM_MASS,
     )
     over_unit = msm.OutcomeLaw((0.0, 1.0), (0.5, 0.6))
     bad_law = [strata[0], msm.MsmStratum(0.5, 0.25, over_unit, strata[1].control)]
     _refusal(
         lambda: msm.msm_ate_sensitivity(bad_law, 2.0),
         "invalid_argument",
-        "msm_sensitivity.outcome_law",
+        reason_details.msm_sensitivity.OUTCOME_LAW,
     )
     infinite = msm.MsmStratum(
         0.5, 0.25, strata[1].treated, msm.OutcomeLaw((math.inf, 1.0), (0.7, 0.3))
@@ -267,27 +268,27 @@ def test_msm_refuses_malformed_inputs():
     _refusal(
         lambda: msm.msm_ate_sensitivity([strata[0], infinite], 2.0),
         "invalid_argument",
-        "msm_sensitivity.outcome_law",
+        reason_details.msm_sensitivity.OUTCOME_LAW,
     )
     _refusal(
         lambda: msm.msm_ate_sensitivity([], 2.0),
         "route_not_supported",
-        "msm_sensitivity.bounds_exceeded",
+        reason_details.msm_sensitivity.BOUNDS_EXCEEDED,
     )
     _refusal(
         lambda: msm.msm_ate_sensitivity(strata, 2.0, grid_points=1),
         "route_not_supported",
-        "msm_sensitivity.bounds_exceeded",
+        reason_details.msm_sensitivity.BOUNDS_EXCEEDED,
     )
     _refusal(
         lambda: msm.msm_ate_sensitivity(strata, 2.0, tolerance=0.5),
         "invalid_argument",
-        "msm_sensitivity.invalid_tolerance",
+        reason_details.msm_sensitivity.INVALID_TOLERANCE,
     )
     _refusal(
         lambda: msm.msm_ate_sensitivity(strata, 2.0, decision_threshold=math.nan),
         "invalid_argument",
-        "msm_sensitivity.invalid_threshold",
+        reason_details.msm_sensitivity.INVALID_THRESHOLD,
     )
 
 
@@ -349,7 +350,7 @@ def test_msm_artifact_is_a_lambda_surface_with_withheld_sampling():
     assert surface.upper[-1] == pytest.approx(0.4875, abs=1e-12)
     assert isinstance(artifact.uncertainty.sampling, sd.SamplingWithheld)
     assert artifact.uncertainty.sampling.reason_code == "uncertainty_representation_insufficient"
-    assert artifact.uncertainty.sampling.detail == "msm_sensitivity.no_interval_method"
+    assert artifact.uncertainty.sampling.detail == reason_details.msm_sensitivity.NO_INTERVAL_METHOD
     assert artifact.uncertainty.identified_bound is None
     assert "not a confidence interval" in artifact.uncertainty.assumption_range
     assert artifact.provenance.source_kind == "marginal_sensitivity_model"
@@ -405,7 +406,7 @@ def test_msm_decision_keeps_sampling_withheld_and_refuses_composition():
     decided = require_success(sd.decide(artifact.contract(), artifact))
     assert decided.sampling.status == "no_interval_method"
     assert decided.sampling.reason_code == "uncertainty_representation_insufficient"
-    assert decided.sampling.detail == "msm_sensitivity.no_interval_method"
+    assert decided.sampling.detail == reason_details.msm_sensitivity.NO_INTERVAL_METHOD
     with pytest.raises(sd.SensitivityRefusal) as caught:
         require_success(
             sd.decide(
@@ -413,7 +414,10 @@ def test_msm_decision_keeps_sampling_withheld_and_refuses_composition():
             )
         )
     assert caught.value.reason_code == "route_not_supported"
-    assert caught.value.detail == "sensitivity_decision_composition.composition_not_supported"
+    assert (
+        caught.value.detail
+        == reason_details.sensitivity_decision_composition.COMPOSITION_NOT_SUPPORTED
+    )
 
 
 def test_msm_artifact_round_trips_and_refuses_a_foreign_identity():
@@ -446,7 +450,7 @@ def test_msm_artifact_refuses_a_malformed_surface_and_foreign_arguments():
             effect=_scientific("ate"), actions=actions[:1], causal_contract_id="c"
         )
     assert caught.value.reason_code == "decision_contract_unsatisfied"
-    assert caught.value.detail == "sensitivity_decision_composition.wrong_contract"
+    assert caught.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
     # A point quantity needs one value per grid point.
     with pytest.raises(msm.MsmSensitivityRefusal) as caught:
         result.to_sensitivity_artifact(

@@ -112,7 +112,35 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_curve_posterior_validation_truth.rs",
-          "sha256": "50e73e7a76df589247e5368b568b74ed0f2dd6cc7d532e6f8d15b54d7daf7bb7"
+          "items": [
+            "const FIXTURE",
+            "const FRONTDOOR",
+            "const WEIGHTS",
+            "enum Class",
+            "fn cpdag",
+            "fn cpdag_table",
+            "fn curve",
+            "fn cycle",
+            "fn d",
+            "fn frontdoor",
+            "fn inference_name",
+            "fn mean_outcome",
+            "fn means",
+            "fn name",
+            "fn normal",
+            "fn pag",
+            "fn pag_table",
+            "fn posterior",
+            "fn response_curve_graph_posterior_cheap_and_full_match_the_identified_curves",
+            "fn setup",
+            "fn suite_name",
+            "fn truth",
+            "fn uniform",
+            "fn v",
+            "struct Stream",
+            "struct Truth"
+          ],
+          "sha256": "a7aa790e9d046bbb9f75ddc599ab6735cd9f6ea7c52d544b99d7800485fc2c72"
         }
       ],
       "fixture_payload_sha256": "943dcd0b253ead959224436338ad30d8618c602fc29e835414b60884baa67771"

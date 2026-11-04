@@ -285,14 +285,14 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
             .predict(&[VariableId::from_raw(0)], &[&[-1.0, 1.0]], 2, &ctx())
             .unwrap_err()
             .to_string(),
-        "recalc.dr_prediction_schema_mismatch"
+        antecedent_core::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH
     );
     assert_eq!(
         session
             .predict(&[VariableId::from_raw(2)], &[&[f64::NAN]], 1, &ctx())
             .unwrap_err()
             .to_string(),
-        "recalc.dr_prediction_schema_mismatch"
+        antecedent_core::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH
     );
     assert!(matches!(
         session.predict(&[VariableId::from_raw(2)], &[&[2.0]], 1, &ctx()),
@@ -305,7 +305,7 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     run(&mut dml, &request(false));
     assert_eq!(
         dml.predict(&[VariableId::from_raw(2)], &[&[0.0]], 1, &ctx()).unwrap_err().to_string(),
-        "recalc.dr_predictor_unavailable"
+        antecedent_core::reason_details::recalc::DR_PREDICTOR_UNAVAILABLE
     );
 }
 
@@ -465,7 +465,7 @@ fn assert_unpopulated_arm(error: &antecedent::analysis::recalc_receipt::RecalcRu
         panic!("expected executing arm refusal: {error:?}");
     };
     assert!(
-        matches!(causal.peeled(), antecedent::CausalError::Estimate(antecedent_estimate::EstimationError::Refused { code: "arm_not_populated", message }) if message.contains("dml.arm_not_populated"))
+        matches!(causal.peeled(), antecedent::CausalError::Estimate(antecedent_estimate::EstimationError::Refused { code: "arm_not_populated", message }) if message.contains(antecedent_core::reason_details::dml::ARM_NOT_POPULATED))
     );
 }
 
@@ -507,7 +507,7 @@ fn dr_plr_target_cancellation_and_invalid_refits_cannot_reuse_an_aipw_law() {
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = fails_without_fits(&mut session, &original, &cancelled);
-    assert!(error.to_string().contains("recalc.cancelled"));
+    assert!(error.to_string().contains(antecedent_core::reason_details::recalc::CANCELLED));
     invalid = original.clone();
     invalid.columns[1].1[0] += 0.1;
     let mut constrained = ctx();

@@ -31,6 +31,8 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from antecedent import _reason_details
+
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -495,7 +497,7 @@ class ExternalSpec:
                 {
                     "code": "invalid_argument",
                     "stage": "bind",
-                    "detail": "program_binding.no_identified_request",
+                    "detail": _reason_details.program_binding.NO_IDENTIFIED_REQUEST,
                     "offending": "request",
                     "expected": "a response-curve query with a dose grid",
                     "supplied": None,

@@ -40,12 +40,14 @@ record_sha256 = "f64fbd7190c4c3f9f591f47077a70720c5ebbe6b993ae52da5baf4d46a632c7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/joint_mechanism_sensitivity.rs"
-sha256 = "e721d2ae6d0d36b23f0f4ef70b87297bf88181c23743590e77225dbd40b4801f"
+items = ["const JOINT_SENSITIVITY_BUDGET_DETAIL", "const JOINT_SENSITIVITY_COVERAGE_TARGET", "const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES", "const JOINT_SENSITIVITY_MAX_BOOTSTRAP", "const JOINT_SENSITIVITY_MAX_DEPTH", "const JOINT_SENSITIVITY_MAX_FACTORS", "const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS", "const JOINT_SENSITIVITY_MAX_MEMORY_BYTES", "const JOINT_SENSITIVITY_MAX_OPERATIONS", "const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES", "const JOINT_SENSITIVITY_MAX_PARENT_LEVELS", "const JOINT_SENSITIVITY_MAX_TOLERANCE", "const JOINT_SENSITIVITY_MIN_TOLERANCE", "const JOINT_SENSITIVITY_SAMPLING_METHOD", "enum JointFactor", "enum JointSensitivityError", "enum Line", "enum TippingStatus", "fn baseline", "fn bounds_at", "fn bracket", "fn bytes", "fn check_shape", "fn default", "fn detail", "fn extrema_at", "fn factor_bytes", "fn fraction", "fn from", "fn interval_calibration", "fn joint_sensitivity_bootstrap_interval_internal", "fn kernel", "fn kernel_error", "fn kernel_stage", "fn name", "fn new", "fn parent", "fn read_factors", "fn reason_code", "fn refuse", "fn validate_spec", "struct AxisTipping", "struct FrontierPoint", "struct JointBox", "struct JointDeviationSpec", "struct JointFactorBound", "struct JointFactors", "struct JointMechanismSensitivityResult", "struct JointSensitivityInterval", "struct JointSensitivityLimits", "struct JointSensitivityRange", "struct JointSensitivityReceipt", "struct JointSensitivityUncertainty", "struct TippingBracket"]
+sha256 = "f5f5997fee6aaea18da9d8f86edb7ce78d213f9f9732f9d6f4ebe5ff5b956863"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/joint_uncertainty_reference.rs"
-sha256 = "dc4dcf45f28d0438169b27e235a8a7081c2c1bba417c2806ad9f6f32f811a98f"
+items = ["const SEED", "const W", "const X", "const Y", "const Z", "fn catalog", "fn diagram", "fn f64s", "fn functional", "fn product_draws", "fn query", "fn recorded_draws", "fn spec", "fn table", "fn the_endpoint_interval_equals_the_vertex_enumeration_reference", "fn u64s"]
+sha256 = "6c31e821d46603fd1b80a083e9582d98d4fc50d4db0dee2991538e056574f937"
 
 [[method_review.artifacts]]
 role = "reference"

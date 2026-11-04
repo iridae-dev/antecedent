@@ -29,9 +29,11 @@ record_sha256 = "9ed4f8d44b88896cbd62dda2c19ff3938039670b2a5d1eadaccda75a84010e4
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-sha256 = "ca3b1150014987ff74569c387a56707a6cd2a3b44dcf9c920f387e3dea2fd5f7"
+items = ["enum ValueFunctional", "fn as_str", "fn atoms", "fn from", "fn mean", "fn value"]
+sha256 = "d8478442dc9f0b7ac2a0e03192226a576c5dc81c679bd25b606119caa0300e5f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/composed_uncertainty_facade.rs"
-sha256 = "822d3cbe40a2762ce3ca5046691c4be9c6599fb428a9ebe91f4d0b4c814b58d3"
+items = ["const Z_95", "fn a_composed_exceedance_reports_the_probability_band_and_verdict", "fn a_composed_interval_is_reported_with_its_calibration_at_its_coordinate", "fn a_known_weight_mixture_exceedance_matches_the_weighted_fractions", "fn a_linear_moments_spread_agrees_with_the_aligned_rows", "fn a_spread_of_unpaired_draws_or_on_a_mismatched_route_is_refused", "fn a_transported_spread_from_aligned_pieces_matches_the_row_sums", "fn a_transported_spread_needs_all_three_pieces_and_their_dependence", "fn an_aligned_functional_spread_matches_the_enumerated_rows", "fn an_aligned_linear_spread_is_the_population_variance_of_the_contrast", "fn an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused", "fn an_exceedance_with_a_cutoff_outside_the_unit_interval_is_refused", "fn artifact", "fn ctx", "fn enumerated", "fn moment", "fn pair", "fn quantity"]
+sha256 = "69d6c85276154fbe025947a0bf00b1123e1d99fbe96a1c795a73d8977b85d4fb"

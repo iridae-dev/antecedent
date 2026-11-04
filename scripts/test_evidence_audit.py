@@ -28,13 +28,14 @@ from evidence_kinds import (
     software_only_roles,
 )
 from reference_compare import values_close
+from review_items import artifact_digest
 
 
 class Classification(unittest.TestCase):
     def test_reason_namespaces_keep_prose_and_device_fallbacks_out_of_scientific_codes(self):
         from parity_rows import reason_obligation, runtime_code_literals
 
-        for name in ("counterparts.toml", "support_graphless.toml", "estimator_route_residual.toml", "test_refactor_dispositions.toml", "scenario_matrix.toml", "slow_correctness_tests.toml"):
+        for name in ("counterparts.toml", "support_graphless.toml", "estimator_route_residual.toml", "scenario_matrix.toml", "slow_correctness_tests.toml"):
             self.assertIsNone(reason_obligation(Path(name), "reason"))
             self.assertEqual(reason_obligation(Path(name), "calibration_reason"), "calibration")
             self.assertEqual(reason_obligation(Path(name), "reason_code"), "runtime_refusal")
@@ -77,7 +78,7 @@ class Classification(unittest.TestCase):
             source = crate / "src/lib.rs"
             text = '#[cfg(test)] mod tests { #[test] fn truth() { assert_eq!(actual(), 2); } }'
             source.write_text(text, encoding="utf-8")
-            registry = root / "parity/v3_test_registry.toml"
+            registry = root / "parity/test_registry.toml"
             registry.write_text('[[test]]\npath="crates/p/src/lib.rs"\ncrate="p"\ncargo_target="lib"\ncalibration_acceptance_assertions=["truth"]\n', encoding="utf-8")
             rows = evidence.registered_calibration_acceptance(root)
             self.assertEqual(rows[0]["libtest_name"], "tests::truth")
@@ -107,7 +108,7 @@ class Classification(unittest.TestCase):
             source = crate / "src/lib.rs"
             text = '#[cfg(test)] mod tests { #[test] fn truth() { assert_eq!(actual(), 2); } }'
             source.write_text(text, encoding="utf-8")
-            registry = root / "parity/v3_test_registry.toml"
+            registry = root / "parity/test_registry.toml"
             registry.write_text('[[test]]\npath="crates/p/src/lib.rs"\ncrate="p"\ncargo_target="lib"\n', encoding="utf-8")
             rows = evidence.registered_rust_assertions([("crates/p/src/lib.rs", "truth")] * 2, root)
             self.assertEqual([r["libtest_name"] for r in rows], ["tests::truth"])
@@ -118,7 +119,7 @@ class Classification(unittest.TestCase):
             listing = {"rust-suites": {"p": {"testcases": {"tests::truth": {"ignored": False, "filter-match": {"status": "matches"}}}}}}
             self.assertEqual(evidence.calibration_discovery_problems(rows, listing), [])
             self.assertTrue(evidence.calibration_discovery_problems(rows, {"rust-suites": {}}))
-            with self.assertRaisesRegex(ValueError, "not in parity/v3_test_registry"):
+            with self.assertRaisesRegex(ValueError, "not in parity/test_registry"):
                 evidence.registered_rust_assertions([("crates/p/src/other.rs", "truth")], root)
             for changed in (text.replace("#[test]", "#[test] #[ignore]"), text.replace("fn truth", "fn removed")):
                 source.write_text(changed, encoding="utf-8")
@@ -222,7 +223,6 @@ class Classification(unittest.TestCase):
             self.assertTrue(evidence.script_test_declaration_problems(path, "Control.test_actual"))
 
     def test_primary_review_rejects_stale_code_and_altered_citation_sections(self):
-        import hashlib
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -232,14 +232,10 @@ class Classification(unittest.TestCase):
                 ("assertion", "test.rs"),
             ]:
                 path = root / rel
-                path.write_text("// integrity control only\n", encoding="utf-8")
-                artifacts.append(
-                    {
-                        "role": role,
-                        "path": rel,
-                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                    }
-                )
+                path.write_text("pub fn run() -> u32 { 1 }\n", encoding="utf-8")
+                artifact = {"role": role, "path": rel, "items": ["fn run"]}
+                artifact["sha256"] = artifact_digest(root, artifact)[0]
+                artifacts.append(artifact)
             record = {
                 "feature_id": "control",
                 "papers": [{"sections": ["reviewed section"]}],
@@ -266,21 +262,27 @@ class Classification(unittest.TestCase):
             record["papers"][0]["sections"] = ["unreviewed section"]
             self.assertTrue(provenance_links.method_review_problems(root, record))
             record["papers"][0]["sections"] = ["reviewed section"]
+            (root / "unrelated.rs").write_text("pub fn other() {}\n", encoding="utf-8")
             (root / "method.rs").write_text(
-                "// changed implementation\n", encoding="utf-8"
+                "pub fn run() -> u32 { 1 }\npub fn extra() {}\n", encoding="utf-8"
+            )
+            self.assertEqual(provenance_links.method_review_problems(root, record), [])
+            (root / "method.rs").write_text(
+                "pub fn run() -> u32 { 2 }\n", encoding="utf-8"
             )
             self.assertTrue(provenance_links.method_review_problems(root, record))
 
     def test_non_algorithm_mapping_rejects_missing_targets_stale_digests_and_overreach(self):
-        import hashlib
-
         def digest(path):
-            return hashlib.sha256(path.read_bytes()).hexdigest()
+            return artifact_digest(path.parent, {"path": path.name, "items": ["fn run"]})[0]
+
+        def bound(role, path, root):
+            return {"role": role, "path": path, "items": ["fn run"], "sha256": digest(root / path)}
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "m.rs").write_text("// integrity control only\n", encoding="utf-8")
-            (root / "t.rs").write_text("// assertion control\n", encoding="utf-8")
+            (root / "m.rs").write_text("pub fn run() {}\n", encoding="utf-8")
+            (root / "t.rs").write_text("pub fn run() {}\n", encoding="utf-8")
             known = {"control", "other"}
 
             def build(kind="wrapper", **changes):
@@ -293,8 +295,8 @@ class Classification(unittest.TestCase):
                     "covered_by": ["other"],
                     "derivation": "synthetic control",
                     "artifacts": [
-                        {"role": "implementation", "path": "m.rs", "sha256": digest(root / "m.rs")},
-                        {"role": "assertion", "path": "t.rs", "sha256": digest(root / "t.rs")},
+                        bound("implementation", "m.rs", root),
+                        bound("assertion", "t.rs", root),
                     ],
                 }
                 review.update(changes)
@@ -339,10 +341,12 @@ class Classification(unittest.TestCase):
             self.assertTrue(problems(record))
             # Inline tests are checked, not trusted.
             self.assertTrue(problems(build("derivation", inline_tests=True, artifacts=[
-                {"role": "implementation", "path": "m.rs", "sha256": digest(root / "m.rs")}])))
+                bound("implementation", "m.rs", root)])))
             # Changed mapped implementation stales the digest.
             record = build()
-            (root / "m.rs").write_text("// changed implementation\n", encoding="utf-8")
+            (root / "m.rs").write_text("pub fn other() {}\npub fn run() {}\n", encoding="utf-8")
+            self.assertEqual(problems(record), [])
+            (root / "m.rs").write_text("pub fn run() { let _ = 1; }\n", encoding="utf-8")
             self.assertTrue(problems(record))
 
     def test_software_fixture_cannot_be_raised_to_known_truth_by_an_origin_tag(self):
@@ -453,7 +457,6 @@ class Classification(unittest.TestCase):
             )
 
     def test_reviews_that_contradict_their_independence_claim_are_rejected(self):
-        import hashlib
 
         def build(root, generator_source, generator_path="reference.py", kind="closed_form",
                   assertion_path="test_truth.py"):
@@ -467,9 +470,11 @@ class Classification(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 if not target.exists():
                     target.write_text(text, encoding="utf-8")
-                artifacts.append(
-                    {"role": role, "path": rel, "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
-                )
+                artifact = {"role": role, "path": rel}
+                if role == "assertion_source":
+                    artifact["items"] = ["fn test_t"]
+                artifact["sha256"] = artifact_digest(root, artifact)[0] or ""
+                artifacts.append(artifact)
             review = {
                 key: "reviewed scope, with explicit limits"
                 for key in ("scope", "independence_basis", "historical_exposure", "redistribution", "limitations")
@@ -492,7 +497,6 @@ class Classification(unittest.TestCase):
                 self.assertTrue(any(expected in p for p in problems), problems)
 
     def test_review_must_bind_the_generator_and_lock_the_oracle_declares(self):
-        import hashlib
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -502,10 +506,12 @@ class Classification(unittest.TestCase):
                 ("environment_lock", "other_reference.py.lock"),
                 ("assertion_source", "test_truth.py"),
             ):
-                (root / rel).write_text("x = 1\n", encoding="utf-8")
-                artifacts.append(
-                    {"role": role, "path": rel, "sha256": hashlib.sha256((root / rel).read_bytes()).hexdigest()}
-                )
+                (root / rel).write_text("def test_truth():\n    assert 1\n", encoding="utf-8")
+                artifact = {"role": role, "path": rel}
+                if role == "assertion_source":
+                    artifact["items"] = ["fn test_truth"]
+                artifact["sha256"] = artifact_digest(root, artifact)[0]
+                artifacts.append(artifact)
             oracle = {
                 "kind": "closed_form",
                 "generator": "reference.py",
@@ -563,7 +569,6 @@ class Classification(unittest.TestCase):
         )
 
     def test_altered_tolerance_or_false_independence_invalidates_a_retained_review(self):
-        import hashlib
 
         from evidence_kinds import fixture_payload_digest, fixture_review_problems
 
@@ -575,14 +580,12 @@ class Classification(unittest.TestCase):
                 ("environment_lock", "reference.py.lock"),
                 ("assertion_source", "test_truth.py"),
             ):
-                (root / rel).write_text("x = 1\n", encoding="utf-8")
-                artifacts.append(
-                    {
-                        "role": role,
-                        "path": rel,
-                        "sha256": hashlib.sha256((root / rel).read_bytes()).hexdigest(),
-                    }
-                )
+                (root / rel).write_text("def test_truth():\n    assert 1\n", encoding="utf-8")
+                artifact = {"role": role, "path": rel}
+                if role == "assertion_source":
+                    artifact["items"] = ["fn test_truth"]
+                artifact["sha256"] = artifact_digest(root, artifact)[0]
+                artifacts.append(artifact)
             review = {
                 key: "reviewed scope, with explicit limits"
                 for key in (
@@ -617,7 +620,6 @@ class Classification(unittest.TestCase):
             )
 
     def test_retained_review_rejects_removed_assertions_and_changed_helpers(self):
-        import hashlib
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -639,13 +641,11 @@ class Classification(unittest.TestCase):
             ]:
                 path = root / rel
                 path.write_text(source, encoding="utf-8")
-                artifacts.append(
-                    {
-                        "role": role,
-                        "path": rel,
-                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                    }
-                )
+                artifact = {"role": role, "path": rel}
+                if role == "assertion_source":
+                    artifact["items"] = ["fn test_truth"]
+                artifact["sha256"] = artifact_digest(root, artifact)[0]
+                artifacts.append(artifact)
             review = {
                 key: "reviewed scope, with explicit limits"
                 for key in (
@@ -790,7 +790,7 @@ class Classification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "parity").mkdir()
-            (root / "parity/v3_test_registry.toml").write_text("test = []\n", encoding="utf-8")
+            (root / "parity/test_registry.toml").write_text("test = []\n", encoding="utf-8")
             (root / "python/tests").mkdir(parents=True)
             (root / "parity/example.toml").write_text(
                 '[[claim]]\nevidence_kind = "internal_known_truth"\n'
@@ -1270,7 +1270,7 @@ class CalibrationBoundary(unittest.TestCase):
                     row["calibration_evidence"]["status"], "registered_unmeasured"
                 )
         result = subprocess.run(
-            ["bash", str(root / "scripts/gate_calibration.sh")],
+            ["bash", str(root / "scripts/measure_calibration_groups.sh")],
             cwd=root,
             env={
                 **os.environ,

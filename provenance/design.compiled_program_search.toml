@@ -49,12 +49,14 @@ record_sha256 = "0da75d54bd85276dc11b7ac54756dfcee6543c3e131112fcdfebe2598b026e2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/program_search/certified.rs"
-sha256 = "c1ed68ffb18833fdb967b48cc9e1495779d61803ebe7615a8736abc9afc1ba63"
+items = ["enum CertificateStop", "fn adjacent", "fn bounds", "fn compile", "fn constraint_bounds", "fn enclose", "fn exact", "fn execute", "fn feasible", "fn objective_gap", "fn op", "fn possible", "fn reserve_frontier", "fn root", "fn rounded", "struct CertificateOptions", "struct CertifiedControl", "struct CertifiedRegion", "struct CertifiedRestriction", "struct GlobalProgramCertificate", "struct ObjectiveInterval", "struct PreparedCertifiedSearch"]
+sha256 = "49f022f947ea809e5434151d47c8e04182ee34a8dc9aa05647d491d2b5911f61"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/certified_program_search_reference.rs"
-sha256 = "c79c1b76ffdeebdb2b7625a522255b0ffc6b929f7941808837fee940486ba3e1"
+items = ["fn build", "fn eval", "fn the_certified_bound_is_sound_and_the_certificate_is_tight_against_independent_truth"]
+sha256 = "09194c338475c5e3b0acd954cc3e40122ae794e32065c6c51809462d45b81115"
 
 [[method_review.artifacts]]
 role = "reference"

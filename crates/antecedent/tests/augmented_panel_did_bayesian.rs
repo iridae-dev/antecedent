@@ -181,6 +181,9 @@ fn a_thin_arm_and_declared_weights_are_refused_with_their_next_attempts() {
         .run(&ctx)
         .unwrap_err()
         .to_string();
-    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
     assert!(error.contains("Next attempt"), "{error}");
 }

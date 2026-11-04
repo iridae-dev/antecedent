@@ -90,7 +90,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     AdaptiveMonitoringContractError {
         noun: "adaptive monitoring contract",
-        identity: "adaptive_inference.wrong_contract",
+        identity: antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT,
         variants {
             /// The contract or paradigm checks refused the stored declaration.
             Refused {
@@ -126,11 +126,12 @@ impl AdaptiveMonitoringContractError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => {
-                Some(changed_identity("adaptive_inference.wrong_contract", field))
-            }
+            Self::IdentityMismatch { field } => Some(changed_identity(
+                antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT,
+                field,
+            )),
             Self::ReplayMismatch(what) => Some(replay_mismatch(
-                "adaptive_inference.report_replay_mismatch",
+                antecedent_core::reason_details::adaptive_inference::REPORT_REPLAY_MISMATCH,
                 format!("the stored {what} does not replay"),
             )),
             _ => None,
@@ -790,7 +791,7 @@ fn procedure_error(error: AdaptiveInferenceError) -> Error {
         ),
         other => (
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid".to_owned(),
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
             other.to_string(),
         ),
     };
@@ -961,7 +962,7 @@ fn history_of(
         declaration.assignment_probabilities.as_ref(),
     ) else {
         return Err(procedure_refusal(
-            "adaptive_inference.interim_analyses_missing",
+            antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
             "the contract is not complete",
         ));
     };
@@ -980,7 +981,7 @@ fn history_of(
             let available = availability.available_at_look[unit];
             if available.is_some_and(|at| at as usize != look + lag) {
                 return Err(procedure_refusal(
-                    "adaptive_inference.outcome_availability_invalid",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
                     "an outcome became available at a look other than its enrolment look plus the declared delay",
                 ));
             }
@@ -991,7 +992,7 @@ fn history_of(
                 Some(u32::try_from(ones).unwrap_or(u32::MAX))
             } else {
                 return Err(procedure_refusal(
-                    "adaptive_inference.measurements_invalid",
+                    antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
                     "a participant's responses are not the declared number of responses per participant",
                 ));
             });
@@ -1029,7 +1030,7 @@ fn replay_procedure(
         )
     {
         return Err(procedure_refusal(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "a procedure section describes Thompson allocation of participants with repeated binary responses, interim looks and decision-theoretic stopping",
         ));
     }
@@ -1068,7 +1069,7 @@ fn replay_procedure(
     });
     if !rule_agrees {
         return Err(procedure_refusal(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "the contract's stopping rule is not the procedure's expected-loss decision",
         ));
     }
@@ -1079,7 +1080,7 @@ fn replay_procedure(
     });
     if declaration.stopping_rule.is_some_and(|rule| rule.ended_by_rule != ended_by_rule) {
         return Err(procedure_refusal(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "whether a decision ended the procedure disagrees with the contract's stopping rule",
         ));
     }
@@ -1166,7 +1167,8 @@ fn check(
 fn export_refusal(needed: usize, budget: usize) -> Error {
     Error::Refused {
         code: antecedent_core::reason_code!("route_not_supported"),
-        detail: "adaptive_inference.artifact_size_exceeded".to_owned(),
+        detail: antecedent_core::reason_details::adaptive_inference::ARTIFACT_SIZE_EXCEEDED
+            .to_owned(),
         message: format!(
             "the artifact needs {needed} bytes, over the export budget of {budget} bytes; the run is complete and its result stays in memory; retain fewer looks or participants, or raise the export budget"
         ),

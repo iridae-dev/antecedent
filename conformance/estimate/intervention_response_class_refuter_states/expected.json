@@ -130,7 +130,39 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/intervention_response_class_validation_truth.rs",
-          "sha256": "562ee0aa13c5739852ed02e64387ad33169c8855587bde42f005ad9d96008e75"
+          "items": [
+            "const FIXTURE",
+            "enum Class",
+            "fn assert_cell",
+            "fn class_series",
+            "fn cpdag",
+            "fn cpdag_table",
+            "fn has_diagnostic",
+            "fn inference_name",
+            "fn intervention_response_class_cells_execute_from_the_retained_plan_with_the_builder_dropped",
+            "fn intervention_response_class_cheap_and_full_match_each_completions_closed_form",
+            "fn level_query",
+            "fn levels",
+            "fn name",
+            "fn node",
+            "fn normal",
+            "fn of",
+            "fn pag",
+            "fn pag_table",
+            "fn run",
+            "fn suite_name",
+            "fn tcpdag",
+            "fn tdag",
+            "fn tdag_series",
+            "fn temporal",
+            "fn tpag",
+            "fn truth",
+            "fn uniform",
+            "fn var",
+            "struct Stream",
+            "struct Truth"
+          ],
+          "sha256": "1df37366acc937066f16c0a14da17b91954056c57bd4f9bb84bf88101776025e"
         }
       ],
       "fixture_payload_sha256": "675a49a43a8d1544fc5bd3c4c5ee391163aa5ddc9a67c55f690167ca2c1f44f9"

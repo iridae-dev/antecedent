@@ -46,12 +46,14 @@ record_sha256 = "120e4541a3239604c08601fb29d7b1731649a5a9b0a39506f4647bf14d83716
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/do_sampler.rs"
-sha256 = "487bfc1d862d68850e453feb5fe948cdd74ee35f56d09b038a0c6184c8880fc8"
+items = ["const DEFAULT_ROOT_MATCH_TOLERANCE", "fn confounded_ipw_weights", "fn default", "fn density", "fn estimate", "fn new", "fn sample", "fn silverman_bandwidth", "fn weighted_mean", "fn with_root_match_tolerance", "struct DoSampleResult", "struct KdeDoSampler", "struct McmcDoSampler", "struct WeightingDoSampler"]
+sha256 = "5003d94cd391ada0c4b24c42dc0937bef750392d5b6569e4aca5bad5c1fdf1b9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/gcm_sampling_reference.rs"
-sha256 = "a98fbdf61a8112a4710f33fcbedc97a904e9e380ef6ef42131925af95a649680"
+items = ["fn confounded_weights_ess_and_mean_match_the_definition", "fn floats", "fn linear", "fn model", "fn near", "fn reference", "fn table", "fn the_kde_sampler_reports_the_silverman_bandwidth_of_its_own_draws", "fn the_kernel_density_matches_the_definition_including_the_bandwidth_floor", "fn the_metropolis_chain_has_the_kernel_density_of_its_pilot_as_stationary_law", "fn the_root_matching_window_selects_exactly_the_units_the_definition_selects", "fn the_silverman_bandwidth_reference_agrees_on_the_frozen_samples", "fn the_weighting_sampler_honours_cancellation_and_the_memory_limit"]
+sha256 = "db8226303daf1b2e066a7c10f614e43006a44be8aa87907d0eb958037a8bbfdd"
 
 [[method_review.artifacts]]
 role = "reference"

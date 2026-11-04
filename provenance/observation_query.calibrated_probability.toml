@@ -37,12 +37,14 @@ record_sha256 = "56f4406fd66390b8cecced510a0af7449a1114702852b6a46e52dbee710926e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/count_fitted_posterior.rs"
-sha256 = "984d1b836d2550beeea5b37da75f97570c913acef9352ab0185dd0415c753cb6"
+items = ["const MAX_ASSIGNMENTS", "const MAX_DRAWS", "const MAX_ENUMERATION_WORK", "enum NodeTable", "fn check_cancelled", "fn check_work", "fn conditional", "fn config_index", "fn ln_gamma_draw", "fn new", "fn next_u64", "fn nodes", "fn normal", "fn point", "fn posterior_interval", "fn quantile_mcse", "fn rows", "fn uniform", "fn unsupported", "fn validate_query", "struct CountFittedModel", "struct CountNode", "struct PosteriorInterval", "struct PosteriorQuery", "struct SplitMix"]
+sha256 = "0a150c796c8a0949e375df917f57bf08ac8fab5f373ae40ad5ba45d7af57f202"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/count_fitted_posterior_reference.rs"
-sha256 = "f95b56399f6bd18703b87f42b439572bc0384cabb7b63368d7c3c16d091c0499"
+items = ["fn interval_endpoints_sit_inside_the_exact_beta_quantile_brackets", "fn model", "fn point_values_equal_the_exact_rational_enumeration", "fn reference", "fn text", "fn usizes"]
+sha256 = "96123dc9c7d355159b1e276fd3a91a865baa262ba9e78e304c50ce035b3ee7fe"
 
 [[method_review.artifacts]]
 role = "reference"

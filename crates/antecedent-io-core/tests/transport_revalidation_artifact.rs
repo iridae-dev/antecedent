@@ -128,7 +128,7 @@ fn a_resealed_report_that_upgrades_a_claim_does_not_replay() {
     assert_eq!(error, TransportRevalidationArtifactError::ReplayMismatch("claim classification"));
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "transport_revalidation.replay_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::transport_revalidation::REPLAY_MISMATCH);
 }
 
 #[test]

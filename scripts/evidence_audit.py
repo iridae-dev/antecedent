@@ -42,6 +42,7 @@ from evidence_kinds import (
     software_only_roles,
 )
 from provenance_links import method_review_problems, non_algorithm_review_problems
+from route_behaviour import load_stage_routes
 from scenario_matrix import build as build_scenario_matrix
 from test_evidence import (
     calibration_discovery_problems,
@@ -52,52 +53,12 @@ from test_evidence import (
     registered_calibration_simulations,
     registered_rust_assertions,
     rust_test_declaration_problems,
-    script_test_declaration_problems,
     static_python_test,
 )
 from verify_provenance_citations import CACHE as CITATION_CACHE
 from verify_provenance_citations import verdict as citation_verdict
 
 AXES = ("query", "graph_class", "structure", "inference", "validation", "estimators")
-
-
-def disposition_problems(root: Path, cases: list[dict]) -> list[str]:
-    problems = []
-    seen = set()
-    for case in cases:
-        previous = case.get("previous")
-        if not previous or previous in seen:
-            problems.append(f"invalid or duplicated previous assertion: {previous}")
-        seen.add(previous)
-        additional = case.get("additional_replacements", [])
-        if not isinstance(additional, list) or any(
-            not isinstance(token, str) for token in additional
-        ):
-            problems.append(f"invalid additional replacements: {previous}")
-            additional = []
-        for token in [case.get("replacement", ""), *additional]:
-            rel, _, name = token.partition("::")
-            path = in_repo(root, rel)
-            if not path or not path.is_file() or not name:
-                problems.append(f"missing replacement assertion: {token}")
-                continue
-            findings = (
-                rust_test_declaration_problems(path, name)
-                if path.suffix == ".rs"
-                else script_test_declaration_problems(path, name)
-                if rel.startswith("scripts/")
-                else static_python_test(path, name)
-            )
-            if case.get("disposition") == "explicit_calibration_only":
-                if not any("ignore" in f for f in findings):
-                    problems.append(
-                        f"measurement replacement is not explicitly ignored: {token}"
-                    )
-                findings = [f for f in findings if "ignore" not in f]
-            problems += [f"{token}: {finding}" for finding in findings]
-        if not str(case.get("reason", "")).strip():
-            problems.append(f"coverage disposition lacks a reason: {previous}")
-    return problems
 
 
 def digest(path: Path) -> str:
@@ -426,7 +387,7 @@ def build_report(root: Path) -> dict:
         claim["execution_verified"] = False
         if claim.get("evidence_test"):
             claims_by_test[claim["evidence_test"]].append(claim["key"])
-    registry = root / "parity/v3_test_registry.toml"
+    registry = root / "parity/test_registry.toml"
     registered = tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
     tests = []
     roles_by_test = defaultdict(set)
@@ -570,12 +531,6 @@ def build_report(root: Path) -> dict:
         text=True,
         check=False,
     )
-    dispositions_path = root / "parity/test_refactor_dispositions.toml"
-    dispositions = (
-        tomllib.loads(dispositions_path.read_text(encoding="utf-8")).get("case", [])
-        if dispositions_path.is_file()
-        else []
-    )
     def scientific_assertions():
         return {
             (c.get("evidence_test"), c.get("evidence_assertion"))
@@ -647,8 +602,6 @@ def build_report(root: Path) -> dict:
         "method_specs": specs,
         "route_registry": list(routes.values()),
         "doctest_sources": doctests,
-        "test_refactor_dispositions": dispositions,
-        "disposition_findings": disposition_problems(root, dispositions),
         "scenario_matrix": (
             build_scenario_matrix(root)
             if (root / "parity/scenario_matrix.toml").is_file()
@@ -663,9 +616,7 @@ def build_report(root: Path) -> dict:
                 tomllib.loads(
                     (root / "parity/capability_records.toml").read_text(encoding="utf-8")
                 ).get("record", []),
-                tomllib.loads(
-                    (root / "parity/transport_stages.toml").read_text(encoding="utf-8")
-                ).get("routes", []),
+                load_stage_routes(root),
             )
             if root == REPO_ROOT.resolve()
             else []
@@ -833,11 +784,6 @@ def render(report: dict) -> str:
             for c in matrix["cells"]
             if c["status"] == "gap"
         ]
-    lines += ["", "## Test coverage dispositions", ""]
-    lines += [
-        f"- `{case['previous']}` → `{case['replacement']}`: {case['disposition']}. {case['reason']}"
-        for case in report.get("test_refactor_dispositions", [])
-    ]
     lines += [
         "",
         "## Required review",
@@ -1051,7 +997,6 @@ def main() -> int:
                 for p in report["provenance"]
             )
             or bool(report["route_evidence_ledger_findings"])
-            or bool(report["disposition_findings"])
             or bool(
                 report.get("scenario_matrix")
                 and (

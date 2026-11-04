@@ -278,7 +278,7 @@ tabular `AverageEffect` on a `Dag`:
   every draw.
 
 Any other route refuses the option with `reason_code="invalid_argument"` rather
-than ignore it. The interval is annotated `not_measured` until a coverage record
+than ignore it. The interval is annotated `not_measured` while no coverage record
 covers the draw count and sample size.
 
 ## Clip or trim propensity scores

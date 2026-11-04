@@ -17,6 +17,7 @@ import json
 import numpy as np
 import pytest
 from antecedent import Admg, Dag
+from antecedent import _reason_details as reason_details
 from antecedent import transport as tr
 from antecedent.cross_world import (
     EdgeIntervention,
@@ -374,7 +375,9 @@ def s2_producer():
     rng = weighted["ranges"][0]
     assert (rng["lower"], rng["upper"]) == pytest.approx((total, total + 0.8))
     assert report["envelope"]["scenarios"] == ["direct"]
-    with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.scenarios.SHARED_DATA_AGGREGATE
+    ) as refused:
         prepared.aggregate_interval()
     assert refused.value.reason_code == "scenario_aggregate_not_supported"
     require_success(prepared.refresh(s2_laws(source=(0.1, 0.3, 0.3, 0.3))))
@@ -485,14 +488,18 @@ def test_story_3_learned_continuous_transport_estimate_with_overlap_refusal(desi
     weak = transport.prepare_learned_continuous(
         weak_query, weak_data, options=s3_options(), execution=Execution(seed=11)
     )
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.membership_overlap") as e:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.learned_transport.MEMBERSHIP_OVERLAP
+    ) as e:
         require_success(weak.estimate())
     assert e.value.reason_code == "transport_support_failure"
     query, data = s3_fixture(design, seed=6)
     import dataclasses
 
     low = dataclasses.replace(data, randomization=[0.01] * len(data.randomization))
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.treatment_overlap") as e:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.learned_transport.TREATMENT_OVERLAP
+    ) as e:
         transport.prepare_learned_continuous(query, low, options=s3_options())
     assert e.value.reason_code == "transport_support_failure"
 
@@ -644,7 +651,7 @@ def s4_producer():
     messages = []
     for skip in ((1, 0, 1), (0, 1, 0)):
         with pytest.raises(
-            CausalUnsupportedError, match="temporal_transport.history_outside_support"
+            CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
         ) as refused:
             s4_prepare((1.0, 1.0), s4_laws(S4_SOURCE_P, S4_TARGET_P, skip=(skip,)))
         assert refused.value.reason_code == "transport_support_failure"
@@ -654,11 +661,13 @@ def s4_producer():
     assert messages[0] != messages[1]
     prepared = s4_prepare((1.0, 0.0), s4_laws(S4_SOURCE_P, S4_TARGET_P))
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.interval_requested"
+        CausalUnsupportedError, match=reason_details.temporal_transport.INTERVAL_REQUESTED
     ) as refused:
         prepared.interval()
     assert refused.value.reason_code == "estimator_inference_mismatch"
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as three:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as three:
         s4_prepare((1.0, 0.0, 1.0), s4_laws(S4_SOURCE_P, S4_TARGET_P))
     assert three.value.reason_code == "route_not_supported"
     return artifacts
@@ -736,11 +745,11 @@ def s5_producer():
             recanting, table, EdgeIntervention("x", "y", 0.0, 1.0, (("x", "w"), ("w", "y")))
         )
     assert raised.value.reason_code == "cross_world_not_identified"
-    assert "cross_world.recanting_witness" in str(raised.value)
+    assert reason_details.cross_world.RECANTING_WITNESS in str(raised.value)
     with pytest.raises(CausalUnsupportedError) as raised:
         path_specific_effect(s5_dag(), s5_linear(60), direct, uncertainty="interval")
     assert raised.value.reason_code == "estimator_inference_mismatch"
-    assert "cross_world.interval_requested" in str(raised.value)
+    assert reason_details.cross_world.INTERVAL_REQUESTED in str(raised.value)
     return linear, shared, per_unit
 
 

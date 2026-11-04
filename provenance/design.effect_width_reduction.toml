@@ -40,12 +40,14 @@ record_sha256 = "684a9402c0fd53d02f9cc7b288e6e48bdac5623f92c0062472d85f456cea96c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/ranker.rs"
-sha256 = "6f050d88acea6d04166adb1169e850e88cf9c93b0d9954c9f2c30f88edffe0e3"
+items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn evaluation", "fn exact_expectation", "fn exact_gain", "fn filter_active_candidates", "fn likelihood", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn posterior_entropy", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn score", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_config", "fn validate_rank_inputs", "struct ActiveScoring", "struct DecisionRegistry", "struct DecisionScoring", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
+sha256 = "791ed6b9c28714052df52fa0b12e6298084c2a73a492ddd521858c5694dff574"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/effect_width_reference.rs"
-sha256 = "68d1ff586a78290b2c98bc4b621977f1c4340d9e820a2197371da4608baba68d"
+items = ["fn a_noisier_environment_is_a_negative_reduction_and_the_gram_wins_over_declared_rows", "fn an_ill_conditioned_gram_keeps_the_reduction_to_the_full_inverse_value", "fn close", "fn context", "fn environment", "fn every_candidate_kind_reduces_the_treatment_se_by_the_full_inverse_value", "fn f", "fn flat", "fn malformed_designs_are_refused_not_scored_as_zero", "fn measure", "fn reference", "fn sampling", "fn score"]
+sha256 = "1b0aaafe99ecc4fcd94027ccf55abb903574e504dc49d3e5e1029a91125d80dd"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -16,6 +16,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import Admg, Dag, design, repair
+from antecedent import _reason_details as reason_details
 from antecedent import sensitivity_decision as sd
 from antecedent.errors import (
     CausalSerializationError,
@@ -91,7 +92,7 @@ def test_a_template_fills_only_what_the_obligations_determine():
     # Cost, timing, recruitment, unit rules, feasibility and sample size are never invented.
     with pytest.raises(repair.StudyCandidateRefusal) as caught:
         template.validate()
-    assert caught.value.detail == "study_candidate.declarations_required"
+    assert caught.value.detail == reason_details.study_candidate.DECLARATIONS_REQUIRED
     with pytest.raises(TypeError, match="required keyword"):
         template.complete(sample_size=2)  # type: ignore[call-arg]
     with pytest.raises(repair.StudyCandidateRefusal):
@@ -210,7 +211,7 @@ def test_a_budget_stop_is_a_budget_and_never_an_impossibility():
     candidates = [obs("a", ["t", "y"], 1), obs("b", ["t", "y"], 1, n=4)]
     full = design.evidence_plan(contract, candidates)
     assert full.outcome == "none_certified"
-    assert full.detail == "evidence_plan.none_certified"
+    assert full.detail == reason_details.evidence_plan.NONE_CERTIFIED
     stopped = design.evidence_plan(
         contract, candidates, limits=repair.RepairLimits(max_operations=1, max_depth=2)
     )
@@ -234,7 +235,7 @@ def test_costs_are_compared_only_in_one_unit():
     with pytest.raises(CausalUnsupportedError) as caught:
         design.evidence_plan(contract, candidates, objective="minimize_sample_budget")
     assert caught.value.reason_code == "design_cost_units_mismatch"
-    assert caught.value.detail == "evidence_plan.cost_units_mismatch"
+    assert caught.value.detail == reason_details.evidence_plan.COST_UNITS_MISMATCH
 
 
 def test_an_identified_graph_has_no_gap_to_plan_for():
@@ -243,7 +244,7 @@ def test_an_identified_graph_has_no_gap_to_plan_for():
         repair.FailureContract(
             graph=graph, treatment="t", outcome="y", population="study", observed=["t", "y"]
         )
-    assert caught.value.detail == "identification_repair.not_a_failure"
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE
     with pytest.raises(CausalTypeError):
         repair.repair(backdoor_contract(), [])  # a failure spans routes: use evidence_plan
 

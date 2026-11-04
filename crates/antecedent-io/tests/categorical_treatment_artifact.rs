@@ -236,7 +236,7 @@ fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_leve
         CategoricalTreatmentArtifact::seal(&absent).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("arm_not_populated", "categorical_treatment.absent_level")
+        ("arm_not_populated", antecedent_core::reason_details::categorical_treatment::ABSENT_LEVEL)
     );
     assert!(text.contains('d'), "{text}");
 
@@ -246,7 +246,7 @@ fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_leve
         CategoricalTreatmentArtifact::seal(&sparse).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("arm_not_populated", "categorical_treatment.sparse_level")
+        ("arm_not_populated", antecedent_core::reason_details::categorical_treatment::SPARSE_LEVEL)
     );
     assert!(text.contains("`a`"), "{text}");
 
@@ -256,7 +256,10 @@ fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_leve
         CategoricalTreatmentArtifact::seal(&undeclared).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("invalid_argument", "categorical_treatment.undeclared_level")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::categorical_treatment::UNDECLARED_LEVEL
+        )
     );
     assert!(text.contains("zzz"), "{text}");
 
@@ -264,7 +267,7 @@ fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_leve
     reference.spec.reference = "q".into();
     let (_, detail, _) =
         CategoricalTreatmentArtifact::seal(&reference).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "categorical_treatment.unknown_reference");
+    assert_eq!(detail, antecedent_core::reason_details::categorical_treatment::UNKNOWN_REFERENCE);
 
     let mut unordered_monotone = abc_request();
     unordered_monotone.spec.monotonicity = Some(MonotonicityDirectionWire::NonDecreasing);
@@ -272,7 +275,10 @@ fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_leve
         CategoricalTreatmentArtifact::seal(&unordered_monotone).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "categorical_treatment.monotonicity_requires_ordered")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::categorical_treatment::MONOTONICITY_REQUIRES_ORDERED
+        )
     );
 
     // A covariance kind outside the wire's set cannot be written into a declaration; it is
@@ -537,7 +543,10 @@ fn categorical_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "categorical_treatment.memory_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::categorical_treatment::MEMORY_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains("10000-byte"), "{text}");
     let mut roomy = ExecutionContext::production(0, 1);
@@ -548,7 +557,10 @@ fn categorical_budgets_refuse_with_precise_details_and_keep_the_fit() {
     cancelled.cancellation.cancel();
     let error = CategoricalTreatmentArtifact::seal_with(&request, &cancelled).unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
-    assert_eq!((code, detail.as_str()), ("cancelled_no_claim", "categorical_treatment.cancelled"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("cancelled_no_claim", antecedent_core::reason_details::categorical_treatment::CANCELLED)
+    );
 
     // Export: an artifact above its budget refuses and names the bytes; the fit survives.
     let bytes = artifact.to_bytes("fit").unwrap();
@@ -557,7 +569,10 @@ fn categorical_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "categorical_treatment.export_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::categorical_treatment::EXPORT_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains(&format!("{} bytes", bytes.len())), "{text}");
     assert_eq!(artifact.meta().n_rows, 2_000);
@@ -565,7 +580,10 @@ fn categorical_budgets_refuse_with_precise_details_and_keep_the_fit() {
     // Replay runs under the same kind of context.
     let error =
         CategoricalTreatmentArtifact::from_bytes_with(&bytes, None, &cancelled).unwrap_err();
-    assert_eq!(error.refusal().unwrap().1, "categorical_treatment.cancelled");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::categorical_treatment::CANCELLED
+    );
     assert!(CategoricalTreatmentArtifact::from_bytes_with(&bytes, None, &roomy).is_ok());
 }
 
@@ -598,7 +616,7 @@ fn resealed_mutation_refuses(
     assert_eq!(error, CategoricalTreatmentArtifactError::IdentityMismatch { field }, "{field}");
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "categorical_treatment.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::categorical_treatment::WRONG_CONTRACT);
 }
 
 #[test]
@@ -692,7 +710,10 @@ fn categorical_artifact_unresealed_tampering_does_not_replay() {
     forged.counts[0].rows += 1;
     let reencoded = encode_parts(&forged, &numbers, "forged").unwrap();
     let error = CategoricalTreatmentArtifact::from_bytes(&reencoded, None).unwrap_err();
-    assert_eq!(error.refusal().unwrap().1, "categorical_treatment.summary_inconsistent");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::categorical_treatment::SUMMARY_INCONSISTENT
+    );
 
     // A changed residual sum of squares (the last embedded number) under the stored identity.
     let mut changed = numbers.clone();
@@ -947,11 +968,11 @@ fn a_declaration_without_its_covariance_kind_is_refused_by_name_and_never_droppe
             &hc,
             CategoricalRowsRequest { cluster: Some(clusters.clone()), ..Default::default() }
         )
-        .contains("vector_treatment.cluster_unread")
+        .contains(antecedent_core::reason_details::vector_treatment::CLUSTER_UNREAD)
     );
     assert!(
         detail(&hc, CategoricalRowsRequest { serial_lag: Some(1), ..Default::default() })
-            .contains("vector_treatment.lag_unread")
+            .contains(antecedent_core::reason_details::vector_treatment::LAG_UNREAD)
     );
     let model = declared_request(CovarianceKindWire::ModelBased);
     assert!(
@@ -964,21 +985,22 @@ fn a_declaration_without_its_covariance_kind_is_refused_by_name_and_never_droppe
     let cluster_kind = declared_request(CovarianceKindWire::ClusterRobust);
     assert!(
         detail(&cluster_kind, CategoricalRowsRequest::default())
-            .contains("vector_treatment.cluster_ids_required")
+            .contains(antecedent_core::reason_details::vector_treatment::CLUSTER_IDS_REQUIRED)
     );
     let one = vec![1u32; 9];
     assert!(
         detail(&cluster_kind, CategoricalRowsRequest { cluster: Some(one), ..Default::default() })
-            .contains("vector_treatment.too_few_clusters")
+            .contains(antecedent_core::reason_details::vector_treatment::TOO_FEW_CLUSTERS)
     );
     let newey = declared_request(CovarianceKindWire::NeweyWest);
     assert!(
-        detail(&newey, CategoricalRowsRequest::default()).contains("vector_treatment.lag_required")
+        detail(&newey, CategoricalRowsRequest::default())
+            .contains(antecedent_core::reason_details::vector_treatment::LAG_REQUIRED)
     );
     for lag in [0u64, 9, 40] {
         assert!(
             detail(&newey, CategoricalRowsRequest { serial_lag: Some(lag), ..Default::default() })
-                .contains("vector_treatment.invalid_lag")
+                .contains(antecedent_core::reason_details::vector_treatment::INVALID_LAG)
         );
     }
     let mut negative = weights();
@@ -988,14 +1010,14 @@ fn a_declaration_without_its_covariance_kind_is_refused_by_name_and_never_droppe
             &hc,
             CategoricalRowsRequest { sampling_weights: Some(negative), ..Default::default() }
         )
-        .contains("sampling_weights.invalid")
+        .contains(antecedent_core::reason_details::sampling_weights::INVALID)
     );
     assert!(
         detail(
             &hc,
             CategoricalRowsRequest { sampling_weights: Some(vec![1.0; 8]), ..Default::default() }
         )
-        .contains("categorical_treatment.row_count_mismatch")
+        .contains(antecedent_core::reason_details::categorical_treatment::ROW_COUNT_MISMATCH)
     );
 }
 
@@ -1015,7 +1037,12 @@ fn the_gaussian_posterior_is_refused_for_declared_rows_with_a_next_attempt() {
         credible_level: 0.95,
     };
     let text = artifact.with_posterior(&declaration).unwrap_err().to_string();
-    assert!(text.contains("categorical_treatment.posterior_declared_rows"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::categorical_treatment::POSTERIOR_DECLARED_ROWS
+        ),
+        "{text}"
+    );
 }
 
 #[test]

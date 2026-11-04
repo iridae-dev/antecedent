@@ -6,6 +6,7 @@ import json
 
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 
 
 def _mixture(**changes):
@@ -21,7 +22,7 @@ def _mixture(**changes):
 def test_mixture_member_of_wrong_type_is_an_invalid_request(changes):
     claim, refusal = _native.joint_law_mixture(_mixture(**changes))
     assert claim is None
-    assert json.loads(refusal)["detail"] == "joint_law_propagation.invalid_request"
+    assert json.loads(refusal)["detail"] == reason_details.joint_law_propagation.INVALID_REQUEST
 
 
 def test_linear_input_role_must_be_a_string():

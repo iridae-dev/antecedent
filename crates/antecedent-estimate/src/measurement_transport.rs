@@ -258,7 +258,7 @@ impl TransportedMeasurementModel {
         if data.population_id != self.receipt.target_population {
             return Err(refusal(
                 antecedent_core::reason_code!("measurement_binding_mismatch"),
-                "measurement_model.population_mismatch",
+                antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH,
                 format!(
                     "the transported model is for `{}`, the data are `{}`; declare a transport \
                      to this population",
@@ -357,7 +357,7 @@ fn invariant_source<'a>(
     if declaration.target_population != data.population_id {
         return Err(refusal(
             antecedent_core::reason_code!("transport_not_certified"),
-            "measurement_model.invariance_target_mismatch",
+            antecedent_core::reason_details::measurement_model::INVARIANCE_TARGET_MISMATCH,
             format!(
                 "the invariance premise is declared for `{}`, the data are `{}`",
                 declaration.target_population, data.population_id
@@ -367,7 +367,7 @@ fn invariant_source<'a>(
     let Some(source) = select_model(models, &declaration.source_population, data) else {
         return Err(refusal(
             antecedent_core::reason_code!("transport_not_certified"),
-            "measurement_model.invariance_source_unknown",
+            antecedent_core::reason_details::measurement_model::INVARIANCE_SOURCE_UNKNOWN,
             format!(
                 "the premise names source population `{}`, which has no established model",
                 declaration.source_population
@@ -377,7 +377,7 @@ fn invariant_source<'a>(
     if source.binding.regime_id != data.regime_id {
         return Err(refusal(
             antecedent_core::reason_code!("measurement_binding_mismatch"),
-            "measurement_model.regime_mismatch",
+            antecedent_core::reason_details::measurement_model::REGIME_MISMATCH,
             format!(
                 "the invariance premise covers the population only; the model was established \
                  for regime `{}`, the data are `{}`",
@@ -389,7 +389,7 @@ fn invariant_source<'a>(
         MeasurementRoute::RepeatedMeasurements => {
             return Err(refusal(
                 antecedent_core::reason_code!("route_not_supported"),
-                "measurement_model.nothing_to_transport",
+                antecedent_core::reason_details::measurement_model::NOTHING_TO_TRANSPORT,
                 "replicated measurements estimate the error from the analysis sample's own \
                  replicates; correct the target data with its replicates instead of carrying \
                  parameters",
@@ -398,7 +398,7 @@ fn invariant_source<'a>(
         MeasurementRoute::ExternalLatentPosterior => {
             return Err(refusal(
                 antecedent_core::reason_code!("route_not_supported"),
-                "measurement_model.posterior_bound_to_snapshot",
+                antecedent_core::reason_details::measurement_model::POSTERIOR_BOUND_TO_SNAPSHOT,
                 "an external latent posterior is bound to its source snapshot and request; it \
                  cannot be carried to another population",
             ));
@@ -410,7 +410,7 @@ fn invariant_source<'a>(
         _ => {
             return Err(refusal(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
-                "measurement_model.differential_axis_unsupported",
+                antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED,
                 "the model's error is declared to depend on population or time, so it is not \
                  carried by an invariance premise",
             ));
@@ -424,7 +424,7 @@ fn invariant_source<'a>(
     if !missing.is_empty() {
         return Err(refusal(
             antecedent_core::reason_code!("transport_not_certified"),
-            "measurement_model.invariance_not_declared",
+            antecedent_core::reason_details::measurement_model::INVARIANCE_NOT_DECLARED,
             format!(
                 "the correction uses parameters the premise does not declare invariant: {}",
                 missing.join(",")
@@ -435,7 +435,7 @@ fn invariant_source<'a>(
         if data.arm_id.as_deref() != Some(arm.as_str()) {
             return Err(refusal(
                 antecedent_core::reason_code!("measurement_binding_mismatch"),
-                "measurement_model.arm_mismatch",
+                antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
                 format!(
                     "the model is bound to arm `{arm}`; the invariance premise covers the population only"
                 ),
@@ -459,7 +459,7 @@ pub fn transport_measurement_model(
     if models.is_empty() {
         return Err(refusal(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.no_model",
+            antecedent_core::reason_details::measurement_model::NO_MODEL,
             "supply the measurement model established for a source population",
         ));
     }
@@ -478,7 +478,7 @@ pub fn transport_measurement_model(
     let Some(structure) = structure else {
         return Err(refusal(
             antecedent_core::reason_code!("transport_missing_evidence"),
-            "measurement_model.invariance_premise_required",
+            antecedent_core::reason_details::measurement_model::INVARIANCE_PREMISE_REQUIRED,
             format!(
                 "no measurement model is established for population `{}`; declare that the \
                  error parameters are invariant from a named source population, declare the \
@@ -491,7 +491,7 @@ pub fn transport_measurement_model(
         PopulationErrorStructure::Differential { .. } => {
             return Err(refusal(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
-                "measurement_model.differential_population_unestablished",
+                antecedent_core::reason_details::measurement_model::DIFFERENTIAL_POPULATION_UNESTABLISHED,
                 format!(
                     "the error is declared differential by population and no model is \
                      established for `{}`; another population's rates are not borrowed",
@@ -616,7 +616,10 @@ mod tests {
         let source = model("clinic_a", 0.9, 0.8);
         let error =
             correct_binary_prevalence(&source, &data("clinic_b"), 520, 1000, &ctx()).unwrap_err();
-        assert_eq!(error.detail, "measurement_model.population_mismatch");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
+        );
     }
 
     #[test]
@@ -624,7 +627,10 @@ mod tests {
         let source = model("clinic_a", 0.9, 0.8);
         let error = transport_measurement_model(&[source], None, &data("clinic_b")).unwrap_err();
         assert_eq!(error.code, "transport_missing_evidence");
-        assert_eq!(error.detail, "measurement_model.invariance_premise_required");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::INVARIANCE_PREMISE_REQUIRED
+        );
     }
 
     #[test]
@@ -637,7 +643,10 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.code, "transport_not_certified");
-        assert_eq!(error.detail, "measurement_model.invariance_not_declared");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::INVARIANCE_NOT_DECLARED
+        );
         assert!(error.message.contains("sensitivity"));
         assert!(!error.message.contains("specificity,"));
     }
@@ -649,7 +658,10 @@ mod tests {
         let error = transport_measurement_model(&[source], Some(&differential), &data("clinic_b"))
             .unwrap_err();
         assert_eq!(error.code, "differential_error_not_pooled");
-        assert_eq!(error.detail, "measurement_model.differential_population_unestablished");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::DIFFERENTIAL_POPULATION_UNESTABLISHED
+        );
     }
 
     #[test]
@@ -694,7 +706,10 @@ mod tests {
             &data("clinic_b"),
         )
         .unwrap_err();
-        assert_eq!(error.detail, "measurement_model.invariance_target_mismatch");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::INVARIANCE_TARGET_MISMATCH
+        );
         let unknown_source = PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
             "clinic_z", "clinic_b", "analyst", &BOTH,
         ));
@@ -704,12 +719,18 @@ mod tests {
             &data("clinic_b"),
         )
         .unwrap_err();
-        assert_eq!(error.detail, "measurement_model.invariance_source_unknown");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::INVARIANCE_SOURCE_UNKNOWN
+        );
         let mut other_regime = data("clinic_b");
         other_regime.regime_id = "do(a=1)".into();
         let error = transport_measurement_model(&[source], Some(&premise(&BOTH)), &other_regime)
             .unwrap_err();
-        assert_eq!(error.detail, "measurement_model.regime_mismatch");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::REGIME_MISMATCH
+        );
     }
 
     #[test]
@@ -721,7 +742,10 @@ mod tests {
         let error = transported
             .apply(&data("clinic_c"), |m, d| correct_binary_prevalence(m, d, 1, 2, &ctx()))
             .unwrap_err();
-        assert_eq!(error.detail, "measurement_model.population_mismatch");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
+        );
     }
 
     #[test]
@@ -753,6 +777,9 @@ mod tests {
             &data("clinic_b"),
         )
         .unwrap_err();
-        assert_eq!(error.detail, "measurement_model.nothing_to_transport");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::measurement_model::NOTHING_TO_TRANSPORT
+        );
     }
 }

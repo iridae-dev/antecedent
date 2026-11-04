@@ -62,7 +62,7 @@ fn run(data: &TabularData, accepted: bool, seed: u64) -> (Study, antecedent::Stu
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn interventional_distribution_admg_frontdoor_frequentist_nominal_coverage() {
     let mut tallies = [REPORTED_LEVEL, GATE_LEVEL].map(|level| {
         CoverageTally::for_record(
@@ -99,7 +99,7 @@ fn interventional_distribution_admg_frontdoor_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
 fn interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage() {
     const ACCEPTED_TEST: &str =
         "interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage";

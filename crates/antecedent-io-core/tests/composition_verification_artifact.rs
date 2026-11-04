@@ -307,7 +307,10 @@ fn an_unsealed_edit_is_an_identity_mismatch_and_a_retained_identity_binds_the_hi
             .refusal()
             .expect("registered");
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "composition_verification.identity_mismatch");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::composition_verification::IDENTITY_MISMATCH
+    );
 }
 
 #[test]

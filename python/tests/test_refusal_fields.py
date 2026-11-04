@@ -15,6 +15,7 @@ from pathlib import Path
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalError, CausalEstimateError, CausalUnsupportedError
 from antecedent.estimation import RetargetClaim, RetargetContrast
 from antecedent.estimators import Aipw, ClusterDml
@@ -346,14 +347,14 @@ def test_batch_retarget_members_carry_the_failing_claim_as_subject():
 
     short = members["short"].refusal_fields
     assert short["subject"] == "short" and short["stage"] == "batch_retarget"
-    assert short["reason"] == "batch_retarget.incompatible_target"
+    assert short["reason"] == reason_details.batch_retarget.INCOMPATIBLE_TARGET
     assert short["remedy"]
     # A malformed declaration has no fitted score behind it: nothing numeric is reported.
     _absent(short, "arm_ess", "propensity_min", "propensity_max", "cluster_count")
 
     contrast = members["good_minus_spiked"].refusal_fields
     assert contrast["subject"] == "good_minus_spiked"
-    assert contrast["reason"] == "batch_retarget.contrast_member_failed"
+    assert contrast["reason"] == reason_details.batch_retarget.CONTRAST_MEMBER_FAILED
 
 
 def test_a_malformed_family_names_the_offending_claim_as_subject():
@@ -383,5 +384,5 @@ def test_a_malformed_family_names_the_offending_claim_as_subject():
     fields = raised.value.refusal_fields
     assert fields["stage"] == "batch_retarget"
     assert fields["subject"] == "a"
-    assert fields["reason"] == "batch_retarget.duplicate_name"
+    assert fields["reason"] == reason_details.batch_retarget.DUPLICATE_NAME
     assert raised.value.reason_code == "invalid_argument"

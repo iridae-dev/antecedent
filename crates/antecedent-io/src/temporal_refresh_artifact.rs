@@ -51,7 +51,11 @@ fn refusal(code: &'static str, detail: &str, message: &str) -> IoError {
 }
 
 fn invalid_replacement(message: &str) -> IoError {
-    refusal(reason_code!("invalid_argument"), "temporal_refresh.invalid_replacement", message)
+    refusal(
+        reason_code!("invalid_argument"),
+        antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT,
+        message,
+    )
 }
 
 /// Strictly increasing strings as a set; anything else is not canonical.
@@ -534,7 +538,7 @@ impl TemporalRefreshArtifactWire {
         if refreshed.interval_present {
             return Err(refusal(
                 reason_code!("route_not_supported"),
-                "temporal_refresh.stale_interval",
+                antecedent_core::reason_details::temporal_refresh::STALE_INTERVAL,
                 "a refreshed result may not carry an interval from the old window",
             ));
         }
@@ -554,7 +558,7 @@ impl TemporalRefreshArtifactWire {
         if stored != expected_receipt(old, new, self.interval_invalidated) {
             return Err(refusal(
                 reason_code!("route_not_supported"),
-                "temporal_refresh.receipt_mismatch",
+                antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH,
                 "the receipt is not the one the old and new windows imply",
             ));
         }

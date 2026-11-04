@@ -13,6 +13,7 @@ import sys
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.dose_grid import (
     DoseGridRefusal,
     consume_dose_grid_posterior_artifact,
@@ -122,10 +123,10 @@ def test_refusals_are_typed():
     with pytest.raises(DoseGridRefusal) as caught:
         _run(design="observational")
     assert isinstance(caught.value, CausalUnsupportedError)
-    assert caught.value.detail == "dose_grid.graph_not_certified"
+    assert caught.value.detail == reason_details.dose_grid.GRAPH_NOT_CERTIFIED
     with pytest.raises(DoseGridRefusal) as caught:
         _run(grid=(0.01,))
-    assert caught.value.detail == "dose_grid.unsupported_dose"
+    assert caught.value.detail == reason_details.dose_grid.UNSUPPORTED_DOSE
     with pytest.raises(Exception, match="residual"):
         _run(residual_variance=None)
 

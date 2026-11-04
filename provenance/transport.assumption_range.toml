@@ -31,9 +31,11 @@ record_sha256 = "a45a2320dd2eabdc78f0260ff1a96465c952aea17f151892003e9a0201e3b16
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/transport_sensitivity.rs"
-sha256 = "af6f67dc59956a70a3998f32006ac1bd527a758aa100b73b71d50b2d544ebdf9"
+items = ["const REFERENCE_ACTION_ID", "const SOURCE_KIND", "const TRANSPORTED_ACTION_ID", "const TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION", "const TRANSPORT_SENSITIVITY_VERSION", "enum TransportPremise", "enum TransportRoute", "enum TransportSensitivityRefusal", "enum ViolationFamily", "fn as_str", "fn blank", "fn bound", "fn coordinate", "fn detail", "fn family", "fn grid", "fn has_scalar_family", "fn identity", "fn lower", "fn point_value", "fn premise", "fn range_at_bound", "fn reason_code", "fn reference_reached_at", "fn remedy", "fn route", "fn scale", "fn statement", "fn to_artifact", "fn transport_assumption_range", "fn upper", "struct TransportAssumptionRange", "struct TransportSensitivitySpec"]
+sha256 = "5d41599bbfc697945c63ddc9f805b9e0e7f0c09340030150a017aba0f9f12452"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/transport_sensitivity.rs"
-sha256 = "2abbe99d185779b32b16b07ba855be04b16c4b89430cc39aa64a55e20772d8b4"
+items = ["fn additive_range_is_the_closed_form_band_and_labelled_an_assumption_range", "fn artifact_keeps_the_acting_decision_when_the_range_never_reaches_the_reference", "fn artifact_refuses_a_reference_in_another_population_and_a_non_finite_reference", "fn artifact_reports_no_robust_action_where_the_range_straddles_the_reference", "fn every_scalar_route_states_a_range_and_the_structural_route_refuses_with_a_remedy", "fn identity_changes_with_value_bound_route_and_target_at_unchanged_shape", "fn malformed_requests_are_refused_with_typed_details", "fn proportional_range_scales_with_the_magnitude_of_a_negative_point_value", "fn quantity", "fn reference_is_reached_at_the_closed_form_shift_or_not_at_all", "fn spec"]
+sha256 = "60c7bd8f9dc2e15ff48044c006c18c9ffe2f64a9b3965df51fdcf45961fbd027"

@@ -5,6 +5,7 @@ import dataclasses
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import transport as tr
 from antecedent.errors import (
     CausalResourceError,
@@ -75,13 +76,15 @@ def test_weak_overlap_refuses_rather_than_extrapolating():
     query, data = fixture(scenario="weak")
     study = advanced.prepare_learned_continuous(query, data, options=options())
     with pytest.raises(
-        CausalUnsupportedError, match="learned_transport.membership_overlap"
+        CausalUnsupportedError, match=reason_details.learned_transport.MEMBERSHIP_OVERLAP
     ) as info:
         require_success(study.estimate())
     assert info.value.reason_code == "transport_support_failure"
     query, data = fixture()
     low = dataclasses.replace(data, randomization=[0.01] * len(data.randomization))
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.treatment_overlap") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.learned_transport.TREATMENT_OVERLAP
+    ) as info:
         advanced.prepare_learned_continuous(query, low, options=options())
     assert info.value.reason_code == "transport_support_failure"
 
@@ -92,12 +95,16 @@ def test_declared_bounds_designs_and_targets_refuse_with_their_details():
     advanced.prepare_learned_continuous(
         query, data, options=advanced.LearnedContinuousOptions(folds=3, bootstrap=2001)
     )
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.non_iid_design") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.learned_transport.NON_IID_DESIGN
+    ) as info:
         advanced.prepare_learned_continuous(
             query, dataclasses.replace(data, sampling="clustered"), options=options()
         )
     assert info.value.reason_code == "sampling_dependence_unknown"
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.cate_requested") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.learned_transport.CATE_REQUESTED
+    ) as info:
         advanced.prepare_learned_continuous(query, data, options=options(), target="cate")
     assert info.value.reason_code == "route_not_supported"
     with pytest.raises(CausalValueError):
@@ -109,7 +116,7 @@ def test_declared_bounds_designs_and_targets_refuse_with_their_details():
         ).estimate()
     )
     assert below.uncertainty["reason"] == "estimator_inference_mismatch"
-    assert below.uncertainty["detail"] == "learned_transport.bootstrap_below_floor"
+    assert below.uncertainty["detail"] == reason_details.learned_transport.BOOTSTRAP_BELOW_FLOOR
     assert below.estimate == pytest.approx(2.5, abs=0.15)
 
 
@@ -138,7 +145,7 @@ def test_estimator_menu_lists_eligibility_requirements_and_refusals():
     assert ridge["learned_trial_aipw"].nuisance_tasks != learned.nuisance_tasks
     refused = menu["dr_learner_cate"]
     assert not refused.eligible
-    assert refused.refusal["detail"] == "learned_transport.cate_requested"
+    assert refused.refusal["detail"] == reason_details.learned_transport.CATE_REQUESTED
     assert not menu["exact_finite_law_evaluator"].eligible
     assert not any("recommend" in repr(entry).lower() for entry in menu.entries)
     # A graph whose selection acts on the outcome certifies no trial estimator.
@@ -265,7 +272,9 @@ def test_export_belongs_to_a_completed_execution_and_rebinding_keeps_the_certifi
     assert bytes(first.export())
     with pytest.raises((ValueError, CausalUnsupportedError), match="reprepare_required"):
         study.bind_snapshot(dataclasses.replace(fresh, sampling="nested_cohort"))
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.treatment_overlap"):
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.learned_transport.TREATMENT_OVERLAP
+    ):
         require_success(
             study.bind_snapshot(
                 dataclasses.replace(fresh, randomization=[0.0] * len(fresh.randomization))

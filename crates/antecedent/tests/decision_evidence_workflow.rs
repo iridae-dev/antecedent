@@ -218,7 +218,10 @@ fn out_of_scope_requests_are_typed_refusals_and_deployment_needs_a_bridge() {
     let mut r = request();
     r.population_id = "all_customers".into();
     let e = derive(&ev, &r, &q).unwrap_err();
-    assert_eq!(e.reason_code(), "decision_evidence.incompatible_population");
+    assert_eq!(
+        e.reason_code(),
+        antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_POPULATION
+    );
     let mut r = request();
     r.target = Target::Deployment { bridge_assumption_id: None };
     assert_eq!(derive(&ev, &r, &q).unwrap_err(), EvidenceRefusal::DeploymentBridgeMissing);

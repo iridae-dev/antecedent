@@ -72,7 +72,7 @@ fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<St
 fn execution_error(error: &DoseGridArtifactError) -> PyErr {
     if let DoseGridArtifactError::Refused { code, detail, message } = error {
         if *code == antecedent_core::reason_code!("transport_budget_cancel") {
-            return if detail == "dose_grid.cancelled" {
+            return if detail == antecedent_core::reason_details::dose_grid::CANCELLED {
                 crate::CausalCancelledError::new_err(message.clone())
             } else {
                 crate::CausalResourceError::new_err(message.clone())

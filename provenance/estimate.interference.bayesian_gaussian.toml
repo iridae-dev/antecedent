@@ -58,12 +58,14 @@ record_sha256 = "908134ea1d123aac8474d1a1a9c44730a4a07e4157b17285057106d0939109b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/interference.rs"
-sha256 = "c0f6109a74e91195861e83e8bf168a5cabe79abc033860917e9eb0971b6b936a"
+items = ["fn estimate_interference_bayesian", "struct BayesianInterferenceEstimate"]
+sha256 = "897a27a86ce90a0733ec339669f821778c1a9db56f34319175a895e8a5f58749"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_interference_reference.rs"
-sha256 = "96397eae326cf982cab4ad983f656474a146b009700639bfb75033e5fa948fc5"
+items = ["const DRAWS", "fn cases", "fn code_of", "fn declarations_the_posterior_cannot_honour_are_refused_with_a_typed_refusal", "fn edge_weights_and_the_declared_assignment_probability_do_not_enter_the_posterior", "fn floats", "fn level", "fn rescaling_the_outcome_moves_the_mean_but_not_the_fixed_variance_spread", "fn run", "fn run_with", "fn the_exposure_contrast_posterior_matches_the_exact_gaussian_reference"]
+sha256 = "31b859239a143d912b3fdf6e5f380bef97af2bfee99d175d35fad16c82defa30"
 
 [[method_review.artifacts]]
 role = "reference"

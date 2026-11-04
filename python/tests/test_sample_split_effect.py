@@ -12,6 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalValueError
 
@@ -100,7 +101,7 @@ def test_an_unresolved_structure_reports_no_interval() -> None:
         )
     assert_registered_refusal(info.value)
     assert info.value.reason_code == "discovered_structure_unresolved"
-    assert info.value.detail == "split_effect.structure_unresolved"
+    assert info.value.detail == reason_details.split_effect.STRUCTURE_UNRESOLVED
 
 
 def test_a_table_outside_five_to_seven_variables_is_not_refused_for_its_count() -> None:
@@ -149,4 +150,4 @@ def test_reusing_the_rows_that_selected_is_still_refused() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.request_unsplit_interval()
     assert info.value.reason_code == "selection_inference_not_supported"
-    assert info.value.detail == "selective_discovery.downstream_interval_not_supported"
+    assert info.value.detail == reason_details.selective_discovery.DOWNSTREAM_INTERVAL_NOT_SUPPORTED

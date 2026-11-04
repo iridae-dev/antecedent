@@ -39,7 +39,7 @@
 //! is deliberately not measured: autocorrelated and importance-weighted carriers stay
 //! refused.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

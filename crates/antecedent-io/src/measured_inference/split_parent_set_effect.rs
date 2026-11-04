@@ -157,7 +157,7 @@ impl Transformation {
             "linear" => Ok(Self::Linear),
             "log_linear" => Ok(Self::LogLinear),
             other => Err(malformed(
-                "parent_set_effect.transformation_undeclared",
+                antecedent_core::reason_details::parent_set_effect::TRANSFORMATION_UNDECLARED,
                 &format!(
                     "the transformation must be declared as `linear` or `log_linear` before any \
                      data are read; got `{other}`"
@@ -300,7 +300,7 @@ impl ParentSetEffectSource {
         let source: Self = crate::from_cbor(bytes)?;
         if crate::to_cbor(&source)? != bytes {
             return Err(malformed(
-                "parent_set_effect.source_not_canonical",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_NOT_CANONICAL,
                 "the source bytes are not the canonical encoding",
             ));
         }
@@ -311,39 +311,39 @@ impl ParentSetEffectSource {
         let k = self.columns.len();
         if !matches!(self.version, 1 | FORMAT_VERSION) || self.names.len() != k {
             return Err(malformed(
-                "parent_set_effect.source_invalid",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "unknown format version or names and columns of different counts",
             ));
         }
         if k < 3 {
             return Err(malformed(
-                "parent_set_effect.source_invalid",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "a treatment, an outcome and at least one more searched variable are needed",
             ));
         }
         if self.max_degree == 0 {
             return Err(malformed(
-                "parent_set_effect.source_invalid",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "the declared maximum graph degree must be at least one",
             ));
         }
         let rows = self.columns[0].len();
         if !(8..=MAX_ROWS).contains(&rows) || self.columns.iter().any(|c| c.len() != rows) {
             return Err(malformed(
-                "parent_set_effect.source_invalid",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "columns must have one length between 8 and 2^20 rows",
             ));
         }
         if self.columns.iter().flatten().any(|v| !v.is_finite()) {
             return Err(malformed(
-                "parent_set_effect.source_invalid",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "missing or non-finite values are not supported",
             ));
         }
         let (t, y) = (self.treatment as usize, self.outcome as usize);
         if t >= k || y >= k || t == y {
             return Err(malformed(
-                "parent_set_effect.source_invalid",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "treatment and outcome must be two distinct columns",
             ));
         }
@@ -352,7 +352,7 @@ impl ParentSetEffectSource {
             (Transformation::LogLinear, Some(shift)) if shift.is_finite() && shift != 0.0 => {}
             _ => {
                 return Err(malformed(
-                    "parent_set_effect.source_invalid",
+                    antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                     "a log-linear study declares a finite non-zero log shift of the treatment and \
                      a linear study declares none",
                 ));
@@ -363,7 +363,7 @@ impl ParentSetEffectSource {
                 let nonpositive = column.iter().filter(|v| **v <= 0.0).count();
                 if nonpositive > 0 {
                     return Err(malformed(
-                        "parent_set_effect.log_linear_input_not_positive",
+                        antecedent_core::reason_details::parent_set_effect::LOG_LINEAR_INPUT_NOT_POSITIVE,
                         &format!(
                             "column `{name}` has {nonpositive} non-positive value(s); a \
                              log-linear study requires every searched column to be positive"
@@ -382,7 +382,7 @@ impl ParentSetEffectSource {
             let tiers_ok = knowledge.tiers.iter().flatten().all(|&v| known(v));
             if !links_ok || !tiers_ok {
                 return Err(malformed(
-                    "parent_set_effect.knowledge_invalid",
+                    antecedent_core::reason_details::parent_set_effect::KNOWLEDGE_INVALID,
                     "background knowledge names a column that is not searched, or a link from a \
                      column to itself",
                 ));
@@ -403,7 +403,12 @@ impl ParentSetEffectSource {
         TabularData::from_f64_columns(
             self.names.iter().map(String::as_str).zip(scaled.iter().map(Vec::as_slice)),
         )
-        .map_err(|error| malformed("parent_set_effect.source_invalid", &error.to_string()))
+        .map_err(|error| {
+            malformed(
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
+                &error.to_string(),
+            )
+        })
     }
 }
 
@@ -497,27 +502,32 @@ pub fn treatment_parent_set_under_conflicts(
         VariableId::from_raw(treatment),
         max_colliders,
     )
-    .map_err(|error| malformed("parent_set_effect.discovery_failed", &error.to_string()))?;
+    .map_err(|error| {
+        malformed(
+            antecedent_core::reason_details::parent_set_effect::DISCOVERY_FAILED,
+            &error.to_string(),
+        )
+    })?;
     match resolution {
         ConflictResolution::Invariant(orientation) => {
             neighbourhood(structure, names, treatment, outcome, Some(&orientation))
         }
         ConflictResolution::Varies => Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "parent_set_effect.treatment_orientation_depends_on_conflict",
+            antecedent_core::reason_details::parent_set_effect::TREATMENT_ORIENTATION_DEPENDS_ON_CONFLICT,
             "the discovery met conflicting orientation evidence and the choices among the \
              conflicting colliders orient the treatment's edges differently, so the treatment's \
              parents are not determined",
         )),
         ConflictResolution::Unresolvable => Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "parent_set_effect.search_not_finished",
+            antecedent_core::reason_details::parent_set_effect::SEARCH_NOT_FINISHED,
             "the discovery met conflicting orientation evidence that no choice among the \
              colliders removes",
         )),
         ConflictResolution::BudgetExceeded { implicated, budget, coverage } => Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "parent_set_effect.conflict_resolution_budget",
+            antecedent_core::reason_details::parent_set_effect::CONFLICT_RESOLUTION_BUDGET,
             &format!(
                 "{implicated} colliders are implicated in conflicting orientation evidence, \
                  above the {budget} whose choices are compared; a sample covering {:.3}% of the \
@@ -540,7 +550,7 @@ fn neighbourhood(
     if structure.class() != StructureClass::Cpdag {
         return Err(refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "parent_set_effect.structure_class",
+            antecedent_core::reason_details::parent_set_effect::STRUCTURE_CLASS,
             "only a completed partially directed graph over static variables is accepted",
         ));
     }
@@ -559,7 +569,7 @@ fn neighbourhood(
         {
             return Err(refused(
                 antecedent_core::reason_code!("invalid_argument"),
-                "parent_set_effect.structure_class",
+                antecedent_core::reason_details::parent_set_effect::STRUCTURE_CLASS,
                 "a node is not a static searched variable",
             ));
         }
@@ -605,7 +615,7 @@ fn neighbourhood(
             .join("; ");
         return Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "parent_set_effect.treatment_parents_ambiguous",
+            antecedent_core::reason_details::parent_set_effect::TREATMENT_PARENTS_AMBIGUOUS,
             &format!(
                 "the edges incident to the treatment `{}` are not all oriented: {listed}; the \
                  class holds graphs with different parent sets and no completion is chosen",
@@ -619,7 +629,7 @@ fn neighbourhood(
     if parents.contains(&outcome) {
         return Err(refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "parent_set_effect.outcome_precedes_treatment",
+            antecedent_core::reason_details::parent_set_effect::OUTCOME_PRECEDES_TREATMENT,
             "the discovered structure orients the outcome into the treatment",
         ));
     }
@@ -853,19 +863,22 @@ pub fn run_with_collider_bound(
         .run(&contract, &split.discovery, &run_ctx)
         .map_err(|error| discovery_refusal(&error))?;
     let outcome = adapter.outcome().ok_or_else(|| {
-        malformed("parent_set_effect.discovery_failed", "the discovery run retained no outcome")
+        malformed(
+            antecedent_core::reason_details::parent_set_effect::DISCOVERY_FAILED,
+            "the discovery run retained no outcome",
+        )
     })?;
     if outcome.search_incomplete {
         return Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "parent_set_effect.search_not_finished",
+            antecedent_core::reason_details::parent_set_effect::SEARCH_NOT_FINISHED,
             "the discovery search exhausted a bound",
         ));
     }
     if outcome.diagnostics.iter().any(|(code, _)| code.ends_with(PARENT_LIMIT_DIAGNOSTIC)) {
         return Err(refused(
             antecedent_core::reason_code!("discovered_structure_unresolved"),
-            "parent_set_effect.parent_limit_bound",
+            antecedent_core::reason_details::parent_set_effect::PARENT_LIMIT_BOUND,
             &format!(
                 "the discovered skeleton exceeded the declared maximum graph degree {}; the \
                  limit removed adjacencies no test had separated, so the orientations rest on \
@@ -897,7 +910,7 @@ pub fn run_with_collider_bound(
         (_, true) => {
             return Err(refused(
                 antecedent_core::reason_code!("discovered_structure_unresolved"),
-                "parent_set_effect.search_not_finished",
+                antecedent_core::reason_details::parent_set_effect::SEARCH_NOT_FINISHED,
                 "the discovery met conflicting orientation evidence",
             ));
         }
@@ -1159,7 +1172,9 @@ mod tests {
     fn a_conflict_that_changes_the_treatments_parents_is_refused() {
         let error = under_conflicts(3, MAX_CONFLICTING_COLLIDERS).unwrap_err();
         assert!(
-            detail(&error).contains("parent_set_effect.treatment_orientation_depends_on_conflict"),
+            detail(&error).contains(
+                antecedent_core::reason_details::parent_set_effect::TREATMENT_ORIENTATION_DEPENDS_ON_CONFLICT
+            ),
             "{error}"
         );
     }
@@ -1168,7 +1183,12 @@ mod tests {
     fn more_implicated_colliders_than_the_budget_are_refused_with_both_counts() {
         let error = under_conflicts(1, 1).unwrap_err();
         let text = detail(&error);
-        assert!(text.contains("parent_set_effect.conflict_resolution_budget"), "{text}");
+        assert!(
+            text.contains(
+                antecedent_core::reason_details::parent_set_effect::CONFLICT_RESOLUTION_BUDGET
+            ),
+            "{text}"
+        );
         assert!(text.contains("2 colliders") && text.contains("above the 1"), "{text}");
     }
     fn coefficient(point: f64, lower: f64, upper: f64, standard_error: f64) -> AdjustedEffect {

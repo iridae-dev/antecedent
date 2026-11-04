@@ -194,7 +194,11 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_double_counted", "evidence_ledger.shared_observations");
+    expect(
+        &refusal,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::SHARED_OBSERVATIONS,
+    );
     // Undeclared observations are unknown, never independent.
     let refusal = session
         .pool_summaries(
@@ -203,7 +207,11 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
+    expect(
+        &refusal,
+        "evidence_overlap_unknown",
+        antecedent_core::reason_details::evidence_ledger::OVERLAP_UNKNOWN,
+    );
     // A diagonal covariance over shared rows is the same double count.
     let refusal = session
         .pool_summaries(
@@ -212,7 +220,11 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_double_counted", "evidence_ledger.diagonal_covariance_shared_rows");
+    expect(
+        &refusal,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::DIAGONAL_COVARIANCE_SHARED_ROWS,
+    );
     // One source listed twice.
     let refusal = session
         .pool_summaries(
@@ -221,7 +233,11 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_double_counted", "evidence_ledger.repeated_source");
+    expect(
+        &refusal,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::REPEATED_SOURCE,
+    );
     // None of the refusals changed the session.
     assert_eq!(session.head_hex(), head);
     assert_eq!(session.state_digest_hex(), state);
@@ -241,7 +257,11 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_double_counted", "evidence_ledger.reentry_duplicate");
+    expect(
+        &refusal,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::REENTRY_DUPLICATE,
+    );
 
     // The numbers refuse after the overlap check passes, and the staged
     // registration is discarded with them.
@@ -255,7 +275,11 @@ fn overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "invalid_argument", "evidence_ledger.invalid_declaration");
+    expect(
+        &refusal,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
+    );
     assert_eq!(session.state_digest_hex(), before);
     assert_eq!(session.head_hex(), before_head);
     assert!(session.ledger().results().is_empty());
@@ -298,7 +322,11 @@ fn a_declared_covariance_with_cross_terms_supports_the_shared_pair() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "invalid_argument", "evidence_ledger.invalid_declaration");
+    expect(
+        &refusal,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
+    );
     let refusal = session
         .pool_summaries(
             pooling("short", vec![summary(s5, 1.0, 1.0), summary(s6, 2.0, 1.0)]),
@@ -306,7 +334,11 @@ fn a_declared_covariance_with_cross_terms_supports_the_shared_pair() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "invalid_argument", "evidence_ledger.invalid_declaration");
+    expect(
+        &refusal,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
+    );
     assert_eq!(session.ledger().results().len(), 1);
 }
 
@@ -546,11 +578,19 @@ fn a_transported_claim_is_never_native_target_data() {
     // The same source native and transported is a category error.
     let refusal =
         session.transport_claim("bad", vec![transported], vec![transported], None).unwrap_err();
-    expect(&refusal, "evidence_double_counted", "evidence_ledger.native_and_transported");
+    expect(
+        &refusal,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::NATIVE_AND_TRANSPORTED,
+    );
     // A claim without its transport identity cannot be transported.
     let bare = session.add_source(data("bare", 300..310)).unwrap();
     let refusal = session.transport_claim("bad", vec![bare], vec![native], None).unwrap_err();
-    expect(&refusal, "invalid_argument", "evidence_ledger.transport_identity_missing");
+    expect(
+        &refusal,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::TRANSPORT_IDENTITY_MISSING,
+    );
     // Another transported claim is not native evidence.
     let other = session
         .add_source(
@@ -560,7 +600,11 @@ fn a_transported_claim_is_never_native_target_data() {
         )
         .unwrap();
     let refusal = session.transport_claim("bad", vec![transported], vec![other], None).unwrap_err();
-    expect(&refusal, "invalid_argument", "evidence_ledger.transported_as_native");
+    expect(
+        &refusal,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::TRANSPORTED_AS_NATIVE,
+    );
 }
 
 #[test]
@@ -593,7 +637,11 @@ fn citing_a_result_counts_its_observations_once_and_refuses_a_stale_one() {
         .unwrap();
     assert_eq!(session.standing(pooled.result), Some(Revalidation::Recompute));
     let refusal = session.reuse_result("cite", pooled.result).unwrap_err();
-    expect(&refusal, "evidence_source_withdrawn", "evidence_ledger.result_not_valid");
+    expect(
+        &refusal,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID,
+    );
 }
 
 #[test]
@@ -608,7 +656,11 @@ fn repeated_observation_use_is_flagged_and_stays_flagged_when_cited() {
     assert!(session.result(cited).unwrap().data_reuse);
     // A stage with no name is not a declaration.
     let refusal = session.repeat_observations("nameless", vec![a], "").unwrap_err();
-    expect(&refusal, "invalid_argument", "evidence_ledger.operation_arity");
+    expect(
+        &refusal,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::OPERATION_ARITY,
+    );
     // Undeclared observations cannot be accounted: their reuse is unknown.
     let vendor =
         session.add_source(SourceDeclaration::new("vendor", SourceKind::ExternalClaim)).unwrap();
@@ -854,7 +906,11 @@ fn withdrawing_a_source_classifies_dependents_and_refuses_their_use() {
     // Stale numbers are not served; valid ones are.
     for stale in [s.r_s1_s2, s.r_cite, s.r_all, s.r_model] {
         let refusal = s.session.synthesis(stale).unwrap_err();
-        expect(&refusal, "evidence_source_withdrawn", "evidence_ledger.result_not_valid");
+        expect(
+            &refusal,
+            "evidence_source_withdrawn",
+            antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID,
+        );
     }
     assert!(s.session.synthesis(s.r_s2_s3).unwrap().is_some());
     // New work cannot rest on the withdrawn source, directly or by lineage.
@@ -866,7 +922,11 @@ fn withdrawing_a_source_classifies_dependents_and_refuses_their_use() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_source_withdrawn", "evidence_ledger.source_withdrawn");
+    expect(
+        &refusal,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_WITHDRAWN,
+    );
     let refusal = s
         .session
         .pool_summaries(
@@ -875,9 +935,17 @@ fn withdrawing_a_source_classifies_dependents_and_refuses_their_use() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_source_withdrawn", "evidence_ledger.source_withdrawn");
+    expect(
+        &refusal,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_WITHDRAWN,
+    );
     let refusal = s.session.reuse_result("cite_again", s.r_s1_s2).unwrap_err();
-    expect(&refusal, "evidence_source_withdrawn", "evidence_ledger.result_not_valid");
+    expect(
+        &refusal,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID,
+    );
 
     // The recompute on the remaining studies names the result it replaces and
     // the original is preserved but unusable.
@@ -897,7 +965,7 @@ fn withdrawing_a_source_classifies_dependents_and_refuses_their_use() {
     assert_eq!(s.session.standing(s.r_all), Some(Revalidation::Withdrawn));
     assert!(s.session.result(s.r_all).is_some());
     let refusal = s.session.synthesis(s.r_all).unwrap_err();
-    assert_eq!(refusal.detail, "evidence_ledger.result_not_valid");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID);
     assert!(refusal.message.contains("is withdrawn"), "{refusal:?}");
     // y = (2, 6), v = (2, 4): estimate (1 + 1.5) / (3/4) = 10/3, variance 4/3.
     let SynthesisValue::FixedEffect(fit) = &recomputed.value else { panic!("fixed effect") };
@@ -922,7 +990,11 @@ fn superseding_a_model_marks_dependents_for_recompute() {
     assert_eq!(class(s.r_all), Revalidation::StillValid);
     // A result that needs recomputation is refused, not served.
     let refusal = s.session.synthesis(s.r_model).unwrap_err();
-    expect(&refusal, "evidence_source_withdrawn", "evidence_ledger.result_not_valid");
+    expect(
+        &refusal,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID,
+    );
     // The superseded model cannot enter new results.
     let refusal = s
         .session
@@ -932,7 +1004,11 @@ fn superseding_a_model_marks_dependents_for_recompute() {
             &ctx(),
         )
         .unwrap_err();
-    expect(&refusal, "evidence_source_withdrawn", "evidence_ledger.source_superseded");
+    expect(
+        &refusal,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_SUPERSEDED,
+    );
     assert!(refusal.message.contains(&successor_id.to_hex()));
     // Recompute on the successor.
     let recomputed = s
@@ -973,7 +1049,7 @@ fn refresh_is_all_or_nothing_and_keeps_untouched_results() {
     assert!(refreshed.session.synthesis(s.r_s2_s3).unwrap().is_some());
     // Not served: results whose input changed, until a recompute replaces them.
     let refusal = refreshed.session.synthesis(s.r_all).unwrap_err();
-    assert_eq!(refusal.detail, "evidence_ledger.result_not_valid");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID);
     assert!(refusal.message.contains("is recompute"), "{refusal:?}");
     let class = |id: ResultId| {
         refreshed.classification.iter().find(|r| r.result == id).expect("classified").class
@@ -998,7 +1074,7 @@ fn refresh_is_all_or_nothing_and_keeps_untouched_results() {
         ])
         .unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "evidence_ledger.unknown_source");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::UNKNOWN_SOURCE);
     assert_eq!(s.session.state_digest_hex(), state);
     assert_eq!(s.session.ledger().sources().len(), 4);
 }
@@ -1032,12 +1108,12 @@ fn the_artifact_replays_and_a_consumer_refuses_another_history() {
     assert_ne!(other_export.identity, export.identity);
     let refusal =
         consume_evidence_ledger_artifact(&export.bytes, Some(&other_export.identity)).unwrap_err();
-    assert_eq!(refusal.detail, "evidence_ledger.identity_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::IDENTITY_MISMATCH);
     let mut damaged = export.bytes.clone();
     let at = damaged.len() / 2;
     damaged[at] ^= 0x55;
     let refusal = consume_evidence_ledger_artifact(&damaged, None).unwrap_err();
-    assert_eq!(refusal.detail, "evidence_ledger.replay_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::REPLAY_MISMATCH);
     assert!(refusal.message.contains("checksum mismatch"), "{refusal:?}");
 }
 
@@ -1062,7 +1138,7 @@ fn a_resealed_edit_of_a_stored_value_is_refused_on_replay() {
     assert_eq!(error, EvidenceLedgerArtifactError::SynthesisMismatch("values"));
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "evidence_ledger.synthesis_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::evidence_ledger::SYNTHESIS_MISMATCH);
 }
 
 /// A session holding only the dependence range of the hand-oracle fixture
@@ -1172,7 +1248,7 @@ fn a_resealed_edit_of_the_dependence_range_is_refused_on_replay() {
     assert_eq!(error, EvidenceLedgerArtifactError::SynthesisMismatch("assumption range"));
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "evidence_ledger.synthesis_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::evidence_ledger::SYNTHESIS_MISMATCH);
 }
 
 // ---------------------------------------------------------------------------

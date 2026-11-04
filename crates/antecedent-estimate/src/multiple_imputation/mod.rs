@@ -205,12 +205,15 @@ impl From<MultipleImputationError> for EstimationError {
 /// (`missing_policy_not_applicable`, next attempt [`SENSITIVITY_ANALYSIS`]).
 pub fn check_spec(spec: &ImputationSpec) -> Result<(), MultipleImputationError> {
     if let Some(problem) = spec.range_problem() {
-        return Err(MultipleImputationError::invalid("multiple_imputation.spec_range", problem));
+        return Err(MultipleImputationError::invalid(
+            antecedent_core::reason_details::multiple_imputation::SPEC_RANGE,
+            problem,
+        ));
     }
     match spec.assumption {
         MissingnessAssumption::MissingAtRandom => Ok(()),
         _ => Err(MultipleImputationError::not_applicable(
-            "multiple_imputation.not_at_random",
+            antecedent_core::reason_details::multiple_imputation::NOT_AT_RANDOM,
             "missingness is declared not at random; an imputation model fitted on the observed \
              cells cannot recover a mechanism that depends on the missing values themselves",
             SENSITIVITY_ANALYSIS,
@@ -235,7 +238,7 @@ impl ImputationUnits {
         };
         if groups.len() != rows {
             return Err(MultipleImputationError::invalid(
-                "multiple_imputation.units_shape",
+                antecedent_core::reason_details::multiple_imputation::UNITS_SHAPE,
                 format!("{} group labels for {rows} rows", groups.len()),
             ));
         }
@@ -245,7 +248,7 @@ impl ImputationUnits {
             let index =
                 usize::try_from(group).ok().filter(|&index| index < rows).ok_or_else(|| {
                     MultipleImputationError::invalid(
-                        "multiple_imputation.units_labels",
+                        antecedent_core::reason_details::multiple_imputation::UNITS_LABELS,
                         "group labels must be dense zero-based indices bounded by the row count",
                     )
                 })?;
@@ -254,7 +257,7 @@ impl ImputationUnits {
         }
         if largest.is_some_and(|last| seen[..=last].iter().any(|present| !present)) {
             return Err(MultipleImputationError::invalid(
-                "multiple_imputation.units_labels",
+                antecedent_core::reason_details::multiple_imputation::UNITS_LABELS,
                 "group labels must contain every index from zero through their maximum",
             ));
         }
@@ -303,7 +306,10 @@ pub fn bind_units(
         ImputationUnits::Groups(Arc::clone(groups)).validate(rows)?;
     }
     let design_error = |error: antecedent_core::sampling_design::SamplingDesignError| {
-        MultipleImputationError::invalid("multiple_imputation.sampling_design", error.to_string())
+        MultipleImputationError::invalid(
+            antecedent_core::reason_details::multiple_imputation::SAMPLING_DESIGN,
+            error.to_string(),
+        )
     };
     match design {
         None => Ok(groups.map_or(ImputationUnits::Rows, ImputationUnits::Groups)),
@@ -319,7 +325,7 @@ pub fn bind_units(
                 .map_err(design_error)?;
             groups.map(ImputationUnits::Groups).ok_or_else(|| {
                 MultipleImputationError::not_applicable(
-                    "multiple_imputation.clusters_required",
+                    antecedent_core::reason_details::multiple_imputation::CLUSTERS_REQUIRED,
                     "the declared clustered panel resamples whole clusters and no cluster label \
                      is bound to the rows",
                     SUPPLY_CLUSTER_LABELS,
@@ -328,7 +334,7 @@ pub fn bind_units(
         }
         Some(DeclaredSamplingDesign::DependentTimeSeries) => {
             Err(MultipleImputationError::not_applicable(
-                "multiple_imputation.dependent_series",
+                antecedent_core::reason_details::multiple_imputation::DEPENDENT_SERIES,
                 "a dependent time series has no exchangeable units for the imputation model's \
                  parameter draw",
                 TEMPORAL_COMPLETE_CASE,
@@ -355,7 +361,10 @@ pub fn bind_series_units(
     block_length: usize,
 ) -> Result<ImputationUnits, MultipleImputationError> {
     let design_error = |error: antecedent_core::sampling_design::SamplingDesignError| {
-        MultipleImputationError::invalid("multiple_imputation.sampling_design", error.to_string())
+        MultipleImputationError::invalid(
+            antecedent_core::reason_details::multiple_imputation::SAMPLING_DESIGN,
+            error.to_string(),
+        )
     };
     match design {
         None => {}
@@ -366,7 +375,7 @@ pub fn bind_series_units(
         }
         Some(other) => {
             return Err(MultipleImputationError::invalid(
-                "multiple_imputation.sampling_design",
+                antecedent_core::reason_details::multiple_imputation::SAMPLING_DESIGN,
                 format!(
                     "a single time series is imputed under the dependent time-series design, \
                      not `{}`",
@@ -750,7 +759,7 @@ pub fn pool_vector_fits(
             .map(PooledVectorEstimate::Rubin);
     }
     Err(MultipleImputationError::invalid(
-        "multiple_imputation.mixed_fits",
+        antecedent_core::reason_details::multiple_imputation::MIXED_FITS,
         "every completed table's fit must report a covariance (frequentist) or posterior draws \
          (Bayesian); the fits mix the two or report neither",
     ))
@@ -832,7 +841,7 @@ pub fn pool_fits(fits: &[ImputationFit]) -> Result<PooledEstimate, MultipleImput
             .map(PooledEstimate::Rubin);
     }
     Err(MultipleImputationError::invalid(
-        "multiple_imputation.mixed_fits",
+        antecedent_core::reason_details::multiple_imputation::MIXED_FITS,
         "every completed table's fit must report a variance (frequentist) or posterior draws \
          (Bayesian); the fits mix the two or report neither",
     ))

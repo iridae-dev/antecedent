@@ -61,7 +61,7 @@ impl StudyPlanError {
     fn invalid_artifact(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("transport_not_certified"),
-            detail: "study_plan.invalid_artifact",
+            detail: antecedent_core::reason_details::study_plan::INVALID_ARTIFACT,
             message: message.into(),
             receipt: None,
         }
@@ -70,7 +70,7 @@ impl StudyPlanError {
     fn consumer_limits(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("route_not_supported"),
-            detail: "study_plan.bounds_exceeded",
+            detail: antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED,
             message: message.into(),
             receipt: None,
         }

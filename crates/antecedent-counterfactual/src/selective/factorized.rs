@@ -95,7 +95,7 @@ enum Label {
 fn bound_exceeded(what: &str) -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "cross_world_execution.elimination_bound_exceeded",
+        antecedent_core::reason_details::cross_world_execution::ELIMINATION_BOUND_EXCEEDED,
         Some(what.to_owned()),
         "the exact elimination order needs a table above the documented bound for this \
          declaration, evidence and quantity; reduce the levels, parents or exogenous states, or \
@@ -107,7 +107,7 @@ fn bound_exceeded(what: &str) -> CrossWorldExecutionError {
 fn outside_support(unit: &str) -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "cross_world_execution.evidence_outside_model_support",
+        antecedent_core::reason_details::cross_world_execution::EVIDENCE_OUTSIDE_MODEL_SUPPORT,
         Some(unit.to_owned()),
         "the factual evidence has probability zero under the declared mechanisms; revise \
          the mechanisms or the evidence (a refuted model is not repaired by conditioning)",
@@ -227,8 +227,12 @@ pub(crate) fn infer_unit(
             // Roles within the factor: the output variable (unless observed), the exogenous
             // term, and each parent (unless it is a constant in the world it is read from).
             let out_node = world_node.get(&(world, variable)).copied();
-            let u_node = exogenous_node[var.exogenous]
-                .ok_or_else(|| invalid("cross_world_execution.invalid_scm", var.name.clone()))?;
+            let u_node = exogenous_node[var.exogenous].ok_or_else(|| {
+                invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                    var.name.clone(),
+                )
+            })?;
             let parent_nodes: Vec<(Option<usize>, Option<u8>)> = var
                 .parents
                 .iter()
@@ -357,7 +361,10 @@ pub(crate) fn infer_unit(
         multiplications = multiplications.saturating_add(outcome.multiplications);
         work.multiplications = work.multiplications.saturating_add(outcome.multiplications);
         if work.multiplications > MAX_ELIMINATION_WORK {
-            return Err(invalid("cross_world_execution.bounds_exceeded", "elimination_work"));
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+                "elimination_work",
+            ));
         }
         peak = peak.max(outcome.factor.data.len());
         let Some(scaled) = rescale(outcome.factor, &mut log_scale) else {
@@ -394,7 +401,10 @@ pub(crate) fn infer_unit(
     multiplications = multiplications.saturating_add(joint.multiplications);
     work.multiplications = work.multiplications.saturating_add(joint.multiplications);
     if work.multiplications > MAX_ELIMINATION_WORK {
-        return Err(invalid("cross_world_execution.bounds_exceeded", "elimination_work"));
+        return Err(invalid(
+            antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+            "elimination_work",
+        ));
     }
     peak = peak.max(joint.factor.data.len());
     let Some(table) = rescale(joint.factor, &mut log_scale) else {
@@ -408,7 +418,7 @@ pub(crate) fn infer_unit(
     if evidence_probability == 0.0 {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_execution.evidence_probability_underflow",
+            antecedent_core::reason_details::cross_world_execution::EVIDENCE_PROBABILITY_UNDERFLOW,
             Some(unit.unit.clone()),
             "use an executor with probability arithmetic that can retain this positive evidence mass; this f64 route cannot represent it",
         ));

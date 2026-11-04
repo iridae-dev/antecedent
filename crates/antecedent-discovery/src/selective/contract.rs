@@ -61,15 +61,15 @@ fn knowledge_refusal(fault: &KnowledgeFault) -> SelectiveDiscoveryError {
     let (code, detail) = match fault {
         KnowledgeFault::Contradictory(_) => (
             antecedent_core::reason_code!("invalid_argument"),
-            "selective_discovery.background_knowledge_contradictory",
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_CONTRADICTORY,
         ),
         KnowledgeFault::UnknownVariable(_) => (
             antecedent_core::reason_code!("unknown_variable"),
-            "selective_discovery.background_knowledge_unknown_variable",
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_UNKNOWN_VARIABLE,
         ),
         KnowledgeFault::NotApplicable(_) => (
             antecedent_core::reason_code!("option_not_applicable"),
-            "selective_discovery.background_knowledge_not_applicable",
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_NOT_APPLICABLE,
         ),
     };
     SelectiveDiscoveryError::refused(code, detail, fault.message())
@@ -142,7 +142,7 @@ impl CiTestSpec {
             Self::Declared { identity, test } => {
                 if identity.trim().is_empty() {
                     return Err(invalid(
-                        "selective_discovery.test_identity_missing",
+                        antecedent_core::reason_details::selective_discovery::TEST_IDENTITY_MISSING,
                         "declare an identity naming the test and every setting that changes \
                          its result",
                     ));
@@ -443,7 +443,7 @@ fn stage_inputs(
     );
     StageInputs::new(settings.route, components).ok_or_else(|| {
         invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "the contract did not declare every stage input",
         )
     })
@@ -458,7 +458,7 @@ fn validate_common(
 ) -> Result<(), SelectiveDiscoveryError> {
     if !additional.is_empty() {
         return Err(not_supported(
-            "selective_discovery.multi_population",
+            antecedent_core::reason_details::selective_discovery::MULTI_POPULATION,
             "discovery from several source datasets is not part of selective discovery: a \
              pooled or per-population search has its own identification and invariance \
              assumptions. Run discovery on one declared population, or declare the \
@@ -472,7 +472,7 @@ fn validate_common(
         || md.include_time_dummy
     {
         return Err(not_supported(
-            "selective_discovery.multi_population",
+            antecedent_core::reason_details::selective_discovery::MULTI_POPULATION,
             "context variables and dataset dummies describe a multi-dataset search, which \
              this adapter does not retain statistics for; remove them or use the pooled \
              algorithm directly",
@@ -480,26 +480,26 @@ fn validate_common(
     }
     if population.trim().is_empty() {
         return Err(invalid(
-            "selective_discovery.population_missing",
+            antecedent_core::reason_details::selective_discovery::POPULATION_MISSING,
             "declare the one population the data were drawn from",
         ));
     }
     if variables.is_empty() {
         return Err(invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "declare at least one searched variable",
         ));
     }
     let distinct: BTreeSet<u32> = variables.iter().map(|v| v.raw()).collect();
     if distinct.len() != variables.len() {
         return Err(invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "the searched variables repeat",
         ));
     }
     if !(constraints.alpha > 0.0 && constraints.alpha < 1.0) {
         return Err(invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "the significance threshold must lie strictly between 0 and 1",
         ));
     }
@@ -724,19 +724,19 @@ impl TemporalDiscoveryContract {
         let t = &self.constraints.temporal;
         if t.max_lag.raw().checked_mul(2).is_none() {
             return Err(invalid(
-                "selective_discovery.invalid_contract",
+                antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
                 "the doubled max_lag must fit u32",
             ));
         }
         if t.max_lag.raw() == 0 || t.min_lag.raw() > t.max_lag.raw() {
             return Err(invalid(
-                "selective_discovery.invalid_contract",
+                antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
                 "the lag window must satisfy 0 <= min_lag <= max_lag with max_lag >= 1",
             ));
         }
         if self.algorithm == TemporalAlgorithm::Pcmci && t.min_lag.raw() == 0 {
             return Err(not_supported(
-                "selective_discovery.contemporaneous_links",
+                antecedent_core::reason_details::selective_discovery::CONTEMPORANEOUS_LINKS,
                 "PCMCI searches lagged links only; request contemporaneous links with PCMCI+, \
                  which orients them up to an equivalence class",
             ));
@@ -768,7 +768,7 @@ impl TemporalDiscoveryContract {
             frame_depth: self.constraints.temporal.max_lag.raw().checked_mul(2).ok_or_else(
                 || {
                     invalid(
-                        "selective_discovery.invalid_contract",
+                        antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
                         "the doubled max_lag must fit u32",
                     )
                 },
@@ -871,13 +871,16 @@ mod tests {
         );
         contract.additional_populations = vec!["other".to_owned()];
         let err = contract.validate().unwrap_err();
-        assert_eq!(err.detail(), Some("selective_discovery.multi_population"));
+        assert_eq!(
+            err.detail(),
+            Some(antecedent_core::reason_details::selective_discovery::MULTI_POPULATION)
+        );
         assert_eq!(err.code(), Some("route_not_supported"));
         contract.additional_populations.clear();
         contract.constraints.multi_dataset.context_variables = Arc::from([VariableId::from_raw(1)]);
         assert_eq!(
             contract.validate().unwrap_err().detail(),
-            Some("selective_discovery.multi_population")
+            Some(antecedent_core::reason_details::selective_discovery::MULTI_POPULATION)
         );
     }
 
@@ -893,7 +896,7 @@ mod tests {
         contract.constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
         assert_eq!(
             contract.validate().unwrap_err().detail(),
-            Some("selective_discovery.contemporaneous_links")
+            Some(antecedent_core::reason_details::selective_discovery::CONTEMPORANEOUS_LINKS)
         );
         let plus = TemporalDiscoveryContract {
             algorithm: TemporalAlgorithm::PcmciPlus,

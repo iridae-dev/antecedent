@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent.derived import (
     DeclaredExclusion,
     DerivedTreatment,
@@ -113,7 +114,7 @@ def test_a_family_with_one_unsupported_cell_keeps_the_rest():
     assert [c.status for c in result.cells] == ["supported"] * 3 + ["unsupported"]
     refused = result.cells[3]
     assert refused.refusal.code == "arm_not_populated"
-    assert refused.refusal.detail == "joint_cells.cell_empty"
+    assert refused.refusal.detail == reason_details.joint_cells.CELL_EMPTY
     assert refused.estimate is None and refused.rows == 0
     assert result.degenerate_conditionals > 0
     assert result.sensitivity.orderings[0] == ("t1", "t0")
@@ -130,7 +131,7 @@ def test_constituent_and_descendant_leakage_needs_a_declared_exclusion():
         lambda: check_derived_treatment(data, declaration(), outcome="y", adjustment=["z", "t1"])
     )
     assert error.reason_code == "derived_treatment_invalid"
-    assert "joint_cells.derived_constituent_in_adjustment" in str(error)
+    assert reason_details.joint_cells.DERIVED_CONSTITUENT_IN_ADJUSTMENT in str(error)
     assert error.refusal_fields["implicated_columns"] == ["t1"]
 
     excluded = declaration(
@@ -143,14 +144,14 @@ def test_constituent_and_descendant_leakage_needs_a_declared_exclusion():
     error = refusal(
         lambda: check_derived_treatment(data, declaration(), outcome="y", adjustment=["z", "post"])
     )
-    assert "joint_cells.derived_descendant_in_adjustment" in str(error)
+    assert reason_details.joint_cells.DERIVED_DESCENDANT_IN_ADJUSTMENT in str(error)
     wrong_rule = declaration(
         exclusions=[DeclaredExclusion("z", "constituent_of_treatment", "an admissible covariate")]
     )
     error = refusal(
         lambda: check_derived_treatment(data, wrong_rule, outcome="y", adjustment=["z"])
     )
-    assert "joint_cells.derived_exclusion_rule_mismatch" in str(error)
+    assert reason_details.joint_cells.DERIVED_EXCLUSION_RULE_MISMATCH in str(error)
 
 
 def test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_named():
@@ -159,7 +160,7 @@ def test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_na
     error = refusal(
         lambda: check_derived_treatment(duplicated, declaration(), outcome="y", adjustment=["z"])
     )
-    assert "joint_cells.derived_duplicate_constituents" in str(error)
+    assert reason_details.joint_cells.DERIVED_DUPLICATE_CONSTITUENTS in str(error)
     assert error.refusal_fields["implicated_columns"] == ["t0", "t1"]
 
     rank = {**data, "z_dup": data["z"].copy(), "z2": data["y"] * 0 + np.arange(400) % 7}
@@ -180,7 +181,7 @@ def test_illegal_values_and_contradictory_declarations_are_refused():
     data = draw(300, 5, LAW)
     narrow = declaration(legal_values=[0.0, 1.0, 2.0])
     error = refusal(lambda: check_derived_treatment(data, narrow, outcome="y", adjustment=["z"]))
-    assert "joint_cells.derived_illegal_value" in str(error)
+    assert reason_details.joint_cells.DERIVED_ILLEGAL_VALUE in str(error)
     for edit in (
         {"intervention": "joint_components", "transformation": "product"},
         {"legal_values": [0.0]},
@@ -215,16 +216,16 @@ def test_intervals_machine_learning_nuisance_and_lasso_are_not_supported():
 
     error = refusal(lambda: call(level=0.95))
     assert error.reason_code == "penalized_interval_not_supported"
-    assert "joint_cells.no_interval_method" in str(error)
+    assert reason_details.joint_cells.NO_INTERVAL_METHOD in str(error)
     for name in ("ml", "neural_network", "gradient_boosting"):
         error = refusal(lambda name=name: call(nuisance=name))
         assert error.reason_code == "ml_nuisance_not_supported"
-        assert "joint_cells.ml_learner_not_declared" in str(error)
+        assert reason_details.joint_cells.ML_LEARNER_NOT_DECLARED in str(error)
     # An interval over a learner-supplied family is closed whether or not the provider is
     # built: it is refused before any data is read.
     error = refusal(lambda: call(nuisance="random_forest", level=0.95))
     assert error.reason_code == "ml_nuisance_not_supported"
-    assert "joint_cells.no_ml_interval_method" in str(error)
+    assert reason_details.joint_cells.NO_ML_INTERVAL_METHOD in str(error)
     with pytest.raises(CausalValueError):
         call(nuisance="random_forest", penalties=[0.1])
     with pytest.raises(CausalValueError):
@@ -251,7 +252,7 @@ def test_a_declared_learner_nuisance_is_cross_fitted_and_point_only():
     except CausalUnsupportedError as error:
         # A build without the forest provider refuses typed instead of substituting ridge.
         assert error.reason_code == "route_not_supported"
-        assert "joint_cells.learner_unavailable" in str(error)
+        assert reason_details.joint_cells.LEARNER_UNAVAILABLE in str(error)
         pytest.skip("the random_forest provider is not built into this wheel")
         return
     assert result.claim == "point_only"

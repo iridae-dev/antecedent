@@ -39,7 +39,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-validate/tests/mnar_sensitivity.rs",
-          "sha256": "c107d98c4454fe1f2dd7ab781239dfdb742864a119e1654a9b7cf221f6d81c24"
+          "items": [
+            "fn close",
+            "fn mnar_matches_the_independent_reference",
+            "fn run"
+          ],
+          "sha256": "94ff5b062b71945e8c10b5fbb29555486e3ef699d0e07d777751ed6dd63ac3fa"
         }
       ],
       "sources": [],

@@ -39,19 +39,23 @@ record_sha256 = "09e5ff4b7ed967415a04c2b4ccda9433a0fe1c09cc8435aa53c33169f387e46
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/callback_protocol/declaration.rs"
-sha256 = "61f19c500551a644e7015d73874942e641b96b9f52b6d4e2856a6b0b17300e01"
+items = ["const CALLBACK_OUTPUT_PORT", "const CALLBACK_PROTOCOL_VERSION", "const TAG_DECLARATION", "enum CallbackKind", "enum CallbackOperation", "enum CallbackTrust", "enum DependencyDeclaration", "enum DependencyKind", "enum InputSupplier", "enum ReplayContract", "enum RetryContract", "fn canonical_identity", "fn capability", "fn check_text", "fn complete", "fn contract_operation", "fn effective_evidence", "fn interface_contract", "fn label", "fn new", "fn provider_object", "fn tag", "fn update_object", "fn validate", "fn validate_dependencies_and_replay", "fn validate_identity", "fn validate_inputs", "fn validate_operations", "fn write_evidence", "fn write_support", "struct CallbackDeclaration", "struct CallbackDependency", "struct CallbackInput", "struct UpdateDeclaration"]
+sha256 = "cbde5079ddcdf086f6de495ef3a475c69753d993c03cab7ee499c37c6105ff2b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/callback_protocol/plan.rs"
-sha256 = "3f4dab9c27c91c92ef5099dfd64fb18d5ed8978c01dbfa83c8ff0fae7e80803a"
+items = ["const TAG_REQUEST", "const TAG_STREAM", "enum CallbackPlan", "enum RecomputeReason", "enum ResultStanding", "fn dependency_change", "fn identity", "fn new", "fn plan_reuse", "fn semantic_stream", "fn standing_label", "fn standing_of", "struct CallbackRequest", "struct StoredCallback"]
+sha256 = "301e32b09d8a6a3e4b0284f9a9a4bd53778b0e7400afe53783052cc6b6bc0f77"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/callback_protocol/query.rs"
-sha256 = "f5a5ebe1d86cb244d0e3478e9e14220c5cecac6529d13e274df45aba55f3dae4"
+items = ["enum CallbackOutput", "enum CallbackQuery", "fn check_cdf", "fn expected_values", "fn holds_mean", "fn holds_value", "fn operation", "fn output", "fn query", "fn require_finite", "fn require_in_support", "fn support_bounds", "fn validate", "fn validate_output", "fn value_count", "fn values", "struct Bounds", "struct ValidatedOutput"]
+sha256 = "56107c0cfdec0301a61df5afe81e078079855cffa2a691696a77b58b1e0c8332"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/callback_protocol.rs"
-sha256 = "44ef9b54120ffb63b8a521687980faecb61eca4100042ec667bd103b802ff76c"
+items = ["fn a_callback_connects_to_a_consumer_only_for_its_declared_quantity", "fn a_complete_declaration_validates_and_is_an_instance_of_the_interface_contract", "fn a_mean_only_callback_is_point_only_and_carries_no_uncertainty", "fn a_posterior_update_is_a_separate_signal_that_needs_its_observation_law", "fn a_seeded_callback_is_reused_only_for_the_same_seed", "fn a_side_effecting_callback_is_reused_only_under_an_idempotent_contract_and_key", "fn a_stateful_callback_is_reused_only_while_its_reported_state_is_unchanged", "fn a_well_formed_law_is_accepted_and_every_malformed_law_is_refused", "fn accepted", "fn an_unregistered_inner_callback_is_refused_not_assumed_independent", "fn detail", "fn gaussian", "fn identity", "fn identity_binds_dependency_versions_replay_and_provider_but_not_order", "fn malformed_declarations_are_refused_with_registered_details", "fn nested_callbacks_are_registered_with_their_evidence_overlap", "fn nested_over", "fn observations", "fn opaque_or_undeclared_dependencies_make_reuse_ineligible", "fn operations_are_negotiated_separately_and_none_implies_another", "fn posterior", "fn quantiles_draws_and_means_are_checked_against_the_support", "fn quantity", "fn queries_and_sizes_are_bounded_and_checked", "fn refusal_of", "fn refused_detail", "fn register", "fn request_identity_ignores_the_seed_of_a_deterministic_callback_only", "fn reuse_follows_the_replay_contract_and_every_identity", "fn semantic_streams_depend_on_the_seed_and_the_identity_not_on_call_order", "fn standing_is_diagnostic_unless_replayable_complete_and_attested", "fn stored_of", "fn with_ops"]
+sha256 = "f0b0a6263541ba7cd5c6e48980d053f10c8e80fea959560d1f1a1c051f8466b7"

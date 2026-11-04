@@ -254,7 +254,9 @@ fn declaration_capacity_is_separate_from_ordering() {
     unordered.enrolment = Some(vec![5, 0, 5]);
     assert_eq!(
         units_over(unordered),
-        vec![ContractGap::Invalid("adaptive_inference.looks_not_ordered")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
+        )]
     );
 
     // Repeated measures: zero-unit follow-up batches past the batch bound.
@@ -316,7 +318,10 @@ fn each_capacity_class_has_its_own_detail_and_remedy() {
     assert_eq!(remedies.len(), classes.len(), "no two classes share a remedy");
     for class in classes {
         assert!(class.detail().starts_with("adaptive_inference."));
-        assert_ne!(class.detail(), "adaptive_inference.looks_not_ordered");
+        assert_ne!(
+            class.detail(),
+            antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
+        );
         assert_eq!((class.limit(), class.requested()), (1, 2));
         assert!(class.to_string().contains(&class.class().replace('_', " ")));
     }
@@ -352,7 +357,10 @@ fn the_exact_law_refuses_too_many_live_states_with_its_own_detail() {
     // Eight cells and one batch of thirty: the compositions of the batch alone pass a million.
     let refused = law_error(&fixed_law_spec(4, 2, 30));
     assert!(matches!(refused, CapacityError::LawStates { limit: 1_000_000, .. }), "{refused:?}");
-    assert_eq!(refused.detail(), "adaptive_inference.exact_law_states_exceeded");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED
+    );
     assert!(refused.remedy().contains("simulate"));
 }
 
@@ -430,7 +438,10 @@ fn a_work_budget_refusal_names_the_work_class_before_any_replicate_runs() {
         Error::Capacity(CapacityError::SimulationWork { limit: 1_000, requested: 36_000 })
     );
     let Error::Capacity(capacity) = refused else { unreachable!() };
-    assert_eq!(capacity.detail(), "adaptive_inference.simulation_work_exceeded");
+    assert_eq!(
+        capacity.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED
+    );
 }
 
 #[test]
@@ -525,7 +536,10 @@ fn a_memory_budget_refusal_names_the_memory_class() {
     )
     .unwrap_err();
     let Error::Capacity(capacity) = refused else { panic!("{refused:?}") };
-    assert_eq!(capacity.detail(), "adaptive_inference.simulation_memory_exceeded");
+    assert_eq!(
+        capacity.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED
+    );
     assert!(capacity.requested() > 1_000);
 }
 
@@ -626,12 +640,16 @@ fn adaptive_declared_capacity_separate_from_exact_law_limits() {
     let refused = law_error(&spec);
     assert!(matches!(refused, CapacityError::LawStates { limit: 1_000_000, .. }), "{refused:?}");
     assert_eq!(refused.class(), "exact_law_states");
-    assert_eq!(refused.detail(), "adaptive_inference.exact_law_states_exceeded");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED
+    );
     assert!(refused.requested() > refused.limit());
     assert!(refused.remedy().contains("simulate"));
-    for declared in
-        ["adaptive_inference.declared_units_exceeded", "adaptive_inference.declared_looks_exceeded"]
-    {
+    for declared in [
+        antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED,
+        antecedent_core::reason_details::adaptive_inference::DECLARED_LOOKS_EXCEEDED,
+    ] {
         assert_ne!(refused.detail(), declared);
     }
     // The simulation route runs the same declaration.
@@ -681,7 +699,10 @@ fn adaptive_simulation_work_and_memory_limits_refuse() {
         })
     );
     let Error::Capacity(work) = refused else { unreachable!() };
-    assert_eq!(work.detail(), "adaptive_inference.simulation_work_exceeded");
+    assert_eq!(
+        work.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED
+    );
     assert!(work.to_string().contains("4000000000") && work.to_string().contains("4320000000"));
     assert!(work.remedy().contains("work budget"));
     // Just inside the bound is admitted (checked on the budget, not run).
@@ -720,7 +741,10 @@ fn adaptive_simulation_work_and_memory_limits_refuse() {
     .unwrap_err();
     let Error::Capacity(memory) = refused else { panic!("{refused:?}") };
     assert!(matches!(memory, CapacityError::SimulationMemory { limit: 100_000, .. }));
-    assert_eq!(memory.detail(), "adaptive_inference.simulation_memory_exceeded");
+    assert_eq!(
+        memory.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED
+    );
     assert!(memory.requested() > 100_000);
     assert!(memory.to_string().contains("100000"));
     assert_ne!(memory.detail(), work.detail());

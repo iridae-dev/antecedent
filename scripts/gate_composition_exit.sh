@@ -12,6 +12,8 @@
 #
 # Status per story: PASS / FAIL. Exit status is nonzero on any FAIL. Calibration is printed afterwards
 # as an annotation (scripts/calibration_status.py intervals) and never changes the verdict.
+# The stories are ordinary engineering tests that tier 2 of scripts/gate_release.sh already runs and
+# fails on; this script only prints their per-story table on demand.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

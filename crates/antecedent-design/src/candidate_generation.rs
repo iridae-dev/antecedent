@@ -119,7 +119,7 @@ impl CandidateTemplate {
     /// naming what [`Self::complete`] needs.
     pub fn validate(&self) -> Result<(), StudyCandidateError> {
         Err(refusal(
-            "study_candidate.declarations_required",
+            antecedent_core::reason_details::study_candidate::DECLARATIONS_REQUIRED,
             format!(
                 "template `{}` has no sample size, recruitment, timing, unit rules, cost or \
                  feasibility; those are caller declarations and are never defaulted",
@@ -142,7 +142,7 @@ impl CandidateTemplate {
         if let Some(minimum) = self.minimum_sample_size {
             if declarations.sample_size < minimum {
                 return Err(refusal(
-                    "study_candidate.sample_below_obligation",
+                    antecedent_core::reason_details::study_candidate::SAMPLE_BELOW_OBLIGATION,
                     format!(
                         "template `{}` addresses an obligation that needs at least {minimum} \
                          additional rows; the declared sample size is {}",
@@ -544,11 +544,17 @@ mod tests {
         let generation = generate_candidates(&family.unresolved_obligations());
         let template = &generation.templates[0];
         let refused = template.validate().unwrap_err();
-        assert_eq!(refused.detail, "study_candidate.declarations_required");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::study_candidate::DECLARATIONS_REQUIRED
+        );
         // A blank declaration is refused by the candidate's own validation.
         let mut blank = declarations(5);
         blank.recruitment = Arc::from(" ");
-        assert_eq!(template.complete(blank).unwrap_err().detail, "study_candidate.wrong_contract");
+        assert_eq!(
+            template.complete(blank).unwrap_err().detail,
+            antecedent_core::reason_details::study_candidate::WRONG_CONTRACT
+        );
         let mut free = declarations(5);
         free.cost.units = 0;
         assert!(template.complete(free).is_err());
@@ -739,7 +745,10 @@ mod tests {
         assert_eq!(template.kind, StudyKind::SampleIncrease);
         assert_eq!(template.minimum_sample_size, Some(500));
         let refused = template.complete(declarations(5)).unwrap_err();
-        assert_eq!(refused.detail, "study_candidate.sample_below_obligation");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::study_candidate::SAMPLE_BELOW_OBLIGATION
+        );
         let mut enough = declarations(5);
         enough.sample_size = 500;
         assert!(template.complete(enough).is_ok());

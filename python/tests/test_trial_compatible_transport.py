@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalValueError
 from antecedent.transport import discovered
@@ -90,7 +91,7 @@ def test_a_trial_that_rejects_every_member_of_the_class_is_refused_as_an_estimat
             discovery=INDEPENDENT,
             **COMMON,
         )
-    assert info.value.detail == "discovered_transport.trial_rejects_every_member"
+    assert info.value.detail == reason_details.discovered_transport.TRIAL_REJECTS_EVERY_MEMBER
 
 
 def test_the_test_level_is_declared_in_the_open_interval():

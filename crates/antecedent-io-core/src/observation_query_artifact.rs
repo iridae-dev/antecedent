@@ -184,31 +184,31 @@ pub fn query_error_refusals(error: &ObservationQueryError) -> Vec<ExternalRefusa
     match error {
         ObservationQueryError::UnknownVariable(name) => one(registry_refusal(
             antecedent_core::reason_code!("unknown_variable"),
-            "observation_query.unknown_variable",
+            antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE,
             name.clone(),
             "name a variable of the composed model",
         )),
         ObservationQueryError::UnknownLevel { variable, level } => one(registry_refusal(
             invalid,
-            "observation_query.unknown_level",
+            antecedent_core::reason_details::observation_query::UNKNOWN_LEVEL,
             format!("{variable}={level}"),
             "name a declared level of the variable",
         )),
         ObservationQueryError::RepeatedVariable(name) => one(registry_refusal(
             invalid,
-            "observation_query.repeated_slot",
+            antecedent_core::reason_details::observation_query::REPEATED_SLOT,
             name.clone(),
             "assign each variable at most once",
         )),
         ObservationQueryError::OutcomeObserved(name) => one(registry_refusal(
             invalid,
-            "observation_query.outcome_assigned",
+            antecedent_core::reason_details::observation_query::OUTCOME_ASSIGNED,
             name.clone(),
             "ask about an outcome that is not itself conditioned on",
         )),
         ObservationQueryError::ConstructObserved(name) => one(registry_refusal(
             invalid,
-            "observation_query.construct_observed_directly",
+            antecedent_core::reason_details::observation_query::CONSTRUCT_OBSERVED_DIRECTLY,
             name.clone(),
             "condition on the construct directly or on its measured indicator, not both",
         )),
@@ -216,13 +216,13 @@ pub fn query_error_refusals(error: &ObservationQueryError) -> Vec<ExternalRefusa
         ObservationQueryError::ObservedAndIntervened(name) => one(mixed_conditioning_refusal(name)),
         ObservationQueryError::EvidenceSingular => one(registry_refusal(
             invalid,
-            "observation_query.evidence_covariance_singular",
+            antecedent_core::reason_details::observation_query::EVIDENCE_COVARIANCE_SINGULAR,
             "observed".to_owned(),
             "observe values whose joint covariance under the model is positive definite: drop an observed variable that is a deterministic function of the others, or give the mechanism a positive residual scale",
         )),
         ObservationQueryError::Invalid(what) => one(registry_refusal(
             invalid,
-            "observation_query.invalid_declaration",
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
             (*what).to_owned(),
             "supply a well formed declaration: probabilities in range, distributions that sum to one, named levels",
         )),
@@ -240,13 +240,13 @@ pub fn query_error_refusals(error: &ObservationQueryError) -> Vec<ExternalRefusa
         }
         ObservationQueryError::Composition(other) => one(registry_refusal(
             antecedent_core::reason_code!("route_not_supported"),
-            "observation_query.request_unsupported",
+            antecedent_core::reason_details::observation_query::REQUEST_UNSUPPORTED,
             other.to_string(),
             "state the query within the bounded finite family",
         )),
         _ => one(registry_refusal(
             antecedent_core::reason_code!("route_not_supported"),
-            "observation_query.request_unsupported",
+            antecedent_core::reason_details::observation_query::REQUEST_UNSUPPORTED,
             error.to_string(),
             "state the query within the bounded family",
         )),
@@ -1184,7 +1184,7 @@ fn measured_slot_likelihood(
     let Some(index) = law.variables().iter().position(|v| v == &measured.construct) else {
         return Err(refused(registry_refusal(
             antecedent_core::reason_code!("unknown_variable"),
-            "observation_query.unknown_variable",
+            antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE,
             measured.construct.clone(),
             "name a variable of the composed model",
         )));

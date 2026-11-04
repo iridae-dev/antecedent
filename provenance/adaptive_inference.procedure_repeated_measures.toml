@@ -37,17 +37,20 @@ record_sha256 = "3c1072f97b39259ce7da8cf16c5ccd0996ee8b3630943e30651717546b2ff76
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs"
-sha256 = "878293138762566668ce6dc293b7c8c2c3c517dc7100119d574e52650a13d3d5"
+items = ["const MAX_MEASUREMENTS_PER_UNIT", "const MAX_UNIT_BATCHES", "const MAX_UNIT_LAG", "const PROBABILITY_SUM_TOLERANCE", "enum AnalysisEstimator", "enum Dependence", "enum OutcomeStructure", "enum UnitAssignment", "enum UnitSummary", "enum WithinUnitCorrelation", "fn analysis", "fn analysis_summary", "fn arms", "fn assignment", "fn build", "fn cdf", "fn check_means", "fn correlation_matrix", "fn defined_mass", "fn design_effect", "fn enrolment", "fn exact_fixed_contrast_law", "fn lag_looks", "fn marginal_variance", "fn mean", "fn measurements", "fn new", "fn premise", "fn prior_is_valid", "fn probability_vector", "fn revealed_units", "fn structure", "fn summary_variance", "fn unit_summary_variance", "fn variance", "fn weights", "struct Covariance", "struct FinalAnalysis", "struct GaussianMixtureLaw", "struct MixtureComponent", "struct RepeatedMeasuresDeclaration", "struct RepeatedMeasuresSpec"]
+sha256 = "b00ebc4bbd18ae57d0a1eadfd31a7429f3c92ee55a3cd897198cb985215eb834"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_repeated_measures_reference.rs"
-sha256 = "953fc8a82346724a52a46dceed43509d2513ba4dd055000087b44cdec5d9f45a"
+items = ["fn reference", "fn relative", "fn spec", "fn structure", "fn the_fixed_allocation_mixture_matches_the_exact_binomial_weights", "fn unit_summary_variances_and_design_effects_match_the_exact_inverse"]
+sha256 = "eef8e056f635d9d7210252bcebe1e3a9681d5882ded76fd87476436199f59d34"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
+items = ["module"]
+sha256 = "571c1ccdbb1afe316020f1abae7a2567cdbf424d29355e0b9da9c809ddf610b6"
 
 [[method_review.artifacts]]
 role = "reference"

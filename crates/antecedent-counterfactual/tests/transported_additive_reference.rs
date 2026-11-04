@@ -222,7 +222,10 @@ fn selection_on_a_mediator_returns_the_reference_witness_or_no_witness() {
             supplied_factors: &evidence(),
         })
         .expect_err("selection on a mediator is outside the class");
-        assert_eq!(err.refusal.detail, "transported_counterfactual.selection_on_mechanism");
+        assert_eq!(
+            err.refusal.detail,
+            antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+        );
         if let Some(w) = case["witness"].as_object() {
             assert_eq!(err.refusal.code, "transport_proven_non_transportable", "{name}");
             let got = err.witness.as_ref().expect("witness");

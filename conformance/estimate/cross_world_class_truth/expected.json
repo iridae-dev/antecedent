@@ -916,12 +916,59 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_class_truth.rs",
-          "sha256": "2e00389247ae870c49a6d51c9886064f72ff38ef596a812f08d2943c4501468c"
+          "items": [
+            "fn a_counterfactual_on_a_pag_is_refused_under_cheap_and_full_validation",
+            "fn admg",
+            "fn builder",
+            "fn cases",
+            "fn class_cross_world_cheap_and_full_validation_refutes_the_exact_functionals",
+            "fn class_cross_world_effects_execute_from_the_retained_plan_without_the_builder",
+            "fn class_cross_world_effects_match_the_exact_functionals_of_the_count_tables",
+            "fn class_cross_world_effects_that_are_not_identified_are_refused_with_the_typed_witness",
+            "fn class_cross_world_validation_executes_from_the_retained_plan_without_the_builder",
+            "fn class_cross_world_validation_flags_a_planted_weak_effect_on_an_admg",
+            "fn columns_of",
+            "fn counterfactual",
+            "fn cpdag",
+            "fn d",
+            "fn expected",
+            "fn inference",
+            "fn line_table",
+            "fn nested",
+            "fn pag",
+            "fn pin",
+            "fn refused_refuters",
+            "fn report",
+            "fn table",
+            "fn tolerance",
+            "fn v",
+            "struct Case"
+          ],
+          "sha256": "daa105d0aa0f8929e97aaa4ba8079d973f0f5985a091c7e79f3b31decd29d124"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_posterior_truth.rs",
-          "sha256": "9452e20af8534cfc53da5479ca4519eed426e85a8eb93cf3210800cf1690c074"
+          "items": [
+            "fn a_full_suite_over_dag_atoms_is_refused_with_its_reason",
+            "fn admg",
+            "fn dag",
+            "fn dag_mask",
+            "fn gp",
+            "fn nested",
+            "fn nested_graph_posterior_executes_from_the_retained_plan_without_the_builder",
+            "fn nested_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite",
+            "fn node",
+            "fn on_large_stack",
+            "fn pin",
+            "fn posteriors",
+            "fn run",
+            "fn sampling",
+            "fn table",
+            "fn v",
+            "struct Posterior"
+          ],
+          "sha256": "398d59133e17d30c3f27c42318f69c12fc0572f819a693358e84e6df232b189d"
         }
       ],
       "fixture_payload_sha256": "26d5ee8dbbb3d74eae56438b5dfba36779307f0032990070c3515fc07d40af9f"

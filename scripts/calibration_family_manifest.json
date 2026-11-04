@@ -19,7 +19,7 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "0cdaec33770e46ffd1d07abaca81a7bf1e8c2fcf8d33bce5a2b4d6ede736588d",
+  "gate_sha256": "06205d1fdb8326fbf21b56f6cebf90de8663037d76d41e2dc4e99513e0bcc0b3",
   "acceptance_sha256": "61641c0e5eea8d7c95cb0ee0db4d5fb15cf19816beed983f5cc4ddbf1e3c17a2",
   "label_audit_sha256": "2db462b944c0950a1cfd13f89cd94761379a4ba7be51c1828a36a14f34a5797a",
   "groups": [
@@ -3795,16 +3795,11 @@
     },
     {
       "index": 755,
-      "label": "gate_response_calibration.sh",
-      "grid": false
-    },
-    {
-      "index": 756,
       "label": "adjusted_recalc_precision: adjusted_ols_retained_covariance_precision",
       "grid": true
     },
     {
-      "index": 757,
+      "index": 756,
       "label": "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision",
       "grid": true
     }

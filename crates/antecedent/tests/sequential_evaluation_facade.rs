@@ -166,6 +166,9 @@ fn a_policy_with_a_missing_history_is_refused_through_the_facade() {
     let incomplete = ContingentPolicy::new("incomplete_v1").decide(HistoryKey::root(), INSPECT);
     let err = evaluate(&model(), &incomplete, &ctx()).unwrap_err();
     assert_eq!(err.code, "invalid_argument");
-    assert_eq!(err.detail, "sequential_evaluation.policy_incomplete");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::POLICY_INCOMPLETE
+    );
     assert!(!err.remedy.is_empty());
 }

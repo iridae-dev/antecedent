@@ -20,6 +20,7 @@ from unittest.mock import sentinel
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent._artifact_protocol import ExportedArtifact
 from antecedent.errors import CausalSerializationError, CausalValueError
@@ -186,13 +187,13 @@ def test_a_temporal_structure_without_a_horizon_is_refused() -> None:
             source_experiments=["a"],
         )
     assert_registered_refusal(info.value)
-    assert info.value.detail == "discovered_transport.temporal_structure_unsupported"
+    assert info.value.detail == reason_details.discovered_transport.TEMPORAL_STRUCTURE_UNSUPPORTED
 
 
 def test_an_adapter_that_has_not_run_and_undeclared_names_are_refused() -> None:
     with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
         discovered.transport_across_class(sd.SelectiveDiscovery("static"), **QUERY)  # type: ignore[arg-type]
-    assert info.value.detail == "selective_discovery.nothing_retained"
+    assert info.value.detail == reason_details.selective_discovery.NOTHING_RETAINED
     assert_registered_refusal(info.value)
 
     with pytest.raises(CausalValueError):
@@ -218,7 +219,7 @@ def test_an_estimate_over_columns_that_are_not_integer_codes_is_refused_precisel
             target_population="clinic",
         )
     assert_registered_refusal(info.value)
-    assert info.value.detail == "discovered_transport.evidence_invalid"
+    assert info.value.detail == reason_details.discovered_transport.EVIDENCE_INVALID
 
 
 def test_a_forged_estimate_artifact_does_not_replay() -> None:
@@ -326,7 +327,7 @@ def test_a_discovered_temporal_class_is_transported_at_its_declared_horizon() ->
             sd.SelectiveDiscovery("temporal"),
             **TEMPORAL_QUERY,  # type: ignore[arg-type]
         )
-    assert unrun.value.detail == "selective_discovery.nothing_retained"
+    assert unrun.value.detail == reason_details.selective_discovery.NOTHING_RETAINED
     assert_registered_refusal(unrun.value)
 
 
@@ -394,7 +395,7 @@ def test_a_temporal_query_outside_the_structure_is_refused() -> None:
             **dict(TEMPORAL_QUERY, outcome="w"),  # type: ignore[arg-type]
         )
     assert_registered_refusal(info.value)
-    assert info.value.detail == "discovered_transport.temporal_query_invalid"
+    assert info.value.detail == reason_details.discovered_transport.TEMPORAL_QUERY_INVALID
 
 
 def test_a_temporal_estimate_over_columns_that_are_not_integer_codes_is_refused() -> None:
@@ -418,7 +419,7 @@ def test_a_temporal_estimate_over_columns_that_are_not_integer_codes_is_refused(
             target_population="clinic",
         )
     assert_registered_refusal(info.value)
-    assert info.value.detail == "discovered_transport.evidence_invalid"
+    assert info.value.detail == reason_details.discovered_transport.EVIDENCE_INVALID
 
 
 def test_a_zero_member_bound_is_refused_and_keeps_the_discovery_that_ran() -> None:
@@ -430,7 +431,7 @@ def test_a_zero_member_bound_is_refused_and_keeps_the_discovery_that_ran() -> No
             **QUERY,  # type: ignore[arg-type]
         )
     assert_registered_refusal(info.value)
-    assert info.value.detail == "discovered_transport.member_bound_zero"
+    assert info.value.detail == reason_details.discovered_transport.MEMBER_BOUND_ZERO
     assert info.value.remedy and "member bound" in info.value.remedy
     # Discovery is not discarded by the refusal of the transport request.
     assert info.value.outcome is not None and info.value.outcome.structure_class == "cpdag"
@@ -439,7 +440,7 @@ def test_a_zero_member_bound_is_refused_and_keeps_the_discovery_that_ran() -> No
     adapter.run(contract(), chain(1))
     with pytest.raises(discovered.DiscoveredTransportRefusal) as retained:
         discovered.transport_across_class(adapter, member_bound=0, **QUERY)  # type: ignore[arg-type]
-    assert retained.value.detail == "discovered_transport.member_bound_zero"
+    assert retained.value.detail == reason_details.discovered_transport.MEMBER_BOUND_ZERO
 
 
 def binary_collider(rows: int, z_rate: float, seed: int) -> dict[str, np.ndarray]:

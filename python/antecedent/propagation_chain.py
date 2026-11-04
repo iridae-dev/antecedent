@@ -781,8 +781,8 @@ def propagate(
 ) -> PropagationChain:
     """Check a declared chain, compute every stage and seal the record.
 
-    ``reading`` is ``point``, ``spread``, ``posterior`` or ``enclosure`` (``interval`` is refused
-    until a coverage record is measured). ``construction`` is ``joint_draws`` (the aligned table
+    ``reading`` is ``point``, ``spread``, ``posterior`` or ``enclosure`` (``interval`` is refused: a composed
+    interval comes from the composed-interval check). ``construction`` is ``joint_draws`` (the aligned table
     carries whatever dependence the sources have) or ``independent_product`` (the table is the
     product of independent sources, supported only for sources that share no factor).
     """

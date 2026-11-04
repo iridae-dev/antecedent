@@ -168,7 +168,9 @@ fn bounds(r: &ArrivalRequest, limits: ArrivalLimits) -> Result<(), IoError> {
         || r.depth > MAX_EVALUATION_DEPTH
         || r.support_rows == 0
     {
-        return Err(unsupported("proposal_arrival.bounds_exceeded"));
+        return Err(unsupported(
+            antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
+        ));
     }
     Ok(())
 }
@@ -187,7 +189,9 @@ fn budget(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<(), IoError> {
     // Eight bytes per value, doubled for the decoded copy and the evaluation's own table.
     let bytes = cells.saturating_add(rows).saturating_mul(16);
     if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
-        return Err(unsupported("proposal_arrival.bounds_exceeded"));
+        return Err(unsupported(
+            antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
+        ));
     }
     Ok(())
 }
@@ -228,7 +232,9 @@ fn family(a: &RepairReportArtifact, ctx: &ExecutionContext) -> Result<Family, Io
                 .data
                 .catalog
                 .as_ref()
-                .ok_or_else(|| refused("proposal_arrival.base_catalog_missing"))?
+                .ok_or_else(|| {
+                    refused(antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_MISSING)
+                })?
                 .to_catalog()?;
             Ok(Family::Transport(Box::new(
                 TransportRepairFamily::try_new(
@@ -249,7 +255,9 @@ fn family(a: &RepairReportArtifact, ctx: &ExecutionContext) -> Result<Family, Io
                 ZTransportRepairFamily::try_new(snapshot, limits).map_err(native_error)?,
             )))
         }
-        _ => Err(unsupported("proposal_arrival.family_not_supported")),
+        _ => Err(unsupported(
+            antecedent_core::reason_details::proposal_arrival::FAMILY_NOT_SUPPORTED,
+        )),
     }
 }
 fn validate_base_providers(r: &ArrivalRequest, f: &Family) -> Result<(), IoError> {
@@ -259,15 +267,16 @@ fn validate_base_providers(r: &ArrivalRequest, f: &Family) -> Result<(), IoError
             .regimes
             .iter()
             .find(|x| x.id.raw() == l.regime && x.population.as_ref() == l.population)
-            .ok_or_else(|| refused("proposal_arrival.base_provider_mismatch"))?;
-        let b = f
-            .base()
-            .bindings
-            .iter()
-            .find(|b| b.regime == regime.id)
-            .ok_or_else(|| refused("proposal_arrival.base_provider_mismatch"))?;
+            .ok_or_else(|| {
+                refused(antecedent_core::reason_details::proposal_arrival::BASE_PROVIDER_MISMATCH)
+            })?;
+        let b = f.base().bindings.iter().find(|b| b.regime == regime.id).ok_or_else(|| {
+            refused(antecedent_core::reason_details::proposal_arrival::BASE_PROVIDER_MISMATCH)
+        })?;
         if b.snapshot_identity.as_ref() != l.snapshot {
-            return Err(refused("proposal_arrival.base_provider_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::proposal_arrival::BASE_PROVIDER_MISMATCH,
+            ));
         }
     }
     Ok(())
@@ -284,7 +293,9 @@ fn validate_delivery(
         || base.bindings.iter().any(|x| !r.catalog.bindings.contains(x))
         || r.catalog.bindings.len() != base.bindings.len() + 1
     {
-        return Err(refused("proposal_arrival.base_catalog_changed"));
+        return Err(refused(
+            antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_CHANGED,
+        ));
     }
     let catalog = r.catalog.to_catalog()?;
     let delivered: Vec<_> = catalog
@@ -299,14 +310,14 @@ fn validate_delivery(
         || candidate.unit_rules.whole_cluster_sampling
         || !candidate.joint_measurement
     {
-        return Err(unsupported("proposal_arrival.independent_joint_study_required"));
+        return Err(unsupported(
+            antecedent_core::reason_details::proposal_arrival::INDEPENDENT_JOINT_STUDY_REQUIRED,
+        ));
     }
     let regime = &delivered[0];
-    let binding = catalog
-        .bindings
-        .iter()
-        .find(|b| b.regime == regime.id)
-        .ok_or_else(|| refused("proposal_arrival.binding_missing"))?;
+    let binding = catalog.bindings.iter().find(|b| b.regime == regime.id).ok_or_else(|| {
+        refused(antecedent_core::reason_details::proposal_arrival::BINDING_MISSING)
+    })?;
     if regime.evidence_kind != antecedent_core::EvidenceKind::Available
         || !regime.conditioned_on.is_empty()
         || regime.selection != antecedent_core::SamplingSelection::Population
@@ -316,16 +327,17 @@ fn validate_delivery(
         || binding.weights.is_some()
         || binding.dependence != antecedent_core::DependenceGroup::IndependentStudies
     {
-        return Err(unsupported("proposal_arrival.independent_joint_study_required"));
+        return Err(unsupported(
+            antecedent_core::reason_details::proposal_arrival::INDEPENDENT_JOINT_STUDY_REQUIRED,
+        ));
     }
     let mut total = 0u64;
     let measured: BTreeSet<_> = regime.measured.iter().map(|v| v.raw()).collect();
     let interventions: BTreeSet<_> = regime.interventions.iter().map(|v| v.raw()).collect();
     for l in &r.arrived_laws {
-        let counts = l
-            .empirical_counts
-            .as_ref()
-            .ok_or_else(|| refused("proposal_arrival.raw_counts_required"))?;
+        let counts = l.empirical_counts.as_ref().ok_or_else(|| {
+            refused(antecedent_core::reason_details::proposal_arrival::RAW_COUNTS_REQUIRED)
+        })?;
         if l.population != regime.population.as_ref()
             || l.regime != regime.id.raw()
             || l.snapshot != binding.snapshot_identity.as_ref()
@@ -333,7 +345,9 @@ fn validate_delivery(
             || l.axes.iter().map(|(v, _)| *v).collect::<BTreeSet<_>>() != measured
             || l.interventions.iter().map(|(v, _)| *v).collect::<BTreeSet<_>>() != interventions
         {
-            return Err(refused("proposal_arrival.provider_binding_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::proposal_arrival::PROVIDER_BINDING_MISMATCH,
+            ));
         }
         for a in regime.intervention_values.iter() {
             if !l
@@ -341,17 +355,21 @@ fn validate_delivery(
                 .iter()
                 .any(|(v, value)| *v == a.variable.raw() && value.to_value() == a.value)
             {
-                return Err(refused("proposal_arrival.provider_binding_mismatch"));
+                return Err(refused(
+                    antecedent_core::reason_details::proposal_arrival::PROVIDER_BINDING_MISMATCH,
+                ));
             }
         }
         for count in counts {
-            total = total
-                .checked_add(*count)
-                .ok_or_else(|| refused("proposal_arrival.sample_size_mismatch"))?;
+            total = total.checked_add(*count).ok_or_else(|| {
+                refused(antecedent_core::reason_details::proposal_arrival::SAMPLE_SIZE_MISMATCH)
+            })?;
         }
     }
     if total != candidate.sample_size {
-        return Err(refused("proposal_arrival.sample_size_mismatch"));
+        return Err(refused(
+            antecedent_core::reason_details::proposal_arrival::SAMPLE_SIZE_MISMATCH,
+        ));
     }
     validate_base_providers(r, f)?;
     let snapshot = binding.snapshot_identity.to_string();
@@ -384,7 +402,9 @@ fn bind_arrival_program(
                 identify_catalog_transport(f.diagram(), f.query(), catalog, f.sid_limits(), ctx)
                     .map_err(native_error)?
             else {
-                return Err(refused("proposal_arrival.proof_not_bound"));
+                return Err(refused(
+                    antecedent_core::reason_details::proposal_arrival::PROOF_NOT_BOUND,
+                ));
             };
             (
                 bound.arena().clone(),
@@ -397,8 +417,9 @@ fn bind_arrival_program(
         }
         Family::Z(f) => {
             let s = f.snapshot();
-            let derivation =
-                s.derivation().ok_or_else(|| refused("proposal_arrival.proof_not_bound"))?;
+            let derivation = s.derivation().ok_or_else(|| {
+                refused(antecedent_core::reason_details::proposal_arrival::PROOF_NOT_BOUND)
+            })?;
             verify_z_transport_derivation(s.diagram(), s.query(), derivation, f.sid_limits(), ctx)
                 .map_err(native_error)?;
             let bound = bind_z_transport_catalog(s.diagram(), s.query(), derivation, catalog)
@@ -429,7 +450,7 @@ pub fn execute_with_limits(
     bounds(r, limits)?;
     budget(r, ctx)?;
     if ctx.cancellation.is_cancelled() {
-        return Err(unsupported("proposal_arrival.cancelled"));
+        return Err(unsupported(antecedent_core::reason_details::proposal_arrival::CANCELLED));
     }
     let repair = RepairReportArtifact::from_bytes(&r.repair_artifact).map_err(native_error)?;
     repair.consume(RepairConsumeLimits::default(), ctx).map_err(native_error)?;
@@ -437,15 +458,17 @@ pub fn execute_with_limits(
         DesignRankingArtifactWire::from_bytes(&r.ranking_artifact).map_err(native_error)?;
     consume_wire(&ranking, &ConsumeExpectation::default()).map_err(native_error)?;
     let bundle = ProposalBundle::build(&repair, &ranking).map_err(native_error)?;
-    let receipt = bundle
-        .proposal(&r.candidate_id)
-        .ok_or_else(|| refused("proposal_arrival.candidate_missing"))?;
+    let receipt = bundle.proposal(&r.candidate_id).ok_or_else(|| {
+        refused(antecedent_core::reason_details::proposal_arrival::CANDIDATE_MISSING)
+    })?;
     let candidate = repair
         .candidates()
         .map_err(native_error)?
         .into_iter()
         .find(|c| c.semantic_id().as_ref() == r.candidate_id)
-        .ok_or_else(|| refused("proposal_arrival.candidate_missing"))?;
+        .ok_or_else(|| {
+            refused(antecedent_core::reason_details::proposal_arrival::CANDIDATE_MISSING)
+        })?;
     let family = family(&repair, ctx)?;
     let (catalog, total, snapshot, delivered) = validate_delivery(r, &family, &candidate)?;
     let arrival = Arrival {
@@ -457,7 +480,11 @@ pub fn execute_with_limits(
         .map_err(native_error)?
     {
         ArrivalVerdict::Verified { .. } => {}
-        _ => return Err(refused("proposal_arrival.structural_arrival_refused")),
+        _ => {
+            return Err(refused(
+                antecedent_core::reason_details::proposal_arrival::STRUCTURAL_ARRIVAL_REFUSED,
+            ));
+        }
     }
     let (evaluated, counts) = count_static_work(|| {
         let BoundArrivalProgram { arena, root, outcomes, treatments, proof, data } =
@@ -466,7 +493,9 @@ pub fn execute_with_limits(
         if assigned.len() != r.assignment.len()
             || assigned != treatments.iter().map(|v| v.raw()).collect()
         {
-            return Err(refused("proposal_arrival.assignment_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::proposal_arrival::ASSIGNMENT_MISMATCH,
+            ));
         }
         let request = Assignment::from_pairs(
             r.assignment.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())),
@@ -581,14 +610,20 @@ impl ArrivalArtifact {
         bounds(&artifact.request, limits)?;
         budget(&artifact.request, ctx)?;
         if artifact.version != 1 || artifact.identity != artifact.digest()? {
-            return Err(refused("proposal_arrival.identity_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::proposal_arrival::IDENTITY_MISMATCH,
+            ));
         }
         if artifact.result.proposal_identity != expected_proposal {
-            return Err(refused("proposal_arrival.expected_proposal_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::proposal_arrival::EXPECTED_PROPOSAL_MISMATCH,
+            ));
         }
         let replay = execute_with_limits(&artifact.request, ctx, limits)?;
         if to_cbor(&artifact.result)? != to_cbor(&replay)? {
-            return Err(refused("proposal_arrival.replay_mismatch"));
+            return Err(refused(
+                antecedent_core::reason_details::proposal_arrival::REPLAY_MISMATCH,
+            ));
         }
         Ok(artifact)
     }

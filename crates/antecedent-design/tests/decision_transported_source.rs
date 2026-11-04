@@ -814,7 +814,10 @@ fn a_route_with_a_typed_constructor_cannot_be_declared_by_hand() {
             TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
                 .unwrap_err();
         assert_eq!(error, TransportedRefusal::RouteNeedsTypedSource(route));
-        assert_eq!(error.detail(), "transported_decision.route_needs_typed_source");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::transported_decision::ROUTE_NEEDS_TYPED_SOURCE
+        );
     }
 }
 
@@ -830,7 +833,10 @@ fn a_typed_route_identity_must_be_a_digest_while_a_declared_route_may_be_text() 
             TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
                 .unwrap_err();
         assert_eq!(error, TransportedRefusal::IdentityNotDigest);
-        assert_eq!(error.detail(), "transported_decision.transport_identity_not_digest");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::transported_decision::TRANSPORT_IDENTITY_NOT_DIGEST
+        );
         declared.transport_identities = vec![format!("{:064x}", 0xabc)];
         assert!(
             TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)

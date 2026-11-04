@@ -14,6 +14,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cohort_decision as cd
 from antecedent import sensitivity_decision as sd
 from antecedent import transported_response as tr
@@ -106,27 +107,27 @@ def test_a_response_that_cannot_be_shifted_is_refused_with_its_own_reason() -> N
     # A declared transport names no route of its own.
     undeclared = refusal_of(lambda: sensitivity(response, route=None))
     assert undeclared.reason_code == "route_not_supported"
-    assert undeclared.detail == "transport_sensitivity.route_undeclared"
+    assert undeclared.detail == reason_details.transport_sensitivity.ROUTE_UNDECLARED
 
     # A coordinate outside the response.
     outside = refusal_of(lambda: sensitivity(response, coordinate=3))
     assert outside.reason_code == "invalid_argument"
-    assert outside.detail == "transport_sensitivity.coordinate_out_of_range"
+    assert outside.detail == reason_details.transport_sensitivity.COORDINATE_OUT_OF_RANGE
 
     # A structural premise has no scalar family.
     structural = refusal_of(lambda: sensitivity(response, route="discovered_structure"))
-    assert structural.detail == "transport_sensitivity.no_scalar_family"
+    assert structural.detail == reason_details.transport_sensitivity.NO_SCALAR_FAMILY
 
     # A proportional shift of zero is no range.
     zero = refusal_of(lambda: sensitivity(point(0.0), family="proportional_shift", bound=0.5))
     assert zero.reason_code == "invalid_argument"
-    assert zero.detail == "transport_sensitivity.proportional_at_zero"
+    assert zero.detail == reason_details.transport_sensitivity.PROPORTIONAL_AT_ZERO
 
 
 def test_a_transported_law_has_no_single_point_to_shift() -> None:
     law = refusal_of(lambda: sensitivity(transported_law()))
     assert law.reason_code == "route_not_supported"
-    assert law.detail == "transport_sensitivity.law_response_not_scalar"
+    assert law.detail == reason_details.transport_sensitivity.LAW_RESPONSE_NOT_SCALAR
     assert law.remedy
 
 

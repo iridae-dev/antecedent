@@ -120,7 +120,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::BayesianPosterior => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.posterior_premise_outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY,
                     "the observed counts alone are not the likelihood when whether an outcome is observed depends on its value",
                 ));
             }
@@ -128,7 +128,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::DecisionTheoreticStopping => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.posterior_premise_outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY,
                     "a posterior expected loss from observed counts is not valid when loss of outcomes depends on their values",
                 ));
             }
@@ -137,7 +137,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
                 StoppingRule::PosteriorExpectedLoss { .. } | StoppingRule::PosteriorFutility { .. }
             ) {
                 return Err(premise(
-                    "adaptive_inference.paradigm_rule_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH,
                     "decision-theoretic stopping needs a posterior expected-loss or futility rule",
                 ));
             }
@@ -145,19 +145,19 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::FrequentistFixedSample => {
             if !fixed {
                 return Err(premise(
-                    "adaptive_inference.fixed_sample_design_adaptive",
+                    antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE,
                     "a fixed-sample analysis presumes assignment probabilities fixed in advance",
                 ));
             }
             if !matches!(spec.stopping(), StoppingRule::NoStopping) {
                 return Err(premise(
-                    "adaptive_inference.fixed_sample_data_dependent_stopping",
+                    antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DATA_DEPENDENT_STOPPING,
                     "a fixed-sample analysis presumes a sample size that does not depend on the data",
                 ));
             }
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "outcomes lost depending on their values are not a fixed-sample design",
                 ));
             }
@@ -165,19 +165,19 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::FrequentistGroupSequential => {
             if !fixed {
                 return Err(premise(
-                    "adaptive_inference.group_sequential_assignment_adaptive",
+                    antecedent_core::reason_details::adaptive_inference::GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE,
                     "alpha-spending boundaries presume independent increments, which an outcome-adaptive assignment does not have",
                 ));
             }
             if !matches!(spec.stopping(), StoppingRule::WaldBoundaries { .. }) {
                 return Err(premise(
-                    "adaptive_inference.paradigm_rule_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH,
                     "group-sequential inference needs declared boundaries over the looks",
                 ));
             }
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "outcomes lost depending on their values break the independent-increment model",
                 ));
             }
@@ -185,7 +185,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::FrequentistAdaptiveWeighting => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "the weighted scores are not martingale differences when loss of outcomes depends on their values",
                 ));
             }
@@ -193,13 +193,13 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::AnytimeValidFrequentist => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "the observed outcomes of an arm are not a prefix of an independent sequence when loss depends on their values",
                 ));
             }
             if spec.contexts().len() > 1 {
                 return Err(premise(
-                    "adaptive_inference.anytime_premise_contexts",
+                    antecedent_core::reason_details::adaptive_inference::ANYTIME_PREMISE_CONTEXTS,
                     "an arm's outcomes are not identically distributed when units of different contexts are assigned adaptively",
                 ));
             }
@@ -207,7 +207,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::WholeProcedureInversion => {
             if spec.contexts().len() > 1 {
                 return Err(premise(
-                    "adaptive_inference.inversion_premise_contexts",
+                    antecedent_core::reason_details::adaptive_inference::INVERSION_PREMISE_CONTEXTS,
                     "inversion is defined for a contrast of arms within one context",
                 ));
             }

@@ -74,7 +74,7 @@ fn labels(result: &StudyPlanResult) -> BTreeMap<RegimeId, String> {
 fn outcome_name(plan: &StudyPlan) -> &'static str {
     match plan.status() {
         None => "sufficient",
-        Some((_, "study_plan.budget")) => "exhausted",
+        Some((_, antecedent_core::reason_details::study_plan::BUDGET)) => "exhausted",
         Some(_) => "none_certified",
     }
 }

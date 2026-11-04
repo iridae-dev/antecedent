@@ -55,18 +55,24 @@ pub const DISCRETIZED_SCM_ARTIFACT_VERSION: u32 = 1;
 
 /// The bytes are not a well-formed artifact (truncated, trailing bytes, invalid
 /// text, a count larger than the bytes remaining, an unknown tag).
-pub const DETAIL_MALFORMED: &str = "discretized_scm_artifact.malformed";
+pub const DETAIL_MALFORMED: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::MALFORMED;
 /// The artifact's version is not one this build reads.
-pub const DETAIL_VERSION_UNSUPPORTED: &str = "discretized_scm_artifact.version_unsupported";
+pub const DETAIL_VERSION_UNSUPPORTED: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::VERSION_UNSUPPORTED;
 /// The source composition is not exportable (not additive-noise linear-Gaussian).
-pub const DETAIL_NOT_EXPORTABLE: &str = "discretized_scm_artifact.not_exportable";
+pub const DETAIL_NOT_EXPORTABLE: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::NOT_EXPORTABLE;
 /// The carried premises no longer discretize (the composition or plan is refused).
-pub const DETAIL_REDERIVATION_REFUSED: &str = "discretized_scm_artifact.rederivation_refused";
+pub const DETAIL_REDERIVATION_REFUSED: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::REDERIVATION_REFUSED;
 /// The re-derived identity is not the identity the artifact claims or the consumer
 /// expects.
-pub const DETAIL_IDENTITY_MISMATCH: &str = "discretized_scm_artifact.identity_mismatch";
+pub const DETAIL_IDENTITY_MISMATCH: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::IDENTITY_MISMATCH;
 /// A re-derived cell edge, cell value or mean error differs from the claimed one.
-pub const DETAIL_CLAIM_MISMATCH: &str = "discretized_scm_artifact.claimed_numbers_differ";
+pub const DETAIL_CLAIM_MISMATCH: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::CLAIMED_NUMBERS_DIFFER;
 
 const TAG: &str = "antecedent.model.discretized_scm_artifact";
 /// Fewest bytes any section can occupy; bounds counts before allocation.

@@ -35,12 +35,14 @@ record_sha256 = "282b6f66aaccf6376d1b12baff8e25070e41849137d64d9e5bdbe5e8bd6c1e9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/dirichlet_choice.rs"
-sha256 = "7bd6872b147e48782b976fb28a74b633a7a1913ae230bc9f37fe303759d204c8"
+items = ["const CANCEL_STRIDE", "const MAX_CHOICE_OPTIONS", "const MAX_PANELS", "const TAIL_MASS", "const TAIL_STANDARD_DEVIATIONS", "fn alpha", "fn best_option_probabilities", "fn expected_losses", "fn ln_gamma_density", "fn log_marginal_likelihood", "fn mean", "fn new", "fn quadrature", "fn total", "fn windows", "struct DirichletPosterior"]
+sha256 = "1a3c1b34ed6a5ba04adaa55fb5b655bed0c2dbd178b1de7710f1cdeb73b66a4c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/dirichlet_choice_reference.rs"
-sha256 = "d25092671a095a27a97f77a9ec1a5f583ce9c6c2d91b3e6a2f71b0e9168877f8"
+items = ["fn best_option_probabilities_match_the_reference", "fn expected_losses_match_the_reference", "fn log_marginal_likelihood_matches_the_reference", "fn never", "fn number", "fn numbers", "fn reference"]
+sha256 = "844478a9fff3ae9bf7202fc7669d171e267a8396cba06fe3b4b04cd2b7845e45"
 
 [[method_review.artifacts]]
 role = "reference"

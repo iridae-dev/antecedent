@@ -132,7 +132,10 @@ fn prior_credible_level_and_design_refusals_are_typed() {
     let error = posterior_categorical_treatment(&input(), &sparse, &prior(), 0.9).unwrap_err();
     let (code, message) = checks::coded_refusal(error);
     assert_eq!(code, "arm_not_populated");
-    assert!(message.contains("categorical_treatment.sparse_level"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::categorical_treatment::SPARSE_LEVEL),
+        "{message}"
+    );
 }
 
 #[test]

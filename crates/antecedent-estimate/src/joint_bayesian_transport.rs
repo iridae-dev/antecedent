@@ -88,38 +88,53 @@ pub const JOINT_TRANSPORT_MAX_PARAMETERS: usize = 256;
 pub const JOINT_TRANSPORT_SAMPLER: &str = "exact_conjugate_iid";
 
 /// Detail of an unsupported graph class.
-pub const DETAIL_UNSUPPORTED_GRAPH: &str = "bayesian_transport.unsupported_graph";
+pub const DETAIL_UNSUPPORTED_GRAPH: &str =
+    antecedent_core::reason_details::bayesian_transport::UNSUPPORTED_GRAPH;
 /// Detail of observations used by both a prior bank and the likelihood.
-pub const DETAIL_PRIOR_DATA_OVERLAP: &str = "bayesian_transport.prior_data_overlap";
+pub const DETAIL_PRIOR_DATA_OVERLAP: &str =
+    antecedent_core::reason_details::bayesian_transport::PRIOR_DATA_OVERLAP;
 /// Detail of target covariate mass outside the source support.
-pub const DETAIL_WEAK_OVERLAP: &str = "bayesian_transport.weak_overlap";
+pub const DETAIL_WEAK_OVERLAP: &str =
+    antecedent_core::reason_details::bayesian_transport::WEAK_OVERLAP;
 /// Detail of a target support test that exceeded its work or memory limit (never a support
 /// verdict).
-pub const DETAIL_SUPPORT_RESOURCE_LIMIT: &str = "bayesian_transport.support_resource_limit";
+pub const DETAIL_SUPPORT_RESOURCE_LIMIT: &str =
+    antecedent_core::reason_details::bayesian_transport::SUPPORT_RESOURCE_LIMIT;
 /// Detail of a singular or numerically failed fit.
-pub const DETAIL_SINGULAR_FIT: &str = "bayesian_transport.singular_fit";
+pub const DETAIL_SINGULAR_FIT: &str =
+    antecedent_core::reason_details::bayesian_transport::SINGULAR_FIT;
 /// Detail of a draw count outside `1..=JOINT_TRANSPORT_MAX_DRAWS`.
-pub const DETAIL_TOO_MANY_DRAWS: &str = "bayesian_transport.too_many_draws";
+pub const DETAIL_TOO_MANY_DRAWS: &str =
+    antecedent_core::reason_details::bayesian_transport::TOO_MANY_DRAWS;
 /// Detail of a model with more than `JOINT_TRANSPORT_MAX_PARAMETERS` parameters.
-pub const DETAIL_TOO_MANY_PARAMETERS: &str = "bayesian_transport.too_many_parameters";
+pub const DETAIL_TOO_MANY_PARAMETERS: &str =
+    antecedent_core::reason_details::bayesian_transport::TOO_MANY_PARAMETERS;
 /// Detail of a missing target covariate law.
-pub const DETAIL_MISSING_LAW: &str = "bayesian_transport.missing_law";
+pub const DETAIL_MISSING_LAW: &str =
+    antecedent_core::reason_details::bayesian_transport::MISSING_LAW;
 /// Detail of absent source evidence.
-pub const DETAIL_MISSING_SOURCE: &str = "bayesian_transport.missing_source";
+pub const DETAIL_MISSING_SOURCE: &str =
+    antecedent_core::reason_details::bayesian_transport::MISSING_SOURCE;
 /// Detail of undeclared, overlapping or unknown source dependence.
-pub const DETAIL_SOURCE_DEPENDENCE: &str = "bayesian_transport.source_dependence";
+pub const DETAIL_SOURCE_DEPENDENCE: &str =
+    antecedent_core::reason_details::bayesian_transport::SOURCE_DEPENDENCE;
 /// Detail of a certificate that does not support the model.
-pub const DETAIL_IDENTIFICATION: &str = "bayesian_transport.identification_not_certified";
+pub const DETAIL_IDENTIFICATION: &str =
+    antecedent_core::reason_details::bayesian_transport::IDENTIFICATION_NOT_CERTIFIED;
 /// Detail of covariates that differ from the certified standardizers.
-pub const DETAIL_FEATURE_MISMATCH: &str = "bayesian_transport.feature_mismatch";
+pub const DETAIL_FEATURE_MISMATCH: &str =
+    antecedent_core::reason_details::bayesian_transport::FEATURE_MISMATCH;
 /// Detail of a prior of the wrong dimension.
-pub const DETAIL_PRIOR_DIMENSION: &str = "bayesian_transport.prior_dimension";
+pub const DETAIL_PRIOR_DIMENSION: &str =
+    antecedent_core::reason_details::bayesian_transport::PRIOR_DIMENSION;
 /// Detail of a prior that is not a symmetric positive definite Gaussian.
-pub const DETAIL_INVALID_PRIOR: &str = "bayesian_transport.invalid_prior";
+pub const DETAIL_INVALID_PRIOR: &str =
+    antecedent_core::reason_details::bayesian_transport::INVALID_PRIOR;
 /// Detail of malformed data or options.
-pub const DETAIL_INVALID_INPUT: &str = "bayesian_transport.invalid_input";
+pub const DETAIL_INVALID_INPUT: &str =
+    antecedent_core::reason_details::bayesian_transport::INVALID_INPUT;
 /// Detail of a cancelled fit.
-pub const DETAIL_CANCELLED: &str = "bayesian_transport.cancelled";
+pub const DETAIL_CANCELLED: &str = antecedent_core::reason_details::bayesian_transport::CANCELLED;
 
 /// Graph class a model declaration names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1466,7 +1481,7 @@ fn draw_joint(
             Refused::from(
                 JointTransportRefusal::new(
                     antecedent_core::reason_code!("transport_budget_cancel"),
-                    "bayesian_transport.admission_refused",
+                    antecedent_core::reason_details::bayesian_transport::ADMISSION_REFUSED,
                     format!("the admission pool cannot fund the joint draws: {detail}"),
                 )
                 .at("draw"),

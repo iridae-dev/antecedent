@@ -51,17 +51,20 @@ record_sha256 = "a74ec5e27b4e0bd96bcc958cabeb0adf4030d6d45be72ca054f34c47ac54767
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/recovery_chain.rs"
-sha256 = "4db72460d0a965b1139b599b019acbfae64007cae1620b080f1a1081b287a9c4"
+items = ["const CHAIN_RECOVERY_LIMITS", "const CHAIN_RECOVERY_RULE_VERSION", "const CHAIN_WITNESS_SCALE", "enum ChainRecoveryDecision", "enum ChainRecoveryDetail", "fn build_witness", "fn chain_head", "fn charge", "fn check_roles", "fn classify_edges", "fn config_bit", "fn decide_chain_recovery", "fn detail", "fn directed_edges", "fn model_masses", "fn new", "fn refuse", "fn sorted_parents", "fn verify_chain_witness", "fn verify_inner", "struct ChainPartial", "struct ChainRecoveryError", "struct ChainRecoveryPlan", "struct ChainRecoveryQuery", "struct ChainRecoveryWitness", "struct ChainWitnessCheck", "struct ChainWitnessMechanism", "struct Meter", "type ModelMasses"]
+sha256 = "df0b8ac46caa8cdbadb3a0d62bc8a4c40d44fb6bb9289b19b6d6645cef9cd4e6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/recovery_chain.rs"
-sha256 = "dbc719a3e317174ab9852cbd5b8203c83ca15fe0ef789a7bfb57b3ef39b06f0f"
+items = ["const MASS_TOLERANCE", "fn both_ht", "fn evaluate_chain_recovery", "fn head_only", "fn neither", "fn new", "fn refuse", "fn rule_version", "struct ChainPatternLaw", "struct ChainRecoveredLaw"]
+sha256 = "3726a0e33082b51f749a7883f8267416436c77364f75a48e30b2386abfcb0910"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/recovery_chain_observation_reference.rs"
-sha256 = "0d4af33b04a0ed9ac3a354062187ed4eac4d9ba48e502aec9b9c17241e69ab6f"
+items = ["const IDS", "fn build", "fn decide", "fn edges", "fn floats", "fn fraction", "fn graphs_outside_the_row_and_zero_mass_cells_are_refused_not_recovered", "fn law", "fn plan", "fn query", "fn recovery_equals_the_exactly_enumerated_law_including_extreme_probabilities", "fn reference", "fn self_censoring_witness_models_agree_on_every_observed_cell_and_differ_on_the_target", "fn the_wrong_response_order_or_tail_shape_does_not_recover_the_truth", "fn witness_cells"]
+sha256 = "ba7156c2b4e05bde1677cefcb97e2892b068a817b6a48d4b671011b86f8b6345"
 
 [[method_review.artifacts]]
 role = "reference"

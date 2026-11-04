@@ -220,31 +220,38 @@ impl AdmgConditionalArtifactError {
             Self::UnsupportedSemantics(_)
             | Self::UnsupportedVersion { .. }
             | Self::LawInvalid(_)
-            | Self::NamesMismatch => {
-                (reason_code!("invalid_argument"), "admg_transport.invalid_artifact")
-            }
-            Self::CountedLawsUnsupported => {
-                (reason_code!("route_not_supported"), "admg_transport.counted_laws_unsupported")
-            }
-            Self::LimitsExceeded(_) => {
-                (reason_code!("route_not_supported"), "admg_transport.consumer_limits")
-            }
+            | Self::NamesMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::admg_transport::INVALID_ARTIFACT,
+            ),
+            Self::CountedLawsUnsupported => (
+                reason_code!("route_not_supported"),
+                antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
+            ),
+            Self::LimitsExceeded(_) => (
+                reason_code!("route_not_supported"),
+                antecedent_core::reason_details::admg_transport::CONSUMER_LIMITS,
+            ),
             Self::ProofMismatch(inner) => admg_conditional_refusal(inner).unwrap_or((
                 reason_code!("transport_not_certified"),
-                "admg_transport.invalid_derivation",
+                antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
             )),
-            Self::ReplayMismatch(_) => {
-                (reason_code!("transport_not_certified"), "admg_transport.replay_mismatch")
-            }
-            Self::PremisesMismatch => {
-                (reason_code!("transport_not_certified"), "admg_transport.premises_mismatch")
-            }
-            Self::DataIdentityMismatch => {
-                (reason_code!("transport_not_certified"), "admg_transport.data_identity_mismatch")
-            }
-            Self::EvidenceMismatch => {
-                (reason_code!("transport_not_certified"), "admg_transport.evidence_mismatch")
-            }
+            Self::ReplayMismatch(_) => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::REPLAY_MISMATCH,
+            ),
+            Self::PremisesMismatch => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::PREMISES_MISMATCH,
+            ),
+            Self::DataIdentityMismatch => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::DATA_IDENTITY_MISMATCH,
+            ),
+            Self::EvidenceMismatch => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::EVIDENCE_MISMATCH,
+            ),
         }
     }
 }

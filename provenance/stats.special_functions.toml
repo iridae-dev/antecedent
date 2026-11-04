@@ -52,17 +52,20 @@ record_sha256 = "f5722191d4159658d5759c8d3613100fc44a7d4790a6589f62e95f98073d9f0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/special.rs"
-sha256 = "f74f5f296f1b3e2c87723a0772ced07801a5e8f35f1f1bb5d5c16b5d55399696"
+items = ["const C", "const G", "const STUDENT_T_NORMAL_SERIES_FROM_DF", "const TINY", "fn chi_square_sf", "fn deviance_bd0", "fn gamma_density_factor", "fn gamma_p_series", "fn gamma_q", "fn gamma_q_cf", "fn ln_beta", "fn ln_gamma", "fn normal_ppf", "fn regularized_incomplete_beta_with_complement", "fn stirling_error", "fn student_t_beta_arguments", "fn student_t_central_mass", "fn student_t_ppf", "fn student_t_sf"]
+sha256 = "d679a3c508f218d36c313e6c8f35b43929f230ebb60ed81e0553eadc9c3d47d0"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/special.rs"
-sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
+items = ["const A", "const B", "const C", "const CODY_A", "const CODY_B", "const CODY_C", "const CODY_D", "const CODY_P", "const CODY_Q", "const CODY_THRESH", "const CODY_XBIG", "const D", "const FRAC_1_SQRT_2_HI", "const FRAC_1_SQRT_2_LO", "const INV_SQRT_2PI", "const LN_SQRT_2PI", "const LOG_CDF_TAIL_FROM", "const P_HIGH", "const P_LOW", "const SQRT_PI_INV", "fn erf", "fn erfc", "fn erfc_split", "fn exp_neg_square_split", "fn exp_neg_square_split_shifted", "fn log_norm_cdf", "fn log_norm_pdf", "fn mills_left_tail", "fn norm_cdf", "fn norm_inv", "fn norm_inv_acklam", "fn norm_pdf", "fn norm_sf", "fn over_sqrt_2"]
+sha256 = "45dd0350b38f40f1aaef9ff2f01dceb9e83a835f470770b7219a770cba197acc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/special_function_reference.rs"
-sha256 = "9ebede1547da042efe721767664b0c08f895bfa82adc08a9ab94089340628194"
+items = ["const REFERENCE", "fn check", "fn finish", "fn incomplete_gamma_and_log_gamma_match_high_precision", "fn kernel_normal_family_matches_high_precision", "fn new", "fn rel", "fn rows", "fn student_t_edges_do_not_lose_the_answer", "fn student_t_survival_and_quantile_match_high_precision", "struct Sweep"]
+sha256 = "abb882f00ffd32f62722ec383eb9217925cb2a3a480b8f0dfc22910e3da575da"
 
 [[method_review.artifacts]]
 role = "reference"

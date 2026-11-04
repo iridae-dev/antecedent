@@ -27,12 +27,24 @@ fn invalid(message: &str) -> IoError {
 
 fn source_refusal(error: SourceError) -> IoError {
     let detail = match error {
-        SourceError::InvalidDeclaration => "mnar_fixed_shift.invalid_declaration",
-        SourceError::DuplicateSubject => "mnar_fixed_shift.duplicate_subject",
-        SourceError::InvalidOutcome => "mnar_fixed_shift.invalid_outcome",
-        SourceError::InsufficientObservations => "mnar_fixed_shift.insufficient_observations",
-        SourceError::ConstantOutcome => "mnar_fixed_shift.constant_outcome",
-        SourceError::InvalidShift => "mnar_fixed_shift.invalid_shift",
+        SourceError::InvalidDeclaration => {
+            antecedent_core::reason_details::mnar_fixed_shift::INVALID_DECLARATION
+        }
+        SourceError::DuplicateSubject => {
+            antecedent_core::reason_details::mnar_fixed_shift::DUPLICATE_SUBJECT
+        }
+        SourceError::InvalidOutcome => {
+            antecedent_core::reason_details::mnar_fixed_shift::INVALID_OUTCOME
+        }
+        SourceError::InsufficientObservations => {
+            antecedent_core::reason_details::mnar_fixed_shift::INSUFFICIENT_OBSERVATIONS
+        }
+        SourceError::ConstantOutcome => {
+            antecedent_core::reason_details::mnar_fixed_shift::CONSTANT_OUTCOME
+        }
+        SourceError::InvalidShift => {
+            antecedent_core::reason_details::mnar_fixed_shift::INVALID_SHIFT
+        }
     };
     IoError::Refused {
         code: antecedent_core::reason_code!("invalid_argument"),

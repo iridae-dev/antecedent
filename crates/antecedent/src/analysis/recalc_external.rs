@@ -182,14 +182,16 @@ impl ExternalCallbackError {
                 })
                 .unwrap_or(antecedent_core::reason_code!("route_not_supported")),
             Self::Request(detail) | Self::Attempt { detail, .. } => match *detail {
-                "recalc.cancelled" => antecedent_core::reason_code!("cancelled_no_claim"),
-                "recalc.unavailable_provider" => {
+                antecedent_core::reason_details::recalc::CANCELLED => {
+                    antecedent_core::reason_code!("cancelled_no_claim")
+                }
+                antecedent_core::reason_details::recalc::UNAVAILABLE_PROVIDER => {
                     antecedent_core::reason_code!("score_table_unavailable")
                 }
-                "external_recalc.policy_unsupported"
-                | "external_recalc.quantity_unsupported"
-                | "external_recalc.replay_unsupported"
-                | "external_recalc.retry_unsafe" => {
+                antecedent_core::reason_details::external_recalc::POLICY_UNSUPPORTED
+                | antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED
+                | antecedent_core::reason_details::external_recalc::REPLAY_UNSUPPORTED
+                | antecedent_core::reason_details::external_recalc::RETRY_UNSAFE => {
                     antecedent_core::reason_code!("route_not_supported")
                 }
                 _ => antecedent_core::reason_code!("invalid_argument"),
@@ -316,13 +318,13 @@ fn invoke_attested_provider(
         || provider.invoke(request, &callback_context),
     )
     .map_err(|failure| ExternalCallbackError::Attempt {
-        detail: "external_recalc.callback_failed",
+        detail: antecedent_core::reason_details::external_recalc::CALLBACK_FAILED,
         report: report.clone(),
         message: failure.message.chars().take(1024).collect(),
     })?;
     if ctx.cancellation.is_cancelled() {
         return Err(ExternalCallbackError::Attempt {
-            detail: "recalc.cancelled",
+            detail: antecedent_core::reason_details::recalc::CANCELLED,
             report,
             message: "cooperative cancellation after callback".into(),
         });
@@ -334,7 +336,7 @@ fn invoke_attested_provider(
         || response.uncertainty != ExternalUncertaintyMeaning::None
     {
         return Err(ExternalCallbackError::Attempt {
-            detail: "external_recalc.invalid_output",
+            detail: antecedent_core::reason_details::external_recalc::INVALID_OUTPUT,
             report,
             message: "response shape, finite means, provider identity or uncertainty mismatch"
                 .into(),
@@ -476,11 +478,15 @@ impl ExternalCallbackRequest {
         if self.branch.index() >= antecedent_core::recalc::MAX_EXTERNAL_BRANCHES
             || self.descriptor.policy == CallbackPolicy::Unknown
         {
-            return Err(ExternalCallbackError::Request("external_recalc.policy_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::POLICY_UNSUPPORTED,
+            ));
         }
         self.metadata_guard(limits)?;
         if self.idempotency_key.is_some() && !self.descriptor.idempotency_supported {
-            return Err(ExternalCallbackError::Request("external_recalc.idempotency_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::IDEMPOTENCY_UNSUPPORTED,
+            ));
         }
         // Table size is bounded by the caller's memory budget at execution, not by a literal.
         let rows = self.columns.n_rows();
@@ -496,7 +502,9 @@ impl ExternalCallbackRequest {
             .as_ref()
             .is_some_and(|key| key.is_empty() || key.len() > limits.max_text_bytes)
         {
-            return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::INVALID_REQUEST,
+            ));
         }
         let column_names = self.columns.iter().map(|(name, _)| name).collect::<BTreeSet<_>>();
         let parameter_names =
@@ -504,17 +512,23 @@ impl ExternalCallbackRequest {
         if column_names.len() != self.columns.len()
             || parameter_names.len() != self.model_parameters.len()
         {
-            return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::INVALID_REQUEST,
+            ));
         }
         antecedent_contract::check_external_against_program(&self.program, &self.claim)
             .map_err(|error| ExternalCallbackError::Binding(Box::new(error)))?;
         if self.program.functional_id != "mean" || self.program.transform_id != "identity" {
-            return Err(ExternalCallbackError::Request("external_recalc.quantity_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED,
+            ));
         }
         if self.contract.graph_id != self.program.graph_id
             || self.contract.estimand != self.program.expected_quantities()
         {
-            return Err(ExternalCallbackError::Request("external_recalc.contract_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::CONTRACT_MISMATCH,
+            ));
         }
         Ok(())
     }
@@ -581,7 +595,9 @@ impl ExternalCallbackRequest {
                     })
             })
         {
-            return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::INVALID_REQUEST,
+            ));
         }
         Ok(())
     }
@@ -724,7 +740,9 @@ impl ExternalCallbackSession {
     pub fn export_output(&self) -> Result<Vec<u8>, ExternalCallbackError> {
         self.live
             .as_ref()
-            .ok_or(ExternalCallbackError::Request("external_recalc.output_unavailable"))?
+            .ok_or(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::OUTPUT_UNAVAILABLE,
+            ))?
             .artifact
             .export()
             .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))
@@ -752,7 +770,9 @@ impl ExternalCallbackSession {
             request.descriptor.policy,
             CallbackPolicy::Deterministic | CallbackPolicy::Seeded
         ) {
-            return Err(ExternalCallbackError::Request("external_recalc.replay_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::REPLAY_UNSUPPORTED,
+            ));
         }
         let artifact = ExternalCallbackArtifact::consume(
             bytes,
@@ -761,7 +781,9 @@ impl ExternalCallbackSession {
         )
         .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?;
         if artifact.policy != request.descriptor.policy.label() {
-            return Err(ExternalCallbackError::Request("external_recalc.replay_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::REPLAY_MISMATCH,
+            ));
         }
         let mut session = Self::new().with_metadata_limits(limits);
         session.previous = request.identities(0);
@@ -780,10 +802,14 @@ impl ExternalCallbackSession {
     ) -> Result<ExternalCallbackOutcome, ExternalCallbackError> {
         request.validate(&self.metadata_limits)?;
         if ctx.cancellation.is_cancelled() {
-            return Err(ExternalCallbackError::Request("recalc.cancelled"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::recalc::CANCELLED,
+            ));
         }
         if provider.as_ref().is_some_and(|provider| provider.descriptor() != &request.descriptor) {
-            return Err(ExternalCallbackError::Request("external_recalc.provider_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::PROVIDER_MISMATCH,
+            ));
         }
         let (previous, requested, capabilities) = self.plan_inputs(request, provider.is_some());
         let plan = RecalcPlan::plan(&previous, &requested, &capabilities);
@@ -798,7 +824,9 @@ impl ExternalCallbackSession {
                 &self
                     .live
                     .as_ref()
-                    .ok_or(ExternalCallbackError::Request("external_recalc.output_unavailable"))?
+                    .ok_or(ExternalCallbackError::Request(
+                        antecedent_core::reason_details::external_recalc::OUTPUT_UNAVAILABLE,
+                    ))?
                     .claim,
             );
             let receipt = recorder
@@ -813,8 +841,9 @@ impl ExternalCallbackSession {
                 capabilities,
             });
         }
-        let provider =
-            provider.ok_or(ExternalCallbackError::Request("recalc.unavailable_provider"))?;
+        let provider = provider.ok_or(ExternalCallbackError::Request(
+            antecedent_core::reason_details::recalc::UNAVAILABLE_PROVIDER,
+        ))?;
         let digest = self.admit_attempt(request, &*provider, ctx)?;
         let (response, report) =
             invoke_attested_provider(request, provider, digest, ctx, &self.metadata_limits)?;
@@ -841,10 +870,14 @@ impl ExternalCallbackSession {
         let bytes =
             u64::try_from(values).unwrap_or(u64::MAX).saturating_mul(16).saturating_add(4_000_000);
         if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
-            return Err(ExternalCallbackError::Request("recalc.memory_budget_exceeded"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
+            ));
         }
         if provider.descriptor() != &request.descriptor {
-            return Err(ExternalCallbackError::Request("external_recalc.provider_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::PROVIDER_MISMATCH,
+            ));
         }
         let digest = request.digest();
         let key_binding = request.idempotency_key.as_ref().map(|key| {
@@ -858,19 +891,25 @@ impl ExternalCallbackSession {
                 self.idempotency_bindings.get(&key).is_some_and(|prior| *prior != digest)
             })
         {
-            return Err(ExternalCallbackError::Request("external_recalc.idempotency_conflict"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::IDEMPOTENCY_CONFLICT,
+            ));
         }
         if request.descriptor.policy == CallbackPolicy::SideEffecting
             && self.attempts.contains(&digest)
             && request.idempotency_key.is_none()
         {
-            return Err(ExternalCallbackError::Request("external_recalc.retry_unsafe"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::RETRY_UNSAFE,
+            ));
         }
         if request.descriptor.policy == CallbackPolicy::SideEffecting
             && self.attempts.len() >= self.attempt_limit
             && !self.attempts.contains(&digest)
         {
-            return Err(ExternalCallbackError::Request("external_recalc.attempt_limit"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::ATTEMPT_LIMIT,
+            ));
         }
         if request.descriptor.policy == CallbackPolicy::SideEffecting {
             self.attempts.insert(digest);
@@ -921,7 +960,7 @@ impl ExternalCallbackSession {
                         .values()
             {
                 return Err(ExternalCallbackError::Attempt {
-                    detail: "external_recalc.replay_mismatch",
+                    detail: antecedent_core::reason_details::external_recalc::REPLAY_MISMATCH,
                     report,
                     message: "provided callback did not reproduce the portable attested output"
                         .into(),

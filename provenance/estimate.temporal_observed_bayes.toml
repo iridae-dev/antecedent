@@ -33,17 +33,20 @@ record_sha256 = "d38a826067beef5fb1a62bb6a58d5b40e7c4cadb82eed77aa241e7003ab62b6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_observed_bayes.rs"
-sha256 = "a340ac9b54ceebfd0589a87a407bd8a4f5914a16db028237e24b3c33ae0207ce"
+items = ["const CHAIN_START_STREAM", "enum Observation", "fn assemble_response", "fn compile_cells", "fn dispersed_latent_start", "fn draw", "fn estimate_observed_temporal_response", "fn gibbs_diagnostics", "fn latent_draw", "fn lower_normal", "fn mean", "fn mechanism_templates", "fn mechanism_templates_inner", "fn mechanisms", "fn new", "fn observation_assumption", "fn observations", "fn observed_inputs", "fn posterior_buffer_budget", "fn read_column", "fn require_observation_containment", "fn response_target", "fn run_chains", "fn sweep", "fn validate_request", "fn value", "struct ChainDraws", "struct Evaluation", "struct EvaluationNode", "struct Mechanism", "struct ObservedInputs", "struct ResponseContext", "struct ResponseTarget", "type Horizons", "type MechanismTemplates"]
+sha256 = "52978861eedfffcc57b390fca73c8297aa8f12b70085941c800b3f4a7cadfbda"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_observed_bayes_reference.rs"
-sha256 = "e9125a26f0069b29a40f6a20570e55ccd812599bf16fb15bd054f699d6ad23cb"
+items = ["const SEEDS", "const THRESHOLD", "const X", "enum Kind", "fn assert_matches_quadrature", "fn exact", "fn graph", "fn moments", "fn name", "fn published", "fn query", "fn reference", "fn run", "fn summarize", "fn table", "fn temporal_observed_bayes_draw_count_seed_and_fixed_chain_layout_are_read", "fn temporal_observed_bayes_left_censored_matches_quadrature", "fn temporal_observed_bayes_observation_data_rules_are_read", "fn temporal_observed_bayes_prior_scale_is_read", "fn temporal_observed_bayes_right_censored_matches_quadrature", "fn temporal_observed_bayes_selected_matches_quadrature", "struct Summary"]
+sha256 = "c468faf4cd72e1770bd1a9b76f1ecb708ffcbe393db64c5e13aebc011228ea9f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/temporal_observed_bayes/conditional_reference_tests.rs"
-sha256 = "6ebf51035d091b17b8edd41b0407183a7d486d1b100fe27c5596c2d603f6d4ff"
+items = ["fn coefficient_and_variance_draws_match_the_normal_inverse_gamma_conditional", "fn latent_conditionals_match_the_closed_form_markov_blanket", "fn latent_initial_history_uses_the_declared_prior_and_the_first_child", "fn mechanism", "fn observation", "fn reference"]
+sha256 = "776a8767bdf8cf2afe24a5ceba2e66e1b266e6088c696d2a4a9d9e7b3e655261"
 
 [[method_review.artifacts]]
 role = "reference"

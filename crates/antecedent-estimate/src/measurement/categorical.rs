@@ -61,7 +61,7 @@ impl CorrectedCategoricalOutcome {
         self.levels.iter().position(|l| l == level).ok_or_else(|| {
             MeasurementError::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "measurement_model.unknown_level",
+                antecedent_core::reason_details::measurement_model::UNKNOWN_LEVEL,
                 format!("`{level}` is not a declared category of the confusion model"),
             )
         })
@@ -157,7 +157,7 @@ pub fn correct_categorical(
     else {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             "categorical route needs confusion-model parameters",
         ));
     };

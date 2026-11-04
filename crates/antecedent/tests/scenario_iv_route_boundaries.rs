@@ -162,7 +162,10 @@ fn table_weights_are_refused_by_the_instrumental_route() {
     let error = run_dag(&weighted, None).expect_err("weights are not read by the fit");
     let text = error.to_string();
     assert!(text.starts_with("reason=option_not_applicable"), "{text}");
-    assert!(text.contains("sampling_weights.route_unsupported"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{text}"
+    );
     assert!(text.contains("Next attempt"), "{text}");
 }
 

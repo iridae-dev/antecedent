@@ -33,13 +33,15 @@ impl crate::AteAnalysisResult {
             }
             let refuse = |detail: &str| {
                 (None, Some(serde_json::json!({
-                "code": if detail == "native_claims.unsupported_estimand" { "route_not_supported" } else { "invalid_argument" }, "stage": "bind", "detail": detail,
+                "code": if detail == antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND { "route_not_supported" } else { "invalid_argument" }, "stage": "bind", "detail": detail,
                 "offending": null, "expected": "unchanged original static mean ATE",
                 "supplied": "scalar analysis", "remedy": "use the original checked ATE contrast"
             }).to_string()))
             };
             let Some(authority) = &self.effect_authority else {
-                return Ok(refuse("native_claims.unsupported_estimand"));
+                return Ok(refuse(
+                    antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
+                ));
             };
             let query = &authority.query;
             if authority.status
@@ -52,13 +54,19 @@ impl crate::AteAnalysisResult {
                     .support_status
                     .is_some_and(|s| s != antecedent::support::CellStatus::Supported)
             {
-                return Ok(refuse("native_claims.unsupported_estimand"));
+                return Ok(refuse(
+                    antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
+                ));
             }
             if !authority.ate.is_finite() || supplied_value.to_bits() != authority.ate.to_bits() {
-                return Ok(refuse("native_claims.projection_mismatch"));
+                return Ok(refuse(
+                    antecedent_core::reason_details::native_claims::PROJECTION_MISMATCH,
+                ));
             }
             let Some(executed) = &authority.executed_contract else {
-                return Ok(refuse("native_claims.native_state_unavailable"));
+                return Ok(refuse(
+                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                ));
             };
             let level = |intervention: &antecedent_core::Intervention| match intervention {
                 antecedent_core::Intervention::Set { variable, value }
@@ -70,7 +78,9 @@ impl crate::AteAnalysisResult {
             };
             let (Some(control), Some(active)) = (level(&query.control), level(&query.active))
             else {
-                return Ok(refuse("native_claims.unsupported_estimand"));
+                return Ok(refuse(
+                    antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
+                ));
             };
             let treatment = authority
                 .names

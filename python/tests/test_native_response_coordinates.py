@@ -12,6 +12,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import Admg, ResponseCurve, analyze, intervention, transport
+from antecedent import _reason_details as reason_details
 from antecedent.external import ExternalRefusal
 from antecedent.outcomes import require_success
 from antecedent.results.coordinates import response_coordinates
@@ -62,7 +63,7 @@ def test_population_and_transform_are_declared_not_inferred():
 def test_units_are_required(units):
     with pytest.raises(ExternalRefusal) as refusal:
         _analyze_curve().response_coordinates(outcome_units=units)
-    assert refusal.value.detail == "coordinate_support.units_required"
+    assert refusal.value.detail == reason_details.coordinate_support.UNITS_REQUIRED
     assert refusal.value.reason_code == "invalid_argument"
 
 
@@ -98,7 +99,7 @@ def test_a_stochastic_policy_is_never_scalarized_into_a_regime():
     assert tuple(result.support.point_status) == ("extrapolative",)
     with pytest.raises(ExternalRefusal) as refusal:
         result.response_coordinates(outcome_units="mmHg")
-    assert refusal.value.detail == "coordinate_support.regime_not_describable"
+    assert refusal.value.detail == reason_details.coordinate_support.REGIME_NOT_DESCRIBABLE
     assert refusal.value.reason_code == "route_not_supported"
 
 
@@ -117,7 +118,7 @@ def test_a_jacobian_refuses_with_a_typed_coordinate_support_detail():
     )
     with pytest.raises(ExternalRefusal) as refusal:
         result.response_coordinates(outcome_units="mmHg")
-    assert refusal.value.detail == "coordinate_support.functional_not_described"
+    assert refusal.value.detail == reason_details.coordinate_support.FUNCTIONAL_NOT_DESCRIBED
     assert refusal.value.supplied == "jacobian"
 
 

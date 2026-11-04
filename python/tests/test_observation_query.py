@@ -22,6 +22,7 @@ import sys
 import numpy as np
 import pytest
 from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
@@ -209,10 +210,10 @@ def test_an_unknown_variable_and_null_evidence_are_refused():
     with pytest.raises(ObservationQueryRefusal) as unknown:
         oq.condition_on(model, "Y", {"Q": "1"})
     assert unknown.value.reason_code == "unknown_variable"
-    assert unknown.value.detail == "observation_query.unknown_variable"
+    assert unknown.value.detail == reason_details.observation_query.UNKNOWN_VARIABLE
     with pytest.raises(ObservationQueryRefusal) as outcome:
         oq.condition_on(model, "Y", {"Y": "1"})
-    assert outcome.value.detail == "observation_query.outcome_assigned"
+    assert outcome.value.detail == reason_details.observation_query.OUTCOME_ASSIGNED
 
 
 # --------------------------------------------------------------------------- smuggling
@@ -227,7 +228,7 @@ def test_an_intervention_smuggled_into_a_conditioning_slot_is_refused_with_a_rem
         assert isinstance(error, CausalUnsupportedError)
         assert_registered_refusal(error)
         assert error.reason_code == "quantity_semantics_mismatch"
-        assert error.detail == "observation_query.intervention_in_conditioning_slot"
+        assert error.detail == reason_details.observation_query.INTERVENTION_IN_CONDITIONING_SLOT
         assert error.offending == "S"
         assert error.remedy
     # Stated honestly, as an intervention, the same value is answered.
@@ -262,7 +263,7 @@ def test_a_measured_value_used_as_the_construct_is_refused():
     with pytest.raises(ObservationQueryRefusal) as caught:
         oq.condition_on(model, "Y", [oq.Measured("C", "1", "test_result", model=None)])
     assert caught.value.reason_code == "proxy_offered_as_construct"
-    assert caught.value.detail == "observation_query.measured_as_construct"
+    assert caught.value.detail == reason_details.observation_query.MEASURED_AS_CONSTRUCT
     assert caught.value.remedy
     assert_registered_refusal(caught.value)
 
@@ -276,7 +277,7 @@ def test_a_measurement_model_for_another_population_is_not_applied():
             [oq.Measured("C", "1", "test_result", model=assay("other_clinic"), positive_level="1")],
         )
     assert caught.value.reason_code == "measurement_binding_mismatch"
-    assert caught.value.detail == "observation_query.population_mismatch"
+    assert caught.value.detail == reason_details.observation_query.POPULATION_MISMATCH
     # `expected` is what the model was established for, `supplied` what the query is about.
     assert caught.value.expected == "other_clinic"
     assert caught.value.supplied == "pop"
@@ -300,7 +301,7 @@ def test_a_threshold_no_observation_reaches_is_refused_with_the_supremum():
     with pytest.raises(ObservationQueryRefusal) as caught:
         oq.threshold_crossing(model, "Y", "1", "S", threshold=0.9)
     assert caught.value.reason_code == "evidence_cannot_reach_level"
-    assert caught.value.detail == "observation_query.level_unreachable"
+    assert caught.value.detail == reason_details.observation_query.LEVEL_UNREACHABLE
     assert float(caught.value.supplied) == pytest.approx(0.78, abs=TOL)
     assert float(caught.value.expected) == pytest.approx(0.9, abs=TOL)
     assert caught.value.remedy
@@ -338,10 +339,10 @@ def test_finite_posterior_matches_pure_python_bayes_and_ignores_order():
 def test_impossible_evidence_and_malformed_models_are_refused():
     with pytest.raises(ObservationQueryRefusal) as impossible:
         oq.finite_posterior(["a", "b"], [0.5, 0.5], ["x", "y"], [[1.0, 0.0], [1.0, 0.0]], ["y"])
-    assert impossible.value.detail == "observation_query.zero_probability_evidence"
+    assert impossible.value.detail == reason_details.observation_query.ZERO_PROBABILITY_EVIDENCE
     with pytest.raises(ObservationQueryRefusal) as malformed:
         oq.finite_posterior(["a", "b"], [0.5, 0.4], ["x", "y"], [[0.5, 0.5], [0.5, 0.5]], ["x"])
-    assert malformed.value.detail == "observation_query.invalid_declaration"
+    assert malformed.value.detail == reason_details.observation_query.INVALID_DECLARATION
 
 
 def test_conjugate_posterior_is_the_closed_form():
@@ -398,11 +399,14 @@ def test_interval_and_calibrated_probability_are_not_supported():
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
     assert interval.value.reason_code == "uncertainty_representation_insufficient"
-    assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
+    assert (
+        interval.value.detail
+        == reason_details.observation_query.DECLARED_MODEL_HAS_NO_SAMPLING_INTERVAL
+    )
     with pytest.raises(ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
     assert calibrated.value.reason_code == "uncertainty_representation_insufficient"
-    assert calibrated.value.detail == "observation_query.no_calibrated_probability"
+    assert calibrated.value.detail == reason_details.observation_query.NO_CALIBRATED_PROBABILITY
     fitted = oq.conjugate_posterior(1.0, 1.0, successes=1, failures=1, basis="sample_fitted")
     with pytest.raises(ObservationQueryRefusal):
         fitted.calibrated_probability()
@@ -424,7 +428,7 @@ def test_semantic_mutation_and_another_history_are_refused():
     claim = oq.condition_versus_intervene(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as wrong:
         oq.consume_observation_query_artifact(bytes(claim.export()), "f" * 64)
-    assert wrong.value.detail == "observation_query.artifact_refused"
+    assert wrong.value.detail == reason_details.observation_query.ARTIFACT_REFUSED
     # A consistent artifact of another model fails the identity the consumer retained.
     other = oq.condition_versus_intervene(
         confounded(p_s1_given_z={"0": 0.3, "1": 0.7}), "Y", {"S": "1"}
@@ -577,7 +581,10 @@ def test_a_declared_model_interval_has_no_sampling_distribution():
     claim = oq.condition_on(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
-    assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
+    assert (
+        interval.value.detail
+        == reason_details.observation_query.DECLARED_MODEL_HAS_NO_SAMPLING_INTERVAL
+    )
 
 
 # ------------------------------------------------ continuous evidence, mixed queries, redraw
@@ -647,15 +654,15 @@ def test_continuous_evidence_refusals_are_typed_with_remedies():
     model = gaussian_chain()
     with pytest.raises(ObservationQueryRefusal) as levels:
         oq.condition_on(model, "Y", {"M": "3"})
-    assert levels.value.detail == "observation_query.levels_for_continuous_model"
+    assert levels.value.detail == reason_details.observation_query.LEVELS_FOR_CONTINUOUS_MODEL
     assert levels.value.remedy
     with pytest.raises(ObservationQueryRefusal) as both:
         oq.condition_on_values(model, "Y", {"X": 2.0}, interventions={"X": 2.0})
     assert both.value.reason_code == "route_not_supported"
-    assert both.value.detail == "observation_query.mixed_conditioning_and_intervention"
+    assert both.value.detail == reason_details.observation_query.MIXED_CONDITIONING_AND_INTERVENTION
     with pytest.raises(ObservationQueryRefusal) as finite:
         oq.condition_on_values(confounded(), "Y", {"S": 1.0})
-    assert finite.value.detail == "observation_query.real_values_for_finite_model"
+    assert finite.value.detail == reason_details.observation_query.REAL_VALUES_FOR_FINITE_MODEL
 
 
 def test_observation_after_intervention_matches_hand_enumeration_on_the_confounded_model():
@@ -676,7 +683,9 @@ def test_observation_after_intervention_matches_hand_enumeration_on_the_confound
     with pytest.raises(ObservationQueryRefusal) as caught:
         oq.intervene_on(model, "Y", {"S": "1"}, given={"S": "1"})
     assert caught.value.reason_code == "route_not_supported"
-    assert caught.value.detail == "observation_query.mixed_conditioning_and_intervention"
+    assert (
+        caught.value.detail == reason_details.observation_query.MIXED_CONDITIONING_AND_INTERVENTION
+    )
     assert caught.value.remedy
 
 
@@ -816,12 +825,12 @@ def test_a_probability_outside_the_open_unit_interval_has_no_required_evidence()
         with pytest.raises(ObservationQueryRefusal) as refused:
             oq.required_bayes_factor(prior, level)
         assert refused.value.reason_code == "invalid_argument"
-        assert refused.value.detail == "observation_query.invalid_declaration"
+        assert refused.value.detail == reason_details.observation_query.INVALID_DECLARATION
     with pytest.raises(ObservationQueryRefusal) as refused:
         oq.required_observations_binary_signal(
             0.2, 1.5, rate_given_hypothesis=0.8, rate_given_complement=0.2
         )
-    assert refused.value.detail == "observation_query.invalid_declaration"
+    assert refused.value.detail == reason_details.observation_query.INVALID_DECLARATION
     # A prior that already satisfies the request needs the neutral factor, not a refusal.
     satisfied = oq.required_bayes_factor(0.8, 0.5)
     assert satisfied.already_satisfied is True

@@ -33,22 +33,26 @@ record_sha256 = "81f37b7da62aad936df0b73178c2db9dda74d59d79bb29d952e8bb49ddc0deb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/inference.rs"
-sha256 = "3d573733ea621876cdc9ad01695c9ca9ea5cc766f6f8a9a067e4a8707dfe3784"
+items = ["const RESIDUAL_VARIANCE_TOLERANCE", "fn as_str", "fn build_coefficient_map", "fn check_residual_variance", "fn check_source_meaning", "fn hydrate_mapped_prior", "fn map_refuse", "fn mapped_posterior_transfer_with", "fn meaning_refuse", "fn prior", "fn transfer_refusal", "fn variance_refuse", "struct MappedCoefficient", "struct MappedTransferSpec"]
+sha256 = "749173b88d5fc73970a5956f5429e029fb8c56f2f4538582ab3745ec3b6cd5ce"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/hydrate.rs"
-sha256 = "70e8fe1facd5d19335e381a5a59f4100dc678be568d8da6dc5c3efa18e53974d"
+items = ["fn coefficient_covariance_from_draws"]
+sha256 = "fbaf7223dcfd55d6ebee518e51097c7e4359fa9c8d9cc8c317952f52554d61db"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/distribution_artifact.rs"
-sha256 = "821fd1c5fd6a6f7908b304ea01fc6ec8fd905faf4b252c60cafb32c98cc57e27"
+items = ["const ARTIFACT_KIND", "const DRAW_SECTION", "const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "const META_SECTION", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn default", "fn draws", "fn mean", "fn metadata", "fn new", "fn quantities", "fn require_coordinate", "fn semantic", "fn to_bytes", "fn to_bytes_within", "fn validate", "fn validate_within", "fn weights", "struct DistributionArtifact", "struct DistributionIdentity", "struct DistributionIntakeLimits", "struct DistributionMetadata", "struct DistributionProvenance", "struct LegacyPosteriorBinding"]
+sha256 = "6198371376ac60682a26dd90bca08ab25b61144768d9535a4f722339836ead73"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/mapped_posterior_transfer_reference.rs"
-sha256 = "8a950f21a4f99fef87c2b7535352202fa3759344988e07a3922d628311c5c709"
+items = ["fn close", "fn floats", "fn mapped_prior_matches_the_exact_moments_under_a_permuted_bijection", "fn quantity"]
+sha256 = "fea62eb03115c4db4d5718b9c1de6cd18b0e8673ade114350b7fa4adac1e4487"
 
 [[method_review.artifacts]]
 role = "reference"

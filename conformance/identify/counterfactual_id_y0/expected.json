@@ -58,7 +58,25 @@
     {
      "role": "assertion_source",
      "path": "crates/antecedent-identify/tests/counterfactual_id_y0_parity.rs",
-     "sha256": "b59691143e0affa8ac8040d72cb5fc21c90a0eab1060eca450933be41dfedcd3"
+     "items": [
+       "const EXPECTED",
+       "enum Ours",
+       "enum Y0Class",
+       "fn classify",
+       "fn close",
+       "fn derive",
+       "fn disagreements",
+       "fn edges",
+       "fn fixture",
+       "fn our_numerator",
+       "fn ours",
+       "fn problem_of",
+       "fn role",
+       "fn scm_of",
+       "fn variable",
+       "fn y0_id_star_outputs_agree_with_our_decisions_and_every_disagreement_is_recorded"
+     ],
+     "sha256": "b1cce46a2e696bcd0583525536d3caaccba95b1ddb6b8b61aaad6032e890d7e8"
     },
     {
      "role": "comparison_helper",

@@ -208,7 +208,10 @@ fn a_mean_contrast_spread_past_the_enumeration_bound_is_refused_with_its_blocker
     let mut executor = FiniteScmExecutor::new();
     let err = executor.execute(&request, &ctx()).expect_err("refused");
     let r = err.refusal().expect("typed");
-    assert_eq!(r.detail, "cross_world_execution.spread_needs_enumeration");
+    assert_eq!(
+        r.detail,
+        antecedent_core::reason_details::cross_world_execution::SPREAD_NEEDS_ENUMERATION
+    );
     assert_eq!(executor.counters().abductions, 0);
 }
 
@@ -296,24 +299,24 @@ fn the_envelope_is_refused_where_the_declared_set_cannot_be_honoured() {
     request.reading = RequestedReading::Envelope;
     assert_eq!(
         code(exec.execute(&request, &ctx()).expect_err("refused")),
-        "cross_world_execution.envelope_needs_parameter_set"
+        antecedent_core::reason_details::cross_world_execution::ENVELOPE_NEEDS_PARAMETER_SET
     );
     // The wrong reading, an empty set and a member of other structure.
     request.reading = RequestedReading::Point;
     assert_eq!(
         code(exec.execute_envelope(&request, &alternatives, &ctx()).expect_err("refused")),
-        "cross_world_execution.envelope_reading_required"
+        antecedent_core::reason_details::cross_world_execution::ENVELOPE_READING_REQUIRED
     );
     request.reading = RequestedReading::Envelope;
     assert_eq!(
         code(exec.execute_envelope(&request, &[], &ctx()).expect_err("refused")),
-        "cross_world_execution.envelope_parameter_set_empty"
+        antecedent_core::reason_details::cross_world_execution::ENVELOPE_PARAMETER_SET_EMPTY
     );
     let mut other = alternatives[0].clone();
     other.variables.pop();
     assert_eq!(
         code(exec.execute_envelope(&request, &[other], &ctx()).expect_err("refused")),
-        "cross_world_execution.envelope_member_structure_differs"
+        antecedent_core::reason_details::cross_world_execution::ENVELOPE_MEMBER_STRUCTURE_DIFFERS
     );
     assert_eq!(exec.counters().abductions, 0, "the refusals did no work");
 }

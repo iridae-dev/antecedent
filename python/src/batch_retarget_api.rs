@@ -66,9 +66,9 @@ fn band_json(
         Err(error)
             if matches!(
                 error.detail,
-                "batch_retarget.partial_family"
-                    | "batch_retarget.point_only_member"
-                    | "batch_retarget.covariance_unavailable"
+                antecedent_core::reason_details::batch_retarget::PARTIAL_FAMILY
+                    | antecedent_core::reason_details::batch_retarget::POINT_ONLY_MEMBER
+                    | antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE
             ) =>
         {
             Ok(serde_json::json!({

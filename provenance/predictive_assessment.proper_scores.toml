@@ -34,17 +34,20 @@ record_sha256 = "cbdd1e1d7fa33a8914456ea9da4baaed2a9537036b3899cb986d994b812d146
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/score.rs"
-sha256 = "7608cd7db235b05c2e23036b6a6ca3f79249865b531bfaccfab70d93fb60dac7"
+items = ["const INV_SQRT_PI", "enum EnsembleCrpsForm", "enum ScoreKind", "fn brier_binary", "fn brier_categorical", "fn check_dimension", "fn crps_ensemble_energy_sorted", "fn crps_gaussian", "fn crps_weighted_atoms", "fn energy_score_weighted", "fn infinite_log", "fn log_score_gaussian", "fn name", "fn not_defined", "fn outcome_mismatch", "fn pairwise_abs_sum_sorted", "fn score_case", "fn score_case_validated"]
+sha256 = "7a1b2aff8728ca98a43eb2fef48833d993fa71cde65f1fb4dd5722c1209a6079"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/compare.rs"
-sha256 = "22159c6a0d4c236719f30fb36c9a9b3499f41f1bd75faa415c35a398f2a93469"
+items = ["fn mean", "fn variance_of_mean"]
+sha256 = "1acb9b5f2663b598127d9d015510340c1879c8e2ae9879f6b2fdd09fe0a5d15f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/proper_scores_reference.rs"
-sha256 = "c749a7db18042b6bf2683da8674f53264d18e7b37723e6a3b0d159d634cba5e5"
+items = ["fn brier_and_log_scores_of_discrete_laws_match_the_reference", "fn close", "fn energy_scores_match_the_reference", "fn finite_and_sampled_crps_match_the_energy_form_in_exact_arithmetic", "fn gaussian_scores_match_the_reference_and_the_closed_form_equals_the_integral", "fn mean_difference_variances_match_exact_rational_arithmetic", "fn number", "fn numbers", "fn reference", "fn score"]
+sha256 = "dc359458fd3c31ec15269afaaf7024e511d7dde87d08bbc011624920741908d5"
 
 [[method_review.artifacts]]
 role = "reference"

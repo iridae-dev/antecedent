@@ -4,6 +4,7 @@ import traceback
 from dataclasses import replace
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent._native import CancellationToken
 from antecedent.errors import CausalValueError
 from antecedent.execution import Execution
@@ -79,7 +80,7 @@ def test_actual_glm_nonconvergence_reports_unsuccessful_work_and_preserves_origi
     )
     assert attempt.value is None and attempt.error is not None
     assert attempt.error.reason_code == "route_not_supported"
-    assert attempt.error.detail == "recalc.adjusted_glm_not_converged"
+    assert attempt.error.detail == reason_details.recalc.ADJUSTED_GLM_NOT_CONVERGED
     assert "execute" in {frame.name for frame in traceback.extract_tb(attempt.error.__traceback__)}
     assert not attempt.report.is_empty and attempt.report.is_complete
     assert any(row.failed > 0 for row in attempt.report.operations.values())
@@ -137,6 +138,8 @@ def test_nested_native_observers_each_see_original_work_once_and_python_errors_a
         attempt.unwrap()
     assert raised.value is error and calls == [1]
 
-    with pytest.raises(CausalValueError, match="native_attempt.invalid_callable") as invalid:
+    with pytest.raises(
+        CausalValueError, match=reason_details.native_attempt.INVALID_CALLABLE
+    ) as invalid:
         observe_native_attempts(5)
     assert invalid.value.reason_code == "invalid_argument"

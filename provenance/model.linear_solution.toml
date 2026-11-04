@@ -39,9 +39,11 @@ record_sha256 = "104927a1915ef2f0d78deaddb7f21b68e04098f9173d0dce403702c6708b6a1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/linear_solution.rs"
-sha256 = "74d3103c487537e682694447d8a280d5b468346b38f94c1659355ccdbb301538"
+items = ["const ADMISSION_GAP", "const FREE_BLOCK_EQUATION", "const ILL_CONDITIONED_KAPPA", "const NONZERO_DIAGONAL_NEXT_ATTEMPT", "const PIVOT_TEST_ORDER_LIMIT", "const POWER_ITERATIONS", "enum Conditioning", "enum ConsistencyWitness", "enum FamilyCertificate", "enum IdentificationStatus", "enum LinearSolutionError", "enum NextAttempt", "enum PhysicalStability", "enum SolvabilityRefusal", "enum SolverConvergence", "enum Uniqueness", "fn abs_matvec", "fn abs_radius_upper", "fn assess", "fn assignment_row_count", "fn certify_family", "fn closed_form_singular", "fn coefficient", "fn coefficients", "fn collatz_wielandt_upper", "fn decide", "fn dimension", "fn eye_minus_k", "fn free_batch_rhs", "fn free_indices", "fn gather_k_fh", "fn hard_clamp_mean_batch", "fn identification", "fn indices", "fn intercept", "fn is_admitted", "fn means", "fn neumann_block", "fn none", "fn not_estimated", "fn pivots_regular", "fn positive_ratio_max", "fn principal", "fn query_block", "fn revalidate_free_block", "fn rho_abs_upper", "fn row", "fn rows", "fn scatter_clamp_means", "fn small_block_non_finite", "fn smaller_upper", "fn solvability_refusal", "fn solve_free_means", "fn try_new", "fn two_by_two_conditioning", "fn undetermined", "struct FactorDescription", "struct HardClamp", "struct HardClampMeanBatch", "struct LinearStructuralMap", "struct QueryBlock", "struct SingularBlock", "struct SolutionAssessment"]
+sha256 = "fe9b2d420b044d65d8765cc296f9e470bb90a454a01f2988005e7acb8d48e3f1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
-sha256 = "39acacb6aaa06f87e04bda16000d06e16673bff0ec559890c9bcade7aca819fc"
+items = ["fn a_nearly_critical_two_cycle_keeps_its_closed_form_to_the_conditioning", "fn compiled_equilibria_match_the_neumann_series_on_random_models_and_clamps", "fn component_for", "fn has_cycle", "fn inf_norm", "fn matmul", "fn neumann_inverse", "fn next", "fn random_case", "fn reference_components", "fn reference_moments", "fn relative_close", "fn signed", "fn singular_and_nonsingular_cycles_are_decided_by_the_determinant", "struct Case", "struct Lcg"]
+sha256 = "415cdf449ac58dfadbd04f77ab15fa9c7287633ed034664cf7b6766949bf8d7e"

@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The inverse reads the Dirichlet posterior mean of the finite law the functional already evaluates. No new functional. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported).",
 ]
 
 upstream_implementations_observed = []
@@ -25,14 +25,16 @@ rationale = "Dirichlet posterior mean of the finite law that a decision function
 no_independent_algorithm = "dirichlet_posterior_mean returns (w_i + c)/(sum w + k c); the functional is the existing decision functional. posterior_mean.rs also holds the Gaussian-kernel local-quadratic route (exp, powi), a different record, which was not mapped."
 covered_by = ["decision.functionals", "decision.functional_inverse"]
 derivation = "Dirichlet(c,...,c) prior with multinomial weights w gives posterior mean (w_i + c)/(sum_j w_j + k c); verified in dirichlet_posterior_mean."
-record_sha256 = "5407231214b30fd644c4974755475b49756d46f44e574b5dede68153d5af0298"
+record_sha256 = "c2095326d358e4aa04a18cd5ae3e93c705d01efb5d2c53dbf59d2ea9418a81d3"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_mean.rs"
-sha256 = "6110f476422e383735f561b754204e1c2785dd31c37e1a34de6acb3dab6f8c11"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "fn details", "fn dirichlet_posterior_mean", "fn refuse", "fn scale_of"]
+sha256 = "9206ff4bf652c875d9facff5fbbb756af44c2debc2697bd68004be5927f4fffb"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/posterior_mean_decision.rs"
-sha256 = "ccc6638fd4fc7ddddb561b0e5c48d58f97a8749ef6709182c948d4dfc3e85004"
+items = ["fn contract", "fn decision_posterior_consumer_replays_the_dirichlet_weights", "fn decision_posterior_mean_keeps_the_finite_law_expectation", "fn decision_posterior_refuses_a_mapped_prior", "fn expectation", "fn finite_action_inverse_posterior_consumer_replays_the_selected_action", "fn finite_action_inverse_posterior_refuses_an_unmeasured_band", "fn finite_action_inverse_posterior_uses_the_dirichlet_mean", "fn functional_inverse_posterior_consumer_replays_the_mean_law", "fn functional_inverse_posterior_refuses_an_external_power_prior", "fn functional_inverse_posterior_uses_the_dirichlet_mean", "fn inverse_on", "fn law", "fn quantity", "fn refusal"]
+sha256 = "cbc820fb68fec366e7a9af839791638c06830ccbf38112b1f88d7b16efbffd30"

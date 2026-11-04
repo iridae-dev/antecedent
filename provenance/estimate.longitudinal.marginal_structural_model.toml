@@ -37,12 +37,14 @@ record_sha256 = "0c390cdb3cb2a6b5c1137a6cb3f365867ffa9bb82b9d7230653e7da30e957a6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/marginal_structural_model.rs"
-sha256 = "07bcf2644d1b0e06d6dc79b0d26a2148e297c80da0f198febc3d0b3081b89127"
+items = ["fn fit_binary_msm", "fn matmul", "fn matvec", "fn pointwise_intervals_95", "struct MsmIntervals95", "struct MsmSummary"]
+sha256 = "480ba9185c7a70914c39abbda7c11dbbe9887aaffa27c2859cc7d5dd3aa11e5f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/marginal_structural_model_reference.rs"
-sha256 = "4422db4fab1c80af3fcf9cedbda10cf450454d3f703c2e3a1ee4977ff1f712ef"
+items = ["fn close", "fn coefficients_variances_and_weights_match_the_exact_reference", "fn declarations_that_would_be_ignored_are_refused", "fn fit", "fn floats"]
+sha256 = "50e5ef2347714cf22036d902a0cb2fc13fa91c1f0452f27c1d9537ad92f76d91"
 
 [[method_review.artifacts]]
 role = "reference"

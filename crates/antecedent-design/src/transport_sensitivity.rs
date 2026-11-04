@@ -361,15 +361,33 @@ impl TransportSensitivityRefusal {
     #[must_use]
     pub const fn detail(&self) -> &'static str {
         match self {
-            Self::NoScalarFamily { .. } => "transport_sensitivity.no_scalar_family",
-            Self::NonFinitePoint => "transport_sensitivity.non_finite_point",
-            Self::InvalidBound => "transport_sensitivity.invalid_bound",
-            Self::InvalidGrid { .. } => "transport_sensitivity.invalid_grid",
-            Self::ProportionalAtZero => "transport_sensitivity.proportional_at_zero",
-            Self::NotTransported => "transport_sensitivity.not_transported",
-            Self::QuantityNotInTarget { .. } => "transport_sensitivity.quantity_not_in_target",
-            Self::BlankIdentity(_) => "transport_sensitivity.blank_identity",
-            Self::Surface { .. } => "transport_sensitivity.surface_refused",
+            Self::NoScalarFamily { .. } => {
+                antecedent_core::reason_details::transport_sensitivity::NO_SCALAR_FAMILY
+            }
+            Self::NonFinitePoint => {
+                antecedent_core::reason_details::transport_sensitivity::NON_FINITE_POINT
+            }
+            Self::InvalidBound => {
+                antecedent_core::reason_details::transport_sensitivity::INVALID_BOUND
+            }
+            Self::InvalidGrid { .. } => {
+                antecedent_core::reason_details::transport_sensitivity::INVALID_GRID
+            }
+            Self::ProportionalAtZero => {
+                antecedent_core::reason_details::transport_sensitivity::PROPORTIONAL_AT_ZERO
+            }
+            Self::NotTransported => {
+                antecedent_core::reason_details::transport_sensitivity::NOT_TRANSPORTED
+            }
+            Self::QuantityNotInTarget { .. } => {
+                antecedent_core::reason_details::transport_sensitivity::QUANTITY_NOT_IN_TARGET
+            }
+            Self::BlankIdentity(_) => {
+                antecedent_core::reason_details::transport_sensitivity::BLANK_IDENTITY
+            }
+            Self::Surface { .. } => {
+                antecedent_core::reason_details::transport_sensitivity::SURFACE_REFUSED
+            }
         }
     }
 
@@ -703,7 +721,7 @@ impl TransportAssumptionRange {
                 identified_bound: None,
                 sampling: SamplingStatus::Withheld {
                     reason_code: antecedent_core::reason_code!("route_not_supported").to_owned(),
-                    detail: "transport_sensitivity.interval_not_composed".to_owned(),
+                    detail: antecedent_core::reason_details::transport_sensitivity::INTERVAL_NOT_COMPOSED.to_owned(),
                 },
             },
             provenance: SensitivityProvenance {
