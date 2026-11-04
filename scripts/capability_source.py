@@ -495,12 +495,12 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
         if decision_builder and value in {"decision_reliability.search_record_required",
                                           "decision_reliability.validation_not_independent",
                                           "decision_reliability.dependence_unknown"}:
-            built = re.search(r'(?<![\w.:])builder\s*\(\s*antecedent_core::reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*$', code[:at])
+            built = re.search(r'(?<![\w.:])builder\s*\(\s*(?:antecedent_core::|antecedent::reason::)reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*$', code[:at])
             if built and re.match(r"builder\s*\(", skel[built.start():]):
                 reason = built[1]
         if value == "recalc.no_live_state" and recalc_no_state:
             direct_no_state = re.search(
-                r'(?<![\w.:])refusal_json\s*\(\s*antecedent_core::reason_code!\(\s*"score_table_unavailable"\s*\)\s*,\s*&stage\.label\(\)\s*,\s*$', code[:at])
+                r'(?<![\w.:])refusal_json\s*\(\s*(?:antecedent_core::|antecedent::reason::)reason_code!\(\s*"score_table_unavailable"\s*\)\s*,\s*&stage\.label\(\)\s*,\s*$', code[:at])
             if direct_no_state and re.match(r"refusal_json\s*\(", skel[direct_no_state.start():]):
                 reason = "score_table_unavailable"
         if value == "adaptive_inference.rule_mismatch" and adaptive_rule:
@@ -512,7 +512,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
         # refuse call. The skeleton check prevents matching inside a string or
         # comment; unsupported constructor shapes remain unproven.
         direct = re.search(
-            r'(?<![\w.:])refuse\s*\(\s*(?:antecedent_core::)?reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*$',
+            r'(?<![\w.:])refuse\s*\(\s*(?:antecedent_core::|antecedent::reason::)?reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*$',
             code[:at],
         )
         if horizon_proven and direct and re.match(r"refuse\s*\(", skel[direct.start():]):
@@ -610,14 +610,14 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
         macro_ranges.append((opening, _match_bracket(skel, opening)))
     body_pattern = re.compile(
         r"\s*EstimationError::(?P<constructor>refused|refused_with_fields)\s*\(\s*"
-        r'antecedent_core::reason_code!\(\s*"(?P<code>[a-z][a-z0-9_]+)"\s*\)\s*,\s*'
+        r'(?:antecedent_core::|antecedent::reason::)reason_code!\(\s*"(?P<code>[a-z][a-z0-9_]+)"\s*\)\s*,\s*'
         r'format!\(\s*"(?P<namespace>[a-z][a-z0-9_]*)\.\{detail\}: \{message\}"\s*\)\s*,'
         r"\s*(?P<fields>fields\s*,\s*)?\)\s*",
         re.DOTALL,
     )
     structured_body_pattern = re.compile(
         r"\s*EstimationError::(?P<constructor>refused_detail|refused_detail_with_fields)\s*\(\s*"
-        r'antecedent_core::reason_code!\(\s*"(?P<code>[a-z][a-z0-9_]+)"\s*\)\s*,\s*'
+        r'(?:antecedent_core::|antecedent::reason::)reason_code!\(\s*"(?P<code>[a-z][a-z0-9_]+)"\s*\)\s*,\s*'
         r'format!\(\s*"(?P<namespace>[a-z][a-z0-9_]*)\.\{detail\}"\s*\)\s*,\s*message\s*,'
         r"\s*(?P<fields>fields\s*,\s*)?\)\s*",
         re.DOTALL,
@@ -710,7 +710,7 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
             if item.start <= use.start() < item.body[0]:
                 continue
             argument = re.match(
-                r'\s*\(\s*antecedent_core::reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*"([a-z][a-z0-9_]*)"\s*,',
+                r'\s*\(\s*(?:antecedent_core::|antecedent::reason::)reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*"([a-z][a-z0-9_]*)"\s*,',
                 code[use.end():],
             )
             if (not argument or item.body[0] <= use.start() < item.body[1]
