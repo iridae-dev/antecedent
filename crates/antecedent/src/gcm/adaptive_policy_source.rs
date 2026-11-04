@@ -12,14 +12,14 @@
 
 use std::sync::Arc;
 
+use crate::design::AdaptivePolicyFamily;
+use crate::design::{
+    AdaptivePolicySearchError, DrawSplit, HeldOutDesign, PolicyPath, PolicyRolloutSource,
+    ResponseStanding,
+};
 use antecedent_core::{
     CausalRng, ExecutionContext, Intervention, InterventionSequence, SequencedIntervention,
     TemporalPolicy, ValueExpr, VariableId, derive_stream,
-};
-use antecedent_design::adaptive_policy::AdaptivePolicyFamily;
-use antecedent_design::adaptive_policy_search::{
-    AdaptivePolicySearchError, DrawSplit, HeldOutDesign, PolicyPath, PolicyRolloutSource,
-    ResponseStanding,
 };
 use antecedent_model::{
     CompiledCausalModel, MechanismWorkspace, ModelError, TemporalNoise, TemporalPlan, ValueBatch,
@@ -167,7 +167,7 @@ impl ModelPolicySource {
         family: &AdaptivePolicyFamily,
         theta: &[f64],
     ) -> Result<InterventionSequence, AdaptivePolicySearchError> {
-        let lower = |e: antecedent_design::adaptive_policy::AdaptivePolicyError| {
+        let lower = |e: crate::design::AdaptivePolicyError| {
             AdaptivePolicySearchError::Invalid(e.to_string())
         };
         let every = self.design.decision_interval;

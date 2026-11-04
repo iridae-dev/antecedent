@@ -4,14 +4,14 @@
 //! source is a Python object that simulates decision paths under the shared draws it owns. The
 //! native layer holds the search, constraints, standing label, held-out refusal and replayable
 //! record; the Python object only supplies paths.
-use antecedent::gcm::{ModelPolicySource, ModelRolloutDesign, StageUtility};
-use antecedent_core::VariableId;
-use antecedent_design::adaptive_policy::{AdaptivePolicyFamily, PolicyFeature, PolicyRule};
-use antecedent_design::adaptive_policy_search::{
+use antecedent::design::{AdaptivePolicyFamily, PolicyFeature, PolicyRule};
+use antecedent::design::{
     AdaptivePolicySearchError, ChanceBound, DrawSplit, HeldOutDesign, HeldOutRequirement,
     PolicyConstraints, PolicyObjective, PolicyPath, PolicyRolloutSource, PolicySearchOptions,
     PolicyStanding, PreparedAdaptivePolicySearch, ResponseStanding, SearchStop, StandingRequest,
 };
+use antecedent::gcm::{ModelPolicySource, ModelRolloutDesign, StageUtility};
+use antecedent_core::VariableId;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -391,7 +391,7 @@ fn translate(error: AdaptivePolicySearchError) -> PyErr {
     }
 }
 
-fn evaluation_json(e: &antecedent_design::adaptive_policy_search::PolicyEvaluation) -> Value {
+fn evaluation_json(e: &antecedent::design::PolicyEvaluation) -> Value {
     json!({
         "n_draws": e.n_draws,
         "objective": e.objective,

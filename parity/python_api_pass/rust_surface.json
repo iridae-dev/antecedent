@@ -30682,6 +30682,26 @@
       "kind": "reexport",
       "target": "antecedent_estimate::randomized_joint::complete_cluster_joint_contrast"
     },
+    "export:antecedent::design::AdaptivePolicyError": {
+      "declaration": "pub use antecedent::design::AdaptivePolicyError = antecedent_design::adaptive_policy::AdaptivePolicyError",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy::AdaptivePolicyError"
+    },
+    "export:antecedent::design::AdaptivePolicyFamily": {
+      "declaration": "pub use antecedent::design::AdaptivePolicyFamily = antecedent_design::adaptive_policy::AdaptivePolicyFamily",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy::AdaptivePolicyFamily"
+    },
+    "export:antecedent::design::AdaptivePolicySearchError": {
+      "declaration": "pub use antecedent::design::AdaptivePolicySearchError = antecedent_design::adaptive_policy_search::AdaptivePolicySearchError",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::AdaptivePolicySearchError"
+    },
+    "export:antecedent::design::AdaptivePolicySearchResult": {
+      "declaration": "pub use antecedent::design::AdaptivePolicySearchResult = antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult"
+    },
     "export:antecedent::design::AffineUtility": {
       "declaration": "pub use antecedent::design::AffineUtility = antecedent_design::AffineUtility",
       "kind": "reexport",
@@ -30717,6 +30737,11 @@
       "kind": "reexport",
       "target": "antecedent_design::CandidateTemplate"
     },
+    "export:antecedent::design::ChanceBound": {
+      "declaration": "pub use antecedent::design::ChanceBound = antecedent_design::adaptive_policy_search::ChanceBound",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::ChanceBound"
+    },
     "export:antecedent::design::ConfounderPriorDeclaration": {
       "declaration": "pub use antecedent::design::ConfounderPriorDeclaration = antecedent_design::ConfounderPriorDeclaration",
       "kind": "reexport",
@@ -30726,6 +30751,11 @@
       "declaration": "pub use antecedent::design::ConfounderValueFrame = antecedent_design::ConfounderValueFrame",
       "kind": "reexport",
       "target": "antecedent_design::ConfounderValueFrame"
+    },
+    "export:antecedent::design::ConstraintReport": {
+      "declaration": "pub use antecedent::design::ConstraintReport = antecedent_design::adaptive_policy_search::ConstraintReport",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::ConstraintReport"
     },
     "export:antecedent::design::ConstraintViolation": {
       "declaration": "pub use antecedent::design::ConstraintViolation = antecedent_design::ConstraintViolation",
@@ -30802,6 +30832,11 @@
       "kind": "reexport",
       "target": "antecedent_design::DesignRanker"
     },
+    "export:antecedent::design::DrawSplit": {
+      "declaration": "pub use antecedent::design::DrawSplit = antecedent_design::adaptive_policy_search::DrawSplit",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::DrawSplit"
+    },
     "export:antecedent::design::DurableStudyCandidate": {
       "declaration": "pub use antecedent::design::DurableStudyCandidate = antecedent_design::DurableStudyCandidate",
       "kind": "reexport",
@@ -30857,6 +30892,11 @@
       "kind": "reexport",
       "target": "antecedent_design::planning::FamilyPower"
     },
+    "export:antecedent::design::FamilySearchResult": {
+      "declaration": "pub use antecedent::design::FamilySearchResult = antecedent_design::adaptive_policy_search::FamilySearchResult",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::FamilySearchResult"
+    },
     "export:antecedent::design::FamilySimulation": {
       "declaration": "pub use antecedent::design::FamilySimulation = antecedent_design::planning::FamilySimulation",
       "kind": "reexport",
@@ -30876,6 +30916,16 @@
       "declaration": "pub use antecedent::design::GridUtility = antecedent_design::GridUtility",
       "kind": "reexport",
       "target": "antecedent_design::GridUtility"
+    },
+    "export:antecedent::design::HeldOutDesign": {
+      "declaration": "pub use antecedent::design::HeldOutDesign = antecedent_design::adaptive_policy_search::HeldOutDesign",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::HeldOutDesign"
+    },
+    "export:antecedent::design::HeldOutRequirement": {
+      "declaration": "pub use antecedent::design::HeldOutRequirement = antecedent_design::adaptive_policy_search::HeldOutRequirement",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::HeldOutRequirement"
     },
     "export:antecedent::design::InterferenceExposure": {
       "declaration": "pub use antecedent::design::InterferenceExposure = antecedent_design::planning::InterferenceExposure",
@@ -30921,6 +30971,16 @@
       "declaration": "pub use antecedent::design::PLANNING_NEXT_ATTEMPTS = antecedent_design::planning::PLANNING_NEXT_ATTEMPTS",
       "kind": "reexport",
       "target": "antecedent_design::planning::PLANNING_NEXT_ATTEMPTS"
+    },
+    "export:antecedent::design::PairedContrast": {
+      "declaration": "pub use antecedent::design::PairedContrast = antecedent_design::adaptive_policy_search::PairedContrast",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PairedContrast"
+    },
+    "export:antecedent::design::ParameterBound": {
+      "declaration": "pub use antecedent::design::ParameterBound = antecedent_design::adaptive_policy::ParameterBound",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy::ParameterBound"
     },
     "export:antecedent::design::PlanOption": {
       "declaration": "pub use antecedent::design::PlanOption = antecedent_design::PlanOption",
@@ -30987,6 +31047,61 @@
       "kind": "reexport",
       "target": "antecedent_design::planning::PlanningResult"
     },
+    "export:antecedent::design::PolicyAttempt": {
+      "declaration": "pub use antecedent::design::PolicyAttempt = antecedent_design::adaptive_policy_search::PolicyAttempt",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicyAttempt"
+    },
+    "export:antecedent::design::PolicyConstraints": {
+      "declaration": "pub use antecedent::design::PolicyConstraints = antecedent_design::adaptive_policy_search::PolicyConstraints",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicyConstraints"
+    },
+    "export:antecedent::design::PolicyEvaluation": {
+      "declaration": "pub use antecedent::design::PolicyEvaluation = antecedent_design::adaptive_policy_search::PolicyEvaluation",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicyEvaluation"
+    },
+    "export:antecedent::design::PolicyFeature": {
+      "declaration": "pub use antecedent::design::PolicyFeature = antecedent_design::adaptive_policy::PolicyFeature",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy::PolicyFeature"
+    },
+    "export:antecedent::design::PolicyObjective": {
+      "declaration": "pub use antecedent::design::PolicyObjective = antecedent_design::adaptive_policy_search::PolicyObjective",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicyObjective"
+    },
+    "export:antecedent::design::PolicyPath": {
+      "declaration": "pub use antecedent::design::PolicyPath = antecedent_design::adaptive_policy_search::PolicyPath",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicyPath"
+    },
+    "export:antecedent::design::PolicyRolloutSource": {
+      "declaration": "pub use antecedent::design::PolicyRolloutSource = antecedent_design::adaptive_policy_search::PolicyRolloutSource",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicyRolloutSource"
+    },
+    "export:antecedent::design::PolicyRule": {
+      "declaration": "pub use antecedent::design::PolicyRule = antecedent_design::adaptive_policy::PolicyRule",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy::PolicyRule"
+    },
+    "export:antecedent::design::PolicySearchOptions": {
+      "declaration": "pub use antecedent::design::PolicySearchOptions = antecedent_design::adaptive_policy_search::PolicySearchOptions",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicySearchOptions"
+    },
+    "export:antecedent::design::PolicyStanding": {
+      "declaration": "pub use antecedent::design::PolicyStanding = antecedent_design::adaptive_policy_search::PolicyStanding",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PolicyStanding"
+    },
+    "export:antecedent::design::PreparedAdaptivePolicySearch": {
+      "declaration": "pub use antecedent::design::PreparedAdaptivePolicySearch = antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch"
+    },
     "export:antecedent::design::PreposteriorAnalysis": {
       "declaration": "pub use antecedent::design::PreposteriorAnalysis = antecedent_design::PreposteriorAnalysis",
       "kind": "reexport",
@@ -31001,6 +31116,11 @@
       "declaration": "pub use antecedent::design::RepairReport = antecedent_design::RepairReport",
       "kind": "reexport",
       "target": "antecedent_design::RepairReport"
+    },
+    "export:antecedent::design::ResponseStanding": {
+      "declaration": "pub use antecedent::design::ResponseStanding = antecedent_design::adaptive_policy_search::ResponseStanding",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::ResponseStanding"
     },
     "export:antecedent::design::STANDALONE_PLANNING": {
       "declaration": "pub use antecedent::design::STANDALONE_PLANNING = antecedent::analysis::planning::STANDALONE_PLANNING",
@@ -31021,6 +31141,11 @@
       "declaration": "pub use antecedent::design::ScoredDesignRanking = antecedent_design::ScoredDesignRanking",
       "kind": "reexport",
       "target": "antecedent_design::ScoredDesignRanking"
+    },
+    "export:antecedent::design::SearchStop": {
+      "declaration": "pub use antecedent::design::SearchStop = antecedent_design::adaptive_policy_search::SearchStop",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::SearchStop"
     },
     "export:antecedent::design::SequentialCharacteristics": {
       "declaration": "pub use antecedent::design::SequentialCharacteristics = antecedent_design::planning::SequentialCharacteristics",
@@ -31046,6 +31171,11 @@
       "declaration": "pub use antecedent::design::SpendingFunction = antecedent_stats::adaptive_inference::group_sequential::SpendingFunction",
       "kind": "reexport",
       "target": "antecedent_stats::adaptive_inference::group_sequential::SpendingFunction"
+    },
+    "export:antecedent::design::StandingRequest": {
+      "declaration": "pub use antecedent::design::StandingRequest = antecedent_design::adaptive_policy_search::StandingRequest",
+      "kind": "reexport",
+      "target": "antecedent_design::adaptive_policy_search::StandingRequest"
     },
     "export:antecedent::design::StratumSpec": {
       "declaration": "pub use antecedent::design::StratumSpec = antecedent_design::planning::StratumSpec",

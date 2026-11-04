@@ -16604,10 +16604,10 @@ reason = "evaluate_transported returns the BoundTransportedDecision whose decisi
 
 [[capability]]
 id = "design.adaptive_policy_search.search"
-rust = []
-rust_types = ["antecedent::gcm::ModelPolicySource"]
+rust = ["export:antecedent::design::PreparedAdaptivePolicySearch", "export:antecedent::design::PolicySearchOptions", "export:antecedent::design::PolicyConstraints", "export:antecedent::design::AdaptivePolicyFamily"]
+rust_types = []
 status = "covered"
-owner = "Python API integration: antecedent_design::adaptive_policy_search"
+owner = "Python API integration: antecedent::design::PreparedAdaptivePolicySearch"
 behavior = "adaptive_policy.search optimises bounded history-dependent policy families (schedule, threshold, piecewise, linear feedback, tree) against a response source on shared draws, with path constraints, a fitted-model-optimisation standing label, held-out evaluation, paired contrasts and a replayable record."
 python = "antecedent.adaptive_policy.search"
 required_dimensions = ["success", "refusal"]

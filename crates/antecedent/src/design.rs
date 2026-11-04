@@ -18,6 +18,20 @@ use crate::support::CellStatus;
 /// executes a plan. A plan's `experiment_candidate` and `sampling_candidate`
 /// feed [`rank_designs_bound`] with the planned sample size.
 pub use crate::analysis::planning::{PlannedExperiment, PlanningPlan, STANDALONE_PLANNING};
+/// Bounded search over history-dependent policy families (schedule, threshold, piecewise,
+/// linear feedback, tree) against a response source, with path constraints, held-out evaluation
+/// and a replayable record. A fitted causal model is a response source through
+/// [`crate::gcm::ModelPolicySource`].
+pub use antecedent_design::adaptive_policy::{
+    AdaptivePolicyError, AdaptivePolicyFamily, ParameterBound, PolicyFeature, PolicyRule,
+};
+pub use antecedent_design::adaptive_policy_search::{
+    AdaptivePolicySearchError, AdaptivePolicySearchResult, ChanceBound, ConstraintReport,
+    DrawSplit, FamilySearchResult, HeldOutDesign, HeldOutRequirement, PairedContrast,
+    PolicyAttempt, PolicyConstraints, PolicyEvaluation, PolicyObjective, PolicyPath,
+    PolicyRolloutSource, PolicySearchOptions, PolicyStanding, PreparedAdaptivePolicySearch,
+    ResponseStanding, SearchStop, StandingRequest,
+};
 pub use antecedent_design::planning::{
     AnalyticCharacteristics, ArmComparison, FactorialContrast, FamilyCharacteristics, FamilyPower,
     FamilySimulation, InterferenceExposure, Multiplicity, NormalPrior, OutcomeModel,
