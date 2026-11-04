@@ -16,10 +16,6 @@ pub use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, PriorAssumption,
 };
-/// Domain-separated semantic identities for compiled causal contracts.
-pub use antecedent_core::{
-    CanonicalWriter, ContractIdentities, IdentityDomain, blake3_hex, digest_from_hex, to_hex,
-};
 /// `antecedent-core` items at the crate root.
 pub use antecedent_core::{
     CategoryDomainId, DeclaredSamplingDesign, DistributionRef, EnvironmentId, ModelId, QueryId,
@@ -42,10 +38,6 @@ pub mod diagnostic {
 /// Shared compiler and source-replay contract for the graph-selection imputation candidate.
 pub mod graph_imputation_contract {
     pub use antecedent_core::graph_imputation_contract::{MAX_VARIABLES, MIN_ROWS};
-}
-/// Domain-separated semantic identities for compiled causal contracts.
-pub mod identity {
-    pub use antecedent_core::identity::to_hex;
 }
 /// Typed measurement models: how an observed indicator relates to the scientific quantity it.
 pub mod measurement_model {

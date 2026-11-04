@@ -33,7 +33,7 @@
 //! those stated inputs); the consumer's [`ConsumeExpectation`] binds the contract,
 //! signal identities, source digests and cost mapping it retained independently.
 //!
-//! Calibration of Monte Carlo error coverage and rank guarantees is `unmeasured`; an
+//! Calibration of Monte Carlo error coverage and rank guarantees is `not_measured`; an
 //! exact-integration EVSI is a point value.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -70,7 +70,7 @@ pub const DESIGN_RANKING_ARTIFACT_VERSION: u32 = 1;
 /// Artifact kind.
 pub const DESIGN_RANKING_ARTIFACT_KIND: &str = "design_ranking_v1";
 /// Calibration label: Monte Carlo error coverage and rank guarantees are not measured.
-pub const DESIGN_RANKING_CALIBRATION: &str = "unmeasured";
+pub const DESIGN_RANKING_CALIBRATION: &str = "not_measured";
 /// Identity of the reported ranking within
 /// [`DesignRankingArtifactWire::provenance_chain`].
 pub const DESIGN_RANKING_CLAIM_LINK_ID: &str = "design_ranking_result";
@@ -429,7 +429,7 @@ pub struct DesignRankingArtifactWire {
     pub version: u32,
     /// `design_ranking_v1`.
     pub kind: String,
-    /// `unmeasured`.
+    /// `not_measured`.
     pub calibration: String,
     /// `evsi` or `net_value`.
     pub basis: String,
@@ -1086,7 +1086,7 @@ pub struct ConsumedDesignRanking {
     pub identity: String,
     /// Candidates in rank order.
     pub candidates: Vec<ConsumedCandidate>,
-    /// `unmeasured`.
+    /// `not_measured`.
     pub calibration: &'static str,
     /// Checked derivation chain retained after independent artifact consumption.
     pub provenance_chain: antecedent_contract::ProvenanceChain,

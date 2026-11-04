@@ -148,7 +148,7 @@ pub use procedure_simulation::{
     SimulationSummary, simulate_procedure, simulate_procedure_within,
 };
 pub use procedure_uncertainty::{
-    AnytimeCellBound, AnytimeReport, BayesianReport, DERIVED_UNMEASURED, DecisionReport,
+    AnytimeCellBound, AnytimeReport, BayesianReport, DERIVED_NOT_MEASURED, DecisionReport,
     EstimandStatement, EstimatorLaw, Functional, InversionGrid, InversionInterval,
     MAX_INVERSION_LAWS, ObservedTerminal, OrderingPValues, PosteriorMeanGap, UncertaintyParadigm,
     admit, anytime_exclusion_probability, anytime_valid_report, bayesian_report, decision_report,

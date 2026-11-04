@@ -41,7 +41,7 @@ fn design_dependence(estimate: &SampledCounterfactualTransportEstimate) -> Strin
         (false, true) => "shared_dataset",
         (true, true) => "stratified_shared_dataset",
     });
-    // Unmeasured designs name themselves so that no coverage record matches them.
+    // Not measured designs name themselves so that no coverage record matches them.
     let low_mass = estimate
         .point
         .as_ref()

@@ -82,7 +82,7 @@ fn a_fresh_consumer_reproduces_every_score_and_the_identity() {
     // The artifact states the unsupported claims it carries.
     let meta = consumed.meta();
     assert_eq!(meta.inference_claim, "point_only");
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
     assert_eq!(meta.causal_validity, "not_established");
     assert_eq!(meta.interval, "not_reported");
     // And the numbers are the ones the library computes from the laws.

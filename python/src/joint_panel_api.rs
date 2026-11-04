@@ -440,7 +440,7 @@ impl PyPreparedJointPanel {
     ) -> PyResult<PyJointPanelResult> {
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let attempt = crate::detach_catch(py, || {
-            Ok(antecedent::execution::execution_attempt::observe_with_context(&ctx, || {
+            Ok(antecedent::execution::observe(&ctx, || {
                 self.inner.estimate(&ctx).map_err(panel_error)
             }))
         })?;
@@ -561,14 +561,14 @@ impl PyJointPanelResult {
             "panel program certificate",
         )?;
         let ctx = context(seed, threads, max_bytes, cancel)?;
-        let _input = ctx
-            .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(8))
-            .map_err(|e| match e {
-                antecedent::execution::AdmissionError::Cancelled => {
-                    crate::CausalCancelledError::new_err(e.to_string())
-                }
-                _ => crate::CausalResourceError::new_err(e.to_string()),
-            })?;
+        let _input =
+            antecedent::execution::retain(&ctx, (declaration_json.len() as u64).saturating_mul(8))
+                .map_err(|e| match e {
+                    antecedent::execution::AdmissionRefusal::Cancelled => {
+                        crate::CausalCancelledError::new_err(e.to_string())
+                    }
+                    _ => crate::CausalResourceError::new_err(e.to_string()),
+                })?;
         let declaration: CertificateDeclaration = serde_json::from_str(declaration_json)
             .map_err(|error| crate::value_err(error.to_string()))?;
         let controls = declaration
@@ -696,7 +696,7 @@ impl PyJointPanelResult {
                 "hybrid_support":checked.hybrids.iter().map(|h|serde_json::json!({"mask":h.mask,
                     "source_world":h.source_world.map(antecedent::scientific::ScientificWorldId::raw),"unresolved":h.unresolved})).collect::<Vec<_>>(),
                 "scope":"model_conditional_reference_decomposition",
-                "calibration":"unmeasured", "grants_unique_causal_attribution":false})
+                "calibration":"not_measured", "grants_unique_causal_attribution":false})
             .to_string())
         })
     }
@@ -802,7 +802,7 @@ impl PyPanelProgramCertificate {
             "dual_bound":certificate.dual_bound,"separable_bound":certificate.separable_bound,"frontier":certificate.frontier,
             "fitted_dependency":self.inner.fitted_dependency.to_hex(),
             "parent_target":self.inner.parent_target.to_hex(),
-            "scope":"model_conditional","selected_value_reliability":"unmeasured"})
+            "scope":"model_conditional","selected_value_reliability":"not_measured"})
         .to_string()
     }
 }
@@ -810,7 +810,7 @@ impl PyPanelProgramCertificate {
 fn admit_declaration(
     ctx: &ExecutionContext,
     declaration_json: &str,
-) -> PyResult<antecedent::execution::AdmissionLease> {
+) -> PyResult<antecedent::execution::Retention> {
     crate::bridge::check_declared_size(
         declaration_json,
         crate::bridge::MAX_SPEC_DECLARATION_BYTES,
@@ -820,12 +820,9 @@ fn admit_declaration(
 }
 /// Charge `bytes` to the caller's admission: a cancelled run or an unfunded request is an
 /// operational stop (`CausalCancelledError`, `CausalResourceError`), never a request error.
-fn admit_bytes(
-    ctx: &ExecutionContext,
-    bytes: u64,
-) -> PyResult<antecedent::execution::AdmissionLease> {
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent::execution::AdmissionError::Cancelled => {
+fn admit_bytes(ctx: &ExecutionContext, bytes: u64) -> PyResult<antecedent::execution::Retention> {
+    antecedent::execution::retain(&ctx, bytes).map_err(|error| match error {
+        antecedent::execution::AdmissionRefusal::Cancelled => {
             crate::CausalCancelledError::new_err(error.to_string())
         }
         _ => crate::CausalResourceError::new_err(error.to_string()),

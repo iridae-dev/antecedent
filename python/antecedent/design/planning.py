@@ -28,7 +28,7 @@ characteristics definable. Criteria: :class:`Power`, :class:`Assurance`,
 :class:`PosteriorPrecision` and :class:`CorrectDecision`.
 
 Every planned characteristic is a point statement under the declared assumptions; its
-``calibration`` is ``"unmeasured"``. A plan feeds design ranking through
+``calibration`` is ``"not_measured"``. A plan feeds design ranking through
 :meth:`PlanningResult.sampling_plan` and :meth:`PlanningResult.experiment_plan`, whose
 sample budget is the planned sample size.
 """

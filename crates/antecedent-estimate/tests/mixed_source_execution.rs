@@ -545,7 +545,7 @@ fn a_value_restricted_trial_is_neither_searched_nor_bound_nor_executed() {
     assert!(evaluate(true).is_ok());
     let refused = evaluate(false).unwrap_err().to_string();
     assert!(refused.contains("missing_exact_provider in population target regime"), "{refused}");
-    assert!(refused.contains("Bool(false)"), "the unmeasured level is named: {refused}");
+    assert!(refused.contains("Bool(false)"), "the not_measured level is named: {refused}");
 }
 
 /// The Ananke surrogate-experiment specimen (GID and AID): `X1 -> W -> Y`, `X2 -> Y`,

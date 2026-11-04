@@ -1,6 +1,6 @@
 //! Count-fitted observation probability: the point value follows the posterior-mean
 //! tables, the interval is a measured scalar or a typed refusal, and a changed source or
-//! an unmeasured construction is refused.
+//! a not_measured construction is refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -63,7 +63,7 @@ fn the_interval_is_reported_with_its_calibration_annotation() {
 }
 
 #[test]
-fn an_unmeasured_level_is_reported_and_annotated_not_measured() {
+fn an_not_measured_level_is_reported_and_annotated_not_measured() {
     let ctx = ExecutionContext::for_tests(5);
     let measured = fitted().interval(0.5, &ctx).expect("the interval is reported");
     let scalar = &measured.report().scalars[0];

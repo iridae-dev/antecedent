@@ -3,7 +3,7 @@
 //! Python declares the request (design, one named functional, grid, bandwidth and its
 //! range, minimum local effective sample size, claims) and passes the dose/outcome table.
 //! Per-dose support, the local-quadratic fit, the pointwise standard errors and intervals
-//! (calibration unmeasured), the closed simultaneous band, the digests, the artifact and
+//! (calibration not_measured), the closed simultaneous band, the digests, the artifact and
 //! every refusal are Rust's. A refusal comes back as structured JSON for the Python layer
 //! to raise as its own exception type; corruption and unknown versions raise
 //! `CausalSerializationError`.
@@ -275,7 +275,7 @@ fn evaluate_dose_grid_posterior(
     wire.outcome = outcome;
     let ctx = dose_context(threads, max_bytes, cancel)?;
     let (payload, facts) = detach_catch(py, move || {
-        let attempt = antecedent::execution::execution_attempt::observe_with_context(&ctx, || {
+        let attempt = antecedent::execution::observe(&ctx, || {
             let done = BayesianPosteriorRow::evaluate_with_context(request, &ctx)?;
             let bytes = done.export()?;
             let report = posterior_report_json(&done)
@@ -311,7 +311,7 @@ fn consume_dose_grid_posterior_artifact(
     let limits = PosteriorRowConsumeLimits { max_rows, max_points: max_grid };
     let ctx = dose_context(threads, max_bytes, cancel)?;
     let (payload, facts) = detach_catch(py, move || {
-        let attempt = antecedent::execution::execution_attempt::observe_with_context(&ctx, || {
+        let attempt = antecedent::execution::observe(&ctx, || {
             let done = BayesianPosteriorRow::consume_with_context(artifact, limits, &ctx)?;
             posterior_report_json(&done)
                 .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))

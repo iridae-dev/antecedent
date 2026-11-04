@@ -6,7 +6,7 @@ Prediction is restricted to the fitted schema and observed treatment support.
 Receipts are portable records. They contain no fitted model or raw training data;
 a fresh process resumes only by supplying data and recomputing the fit.
 
-Analytic standard errors retain their producing model assumptions and unmeasured
+Analytic standard errors retain their producing model assumptions and not_measured
 calibration standing. Fit reuse adds no confidence-interval or coverage support.
 """
 

@@ -418,7 +418,7 @@ def test_native_claim_exposes_coordinates_support_and_native_trust():
     assert claim.coordinates == (_q("1"), _q("2"))
     assert claim.means == pytest.approx((3.0, 5.0), abs=1e-4)
     assert claim.trust is ProviderTrust.NATIVE_SUPPORTED
-    assert claim.calibration == "unmeasured"
+    assert claim.calibration == "not_measured"
     assert claim.program_identity == program.identity
     assert claim.has_joint_law is False
     spec = external.response(view.program_identification, outcome_units="mmHg", dose_units="mg")
@@ -553,7 +553,7 @@ def test_native_response_retains_actual_joint_draws_and_refuses_uncertainty_subs
     view = _native_view(bayesian=True)
     claim = program_claims.native_claim(view, _native_program(view))
     assert claim.has_joint_law
-    assert claim.calibration == "unmeasured"
+    assert claim.calibration == "not_measured"
     contract = decision.Contract(
         actions=(
             decision.Action(
@@ -571,7 +571,7 @@ def test_native_response_retains_actual_joint_draws_and_refuses_uncertainty_subs
     assert source.source.shape == (256, 2)
     assert source.source.semantic == "causal_functional_posterior"
     assert source.source.trust == "native_supported"
-    assert source.source.calibration == "unmeasured"
+    assert source.source.calibration == "not_measured"
     result = require_success(contract.evaluate(source.source))
     assert result.actions[0].expected_utility == pytest.approx(
         source.source.joint_product_expectation(0, 1)
@@ -630,7 +630,7 @@ def test_native_joint_constructor_cannot_mint_native_trust():
         "shape": [2, 1],
         "weights": None,
         "supported": None,
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
         "trust": "native_supported",
     }
     with pytest.raises(CausalValueError) as direct:
@@ -725,7 +725,7 @@ def test_native_composition_retains_actual_joint_functional_rows_and_calibration
     source = claim.as_decision_source(contract).source
     native = comp.DecisionInput.from_native_claim("joint", claim, contract=contract)
     assert native.provenance.native
-    assert native.provenance.calibration == "unmeasured"
+    assert native.provenance.calibration == "not_measured"
     assert native.source == "joint_law"
     result = require_success(comp.evaluate_with_support(contract, [native]))
     assert result.outcome("product").expected_utility == pytest.approx(

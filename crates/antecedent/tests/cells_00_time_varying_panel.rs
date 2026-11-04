@@ -299,7 +299,7 @@ fn cells_00_time_varying_panel_withholds_support_from_a_held_out_program() {
         panic!("time-varying fit")
     };
     assert_eq!(fit.claim, "model_conditional_temporal_mechanism_only");
-    assert_eq!(fit.calibration, "unmeasured");
+    assert_eq!(fit.calibration, "not_measured");
     // Control: the same route on a panel whose programs are the observed whole-program
     // trajectories, with the known randomized assignment, earns the world support.
     let whole = fixture::whole_program_source();

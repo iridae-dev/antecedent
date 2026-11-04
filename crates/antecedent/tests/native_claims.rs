@@ -65,7 +65,7 @@ fn context() -> NativeResponseContext {
         program: program(),
         snapshot_id: "snap-1".into(),
         rng_id: "pcg:seed=7".into(),
-        calibration: DistributionCalibration::Unmeasured,
+        calibration: DistributionCalibration::NotMeasured,
     }
 }
 
@@ -194,7 +194,7 @@ fn native_response_exposes_coordinates_support_and_native_trust() {
     assert_eq!(claim.point_status(), &[SupportStatus::Supported, SupportStatus::Supported][..]);
     assert_eq!(claim.support_status(), SupportStatus::Supported);
     assert_eq!(claim.trust(), DistributionTrust::NativeSupported);
-    assert_eq!(claim.calibration(), DistributionCalibration::Unmeasured);
+    assert_eq!(claim.calibration(), DistributionCalibration::NotMeasured);
     assert_eq!(claim.program_identity(), program().identity());
     assert_eq!(claim.provenance_id(), "op-1");
     assert!(!claim.has_joint_law());
@@ -275,7 +275,7 @@ fn native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals() {
     assert_eq!(artifact.draws(), &[2.0, 4.0, 4.0, 6.0][..]);
     assert_eq!(artifact.metadata().identity.alignment, DrawAlignment::Joint);
     assert_eq!(artifact.metadata().trust, DistributionTrust::NativeSupported);
-    assert_eq!(artifact.metadata().calibration, DistributionCalibration::Unmeasured);
+    assert_eq!(artifact.metadata().calibration, DistributionCalibration::NotMeasured);
     assert_eq!(artifact.metadata().identity.causal_contract_id, "contract:c");
     assert!(close(artifact.mean(0).unwrap(), 3.0));
     assert!(close(artifact.mean(1).unwrap(), 5.0));

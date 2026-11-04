@@ -381,7 +381,7 @@ fn horizon_one_continuous_program_search_polls_static_decision_worlds_on_one_reu
     assert!(best.value.unwrap() >= first);
     assert!(!found.search.global_certificate);
     assert_eq!(found.search.gap, None);
-    assert_eq!(found.search.reliability, "unmeasured");
+    assert_eq!(found.search.reliability, "not_measured");
     assert_eq!(prepared.fits_performed(), 1);
 }
 

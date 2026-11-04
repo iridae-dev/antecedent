@@ -36,7 +36,7 @@ def test_heterogeneity_widens_and_a_target_sample_narrows_the_interval() -> None
     ]
     tight = transport_pooled_differential(invariant, "target", _recorded(), 4000)
     wide = transport_pooled_differential(heterogeneous, "target", _recorded(), 4000)
-    assert tight.calibration == "unmeasured"
+    assert tight.calibration == "not_measured"
     assert abs(tight.prevalence - 0.3) < 0.03
     assert (wide.interval[1] - wide.interval[0]) > (tight.interval[1] - tight.interval[0])
     informed = transport_pooled_differential(

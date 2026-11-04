@@ -3,7 +3,7 @@
 //! fields) replays independently.
 //!
 //! The oracle is the enumerated latent-variable SCM of the engine's own tests, summed out
-//! by hand; it calls nothing in the code under test. Calibration is unmeasured, the
+//! by hand; it calls nothing in the code under test. Calibration is not_measured, the
 //! public interval route is not supported, and nothing here asserts coverage.
 #![allow(clippy::cast_precision_loss, reason = "binary levels and tiny fixed enumerations")]
 
@@ -106,7 +106,7 @@ fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
     .unwrap();
     assert_eq!(consumer.effect_covariance, producer.effect_covariance);
     assert_eq!(consumer.interval_candidates, producer.interval_candidates);
-    assert_eq!(consumer.calibration, "unmeasured");
+    assert_eq!(consumer.calibration, "not_measured");
     // Independent point value: the SCM chain X2 -> X3 -> X4 gives the contrast
     // (p3(1) - p3(0)) * 0.35 = 0.5 * 0.35 = 0.175, and the enumerated truth agrees.
     let truth = truth_mean(1) - truth_mean(0);
@@ -216,11 +216,11 @@ fn nested_fit_replay_exact_counts_replay_value_for_value_against_the_scm() {
     assert!(loaded.receipt.diagnostics.empirical_residuals.max_abs < 1e-9);
     assert_eq!(loaded.receipt.diagnostics.method, "saturated_feasible");
     assert!(loaded.receipt.diagnostics.normalization.is_some_and(|n| n.normalized && n.positive));
-    // Three separate status fields; calibration unmeasured; no interval anywhere.
+    // Three separate status fields; calibration not_measured; no interval anywhere.
     assert_eq!(loaded.receipt.status.identification, "nonparametrically_identified");
     assert_eq!(loaded.receipt.status.likelihood_fit, "converged_constraints_satisfied");
     assert_eq!(loaded.receipt.status.inference, "interval_candidates_calibration_annotated");
-    assert_eq!(loaded.calibration, "unmeasured");
+    assert_eq!(loaded.calibration, "not_measured");
     assert_ne!(loaded.premises_digest, loaded.data_digest);
 }
 
@@ -345,7 +345,7 @@ fn nested_fit_replay_refuses_an_unknown_version_foreign_feature_and_claim() {
     calibrated.calibration = "calibrated".into();
     assert!(matches!(
         NestedMarkovArtifactWire::decode(&calibrated.export().expect("export")),
-        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: calibration is unmeasured"
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: calibration is not_measured"
     ));
     let mut interval = wire;
     interval.receipt.status.inference = "interval_published".into();

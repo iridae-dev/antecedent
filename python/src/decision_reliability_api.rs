@@ -279,7 +279,7 @@ fn decision_reliability_publish(route: &str, coordinate_json: &str) -> Refused<S
     }
 }
 
-/// Derive the three uncertainty components from draws (derived, unmeasured).
+/// Derive the three uncertainty components from draws (derived, not_measured).
 #[pyfunction]
 #[pyo3(signature = (draws_json, validation_json, request_json, interval_json, seed=0, cancel=None))]
 fn decision_reliability_derive(

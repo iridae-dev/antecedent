@@ -1,11 +1,11 @@
 # Target-native refutation: acceptance evidence. Registration only: no calibration
 # measurement. Every refuter is a diagnostic with a conventional threshold; its error rate is
-# unmeasured, and no coverage record or support is written here.
+# not_measured, and no coverage record or support is written here.
 schema = 1
 id = "validation.target_native_refuters"
 capability_ids = []
 status = "implemented"
-calibration = "unmeasured"
+calibration = "not_measured"
 reference = "docs/guides/target-native-validation.md"
 limits = "docs/user-facing-limits.md"
 rust_source = "crates/antecedent-validate/src/target_native/mod.rs"

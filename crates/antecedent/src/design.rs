@@ -805,3 +805,9 @@ pub mod source_projection_artifact {
 pub mod structure_identification {
     pub use antecedent_design::structure_identification::{GraphIdentFlag, identifies};
 }
+/// Portable transported decision artifact (`transported_decision_v1`).
+pub mod transported_decision_artifact {
+    pub use antecedent_design::transported_decision_artifact::{
+        ConsumedTransportedDecision, consume_transported_decision, export_transported_decision,
+    };
+}

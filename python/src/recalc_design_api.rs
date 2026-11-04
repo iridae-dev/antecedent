@@ -389,7 +389,7 @@ impl PyDesignSession {
                     &session.capabilities(),
                     &replay.outcome,
                 )?;
-                let digest = antecedent::schema::to_hex(&replay.artifact_digest);
+                let digest = antecedent::identity::to_hex(&replay.artifact_digest);
                 Ok((Some(session), result.0, result.1, Some(digest), None))
             }
             Err(error) => Ok((None, None, None, None, Some(design_error(&error)))),

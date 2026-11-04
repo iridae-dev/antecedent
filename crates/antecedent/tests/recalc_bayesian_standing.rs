@@ -73,7 +73,7 @@ fn a_fresh_bayesian_plan_declares_calibration_and_coupling_and_moves_only_law_an
 
     // The declared inputs are the typed identities, and no representation is declared: the
     // session consumes no measurement model.
-    assert_eq!(ids.own(Stage::Calibration), CalibrationInput::Unmeasured.identity());
+    assert_eq!(ids.own(Stage::Calibration), CalibrationInput::NotMeasured.identity());
     assert_eq!(ids.own(Stage::Coupling), CouplingInput::None.identity());
     assert!(!ids.contains(Stage::Representation));
 

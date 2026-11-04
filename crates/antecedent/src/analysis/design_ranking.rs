@@ -13,7 +13,7 @@
 //! Provider trust is never upgraded here: an external signal is at most
 //! `externally_attested` and is never reported as natively replayed. The cost-to-utility
 //! mapping must be supplied explicitly; value and cost are otherwise reported separately.
-//! Monte Carlo error coverage and rank guarantees are `unmeasured`, and an exact-integration
+//! Monte Carlo error coverage and rank guarantees are `not_measured`, and an exact-integration
 //! EVSI is a point-only value.
 //!
 //! [`evaluate_for_study`] binds the evaluation to a lowered program: the study is compiled

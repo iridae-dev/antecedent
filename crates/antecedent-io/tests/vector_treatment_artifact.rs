@@ -3,7 +3,7 @@
 //! the row-based fit and checked against an independent sandwich computation), the absence of a
 //! row ceiling, the computation and export budgets, the digest binding of a summary to its rows,
 //! resealed-mutation refusals against a retained identity, unresealed tampering, unknown
-//! versions and the unmeasured calibration coordinate.
+//! versions and the not_measured calibration coordinate.
 //!
 //! Frozen dataset (n = 6, columns `1, t1, t2`): `t1 = [1,0,1,0,0,1]`, `t2 = [1,1,1,0,0,0]`,
 //! `y = [3,2,5,1,0,4]`. `b = [2.75, 0.75]`, `RSS = 3.25`, `sigma^2 = 3.25 / 3`, and the treatment
@@ -134,13 +134,13 @@ fn vector_artifact_joint_wald_and_holm_match_closed_forms() {
 }
 
 #[test]
-fn vector_artifact_calibration_is_unmeasured_and_says_so() {
+fn vector_artifact_calibration_is_not_measured_and_says_so() {
     let report = export(&request()).0.report();
     assert_eq!(report.calibration, VECTOR_TREATMENT_CALIBRATION);
-    assert_eq!(report.calibration, "unmeasured");
-    assert_eq!(report.inference_claim, "asymptotic_wald_calibration_unmeasured");
+    assert_eq!(report.calibration, "not_measured");
+    assert_eq!(report.inference_claim, "asymptotic_wald_calibration_not_measured");
     assert_eq!(report.version, VECTOR_TREATMENT_ARTIFACT_VERSION);
-    assert!(report.caveats[0].contains("calibration is unmeasured"), "{:?}", report.caveats);
+    assert!(report.caveats[0].contains("calibration is not_measured"), "{:?}", report.caveats);
     assert!(report.caveats[0].contains("no interval"), "{:?}", report.caveats);
     assert!(report.caveats[1].contains("caller owns"), "{:?}", report.caveats);
 }

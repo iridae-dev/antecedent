@@ -75,7 +75,7 @@ def test_sequential_contrast_normal_interval_matches_the_pinned_reference() -> N
     assert fit.interval is not None
     assert fit.interval[0] == pytest.approx(scores.mean() - Z95 * se, abs=1e-6)
     assert fit.supported is False and fit.calibration_measured is False
-    assert fit.uncertainty == "normal_interval_calibration_unmeasured"
+    assert fit.uncertainty == "normal_interval_calibration_not_measured"
     assert result.answer.detail.startswith("unsupported_sequential_contrast")
 
 
@@ -323,7 +323,7 @@ def test_period_history_match_matches_the_brute_force_reference(caliper: float |
     assert fit.contrast == pytest.approx(tau, abs=1e-12)
     assert fit.standard_error == pytest.approx(se, abs=1e-12)
     assert fit.supported is False
-    assert fit.uncertainty == "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured"
+    assert fit.uncertainty == "abadie_imbens_and_newey_west_period_interval_calibration_not_measured"
 
 
 def test_bayesian_matching_is_the_typed_boundary() -> None:

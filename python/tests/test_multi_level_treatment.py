@@ -62,7 +62,7 @@ def test_both_targets_recover_their_own_truth_and_differ() -> None:
     assert abs(full.effect - 3.0) < 4 * full.se_analytic
     assert abs(pair.effect - _pairwise_truth()) < 4 * pair.se_analytic
     assert full.effect - pair.effect > 0.1
-    assert full.calibration == "unmeasured"
+    assert full.calibration == "not_measured"
     for mean, alpha in zip(full.level_means, ALPHA, strict=True):
         assert abs(mean.mean - alpha) < 4 * mean.se
 

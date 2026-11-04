@@ -18,10 +18,15 @@ use antecedent::analysis::transport_sensitivity::{
 use antecedent::analysis::{BoundDecisionContract, SupportPolicy, TransportedDemand};
 use antecedent::design::composition_boundary::UnsupportedActionPolicy;
 use antecedent::design::decision_robust_artifact::admissible_contract_from_json_refusal;
+use antecedent::design::transported_decision_artifact::{
+    consume_transported_decision, export_transported_decision,
+};
+use antecedent::io::IoError;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use antecedent::query::SupportStatus;
 use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
@@ -291,6 +296,103 @@ fn transported_decision_evaluate(
     })
 }
 
+const DECISION_ARTIFACT_STAGE: &str = "transported_decision";
+
+fn decision_artifact_refusal(error: &IoError) -> String {
+    match error {
+        IoError::Refused { code, message } => {
+            RefusalJson::from_coded_message(code, DECISION_ARTIFACT_STAGE, message).json()
+        }
+        other => RefusalJson::new(
+            antecedent::reason::reason_code!("invalid_argument"),
+            DECISION_ARTIFACT_STAGE,
+            antecedent::reason::reason_details::transported_decision_artifact::INVALID,
+            &other.to_string(),
+        )
+        .json(),
+    }
+}
+
+fn support_policy_of(unsupported: &str, weakest_support: &str) -> PyResult<SupportPolicy> {
+    Ok(SupportPolicy {
+        unsupported: parse_unsupported(unsupported)?,
+        weakest_support: SupportStatus::from_name(weakest_support).ok_or_else(|| {
+            crate::value_err(format!("unknown support status {weakest_support:?}"))
+        })?,
+    })
+}
+
+/// Seal a decision made on a transported point: the contract, the carried point with its
+/// receipt, the support policy that accepted it and the values the decision produced.
+///
+/// A transported law is refused (`route_not_supported`): it is exported as its distribution
+/// artifact.
+#[pyfunction]
+fn transported_decision_export(
+    py: Python<'_>,
+    declaration_json: &str,
+    response: PyRef<'_, TransportedResponseHandle>,
+    unsupported: &str,
+    weakest_support: &str,
+    artifact_id: &str,
+) -> PyResult<Refused<Py<PyBytes>>> {
+    crate::catch_ffi(|| {
+        check_size(declaration_json, "decision declaration")?;
+        let policy = support_policy_of(unsupported, weakest_support)?;
+        let admissible = match admissible_contract_from_json_refusal(declaration_json) {
+            Ok(contract) => contract,
+            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+        };
+        Ok(
+            match export_transported_decision(
+                &admissible.contract,
+                &response.inner,
+                &policy,
+                artifact_id,
+            ) {
+                Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
+                Err(error) => (None, Some(decision_artifact_refusal(&error))),
+            },
+        )
+    })
+}
+
+/// Consume a transported decision artifact: rebuild the contract, validate the receipt,
+/// re-evaluate the decision and require the stored identity and every action value to match bit
+/// for bit. Returns the re-derived decision JSON and the carried response.
+#[pyfunction]
+#[pyo3(signature = (artifact, expected_identity=None))]
+fn transported_decision_consume(
+    artifact: &[u8],
+    expected_identity: Option<&str>,
+) -> PyResult<(Option<String>, Option<TransportedResponseHandle>, Option<String>)> {
+    crate::catch_ffi(|| {
+        Ok(match consume_transported_decision(artifact, expected_identity) {
+            Ok(consumed) => {
+                let receipt = serde_json::to_value(&consumed.decision.receipt)
+                    .map_err(|error| crate::serialization_err(error.to_string()))?;
+                (
+                    Some(
+                        json!({
+                            "decision": crate::composition_api::supported_json(
+                                &consumed.decision.decision
+                            ),
+                            "receipt": receipt,
+                            "assumptions": consumed.decision.assumptions,
+                            "inference": consumed.decision.inference,
+                            "decision_identity": consumed.decision.identity,
+                        })
+                        .to_string(),
+                    ),
+                    Some(TransportedResponseHandle { inner: consumed.response }),
+                    None,
+                )
+            }
+            Err(error) => (None, None, Some(decision_artifact_refusal(&error))),
+        })
+    })
+}
+
 fn entry_refusal_json(error: &TransportSensitivityEntryRefusal) -> String {
     RefusalJson::new(
         error.reason_code(),
@@ -383,6 +485,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(transported_response_declared_law, module)?)?;
     module.add_function(wrap_pyfunction!(transported_response_from_shifted_cohort, module)?)?;
     module.add_function(wrap_pyfunction!(transported_decision_evaluate, module)?)?;
+    module.add_function(wrap_pyfunction!(transported_decision_export, module)?)?;
+    module.add_function(wrap_pyfunction!(transported_decision_consume, module)?)?;
     module.add_function(wrap_pyfunction!(transport_sensitivity_build, module)?)?;
     Ok(())
 }

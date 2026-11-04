@@ -645,7 +645,7 @@ meaning = "A stored estimate does not replay."
 id = "admg_conditional_posterior.band_not_constructed"
 family = "admg_conditional_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "admg_conditional_posterior.empty_law"
@@ -915,7 +915,7 @@ meaning = "A claim's declared target fails the weighted overlap gate (effective 
 id = "batch_retarget_posterior.band_not_constructed"
 family = "batch_retarget_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "batch_retarget_posterior.empty_scores"
@@ -1053,7 +1053,7 @@ meaning = "Target covariate mass outside every source covariate box exceeds the 
 id = "binary_recovery_posterior.band_not_constructed"
 family = "binary_recovery_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "binary_recovery_posterior.empty_law"
@@ -1347,7 +1347,7 @@ meaning = "The provider returned after the wall-clock bound; the result is disca
 id = "categorical_posterior.band_not_constructed"
 family = "categorical_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval is requested."
+meaning = "A not_measured interval is requested."
 
 [[detail]]
 id = "categorical_posterior.external_power_prior"
@@ -1497,7 +1497,7 @@ meaning = "A consumer holds an expected identity and a stored or recomputed iden
 id = "chain_recovery_posterior.band_not_constructed"
 family = "chain_recovery_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "chain_recovery_posterior.empty_law"
@@ -1611,7 +1611,7 @@ meaning = "A dyadic declaration whose connected components leave the smallest fo
 id = "clustered_posterior.band_not_constructed"
 family = "clustered_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "clustered_posterior.empty_scores"
@@ -2643,7 +2643,7 @@ meaning = "The actual source, unique action, complete bounded policy or source-b
 id = "constancy_posterior.band_not_constructed"
 family = "constancy_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "constancy_posterior.empty_contrast"
@@ -3687,7 +3687,7 @@ meaning = "Refusal detail emitted by the source; no record declares its conditio
 id = "decision_posterior.band_not_constructed"
 family = "decision_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "decision_posterior.empty_law"
@@ -4401,7 +4401,7 @@ meaning = "A level or contrast is requested without declaring a pointwise level 
 id = "dose_grid.no_simultaneous_band_method"
 family = "dose_grid"
 codes = ["route_not_supported"]
-meaning = "A simultaneous band is requested; it is a separate claim whose calibration is unmeasured."
+meaning = "A simultaneous band is requested; it is a separate claim whose calibration is not_measured."
 
 [[detail]]
 id = "dose_grid.non_finite_result"
@@ -4467,7 +4467,7 @@ meaning = "An artifact carries an unknown version, feature marker, field spellin
 id = "dose_grid_posterior.band_not_constructed"
 family = "dose_grid_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval is requested."
+meaning = "A not_measured interval is requested."
 
 [[detail]]
 id = "dose_grid_posterior.external_power_prior"
@@ -5481,7 +5481,7 @@ meaning = "A provider claims native trust, or reuses a verification receipt afte
 id = "finite_action_posterior.band_not_constructed"
 family = "finite_action_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "finite_action_posterior.empty_law"
@@ -5517,7 +5517,7 @@ meaning = "A stored or retained identity (fit identity, snapshot digest or artif
 id = "functional_inverse_posterior.band_not_constructed"
 family = "functional_inverse_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "functional_inverse_posterior.empty_law"
@@ -5826,7 +5826,7 @@ codes = ["invalid_argument"]
 meaning = "The declared variable domain is invalid."
 
 [[detail]]
-id = "graph_selection_imputation.interval_unmeasured"
+id = "graph_selection_imputation.interval_not_measured"
 family = "graph_selection_imputation"
 codes = ["not_supported"]
 meaning = "A combined graph-selection imputation interval is requested without a supported source-bound route."
@@ -5919,7 +5919,7 @@ meaning = "The target law has more than 64 support points."
 id = "initial_state_posterior.band_not_constructed"
 family = "initial_state_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "initial_state_posterior.empty_law"
@@ -7065,7 +7065,7 @@ meaning = "A consumer holds an expected identity and a stored or recomputed iden
 id = "latent_class_posterior.band_not_constructed"
 family = "latent_class_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "latent_class_posterior.empty_design"
@@ -7095,7 +7095,7 @@ meaning = "The prior scale is not finite and positive."
 id = "learned_continuous_posterior.band_not_constructed"
 family = "learned_continuous_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "learned_continuous_posterior.empty_scores"
@@ -8391,7 +8391,7 @@ meaning = "A stored or retained identity field of a consumed artifact differs fr
 id = "mechanism_posterior.band_not_constructed"
 family = "mechanism_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "mechanism_posterior.empty_summary"
@@ -8469,7 +8469,7 @@ meaning = "A stored transport identity differs from its re-derivation."
 id = "mediation_posterior.band_not_constructed"
 family = "mediation_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "mediation_posterior.empty_design"
@@ -8775,7 +8775,7 @@ meaning = "The study's query is not an average effect on tabular data."
 id = "msm_posterior.band_not_constructed"
 family = "msm_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "msm_posterior.empty_law"
@@ -8865,7 +8865,7 @@ meaning = "A stratum mass is not positive and finite or the masses do not sum to
 id = "multi_source_posterior.band_not_constructed"
 family = "multi_source_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "multi_source_posterior.empty_law"
@@ -9177,7 +9177,7 @@ meaning = "The observer input is not callable; it is refused before executing an
 id = "native_claims.calibration_not_supported"
 family = "native_claims"
 codes = ["invalid_argument"]
-meaning = "The caller asserts a calibration status other than unmeasured or point_only; a status comes from a measured record, not from the caller."
+meaning = "The caller asserts a calibration status other than not_measured or point_only; a status comes from a measured record, not from the caller."
 
 [[detail]]
 id = "native_claims.contract_mismatch"
@@ -9975,7 +9975,7 @@ meaning = "An edge incident to the treatment is undirected in the discovered cla
 id = "penalized_posterior.band_not_constructed"
 family = "penalized_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "penalized_posterior.empty_scores"
@@ -11073,7 +11073,7 @@ meaning = "An attestation is offered where verification is required."
 id = "quadratic_posterior.band_not_constructed"
 family = "quadratic_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval is requested."
+meaning = "A not_measured interval is requested."
 
 [[detail]]
 id = "quadratic_posterior.external_power_prior"
@@ -12219,7 +12219,7 @@ meaning = "An artifact carries an unknown version or a feature this consumer doe
 id = "refresh_posterior.band_not_constructed"
 family = "refresh_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "refresh_posterior.empty_values"
@@ -12567,7 +12567,7 @@ meaning = "A covariance artifact carries an unknown version or a feature this co
 id = "scenario_covariance_posterior.band_not_constructed"
 family = "scenario_covariance_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "scenario_covariance_posterior.empty_matrix"
@@ -14133,7 +14133,7 @@ meaning = "A supplier claims native supported trust for an external signal."
 id = "smoothed_dose_posterior.band_not_constructed"
 family = "smoothed_dose_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "smoothed_dose_posterior.cancelled"
@@ -15879,7 +15879,7 @@ meaning = "A binary propensity estimator or the pairwise preparation meets a row
 id = "two_step_posterior.band_not_constructed"
 family = "two_step_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "two_step_posterior.empty_law"
@@ -16011,7 +16011,7 @@ meaning = "A contrast names a variable the model does not have."
 id = "vector_posterior.band_not_constructed"
 family = "vector_posterior"
 codes = ["route_not_supported"]
-meaning = "An unmeasured interval around the posterior mean is requested."
+meaning = "A not_measured interval around the posterior mean is requested."
 
 [[detail]]
 id = "vector_posterior.external_power_prior"

@@ -242,7 +242,7 @@ fn finite_action_inverse_posterior_uses_the_dirichlet_mean() {
 }
 
 #[test]
-fn finite_action_inverse_posterior_refuses_an_unmeasured_band() {
+fn finite_action_inverse_posterior_refuses_an_not_measured_band() {
     let message = refusal(
         dirichlet_posterior_mean(
             &[1.0, 3.0],

@@ -11,7 +11,7 @@ A search result makes one of two kinds of statement, and they are not interchang
 - **A numerical certificate** is a bound on the *fitted scalar objective*: with interval arithmetic and branch-and-bound, no feasible schedule has a fitted value higher than the bound. It says nothing about whether the fitted mechanism is right.
 - **A real-world optimum** would require the fitted response to describe what actually happens under each program. That is an identification and model question. A certified numerical optimum of a confounded or misspecified response is still a best schedule of that response, and the result stays model-conditional unless the design identifies the programs.
 
-Every report therefore carries `scope` (`model_conditional` unless the retained design identifies the worlds) and `selected_value_reliability`, which reads `unmeasured` until a procedure that measures the reliability of selecting from data has been run. Finite search certifies only the candidate set you supplied; continuous search without a certificate reports a best-found point and its stopping reason.
+Every report therefore carries `scope` (`model_conditional` unless the retained design identifies the worlds) and `selected_value_reliability`, which reads `not_measured` until a procedure that measures the reliability of selecting from data has been run. Finite search certifies only the candidate set you supplied; continuous search without a certificate reports a best-found point and its stopping reason.
 
 ## Rank a finite set of programs
 
@@ -72,7 +72,7 @@ report = certificate.report()
 assert report["stop"] == "Certified"
 assert report["gap"] <= 1e-3
 assert report["scope"] == "model_conditional"
-assert report["selected_value_reliability"] == "unmeasured"
+assert report["selected_value_reliability"] == "not_measured"
 ```
 
 Compiler-derived derivative signs and additive factorization permit reductions, and structurally proven concavity permits supporting-plane dual bounds. A resource stop (`SplitLimit`) keeps a valid partial bound and does not claim the requested gap; only a gap within your tolerance certifies optimality. The report lists the feasible controls, pruning counts and frontier, shape proofs and the fitted source identity.

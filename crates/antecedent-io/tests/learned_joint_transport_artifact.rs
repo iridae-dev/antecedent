@@ -1,7 +1,7 @@
 //! The learned joint transport artifact (model
 //! with its polynomial basis, priors with provenance, data identities, exact posterior fitted
 //! through `antecedent-learn`, aligned joint draws, diagnostics, graph/provider/query record,
-//! identification, calibration `unmeasured`) replays independently.
+//! identification, calibration `not_measured`) replays independently.
 //!
 //! The oracle is closed-form Gauss-Jordan algebra on the posterior precision and never calls
 //! the code under test. The public interval route is not supported; nothing here asserts coverage.
@@ -253,8 +253,8 @@ fn learned_joint_artifact_replays_value_for_value_against_the_exact_oracle() {
     assert_eq!(loaded.result.draws.values, fit.draws.values);
     assert_eq!(loaded.result.draws.n_draws, DRAWS);
     assert_eq!(loaded.result.draws.alignment, "joint");
-    assert_eq!(loaded.calibration, "unmeasured");
-    assert_eq!(loaded.result.diagnostics.calibration, "unmeasured");
+    assert_eq!(loaded.calibration, "not_measured");
+    assert_eq!(loaded.result.diagnostics.calibration, "not_measured");
     assert_eq!(loaded.result.identification_status, "identified");
     assert_eq!(loaded.result.identification_formula, "standardize");
     assert_ne!(loaded.premises_digest, loaded.data_digest);
@@ -497,7 +497,7 @@ fn learned_joint_artifact_refuses_an_unknown_version_foreign_feature_and_claim()
     let error = LearnedJointArtifactWire::decode(&calibrated.export().expect("export"))
         .expect_err("a declaration outside the supported semantics is refused")
         .to_string();
-    assert!(error.contains("unsupported semantics: calibration is unmeasured"), "{error}");
+    assert!(error.contains("unsupported semantics: calibration is not_measured"), "{error}");
     let mut marginals = wire;
     marginals.result.draws.alignment = "independent_marginals".into();
     let error = LearnedJointArtifactWire::decode(&marginals.export().expect("export"))

@@ -311,7 +311,7 @@ fn derivative_bands_cover_every_jacobian_cell_with_a_simultaneous_band() {
         for (cell, want) in truth.iter().enumerate() {
             let width = upper[cell] - lower[cell];
             assert!(width > 0.0 && width < 1.0, "bayes={bayes} cell {cell} width {width}");
-            // Recovery within a widened band: the band is unmeasured, not a coverage claim.
+            // Recovery within a widened band: the band is not_measured, not a coverage claim.
             let slack = width;
             assert!(
                 lower[cell] - slack < *want && *want < upper[cell] + slack,

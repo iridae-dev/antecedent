@@ -173,7 +173,7 @@ than 0.95 are refused.
 
 ## Derived intervals and confidence sets
 
-The derived statements are **derived and unmeasured**: they follow from the supplied law and candidates, and no coverage of the construction has been measured unless a record is published (see above). They keep the three uncertainties separate.
+The derived statements are **derived and not_measured**: they follow from the supplied law and candidates, and no coverage of the construction has been measured unless a record is published (see above). They keep the three uncertainties separate.
 
 - **Source distribution** is carried over unchanged. A probability that a
   candidate is best is a probability under the supplied law; no interval here
@@ -218,7 +218,7 @@ a joint law are refused.
 
 | Refused request | Reason code | Remedy |
 | --- | --- | --- |
-| Publishing a derived interval or set | `not_supported` | Report it labelled derived and unmeasured; a measured record at the coordinate is needed |
+| Publishing a derived interval or set | `not_supported` | Report it labelled derived and not_measured; a measured record at the coordinate is needed |
 | Normal approximation below the minimum effective size | refusal at `MIN_NORMAL_ESS` | Increase the Monte Carlo budget |
 | Cohort mean as a law | `joint_law_required` | Keep per-draw utilities from one joint law |
 | Rollout or off-policy mean with no retained draws | `diagnostic_not_available` | Retain per-draw utilities |

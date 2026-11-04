@@ -765,7 +765,7 @@ pub fn bridge_draws(
     }
     let mut metadata = source.metadata().clone();
     metadata.identity.quantities[column] = ScientificQuantityWire::from(&contract.target.quantity);
-    metadata.calibration = DistributionCalibration::Unmeasured;
+    metadata.calibration = DistributionCalibration::NotMeasured;
     metadata.trust = DistributionTrust::Unverified;
     let distribution = DistributionArtifact::new(metadata, table.clone()).map_err(|error| {
         draws_unusable(

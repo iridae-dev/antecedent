@@ -16,7 +16,7 @@ weighting identity carry propensity uncertainty alone. Asking for a Bayesian
 answer that effect (the Bayesian-bootstrap posterior of the cross-fitted ridge-orthogonal score,
 or the Bayesian g-computation posterior of an outcome model).
 
-The product is unsupported and its calibration is unmeasured. Its artifact embeds the design it was
+The product is unsupported and its calibration is not_measured. Its artifact embeds the design it was
 fitted on; :func:`load_artifact` refits from it and refuses any edited, swapped or resealed one.
 """
 
@@ -408,7 +408,7 @@ class NuisanceScoreProduct:
 
     @property
     def calibration_measured(self) -> bool:
-        """Always ``False``: repeated-sampling calibration is unmeasured."""
+        """Always ``False``: repeated-sampling calibration is not_measured."""
         return False
 
     def __getitem__(self, name: str) -> float:

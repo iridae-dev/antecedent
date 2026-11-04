@@ -80,7 +80,7 @@ A confidence interval is not a posterior, and an average effect is not the law o
 
 ## Downside risk under a belief you declare
 
-To ask how likely a loss is, you need a distribution over the effect, and you must say where it comes from. The example declares a normal belief with the estimate as its mean and the standard error as its standard deviation. This is what a flat prior and approximately normal sampling error imply. It is your judgment, stated in the example's code, and Antecedent labels the source as caller-built (`unverified`) with calibration unmeasured. If you fit the study under a Bayesian realization instead, its posterior takes the place of this declaration.
+To ask how likely a loss is, you need a distribution over the effect, and you must say where it comes from. The example declares a normal belief with the estimate as its mean and the standard error as its standard deviation. This is what a flat prior and approximately normal sampling error imply. It is your judgment, stated in the example's code, and Antecedent labels the source as caller-built (`unverified`) with calibration not_measured. If you fit the study under a Bayesian realization instead, its posterior takes the place of this declaration.
 
 Under that belief the contract can ask three things.
 

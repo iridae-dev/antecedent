@@ -917,7 +917,7 @@ fn standing_input_identities_are_typed_and_domain_separated() {
     let other = StageIdentity::of("record", &[b"b"]);
     let held = CalibrationInput::Held { record: a, coordinate: c }.identity();
     let all = [
-        CalibrationInput::Unmeasured.identity(),
+        CalibrationInput::NotMeasured.identity(),
         CalibrationInput::PointOnly.identity(),
         held,
         CalibrationInput::Held { record: other, coordinate: c }.identity(),

@@ -254,7 +254,7 @@ fingerprint = "8f5b7ddcd7b41f3f9d1ece7f1c1936f02c0a6180c9703148325831ab8ba436f5"
 recorded_at = "2026-11-04T22:36:56Z"
 
 [[record]]
-test = "antecedent-estimate::z_transport_cited_evidence::bayesian_cited_margin_publishes_an_unmeasured_posterior"
+test = "antecedent-estimate::z_transport_cited_evidence::bayesian_cited_margin_publishes_an_not_measured_posterior"
 roles = ["scientific", "software"]
 passed = true
 commit = "e6c46149fc0916c38acbdc6ba11a37e51089acd4"

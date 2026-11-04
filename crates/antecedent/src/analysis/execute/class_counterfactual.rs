@@ -1141,7 +1141,7 @@ impl super::Study {
                     .with_fields([
                         ("replicates_ok", ok.to_string()),
                         ("replicates_failed", failed.to_string()),
-                        ("calibration", "unmeasured".to_owned()),
+                        ("calibration", "not_measured".to_owned()),
                     ]),
                 );
             }

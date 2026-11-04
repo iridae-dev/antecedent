@@ -5,7 +5,7 @@ Frozen source: annotated `v2.2.0` at `00e020885770cc397f6d2c996fcea96e51cea5ea`.
 Release v2.2.0 is [published](https://github.com/iridae-dev/antecedent/releases/tag/v2.2.0).
 Its [CI run](https://github.com/iridae-dev/antecedent/actions/runs/37429694924) completed successfully on the tag commit, including required Rust, Python, dependency, wheel and domain jobs. The [publish-release run](https://github.com/iridae-dev/antecedent/actions/runs/37434348369) passed its tag/version/CI verification, wheel provenance, docs bundle and publication jobs on the same SHA. The workspace and Python package at the tag both declare `2.2.0`; the checked-in release notes describe the supported analytic learned-continuous interval and the failed percentile method separately. These records establish the tag; they do not separately attest a local invocation of `gate_release_candidate.sh`.
 
-At the tag, `generate_calibration_backlog.py --check` reports **40 unmeasured cells / 18 distinct coordinates**. `check_release_claims.py --final` and `check_limits_agreement.py --strict` pass against the v2.2.0 registry and notes.
+At the tag, `generate_calibration_backlog.py --check` reports **40 not_measured cells / 18 distinct coordinates**. `check_release_claims.py --final` and `check_limits_agreement.py --strict` pass against the v2.2.0 registry and notes.
 
 ## Immutable file snapshot
 

@@ -78,7 +78,7 @@ def test_nested_fisher_actual_public_candidate_has_independent_full_covariance_a
 ):
     result = produce(level)
     assert isinstance(result, NestedFisherCandidate)
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     assert result.inference == "interval_candidates_calibration_annotated"
     assert result.identification == "nonparametrically_identified"
     assert result.values == pytest.approx((0.3, 0.5, 0.2), abs=1e-12)

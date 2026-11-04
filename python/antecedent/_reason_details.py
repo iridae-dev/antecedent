@@ -1229,7 +1229,7 @@ class graph_selection_imputation:  # noqa: N801
     COLUMNS: Final = "graph_selection_imputation.columns"
     DATA: Final = "graph_selection_imputation.data"
     DOMAIN: Final = "graph_selection_imputation.domain"
-    INTERVAL_UNMEASURED: Final = "graph_selection_imputation.interval_unmeasured"
+    INTERVAL_NOT_MEASURED: Final = "graph_selection_imputation.interval_not_measured"
     MODEL: Final = "graph_selection_imputation.model"
     RESULT: Final = "graph_selection_imputation.result"
     VARIABLES: Final = "graph_selection_imputation.variables"
@@ -4373,7 +4373,7 @@ ALL: Final[tuple[str, ...]] = (
     "graph_selection_imputation.columns",
     "graph_selection_imputation.data",
     "graph_selection_imputation.domain",
-    "graph_selection_imputation.interval_unmeasured",
+    "graph_selection_imputation.interval_not_measured",
     "graph_selection_imputation.model",
     "graph_selection_imputation.result",
     "graph_selection_imputation.variables",
@@ -7086,7 +7086,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "graph_selection_imputation.columns": ("invalid_argument",),
     "graph_selection_imputation.data": ("invalid_argument",),
     "graph_selection_imputation.domain": ("invalid_argument",),
-    "graph_selection_imputation.interval_unmeasured": ("not_supported",),
+    "graph_selection_imputation.interval_not_measured": ("not_supported",),
     "graph_selection_imputation.model": ("invalid_argument",),
     "graph_selection_imputation.result": ("invalid_argument",),
     "graph_selection_imputation.variables": ("invalid_argument",),

@@ -404,12 +404,12 @@ impl PyExecutionFacts {
     fn peak_admitted_threads(&self) -> Option<u64> {
         self.inner.peak_admitted_threads()
     }
-    /// Bytes written to instrumented spill storage, or None if unmeasured.
+    /// Bytes written to instrumented spill storage, or None if not_measured.
     #[getter]
     fn observed_spill_bytes(&self) -> Option<u64> {
         self.inner.observed_spill_bytes()
     }
-    /// Owned numeric buffers allocated at instrumented constructors, or None if unmeasured.
+    /// Owned numeric buffers allocated at instrumented constructors, or None if not_measured.
     #[getter]
     fn observed_allocations(&self) -> Option<u64> {
         self.inner.observed_allocations()

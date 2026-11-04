@@ -78,7 +78,7 @@ support, alignment, distribution meaning or trust on converted artifacts.
 For an unweighted parameter or causal-functional posterior, an equal-tailed
 interval can be recomputed from loaded draws with the type-7 quantile
 rule. That interval describes posterior draw mass, not coverage.
-The converted artifact is marked `unverified` and `unmeasured`; the conversion
+The converted artifact is marked `unverified` and `not_measured`; the conversion
 cannot inherit a `CausalPosterior` provider or interval support. The `CausalPosterior` wire does not carry
 population, regime or snapshot identities, so the caller must establish those
 in the independently retained causal contract before conversion.

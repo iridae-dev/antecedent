@@ -171,11 +171,11 @@ fn decode_external_frame(bytes: &[u8]) -> PyResult<Option<DecodedCausalArtifact>
     if ExternalCallbackArtifact::recognizes(bytes) {
         let callback = ExternalCallbackArtifact::inspect(bytes).map_err(serialization_error)?;
         let payload = serde_json::json!({
-            "request_digest": antecedent::schema::to_hex(&callback.request_digest),
-            "provider_digest": antecedent::schema::to_hex(&callback.provider_digest),
+            "request_digest": antecedent::identity::to_hex(&callback.request_digest),
+            "provider_digest": antecedent::identity::to_hex(&callback.provider_digest),
             "policy": callback.policy,
             "identity": callback.identity,
-            "claim_blake3": antecedent::schema::blake3_hex(&callback.artifact),
+            "claim_blake3": antecedent::identity::blake3_hex(&callback.artifact),
         });
         return Ok(Some(DecodedCausalArtifact {
             artifact_id: callback.artifact_id(),
@@ -406,8 +406,11 @@ fn accept_analysis_result_contract(
                 .join(","),
         );
         if let Some(contract) = &consumed.contract {
-            out.insert("program".into(), antecedent::schema::to_hex(&contract.identities.program));
-            out.insert("target".into(), antecedent::schema::to_hex(&contract.identities.target));
+            out.insert(
+                "program".into(),
+                antecedent::identity::to_hex(&contract.identities.program),
+            );
+            out.insert("target".into(), antecedent::identity::to_hex(&contract.identities.target));
             out.insert("graph_class".into(), contract.graph_class.clone());
             out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));
             for (key, value) in executed_functional_labels(&contract.target.query) {
@@ -456,10 +459,11 @@ fn encode_external_estimate_claim_py<'py>(
         identification.map(parse_digest_hex).transpose().map_err(serialization_error)?;
     let data_snapshot = match data_snapshot {
         Some(hex) => parse_digest_hex(hex).map_err(serialization_error)?,
-        None => antecedent::schema::CanonicalWriter::digest_bytes(
+        None => *antecedent::identity::digest_bytes(
             "antecedent.external_estimate.data_snapshot.v1",
             snapshot_payload.unwrap_or(b""),
-        ),
+        )
+        .as_bytes(),
     };
     let bytes = encode_external_estimate_claim(&ExternalEstimateAttach {
         learner: learner.into(),
@@ -528,7 +532,7 @@ impl FittedEffectModel {
                 model,
                 bytes: bytes.to_vec(),
                 features,
-                parent_claim: antecedent::schema::to_hex(&claim.claim_id),
+                parent_claim: antecedent::identity::to_hex(&claim.claim_id),
             })
         })
     }

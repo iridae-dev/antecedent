@@ -2,7 +2,7 @@
 //! the container, a refitting consumer that checks the canonical output bit for bit, label
 //! handling, resealed-mutation refusals against a retained identity, the premise records, unknown
 //! versions, the computation, export and replay budgets of a fit with no row ceiling, and the
-//! unmeasured calibration coordinate.
+//! not_measured calibration coordinate.
 //!
 //! Oracle (identical to `antecedent-estimate/tests/latent_class_effects.rs`): class `P` (24
 //! rows, `a in {0, 1}`, `x in {-1, 0, 1}`, `y = a + 0.5 x + e`) and class `Q` (16 rows,
@@ -145,7 +145,7 @@ fn latent_artifact_summarizes_responsibilities_exactly() {
 }
 
 #[test]
-fn latent_artifact_records_trace_premises_and_unmeasured_calibration() {
+fn latent_artifact_records_trace_premises_and_not_measured_calibration() {
     let (artifact, _) = seal(5, 0);
     let meta = artifact.meta();
     let likelihood = &meta.likelihood;
@@ -160,9 +160,9 @@ fn latent_artifact_records_trace_premises_and_unmeasured_calibration() {
     assert_eq!(status("conditional_randomization_within_class"), Some("declared"));
     assert_eq!(status("gaussian_linear_class_outcome"), Some("declared"));
     assert_eq!(status("class_weight_and_separation"), Some("checked"));
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
     assert_eq!(meta.inference_claim, "point_with_bootstrap_se");
-    assert!(meta.caveat.contains("unmeasured"));
+    assert!(meta.caveat.contains("not_measured"));
 }
 
 #[test]
@@ -515,7 +515,7 @@ fn exercise_population(rows: usize, seed: u64, runtime_seconds: u64) {
     let standing = artifact.meta();
     let small = seal(11, 0).0;
     let reference = small.meta();
-    assert_eq!(standing.calibration, "unmeasured");
+    assert_eq!(standing.calibration, "not_measured");
     assert_eq!(
         (&standing.calibration, &standing.inference_claim, &standing.caveat, &standing.feature),
         (&reference.calibration, &reference.inference_claim, &reference.caveat, &reference.feature),

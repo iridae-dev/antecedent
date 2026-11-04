@@ -42,7 +42,7 @@ target), :class:`RegimeSurvivalContrast`, :class:`ObservationalExcursion` and
 result is ``result.temporal_design`` (:class:`TemporalDesignEstimate`), which a loaded
 artifact reads back equal.
 
-Every result is unsupported and its calibration is unmeasured. Frequentist intervals are
+Every result is unsupported and its calibration is not_measured. Frequentist intervals are
 cluster-robust (a whole-procedure bootstrap for the quantile functional and regime survival,
 which need ``bootstrap=``); Bayesian results are a Bayesian bootstrap over independent units
 (regime survival: the joint-likelihood parametric g-formula). See

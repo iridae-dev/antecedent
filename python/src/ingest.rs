@@ -529,7 +529,7 @@ pub(crate) fn load_float64_arrow_c_columns(
 ) -> PyResult<ArrowLoadInfo> {
     catch_ffi(|| {
         let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-        let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
+        let loaded = antecedent::data::arrow_c::load_columns(cdi_cols).map_err(py_err)?;
         let column_names: Vec<String> =
             loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
         Ok(ArrowLoadInfo {
@@ -553,7 +553,7 @@ pub(crate) fn tabular_from_arrow_c_objs(
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent::prelude::TabularData, u64)> {
     let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-    let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
+    let loaded = antecedent::data::arrow_c::load_columns(cdi_cols).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
 }
 
@@ -573,17 +573,17 @@ fn arrow_retention_bytes(columns: &[Bound<'_, PyAny>]) -> Option<u64> {
 /// (`TabularData::with_retention`), whatever its column types, so it is released only when the
 /// last holder of the table (or of a table derived from its columns) drops.
 /// `CausalResourceError` when the pool cannot fund it; a cancelled run is cancelled.
-pub(crate) fn admit_retention(bytes: u64) -> PyResult<Arc<antecedent::execution::AdmissionLease>> {
+pub(crate) fn admit_retention(bytes: u64) -> PyResult<Arc<antecedent::execution::Retention>> {
     let mut ctx = antecedent::prelude::ExecutionContext::production_default(1);
     crate::execution_api::apply(&mut ctx);
-    ctx.acquire_admission_bounded(0, bytes, std::time::Duration::ZERO).map(Arc::new).map_err(
-        |error| match error {
-            antecedent::execution::AdmissionError::Cancelled => {
+    antecedent::execution::retain_bounded(&ctx, bytes, std::time::Duration::ZERO)
+        .map(Arc::new)
+        .map_err(|error| match error {
+            antecedent::execution::AdmissionRefusal::Cancelled => {
                 py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
             }
             error => crate::CausalResourceError::new_err(error.to_string()),
-        },
-    )
+        })
 }
 
 /// Arrow CDI columns copied into library-owned storage.
@@ -612,7 +612,7 @@ pub(crate) fn owned_tabular_from_arrow_c_objs(
     let frozen = frame.freeze().map_err(py_err)?;
     let data = frozen.data().clone();
     Ok(match lease {
-        Some(lease) => data.with_retention(lease),
+        Some(lease) => antecedent::data::with_retention(data, &lease),
         None => data,
     })
 }
@@ -668,7 +668,7 @@ fn py_columns(
     let data = numeric_columns_to_batch(&names, &np)?.loaded()?.data;
     Ok((
         match lease {
-            Some(lease) => data.with_retention(lease),
+            Some(lease) => antecedent::data::with_retention(data, &lease),
             None => data,
         },
         None,

@@ -60,7 +60,7 @@ fn constancy_oracle_equal_effects_have_zero_statistic() {
     assert_eq!(result.test.degrees_of_freedom, 1);
     close(result.test.p_value, 1.0, "p");
     assert_eq!(result.conclusion, ConstancyConclusion::NotRejected);
-    assert_eq!(result.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(result.calibration, CalibrationStatus::NotMeasured);
     assert!(result.non_rejection_caveat.contains("does not prove"));
     assert!(!result.power_caveat.is_empty());
     close(result.pooled_effect.unwrap(), 1.0, "pooled");

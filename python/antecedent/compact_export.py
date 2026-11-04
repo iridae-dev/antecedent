@@ -21,7 +21,7 @@ refusal mask of query regions the model must refuse, all under one identity::
 Scope. The export evaluates a point prediction ``f(x) = b' phi(x)`` inside the declared support
 and outside the refusal mask, and nothing else. The only uncertainty it can report is the
 model-based standard error ``sqrt(phi' V phi)`` from the stored covariance. It is labelled
-``model_based_sqrt_phi_v_phi`` with calibration **unmeasured**: it is never an interval or a
+``model_based_sqrt_phi_v_phi`` with calibration **not_measured**: it is never an interval or a
 coverage claim, and it carries no extrapolation or misspecification uncertainty. A query outside
 the declared support, in a masked region, with a missing, unknown or mistyped quantity, or with a
 non-finite value is refused (:class:`CompactExportRefusal`, ``invalid_argument``); nothing is
@@ -282,7 +282,7 @@ class PointEstimate:
     """A point prediction with its model-based standard error.
 
     ``standard_error`` is ``sqrt(phi' V phi)`` from the stored covariance. It is **not** an
-    interval and not a coverage claim (``calibration == "calibration unmeasured"``), and it
+    interval and not a coverage claim (``calibration == "calibration not_measured"``), and it
     carries no extrapolation or misspecification uncertainty. ``export_identity`` names the
     export that produced the numbers.
     """

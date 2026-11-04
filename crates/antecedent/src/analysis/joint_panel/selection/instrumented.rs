@@ -452,7 +452,7 @@ impl InstrumentedSelectionResult {
         serde_json::json!({"identity":self.identity.to_hex(),"selected":p.observed.action,
             "training_value":p.observed.training_value,"heldout":p.observed.heldout,
             "partition":p.partition,"repetitions":p.repetitions,"mean_optimism":p.mean_optimism,
-            "changed_selection":p.changed_selection,"calibration":"unmeasured",
+            "changed_selection":p.changed_selection,"calibration":"not_measured",
             "uncertainty":"independent_heldout_full_joint_iv_delete_unit_contrast_covariance",
             "target":"homogeneous_structural_moment_model_population_increment"})
     }

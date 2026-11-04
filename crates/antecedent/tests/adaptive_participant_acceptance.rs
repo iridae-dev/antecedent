@@ -32,7 +32,7 @@ use antecedent::analysis::adaptive_inference::{
 use antecedent::analysis::adaptive_participant_procedure::ParticipantProcedure;
 use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_stats::adaptive_inference::{
-    AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, DERIVED_UNMEASURED, DecisionRules,
+    AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, DERIVED_NOT_MEASURED, DecisionRules,
     FutilityRule, HistoricalPrior, LookDecision, LookReading, ParticipantDeclaration,
     ParticipantHistory, ParticipantSimulationRequest, StopReason,
 };
@@ -146,7 +146,7 @@ fn procedure_runs_to_a_declared_stop(participants: u32, batch: u32, seed: u64) {
     let shape = Shape { participants, batch, arms: 4, responses: 3, lag: 1 };
     let p = procedure(&shape, rules(LOSS_THRESHOLD), uniform(4));
     let report = p.run(&truth(4), Some(CORRELATION), seed, &ctx()).expect("the procedure runs");
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     let run = &report.run;
     assert!(run.complete, "a run nobody cancelled reaches its stop");
     assert_eq!(run.looks_planned, shape.looks());
@@ -747,7 +747,7 @@ fn adaptive_confidence_sequence_reported_at_every_look() {
         assert_eq!(reading.look, look);
         let f = &reading.frequentist;
         assert_eq!(f.paradigm, "anytime_valid_frequentist");
-        assert_eq!(f.calibration, DERIVED_UNMEASURED);
+        assert_eq!(f.calibration, DERIVED_NOT_MEASURED);
         assert_eq!(f.sequence, "predictable_plug_in_empirical_bernstein");
         assert!((f.alpha - ALPHA).abs() < 1e-15);
         assert!((f.alpha_per_arm - per_arm).abs() < 1e-15);
@@ -933,7 +933,7 @@ fn adaptive_posterior_and_frequentist_claims_separate() {
         // Two claims, two fields, two paradigms.
         assert_eq!(reading.posterior.paradigm, "bayesian_posterior");
         assert_eq!(reading.frequentist.paradigm, "anytime_valid_frequentist");
-        assert_eq!(reading.frequentist.calibration, DERIVED_UNMEASURED);
+        assert_eq!(reading.frequentist.calibration, DERIVED_NOT_MEASURED);
         assert_eq!(reading.posterior.mean.len(), 4);
         assert_eq!(reading.frequentist.arms.len(), 4);
     }

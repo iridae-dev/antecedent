@@ -124,7 +124,7 @@ pub struct ArrivalPoint {
     pub mean: Option<f64>,
     /// Always `empirical_point_only`.
     pub inference: String,
-    /// Always unmeasured.
+    /// Always not_measured.
     pub calibration: String,
     /// Engine-observed successful numerical operations.
     pub work: ArrivalWork,
@@ -539,7 +539,7 @@ pub fn execute_with_limits(
         point,
         mean,
         inference: "empirical_point_only".into(),
-        calibration: "unmeasured".into(),
+        calibration: "not_measured".into(),
         work: counts.into(),
     })
 }

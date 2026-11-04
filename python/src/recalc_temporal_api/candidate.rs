@@ -9,7 +9,6 @@ use antecedent::analysis::recalc_temporal::{
 use antecedent::estimate::temporal_dependent_interval::DependentIntervalConfig;
 use antecedent::io::temporal_interval_artifact::{IntervalConfigWire, IntervalResultWire};
 use antecedent::prelude::ExecutionContext;
-use antecedent::schema::IdentityDomain;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
@@ -48,18 +47,15 @@ struct CandidateWire {
 }
 impl CandidateWire {
     fn seal(&self) -> PyResult<String> {
-        antecedent::io::identity::digest_wire(
-            IdentityDomain::Claim,
-            &(
-                self.version,
-                &self.required_features,
-                &self.calibration,
-                &self.claim,
-                &self.source,
-                &self.config,
-                &self.result,
-            ),
-        )
+        antecedent::identity::digest_claim_wire(&(
+            self.version,
+            &self.required_features,
+            &self.calibration,
+            &self.claim,
+            &self.source,
+            &self.config,
+            &self.result,
+        ))
         .map(|digest| digest.to_hex())
         .map_err(crate::py_msg)
     }
@@ -257,8 +253,8 @@ pub(super) fn produce(
         let mut wire = CandidateWire {
             version: 1,
             required_features: vec![FEATURE.into()],
-            calibration: "unmeasured".into(),
-            claim: "dependence_preserving_calibration_unmeasured".into(),
+            calibration: "not_measured".into(),
+            claim: "dependence_preserving_calibration_not_measured".into(),
             identity: expected(
                 &source,
                 String::new(),
@@ -309,8 +305,8 @@ fn consume_checked_temporal_interval_candidate(
             .map_err(|cause| crate::serialization_err(cause.to_string()))?;
         if wire.version != 1
             || wire.required_features != [FEATURE]
-            || wire.calibration != "unmeasured"
-            || wire.claim != "dependence_preserving_calibration_unmeasured"
+            || wire.calibration != "not_measured"
+            || wire.claim != "dependence_preserving_calibration_not_measured"
             || wire.identity != expected_identity
             || wire.identity.seal != wire.seal()?
         {

@@ -4,7 +4,7 @@
 //! diagnostic:
 //!
 //! * `mechanism_discrepancy_meta` (CBOR): version, feature marker, the frozen null, the
-//!   asymptotic-Wald claim, the **unmeasured** calibration coordinate, the level and power, the
+//!   asymptotic-Wald claim, the **not_measured** calibration coordinate, the level and power, the
 //!   compared-intercept declaration, the declared dependence, the population / selection
 //!   alignment text, each population's label, measurement contract (node, units, parents,
 //!   protocol id) and row count, the identity digests, the stored result and the standing
@@ -24,7 +24,7 @@
 //! What this does **not** say: non-rejection never certifies invariance
 //! (`non_rejection_certifies_invariance` is `false` and a stored `true` is refused), the
 //! diagnostic informs only a selection node on the compared node, Type I error and power are
-//! unmeasured (`calibration = "unmeasured"`), and no causal or interval support is granted.
+//! not_measured (`calibration = "not_measured"`), and no causal or interval support is granted.
 //! Unknown major versions refuse.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -45,7 +45,7 @@ pub const MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const MECHANISM_DISCREPANCY_ARTIFACT_FEATURE: &str = "mechanism_discrepancy_v1";
 /// Calibration coordinate of this test: Type I error and power were not measured.
-pub const MECHANISM_DISCREPANCY_CALIBRATION: &str = "unmeasured";
+pub const MECHANISM_DISCREPANCY_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -332,9 +332,9 @@ pub struct MechanismDiscrepancyMeta {
     pub feature: String,
     /// The frozen null.
     pub null: String,
-    /// Always the asymptotic-Wald claim with unmeasured calibration.
+    /// Always the asymptotic-Wald claim with not_measured calibration.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -356,7 +356,7 @@ pub struct MechanismDiscrepancyMeta {
     pub identity: MechanismDiscrepancyIdentity,
     /// The stored result.
     pub result: ResultWire,
-    /// Standing caveats: non-rejection is not invariance, error rates unmeasured.
+    /// Standing caveats: non-rejection is not invariance, error rates not_measured.
     pub caveats: Vec<String>,
 }
 
@@ -372,7 +372,7 @@ pub struct MechanismDiscrepancyReportWire {
     pub null: String,
     /// Inference claim.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -611,7 +611,7 @@ fn encode_parts_impl(
     crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "mechanism_discrepancy_wald_unmeasured_never_certifies_invariance",
+            note: "mechanism_discrepancy_wald_not_measured_never_certifies_invariance",
             max_bytes: MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),

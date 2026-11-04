@@ -100,7 +100,7 @@ def test_weights_and_coordinate_mask_survive_python_export() -> None:
     assert loaded.weights == (1.0, 3.0)
     assert loaded.supported == (True, False)
     assert loaded.trust == "unverified"
-    assert loaded.calibration == "unmeasured"
+    assert loaded.calibration == "not_measured"
 
 
 def test_independent_marginals_refuse_python_joint_operations() -> None:

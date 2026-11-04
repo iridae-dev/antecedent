@@ -13,7 +13,7 @@
 //! posterior of a level, derivative or contrast of a randomized-dose response curve under a
 //! declared polynomial coefficient prior) is sealed here as format version 1 together with
 //! every premise and the compact data table it was computed from. Every result is a posterior
-//! whose calibration is `unmeasured`: no coverage claim is made and the estimator is not
+//! whose calibration is `not_measured`: no coverage claim is made and the estimator is not
 //! supported.
 //!
 //! A consumer trusts nothing in the result. It re-validates the stored request, recomputes
@@ -647,7 +647,7 @@ impl PosteriorRowArtifactWire {
             || result.supported
         {
             return Err(unsupported(
-                "these rows publish unsupported posteriors with unmeasured calibration",
+                "these rows publish unsupported posteriors with not_measured calibration",
             ));
         }
         let width = result.coordinates.len();

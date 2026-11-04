@@ -37,7 +37,7 @@ sensitive to the selected mechanism the refusal retains the explicit two-model w
 The GENERAL class (nonparametric mechanisms, recanting witnesses, nonlinear additive noise)
 stays closed: :func:`antecedent.temporal_counterfactual.transported_path_specific` never
 evaluates. The claim here is a point under a fully specified structural fit; calibration is
-unmeasured.
+not_measured.
 """
 
 from __future__ import annotations
@@ -477,7 +477,7 @@ class TransportedPathSpecificEffect(ScientificResult):
     ``target_contrast`` is ``sum_z P_T(z) G(z)``; ``source_contrast`` is the same contrast
     under the source covariate law (what a source-only analysis would report);
     ``unit_contrasts`` holds ``G`` at every target support point in canonical point order.
-    ``inference_claim`` is ``"point_only"``: no interval, and calibration is unmeasured.
+    ``inference_claim`` is ``"point_only"``: no interval, and calibration is not_measured.
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -536,7 +536,7 @@ class TransportedPathSpecificEffect(ScientificResult):
             "Checked: " + ("; ".join(self.derivation.checked) or "nothing") + ".",
             "Declared, not checked: " + ("; ".join(self.derivation.declared) or "nothing") + ".",
             f"Claim: {self.derivation.claim}",
-            f"Inference: {self.inference_claim} (calibration unmeasured).",
+            f"Inference: {self.inference_claim} (calibration not_measured).",
         ]
         return "\n".join(lines)
 

@@ -374,7 +374,7 @@ impl NativeJointDesignResult {
     /// Calibration of this composed native law is not established by execution alone.
     #[must_use]
     pub const fn calibration(&self) -> &'static str {
-        "unmeasured"
+        "not_measured"
     }
     /// Exact retained statistical inference recipe, including resampling controls.
     #[must_use]

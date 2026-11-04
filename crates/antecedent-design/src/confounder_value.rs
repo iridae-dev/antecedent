@@ -1,6 +1,6 @@
 //! The value of measuring a named confounder, under a prior the caller declares.
 //!
-//! A sensitivity analysis reports how a decision depends on an unmeasured
+//! A sensitivity analysis reports how a decision depends on a unmeasured
 //! confounding coordinate: an invariant action, a switch at a tipping coordinate,
 //! or no robust action ([`SensitivityOutcome`]). Its assumption range is not a
 //! probability law, so by itself it cannot say what *learning* the coordinate is

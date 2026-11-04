@@ -182,7 +182,7 @@ fn draws_artifact(
             shape: [x.len(), 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
@@ -881,7 +881,7 @@ fn every_stage_is_point_only_and_no_interval_or_posterior_decision_ships() {
     let law = DecisionDeclaration { needs_law: true, ..world.declaration.clone() };
     let refused = decide(&law, world.excess_risk, "s", "p").unwrap_err();
     assert_refused(&refused, &fx["mutations"]["law"]);
-    assert_eq!(text(&fx["calibration"]), "unmeasured");
+    assert_eq!(text(&fx["calibration"]), "not_measured");
     assert_eq!(text(&fx["label"]), "point_only");
     // The result of the decision has no statistical guarantee fields set.
     assert!(world.result.evpi.is_none());

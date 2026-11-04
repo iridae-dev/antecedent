@@ -48,7 +48,7 @@ fn explanation_json(attempt: &facade::JointPanelExplanationAttempt) -> serde_jso
         "unique_attribution_refusal":
             attempt.require_unique_attribution().err().map(|error| error.to_string()),
         "scope": "model_conditional_coarser_contrast",
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
         "grants_unique_causal_attribution": false,
     })
 }
@@ -67,7 +67,7 @@ fn checked_json(checked: &facade::CheckedReferenceDecomposition) -> serde_json::
             "obligations": h.obligations.iter().map(|o| format!("{o:?}")).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
         "scope": "model_conditional_reference_decomposition",
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
         "grants_unique_causal_attribution": false,
     })
 }

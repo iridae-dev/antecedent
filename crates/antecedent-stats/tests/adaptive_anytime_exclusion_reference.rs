@@ -16,7 +16,8 @@
 mod support;
 
 use antecedent_stats::adaptive_inference::{
-    AdaptiveInferenceError, DERIVED_UNMEASURED, anytime_exclusion_probability, anytime_valid_report,
+    AdaptiveInferenceError, DERIVED_NOT_MEASURED, anytime_exclusion_probability,
+    anytime_valid_report,
 };
 use serde_json::Value;
 use support::{fracs, never, spec};
@@ -69,7 +70,7 @@ fn reported_bounds_match_the_reference_radius() {
             .collect();
         let alpha = level(&row["alpha"]);
         let report = anytime_valid_report(&spec, &counts, alpha, level(&row["tuning"])).unwrap();
-        assert_eq!(report.calibration, DERIVED_UNMEASURED);
+        assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
         assert!((report.alpha_per_cell - row["alpha_per_cell"].as_f64().unwrap()).abs() < 1e-15);
         for (cell, want) in report.bounds.iter().zip(row["cells"].as_array().unwrap()) {
             assert_eq!(u64::from(cell.units), want["units"].as_u64().unwrap());

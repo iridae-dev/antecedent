@@ -123,7 +123,7 @@ expected score over the forecast origins.
 
 ## Calibration diagnostics
 
-All diagnostics are labelled `diagnostic` with `calibration = unmeasured`: no
+All diagnostics are labelled `diagnostic` with `calibration = not_measured`: no
 coordinate of this route has measured calibration.
 
 - **PIT histogram.** For a discrete or ensemble law each case spreads its unit
@@ -221,7 +221,7 @@ order), the declarations and the results. A consumer re-scores every case
 identity. A resealed edit of a law, an outcome, a declaration or a stored value
 is refused, and a consumer that retained the identity independently refuses a
 consistently resealed assessment of other laws or observations. The artifact
-carries no interval and states `point_only`, `unmeasured` and
+carries no interval and states `point_only`, `not_measured` and
 `not_established` (causal validity).
 
 ## Relation to the scientific bridge

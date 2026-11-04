@@ -473,7 +473,7 @@ identifying_result = "E[Y(a0,a1)] - E[Y(b0,b1)] for two static binary regimes un
 assumptions = "Two binary decisions and no dropout. Logistic propensity at each decision and ordinary-least-squares nested outcome regressions. Positivity at the declared min_probability floor. The nested pseudo-outcome is the terminal regression's in-sample prediction on the training complement."
 sampling_units = "Independent subjects observed at both decisions and the terminal outcome"
 estimator = "sequential.crossfit_contrast.wald: Uncertainty for the observational cross-fit sequential contrast."
-diagnostics = "Positivity refusal on evaluation-row propensities. unmeasured_score_scale is the standard deviation of the cross-fit contrast scores over sqrt(n) and is not a calibrated interval."
+diagnostics = "Positivity refusal on evaluation-row propensities. not_measured_score_scale is the standard deviation of the cross-fit contrast scores over sqrt(n) and is not a calibrated interval."
 failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
@@ -1220,7 +1220,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "estimate.smoothed_dose",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 35 of 38 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 38 of 38 public items reviewed"
 identifying_result = "The bandwidth and the kernel are part of the estimand: psi_h is a different target for each h."
 assumptions = "A randomized continuous source dose A drawn from a known conditional density pi(a | x) on a declared bounded support, a continuous outcome Y, complete baseline covariates X equal to the certified standardizers, and an overlap-supported target population. For each declared grid dose a, one declared bandwidth h and the Epanechnikov kernel K, the estimand is"
 sampling_units = "Every fold model is exported as a provider-independent PortablePredictor and every prediction - the point's and a consumer's replay - is made through it, which makes the point replayable bit for bit from the stored models."
@@ -1326,7 +1326,7 @@ assumptions = "Randomized dose only. Observational adjustment is refused. Exact-
 sampling_units = "randomized continuous dose, independent rows; Gaussian local quadratic at a declared fixed bandwidth; level, derivative or contrast at named doses"
 estimator = "fixed-bandwidth local quadratic level, derivative, or contrast: One complete response-grid row, a named functional of a randomized-dose response curve with per-dose support."
 diagnostics = "DoseDesign::Observational is refused (dose_grid.graph_not_certified): this row does not adjust. A dose that is not Supported is *refused*, never extrapolated (dose_support_report labels without refusing)."
-failure_policy = "Adjusted claim: the bias-aware intervals and simultaneous band (estimate_dose_grid_bias_aware) are carried by the sealed artifact under dose_grid_bias_aware_band_v1 and by antecedent.dose_grid.dose_functional(curvature_bound=...); their calibration is unmeasured. It is a measured residual, not a bound on estimation error. A pointwise normal interval (heteroskedasticity-robust sandwich standard error from the linearized influences) at one dose or for one contrast, with calibration IntervalCalibration::Unmeasured: no coverage claim is made and the public route stays closed while calibration is unmeasured."
+failure_policy = "Adjusted claim: the bias-aware intervals and simultaneous band (estimate_dose_grid_bias_aware) are carried by the sealed artifact under dose_grid_bias_aware_band_v1 and by antecedent.dose_grid.dose_functional(curvature_bound=...); their calibration is not_measured. It is a measured residual, not a bound on estimation error. A pointwise normal interval (heteroskedasticity-robust sandwich standard error from the linearized influences) at one dose or for one contrast, with calibration IntervalCalibration::NotMeasured: no coverage claim is made and the public route stays closed while calibration is not_measured."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1412,22 +1412,21 @@ references = [
 id = "P07.quantile.static.frequentist"
 parent = "P07"
 gap = "none"
-route = "method.quantile.static.frequentist"
+route = "supported.AverageEffect.Dag"
 target = "QuantileEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-estimate/tests/quantile_inversion_reference.rs::direct_inversion_matches_exact_value_influence_and_refusals; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
-  "estimate.quantile",
-  "estimate.quantile.bayesian",
+  "estimate.randomized_quantile",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 6 of 6 public items reviewed"
+api_review = "internal: no public item of the module reaches the crate's public surface"
 identifying_result = "QuantileEffect"
-assumptions = "the identification premises of QuantileEffect on the recorded route; the module documents no further premise"
+assumptions = "randomized (unconfounded) binary treatment with an empty adjustment set; independent assignment across rows"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
-estimator = "interventional CDF inversion: Quantile treatment effects by inverting an estimated interventional CDF."
-diagnostics = "The path refuses when τ is outside the estimated CDF range or the span-normalized density is too small to invert."
-failure_policy = "Refused cases are exercised by flat_bracket_is_refused_at_every_unit, refuses_tail, rejects_malformed_cdf_inputs."
+estimator = "empirical arm distribution functions on the pooled-outcome threshold grid, inverted piecewise linearly at the declared level, with the delta-method influence interval of the treated-minus-control quantile."
+diagnostics = "The path refuses when τ is outside an arm's estimated CDF range, the span-normalized density is too small to invert, or an arm carries fewer than ten rows; the treatment must be unconfounded and coded 0/1."
+failure_policy = "Refused cases are exercised by unsupported_inputs_are_refused and a_confounded_treatment_a_mean_functional_and_a_continuous_treatment_are_refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1819,7 +1818,7 @@ assumptions = "Categorical treatments: ordered and unordered regimes, a declared
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
 estimator = "dummy-coded contrasts, Holm family, ordered monotonicity test: Categorical treatments: ordered and unordered regimes, a declared reference level, per-level and requested pairwise contrasts with the covariance of the dummy-coded regression, Holm multiplicity over the declared family, and a declared monotonicity test for ordered levels."
 diagnostics = "A level with none (categorical_treatment.absent_level) or too few (categorical_treatment.sparse_level) refuses with the level named; a level is never silently dropped or merged, and a row with an undeclared label refuses too."
-failure_policy = "The Type I error and power of the test are *unmeasured* (CalibrationStatus::Unmeasured); every p-value is asymptotic and no coverage claim is made."
+failure_policy = "The Type I error and power of the test are *not_measured* (CalibrationStatus::NotMeasured); every p-value is asymptotic and no coverage claim is made."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1837,7 +1836,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "estimate.categorical_treatment.bayesian",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 9 of 11 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 11 of 11 public items reviewed"
 identifying_result = "Every contrast w' b then has an exact Student-t posterior (crate::gaussian_linear_posterior)."
 assumptions = "The same coefficients as crate::categorical_treatment: in y = b0 + A g + sum_{L != ref} b_L 1[level = L] + e the effect of level L against the declared reference is b_L, and the effect of to relative to from is b_to - b_from. The prior is declared by the caller and has no default: a prior alone never identifies a level contrast, the rows do, and the prior only regularizes."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -2108,10 +2107,10 @@ admission = "not_supported"
 decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs::an_unmistakable_best_arm_is_selected_with_no_regret; consumer crates/antecedent-io/src/adaptive_inference_result_artifact.rs; uncertainty analytic (declared_and_corroborated)"
 provenance = [
   "adaptive_inference.decision_theoretic_stopping",
-  "adaptive_inference.unsupported_guarantees",
   "adaptive_inference.repeated_measures_weighting",
+  "adaptive_inference.unsupported_guarantees",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 20 of 25 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 25 of 25 public items reviewed"
 identifying_result = "AdaptiveExperimentContrast"
 assumptions = "Valid under any assignment rule that depends on the observed history only (the likelihood principle); the caller states that premise by routing here. expected_loss_stopping: a stop-or-continue decision from posterior expected loss."
 sampling_units = "Howard, Ramdas, McAuliffe and Sekhon 2021), reported as an uncalibrated sequence. group_sequential_boundaries and group_sequential_decision: Lan-DeMets alpha-spending boundaries for pre-specified looks with independent increments, and the first look at which the statistic crosses."
@@ -2567,7 +2566,7 @@ assumptions = "the identification premises of AugmentedPanelAtt on the recorded 
 sampling_units = "Supplied-nuisance augmented two-period panel ATT."
 estimator = "supplied-nuisance augmented two-period ATT: Supplied-nuisance augmented two-period panel ATT."
 diagnostics = "point fit only; module states no interval is calibrated; 2x2 graphless row does not cover it"
-failure_policy = "Adjusted claim: whole-cluster resample interval (supplied predictions held fixed) is unsupported with calibration unmeasured; 2x2 graphless row does not cover it."
+failure_policy = "Adjusted claim: whole-cluster resample interval (supplied predictions held fixed) is unsupported with calibration not_measured; 2x2 graphless row does not cover it."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -2934,7 +2933,7 @@ provenance = [
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "local_polynomial_ratio"
-assumptions = "The result is unsupported and its calibration is unmeasured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
+assumptions = "The result is unsupported and its calibration is not_measured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
 sampling_units = "regression discontinuity or kink in calendar time (running variable is time), sharp or fuzzy"
 estimator = "within-side moving-block bootstrap of the robust bias-corrected ratio, running variable is calendar time: The local ratio with its design layer: an MSE-optimal plug-in bandwidth paired with the robust bias-corrected interval, a calendar-time running variable with a within-side block bootstrap, and the density and covariate-balance diagnostics."
 diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request"
@@ -3038,7 +3037,7 @@ provenance = [
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "local_polynomial_ratio"
-assumptions = "The result is unsupported and its calibration is unmeasured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
+assumptions = "The result is unsupported and its calibration is not_measured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
 sampling_units = "regression discontinuity or kink in calendar time"
 estimator = "within-side block Bayesian bootstrap of the robust bias-corrected ratio, running variable is calendar time: The local ratio with its design layer: an MSE-optimal plug-in bandwidth paired with the robust bias-corrected interval, a calendar-time running variable with a within-side block bootstrap, and the density and covariate-balance diagnostics."
 diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
@@ -3191,7 +3190,7 @@ provenance = [
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "Local_polynomial_ratio"
-assumptions = "The result is unsupported and its calibration is unmeasured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
+assumptions = "The result is unsupported and its calibration is not_measured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
 sampling_units = "regression discontinuity or kink in calendar time (running variable is time), sharp or fuzzy"
 estimator = "within-side moving-block bootstrap of the robust bias-corrected fuzzy-jump or kink ratio, running variable is calendar time: The local ratio with its design layer: an MSE-optimal plug-in bandwidth paired with the robust bias-corrected interval, a calendar-time running variable with a within-side block bootstrap, and the density and covariate-balance diagnostics."
 diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
@@ -3295,7 +3294,7 @@ provenance = [
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "Local_polynomial_ratio"
-assumptions = "The result is unsupported and its calibration is unmeasured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
+assumptions = "The result is unsupported and its calibration is not_measured; the existing fixed-bandwidth support row covers only the declared-bandwidth independent-row route."
 sampling_units = "regression discontinuity or kink in calendar time"
 estimator = "within-side block Bayesian bootstrap of the robust bias-corrected ratio, running variable is calendar time: The local ratio with its design layer: an MSE-optimal plug-in bandwidth paired with the robust bias-corrected interval, a calendar-time running variable with a within-side block bootstrap, and the density and covariate-balance diagnostics."
 diagnostics = "refusals and diagnostics asserted by conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_request, test_sun_abraham_refuses_a_declared_informative_observation_process_naming_the_next_attempt, test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt"
@@ -3344,7 +3343,7 @@ provenance = [
   "stats.response.local_polynomial",
   "support.coordinate",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 22 of 23 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 23 of 23 public items reviewed"
 identifying_result = "InterventionResponse identified by response.backdoor"
 assumptions = "Least-squares nuisances require finite outcome moments; a heavy-tailed outcome is reported on the support diagnostic axis rather than by demoting overlap or matrix-cell support."
 sampling_units = "Complete-observation estimators for continuous causal responses."
@@ -3566,7 +3565,7 @@ assumptions = "ChangeAttribution.Dag is the same pattern. intrinsic_influence is
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "validation none and no native refuter; ATE refuters do not apply"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured. Sampling uncertainty is unavailable in frequentist mode. cheap/full, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=AnomalyAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
+failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured. Sampling uncertainty is unavailable in frequentist mode. cheap/full, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=AnomalyAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3591,7 +3590,7 @@ assumptions = "the identification premises of AnomalyAttribution on the recorded
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit.bayesian: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "no attribution interval; validation none"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
+failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3616,7 +3615,7 @@ assumptions = "Closed Admg/Cpdag/Pag/TemporalAdmg: engine has no lagged latent s
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "temporal attribution has no native refuter and no interval"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured. Identification is parametric (gcm.parametric); estimator gcm.fit. cheap/full, accepted, graph-posterior, and temporal class graphs remain refused. A declared independent-subject or clustered design refuses the block resample."
+failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured. Identification is parametric (gcm.parametric); estimator gcm.fit. cheap/full, accepted, graph-posterior, and temporal class graphs remain refused. A declared independent-subject or clustered design refuses the block resample."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3641,7 +3640,7 @@ assumptions = "the identification premises of AnomalyAttribution on the recorded
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit.bayesian: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "no temporal Bayesian attribution interval"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
+failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3666,7 +3665,7 @@ assumptions = "Manifest states this refusal on derivative and attribution routes
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
 estimator = "target-native refuters (placebo, random common cause, subset and bootstrap stability, negative controls, mediation and derivative diagnostics) with a joint statistic: Target-native refutation: refuters that test the quantity a claim actually reports."
 diagnostics = "This module states what each target family is refuted by and runs those refuters on the whole target vector: RefutationTarget names the target a check speaks to: its family, its quadrant (static or temporal, frequentist or Bayesian), its dimension and the identity of the compiled program or query that defines it. Every report is a diagnostic."
-failure_policy = "Adjusted claim: executing and unsupported: target-native refuters run on the whole target vector for scalar, conditional, derivative, mediation, world-valued, joint and attribution targets, with error rates and pass thresholds unmeasured. The finite-difference and local-linearity checks cover a point derivative, an average derivative under the observed law (seven quantile nodes; the Gaussian-score Riesz estimator admits no other weighting, and uniform-interval nodes are placed wherever an estimator admits that law), and a directional derivative or Jacobian through the study's own interventional means along each direction (at most six coordinates). A random common cause is declared in every atom of a DAG or lagged-template graph posterior, and of a class posterior under the declared assumption WithinClassDistribution::UniformOverMembers (each class's DAG members enumerated up to 512, an even share each, the common cause added to each, the shares collapsed to the classes of the augmented graphs; the assumption is written into the posterior's diagnostics and without it the class posterior is refused). Typed refusals that name their next attempt: the closed-form sequential-ignorability range needs independent rows and a declared mediator; caller-weighted average derivatives and non-identity scales refuse (next attempt: check chosen points); a row bootstrap refuses a masked, weighted, non-float or incomplete table (subset stability runs; next attempt: resolve missing values first); a class with more than 512 members, a PAG posterior and a lagged class posterior refuse the common cause (next attempt: sample members of a larger class, or refute one accepted structure); the graph negative controls need a variable the graph separates, else one is declared. Its pass threshold has no measured error rate."
+failure_policy = "Adjusted claim: executing and unsupported: target-native refuters run on the whole target vector for scalar, conditional, derivative, mediation, world-valued, joint and attribution targets, with error rates and pass thresholds not_measured. The finite-difference and local-linearity checks cover a point derivative, an average derivative under the observed law (seven quantile nodes; the Gaussian-score Riesz estimator admits no other weighting, and uniform-interval nodes are placed wherever an estimator admits that law), and a directional derivative or Jacobian through the study's own interventional means along each direction (at most six coordinates). A random common cause is declared in every atom of a DAG or lagged-template graph posterior, and of a class posterior under the declared assumption WithinClassDistribution::UniformOverMembers (each class's DAG members enumerated up to 512, an even share each, the common cause added to each, the shares collapsed to the classes of the augmented graphs; the assumption is written into the posterior's diagnostics and without it the class posterior is refused). Typed refusals that name their next attempt: the closed-form sequential-ignorability range needs independent rows and a declared mediator; caller-weighted average derivatives and non-identity scales refuse (next attempt: check chosen points); a row bootstrap refuses a masked, weighted, non-float or incomplete table (subset stability runs; next attempt: resolve missing values first); a class with more than 512 members, a PAG posterior and a lagged class posterior refuse the common cause (next attempt: sample members of a larger class, or refute one accepted structure); the graph negative controls need a variable the graph separates, else one is declared. Its pass threshold has no measured error rate."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3715,7 +3714,7 @@ assumptions = "the identification premises of TargetRefutation on the recorded r
 sampling_units = "The check passes when the largest shift is at most the declared tolerance. posterior_predictive_target_check compares the target computed on the observed data with the target recomputed on data replicated from each posterior draw."
 estimator = "target-native prior sensitivity and posterior-predictive checks on the whole target vector: Bayesian target-native checks: prior sensitivity and posterior-predictive checks on the target quantity itself. prior_sensitivity_target_check re-reads the posterior of the whole target vector under alternative priors."
 diagnostics = "Bayesian target-native checks: prior sensitivity and posterior-predictive checks on the target quantity itself. prior_sensitivity_target_check re-reads the posterior of the whole target vector under alternative priors."
-failure_policy = "Adjusted claim: executing and unsupported: prior sensitivity refits the compiled study under alternative isotropic prior scales and the posterior-predictive check replicates the target from a reference linear-Gaussian outcome model; pass thresholds are unmeasured. Typed refusals that name their next attempt: a study with an explicit coefficient prior or prior artifact has no single scale to vary (next attempt: prepare the study under each alternative prior set and pass the target draws to prior_sensitivity_target_check); the posterior-predictive check refuses a masked or weighted table and a route that retains no target draws."
+failure_policy = "Adjusted claim: executing and unsupported: prior sensitivity refits the compiled study under alternative isotropic prior scales and the posterior-predictive check replicates the target from a reference linear-Gaussian outcome model; pass thresholds are not_measured. Typed refusals that name their next attempt: a study with an explicit coefficient prior or prior artifact has no single scale to vary (next attempt: prepare the study under each alternative prior set and pass the target draws to prior_sensitivity_target_check); the posterior-predictive check refuses a masked or weighted table and a route that retains no target draws."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3744,7 +3743,7 @@ assumptions = "X03 mechanism-change explanations are a later-release candidate, 
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
 estimator = "target-native refuters with circular-shift placebos, contiguous-window stability and pre-trend and anticipation entries: Execution of a TargetRefutationPlan against a route's whole-procedure refit."
 diagnostics = "The engine owns the replicate loop, the random streams, admission of the replicate buffer, cancellation and the joint statistic, so every route's refuters share one definition of what each check means."
-failure_policy = "Adjusted claim: executing and unsupported: placebo timing, contiguous-window subset stability, pre-trend and anticipation entries run through the compiled program on series and panels, with error rates and pass thresholds unmeasured; a route that reads no row weights takes the bootstrap, pre-trend, anticipation and lagged-placebo refuters as explicit gathered windows and circular-block series (TargetRefitOptions::gathered_resamples forces that construction). The closed-form sequential-ignorability range refuses series (next attempt: the temporal mediation suite's placebo-mediator and contiguous-window checks); a gathered window joins blocks at seams that the weighted construction does not."
+failure_policy = "Adjusted claim: executing and unsupported: placebo timing, contiguous-window subset stability, pre-trend and anticipation entries run through the compiled program on series and panels, with error rates and pass thresholds not_measured; a route that reads no row weights takes the bootstrap, pre-trend, anticipation and lagged-placebo refuters as explicit gathered windows and circular-block series (TargetRefitOptions::gathered_resamples forces that construction). The closed-form sequential-ignorability range refuses series (next attempt: the temporal mediation suite's placebo-mediator and contiguous-window checks); a gathered window joins blocks at seams that the weighted construction does not."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3794,7 +3793,7 @@ assumptions = "the identification premises of TargetRefutation on the recorded r
 sampling_units = "The check passes when the largest shift is at most the declared tolerance. posterior_predictive_target_check compares the target computed on the observed data with the target recomputed on data replicated from each posterior draw."
 estimator = "target-native prior sensitivity and posterior-predictive checks in the temporal quadrant: Bayesian target-native checks: prior sensitivity and posterior-predictive checks on the target quantity itself. prior_sensitivity_target_check re-reads the posterior of the whole target vector under alternative priors."
 diagnostics = "Bayesian target-native checks: prior sensitivity and posterior-predictive checks on the target quantity itself. prior_sensitivity_target_check re-reads the posterior of the whole target vector under alternative priors."
-failure_policy = "Adjusted claim: executing and unsupported: prior sensitivity refits the temporal study under alternative prior scales, and the posterior-predictive check replicates a series or the pooled units of a panel under a reference outcome model that carries the graph's lags (the outcome on the treatment, the adjustment set and its own lagged values, simulated recursively); pass thresholds are unmeasured. Typed refusals that name their next attempt: an explicit coefficient prior has no single scale to vary (next attempt: pass the draws of each alternative prior to prior_sensitivity_target_check); the lagged reference is a linear autoregression, so a route whose outcome model is not linear in its own lags is checked against that reference, not its own."
+failure_policy = "Adjusted claim: executing and unsupported: prior sensitivity refits the temporal study under alternative prior scales, and the posterior-predictive check replicates a series or the pooled units of a panel under a reference outcome model that carries the graph's lags (the outcome on the treatment, the adjustment set and its own lagged values, simulated recursively); pass thresholds are not_measured. Typed refusals that name their next attempt: an explicit coefficient prior has no single scale to vary (next attempt: pass the draws of each alternative prior to prior_sensitivity_target_check); the lagged reference is a linear autoregression, so a route whose outcome model is not linear in its own lags is checked against that reference, not its own."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4818,7 +4817,7 @@ identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], 
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
 estimator = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)]: Bind existing joint-cell reductions to their checked scientific target."
-diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are not_measured"
 failure_policy = "Set/Shift/Bernoulli/Gaussian/Categorical interventions are supported, Soft and Sequence interventions require a structural/temporal model and are refused. Prepared handles refuse multi-coordinate or non-complete-observation queries before identification."
 references = [
   "Product outcome",
@@ -4844,7 +4843,7 @@ identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], 
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
 sampling_units = "Each query draws its own crossfit_fold_plan from that shared seed."
 estimator = "Bayesian bootstrap of the frozen cross-fit cell scores (shared Dirichlet row weights, modular on the nuisances); Gaussian-linear aligned coefficient draws for contrasts the additive mean can move: Batch multi-query: one table, N average-effect estimates."
-diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are not_measured"
 failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Product outcome",
@@ -4869,8 +4868,8 @@ api_review = "parity/public_api/antecedent.txt: 12 of 12 public items reviewed"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
-estimator = "scheduled-program contrast evaluated on every shared sandwich parameter draw of the joint panel (cross-world covariance carried by the draws); calibration unmeasured: Quantity-bound downstream ports from the retained compiled program."
-diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+estimator = "scheduled-program contrast evaluated on every shared sandwich parameter draw of the joint panel (cross-world covariance carried by the draws); calibration not_measured: Quantity-bound downstream ports from the retained compiled program."
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are not_measured"
 failure_policy = "Sequence overlays remain refused."
 references = [
   "Product outcome",
@@ -4896,7 +4895,7 @@ identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], 
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
 estimator = "scheduled-program contrast evaluated on every aligned posterior parameter draw of the joint panel; posterior interval needs converged chains: Quantity-bound downstream ports from the retained compiled program."
-diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are not_measured"
 failure_policy = "Sequence overlays remain refused."
 references = [
   "Product outcome",
@@ -4922,7 +4921,7 @@ identifying_result = "L=0 saturation and interaction response; joint Delta_AB"
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=0 fixes carryover and rho=0; repeated group rows retain random-intercept dependence."
 sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
 estimator = "integrated random-intercept Gaussian likelihood, existing limited-memory optimizer, finite-difference curvature and rectangular group-cluster sandwich factor"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration not_measured."
 failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration support."
 references = [
   "Product outcome",
@@ -4948,7 +4947,7 @@ identifying_result = "L=0 saturation and interaction response; joint Delta_AB"
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=0 fixes carryover and rho=0; repeated group rows retain random-intercept dependence."
 sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
 estimator = "proper-prior marginal hierarchical Gaussian likelihood, existing Metropolis, transformed-coordinate Jacobians, conditional group-effect draws and genuine chain diagnostics"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration not_measured."
 failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration support."
 references = [
   "Product outcome",
@@ -4974,7 +4973,7 @@ identifying_result = "Finite-lag group-time response; joint Delta_AB"
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=2 simplex carryover and stationary within-group AR(1)."
 sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
 estimator = "integrated random-intercept Gaussian likelihood, existing limited-memory optimizer, finite-difference curvature and rectangular group-cluster sandwich factor"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration not_measured."
 failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration support."
 references = [
   "Product outcome",
@@ -5000,7 +4999,7 @@ identifying_result = "Finite-lag group-time response; joint Delta_AB"
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=2 simplex carryover and stationary within-group AR(1)."
 sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
 estimator = "proper-prior marginal hierarchical Gaussian likelihood, existing Metropolis, transformed-coordinate Jacobians, conditional group-effect draws and genuine chain diagnostics"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration not_measured."
 failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration support."
 references = [
   "Product outcome",
@@ -5026,8 +5025,8 @@ identifying_result = "L=0 Hill, group-specific saturation and spatial-residual r
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=0 fixes carryover and rho=0; geometric adstock is not defined without carryover."
 sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
 estimator = "Selectable-family integrated Gaussian AR(1) likelihood (Woodbury marginal under spatial dependence), existing limited-memory optimizer, finite-difference curvature, group-cluster sandwich factor or the model-based inverse information under spatial dependence"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
-failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration not_measured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is not_measured."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -5052,8 +5051,8 @@ identifying_result = "L=0 Hill, group-specific saturation and spatial-residual r
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=0 fixes carryover and rho=0. Proper priors: Normal on log Hill shape, partial pooling of class log half-saturations toward the first class, log-Normal spatial range about the median distance."
 sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
 estimator = "Selectable-family marginal likelihood with proper priors on the added coordinates and their logit and log Jacobians, existing Metropolis, conditional group-effect draws (joint under spatial dependence) and genuine chain diagnostics"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
-failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration not_measured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is not_measured."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -5078,8 +5077,8 @@ identifying_result = "Finite-lag group-time response under the selected family; 
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=2 stationary within-group AR(1). Hill shape, geometric decay and class half-saturation may vary through the same prespecified piecewise or smooth path as any other mean coordinate."
 sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
 estimator = "Complete prespecified piecewise/smooth selection over the family coordinates with full-selection parametric bootstrap, retaining failed slots"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
-failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration not_measured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is not_measured."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -5104,8 +5103,8 @@ identifying_result = "Finite-lag group-time response under the selected family; 
 assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions read lag-weighted channels saturated by the declared family; seasonal dummies, one additive observed confounder and Gaussian group intercepts. Family choices: truncated geometric adstock (one decay per channel over the observable window) or the free three-period simplex; Michaelis-Menten or free positive Hill shape per channel; one half-saturation or one per declared group class (partially pooled under a prior); independent group intercepts or intercepts with spatial correlation tau^2 K(range) from a declared group distance matrix, aligned by group identity. L=2 stationary within-group AR(1). A fixed proper prior spans the no-change, piecewise and smooth models jointly with the family coordinates."
 sampling_units = "independent observed groups, or groups coupled only through the declared spatial intercept correlation; outcomes within group retain the stationary AR(1) covariance (none for L=0)"
 estimator = "Proper fixed prior across the no-change/piecewise/smooth union jointly with the family coordinates, Metropolis model/path realizations and conditional group effects"
-diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration unmeasured."
-failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is unmeasured."
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter, family-coordinate and group-effect realization across worlds; failed slots preserved; analytic score of every family coordinate checked against the dense Gaussian likelihood; calibration not_measured."
+failure_policy = "Adjusted claim: the family changes the fitted mechanism only. Whole-program randomized assignment, not the family or its fit, identifies the worlds; unsupported designs stay model-conditional and a finite fit never grants causal support. Geometric adstock without carryover, non-contiguous classes, misaligned or asymmetric spatial distances and non-integer Hill shapes in a compiled scalar expression are typed refusals. Calibration is not_measured."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -5180,8 +5179,8 @@ identifying_result = "Time-varying structural effectiveness"
 assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
 sampling_units = "Independent observed groups with the same finite-history covariance law as X02."
 estimator = "Complete prespecified piecewise/smooth selection with full-selection parametric bootstrap, retaining failed slots.: Explicit model-conditional piecewise/smooth attempts on the same panel likelihood."
-diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain unmeasured."
-failure_policy = "Adjusted claim: Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead.."
+diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain not_measured."
+failure_policy = "Adjusted claim: Whole-procedure calibration of the selection-and-decomposition law is not_measured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead.."
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
@@ -5206,8 +5205,8 @@ identifying_result = "Time-varying structural effectiveness"
 assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
 sampling_units = "Independent observed groups with the same finite-history covariance law as X02."
 estimator = "Proper fixed prior across the declared no-change/piecewise/smooth model union with Metropolis model/path realizations, unused-dimension priors and smoothing normalizers.: Explicit model-conditional piecewise/smooth attempts on the same panel likelihood."
-diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain unmeasured."
-failure_policy = "Adjusted claim: Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead.."
+diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain not_measured."
+failure_policy = "Adjusted claim: Whole-procedure calibration of the selection-and-decomposition law is not_measured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead.."
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
@@ -5233,7 +5232,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5259,8 +5258,8 @@ identifying_result = "Continuous intervention program; global optimum only with 
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised.: Bounded derivative-free search over actual compiled programs."
-diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability not_measured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5287,7 +5286,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5313,8 +5312,8 @@ identifying_result = "Continuous intervention program; global optimum only with 
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised.: Bounded derivative-free search over actual compiled programs."
-diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability not_measured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5341,7 +5340,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5367,8 +5366,8 @@ identifying_result = "Continuous intervention program; global optimum only with 
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised.: Bounded derivative-free search over actual compiled programs."
-diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability not_measured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5395,7 +5394,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5421,8 +5420,8 @@ identifying_result = "Continuous intervention program; global optimum only with 
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised.: Bounded derivative-free search over actual compiled programs."
-diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains unmeasured.."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability not_measured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5448,7 +5447,7 @@ identifying_result = "Original X07 scientific functional and source premises are
 assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
 sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
 estimator = "Actual frequentist native estimates retain their sampling law and typed target; attempting to use sampling uncertainty as a Bayesian prior produces a scoped refusal before downstream Bayesian updating. Proper native Bayesian counterparts provide the positive modular chain under the same original identification result."
-diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain not_measured."
 failure_policy = "Adjusted claim: comprehensive closure is a longitudinal estimand translation, not a static trial."
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
@@ -5475,7 +5474,7 @@ identifying_result = "Original X07 scientific functional and source premises are
 assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
 sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
 estimator = "Actual frequentist native estimates retain their sampling law and typed target; attempting to use sampling uncertainty as a Bayesian prior produces a scoped refusal before downstream Bayesian updating. Proper native Bayesian counterparts provide the positive modular chain under the same original identification result."
-diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain not_measured."
 failure_policy = "Adjusted claim: Theory boundary: the target does not exist for a sampling distribution. Updating a prior by an experiment is a Bayesian operation, and a bootstrap sampling law is not a prior, so the modular experiment update refuses it at both entry points with a typed reason. The executed next design is the Bayesian selection posterior on the same temporal frame (X05.temporal.bayesian).."
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
@@ -5503,7 +5502,7 @@ identifying_result = "Original X07 scientific functional and source premises are
 assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
 sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
 estimator = "JointLawExperimentResult and NativeJointExperimentResult condition genuine retained native or full-panel posterior draws using FrozenJointImportance, explicit paired affine mapping and an independent known-variance Gaussian experimental likelihood; constrained utility enumeration and weighted next-study integration consume the resulting same joint law."
-diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain not_measured."
 failure_policy = "Adjusted claim: comprehensive closure is a longitudinal estimand translation, not a static trial."
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
@@ -5530,8 +5529,8 @@ identifying_result = "Original X07 scientific functional and source premises are
 assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
 sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
 estimator = "FrozenJointImportance modular update of actual shared panel posterior realizations under a known-variance Gaussian experiment-mean likelihood and paired finite affine bridge uncertainty; weighted existing preposterior ranking for additional samples of the same mapped estimand.: Conditional experiment updates over one compiled panel posterior and existing decision ports."
-diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain unmeasured."
-failure_policy = "Adjusted claim: Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed; the delivered chain is unmeasured as a whole procedure.."
+diagnostics = "The generated complete catalogue crosses statistical modes, deterministic/dependent mappings, five translations and three decision cases. Executed source-bound acceptance records retain independent original-target, posterior-weight/mean, constrained utility and nested EVSI reference checks, explicit quadrature bounds and Monte Carlo error, fresh-process original-data replay, evidence overlap/withdrawal and invalid premise counterexamples. Q08/E14 stable-candidate calibration procedures are registered and remain not_measured."
+failure_policy = "Adjusted claim: Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed; the delivered chain is not_measured as a whole procedure.."
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
   "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
@@ -5611,7 +5610,7 @@ assumptions = "Generator truth, seeds, and reference values stay independent of 
 sampling_units = "groups in a synthetic panel"
 estimator = "Integrated Gaussian group-intercept/AR1 likelihood; local optimizer and checked curvature; rectangular group-cluster sampling approximation plus conditional group effects, with failed slots retained.: Checked execution of the reviewed nonlinear multi-channel panel mechanism."
 diagnostics = "hold out joint regimes as well as rows; an unsupported design must withhold a causal claim even if a simulation runs"
-failure_policy = "Adjusted claim: Q09/E14 whole-procedure calibration and uncertainty validation remain unmeasured; no nominal interval support or arbitrary observational causal identification.."
+failure_policy = "Adjusted claim: Q09/E14 whole-procedure calibration and uncertainty validation remain not_measured; no nominal interval support or arbitrary observational causal identification.."
 references = [
   "Release scope and gates",
   "X06 — Build the independent reference workflow first",
@@ -5642,7 +5641,7 @@ assumptions = "Generator truth, seeds, and reference values stay independent of 
 sampling_units = "groups in a synthetic panel"
 estimator = "Actual proper-prior multi-chain Gaussian hierarchical posterior with shared whole-world/group-effect realizations; Rhat, ESS and movement gates precede complete law consumption.: Checked execution of the reviewed nonlinear multi-channel panel mechanism."
 diagnostics = "whole-procedure calibration; aligned joint-world uncertainty and failed-slot diagnostics remain explicit"
-failure_policy = "Adjusted claim: Q09/E14 whole-procedure calibration and posterior uncertainty validation remain unmeasured.."
+failure_policy = "Adjusted claim: Q09/E14 whole-procedure calibration and posterior uncertainty validation remain not_measured.."
 references = [
   "Release scope and gates",
   "X06 — Build the independent reference workflow first",

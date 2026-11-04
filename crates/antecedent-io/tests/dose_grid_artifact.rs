@@ -4,7 +4,7 @@
 //! `m'(d) = 0.5 + 0.5 d` and `m(3) - m(1) = 3`; a Gaussian-kernel local quadratic
 //! reproduces a quadratic exactly on noise-free data. An alternating deterministic
 //! perturbation gives non-degenerate standard errors. No coverage is claimed anywhere:
-//! every interval is `unmeasured`. A fresh consumer must reproduce the stored result from
+//! every interval is `not_measured`. A fresh consumer must reproduce the stored result from
 //! the embedded table alone and refuse every change, including one resealed with
 //! recomputed digests.
 #![allow(
@@ -129,7 +129,7 @@ fn artifact_derivative_and_contrast_replay_to_closed_form() {
 }
 
 #[test]
-fn artifact_records_support_unmeasured_calibration_and_no_band() {
+fn artifact_records_support_not_measured_calibration_and_no_band() {
     let wire = seal("level", 0.1);
     assert_eq!(wire.result.support.len(), GRID.len());
     for (row, dose) in wire.result.support.iter().zip(GRID) {
@@ -351,7 +351,7 @@ fn quadratic_mean_scope_replays_truth_across_fixed_bandwidths() {
             assert_eq!(consumed, wire);
             assert!(consumed.request.quadratic_mean);
             assert!(consumed.result.smoothing_bias_included);
-            assert_eq!(consumed.result.calibration, "unmeasured");
+            assert_eq!(consumed.result.calibration, "not_measured");
             assert_eq!(
                 consumed.required_features,
                 ["dose_grid_functional_row_v1", "dose_grid_quadratic_mean_v1",]
@@ -388,7 +388,7 @@ fn quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
     // Exact-model scope changes the bias premise, not the sampling-variance engine.
     for (old, new) in generic.result.levels.iter().zip(&scoped.result.levels) {
         assert_eq!(old.standard_error, new.standard_error);
-        assert_eq!(new.calibration, "unmeasured");
+        assert_eq!(new.calibration, "not_measured");
         assert!(!old.smoothing_bias_included && new.smoothing_bias_included);
     }
     let mut missing_feature = scoped.clone();

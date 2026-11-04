@@ -33,12 +33,17 @@ use antecedent::analysis::transport_handoff::{
     hand_to_callback,
 };
 use antecedent::contract::evidence_ledger::parse_digest_hex;
+use antecedent::contract::provider_transport::{
+    AdmittedProviderSource, ProviderTransportSource, SourceTrustRequirement,
+    connect_bound_provider_source,
+};
 use antecedent::contract::{
-    ExternalRefusal, ProviderObjectIdentity, VerificationProbe, probe_from_name,
-    verify_external_object,
+    ExternalRefusal, ExternalTrustState, ProviderObjectIdentity, VerificationProbe,
+    probe_from_name, verify_external_object,
 };
 use antecedent::execution::CancellationToken;
 use antecedent::io::external_claim_artifact::VerificationProbeWire;
+use antecedent::io::interface_contract_artifact::contract_to_wire;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use antecedent::prelude::ExecutionContext;
 use antecedent::scientific::ScientificQuantity;
@@ -1603,6 +1608,164 @@ fn transport_handoff_consume(
     })
 }
 
+// -- provider output as source evidence -----------------------------------------------------------
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProviderSourceJson {
+    component: String,
+    quantity: ScientificQuantityWire,
+    semantic_identity: String,
+    support: SupportJson,
+    assumptions: Vec<String>,
+    /// The ledger sources the output rests on; `None` is undeclared evidence.
+    evidence: Option<Vec<String>>,
+    requirement: String,
+    trust: String,
+    attestor: Option<String>,
+}
+
+/// The source a declaration and its JSON describe, or the refusal of a trust claim that names no
+/// receipt. A malformed document is an input error.
+fn provider_source_of(
+    declaration_json: &str,
+    source_json: &str,
+    receipt: Option<&PyProviderVerificationReceipt>,
+) -> PyResult<Result<ProviderTransportSource, String>> {
+    let declaration = declaration_of(declaration_json)?;
+    let wire: ProviderSourceJson = serde_json::from_value(parse(source_json, "provider source")?)
+        .map_err(|error| bad("provider source", error))?;
+    let trust = match wire.trust.as_str() {
+        "externally_attested" => ExternalTrustState::ExternallyAttested {
+            attestor: wire.attestor.clone().unwrap_or_default(),
+        },
+        "exact_request_verified" => match receipt {
+            Some(receipt) => {
+                ExternalTrustState::ExactRequestVerified(Box::new(receipt.inner.clone()))
+            }
+            None => {
+                return Ok(Err(RefusalJson::new(
+                    antecedent::reason::reason_code!("external_verification_failed"),
+                    "verify",
+                    antecedent::reason::reason_details::provider_transport::VERIFICATION_REQUIRED,
+                    "exact-request verification needs the verification receipt the library issued; a label is not a receipt",
+                )
+                .json()));
+            }
+        },
+        "native_supported" => ExternalTrustState::NativeSupported,
+        other => return Err(bad("trust", other)),
+    };
+    let requirement = SourceTrustRequirement::from_name(&wire.requirement)
+        .ok_or_else(|| bad("requirement", &wire.requirement))?;
+    let evidence = match &wire.evidence {
+        None => EvidenceBasis::Undeclared,
+        Some(sources) => {
+            let mut declared = std::collections::BTreeSet::new();
+            for hex in sources {
+                declared.insert(
+                    SourceId::from_hex(hex)
+                        .ok_or_else(|| bad("evidence", "a source is not a digest"))?,
+                );
+            }
+            EvidenceBasis::Declared(declared)
+        }
+    };
+    Ok(Ok(ProviderTransportSource {
+        component: wire.component,
+        object: declaration.provider_object(),
+        trust,
+        quantity: quantity_of(&wire.quantity)?,
+        semantic_identity: wire.semantic_identity,
+        support: support_of(&wire.support)?,
+        assumptions: wire.assumptions,
+        evidence,
+        requirement,
+    }))
+}
+
+fn admitted_json(admitted: &AdmittedProviderSource) -> PyResult<String> {
+    let contract = serde_json::to_value(contract_to_wire(&admitted.interface_contract()))
+        .map_err(|error| crate::serialization_err(error.to_string()))?;
+    Ok(json!({
+        "identity": admitted.canonical_identity().to_hex(),
+        "trust": admitted.trust().as_wire(),
+        "population": admitted.population(),
+        "regime": admitted.regime(),
+        "operations": admitted.operations().iter().map(|o| o.as_str()).collect::<Vec<_>>(),
+        "native_target_data": admitted.is_native_target_data(),
+        "contract": contract,
+    })
+    .to_string())
+}
+
+/// Admit a provider's output as source evidence for a transported claim, from declarations
+/// alone: the provider object is the callback declaration's, the trust is an attestation or the
+/// library-issued receipt. The admission JSON, or the refusal. Nothing runs.
+#[pyfunction]
+#[pyo3(signature = (declaration_json, source_json, receipt=None))]
+fn provider_source_admit(
+    declaration_json: &str,
+    source_json: &str,
+    receipt: Option<PyRef<'_, PyProviderVerificationReceipt>>,
+) -> PyResult<Checked> {
+    crate::catch_ffi(|| {
+        let source = match provider_source_of(declaration_json, source_json, receipt.as_deref())? {
+            Ok(source) => source,
+            Err(refusal) => return Ok((None, Some(refusal))),
+        };
+        Ok(match source.admit() {
+            Ok(admitted) => (Some(admitted_json(&admitted)?), None),
+            Err(refusal) => (None, Some(crate::bridge::external_refusal_json(&refusal))),
+        })
+    })
+}
+
+/// Connect an admitted provider source to a transport route's consumer, after checking that the
+/// source belongs to the transport the route carries (its population is a source population and
+/// every assumption it relies on is carried). The connection JSON, or a JSON array of every
+/// refusal.
+#[pyfunction]
+#[pyo3(signature = (declaration_json, source_json, transport_json, consumer_json, consumed_port, receipt=None))]
+fn provider_source_connect(
+    declaration_json: &str,
+    source_json: &str,
+    transport_json: &str,
+    consumer_json: &str,
+    consumed_port: &str,
+    receipt: Option<PyRef<'_, PyProviderVerificationReceipt>>,
+) -> PyResult<Checked> {
+    crate::catch_ffi(|| {
+        let source = match provider_source_of(declaration_json, source_json, receipt.as_deref())? {
+            Ok(source) => source,
+            Err(refusal) => return Ok((None, Some(format!("[{refusal}]")))),
+        };
+        let admitted = match source.admit() {
+            Ok(admitted) => admitted,
+            Err(refusal) => {
+                return Ok((None, Some(Json::Array(vec![refusal_json(&refusal)]).to_string())));
+            }
+        };
+        let transport_wire: TransportIdentityJson =
+            serde_json::from_value(parse(transport_json, "transport identity")?)
+                .map_err(|error| bad("transport identity", error))?;
+        let transport = TransportIdentity {
+            selection_diagram: parse_digest_hex(&transport_wire.selection_diagram)
+                .ok_or_else(|| bad("selection diagram", "not a 64 hexadecimal digest"))?,
+            source_populations: transport_wire.source_populations,
+            target_population: transport_wire.target_population,
+            assumptions: transport_wire.assumptions,
+        };
+        let consumer = contract_of(consumer_json, "consumer contract")?;
+        Ok(match connect_bound_provider_source(&admitted, &transport, &consumer, consumed_port) {
+            Ok(connection) => (Some(connection_json(&connection)), None),
+            Err(refusals) => {
+                (None, Some(Json::Array(refusals.iter().map(refusal_json).collect()).to_string()))
+            }
+        })
+    })
+}
+
 type Refused<T> = (Option<T>, Option<String>);
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1621,5 +1784,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(callback_supersede_source, module)?)?;
     module.add_function(wrap_pyfunction!(transport_handoff_seal, module)?)?;
     module.add_function(wrap_pyfunction!(transport_handoff_consume, module)?)?;
+    module.add_function(wrap_pyfunction!(provider_source_admit, module)?)?;
+    module.add_function(wrap_pyfunction!(provider_source_connect, module)?)?;
     Ok(())
 }

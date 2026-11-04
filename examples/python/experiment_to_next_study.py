@@ -249,10 +249,10 @@ for candidate in ranking:
 
 # -- 6. The status of the update -------------------------------------------------------------
 # The update reweights the retained draws. It re-derives no identification, so the result stays a
-# model-conditional experimental update, with its calibration unmeasured.
-assert report["scope"] == "model_conditional_experimental_update;calibration_unmeasured"
+# model-conditional experimental update, with its calibration not_measured.
+assert report["scope"] == "model_conditional_experimental_update;calibration_not_measured"
 assert report["modular_policy"] == "frozen_joint_importance"
-assert report["calibration"] == "unmeasured"
+assert report["calibration"] == "not_measured"
 assert report["identification"]["target_kind"] == "whole_program_population_mean"
 print(report["scope"])
 print(report["identification"]["required_assumptions"])

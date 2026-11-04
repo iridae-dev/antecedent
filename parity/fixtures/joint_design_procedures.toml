@@ -1,7 +1,7 @@
 schema = 1
 owner = "X07"
 closure_kind = "delivered"
-release_calibration = "registered_unmeasured_candidate_bound"
+release_calibration = "registered_not_measured_candidate_bound"
 proof = "JointPanelDesignProof::V1; JointDesignProof v1 and NativeJointIdentification v1"
 artifact = "Versioned full source recipe, identification, inference/prior/seed and retained law; original-data replay; independently supplied current recipe checks"
 public_rust = ["PreparedJointDesign", "PreparedNativeJointDesign"]

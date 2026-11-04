@@ -7,7 +7,7 @@
 //! The numerics, the premise gates and every refusal belong to
 //! `antecedent_stats::adaptive_inference::participant_procedure`; this module
 //! routes a request to them and adds no rule of its own. Every result is
-//! labelled `derived_unmeasured`, and the posterior claim and the
+//! labelled `derived_not_measured`, and the posterior claim and the
 //! anytime-valid frequentist claim of every look are separate fields.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -19,7 +19,7 @@ use antecedent_contract::adaptive_design::{
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_stats::adaptive_inference::{
-    ArmBorrowing, BorrowingPlan, CellLabel, DERIVED_UNMEASURED, LookDecision, LookReading,
+    ArmBorrowing, BorrowingPlan, CellLabel, DERIVED_NOT_MEASURED, LookDecision, LookReading,
     ParticipantDeclaration, ParticipantHistory, ParticipantRun, ParticipantSimulation,
     ParticipantSimulationRequest, ParticipantSimulationSummary, ParticipantSpec, ResolvedArmPrior,
     ResourceBudget, run_participant_procedure_within, simulate_participant_history,
@@ -44,7 +44,7 @@ pub struct ParticipantProcedure {
 pub struct ParticipantSimulationReport {
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The replicates and the receipt of the work done.
     pub simulation: ParticipantSimulation,
@@ -59,7 +59,7 @@ pub struct ParticipantSimulationReport {
 pub struct ParticipantRunReport {
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The run: its retained history, the reading of every completed look,
     /// its receipt and whether it reached its stopping look.
@@ -71,7 +71,7 @@ pub struct ParticipantRunReport {
 pub struct ParticipantHistoryReport {
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The prior of each arm with its sources, discounts and effective
     /// sample size.
@@ -166,7 +166,7 @@ impl ParticipantProcedure {
         let summary = simulation.summarize(self.spec.arms()).map_err(|e| refusal_of(&e))?;
         Ok(ParticipantSimulationReport {
             procedure_identity: self.identity.clone(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             simulation,
             summary,
         })
@@ -202,7 +202,7 @@ impl ParticipantProcedure {
         .map_err(|e| refusal_of(&e))?;
         Ok(ParticipantRunReport {
             procedure_identity: self.identity.clone(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             run,
         })
     }
@@ -249,7 +249,7 @@ impl ParticipantProcedure {
         let decision = readings.last().map_or(LookDecision::Continue, |r| r.decision);
         Ok(ParticipantHistoryReport {
             procedure_identity: self.identity.clone(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             priors: self.spec.priors().to_vec(),
             borrowing,
             readings,

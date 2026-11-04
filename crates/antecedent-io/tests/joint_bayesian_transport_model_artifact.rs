@@ -1,6 +1,6 @@
 //! The joint Bayesian transport model artifact
 //! (model, priors with provenance, data identities, exact posterior, aligned joint
-//! draws, diagnostics, identification, calibration `unmeasured`) replays independently.
+//! draws, diagnostics, identification, calibration `not_measured`) replays independently.
 //!
 //! The oracle is closed-form Gauss-Jordan algebra on the posterior precision and never
 //! calls the code under test. The public interval route is not supported; nothing here
@@ -245,8 +245,8 @@ fn joint_posterior_artifact_replays_value_for_value_against_the_exact_oracle() {
     assert_eq!(loaded.result.draws.values, fit.draws.values);
     assert_eq!(loaded.result.draws.n_draws, DRAWS);
     assert_eq!(loaded.result.draws.alignment, "joint");
-    assert_eq!(loaded.calibration, "unmeasured");
-    assert_eq!(loaded.result.diagnostics.calibration, "unmeasured");
+    assert_eq!(loaded.calibration, "not_measured");
+    assert_eq!(loaded.result.diagnostics.calibration, "not_measured");
     assert_eq!(loaded.result.identification_status, "identified");
     assert_eq!(loaded.result.identification_formula, "standardize");
     assert_ne!(loaded.premises_digest, loaded.data_digest);
@@ -442,7 +442,7 @@ fn joint_posterior_artifact_refuses_an_unknown_version_foreign_feature_and_claim
     let message = JointBayesianArtifactWire::decode(&calibrated.export().expect("export"))
         .expect_err("calibrated artifact is refused")
         .to_string();
-    assert!(message.contains("unsupported semantics: calibration is unmeasured"), "{message}");
+    assert!(message.contains("unsupported semantics: calibration is not_measured"), "{message}");
     let mut marginals = wire;
     marginals.result.draws.alignment = "independent_marginals".into();
     let message = JointBayesianArtifactWire::decode(&marginals.export().expect("export"))

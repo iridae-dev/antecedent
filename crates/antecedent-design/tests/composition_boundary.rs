@@ -185,7 +185,7 @@ fn joint_input(
             provider,
             snapshot,
             DistributionTrust::Unverified,
-            DistributionCalibration::Unmeasured,
+            DistributionCalibration::NotMeasured,
             None,
         ),
         evidence,
@@ -288,7 +288,7 @@ fn boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() {
     assert_eq!(provenance.receipt, None);
     assert_eq!(provenance.calibration, CalibrationStatus::ExactClaimUnverified);
     let InputSource::JointLaw(stored) = input.source() else { panic!("a joint law") };
-    assert_eq!(stored.metadata().calibration, DistributionCalibration::Unmeasured);
+    assert_eq!(stored.metadata().calibration, DistributionCalibration::NotMeasured);
     assert_eq!(stored.metadata().trust, DistributionTrust::Unverified);
 
     // The same artifact with a matching native record keeps its label and exactness,
@@ -530,7 +530,7 @@ fn boundary_all_actions_unsupported_is_a_state_not_an_error() {
             "engine",
             "snap-n",
             DistributionTrust::Unverified,
-            DistributionCalibration::Unmeasured,
+            DistributionCalibration::NotMeasured,
             Some(vec![false, false, false]),
         ),
         &TrustEvidence::None,
@@ -797,7 +797,7 @@ fn boundary_composition_rejects_duplicate_inputs_and_unequal_draw_counts() {
         "lab",
         "snap-b",
         DistributionTrust::Unverified,
-        DistributionCalibration::Unmeasured,
+        DistributionCalibration::NotMeasured,
         None,
     );
     let mut metadata = short.metadata().clone();

@@ -23,6 +23,7 @@ const FAMILY_ESTIMATORS: &[EstimatorId] = &[
     EstimatorId::PropensityStratification,
     EstimatorId::DistanceMatching,
     EstimatorId::FrontDoorFunctional,
+    EstimatorId::RandomizedQuantile,
     EstimatorId::BayesianIvJointLinear,
     EstimatorId::BayesianRdLocalLinear,
     EstimatorId::TemporalLinearAdjustment,

@@ -14,10 +14,10 @@
 use std::collections::BTreeMap;
 
 use antecedent_stats::adaptive_inference::{
-    AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, DERIVED_UNMEASURED, ExposureModel,
-    FinalSelection, InversionGrid, MAX_INVERSION_LAWS, ObservedTerminal, OutcomeKernel,
-    OutcomeObservation, ProcedureDeclaration, ProcedureSpec, Sidedness, StoppingRule,
-    enumerate_law, inversion_interval, ordering_p_values,
+    AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, DERIVED_NOT_MEASURED,
+    ExposureModel, FinalSelection, InversionGrid, MAX_INVERSION_LAWS, ObservedTerminal,
+    OutcomeKernel, OutcomeObservation, ProcedureDeclaration, ProcedureSpec, Sidedness,
+    StoppingRule, enumerate_law, inversion_interval, ordering_p_values,
 };
 
 const UNITS: usize = 6;
@@ -310,7 +310,7 @@ fn the_inverted_adaptive_interval_matches_the_enumerated_supremum_tests() {
     let alpha = 0.3;
     for (observed, target) in [efficacy_stop(), horizon_behind()] {
         let interval = inversion_interval(&spec, &observed, &grid, alpha, &never).unwrap();
-        assert_eq!(interval.calibration, DERIVED_UNMEASURED);
+        assert_eq!(interval.calibration, DERIVED_NOT_MEASURED);
         let (accepted, evaluated) = oracle_interval(&grid, alpha, target);
         assert_eq!(interval.accepted, accepted);
         assert_eq!(interval.lower, accepted.first().copied());

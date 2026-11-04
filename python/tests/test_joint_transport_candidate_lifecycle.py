@@ -145,7 +145,7 @@ def test_candidate_frozen_four_plus_four_coordinates_full_joint_oracle(learned, 
     assert np.asarray(result.posterior_covariance) == pytest.approx(covariance, abs=2e-10)
     assert result.target_effect_mean == pytest.approx(c @ mean, abs=2e-10)
     assert result.target_effect_variance == pytest.approx(c @ covariance @ c, abs=2e-10)
-    assert result.calibration == "unmeasured" and result.release_status == "candidate_only"
+    assert result.calibration == "not_measured" and result.release_status == "candidate_only"
     with pytest.raises(TypeError, match="unexpected keyword"):
         replace(result, kind="learned_gaussian" if not learned else "gaussian")
     assert result.draws.shape == (256, len(result.draw_names))
@@ -244,7 +244,7 @@ r=t.consume_joint_transport_posterior(Path(sys.argv[1]).read_bytes(),kind=sys.ar
     value = json.loads(done.stdout)
     assert value["mean"] == result.target_effect_mean
     assert value["variance"] == result.target_effect_variance
-    assert value["calibration"] == "unmeasured"
+    assert value["calibration"] == "not_measured"
     assert value["shape"] == list(result.draws.shape)
 
 

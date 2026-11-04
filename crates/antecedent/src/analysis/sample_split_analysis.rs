@@ -31,7 +31,7 @@
 //! cluster sandwich over declared analysis-part clusters); rows of weight zero are excluded and
 //! counted; and the Kish effective sample size is reported beside the row count. The interval
 //! it supports ([`SplitAnalysisEffect::interval`]) is a Student interval at the effective sample
-//! size, a computed value whose whole-method coverage is a separate claim that stays unmeasured
+//! size, a computed value whose whole-method coverage is a separate claim that stays not_measured
 //! until `tests/sample_split_weighted_effect_calibration.rs` has been measured.
 //!
 //! # What the binding supports
@@ -44,7 +44,7 @@
 //! discovery, graph acceptance, estimation), and it is supported only for the one construction
 //! that was measured, through [`super::sample_split_effect`], whose interval is attested from
 //! a coverage record keyed `discovered_sample_split`. For any other analysis of the analysis
-//! rows the whole-method calibration stays `unmeasured`
+//! rows the whole-method calibration stays `not_measured`
 //! ([`AnalysisBinding::whole_method_calibration`]).
 //!
 //! No per-dataset statement is made either way: whether a discovered graph recovers the true
@@ -89,7 +89,7 @@ use super::selective_discovery::discovery_rows_source;
 const BINDING_TAG: &str = "antecedent.sample_split_analysis.binding.v1";
 
 /// The standing of whole-method calibration for a split analysis: recorded, not measured.
-pub const WHOLE_METHOD_CALIBRATION: &str = "unmeasured";
+pub const WHOLE_METHOD_CALIBRATION: &str = "not_measured";
 
 /// A split, the discovery run on its discovery part, and the receipt tying them together.
 #[derive(Debug)]
@@ -386,7 +386,7 @@ pub struct AnalysisEffectRequest {
 /// **Uncertainty.** The standard error is the sampling-weighted sandwich recorded by
 /// [`Self::se_kind`] (HC3 by default, or explicit historical HC1), or the cluster sandwich
 /// when clusters are declared; [`Self::interval`] turns it into a Student interval
-/// at the effective sample size, labelled with its unmeasured whole-method calibration.
+/// at the effective sample size, labelled with its not_measured whole-method calibration.
 ///
 /// **Effective sample size.** The Kish size of the weights of the rows used is in
 /// [`Self::sampling_weights`]; `None` for an unweighted source.
@@ -412,7 +412,7 @@ pub struct SplitAnalysisEffect {
 }
 
 /// A Student interval around a [`SplitAnalysisEffect`]: a computed value whose coverage is
-/// unmeasured, never an attested claim.
+/// not_measured, never an attested claim.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SplitEffectInterval {
     /// Nominal level.
@@ -437,7 +437,7 @@ impl SplitAnalysisEffect {
     /// The `level` interval of the effect: `effect ± t · standard_error`, with the Student
     /// quantile at the effective sample size of the rows used less the regression's
     /// coefficients, because unequal weights carry less information than the row count says.
-    /// Its coverage over discovery, acceptance and estimation together is unmeasured
+    /// Its coverage over discovery, acceptance and estimation together is not_measured
     /// ([`SplitEffectInterval::calibration`]).
     ///
     /// # Errors

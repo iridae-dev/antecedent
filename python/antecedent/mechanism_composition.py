@@ -1291,6 +1291,7 @@ def compose_mechanisms(
     admissions: Sequence[Admission] = (),
     dependence: Dependence | None = None,
     admit_declared_mechanisms: bool = False,
+    ledger: Any = None,
     execution: Execution | None = None,
 ) -> PreparedMechanismComposition:
     """Prepare a declared composition of independently fitted mechanisms.
@@ -1301,6 +1302,15 @@ def compose_mechanisms(
     a mechanism from another population or regime needs a declared admission), and the result is
     compiled under the model-level coherence checker (acyclicity, parents equal conditioning set,
     support overlap, shared latents, provenance, aligned uncertainty).
+
+    With ``ledger`` (an :class:`~antecedent.evidence_ledger.EvidenceLedger`) a composition declared
+    ``Dependence.independent_by_design`` has its independence decided from the ledger's
+    observation rows, reading each mechanism's ``evidence_id`` as a ledger source identity: two
+    mechanisms whose sources share observations are refused
+    (``mechanism_composition.posterior_dependence_shared_evidence_declared_independent``) and
+    sources whose overlap the ledger cannot compute are unknown, never independent
+    (``posterior_dependence_evidence_overlap_unknown``). Without a ledger only equal identity
+    strings are caught.
 
     Raises:
         MechanismCompositionRefusal: every defect found, each with a registered code, a namespaced
@@ -1324,6 +1334,14 @@ def compose_mechanisms(
         "dependence": (dependence or Dependence.unknown()).to_wire(),
         "admit_declared_mechanisms": bool(admit_declared_mechanisms),
     }
+    if ledger is not None:
+        ledger_handle = getattr(ledger, "_handle", None)
+        if ledger_handle is None:
+            raise CausalTypeError("ledger must be an EvidenceLedger")
+        raise_refusal(
+            _native.mechanism_composition_check_ledger_independence(_dumps(wire), ledger_handle),
+            MechanismCompositionRefusal,
+        )
     handle = _unwrap(_native.mechanism_composition_prepare(_dumps(wire), cancel=execution.cancel))
     return _prepared(
         handle,

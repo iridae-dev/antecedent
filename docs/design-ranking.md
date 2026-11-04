@@ -24,7 +24,7 @@ design.rank_designs(
 
 Claim labels: every value is **point-only**. A Monte Carlo value (when a signal has
 no exact integral) is a `monte_carlo_estimate` with no coverage claim. The Monte
-Carlo error, `rank_uncertain` and the whole ranking's `calibration == "unmeasured"`
+Carlo error, `rank_uncertain` and the whole ranking's `calibration == "not_measured"`
 are diagnostics, not supported intervals. A ranking recommends an action; it does
 not run it.
 
@@ -397,7 +397,7 @@ These native objective results expose `ObjectiveCandidate` entries, each retaini
 native scoring semantics are unchanged. None has an identification probability or
 portable artifact. Bounds use `max_cost` and `max_sample_budget`; unrelated value
 or gate arguments refuse rather than being silently applied. Calibration remains
-`unmeasured` for every objective.
+`not_measured` for every objective.
 
 Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs.py)
 (identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs_evsi.py)
@@ -434,7 +434,7 @@ otherwise). Each option states what it resolves, what it costs and what remains
 unresolved, including the assumptions no study can establish. A subset of studies has no
 value of its own (values do not add), so it is listed unvalued. A search a budget stopped is
 `budget_exhausted` and never an impossibility claim; the ordering is `point_only` with
-calibration `unmeasured`.
+calibration `not_measured`.
 
 ```python
 contract = repair.FailureContract(graph=graph, treatment="t", outcome="y",
@@ -491,7 +491,7 @@ replay = consume_arrival(
 replay.to_dict() == result.to_dict()
 ```
 
-In the maintained fixture, arm counts of 200 and 50 against 50 and 200 for a binary outcome give an active mean of 0.8 and a control mean of 0.2 (`assignment={"x": 0.0}` for the control), so the contrast is 0.6. The result is `empirical_point_only` with calibration `unmeasured`: counts give a point value, not an interval. `consume_arrival` replays the original repair and ranking artifacts and the complete raw count providers in a fresh process, and refuses an `expected_proposal` identity that does not match. Changed counts, snapshots, populations, assignments, exactness, budgets or schemas are refused, as is an unrepresented sampling design; a bundle loaded from a dictionary needs the original producer artifacts passed explicitly.
+In the maintained fixture, arm counts of 200 and 50 against 50 and 200 for a binary outcome give an active mean of 0.8 and a control mean of 0.2 (`assignment={"x": 0.0}` for the control), so the contrast is 0.6. The result is `empirical_point_only` with calibration `not_measured`: counts give a point value, not an interval. `consume_arrival` replays the original repair and ranking artifacts and the complete raw count providers in a fresh process, and refuses an `expected_proposal` identity that does not match. Changed counts, snapshots, populations, assignments, exactness, budgets or schemas are refused, as is an unrepresented sampling design; a bundle loaded from a dictionary needs the original producer artifacts passed explicitly.
 
 ## Where it fits
 
@@ -557,7 +557,7 @@ in the original adaptation request.
 allocated draws, transfer policy, observation checks and source digest. The adapter
 uses deterministic resampling of the original sampled posterior. Exact finite-law
 integration is exact conditional on that discrete prior, not an exact computation
-under an unknown continuous posterior. Calibration remains `unmeasured`.
+under an unknown continuous posterior. Calibration remains `not_measured`.
 
 Population, physical units, affine transfer and historical observation/lineage
 identities are explicit scientific declarations: legacy posterior artifacts do not

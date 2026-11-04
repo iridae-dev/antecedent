@@ -41,7 +41,7 @@ class CostReport(unittest.TestCase):
                 self.assertTrue(result["reasons_not_controlled"])
                 self.assertIn("neither an improvement nor a regression", result["interpretation"])
 
-    def test_unmeasured_values_stay_null_and_incomplete_receipts_are_rejected(self):
+    def test_not_measured_values_stay_null_and_incomplete_receipts_are_rejected(self):
         bare = {k: v for k, v in RECEIPT.items() if k not in ("user_seconds", "system_seconds")}
         diff = report.compare(bare, bare, None, None)["raw_differences_after_minus_before"]
         self.assertIsNone(diff["user_seconds"])

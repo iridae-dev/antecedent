@@ -1,0 +1,42 @@
+feature_id = "estimate.randomized_quantile"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/randomized_quantile.rs"]
+
+# Strategy-table implementation id: estimate.randomized_quantile
+# (EstimatorId::RandomizedQuantile, public name randomized.quantile, kernel
+# randomized_quantile.empirical_cdf_inversion).
+#
+# Frequentist quantile treatment effect of a randomized two-arm trial. With an empty adjustment
+# set each arm's potential-outcome distribution function is the arm's empirical distribution
+# function on a strictly increasing threshold grid (the 19-point empirical grid of the pooled
+# outcomes unless a grid is declared), and the quantile at level tau is the piecewise-linear
+# inversion of that function (the inversion every quantile route shares,
+# crate::quantile::invert_cdf_quantile). The influence of an arm distribution function at a
+# threshold is the ratio-estimator influence (1{T = a} / p_a)(1{Y <= c} - F_a(c)), the influence
+# of the quantile is minus that over the local finite-difference density, and the effect's
+# standard error is the iid standard error of the row difference of the two quantile influences.
+# The interval is the 95 percent normal interval around the difference.
+papers = [
+ { title = "Asymptotic Statistics", doi = "10.1017/CBO9780511802256", sections = ["Chapter 21: quantile functional of a distribution function; influence -phi_F(q)/f(q)"] },
+ { title = "Efficient Semiparametric Estimation of Quantile Treatment Effects (Firpo, Econometrica 75:259-276)", sections = ["the quantile treatment effect estimand under unconfoundedness"] },
+]
+
+implementation_deviations = [
+ "The arm distribution functions are empirical on a grid and inverted piecewise linearly, not the order statistics of the unbinned sample; inference conditions on the grid, and grid selection and interpolation bias are excluded, as in the cross-fitted quantile cell.",
+ "The density in the influence is the finite difference of the grid distribution function over the crossing bracket, with the shared span-normalised floor of 1e-3; a level outside the grid distribution function of an arm, or a bracket below the floor, refuses.",
+ "The treatment must be unconfounded (an empty adjustment set) and coded exactly 0/1, and each arm must carry at least ten rows; confounded designs are answered by the cross-fitted AIPW quantile, not here.",
+ "Only the refute=none suite is supported: the mean-effect refuters do not validate a quantile treatment effect.",
+ "The interval is the first-order normal interval around the difference; the sampling distribution of a quantile in small arms is not normal, and no repeated-sampling coverage is claimed.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/randomized_quantile_reference.rs (hand-derived quantiles, row influence, standard error and normal interval on a forty-row design with arms uniform on 1..20 and 3..22, on a declared grid and on the empirical grid, and the refusals)",
+ "crates/antecedent/tests/randomized_quantile_known_truth.rs (on the AverageEffect Dag accepted and explicit Frequentist none cells the retained plan names randomized.quantile and reproduces the hand-derived median effect and standard error to 1e-9; confounded, mean-functional, miscoded and small-arm requests refuse)",
+]

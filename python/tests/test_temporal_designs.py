@@ -39,7 +39,7 @@ def test_the_two_arm_excursion_recovers_the_effect_in_both_modes() -> None:
         {"y": outcome}, outcome="y", units=unit, periods=period, design=design, lag=1
     )
     assert fit.estimator == "temporal_design.excursion"
-    assert not fit.supported and fit.calibration == "unmeasured"
+    assert not fit.supported and fit.calibration == "not_measured"
     estimate, lower, upper = fit.coordinate("excursion_effect")
     assert lower < estimate < upper
     assert abs(estimate - 1.2) < 4 * fit.standard_error[0]

@@ -6,7 +6,7 @@
 //! * the embedded choice-study declaration (frame, ordered options, respondents' rows, retained
 //!   sources with their discounts and transfer reasons, looks, stopping rule, procedure cell);
 //! * the request: which look, which route and its prior parameters; and
-//! * the stored values, the method, the point-only claim, the **unmeasured** calibration status
+//! * the stored values, the method, the point-only claim, the **not_measured** calibration status
 //!   and the unsupported claim (a stopping rule's error rate), if any.
 //!
 //! A consumer trusts none of the stored values. It rebuilds the contract from the declaration
@@ -46,7 +46,7 @@ pub const CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str = "choice_inference_result_v1";
 /// Calibration status: no coverage record measures any choice route.
-pub const CHOICE_INFERENCE_CALIBRATION: &str = "unmeasured";
+pub const CHOICE_INFERENCE_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy.
 pub const MAX_CHOICE_INFERENCE_RESULT_BYTES: usize = 256 * 1024 * 1024;
 /// Relative tolerance when comparing a stored value with its recomputation.
@@ -484,7 +484,7 @@ pub struct ChoiceResultMeta {
     pub value_bits: Vec<u64>,
     /// Claim class: always `point_only`.
     pub claim: String,
-    /// Calibration status: always `unmeasured`.
+    /// Calibration status: always `not_measured`.
     pub calibration: String,
     /// The claim with no construction, when the result has one.
     pub unsupported_claim: Option<String>,

@@ -407,7 +407,7 @@ fn temporal_dependent_interval_scope(
     }
 }
 
-/// Internal acceptance carrier; never labels an unmeasured candidate supported.
+/// Internal acceptance carrier; never labels a not_measured candidate supported.
 #[pyclass]
 #[doc(hidden)]
 struct NativeTemporalIntervalCandidate {

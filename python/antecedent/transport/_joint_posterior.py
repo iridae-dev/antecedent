@@ -126,7 +126,7 @@ class JointTransportTarget:
 
 @dataclass(frozen=True, slots=True, init=False)
 class JointTransportPosterior(ScientificResult):
-    """Numerically replayable candidate posterior; calibration is unmeasured.
+    """Numerically replayable candidate posterior; calibration is not_measured.
 
     All rows are aligned across the original complete joint parameter/effect law.
     A successful internal feature build is not a released interval support.
@@ -154,8 +154,8 @@ class JointTransportPosterior(ScientificResult):
         return result
 
     @property
-    def calibration(self) -> Literal["unmeasured"]:
-        return "unmeasured"
+    def calibration(self) -> Literal["not_measured"]:
+        return "not_measured"
 
     @property
     def release_status(self) -> Literal["candidate_only"]:
@@ -371,7 +371,7 @@ def _request_json(
 
 
 def _candidate(**kwargs: Any) -> JointTransportPosterior:
-    """Explicit internal candidate; retains its original unmeasured wire standing."""
+    """Explicit internal candidate; retains its original not_measured wire standing."""
     text = _request_json(**kwargs)
     body, artifact = _native.joint_transport_candidate(
         kwargs["identification"]._native, text, kwargs["learned"]

@@ -27,7 +27,7 @@
 //! the valued options of its gate. Costs are compared only in equal units. A search
 //! a budget stopped reports the budget, never a scientific impossibility, and the
 //! ordering carries no coverage claim: it is `point_only` with calibration
-//! `unmeasured`.
+//! `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -46,7 +46,7 @@ use crate::study_candidate::DurableStudyCandidate;
 /// The ranking guarantee of every plan: a point ordering, no rank-error coverage.
 pub const PLAN_RANKING_GUARANTEE: &str = "point_only";
 /// Calibration of every plan: no coverage was measured.
-pub const PLAN_CALIBRATION: &str = "unmeasured";
+pub const PLAN_CALIBRATION: &str = "not_measured";
 /// What a stopped search does and does not say.
 pub const PLAN_BUDGET_STATEMENT: &str = "the search stopped on a declared budget; subsets left \
 unexamined are unknown, not impossible, and no scientific conclusion follows from the stop";

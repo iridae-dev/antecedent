@@ -29,8 +29,8 @@ What a result does **not** say:
   excluded; non-rejection leaves it open and says nothing about selection nodes on other
   variables.
 * It is a linear-Gaussian-mean diagnostic: a shift in a nonlinear or higher-moment feature of the
-  mechanism may go undetected, and its Type I error and power are **unmeasured**
-  (``calibration == "unmeasured"``).
+  mechanism may go undetected, and its Type I error and power are **not_measured**
+  (``calibration == "not_measured"``).
 
 Rust owns the fits, the statistic, the artifact and every refusal; this module builds
 declarations and raises each refusal as :class:`MechanismDiscrepancyRefusal`, a

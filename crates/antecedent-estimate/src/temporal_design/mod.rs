@@ -67,7 +67,7 @@ pub const DEFAULT_BAND_REPLICATES: usize = 2000;
 ///
 /// A resource policy, not a validity bound: the Monte Carlo rank of the critical value is
 /// valid for any replicate count of two or more, and beyond this count the standard error of
-/// the rank is already far below the unmeasured calibration error of the band. A larger request
+/// the rank is already far below the not_measured calibration error of the band. A larger request
 /// is refused rather than silently reduced.
 pub const MAX_BAND_REPLICATES: usize = 100_000;
 /// Most multiplier-sum multiply-adds one band may cost: replicates, times clusters, times band

@@ -111,7 +111,7 @@ class NestedMarkovPosteriorCandidate(ScientificResult):
     Four aligned chains, 2048 warmup and 4096 retained draws each, 5M proposal
     bound and fixed 95% credible quantiles are the intended fixed method.
     These quantiles and covariance are Monte Carlo estimates; modern diagnostics
-    do not guarantee convergence or endpoint precision. Calibration is unmeasured.
+    do not guarantee convergence or endpoint precision. Calibration is not_measured.
     Scope requires successful original checked-ID/interior point fitting, which is
     a route eligibility restriction, not a condition for posterior existence.
     """
@@ -125,8 +125,8 @@ class NestedMarkovPosteriorCandidate(ScientificResult):
     samples: NDArray[np.float64]
     diagnostics: tuple[_PosteriorDiagnostics, ...]
     seed: int
-    calibration: Literal["unmeasured"]
-    inference: Literal["posterior_candidate_withheld_calibration_unmeasured"]
+    calibration: Literal["not_measured"]
+    inference: Literal["posterior_candidate_withheld_calibration_not_measured"]
     identification: Literal["nonparametrically_identified"]
     identity: str
     _native: Any

@@ -105,15 +105,15 @@ def test_vector_joint_wald_and_holm_match_closed_forms() -> None:
     assert result.contrasts[high].p_holm == pytest.approx(max(holm_low, raw[high]), abs=1e-9)
 
 
-def test_vector_calibration_is_unmeasured_and_says_so() -> None:
+def test_vector_calibration_is_not_measured_and_says_so() -> None:
     result = fit()
-    assert result.calibration == "unmeasured"
-    assert result.inference_claim == "asymptotic_wald_calibration_unmeasured"
-    assert any("calibration is unmeasured" in c for c in result.caveats)
+    assert result.calibration == "not_measured"
+    assert result.inference_claim == "asymptotic_wald_calibration_not_measured"
+    assert any("calibration is not_measured" in c for c in result.caveats)
     assert any("no interval" in c for c in result.caveats)
     assert any("caller owns" in c for c in result.caveats)
     summary = result.to_dict()
-    assert summary["calibration"] == "unmeasured"
+    assert summary["calibration"] == "not_measured"
     assert "artifact" not in summary
     assert summary["covariance"][0][1] == pytest.approx(-3.0 * S, abs=1e-9)
 

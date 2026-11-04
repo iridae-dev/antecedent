@@ -624,12 +624,12 @@ pub(super) fn frequentist_transport_estimate(
         TrialDependence::Series(lag) => format!(
             "binary trial-to-target{weighted} IPW on the consecutive times of one series; the SE \
              is the Newey-West long-run variance of the per-row influence at lag {lag}, \
-             unsupported and unmeasured; inner ResponseCurve names treatment/outcome only"
+             unsupported and not_measured; inner ResponseCurve names treatment/outcome only"
         ),
         TrialDependence::Clusters(_) => format!(
             "binary trial-to-target{weighted} IPW on {}; the SE is the cluster sandwich of the \
              per-row influence (whole clusters are the sampling units, G/(G-1) factor), \
-             unsupported and unmeasured; inner ResponseCurve names treatment/outcome only",
+             unsupported and not_measured; inner ResponseCurve names treatment/outcome only",
             dependence.describe()
         ),
     };

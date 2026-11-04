@@ -201,7 +201,7 @@ def test_each_criterion_has_its_own_route_and_sampling_noise_is_not_hidden():
         _contract(decision.Criterion.expected_regret()).evaluate(source)
     ).actions[1].value == pytest.approx(0.5)
     # Sampled rows give a point ranking, without a certified Monte Carlo error.
-    sampled = require_success(_contract().evaluate(_source(calibration="unmeasured")))
+    sampled = require_success(_contract().evaluate(_source(calibration="not_measured")))
     assert sampled.verdict.kind == "uniquely_optimal"
     assert sampled.selected == ("safe",)
     assert "point ranking only" in sampled.explain()

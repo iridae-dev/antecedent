@@ -1945,7 +1945,7 @@ class PooledDifferentialCorrection:
 
     ``sensitivity`` and ``specificity`` are ``(pooled mean logit, its variance,
     between-population variance, target rate mean, target rate standard deviation)``. The
-    interval is an uncalibrated simulation interval (``calibration == "unmeasured"``).
+    interval is an uncalibrated simulation interval (``calibration == "not_measured"``).
     """
 
     target_population: str

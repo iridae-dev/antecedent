@@ -224,13 +224,13 @@ fn bind_external_to_program(
 #[allow(clippy::result_large_err)]
 fn calibration_from(name: &str) -> Result<DistributionCalibration, ExternalRefusal> {
     match name {
-        "unmeasured" => Ok(DistributionCalibration::Unmeasured),
+        "not_measured" => Ok(DistributionCalibration::NotMeasured),
         "point_only" => Ok(DistributionCalibration::PointOnly),
         other => Err(declared_refusal(
             "bind",
             antecedent::reason::reason_details::native_claims::CALIBRATION_NOT_SUPPORTED,
             None,
-            Some("unmeasured,point_only".to_owned()),
+            Some("not_measured,point_only".to_owned()),
             Some(other.to_owned()),
             "a calibration status comes from a measured calibration record, not from the caller",
         )),
@@ -547,7 +547,7 @@ fn native_response_claim(
             if matches!(authority.response.uncertainty, ResponseUncertainty::None) {
                 "point_only"
             } else {
-                "unmeasured"
+                "not_measured"
             };
         if calibration.is_some_and(|value| value != actual_calibration) {
             return Ok((

@@ -28,7 +28,7 @@
 //! considered but did not retain are counted, never covered: the confidence set is for
 //! the best *retained* candidate.
 //!
-//! The derivation itself carries [`DerivedStanding::DerivedUnmeasured`]: it is a
+//! The derivation itself carries [`DerivedStanding::DerivedNotMeasured`]: it is a
 //! construction, not a claim. Its calibration is measured per route at its coordinate
 //! (candidate-set size, Monte Carlo budget, selection rule, coupling and serial
 //! dependence). [`DerivedUncertainty::publish`] reports the intervals at every coordinate and
@@ -118,7 +118,7 @@ impl IntervalRequest {
 pub enum DerivedStanding {
     /// The construction is derived under stated assumptions and has no coverage record
     /// at its coordinate.
-    DerivedUnmeasured,
+    DerivedNotMeasured,
 }
 
 /// How a numerical interval was built.
@@ -282,7 +282,7 @@ pub struct SelectionComponent {
     pub corrected: Option<SelectionCorrectedInterval>,
 }
 
-/// The three components, derived and unmeasured.
+/// The three components, derived and not_measured.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DerivedUncertainty {
@@ -302,7 +302,7 @@ pub struct DerivedUncertainty {
     pub numerical: NumericalComponent,
     /// Component three: selection-induced uncertainty.
     pub selection: SelectionComponent,
-    /// Always derived and unmeasured.
+    /// Always derived and not_measured.
     pub standing: DerivedStanding,
     /// Coordinate a coverage record would have to measure.
     pub coordinate: CalibrationCoordinate,
@@ -314,7 +314,7 @@ impl DerivedUncertainty {
     /// Publish a route from this derivation with its calibration slot.
     ///
     /// The slot is `calibrated` when a current, attesting coverage record measured the
-    /// route at [`Self::coordinate`], and otherwise names why it is not (an unmeasured
+    /// route at [`Self::coordinate`], and otherwise names why it is not (a not_measured
     /// level, multiplicity or Monte Carlo budget). The intervals are reported either way.
     ///
     /// # Errors
@@ -730,7 +730,7 @@ pub fn derive_uncertainty(
         source: report.source_uncertainty.clone(),
         numerical,
         selection: SelectionComponent { confidence_set: confidence, corrected },
-        standing: DerivedStanding::DerivedUnmeasured,
+        standing: DerivedStanding::DerivedNotMeasured,
         coordinate: report.coordinate.clone(),
         assumptions: assumptions(),
     })

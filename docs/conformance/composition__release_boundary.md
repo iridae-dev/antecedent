@@ -50,7 +50,7 @@ undeclared observations is an unknown overlap and refuses.
 
 Nothing here ships an interval, a posterior decision or a ranking guarantee.
 Every uncertainty request is refused with `not_supported`; calibration is
-unmeasured. The variance of a pooled estimate is a labelled point quantity.
+not_measured. The variance of a pooled estimate is a labelled point quantity.
 
 ## Expected summary
 

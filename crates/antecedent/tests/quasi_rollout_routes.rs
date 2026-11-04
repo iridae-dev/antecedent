@@ -2,7 +2,7 @@
 //! difference in differences, the resampled augmented panel, conformal and multi-unit
 //! synthetic control, and the local ratio with a selected bandwidth or a calendar-time running
 //! variable. Each route executes from its compiled plan, recovers a simulated known truth,
-//! reports its whole-procedure intervals as unsupported with calibration `unmeasured`, keeps the
+//! reports its whole-procedure intervals as unsupported with calibration `not_measured`, keeps the
 //! design's own assumptions in the identification, and refuses what it must with the next
 //! attempt.
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -122,7 +122,7 @@ fn staggered_rollout_recovers_heterogeneous_effects_where_two_way_fixed_effects_
         );
         assert_eq!(result.support_status(), None, "the rollout route is unsupported");
         let rollout = result.quasi_rollout().unwrap();
-        assert_eq!(rollout.calibration.as_ref(), "unmeasured");
+        assert_eq!(rollout.calibration.as_ref(), "not_measured");
         assert!(!rollout.supported);
         let overall = rollout.overall().unwrap();
         assert!((overall.estimate - 3.5).abs() < 0.15, "{estimator:?}: {}", overall.estimate);
@@ -367,7 +367,7 @@ fn the_bayesian_rollout_is_a_joint_bayesian_bootstrap_posterior_with_credible_ba
     assert!((actual_sd - expected_sd).abs() < 1e-10, "{actual_sd} vs {expected_sd}");
     let rollout = result.quasi_rollout().unwrap();
     assert!(rollout.uncertainty.starts_with("bayesian_"));
-    assert_eq!(rollout.calibration.as_ref(), "unmeasured");
+    assert_eq!(rollout.calibration.as_ref(), "not_measured");
     let overall = rollout.overall().unwrap();
     assert!((overall.estimate - 4.5).abs() < 0.35, "{}", overall.estimate);
     for effect in rollout.effects.iter().filter(|effect| effect.kind == DesignEffectKind::EventTime)
@@ -481,7 +481,7 @@ fn the_augmented_panel_publishes_a_whole_cluster_resample_interval() {
     );
     let interval = fit.interval_95.unwrap();
     assert!(interval[0] < fit.effect && fit.effect < interval[1]);
-    assert!(fit.uncertainty.contains("calibration_unmeasured"));
+    assert!(fit.uncertainty.contains("calibration_not_measured"));
     assert_eq!(result.support_status(), None);
     assert!(has_assumption(&result, "independent_resampling_units"));
 }
@@ -633,7 +633,7 @@ fn multi_unit_synthetic_control_round_trips_and_did_refuses() {
     let stored = body.quasi_rollout.unwrap();
     assert_eq!(stored.design, "multi_unit_synthetic_control");
     assert!(!stored.supported);
-    assert_eq!(stored.calibration, "unmeasured");
+    assert_eq!(stored.calibration, "not_measured");
 }
 
 /// Independent robust-bias-corrected fuzzy-RD reference. On each side of the cutoff it fits the
@@ -934,7 +934,7 @@ fn the_rollout_section_round_trips_through_the_result_artifact_and_re_derives_it
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let section = body.quasi_rollout.clone().unwrap();
     assert_eq!(section.design, rollout.design.as_ref());
-    assert_eq!(section.calibration, "unmeasured");
+    assert_eq!(section.calibration, "not_measured");
     assert!(!section.supported);
     assert_eq!(section.effects.len(), rollout.effects.len());
     for (wire, effect) in section.effects.iter().zip(rollout.effects.iter()) {

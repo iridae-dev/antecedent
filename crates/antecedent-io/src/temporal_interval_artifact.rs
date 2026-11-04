@@ -3,12 +3,12 @@
 //!
 //! Format version 1 (two steps; version 2 for any other number of steps, under its own
 //! feature marker). **Internal**: the public interval route is not supported while the
-//! interval's calibration is unmeasured, so no public producer writes this artifact;
+//! interval's calibration is not_measured, so no public producer writes this artifact;
 //! it exists so the interval's whole resampling is reproducible and checkable. The
 //! artifact embeds the unit panel (snapshot id, unit ids, time ids and values), the
 //! estimator, the resampling design, and the interval with every replicate: its
 //! whole-unit replicate id, its unit-selection digest and its re-estimated point.
-//! The calibration is recorded as `unmeasured`; no coverage claim is made. A
+//! The calibration is recorded as `not_measured`; no coverage claim is made. A
 //! consumer rebuilds the panel, re-runs the whole resampling and the whole
 //! estimator on every replicate, and accepts only an interval identical to the
 //! stored one, so a changed unit, time id, value or snapshot is refused even when
@@ -349,9 +349,9 @@ pub struct IntervalResultWire {
     pub panel_digest: String,
     /// Seed.
     pub seed: u64,
-    /// Always the engine's claim: dependence preserved, calibration unmeasured.
+    /// Always the engine's claim: dependence preserved, calibration not_measured.
     pub claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest over every replicate id, selection digest and point (hex).
     pub replicate_digest: String,

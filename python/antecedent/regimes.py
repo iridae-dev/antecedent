@@ -499,7 +499,7 @@ class SequentialContrast:
 
 @dataclass(frozen=True, slots=True)
 class SequentialContrastEstimate:
-    """Cross-fit contrast of two regimes with its scores. Unsupported, calibration unmeasured."""
+    """Cross-fit contrast of two regimes with its scores. Unsupported, calibration not_measured."""
 
     active_regime: tuple[int, int]
     control_regime: tuple[int, int]

@@ -11,7 +11,7 @@
 //!
 //! * [`sequential_contrast_wald_interval`] is the normal interval of the cross-fit score mean.
 //!   It rests on the product rate of the propensity and conditional-mean errors being
-//!   `o(n^-1/2)` and on independent subjects. Its repeated-sampling calibration is unmeasured.
+//!   `o(n^-1/2)` and on independent subjects. Its repeated-sampling calibration is not_measured.
 //! * [`bayesian_sequential_contrast`] is the Bayesian-bootstrap posterior of the mean score
 //!   ([`crate::score_posterior`]). It is a modular posterior: the cross-fit propensity and
 //!   conditional-mean fits are held at their fitted values in each score, so the draws carry
@@ -136,7 +136,7 @@ mod tests {
             contrast: contrast_scores.iter().sum::<f64>() / n,
             active_mean: active.iter().sum::<f64>() / n,
             control_mean: control.iter().sum::<f64>() / n,
-            unmeasured_score_scale: 0.0,
+            not_measured_score_scale: 0.0,
             evaluated_rows: active.len() as u64,
             minimum_action_probability: 0.5,
             active_scores: active.to_vec(),

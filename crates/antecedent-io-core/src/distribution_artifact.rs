@@ -70,7 +70,7 @@ pub enum DistributionCalibration {
     /// A separately cited, coordinate-specific calibration record exists.
     Measured,
     /// Inferential calibration is absent.
-    Unmeasured,
+    NotMeasured,
 }
 
 /// Source trust label preserved without upgrading it during load.
@@ -374,7 +374,7 @@ pub fn convert_legacy_posterior(
             shape: [n_draws, width],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: Some(old),
             legacy_bindings: Some(bindings.to_vec()),
@@ -837,7 +837,7 @@ fn validate_metadata(
             || meta.weights.is_some()
             || meta.supported.is_some()
             || meta.trust != DistributionTrust::Unverified
-            || meta.calibration != DistributionCalibration::Unmeasured
+            || meta.calibration != DistributionCalibration::NotMeasured
             || legacy.n_draws as usize != meta.shape[0]
             || legacy.quantities.len() != meta.shape[1]
             || !legacy.converged
@@ -1212,7 +1212,7 @@ mod tests {
             (converted.joint_expectation(0, 1, |x, y| x * y).unwrap() - 10.0 / 3.0).abs() < 1e-12
         );
         assert_eq!(converted.metadata().trust, DistributionTrust::Unverified);
-        assert_eq!(converted.metadata().calibration, DistributionCalibration::Unmeasured);
+        assert_eq!(converted.metadata().calibration, DistributionCalibration::NotMeasured);
         assert_eq!(converted.metadata().legacy_posterior.as_ref(), Some(&old));
         let converted_bytes = converted.to_bytes("converted").unwrap();
         let reloaded = DistributionArtifact::from_bytes(&converted_bytes, &identity).unwrap();

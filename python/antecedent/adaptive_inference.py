@@ -107,7 +107,7 @@ __all__ = [
     "Availability",
     "BayesianProcedureReport",
     "CorrelationPrior",
-    "DERIVED_UNMEASURED",
+    "DERIVED_NOT_MEASURED",
     "DecisionProcedureReport",
     "ExposureModel",
     "FinalSelection",
@@ -1171,10 +1171,10 @@ def consume_adaptive_inference_result_artifact(
 # The uncertainty of an adaptively collected result is a property of the whole data-collection
 # procedure (policy, looks, delay and loss, exposure failures, stopping, selection), not of the
 # final sample. The classes below declare that procedure and ask for its derived statements. Every
-# result is labelled ``derived_unmeasured``: exact (or simulated, with a Monte Carlo error) under
+# result is labelled ``derived_not_measured``: exact (or simulated, with a Monte Carlo error) under
 # the stated model, with no interval or coverage support.
 
-DERIVED_UNMEASURED = "derived_unmeasured"
+DERIVED_NOT_MEASURED = "derived_not_measured"
 
 
 def _procedure_json(wire: Any) -> str:
@@ -1646,7 +1646,7 @@ ProcedureReportRequest = (
 class ProcedureReport(ScientificResult):
     """One paradigm's derived statement about the whole procedure.
 
-    ``body`` holds the paradigm's numbers; ``claim`` is always ``derived_unmeasured``.
+    ``body`` holds the paradigm's numbers; ``claim`` is always ``derived_not_measured``.
     """
 
     paradigm: str
@@ -1654,7 +1654,7 @@ class ProcedureReport(ScientificResult):
     procedure_identity: str
     contract_identity: str | None
     body: dict[str, Any]
-    claim: str = DERIVED_UNMEASURED
+    claim: str = DERIVED_NOT_MEASURED
 
 
 @dataclass(repr=False, frozen=True)
@@ -1669,7 +1669,7 @@ class ProcedureLaw(ScientificResult):
     cumulative_enrolment: tuple[int, ...]
     work_units: int
     peak_states: int
-    claim: str = DERIVED_UNMEASURED
+    claim: str = DERIVED_NOT_MEASURED
 
 
 @dataclass(repr=False, frozen=True)
@@ -1680,7 +1680,7 @@ class ProcedureSimulation(ScientificResult):
     replicates: tuple[dict[str, Any], ...]
     mean_enrolled: float
     rule_stop_fraction: float
-    claim: str = DERIVED_UNMEASURED
+    claim: str = DERIVED_NOT_MEASURED
     #: The work the simulation was admitted for and did (``work_planned``, ``work_done``, ...).
     receipt: dict[str, Any] = field(default_factory=dict)
 
@@ -1802,7 +1802,7 @@ class AdaptiveProcedure:
 # cluster with a unit-level random effect) are a separate outcome structure: the within-unit
 # dependence is declared, never defaulted, and every guarantee is about one cell of the procedure
 # matrix. Fixed-sample inference after response-adaptive assignment, and an independence
-# assumption for dependent measurements, are refused. Results are ``derived_unmeasured``.
+# assumption for dependent measurements, are refused. Results are ``derived_not_measured``.
 
 
 @dataclass(frozen=True)
@@ -2030,14 +2030,14 @@ class RepeatedMeasuresReport(ScientificResult):
     ``cell`` names the matrix cell the statement is about (``id``, ``family``, ``outcome``,
     ``monitoring``, ``stopping``, ``paradigm``); ``route`` names the analysis route; ``body``
     holds the exact closed forms and, for a derived report, the simulated law with its Monte
-    Carlo error reported separately. ``claim`` is always ``derived_unmeasured``.
+    Carlo error reported separately. ``claim`` is always ``derived_not_measured``.
     """
 
     procedure_identity: str
     cell: dict[str, Any]
     route: str
     body: dict[str, Any]
-    claim: str = DERIVED_UNMEASURED
+    claim: str = DERIVED_NOT_MEASURED
 
 
 @dataclass(repr=False, frozen=True)
@@ -2048,7 +2048,7 @@ class RepeatedMeasuresPosterior(ScientificResult):
     the contrast ``plus - minus`` (mean, standard deviation, equal-tailed credible interval and
     positive probability), the selection evidence (the realized assignment probabilities, kept and
     unused) and the units it was computed from. It is an explicit uncalibrated estimator:
-    ``supported`` is ``False`` and ``calibration`` is ``"unmeasured"``.
+    ``supported`` is ``False`` and ``calibration`` is ``"not_measured"``.
     """
 
     report: dict[str, Any]
@@ -2259,7 +2259,7 @@ class RepeatedMeasuresProcedure:
         on the observed units: it is the same under any assignment that depends only on observed
         earlier data and independent randomization, and the recorded assignment probabilities are
         retained as selection evidence and not used. The within-unit variance and correlation are
-        the declared ones. The result is unsupported and its calibration is unmeasured.
+        the declared ones. The result is unsupported and its calibration is not_measured.
 
         Raises:
             AdaptiveInferenceRefusal: ``not_supported`` for an assignment that depends on an
@@ -2343,7 +2343,7 @@ def consume_repeated_measures_posterior_artifact(
 # model, the posterior update, the allocation, the decisions and the confidence sequences are
 # Rust's (``antecedent_stats::adaptive_inference::participant_procedure`` documents the update
 # precisely); this section declares the procedure and presents what it reads. Every result is
-# ``derived_unmeasured``: the posterior claim and the anytime-valid frequentist claim of each look
+# ``derived_not_measured``: the posterior claim and the anytime-valid frequentist claim of each look
 # are separate fields, and neither is a measured coverage of the whole procedure.
 
 
@@ -2554,14 +2554,14 @@ class ParticipantReadings(ScientificResult):
     ``anytime_valid_frequentist``, with the simultaneous comparisons against the control and the
     comparison of the data-selected best treatment, which the simultaneous family covers).
     ``priors`` records every arm's resolved prior with its sources, discounts and effective sample
-    size. ``claim`` is always ``derived_unmeasured``.
+    size. ``claim`` is always ``derived_not_measured``.
     """
 
     procedure_identity: str
     priors: tuple[dict[str, Any], ...]
     looks: tuple[dict[str, Any], ...]
     decision: dict[str, Any]
-    claim: str = DERIVED_UNMEASURED
+    claim: str = DERIVED_NOT_MEASURED
 
 
 @dataclass(repr=False, frozen=True)
@@ -2578,7 +2578,7 @@ class ParticipantSimulation(ScientificResult):
     receipt: dict[str, Any]
     summary: dict[str, Any]
     replicates: tuple[dict[str, Any], ...]
-    claim: str = DERIVED_UNMEASURED
+    claim: str = DERIVED_NOT_MEASURED
 
 
 class ParticipantProcedure:

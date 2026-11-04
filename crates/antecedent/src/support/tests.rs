@@ -124,7 +124,7 @@ fn a_retarget_runs_on_a_supported_cell_whatever_the_estimator_status() {
 }
 
 #[test]
-fn classify_estimator_refuses_unmeasured_estimators() {
+fn classify_estimator_refuses_not_measured_estimators() {
     let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
     let status = classify_estimator(c, EstimatorId::BayesianGcomp);
     assert_eq!(status, CellStatus::NotSupported);

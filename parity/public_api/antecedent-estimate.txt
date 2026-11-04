@@ -12971,9 +12971,7 @@ pub const antecedent_estimate::REFIT_BOOTSTRAP_UNCERTAINTY_KIND: &str
 pub const antecedent_estimate::RESPONSE_SHORT_SERIES_ROWS: f64
 pub const antecedent_estimate::SAMPLED_RECOVERY_CALIBRATION: &str
 pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize
-pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_REPLICATES: usize
 pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_ROWS: usize
-pub const antecedent_estimate::SAMPLED_RECOVERY_MIN_REPLICATES: usize
 pub const antecedent_estimate::SELECTION_RULE: &str
 pub const antecedent_estimate::SIMULTANEOUS_BAND_CRITICAL: &str
 pub const antecedent_estimate::SIMULTANEOUS_BAND_LOWER: &str
@@ -17492,7 +17490,7 @@ pub field antecedent_estimate::sequential_crossfit::SequentialContrast::evaluate
 pub field antecedent_estimate::sequential_crossfit::SequentialContrast::fits_computed: u64
 pub field antecedent_estimate::sequential_crossfit::SequentialContrast::fits_reused: u64
 pub field antecedent_estimate::sequential_crossfit::SequentialContrast::minimum_action_probability: f64
-pub field antecedent_estimate::sequential_crossfit::SequentialContrast::unmeasured_score_scale: f64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::not_measured_score_scale: f64
 pub field antecedent_estimate::sequential_crossfit::SequentialPanel::baseline: &'a [&'a [f64]]
 pub field antecedent_estimate::sequential_crossfit::SequentialPanel::first_treatment: &'a [f64]
 pub field antecedent_estimate::sequential_crossfit::SequentialPanel::intermediate: &'a [&'a [f64]]
@@ -21565,9 +21563,7 @@ pub use antecedent_estimate::recovery_sampled::ObservationPattern = antecedent_e
 pub use antecedent_estimate::recovery_sampled::ObservationRow = antecedent_estimate::ObservationRow
 pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_CALIBRATION = antecedent_estimate::SAMPLED_RECOVERY_CALIBRATION
 pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_MAX_BINARY_VARIABLES = antecedent_estimate::SAMPLED_RECOVERY_MAX_BINARY_VARIABLES
-pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_MAX_REPLICATES = antecedent_estimate::SAMPLED_RECOVERY_MAX_REPLICATES
 pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_MAX_ROWS = antecedent_estimate::SAMPLED_RECOVERY_MAX_ROWS
-pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_MIN_REPLICATES = antecedent_estimate::SAMPLED_RECOVERY_MIN_REPLICATES
 pub use antecedent_estimate::recovery_sampled::SampledEffectInterval = antecedent_estimate::SampledEffectInterval
 pub use antecedent_estimate::recovery_sampled::SampledObservationInput = antecedent_estimate::SampledObservationInput
 pub use antecedent_estimate::recovery_sampled::SampledRecoveryConfig = antecedent_estimate::SampledRecoveryConfig
@@ -21982,11 +21978,11 @@ pub variant antecedent_estimate::dose_grid_functional::DoseDesign::RandomizedDos
 pub variant antecedent_estimate::dose_grid_functional::DoseFunctional::Contrast { from: f64, to: f64 }
 pub variant antecedent_estimate::dose_grid_functional::DoseFunctional::Derivative
 pub variant antecedent_estimate::dose_grid_functional::DoseFunctional::Level
-pub variant antecedent_estimate::dose_grid_functional::IntervalCalibration::Unmeasured
+pub variant antecedent_estimate::dose_grid_functional::IntervalCalibration::NotMeasured
 pub variant antecedent_estimate::dose_grid_functional::RowDependence::Clustered(&'a [u32])
 pub variant antecedent_estimate::dose_grid_functional::RowDependence::Independent
 pub variant antecedent_estimate::dose_grid_functional::RowDependence::Serial { lag: usize }
-pub variant antecedent_estimate::effect_constancy::CalibrationStatus::Unmeasured
+pub variant antecedent_estimate::effect_constancy::CalibrationStatus::NotMeasured
 pub variant antecedent_estimate::effect_constancy::ConstancyConclusion::NotRejected
 pub variant antecedent_estimate::effect_constancy::ConstancyConclusion::Rejected
 pub variant antecedent_estimate::effect_constancy::ContrastFamily::AgainstReference(alloc::string::String)
@@ -22056,7 +22052,7 @@ pub variant antecedent_estimate::experimental_fit::RecoveredDrawOrigin::Posterio
 pub variant antecedent_estimate::experimental_fit::RecoveredDrawOrigin::Supplied
 pub variant antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::Functional
 pub variant antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::LinearPathProduct
-pub variant antecedent_estimate::joint_bayesian_transport::JointTransportCalibration::Unmeasured
+pub variant antecedent_estimate::joint_bayesian_transport::JointTransportCalibration::NotMeasured
 pub variant antecedent_estimate::joint_bayesian_transport::PriorProvenance::Bank { bank_id: alloc::string::String, consumed: alloc::vec::Vec<antecedent_estimate::joint_bayesian_transport::DataIdentity> }
 pub variant antecedent_estimate::joint_bayesian_transport::PriorProvenance::Declared
 pub variant antecedent_estimate::joint_bayesian_transport::SourceDependence::IndependentSamples

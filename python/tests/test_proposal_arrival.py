@@ -89,7 +89,7 @@ def test_arrival_public_actual_count_truth_and_original_artifact_replay(family):
     assert result.to_dict()["point"]["probabilities"] == pytest.approx([0.2, 0.8])
     assert result.to_dict()["sample_size"] == EXPECTED["python_sample_size"]
     assert result.to_dict()["inference"] == "empirical_point_only"
-    assert result.to_dict()["calibration"] == "unmeasured"
+    assert result.to_dict()["calibration"] == "not_measured"
     assert result.to_dict()["work"]["program_compilations"] > 0
     assert result.to_dict()["work"]["provider_calls"] > 0
     replay = consume_arrival(

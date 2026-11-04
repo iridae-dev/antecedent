@@ -3,7 +3,7 @@
 //! A bounded, checksummed, sectioned container holding one global effect-constancy test:
 //!
 //! * `effect_constancy.meta` (CBOR): version, feature marker, the frozen null, the point-only
-//!   claim, the **unmeasured** calibration coordinate, the level, the declared partitions
+//!   claim, the **not_measured** calibration coordinate, the level, the declared partitions
 //!   (label, coordinate, support, estimand), the dependence kind, the multiplicity family,
 //!   the identity digests, the stored test result and the standing caveats;
 //! * `effect_constancy.numbers` (little-endian `f64`): the per-partition effects, their
@@ -19,7 +19,7 @@
 //! even when the artifact was resealed consistently.
 //!
 //! What this does **not** say: non-rejection does not prove constancy, the test's Type I error
-//! and power are unmeasured (`calibration = "unmeasured"`), and the artifact grants no causal
+//! and power are not_measured (`calibration = "not_measured"`), and the artifact grants no causal
 //! or interval support (`inference_claim = "point_only"`). Unknown major versions refuse.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -38,7 +38,7 @@ pub const EFFECT_CONSTANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const EFFECT_CONSTANCY_ARTIFACT_FEATURE: &str = "effect_constancy_v1";
 /// Calibration coordinate of this test: Type I error and power were not measured.
-pub const EFFECT_CONSTANCY_CALIBRATION: &str = "unmeasured";
+pub const EFFECT_CONSTANCY_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -280,7 +280,7 @@ pub struct EffectConstancyMeta {
     pub null: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -294,7 +294,7 @@ pub struct EffectConstancyMeta {
     pub identity: EffectConstancyIdentity,
     /// The stored result.
     pub result: ResultWire,
-    /// Standing caveats: non-rejection is not proof, error rates unmeasured.
+    /// Standing caveats: non-rejection is not proof, error rates not_measured.
     pub caveats: Vec<String>,
 }
 
@@ -326,7 +326,7 @@ pub struct EffectConstancyReportWire {
     pub null: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -606,7 +606,7 @@ fn encode_parts_impl(
     crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "effect_constancy_point_only_unmeasured",
+            note: "effect_constancy_point_only_not_measured",
             max_bytes: MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),

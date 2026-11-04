@@ -1267,7 +1267,7 @@ class CalibrationBoundary(unittest.TestCase):
                     "learner_ate_known_truth_point_conformance",
                 )
                 self.assertEqual(
-                    row["calibration_evidence"]["status"], "registered_unmeasured"
+                    row["calibration_evidence"]["status"], "registered_not_measured"
                 )
         result = subprocess.run(
             ["bash", str(root / "scripts/measure_calibration_groups.sh")],

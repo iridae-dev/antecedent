@@ -558,7 +558,7 @@ impl JointResponseResult {
                 shape: [self.evaluation.draw_count, self.world_ids().len()],
                 weights: None,
                 supported: Some(vec![true; self.world_ids().len()]),
-                calibration: DistributionCalibration::Unmeasured,
+                calibration: DistributionCalibration::NotMeasured,
                 trust: DistributionTrust::NativeSupported,
                 legacy_posterior: None,
                 legacy_bindings: None,
@@ -700,10 +700,10 @@ impl JointResponseResult {
             .collect()
     }
 
-    /// Scientific calibration remains unmeasured for this newly assembled procedure.
+    /// Scientific calibration remains not_measured for this newly assembled procedure.
     #[must_use]
     pub const fn calibration(&self) -> &'static str {
-        "unmeasured"
+        "not_measured"
     }
     /// Legal native evidence representations, without converting sampling into posterior risk.
     #[must_use]
@@ -1206,7 +1206,7 @@ mod tests {
             .abs()
                 < 1e-12
         );
-        assert_eq!(second.calibration(), "unmeasured");
+        assert_eq!(second.calibration(), "not_measured");
         assert!(second.target().assumptions().records().entries.iter().any(|record| record.status == AssumptionStatus::Declared && matches!(&record.assumption,
             Assumption::ParametricRestriction(premise) if premise.id.as_ref() == LINEAR_ASSUMPTION)));
         drop(program);
@@ -1336,7 +1336,7 @@ mod tests {
         let law = result.numerical_joint_law(ctx).unwrap();
         assert_eq!(
             law.metadata().calibration,
-            antecedent_io::distribution_artifact::DistributionCalibration::Unmeasured
+            antecedent_io::distribution_artifact::DistributionCalibration::NotMeasured
         );
         assert_eq!(law.metadata().identity.quantities.len(), 2);
         let law_bytes = law.to_bytes("joint_response_posterior").unwrap();

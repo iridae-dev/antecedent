@@ -326,7 +326,7 @@ def counterpart_row(row: dict, ix: Index) -> dict:
         if status == "not_supported" and split and not execution and not supported:
             reasons.append("executes with no route obligation recording what it owes")
     out["uncertainty_support"] = (
-        sorted(set(uncertainties)) if uncertainties else ("unmeasured" if claim == "unsupported" else "none")
+        sorted(set(uncertainties)) if uncertainties else ("not_measured" if claim == "unsupported" else "none")
     )
 
     # Closure kind against the residual limitation.
@@ -423,7 +423,7 @@ def manifest_row(route: dict, ix: Index) -> dict:
         "support_obligations": [],
         "uncertainty": uncertainty,
         "uncertainty_basis": method.get("uncertainty_basis", "") or "",
-        "uncertainty_support": "unmeasured",
+        "uncertainty_support": "not_measured",
         "consumer": consumers[0],
         "decision_port": route["decision_ports"],
         "closure_kind": "",

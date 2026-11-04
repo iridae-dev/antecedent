@@ -104,7 +104,7 @@ pub struct StudyRank {
     pub net_value: f64,
     /// Whether the order against the next candidate is not established by the method.
     pub rank_uncertain: bool,
-    /// Calibration of this study-value estimate; always unmeasured.
+    /// Calibration of this study-value estimate; always not_measured.
     pub calibration: &'static str,
 }
 
@@ -362,7 +362,7 @@ pub fn rank_studies_with_context(
             method,
             net_value: evsi - c.cost,
             rank_uncertain: false,
-            calibration: "unmeasured",
+            calibration: "not_measured",
         });
     }
     rows.sort_by(|a, b| b.net_value.total_cmp(&a.net_value));
@@ -607,7 +607,7 @@ pub fn rank_hierarchical_studies(
                 },
                 net_value: evsi - candidate.cost,
                 rank_uncertain: false,
-                calibration: "unmeasured",
+                calibration: "not_measured",
             }
         })
         .collect();

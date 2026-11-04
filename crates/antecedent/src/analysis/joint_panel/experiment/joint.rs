@@ -288,7 +288,7 @@ impl JointPanelResult {
                     antecedent_io::quantity_wire::DistributionMeaningWire::CausalFunctionalPosterior;
                 metadata.identity.provider_id =
                     "antecedent.compiled_joint_panel.joint_conditional_experiment".into();
-                metadata.calibration = DistributionCalibration::Unmeasured;
+                metadata.calibration = DistributionCalibration::NotMeasured;
                 metadata.trust = DistributionTrust::Unverified;
                 DistributionArtifact::new(metadata, law.draws().to_vec())
                     .map_err(JointPanelError::compile)
@@ -369,9 +369,9 @@ impl PanelJointExperimentResult {
     #[must_use]
     pub fn scope(&self) -> &'static str {
         if self.update.contrast_bias_bounds.is_some() {
-            "assumption_bounded_joint_experimental_update;no_likelihood_claim;calibration_unmeasured"
+            "assumption_bounded_joint_experimental_update;no_likelihood_claim;calibration_not_measured"
         } else {
-            "model_conditional_joint_experimental_update;calibration_unmeasured"
+            "model_conditional_joint_experimental_update;calibration_not_measured"
         }
     }
     /// Exact joint update dependency, independent of any decision utility.

@@ -29,7 +29,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P07.curve` | supported | supported | supported | supported |
 | `P07.derivative` | supported | supported | supported | supported |
 | `P07.dose_grid` | not supported | not supported | not supported | not supported |
-| `P07.quantile` | not supported | supported | not supported | not supported |
+| `P07.quantile` | supported | supported | not supported | not supported |
 | `P07.smoothed_dose` | not supported | not supported | not supported | not supported |
 | `P08` | supported | supported | supported | supported |
 | `P09.adaptive` | not supported | not supported | not supported | not supported |

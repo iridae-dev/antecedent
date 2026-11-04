@@ -257,7 +257,7 @@ def test_a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage() -> None
     n = 1000
     report = generator_assessment(n).report
     d = report.predictor("calibrated").diagnostics
-    assert (d.label, d.calibration) == ("diagnostic", "unmeasured")
+    assert (d.label, d.calibration) == ("diagnostic", "not_measured")
     assert d.pit is not None and d.coverage is not None
     # Recomputed from the returned mid-PIT values: Kolmogorov-Smirnov against U(0, 1).
     u = sorted(d.pit.mid_pit)
@@ -300,7 +300,7 @@ def test_score_differences_are_paired_with_the_stated_dependence() -> None:
         assert diff.dependence == "iid"
         assert (diff.label, diff.calibration, diff.interval) == (
             "diagnostic",
-            "unmeasured",
+            "not_measured",
             "not_reported",
         )
         assert diff.mean_difference > 0
@@ -706,7 +706,7 @@ def test_drift_compares_the_pit_of_two_windows() -> None:
     assert same.population_stability_index == pytest.approx(0.0, abs=TOL)
     assert (same.label, same.calibration, same.route) == (
         "diagnostic",
-        "unmeasured",
+        "not_measured",
         "distribution_drift",
     )
     moved = pa.distribution_drift([0.1, 0.2, 0.3], [0.7, 0.8, 0.9], 4)

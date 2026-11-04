@@ -74,7 +74,7 @@ Read these refusals by family:
 | `interface_contract_uncertainty_mismatch` | The required uncertainty meaning is missing, of another paradigm or another object, such as a sampling interval where a posterior is needed. |
 | `interface_contract_invalid` | The declaration is malformed. |
 
-An accepted connection carries the producer's label and evidence unchanged. **A connection never raises a label**: a point-only producer stays point-only, an unmeasured interval stays unmeasured, and a consumer that relies on measured calibration is refused instead of being served an unmeasured interval.
+An accepted connection carries the producer's label and evidence unchanged. **A connection never raises a label**: a point-only producer stays point-only, a not_measured interval stays not_measured, and a consumer that relies on measured calibration is refused instead of being served a not_measured interval.
 
 `check_composition(components, connections)` checks a whole set before any execution. It refuses unknown or duplicated components and ports, a consumed port fed twice, a feedback cycle (reported with its path, as `interface_contract_cyclic_composition`), calibration declared `inherited` whose upstream does not hold a measured record, and two inputs required to be disjoint that share an evidence source. Cyclic scientific composition is not supported, and a loop is never unrolled or iterated. The check is bounded at 1024 components and 8192 connections.
 
@@ -82,7 +82,7 @@ A contract has one canonical, versioned identity independent of port declaration
 
 ## Adapt declarations you already have
 
-Bridge, measurement-model and mechanism-composition declarations are instances of the one interface-contract schema and are decided by the same connection check. An adapter takes its port facts explicitly: support, estimand identity, uncertainty meaning and measurement models. Nothing is inferred. An unstated support is real-valued, no uncertainty meaning is stated, and no measurement model is claimed. The produced calibration is `unmeasured` when a value carries uncertainty and `point_only` otherwise; it is never measured by default, and a bridge never raises a calibration its source did not hold.
+Bridge, measurement-model and mechanism-composition declarations are instances of the one interface-contract schema and are decided by the same connection check. An adapter takes its port facts explicitly: support, estimand identity, uncertainty meaning and measurement models. Nothing is inferred. An unstated support is real-valued, no uncertainty meaning is stated, and no measurement model is claimed. The produced calibration is `not_measured` when a value carries uncertainty and `point_only` otherwise; it is never measured by default, and a bridge never raises a calibration its source did not hold.
 
 Whether two components share evidence is decided by the evidence ledger's row-level overlap, not by comparing identity strings. The same source, or distinct sources that share observations (a subset, a resample, a derived source), are refused as `interface_contract.shared_evidence` where disjoint evidence is required. A source the ledger does not hold, or whose observations cannot be computed, is `dependence_unknown`: unknown is never read as disjoint. Without a ledger, a disjointness requirement refuses instead of being skipped. Rows of several inputs may be paired only when they share an alignment identity, and a covariance or declared independence is never a route to row pairing.
 

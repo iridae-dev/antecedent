@@ -2,7 +2,7 @@
 
 Estimate what a rollout, launch or policy did when you observed treated and untreated units before and after the change and nothing randomized who was treated. This guide covers difference-in-differences on a two-period panel, event studies for staggered adoption, and the synthetic control family for one or a few treated units. For a threshold rule on a running variable, see [Regression discontinuity and kink](discontinuity-and-kink.md).
 
-These designs identify an effect only through assumptions you declare and Antecedent cannot test: that the treated units would have followed the comparison units' trend without the change, that nothing responded before adoption, and that units do not affect each other. Every result below executes and keeps its status as an unsupported point utility or an unsupported interval with calibration `unmeasured`; read `result.inspect().calibration` and the assumptions on the result. A good pre-period fit or a flat pre-trend is a reason to look harder, not a verification of the assumption.
+These designs identify an effect only through assumptions you declare and Antecedent cannot test: that the treated units would have followed the comparison units' trend without the change, that nothing responded before adoption, and that units do not affect each other. Every result below executes and keeps its status as an unsupported point utility or an unsupported interval with calibration `not_measured`; read `result.inspect().calibration` and the assumptions on the result. A good pre-period fit or a flat pre-trend is a reason to look harder, not a verification of the assumption.
 
 ## Two-period difference-in-differences
 
@@ -132,4 +132,4 @@ The prepared study freezes unit and period row order; refreshing with changed de
 
 - [Regression discontinuity and kink](discontinuity-and-kink.md) for threshold rules.
 - [Sequential regimes](sequential-regimes.md) and [temporal designs](../temporal-designs.md) when treatment varies over time within units.
-- [Uncertainty](../../concepts/uncertainty.md) for how to read intervals whose calibration is unmeasured.
+- [Uncertainty](../../concepts/uncertainty.md) for how to read intervals whose calibration is not_measured.

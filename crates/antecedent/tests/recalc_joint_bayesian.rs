@@ -1,4 +1,4 @@
-//! Internal unmeasured joint posterior retention; independent Gaussian algebra.
+//! Internal not_measured joint posterior retention; independent Gaussian algebra.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_bayesian::PosteriorSummarySpec;
 use antecedent::analysis::recalc_joint_bayesian::{
@@ -130,7 +130,7 @@ fn actual_checked_joint_posterior_retention_and_independent_replay() {
         &ctx,
     )
     .unwrap();
-    assert_eq!(wire.calibration, "unmeasured");
+    assert_eq!(wire.calibration, "not_measured");
     assert_eq!(replayed, *session.fit().unwrap());
     request.model.priors.varying.provenance = PriorProvenance::Bank {
         bank_id: "used-bank".into(),

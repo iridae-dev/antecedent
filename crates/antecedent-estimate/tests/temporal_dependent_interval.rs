@@ -165,7 +165,7 @@ fn dynamic_scm_studentized_interval_covers_independent_truth() {
     assert!(by_unit.contains(truth), "[{}, {}] misses {truth}", by_unit.lower, by_unit.upper);
     assert_eq!(by_unit.claim, INTERVAL_CLAIM);
     assert_eq!(by_unit.calibration, INTERVAL_CALIBRATION_STATUS);
-    assert_eq!(by_unit.calibration, "unmeasured");
+    assert_eq!(by_unit.calibration, "not_measured");
     assert!((by_unit.level - 0.95).abs() < 1e-12);
 }
 

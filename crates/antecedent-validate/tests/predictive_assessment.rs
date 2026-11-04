@@ -368,7 +368,7 @@ fn a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage() {
     let report = assess_predictive_laws(&generator_spec(n), &ctx()).unwrap();
     let diagnostics = &report.predictors[0].diagnostics;
     assert_eq!(diagnostics.label, "diagnostic");
-    assert_eq!(diagnostics.calibration, "unmeasured");
+    assert_eq!(diagnostics.calibration, "not_measured");
     let pit = diagnostics.pit.as_ref().unwrap();
     // The KS distance of n = 2000 uniform PIT values exceeds 0.05 with probability ~1e-10.
     assert!(pit.ks_distance < 0.05, "ks {}", pit.ks_distance);
@@ -466,7 +466,7 @@ fn no_declared_dependence_withholds_every_standard_error() {
 // -- the shape of the report ------------------------------------------------------------
 
 #[test]
-fn every_report_is_point_only_unmeasured_and_not_a_causal_claim() {
+fn every_report_is_point_only_not_measured_and_not_a_causal_claim() {
     let report = assess_predictive_laws(&generator_spec(50), &ctx()).unwrap();
     assert_eq!(report.family, "predictive_assessment");
     assert_eq!(report.inference_claim, "point_only");

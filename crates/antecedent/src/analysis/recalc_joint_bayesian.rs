@@ -1,5 +1,5 @@
 //! Checked joint transport recalculation with a native aligned candidate posterior.
-//! No calibrated public posterior or interval is issued: calibration stays unmeasured.
+//! No calibrated public posterior or interval is issued: calibration stays not_measured.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_bayesian::{BayesianLaw, PosteriorSummarySpec};
 use super::recalc_common::{Fields, literal};
@@ -29,7 +29,7 @@ pub struct JointBayesianRequest {
     pub options: JointTransportOptions,
     /// Inspection projection over native emitted target-effect draws.
     pub summary: PosteriorSummarySpec,
-    /// Native expected effect net-benefit rule, with calibration still unmeasured.
+    /// Native expected effect net-benefit rule, with calibration still not_measured.
     pub utility: UtilitySpec,
 }
 /// Inspection-only candidate outcome. It is not a public supported interval result.
@@ -282,7 +282,7 @@ impl JointBayesianRequest {
         // The projection states an uncertainty claim with no calibration record, and its draws
         // are rows of one aligned joint posterior over the sources: the alignment is the draw
         // count, the seed and the source units it was drawn for.
-        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::Unmeasured);
+        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::NotMeasured);
         ids.set_coupling(&antecedent_core::recalc::CouplingInput::AlignedJoint {
             alignment: Fields::new()
                 .texts(&self.sources.iter().map(|source| source.id.as_str()).collect::<Vec<_>>())

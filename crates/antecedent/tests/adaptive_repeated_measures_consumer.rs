@@ -1,7 +1,7 @@
 //! Consumer side of a repeated-measures derived report: the decision
 //! reliability carrier and its coverage design.
 //!
-//! A repeated-measures report is a plain derived statement (`derived_unmeasured`
+//! A repeated-measures report is a plain derived statement (`derived_not_measured`
 //! with an exact closed form and a simulated law). No producer adapter maps it
 //! to the decision-reliability carrier, whose producers are cohort-decision
 //! and sequential-evaluation outputs, and no coverage route names it, so the
@@ -15,7 +15,7 @@ use antecedent::analysis::adaptive_procedure_report::{
 use antecedent::analysis::decision_reliability::decision_reliability_coverage_design;
 use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference::{
-    AnalysisEstimator, DERIVED_UNMEASURED, FinalAnalysis, OutcomeStructure,
+    AnalysisEstimator, DERIVED_NOT_MEASURED, FinalAnalysis, OutcomeStructure,
     RepeatedMeasuresDeclaration, StoppingRule, UnitAssignment, UnitSummary, WithinUnitCorrelation,
 };
 
@@ -45,7 +45,7 @@ fn a_repeated_measures_report_has_no_decision_reliability_route() {
             &ExecutionContext::for_tests(1),
         )
         .expect("closed form");
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     assert!(matches!(report.body, RepeatedMeasuresReportBody::ClosedForm { .. }));
     for cell in decision_reliability_coverage_design() {
         let text = format!("{} {}", cell.route, cell.claim).to_lowercase();

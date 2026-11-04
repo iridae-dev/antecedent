@@ -523,7 +523,7 @@ impl TemporalSession {
     }
     /// Measured original-source whole-unit interval, including paired effect arms.
     /// # Errors
-    /// Missing checked state, unmeasured protocol, source replay or stale evidence.
+    /// Missing checked state, not_measured protocol, source replay or stale evidence.
     pub fn dependent_interval(
         &self,
         config: &DependentIntervalConfig,
@@ -538,7 +538,7 @@ impl TemporalSession {
 
     /// Closed whole-unit interval candidate for internal acceptance/calibration.
     /// Both arms of an effect share each whole-unit draw. This produces an
-    /// unmeasured candidate and does not open the public dependent interval gate.
+    /// not_measured candidate and does not open the public dependent interval gate.
     /// # Errors
     /// Missing actual state, changed producing context, invalid configuration,
     /// cancellation or unsupported resampled histories.

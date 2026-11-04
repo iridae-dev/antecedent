@@ -351,7 +351,7 @@ fn law(provider: &str, snapshot: &str, mask: Option<Vec<bool>>) -> DistributionA
             shape: [2, 4],
             weights: None,
             supported: mask,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

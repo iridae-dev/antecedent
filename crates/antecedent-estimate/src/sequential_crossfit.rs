@@ -25,7 +25,7 @@
 //! returns that stored fit. A change to the source or to any key field does not reuse it.
 //!
 //! Known-randomization sequential scores are a different estimator. This module does not call
-//! them and does not build a posterior. The score scale is an unmeasured diagnostic, not an
+//! them and does not build a posterior. The score scale is a not_measured diagnostic, not an
 //! interval. Horizons beyond two decisions, censoring, and high-dimensional orthogonal
 //! learning are outside this contrast.
 //!
@@ -609,7 +609,7 @@ impl Default for SequentialNuisanceStore {
     }
 }
 
-/// Point contrast and the unmeasured scale of its cross-fit scores.
+/// Point contrast and the not_measured scale of its cross-fit scores.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SequentialContrast {
     /// Active-regime mean minus control-regime mean.
@@ -620,8 +620,8 @@ pub struct SequentialContrast {
     pub control_mean: f64,
     /// Standard deviation of the contrast scores over `sqrt(n)`.
     ///
-    /// Calibration is unmeasured. This is not an interval endpoint.
-    pub unmeasured_score_scale: f64,
+    /// Calibration is not_measured. This is not an interval endpoint.
+    pub not_measured_score_scale: f64,
     /// Subjects scored. Held-out ids in the fold assignment are not subjects.
     pub evaluated_rows: u64,
     /// Smallest regime-action probability used in a score.
@@ -697,7 +697,7 @@ pub fn estimate_sequential_contrast(
         contrast: mean(&contrast_scores)?,
         active_mean: active_scores.mean,
         control_mean: control_scores.mean,
-        unmeasured_score_scale: score_scale(&contrast_scores)?,
+        not_measured_score_scale: score_scale(&contrast_scores)?,
         evaluated_rows,
         minimum_action_probability: active_scores.minimum.min(control_scores.minimum),
         active_scores: active_scores.values,
@@ -1617,7 +1617,7 @@ mod tests {
         close(contrast.control_mean, 3.0);
         close(contrast.contrast, 3.0);
         close(contrast.minimum_action_probability, 0.5);
-        assert!(contrast.unmeasured_score_scale < 1.0e-5);
+        assert!(contrast.not_measured_score_scale < 1.0e-5);
         assert_eq!(contrast.evaluated_rows, u64::try_from(SUBJECTS).expect("count"));
         assert_eq!(contrast.fits_computed, 6);
         assert_eq!(contrast.fits_reused, 0);

@@ -1093,7 +1093,7 @@ fn batch_retarget_posterior_mean_stays_near_the_cross_fitted_score() {
 }
 
 #[test]
-fn batch_retarget_posterior_refuses_an_unmeasured_band() {
+fn batch_retarget_posterior_refuses_an_not_measured_band() {
     let error = score_contrast_posterior(
         &[0.0, 1.0],
         &[1.0, 3.0],

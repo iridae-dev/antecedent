@@ -31,11 +31,11 @@ pub(crate) fn execute_score(
     }
     check_cancel()?;
     let (result, failure) =
-        antecedent::execution::numerical_admission::with_context_and_failure(&ctx, || fit(&ctx));
+        antecedent::execution::run_admitted_recording_refusal(&ctx, || fit(&ctx));
     check_cancel()?;
     if let (true, Some(error)) = (result.is_err(), failure) {
         return Err(match error {
-            antecedent::execution::AdmissionError::Cancelled => {
+            antecedent::execution::AdmissionRefusal::Cancelled => {
                 py_err(antecedent::CausalError::Cancelled { stage })
             }
             error => crate::CausalResourceError::new_err(error.to_string()),

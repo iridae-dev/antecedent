@@ -608,8 +608,7 @@ pub(crate) fn decision_target_digest(
     hex: Option<&str>,
 ) -> PyResult<Option<antecedent::scientific::SemanticDigest>> {
     hex.map(|hex| {
-        antecedent::schema::digest_from_hex(hex)
-            .map(antecedent::scientific::SemanticDigest::from_bytes)
+        antecedent::identity::parse_digest(hex)
             .ok_or_else(|| crate::value_err("decision_target must be 64 hexadecimal characters"))
     })
     .transpose()

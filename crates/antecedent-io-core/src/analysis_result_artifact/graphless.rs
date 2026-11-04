@@ -1750,7 +1750,7 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
 
 /// Uncertainty label of the augmented panel's unsupported whole-cluster resample interval.
 const AUGMENTED_RESAMPLE_UNCERTAINTY: &str =
-    "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_unmeasured";
+    "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_not_measured";
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(
@@ -2375,7 +2375,7 @@ fn sampling_weighted_uncertainty(
 }
 
 /// Uncertainty label of the normal interval of a sequential contrast.
-const SEQUENTIAL_CONTRAST_INTERVAL: &str = "normal_interval_calibration_unmeasured";
+const SEQUENTIAL_CONTRAST_INTERVAL: &str = "normal_interval_calibration_not_measured";
 /// Uncertainty label of the modular posterior of a sequential contrast.
 const SEQUENTIAL_CONTRAST_POSTERIOR: &str = "modular_bayesian_bootstrap_posterior_no_interval";
 
@@ -2433,7 +2433,7 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
         || !fit.minimum_action_probability.is_finite()
         || fit.minimum_action_probability < fit.min_probability
         || fit.supported
-        || fit.calibration != "unmeasured"
+        || fit.calibration != "not_measured"
         || result.estimate.is_some()
         || result.standard_error.is_some()
         || result.interval_lower.is_some()
@@ -2475,7 +2475,7 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
 
 /// Uncertainty label of the history-matched contrast.
 const HISTORY_MATCH_UNCERTAINTY: &str =
-    "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured";
+    "abadie_imbens_and_newey_west_period_interval_calibration_not_measured";
 
 /// Recompute a within-period history-matched contrast from its retained pairs.
 ///
@@ -2514,7 +2514,7 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
         && near(fit.contrast, weighted / total);
     if !structure_ok
         || fit.supported
-        || fit.calibration != "unmeasured"
+        || fit.calibration != "not_measured"
         || fit.uncertainty != HISTORY_MATCH_UNCERTAINTY
         || result.estimate.is_some()
         || result.standard_error.is_some()

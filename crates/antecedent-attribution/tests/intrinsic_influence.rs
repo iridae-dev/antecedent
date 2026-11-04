@@ -314,7 +314,7 @@ fn exact_and_sampled_shapley_agree_on_a_game_with_interaction() {
 }
 
 #[test]
-fn every_interval_names_its_component_and_unmeasured_ones_say_so() {
+fn every_interval_names_its_component_and_not_measured_ones_say_so() {
     let (m, _) = chain();
     let exact = run(&m, 2, &query()).unwrap();
     for s in exact.sources.iter() {
@@ -835,7 +835,7 @@ fn exact_enumeration_reports_zero_permutation_error_and_still_reports_simulation
         // The inner simulation error is still measured, and is strictly positive.
         let simulation = source.component_stderr(UncertaintyComponent::Simulation).unwrap();
         assert!(simulation.is_finite() && simulation > 0.0, "{simulation}");
-        // The unmeasured component is not reported as zero.
+        // The not_measured component is not reported as zero.
         assert_eq!(source.component_stderr(UncertaintyComponent::MechanismFit), None);
     }
     assert_matches_truth(&result, &truth, outer, batches);

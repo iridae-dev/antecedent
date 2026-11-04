@@ -8,7 +8,7 @@ that says a coverage claim has not been measured. This script scans
 
   parity/counterparts.toml                    narrowed promises and theory-closed quadrants
   parity/capabilities/route_manifest.toml     counterpart and narrowed next attempts on routes
-  parity/*.toml `limitations` fields          sentences naming an unmeasured or uncalibrated claim
+  parity/*.toml `limitations` fields          sentences naming a not_measured or uncalibrated claim
   parity/capability_gaps.toml            failed capability gates and their corrective action
   crates, python, docs                        comments and prose saying a claim is not yet measured
 
@@ -47,10 +47,10 @@ HEADER = (
     "# self-ownership, closed or absent owners and a decision without a rationale.\n"
 )
 
-# A sentence of a recorded `limitations` field is a limitation when it says a claim is unmeasured.
+# A sentence of a recorded `limitations` field is a limitation when it says a claim is not_measured.
 EVIDENCE_RESIDUAL = re.compile(
     r"(?i)no coverage record|has not been measured|not been measured|not yet measured"
-    r"|remains unmeasured|(?<!no-)\bunmeasured\b|\bnot measured\b"
+    r"|remains not_measured|(?<!no-)\bnot_measured\b|\bnot measured\b"
 )
 # Source comments and prose: the explicit residual phrases.
 CODE_RESIDUAL = re.compile(
@@ -173,7 +173,7 @@ def _walk_limitations(node: object, found: list[tuple[str, str]]) -> None:
 
 
 def evidence_limitations(source: str, document: dict) -> list[dict]:
-    """One row per distinct unmeasured-claim sentence of a file, with the count of rows saying it."""
+    """One row per distinct not_measured-claim sentence of a file, with the count of rows saying it."""
     found: list[tuple[str, str]] = []
     _walk_limitations(document, found)
     grouped: dict[str, int] = {}

@@ -9,7 +9,7 @@
 //! credible interval at every grid dose under both sampling designs, keep the joint
 //! covariance across the grid (checked against the exact Gaussian moments of the declared
 //! conjugate model), export an artifact an independent loader recomputes, and refuse every
-//! forged or resealed change. The row is unsupported: its calibration is `unmeasured`.
+//! forged or resealed change. The row is unsupported: its calibration is `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(

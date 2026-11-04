@@ -42,7 +42,7 @@
 //! dependent measurements is refused, and a guarantee derived for one cell is
 //! never carried to another ([`CellLabel::transfer_to`]).
 //!
-//! Every result is labelled [`DERIVED_UNMEASURED`]; no coverage is claimed.
+//! Every result is labelled [`DERIVED_NOT_MEASURED`]; no coverage is claimed.
 //!
 //! The simulation is the route for procedures of any declared size. Its cost
 //! is replications times units times measurements per unit; the request is
@@ -70,7 +70,7 @@ use super::procedure_contract::{
     ContractGap, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS, ProcedureContractError, StoppingRule,
 };
 use super::procedure_simulation::MAX_SIMULATION_REPLICATIONS;
-use super::procedure_uncertainty::{DERIVED_UNMEASURED, UncertaintyParadigm};
+use super::procedure_uncertainty::{DERIVED_NOT_MEASURED, UncertaintyParadigm};
 use super::weighting::{
     Estimand, OutcomeModelPrior, WeightScheme, adaptive_scores, weighted_estimate,
 };
@@ -1440,7 +1440,7 @@ pub struct RepeatedMeasuresDerivation {
     pub mean_analysed_units: f64,
     /// The work the simulation was admitted for and did.
     pub receipt: ResourceReceipt,
-    /// Always [`DERIVED_UNMEASURED`].
+    /// Always [`DERIVED_NOT_MEASURED`].
     pub calibration: &'static str,
 }
 
@@ -1502,6 +1502,6 @@ pub fn derive_repeated_measures_within(
         mean_analysed_units: law.replicates.iter().map(|r| r.analysed_units as f64).sum::<f64>()
             / n,
         receipt: law.receipt,
-        calibration: DERIVED_UNMEASURED,
+        calibration: DERIVED_NOT_MEASURED,
     })
 }

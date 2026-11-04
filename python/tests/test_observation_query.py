@@ -572,9 +572,9 @@ def test_count_fitted_interval_is_reported_with_its_calibration_status():
         "not_measured",
     )
     # A level the grid did not measure is computed and annotated, never withheld.
-    unmeasured = claim.interval(level=0.5).scalars[0]
-    assert unmeasured.interval[0] <= unmeasured.point <= unmeasured.interval[1]
-    assert unmeasured.calibration in CALIBRATION_STATUSES
+    not_measured = claim.interval(level=0.5).scalars[0]
+    assert not_measured.interval[0] <= not_measured.point <= not_measured.interval[1]
+    assert not_measured.calibration in CALIBRATION_STATUSES
 
 
 def test_a_declared_model_interval_has_no_sampling_distribution():

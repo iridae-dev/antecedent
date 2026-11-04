@@ -1,6 +1,6 @@
 //! The declared unrolled point graph of a panel program, as a Python declaration.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use antecedent::execution::{AdmissionError, AdmissionLease};
+use antecedent::execution::{AdmissionRefusal, Retention};
 use antecedent::identify::IdentificationError;
 use antecedent::identify::panel_unrolled::{PanelNode, UnrolledPanelGraph, UnrolledPanelSpec};
 use antecedent::prelude::ExecutionContext;
@@ -63,7 +63,7 @@ pub(super) const MAX_UNROLLED_NODES: usize = 1024;
 pub(super) fn graph_from_json(
     text: &str,
     ctx: &ExecutionContext,
-) -> PyResult<(UnrolledPanelGraph, Vec<usize>, AdmissionLease)> {
+) -> PyResult<(UnrolledPanelGraph, Vec<usize>, Retention)> {
     let declaration: Declaration =
         serde_json::from_str(text).map_err(|error| crate::value_err(error.to_string()))?;
     let nodes = declaration
@@ -79,11 +79,12 @@ pub(super) fn graph_from_json(
         })?;
     // Dense adjacency of both edge kinds, charged before the graph is built.
     let bytes = u64::try_from(nodes.saturating_mul(nodes).saturating_mul(2)).unwrap_or(u64::MAX);
-    let lease =
-        ctx.acquire_admission(0, bytes.saturating_add(4096)).map_err(|error| match error {
-            AdmissionError::Cancelled => crate::CausalCancelledError::new_err(error.to_string()),
+    let lease = antecedent::execution::retain(&ctx, bytes.saturating_add(4096)).map_err(
+        |error| match error {
+            AdmissionRefusal::Cancelled => crate::CausalCancelledError::new_err(error.to_string()),
             _ => crate::CausalResourceError::new_err(error.to_string()),
-        })?;
+        },
+    )?;
     let spec = UnrolledPanelSpec {
         periods: declaration.periods,
         channels: declaration.channels,

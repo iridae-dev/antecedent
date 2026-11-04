@@ -10,7 +10,7 @@ target = "AnomalyAttribution"
 graph_class = "Dag"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -23,7 +23,7 @@ target = "AnomalyAttribution"
 graph_class = "Admg"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -36,7 +36,7 @@ target = "AnomalyAttribution"
 graph_class = "Cpdag"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -49,7 +49,7 @@ target = "AnomalyAttribution"
 graph_class = "Pag"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -62,7 +62,7 @@ target = "AnomalyAttribution"
 graph_class = "TemporalDag"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -75,7 +75,7 @@ target = "AnomalyAttribution"
 graph_class = "TemporalCpdag"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -88,7 +88,7 @@ target = "AnomalyAttribution"
 graph_class = "TemporalPag"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -101,7 +101,7 @@ target = "AnomalyAttribution"
 graph_class = "TemporalAdmg"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none/cheap/full; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -270,7 +270,7 @@ target = "ChangeAttribution"
 graph_class = "Dag"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -283,7 +283,7 @@ target = "ChangeAttribution"
 graph_class = "Admg"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -296,7 +296,7 @@ target = "ChangeAttribution"
 graph_class = "Cpdag"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -309,7 +309,7 @@ target = "ChangeAttribution"
 graph_class = "Pag"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -322,7 +322,7 @@ target = "ChangeAttribution"
 graph_class = "TemporalDag"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -335,7 +335,7 @@ target = "ChangeAttribution"
 graph_class = "TemporalCpdag"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -348,7 +348,7 @@ target = "ChangeAttribution"
 graph_class = "TemporalPag"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -361,7 +361,7 @@ target = "ChangeAttribution"
 graph_class = "TemporalAdmg"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration unmeasured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs a mechanism-refit bootstrap that executes unsupported with calibration not_measured; Bayesian: block Bayesian-bootstrap posterior interval (Dirichlet row weights, every mechanism refit; a class publishes it only when its members publish the very same draws, and keeps each member's posterior on its atom otherwise), estimator_grid_not_measured, no boundary record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -439,7 +439,7 @@ target = "Counterfactual"
 graph_class = "Dag"
 design_time_model = "static; structure=explicit,accepted"
 inference = "Frequentist,Bayesian"
-uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs the whole-procedure multinomial row bootstrap refitting every mechanism per replicate under independent subjects (bootstrap-SE interval, failed replicates kept as failed mass), which executes unsupported with calibration unmeasured and no boundary record; Bayesian: Dirichlet mechanism-refit posterior interval, calibration_record_present, boundary_record"
+uncertainty = "validation=none; Frequentist: point value supported (no_interval_reported); a requested replicate count runs the whole-procedure multinomial row bootstrap refitting every mechanism per replicate under independent subjects (bootstrap-SE interval, failed replicates kept as failed mass), which executes unsupported with calibration not_measured and no boundary record; Bayesian: Dirichlet mechanism-refit posterior interval, calibration_record_present, boundary_record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "supported"
@@ -2082,7 +2082,7 @@ target = "difference_in_differences"
 graph_class = "RandomizedTrial"
 design_time_model = "graphless staggered rollout, balanced or unbalanced; estimator=callaway_santanna|sun_abraham|imputation; comparison=never_treated|not_yet_treated; aggregation=simple|dynamic|group|calendar"
 inference = "Frequentist"
-uncertainty = "whole-cluster bootstrap or multiplier refit; pointwise normal intervals and sup-t simultaneous bands; calibration unmeasured"
+uncertainty = "whole-cluster bootstrap or multiplier refit; pointwise normal intervals and sup-t simultaneous bands; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
@@ -2095,7 +2095,7 @@ target = "difference_in_differences"
 graph_class = "RandomizedTrial"
 design_time_model = "graphless two-period panel with baseline covariates; nuisance=outcome_regression|inverse_probability_weighting|doubly_robust"
 inference = "Frequentist"
-uncertainty = "whole-cluster bootstrap or multiplier refit of the nuisance fits and the 2x2; calibration unmeasured"
+uncertainty = "whole-cluster bootstrap or multiplier refit of the nuisance fits and the 2x2; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
@@ -2108,7 +2108,7 @@ target = "difference_in_differences"
 graph_class = "RandomizedTrial"
 design_time_model = "graphless one-row-per-subject augmented panel with supplied propensity and untreated-change predictions"
 inference = "Frequentist"
-uncertainty = "point only, or with a declared resample a whole-cluster bootstrap refit with the supplied predictions held fixed; calibration unmeasured"
+uncertainty = "point only, or with a declared resample a whole-cluster bootstrap refit with the supplied predictions held fixed; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
@@ -2121,7 +2121,7 @@ target = "SyntheticControl"
 graph_class = "RandomizedTrial"
 design_time_model = "graphless balanced panel, one treated unit, simplex donor weights, at least 19 pre-periods"
 inference = "Frequentist"
-uncertainty = "conformal test inversion per post period and for a constant effect, refitting the donor weights under each null; calibration unmeasured"
+uncertainty = "conformal test inversion per post period and for a constant effect, refitting the donor weights under each null; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
@@ -2134,7 +2134,7 @@ target = "SyntheticControl"
 graph_class = "RandomizedTrial"
 design_time_model = "graphless balanced panel, staggered adoptions against never-treated donors; method=Control"
 inference = "Frequentist"
-uncertainty = "placebo variance from refits on reassigned never-treated units; normal interval and per-unit sup-t band; calibration unmeasured"
+uncertainty = "placebo variance from refits on reassigned never-treated units; normal interval and per-unit sup-t band; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
@@ -2186,7 +2186,7 @@ target = "local_polynomial_ratio"
 graph_class = "RandomizedTrial"
 design_time_model = "fuzzy_jump or regression_kink with options: MSE-optimal plug-in bandwidth capped at the declared one, density test, covariate balance"
 inference = "Frequentist,Bayesian"
-uncertainty = "robust bias-corrected HC0 delta interval at the selected bandwidth; calibration unmeasured"
+uncertainty = "robust bias-corrected HC0 delta interval at the selected bandwidth; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
@@ -2199,7 +2199,7 @@ target = "local_polynomial_ratio"
 graph_class = "RandomizedTrial"
 design_time_model = "regression discontinuity or kink in calendar time (running variable is time), sharp or fuzzy"
 inference = "Frequentist"
-uncertainty = "within-side moving-block bootstrap refit of the robust bias-corrected ratio; normal interval from the interquartile bootstrap standard error; calibration unmeasured"
+uncertainty = "within-side moving-block bootstrap refit of the robust bias-corrected ratio; normal interval from the interquartile bootstrap standard error; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
@@ -2445,7 +2445,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 retained_operation = "association"
 retained_route_test = "crates/antecedent/tests/association_route.rs::a_static_association_executes_only_from_its_retained_program_and_is_noncausal"
 counterpart_design = "static"
-notes = "CausalQuery::Association (append-only tag 31); route cell AssociationStatic lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Frequentist uncertainty: the analytic linearised-influence or sandwich standard error, replaced by the row-bootstrap standard error when bootstrap_replicates is set; a declared design other than independent subjects is refused naming the next attempt. Explicitly unsupported: calibration unmeasured, no coverage record, no supported_routes.toml row."
+notes = "CausalQuery::Association (append-only tag 31); route cell AssociationStatic lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Frequentist uncertainty: the analytic linearised-influence or sandwich standard error, replaced by the row-bootstrap standard error when bootstrap_replicates is set; a declared design other than independent subjects is refused naming the next attempt. Explicitly unsupported: calibration not_measured, no coverage record, no supported_routes.toml row."
 
 [[route]]
 id = "association.descriptive.temporal"
@@ -2461,7 +2461,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 retained_operation = "association"
 retained_route_test = "crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"
 counterpart_design = "temporal"
-notes = "CausalQuery::Association (append-only tag 31); route cell AssociationTemporal lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Frequentist uncertainty: the Newey-West sandwich, replaced by the circular-block bootstrap standard error under the declared dependent-time-series design when bootstrap_replicates is set; held-out folds of a predictive model are consecutive blocks. Explicitly unsupported: calibration unmeasured, no coverage record, no supported_routes.toml row."
+notes = "CausalQuery::Association (append-only tag 31); route cell AssociationTemporal lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Frequentist uncertainty: the Newey-West sandwich, replaced by the circular-block bootstrap standard error under the declared dependent-time-series design when bootstrap_replicates is set; held-out folds of a predictive model are consecutive blocks. Explicitly unsupported: calibration not_measured, no coverage record, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.association.descriptive.static"
@@ -2477,7 +2477,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 retained_operation = "association"
 retained_route_test = "crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"
 counterpart_design = "static"
-notes = "CausalQuery::Association (append-only tag 31); route cell AssociationStatic lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Bayesian uncertainty: Student-t marginals of a conjugate Gaussian model with a weakly informative prior scaled to the outcome, or the Bayesian bootstrap (Dirichlet row weights) for every other analysis and for a weighted study; the prior supplies no identifying premise. Explicitly unsupported: calibration unmeasured, no coverage record, no supported_routes.toml row."
+notes = "CausalQuery::Association (append-only tag 31); route cell AssociationStatic lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Bayesian uncertainty: Student-t marginals of a conjugate Gaussian model with a weakly informative prior scaled to the outcome, or the Bayesian bootstrap (Dirichlet row weights) for every other analysis and for a weighted study; the prior supplies no identifying premise. Explicitly unsupported: calibration not_measured, no coverage record, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.association.descriptive.temporal"
@@ -2493,7 +2493,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_association.rs"
 retained_operation = "association"
 retained_route_test = "crates/antecedent/tests/association_route.rs::every_association_counterpart_retains_its_own_operation_and_executes_its_program"
 counterpart_design = "temporal"
-notes = "CausalQuery::Association (append-only tag 31); route cell AssociationTemporal lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Bayesian uncertainty: Dirichlet weights on contiguous blocks, because the independent-error conjugate likelihood does not describe a dependent series. Explicitly unsupported: calibration unmeasured, no coverage record, no supported_routes.toml row."
+notes = "CausalQuery::Association (append-only tag 31); route cell AssociationTemporal lowered by crates/antecedent/src/analysis/lowering/associational.rs to a complete program keyed by the query digest; identification layer not claimed, retaining the reason code of a refused causal query when the association follows one; sealed operation association, executed only from the retained lowered program (public_builder_reentry refusal, lowered_identity stamp). The declared selection rule (association_selection_rule) picks the analysis from the outcome scale (the declared scale, else a schema binary column, else a column whose observed values are exactly 0 and 1, else a count column of non-negative integers, else continuous) and the functional: a stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a linear, logistic or Poisson model scored out of fold with the predictive-assessment proper scores. The claim kind is associational with identification not claimed: it is never an intervention effect, ranks no action, is refused as a causal bridge source (association_as_intervention), and carries the descriptive assumptions beside every number. Bayesian uncertainty: Dirichlet weights on contiguous blocks, because the independent-error conjugate likelihood does not describe a dependent series. Explicitly unsupported: calibration not_measured, no coverage record, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.randomized_finite_population"
@@ -2663,7 +2663,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design two_arm. Distinct from the switchback direct effect: no no-carryover premise. Static two-arm trial rows stay graphless.randomized_effect.*. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design two_arm. Distinct from the switchback direct effect: no no-carryover premise. Static two-arm trial rows stay graphless.randomized_effect.*. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.two_arm"
@@ -2689,7 +2689,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design multi_arm. Gaussian multiplier sup-t band over the contrasts and a Holm family; the static row is graphless.randomized_effect.multi_arm. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design multi_arm. Gaussian multiplier sup-t band over the contrasts and a Holm family; the static row is graphless.randomized_effect.multi_arm. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.multi_arm"
@@ -2715,7 +2715,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design categorical. The static categorical estimand is crates/antecedent-estimate/src/categorical_treatment.rs (no route row). CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design categorical. The static categorical estimand is crates/antecedent-estimate/src/categorical_treatment.rs (no route row). CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.categorical"
@@ -2741,7 +2741,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design factorial. Main effects averaged over the other factor's levels and the interaction, with a band over the three; the static row is graphless.randomized_effect.factorial_2x2. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design factorial. Main effects averaged over the other factor's levels and the interaction, with a band over the three; the static row is graphless.randomized_effect.factorial_2x2. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.factorial"
@@ -2767,7 +2767,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design interference. Inference clusters are the interference clusters; direct, spillover and total excursions. The Dag-only InterferenceQuery stays closed on TemporalAdmg: this is the design-identified temporal counterpart. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design interference. Inference clusters are the interference clusters; direct, spillover and total excursions. The Dag-only InterferenceQuery stays closed on TemporalAdmg: this is the design-identified temporal counterpart. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 counterpart_targets = ["InterferenceQuery"]
 counterpart_design = "temporal"
 counterpart_reason = "temporal interference is identified by the declared sequential assignment design of a unit-period panel, not by a graph: the route reports the exposure contrast the design identifies and none of a TemporalAdmg or an observational temporal exposure. Whether interference is carried between periods (carryover through the exposure) is declared by the design, not tested."
@@ -2801,7 +2801,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design continuous_dose. The static row is graphless.continuous_dose_policy.fixed_group_kernel (independent rows). CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design continuous_dose. The static row is graphless.continuous_dose_policy.fixed_group_kernel (independent rows). CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.continuous_dose"
@@ -2827,7 +2827,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design smoothed_dose. Gaussian multiplier sup-t band over the grid; the static smoothed dose module is crates/antecedent-estimate/src/smoothed_dose.rs (IID trial designs only). CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design smoothed_dose. Gaussian multiplier sup-t band over the grid; the static smoothed dose module is crates/antecedent-estimate/src/smoothed_dose.rs (IID trial designs only). CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.smoothed_dose"
@@ -2853,7 +2853,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Design dose_grid. Bias-aware (folded-normal) pointwise interval and a band whose half-width adds the worst-case smoothing bias under the declared bound on |m'''|; without the bound the frequentist grid is refused (required_option_missing) naming the smoothed curve as the next attempt. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Design dose_grid. Bias-aware (folded-normal) pointwise interval and a band whose half-width adds the worst-case smoothing bias under the declared bound on |m'''|; without the bound the frequentist grid is refused (required_option_missing) naming the smoothed curve as the next attempt. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.dose_grid"
@@ -2879,7 +2879,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Temporal quantile target: Hajek-weighted distribution functions inverted at tau; not a quantile of unit-level effects. The static quantile cells are the AIPW quantile (crates/antecedent-estimate/src/quantile.rs) and bayesian.randomized_quantile. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration unmeasured, no support-matrix cell, no supported_routes.toml row."
+notes = "Temporal quantile target: Hajek-weighted distribution functions inverted at tau; not a quantile of unit-level effects. The static quantile cells are the AIPW quantile (crates/antecedent-estimate/src/quantile.rs) and bayesian.randomized_quantile. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unsupported: no coverage record, calibration not_measured, no support-matrix cell, no supported_routes.toml row."
 
 [[route]]
 id = "bayesian.temporal_design.excursion.quantile"
@@ -2905,7 +2905,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
-notes = "Estimator temporal_design.regime_survival: pooled logistic treatment and censoring weights, weighted period hazards; sequential exchangeability declared. The static randomized rows stay graphless.survival.*; trajectory_survival.rs (supplied weights) is not this route. Explicitly unsupported: no coverage record, calibration unmeasured."
+notes = "Estimator temporal_design.regime_survival: pooled logistic treatment and censoring weights, weighted period hazards; sequential exchangeability declared. The static randomized rows stay graphless.survival.*; trajectory_survival.rs (supplied weights) is not this route. Explicitly unsupported: no coverage record, calibration not_measured."
 
 [[route]]
 id = "bayesian.temporal_design.regime_survival"
@@ -2997,7 +2997,7 @@ target = "ComposedQuantity"
 graph_class = "Dag"
 design_time_model = "aligned joint law, joint moment or marginals of several uncertain inputs; composed coordinate (operation, route, input roles)"
 inference = "Frequentist"
-uncertainty = "uncalibrated_spread; interval candidates unmeasured; no interval without a coverage record at the composed coordinate"
+uncertainty = "uncalibrated_spread; interval candidates not_measured; no interval without a coverage record at the composed coordinate"
 decision_ports = "composed_exceedance_decision"
 artifact_consumer = "crates/antecedent/src/analysis/composition.rs (bundle consumer verifies every embedded artifact)"
 status = "execution_only"
@@ -3057,7 +3057,7 @@ target = "DoseResponse"
 graph_class = "RandomizedTrial"
 design_time_model = "randomized continuous dose, independent rows; Gaussian local quadratic at a declared fixed bandwidth; level, derivative or contrast at named doses"
 inference = "Frequentist"
-uncertainty = "pointwise HC0 normal interval (smoothing bias outside it); estimate_dose_grid_bias_aware adds bias-aware intervals under a declared bound on the third derivative and a Gaussian multiplier sup-t simultaneous band whose half-width adds the worst-case bias; calibration unmeasured"
+uncertainty = "pointwise HC0 normal interval (smoothing bias outside it); estimate_dose_grid_bias_aware adds bias-aware intervals under a declared bound on the third derivative and a Gaussian multiplier sup-t simultaneous band whose half-width adds the worst-case bias; calibration not_measured"
 decision_ports = "unlisted"
 artifact_consumer = "crates/antecedent/src/analysis/dose_grid_functional.rs (DoseGridFunctional::consume recomputes the row)"
 status = "execution_only"
@@ -8033,8 +8033,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -8117,8 +8117,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 3
 uncertainty = "posterior"
 uncertainty_structure = "graph_posterior"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -8173,8 +8173,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -8257,8 +8257,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -8313,8 +8313,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -8369,8 +8369,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused"
-uncertainty_by_structure = ["explicit=none|declared_unmeasured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "accepted=none|declared_unmeasured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused"
+uncertainty_by_structure = ["explicit=none|declared_not_measured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "accepted=none|declared_not_measured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_not_measured"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -8425,8 +8425,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -8481,8 +8481,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -11001,8 +11001,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -11058,7 +11058,7 @@ coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs"
-uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -11113,8 +11113,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -11785,8 +11785,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -11842,7 +11842,7 @@ coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs"
-uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -11897,8 +11897,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -12233,8 +12233,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -12290,7 +12290,7 @@ coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs"
-uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_cross_world_effect.rs", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -12345,8 +12345,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -13857,8 +13857,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -13913,8 +13913,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -13969,8 +13969,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused"
-uncertainty_by_structure = ["explicit=none|declared_unmeasured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "accepted=none|declared_unmeasured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused"
+uncertainty_by_structure = ["explicit=none|declared_not_measured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "accepted=none|declared_not_measured|test:crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_not_measured"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -14025,8 +14025,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -14081,8 +14081,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
-uncertainty_by_structure = ["explicit=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_unmeasured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold"
+uncertainty_by_structure = ["explicit=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "accepted=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold", "graph_posterior=analytic,none|declared_not_measured|test:crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
@@ -15425,8 +15425,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -15482,7 +15482,7 @@ coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs"
-uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -15537,8 +15537,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -15649,8 +15649,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -15706,7 +15706,7 @@ coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs"
-uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_by_structure = ["explicit=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "accepted=design_aware_resampling,posterior|asserted_in_test|test:crates/antecedent/tests/temporal_conditional_effect.rs", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -15817,8 +15817,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
-uncertainty_basis = "declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
-uncertainty_by_structure = ["explicit=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_unmeasured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
+uncertainty_basis = "declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"
+uncertainty_by_structure = ["explicit=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "accepted=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism", "graph_posterior=posterior,enclosure|declared_not_measured|test:crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_temporal_kernel.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
@@ -19969,34 +19969,6 @@ implementation = ["crates/antecedent-estimate/src/smoothed_dose_posterior.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/smoothed_dose_posterior_facade.rs::posterior_covers_the_closed_form_smoothed_target_under_both_designs"]
 artifact_consumer = ["crates/antecedent/src/analysis/smoothed_dose.rs::consume_smoothed_dose_posterior_artifact", "crates/antecedent/tests/smoothed_dose_posterior_facade.rs"]
-
-[[method]]
-id = "method.quantile.static.frequentist"
-kind = "facade_method"
-route = "unlisted"
-child = "P07.quantile.static.frequentist"
-target = "QuantileEffect"
-graph_class = "unlisted"
-design = "static"
-estimator = "unlisted"
-identifier = []
-lowering = []
-inference = "frequentist"
-design_time_model = "unlisted"
-status = "execution_only"
-structures = []
-validations = []
-coordinates = 0
-uncertainty = "analytic"
-uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
-uncertainty_by_structure = []
-decision_ports = "unlisted"
-owning_module = "crates/antecedent-estimate/src/quantile.rs"
-implementation = ["crates/antecedent-estimate/src/quantile.rs"]
-provenance = []
-evidence = ["crates/antecedent-estimate/tests/quantile_inversion_reference.rs::direct_inversion_matches_exact_value_influence_and_refusals"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/compiler_consistency.rs"]
 
 [[method]]
 id = "method.categorical_treatment.static.frequentist"

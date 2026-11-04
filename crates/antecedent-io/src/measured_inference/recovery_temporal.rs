@@ -1,5 +1,5 @@
 //! Measured whole-row recovery and whole-unit temporal constructions.
-//! The original candidates retain their historical unmeasured semantics.
+//! The original candidates retain their historical not_measured semantics.
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
@@ -35,7 +35,7 @@ impl SampledRecoveryArtifactWire {
     /// Independently verify the original recovery proof and whole-row `BCa` receipt,
     /// then bind its scalar effect to currently attesting evidence.
     /// # Errors
-    /// Original proof/replay failures, an unmeasured configuration, or absent/stale evidence.
+    /// Original proof/replay failures, a not_measured configuration, or absent/stale evidence.
     pub fn measure(
         bytes: &[u8],
         expected: &SampledRecoveryExpectation,
@@ -119,7 +119,7 @@ impl SampledRecoveryArtifactWire {
 impl TemporalIntervalArtifactWire {
     /// Recompute the original balanced whole-unit studentized interval and resolve its actual basis.
     /// # Errors
-    /// Source/replay failures, an unmeasured target/configuration or absent/stale evidence.
+    /// Source/replay failures, a not_measured target/configuration or absent/stale evidence.
     pub fn measure(
         bytes: &[u8],
         expected_seal: &str,

@@ -150,7 +150,7 @@ Where they differ.
 - The nested simulation subtracts the inner-sampling bias of `Var(E[Y | U_S])`, uses exact Shapley
   values up to ten sources and permutation sampling beyond, and reports the efficiency gap.
 - Uncertainty is reported by component (permutation sampling, simulation, mechanism fit), never
-  combined, and an unmeasured component is `unquantified`; DoWhy returns point values.
+  combined, and a not_measured component is `unquantified`; DoWhy returns point values.
 - Independence of the noise terms is a declaration the call must make, and a latent common cause
   is refused: a compiled DAG here cannot certify it. DoWhy's structural causal model has
   independent noise by construction.

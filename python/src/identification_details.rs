@@ -33,7 +33,7 @@ fn admit_targets(
     names: &[String],
     budget: &mut antecedent::query::TemporalBudget,
     ctx: &antecedent::prelude::ExecutionContext,
-) -> PyResult<antecedent::execution::AdmissionLease> {
+) -> PyResult<antecedent::execution::Retention> {
     if ctx.cancellation.is_cancelled() {
         return Err(cancelled());
     }
@@ -52,8 +52,8 @@ fn admit_targets(
     if bytes > budget.limits().max_bytes {
         return Err(resource("metadata byte limit"));
     }
-    ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent::execution::AdmissionError::Cancelled => cancelled(),
+    antecedent::execution::retain(&ctx, bytes).map_err(|e| match e {
+        antecedent::execution::AdmissionRefusal::Cancelled => cancelled(),
         other => resource(&other.to_string()),
     })
 }

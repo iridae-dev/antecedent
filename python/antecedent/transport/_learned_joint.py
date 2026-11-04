@@ -2,7 +2,7 @@
 
 The standard producer returns native-authorized scalar inference only inside the
 finite degree-two validation design. The complete original posterior remains an
-unmeasured, model-conditional candidate; its law receives no blanket interval support.
+not_measured, model-conditional candidate; its law receives no blanket interval support.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def learned_joint_transport(
     zero-mean Gaussian variance-1000 priors, degree two, fixed target design and .95
     scalar interval), derives the actual basis and resolves its attesting record.
     Nearby unsupported protocols refuse; evidence does not guarantee coverage for
-    arbitrary data-generating laws. Original candidate artifacts remain unmeasured.
+    arbitrary data-generating laws. Original candidate artifacts remain not_measured.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of source trials")

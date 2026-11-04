@@ -15,7 +15,7 @@ papers = [
   { title = "Bayesian Data Analysis", citation_note = "Previously recorded title and bibliographic detail: Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["law of total variance for a mixture; delta-method propagation"] },
 ]
 implementation_deviations = [
-  "Constructions (normal, draw-percentile, marginal candidates) are interval constructions, not coverage statements. Each carries calibration status unmeasured; the interval reading stays closed unless a measured record exists at the exact composed coordinate and construction, at the recorded nominal level.",
+  "Constructions (normal, draw-percentile, marginal candidates) are interval constructions, not coverage statements. Each carries calibration status not_measured; the interval reading stays closed unless a measured record exists at the exact composed coordinate and construction, at the recorded nominal level.",
   "A component interval's record is never a composed coordinate's. Rows are paired only when they are realizations of one joint law (a shared alignment identity); pairing marginal draws by index silently assumes independence and is refused.",
   "The exceedance decision carries a Monte Carlo band; the band is numerical error, not statistical coverage.",
   "A transported claim's uncertainty is three pieces (source sampling, target sampling, transport functional); naming some and omitting others is refused with the missing pieces listed.",

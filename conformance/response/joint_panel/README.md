@@ -65,7 +65,7 @@ references. The public retained workflow in
 `crates/antecedent/tests/joint_panel_workflow.rs` exercises actual fitting,
 aligned uncertainty slots, design refusal, reuse and independent artifact
 consumption. Whole-procedure Q09/E14 grids are registered in
-`parity/fixtures/joint_panel_procedures.toml` but remain unmeasured. The additive
+`parity/fixtures/joint_panel_procedures.toml` but remain not_measured. The additive
 and interaction references isolate the declared mechanism features; neither
 reference grants a calibration claim.
 

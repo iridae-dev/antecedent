@@ -127,7 +127,7 @@ pub const PLANNING_NEXT_ATTEMPTS: [NextAttempt; 8] = [
 
 /// Calibration status of every planned characteristic: the simulation
 /// procedures are not yet measured against a coverage record.
-pub const PLANNING_CALIBRATION: &str = "unmeasured";
+pub const PLANNING_CALIBRATION: &str = "not_measured";
 
 #[cfg(test)]
 mod tests;

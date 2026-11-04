@@ -130,7 +130,7 @@ fn weighted_effect(
 /// Whole-cluster resample of the augmented ATT with the supplied nuisance predictions held
 /// at their values: every replicate redraws (or reweights) whole clusters and recomputes the
 /// estimator. The supplied predictions' own estimation error is not propagated; the interval
-/// describes the sampling of subjects given those predictions. Its coverage is unmeasured.
+/// describes the sampling of subjects given those predictions. Its coverage is not_measured.
 ///
 /// # Errors
 ///

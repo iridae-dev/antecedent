@@ -856,7 +856,7 @@ impl CheckedPanelDidOperation {
                     DiagnosticSeverity::Info,
                     match &resampled {
                         Some(summary) => format!(
-                            "supplied propensity and untreated-change predictions held fixed; cross-fitting is caller-declared, not verified; whole-cluster resample interval from {} of {} replicates is unsupported and its calibration is unmeasured; it does not propagate the predictions' own estimation error",
+                            "supplied propensity and untreated-change predictions held fixed; cross-fitting is caller-declared, not verified; whole-cluster resample interval from {} of {} replicates is unsupported and its calibration is not_measured; it does not propagate the predictions' own estimation error",
                             summary.replicates_ok, summary.requested
                         ),
                         None => "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval".to_string(),
@@ -874,7 +874,7 @@ impl CheckedPanelDidOperation {
             comparison_subjects: fit.control_subjects,
             clusters: pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len(),
             uncertainty: Arc::from(if resampled_quantity.is_some() {
-                "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_unmeasured"
+                "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_not_measured"
             } else {
                 "point_only_no_standard_error"
             }),

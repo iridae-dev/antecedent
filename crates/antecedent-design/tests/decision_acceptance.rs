@@ -618,7 +618,7 @@ fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
             .unwrap();
     assert!(near(exact_variance.standard_error.unwrap(), 0.0));
 
-    // The same rows as a draw sample (calibration unmeasured), repeated so the
+    // The same rows as a draw sample (calibration not_measured), repeated so the
     // empirical law is the finite law: mass 1/4 at 0 and 3/4 at 2.
     let columns = functional_columns("outcome");
     let rows: [&[f64]; 4] = [&[0.0, 1.0], &[2.0, 1.0], &[2.0, 1.0], &[2.0, 1.0]];
@@ -630,7 +630,7 @@ fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
             shape: [rows.len(), columns.len()],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

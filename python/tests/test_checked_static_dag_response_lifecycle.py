@@ -150,14 +150,14 @@ def test_joint_response_worlds_share_one_fit_and_carry_their_joint_covariance() 
     assert before["world_ids"] == [0, 1, 2]
     assert before["contrast_coefficients"] == coefficients
     assert before["fitted"] is False
-    assert before["calibration"] == "unmeasured"
+    assert before["calibration"] == "not_measured"
 
     law = require_success(compiled.execute(execution=ant.Execution(seed=7)))
     assert law.world_ids == (0, 1, 2)
     for got, level in zip(law.means, levels, strict=True):
         assert got == pytest.approx(truth(level), abs=1e-8)
     assert compiled.inspect()["fitted"] is True
-    assert law.calibration == "unmeasured"
+    assert law.calibration == "not_measured"
     assert law.uncertainty == "sampling_covariance"
     # One coefficient covariance gives every cross-world term: symmetric and positive.
     cov = np.asarray(law.covariance)

@@ -283,7 +283,7 @@ const fn calibration_name(status: CalibrationStatus) -> &'static str {
         CalibrationStatus::Exact => "exact",
         CalibrationStatus::PointOnly => "point_only",
         CalibrationStatus::Measured => "measured",
-        CalibrationStatus::NotMeasured => "unmeasured",
+        CalibrationStatus::NotMeasured => "not_measured",
         CalibrationStatus::ExactClaimUnverified => "exact_claim_unverified",
     }
 }
@@ -1176,8 +1176,8 @@ fn binding_from(json: &str, names: &[String]) -> Result<ScenarioClaimBinding, St
         "exact" => DistributionCalibration::Exact,
         "point_only" => DistributionCalibration::PointOnly,
         // A measured calibration cites a coordinate-specific record the binding cannot carry;
-        // the laws are bound as exact, point-only or unmeasured.
-        "unmeasured" => DistributionCalibration::Unmeasured,
+        // the laws are bound as exact, point-only or not_measured.
+        "not_measured" => DistributionCalibration::NotMeasured,
         other => {
             return Err(invalid_json("scenario_decision.unknown_calibration", Some(other.into())));
         }

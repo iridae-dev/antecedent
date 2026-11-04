@@ -236,7 +236,7 @@ def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
         collected = {record["id"] for record in tomllib.load(handle).get("record", [])}
     for result in (produce(False, options(False, "independent")), nested(True), nested(False)):
         assert isinstance(result, MeasuredInference)
-        assert result.source_report()["calibration"] == "unmeasured"
+        assert result.source_report()["calibration"] == "not_measured"
         assert all(scalar.calibration == "calibrated" for scalar in result.scalars)
         assert all(scalar.record_id in collected for scalar in result.scalars)
         loaded = MeasuredInference.load(bytes(result.export()), expected=result.expected_identity)
@@ -429,8 +429,8 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
         {"label": p, "coordinate": f"period:{p}", "support": "supported", "effect": e, "se": 0.5}
         for p, e in (("p1", 1.0), ("p2", 2.0))
     ]
-    # Calibration is unmeasured and a non-rejection is not proof of constancy.
-    assert varying.calibration == "unmeasured" and varying.inference_claim == "point_only"
+    # Calibration is not_measured and a non-rejection is not proof of constancy.
+    assert varying.calibration == "not_measured" and varying.inference_claim == "point_only"
     assert any("does not prove" in caveat for caveat in varying.caveats)
     assert (
         varying.identity

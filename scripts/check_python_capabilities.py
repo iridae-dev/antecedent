@@ -51,7 +51,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path("parity/python_api_pass/capabilities.toml")
 SURFACE = Path("parity/python_api_pass/rust_surface.json")
 #: Statuses whose cited journeys must execute. A deferred row cites the journeys that do not
-#: depend on the measurement it waits for (the typed refusal while unmeasured, for example).
+#: depend on the measurement it waits for (the typed refusal while not_measured, for example).
 EXECUTING = {"covered", "plumbing", "deferred"}
 
 #: Rows deferred in the last `check` call: (id, deferred_to, deferred dimensions). They are

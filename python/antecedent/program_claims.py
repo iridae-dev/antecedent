@@ -67,7 +67,7 @@ from .joint_distribution import DistributionMeaning, JointDistributionArtifact, 
 if TYPE_CHECKING:
     from .results.response import CausalResponseView
 
-Calibration = Literal["unmeasured", "point_only"]
+Calibration = Literal["not_measured", "point_only"]
 SourceKind = Literal["mean", "joint_draws"]
 
 
@@ -359,7 +359,7 @@ class NativeClaim:
 
     Built by :func:`native_claim` from a response this library produced. Trust is
     always ``native_supported`` because the claim is built in process from a typed
-    response, never from artifact metadata; ``calibration`` is ``unmeasured`` or
+    response, never from artifact metadata; ``calibration`` is ``not_measured`` or
     ``point_only`` and is never upgraded here.
     """
 
@@ -394,7 +394,7 @@ class NativeClaim:
 
     @property
     def calibration(self) -> str:
-        """``unmeasured`` or ``point_only``; never upgraded here."""
+        """``not_measured`` or ``point_only``; never upgraded here."""
         return self._native.calibration
 
     @property
@@ -587,7 +587,7 @@ def native_claim(
     dose grid or population refuses with ``program_binding.*`` instead of being
     relabeled, and a schema unit is never converted. ``snapshot_id`` defaults to the
     response's data snapshot. ``calibration`` defaults to ``point_only`` for a
-    response with no uncertainty and ``unmeasured`` otherwise; only those two are
+    response with no uncertainty and ``not_measured`` otherwise; only those two are
     accepted because a calibration status comes from a measured record, not from the
     caller. A response without a label for every coordinate, or one that is not point
     identified, refuses.

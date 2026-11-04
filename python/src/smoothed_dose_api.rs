@@ -33,7 +33,7 @@ fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<SmoothedDo
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =
         value.get("sampling").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
-    antecedent::estimate::smoothed_dose::parse_smoothed_dose_sampling(&sampling).map_err(error)?;
+    antecedent::declared::IidSampling::parse_smoothed_dose(&sampling).map_err(error)?;
     value["sampling"] = sampling.into();
     serde_json::from_value(value).map_err(value_error)
 }
@@ -265,7 +265,7 @@ fn prepare_smoothed_dose(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedSmoothedDoseNative> {
-    antecedent::estimate::smoothed_dose::parse_smoothed_dose_target(target_name).map_err(error)?;
+    target_name.parse::<antecedent::declared::SmoothedDoseTarget>().map_err(error)?;
     let (diagram, query) = build(graph, &selections, query)?;
     let input = parse_input(data, &graph.names)?;
     let options: SmoothedDoseOptions = serde_json::from_str(options).map_err(value_error)?;

@@ -317,7 +317,7 @@ impl PanelExperimentResult {
     /// This chain is conditional on the declared likelihood and paired mapping law.
     #[must_use]
     pub const fn scope(&self) -> &'static str {
-        "model_conditional_experimental_update;calibration_unmeasured"
+        "model_conditional_experimental_update;calibration_not_measured"
     }
     /// Prior and updated means in the exact projected world coordinate order.
     ///
@@ -617,7 +617,7 @@ fn update_result(
     metadata.identity.semantic =
         antecedent_io::quantity_wire::DistributionMeaningWire::CausalFunctionalPosterior;
     metadata.identity.provider_id = "antecedent.compiled_joint_panel.conditional_experiment".into();
-    metadata.calibration = DistributionCalibration::Unmeasured;
+    metadata.calibration = DistributionCalibration::NotMeasured;
     metadata.trust = DistributionTrust::Unverified;
     let law = DistributionArtifact::new(metadata, law.draws().to_vec())
         .map_err(JointPanelError::compile)?;

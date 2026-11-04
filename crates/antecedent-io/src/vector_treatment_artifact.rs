@@ -3,7 +3,7 @@
 //! A bounded, checksummed, sectioned container holding one joint fit of `k >= 2` treatments that
 //! share ONE adjustment set and ONE row snapshot:
 //!
-//! * `vector_treatment_meta` (CBOR): version, feature marker, the frozen null, the **unmeasured**
+//! * `vector_treatment_meta` (CBOR): version, feature marker, the frozen null, the **not_measured**
 //!   calibration coordinate, the covariance kind, the snapshot and adjustment-set declaration,
 //!   the named coefficient order, the declared contrasts, the identity digests, the stored result
 //!   (named coefficients, the **full** covariance, contrasts with their standard errors and Holm
@@ -44,7 +44,7 @@
 //! artifact was resealed consistently.
 //!
 //! What this does **not** say: every p-value (Wald, Holm, joint chi-square) is asymptotic and its
-//! calibration is `unmeasured`; no coverage claim is made and no interval is produced. The caller
+//! calibration is `not_measured`; no coverage claim is made and no interval is produced. The caller
 //! owns that the shared adjustment set is valid. Unknown major versions refuse.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -72,7 +72,7 @@ pub const VECTOR_TREATMENT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const VECTOR_TREATMENT_ARTIFACT_FEATURE: &str = "vector_treatment_v1";
 /// Calibration coordinate: coverage, Type I error and power were not measured.
-pub const VECTOR_TREATMENT_CALIBRATION: &str = "unmeasured";
+pub const VECTOR_TREATMENT_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
 pub const MAX_VECTOR_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Row count the legacy robust-covariance `rows` replay format was originally written for. It
@@ -82,8 +82,8 @@ pub const MAX_VECTOR_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 pub const VECTOR_TREATMENT_HC_ROW_CAP: usize = 4096;
 /// Most shared adjustment columns an artifact may declare.
 pub const VECTOR_TREATMENT_MAX_ADJUSTMENT: usize = 1024;
-/// Standing caveat: inference is asymptotic and its calibration is unmeasured.
-pub const VECTOR_TREATMENT_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic Wald, Holm or chi-square value whose calibration is unmeasured; no coverage claim is made and no interval is produced";
+/// Standing caveat: inference is asymptotic and its calibration is not_measured.
+pub const VECTOR_TREATMENT_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic Wald, Holm or chi-square value whose calibration is not_measured; no coverage claim is made and no interval is produced";
 /// Standing caveat: the adjustment set is the caller's.
 pub const VECTOR_TREATMENT_ADJUSTMENT_CAVEAT: &str = "the caller owns that the shared adjustment set is valid; the artifact certifies the arithmetic of one joint regression, not identification";
 
@@ -317,9 +317,9 @@ pub struct VectorTreatmentMeta {
     pub feature: String,
     /// The frozen null.
     pub null: String,
-    /// Always `asymptotic_wald_calibration_unmeasured`.
+    /// Always `asymptotic_wald_calibration_not_measured`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// `model_based`, `hc0`, `hc1`, `hc2` or `hc3`.
     pub covariance: String,
@@ -359,7 +359,7 @@ pub struct VectorTreatmentReportWire {
     pub null: String,
     /// Inference claim.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Covariance estimator.
     pub covariance_kind: String,
@@ -768,7 +768,7 @@ fn encode_parts_impl(
     let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "vector_treatment_wald_unmeasured",
+            note: "vector_treatment_wald_not_measured",
             max_bytes: MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),

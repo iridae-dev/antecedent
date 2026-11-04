@@ -5,7 +5,7 @@
 //! logistic maximum-likelihood fit, the probability-scale contrast averaged over the observed
 //! lag, its Fisher delta-method standard error, and for the Bayesian route the Newton mode and a
 //! Laplace sample under the stated Gaussian prior. The routes are unsupported estimators with
-//! calibration unmeasured; a single dependent series is refused with its next attempt.
+//! calibration not_measured; a single dependent series is refused with its next attempt.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(

@@ -274,7 +274,7 @@ impl PanelExperimentExecutionProgram {
         metadata.identity.causal_contract_id = antecedent_core::to_hex(&dependency);
         metadata.identity.provider_id =
             "antecedent.compiled_joint_panel.conditional_experiment".into();
-        metadata.calibration = DistributionCalibration::Unmeasured;
+        metadata.calibration = DistributionCalibration::NotMeasured;
         metadata.trust = DistributionTrust::Unverified;
         let law = DistributionArtifact::new(metadata, prior.draws().to_vec())?;
         Ok(HistoricalPanelExperiment {

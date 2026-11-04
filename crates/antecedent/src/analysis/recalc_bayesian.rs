@@ -452,7 +452,7 @@ impl BayesianRequest {
         // calibration record exists (the whole method has not been measured), and the single
         // posterior forms no joint statement with another stream. Both are declared, so a
         // record appearing later is a visible change of the law and the decision.
-        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::Unmeasured);
+        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::NotMeasured);
         ids.set_coupling(&antecedent_core::recalc::CouplingInput::None);
         ids
     }

@@ -4,8 +4,8 @@
   ],
   "evidence_kind": "internal_cross_check",
   "evidence_source": "crates/antecedent/tests/proposal_arrival.rs::arrival_checked_transport_evaluates_actual_counts_and_full_atom_truth",
-  "evidence_proposition": "On the finite arrived-study counts (80,20) and (20,80), checked transport reports the pinned sample size, arm means 0.2 and 0.8 within 1e-12, probabilities [0.2,0.8], contrast 0.6, empirical point-only inference with calibration unmeasured, and nonzero compiled work.",
-  "limitations": "Counts and the binary SCM are repository-authored acceptance inputs; the means are count arithmetic. Sampling uncertainty remains unmeasured; not calibration or interval validation.",
+  "evidence_proposition": "On the finite arrived-study counts (80,20) and (20,80), checked transport reports the pinned sample size, arm means 0.2 and 0.8 within 1e-12, probabilities [0.2,0.8], contrast 0.6, empirical point-only inference with calibration not_measured, and nonzero compiled work.",
+  "limitations": "Counts and the binary SCM are repository-authored acceptance inputs; the means are count arithmetic. Sampling uncertainty remains not_measured; not calibration or interval validation.",
   "oracle": {
     "kind": "regression_pin",
     "project": "repository software contract",
@@ -33,5 +33,5 @@
     0.8
   ],
   "inference": "empirical_point_only",
-  "calibration": "unmeasured"
+  "calibration": "not_measured"
 }

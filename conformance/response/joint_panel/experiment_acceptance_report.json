@@ -87,7 +87,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -158,7 +158,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -229,7 +229,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -300,7 +300,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -371,7 +371,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -442,7 +442,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -513,7 +513,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -584,7 +584,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -655,7 +655,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -726,7 +726,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -797,7 +797,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -868,7 +868,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -939,7 +939,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1010,7 +1010,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1081,7 +1081,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1152,7 +1152,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1223,7 +1223,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1294,7 +1294,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1365,7 +1365,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1436,7 +1436,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1507,7 +1507,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1578,7 +1578,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1649,7 +1649,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1720,7 +1720,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1791,7 +1791,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1862,7 +1862,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -1933,7 +1933,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2004,7 +2004,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2075,7 +2075,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2146,7 +2146,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2217,7 +2217,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2326,7 +2326,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2443,7 +2443,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2552,7 +2552,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2661,7 +2661,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2778,7 +2778,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2887,7 +2887,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -2996,7 +2996,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3113,7 +3113,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3222,7 +3222,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3331,7 +3331,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3448,7 +3448,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3557,7 +3557,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3666,7 +3666,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3783,7 +3783,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -3892,7 +3892,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4001,7 +4001,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4118,7 +4118,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4227,7 +4227,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4336,7 +4336,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4453,7 +4453,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4562,7 +4562,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4671,7 +4671,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4788,7 +4788,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -4897,7 +4897,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5006,7 +5006,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5123,7 +5123,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5232,7 +5232,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5341,7 +5341,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5458,7 +5458,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5567,7 +5567,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5649,7 +5649,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5731,7 +5731,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5813,7 +5813,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5895,7 +5895,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -5977,7 +5977,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6059,7 +6059,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6141,7 +6141,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6223,7 +6223,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6305,7 +6305,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6387,7 +6387,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6469,7 +6469,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6551,7 +6551,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6633,7 +6633,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6715,7 +6715,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6797,7 +6797,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6879,7 +6879,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -6961,7 +6961,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7043,7 +7043,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7125,7 +7125,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7207,7 +7207,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7289,7 +7289,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7371,7 +7371,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7453,7 +7453,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7535,7 +7535,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7617,7 +7617,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7699,7 +7699,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7781,7 +7781,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7863,7 +7863,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -7945,7 +7945,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8027,7 +8027,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8133,7 +8133,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8243,7 +8243,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8349,7 +8349,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8455,7 +8455,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8565,7 +8565,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8671,7 +8671,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8777,7 +8777,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8887,7 +8887,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -8993,7 +8993,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9099,7 +9099,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9209,7 +9209,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9315,7 +9315,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9421,7 +9421,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9531,7 +9531,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9637,7 +9637,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9743,7 +9743,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9853,7 +9853,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -9959,7 +9959,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10065,7 +10065,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10175,7 +10175,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10281,7 +10281,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10387,7 +10387,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10497,7 +10497,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10603,7 +10603,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10709,7 +10709,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10819,7 +10819,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -10925,7 +10925,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11031,7 +11031,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11141,7 +11141,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11247,7 +11247,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11335,7 +11335,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11423,7 +11423,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11511,7 +11511,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11599,7 +11599,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11687,7 +11687,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11775,7 +11775,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11863,7 +11863,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -11951,7 +11951,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12039,7 +12039,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12127,7 +12127,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12215,7 +12215,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12303,7 +12303,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12391,7 +12391,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12479,7 +12479,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12567,7 +12567,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12655,7 +12655,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12743,7 +12743,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12831,7 +12831,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -12919,7 +12919,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13007,7 +13007,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13095,7 +13095,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13183,7 +13183,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13271,7 +13271,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13359,7 +13359,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13447,7 +13447,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13535,7 +13535,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13623,7 +13623,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13711,7 +13711,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13799,7 +13799,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -13887,7 +13887,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14018,7 +14018,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14157,7 +14157,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14288,7 +14288,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14419,7 +14419,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14558,7 +14558,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14689,7 +14689,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14820,7 +14820,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -14959,7 +14959,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -15090,7 +15090,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -15221,7 +15221,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -15360,7 +15360,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -15491,7 +15491,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -15622,7 +15622,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -15761,7 +15761,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -15892,7 +15892,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16023,7 +16023,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16162,7 +16162,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16293,7 +16293,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16424,7 +16424,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16563,7 +16563,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16694,7 +16694,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16825,7 +16825,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -16964,7 +16964,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17095,7 +17095,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17226,7 +17226,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17365,7 +17365,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17496,7 +17496,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17627,7 +17627,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17766,7 +17766,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17897,7 +17897,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -17988,7 +17988,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18079,7 +18079,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18170,7 +18170,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18261,7 +18261,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18352,7 +18352,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18443,7 +18443,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18534,7 +18534,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18625,7 +18625,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18716,7 +18716,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18807,7 +18807,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18898,7 +18898,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -18989,7 +18989,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19080,7 +19080,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19171,7 +19171,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19262,7 +19262,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19353,7 +19353,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19444,7 +19444,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19535,7 +19535,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19626,7 +19626,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19717,7 +19717,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19808,7 +19808,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19899,7 +19899,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -19990,7 +19990,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20081,7 +20081,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20172,7 +20172,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20263,7 +20263,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20354,7 +20354,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20445,7 +20445,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20536,7 +20536,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20627,7 +20627,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20761,7 +20761,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -20903,7 +20903,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21037,7 +21037,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21171,7 +21171,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21313,7 +21313,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21447,7 +21447,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21581,7 +21581,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21723,7 +21723,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21857,7 +21857,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -21991,7 +21991,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -22133,7 +22133,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -22267,7 +22267,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -22401,7 +22401,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -22543,7 +22543,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -22677,7 +22677,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -22811,7 +22811,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -22953,7 +22953,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -23087,7 +23087,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -23221,7 +23221,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -23363,7 +23363,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -23497,7 +23497,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -23631,7 +23631,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -23773,7 +23773,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -23907,7 +23907,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24041,7 +24041,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24183,7 +24183,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24317,7 +24317,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24451,7 +24451,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24593,7 +24593,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24729,7 +24729,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24837,7 +24837,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -24945,7 +24945,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25053,7 +25053,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25161,7 +25161,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25269,7 +25269,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25377,7 +25377,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25485,7 +25485,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25593,7 +25593,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25701,7 +25701,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25809,7 +25809,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -25917,7 +25917,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26025,7 +26025,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26133,7 +26133,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26241,7 +26241,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26349,7 +26349,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26457,7 +26457,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26565,7 +26565,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26673,7 +26673,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26781,7 +26781,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26889,7 +26889,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -26997,7 +26997,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27105,7 +27105,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27213,7 +27213,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27321,7 +27321,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27429,7 +27429,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27537,7 +27537,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27645,7 +27645,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27753,7 +27753,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27861,7 +27861,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -27969,7 +27969,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -28130,7 +28130,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -28299,7 +28299,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -28460,7 +28460,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -28621,7 +28621,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -28790,7 +28790,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -28951,7 +28951,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -29112,7 +29112,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -29281,7 +29281,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -29442,7 +29442,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -29603,7 +29603,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -29772,7 +29772,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -29933,7 +29933,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -30094,7 +30094,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -30263,7 +30263,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -30424,7 +30424,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -30585,7 +30585,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -30754,7 +30754,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -30915,7 +30915,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -31076,7 +31076,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -31245,7 +31245,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -31406,7 +31406,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -31567,7 +31567,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -31736,7 +31736,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -31897,7 +31897,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -32058,7 +32058,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -32227,7 +32227,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -32388,7 +32388,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -32549,7 +32549,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -32718,7 +32718,7 @@
         "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
         "Gaussian structural likelihood is distinct from encouragement-specific local score law"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -32877,7 +32877,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -32946,7 +32946,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33015,7 +33015,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33084,7 +33084,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33153,7 +33153,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33222,7 +33222,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33291,7 +33291,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33360,7 +33360,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33429,7 +33429,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33498,7 +33498,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33567,7 +33567,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33636,7 +33636,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33705,7 +33705,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33774,7 +33774,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33843,7 +33843,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33912,7 +33912,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -33981,7 +33981,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34050,7 +34050,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34119,7 +34119,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34188,7 +34188,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34257,7 +34257,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34326,7 +34326,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34395,7 +34395,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34464,7 +34464,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34533,7 +34533,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34602,7 +34602,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34671,7 +34671,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34740,7 +34740,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34809,7 +34809,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34878,7 +34878,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -34947,7 +34947,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35040,7 +35040,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35137,7 +35137,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35230,7 +35230,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35323,7 +35323,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35420,7 +35420,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35513,7 +35513,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35606,7 +35606,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35703,7 +35703,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35796,7 +35796,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35889,7 +35889,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -35986,7 +35986,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36079,7 +36079,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36172,7 +36172,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36269,7 +36269,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36362,7 +36362,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36455,7 +36455,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36552,7 +36552,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36645,7 +36645,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36738,7 +36738,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36835,7 +36835,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -36928,7 +36928,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37021,7 +37021,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37118,7 +37118,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37211,7 +37211,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37304,7 +37304,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37401,7 +37401,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37494,7 +37494,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37587,7 +37587,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37684,7 +37684,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37777,7 +37777,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37844,7 +37844,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37911,7 +37911,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -37978,7 +37978,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38045,7 +38045,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38112,7 +38112,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38179,7 +38179,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38246,7 +38246,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38313,7 +38313,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38380,7 +38380,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38447,7 +38447,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38514,7 +38514,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38581,7 +38581,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38648,7 +38648,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38715,7 +38715,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38782,7 +38782,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38849,7 +38849,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38916,7 +38916,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -38983,7 +38983,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39050,7 +39050,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39117,7 +39117,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39184,7 +39184,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39251,7 +39251,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39318,7 +39318,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39385,7 +39385,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39452,7 +39452,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39519,7 +39519,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39586,7 +39586,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39653,7 +39653,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39720,7 +39720,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39787,7 +39787,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39878,7 +39878,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -39973,7 +39973,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40064,7 +40064,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40155,7 +40155,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40250,7 +40250,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40341,7 +40341,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40432,7 +40432,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40527,7 +40527,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40618,7 +40618,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40709,7 +40709,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40804,7 +40804,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40895,7 +40895,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -40986,7 +40986,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41081,7 +41081,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41172,7 +41172,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41263,7 +41263,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41358,7 +41358,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41449,7 +41449,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41540,7 +41540,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41635,7 +41635,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41726,7 +41726,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41817,7 +41817,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -41912,7 +41912,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42003,7 +42003,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42094,7 +42094,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42189,7 +42189,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42280,7 +42280,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42371,7 +42371,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42466,7 +42466,7 @@
       "statistical_limitations": [
         "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42557,7 +42557,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42636,7 +42636,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42726,7 +42726,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42805,7 +42805,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42884,7 +42884,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -42974,7 +42974,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43053,7 +43053,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43132,7 +43132,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43222,7 +43222,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43301,7 +43301,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43380,7 +43380,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43470,7 +43470,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43549,7 +43549,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43628,7 +43628,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43718,7 +43718,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43797,7 +43797,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43876,7 +43876,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -43966,7 +43966,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44045,7 +44045,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44124,7 +44124,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44214,7 +44214,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44293,7 +44293,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44372,7 +44372,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44462,7 +44462,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44541,7 +44541,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44620,7 +44620,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44710,7 +44710,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44789,7 +44789,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44868,7 +44868,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -44958,7 +44958,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45037,7 +45037,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45116,7 +45116,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45206,7 +45206,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45285,7 +45285,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45364,7 +45364,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45454,7 +45454,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45533,7 +45533,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45612,7 +45612,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45702,7 +45702,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45781,7 +45781,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45860,7 +45860,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -45950,7 +45950,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46029,7 +46029,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46108,7 +46108,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46198,7 +46198,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46277,7 +46277,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46356,7 +46356,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46446,7 +46446,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46525,7 +46525,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46604,7 +46604,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46694,7 +46694,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46773,7 +46773,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46852,7 +46852,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -46942,7 +46942,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47021,7 +47021,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47100,7 +47100,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47190,7 +47190,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47269,7 +47269,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47348,7 +47348,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47438,7 +47438,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47517,7 +47517,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47596,7 +47596,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47686,7 +47686,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47765,7 +47765,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47844,7 +47844,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -47934,7 +47934,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48013,7 +48013,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48092,7 +48092,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48182,7 +48182,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48261,7 +48261,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48340,7 +48340,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48430,7 +48430,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48509,7 +48509,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48588,7 +48588,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48678,7 +48678,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48757,7 +48757,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48836,7 +48836,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -48926,7 +48926,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49005,7 +49005,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49084,7 +49084,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49174,7 +49174,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49253,7 +49253,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49332,7 +49332,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49422,7 +49422,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49501,7 +49501,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49580,7 +49580,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49670,7 +49670,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49749,7 +49749,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49828,7 +49828,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",
@@ -49918,7 +49918,7 @@
       "statistical_limitations": [
         "frozen modular conditional update; not a joint refit"
       ],
-      "calibration": "registered_unmeasured_candidate_bound",
+      "calibration": "registered_not_measured_candidate_bound",
       "stages": [
         "original_data",
         "design_identification",

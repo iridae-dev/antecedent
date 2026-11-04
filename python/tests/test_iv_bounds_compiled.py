@@ -54,7 +54,7 @@ def test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds() -> None:
     expected = TABLE1["expected"]
     assert section.lower == pytest.approx(expected["lower"], abs=1e-9)
     assert section.upper == pytest.approx(expected["upper"], abs=1e-9)
-    assert section.supported is False and section.calibration == "unmeasured"
+    assert section.supported is False and section.calibration == "not_measured"
     assert section.interval is None and section.posterior is None
     assert section.rows == 20_000 and section.rows_dropped == 0
 

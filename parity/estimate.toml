@@ -527,9 +527,9 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/learner_ate/fixture.json"
 evidence_test = "crates/antecedent-estimate/src/dml.rs"
 evidence_assertion = "learner_ate_known_truth_point_conformance"
-calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_unmeasured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
+calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_not_measured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
 owner = "estimate"
-limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains unmeasured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
+limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains not_measured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
 
 [[capabilities]]
 id = "estimate.dr.learner"
@@ -540,9 +540,9 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/learner_ate/fixture.json"
 evidence_test = "crates/antecedent-estimate/src/dml.rs"
 evidence_assertion = "learner_ate_known_truth_point_conformance"
-calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_unmeasured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
+calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_not_measured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
 owner = "estimate"
-limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains unmeasured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
+limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains not_measured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
 
 [[capabilities]]
 id = "estimate.causal.forest"
@@ -553,9 +553,9 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/learner_ate/fixture.json"
 evidence_test = "crates/antecedent-estimate/src/dml.rs"
 evidence_assertion = "learner_ate_known_truth_point_conformance"
-calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_unmeasured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
+calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_not_measured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
 owner = "estimate"
-limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains unmeasured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
+limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains not_measured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
 
 [[capabilities]]
 id = "estimate.generalized_propensity_aipw"
@@ -606,7 +606,7 @@ owner = "estimate"
 evidence_test = "crates/antecedent-estimate/tests/observational_survival_effects.rs"
 evidence_assertion = "closed_form_truths_are_recovered_under_independent_censoring"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "Point estimates and influence-function standard errors only; no support-matrix cell, interval or coverage record. The tests compare to closed-form exponential-hazard truths with six confounder cells and show the unadjusted contrast is biased, but no fixture is registered as a conformance oracle and the whole-route coverage designs are written as ignored tests and unmeasured. Binary treatment, right censoring, no delayed entry, competing risks or time-varying covariates."
+limitations = "Point estimates and influence-function standard errors only; no support-matrix cell, interval or coverage record. The tests compare to closed-form exponential-hazard truths with six confounder cells and show the unadjusted contrast is biased, but no fixture is registered as a conformance oracle and the whole-route coverage designs are written as ignored tests and not_measured. Binary treatment, right censoring, no delayed entry, competing risks or time-varying covariates."
 notes = "The horizon and the censoring assumption have no default and refuse when absent; positivity (treatment propensity, censoring survival at the horizon, follow-up reaching the horizon) refuses with its own detail."
 
 [[capabilities]]
@@ -619,5 +619,5 @@ owner = "estimate"
 evidence_test = "crates/antecedent-estimate/tests/observational_policy_value.rs"
 evidence_assertion = "a_prespecified_policy_recovers_its_closed_form_value_where_the_follower_mean_does_not"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "Point value and influence-function standard error only; no support-matrix cell, interval or coverage record. The learned policy is the greedy rule over per-action linear outcome models, not an optimal policy search; the cross-fitted standard error treats the fold policies as fixed. The whole-route coverage designs are written as ignored tests and unmeasured."
+limitations = "Point value and influence-function standard error only; no support-matrix cell, interval or coverage record. The learned policy is the greedy rule over per-action linear outcome models, not an optimal policy search; the cross-fitted standard error treats the fold policies as fixed. The whole-route coverage designs are written as ignored tests and not_measured."
 notes = "A policy declared as learned on the rows that score it is refused; the support, objective and evaluation have no default."

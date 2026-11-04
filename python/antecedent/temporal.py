@@ -20,7 +20,7 @@ What the answer is **not**:
 
 * Failing to reject (:attr:`ConstancyConclusion.NOT_REJECTED`) never proves the effect is
   constant. It is the absence of evidence against the null at the stated level.
-* The test's Type I error and power are **unmeasured** (``calibration == "unmeasured"``): no
+* The test's Type I error and power are **not_measured** (``calibration == "not_measured"``): no
   false-positive or power claim is made, and the result grants no causal or interval support.
   The claim is a point (``inference_claim == "point_only"``).
 * The null (the effect is equal across all declared partitions) is frozen; it is not a
@@ -288,7 +288,7 @@ class EffectConstancyResult(ScientificResult):
 
     ``partitions`` carries each partition's effect (canonical label order) so transport
     diagnostics, prior transfer and policy generalization can consume them directly.
-    ``conclusion`` is never a proof of constancy and ``calibration`` is ``"unmeasured"``;
+    ``conclusion`` is never a proof of constancy and ``calibration`` is ``"not_measured"``;
     read :attr:`caveats`. ``pooled_effect`` is the inverse-variance pooled effect and exists
     only for independent partitions.
     """

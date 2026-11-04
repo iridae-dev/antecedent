@@ -14,7 +14,7 @@
 //!
 //! A policy declared as learned on the rows that score it is refused. The estimator is the
 //! cross-fitted doubly robust score of [`antecedent_estimate::observational_policy`]; its
-//! standard error is an influence-function standard error whose calibration is **unmeasured**,
+//! standard error is an influence-function standard error whose calibration is **not_measured**,
 //! so no interval is produced.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -33,7 +33,7 @@ use super::multi_level_treatment::AdjustmentColumn;
 use crate::error::CausalError;
 
 /// Calibration standing of the reported standard errors.
-pub const OBSERVATIONAL_POLICY_CALIBRATION: &str = "unmeasured";
+pub const OBSERVATIONAL_POLICY_CALIBRATION: &str = "not_measured";
 
 /// The declared support, objective and evaluation.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]

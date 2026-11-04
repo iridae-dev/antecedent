@@ -8,7 +8,7 @@ normal `antecedent.transport.binary_nested_markov` adapter resolves those actual
 records for all three scalars before returning `inference.MeasuredInference`.
 The ordinary-wheel producer and independent source-bound consumer are verified
 separately from the original measurements. The original posterior artifact retains its
-`unmeasured` candidate standing inside the distinct measured envelope.
+`not_measured` candidate standing inside the distinct measured envelope.
 
 Measured scope is nominal 0.95, sample counts 2000..8000, default constrained
 fit options (50000 iterations, tolerance 1e-11, no residual refusal threshold),
@@ -114,5 +114,5 @@ main-source attestation is supported by actual bit-identical representative repl
 at `13705704` and reviewed source equivalence. The normal producer returns
 `MeasuredInference` for the named `mean0`, `mean1` and `contrast` 95% endpoints
 under the exact uniform or Beta(2,2), four-chain protocol and n2000..8000 scope.
-The retained original posterior artifact keeps its unmeasured candidate standing;
+The retained original posterior artifact keeps its not_measured candidate standing;
 parameter marginals, covariance and diagnostics have no blanket interval support.

@@ -257,21 +257,21 @@ def cmd_intervals(args: argparse.Namespace) -> int:
 
 # ---------------------------------------------------------------- inventories
 SUPPORT_CELLS = ROOT / "parity" / "support_cells.toml"
-UNMEASURED = "estimator_grid_not_measured"
+NOT_MEASURED = "estimator_grid_not_measured"
 AXES = ("query", "graph_class", "structure", "inference")
 
 
-def unmeasured_coordinates() -> dict[tuple[str, ...], list[dict]]:
+def not_measured_coordinates() -> dict[tuple[str, ...], list[dict]]:
     cells = tomllib.loads(read_text(SUPPORT_CELLS)).get("cell", [])
     grouped: dict[tuple[str, ...], list[dict]] = collections.defaultdict(list)
     for cell in cells:
-        if cell.get("calibration_reason") == UNMEASURED:
+        if cell.get("calibration_reason") == NOT_MEASURED:
             grouped[tuple(cell[axis] for axis in AXES)].append(cell)
     return dict(sorted(grouped.items()))
 
 
 def cmd_backlog(args: argparse.Namespace) -> int:
-    grouped = unmeasured_coordinates()
+    grouped = not_measured_coordinates()
     print(
         f"calibration backlog: {sum(map(len, grouped.values()))} cells without a measurement "
         f"across {len(grouped)} coordinates"
@@ -340,10 +340,10 @@ def candidate_groups(key: tuple[str, ...], groups: list[tuple[str, str]]) -> lis
 
 
 def cmd_readiness(args: argparse.Namespace) -> int:
-    grouped = unmeasured_coordinates()
+    grouped = not_measured_coordinates()
     groups = calibration_groups()
     print(
-        f"calibration readiness: {len(grouped)} unmeasured coordinates; no calibration test executed"
+        f"calibration readiness: {len(grouped)} not_measured coordinates; no calibration test executed"
     )
     for key in grouped:
         candidates = candidate_groups(key, groups)

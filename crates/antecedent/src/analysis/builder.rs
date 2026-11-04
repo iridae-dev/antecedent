@@ -776,6 +776,7 @@ fn refuse_frequentist_estimator_under_bayesian(
             frequentist!("propensity.stratification")
         }
         EstimatorId::Aipw if average => frequentist!("aipw"),
+        EstimatorId::RandomizedQuantile if average => frequentist!("randomized.quantile"),
         EstimatorId::Dml if average => frequentist!("dml"),
         EstimatorId::DrLearner if average => frequentist!("dr.learner"),
         EstimatorId::CausalForest if average => frequentist!("causal.forest"),
@@ -1113,7 +1114,7 @@ pub(super) fn refuse_unsupported_temporal_link(
 /// coverage measurement under another link, the conjugate backend is Gaussian by
 /// construction, and a transferred prior is mapped on the identity-link
 /// coefficient scale. Those combinations refuse here rather than silently fit
-/// a Gaussian model or report an unmeasured construction.
+/// a Gaussian model or report a not_measured construction.
 pub(super) fn refuse_unsupported_likelihood(
     query: &CausalQuery,
     data: &DataInput,

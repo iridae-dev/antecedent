@@ -441,8 +441,8 @@ def test_a_chain_compiles_before_it_runs_and_the_result_carries_its_program() ->
         require_success(chain.reweight("effect", 0.5 * _grid(0.5, 0.6))).program_identity
         != chain.program_identity
     )
-    with pytest.raises(R) as unmeasured:
+    with pytest.raises(R) as not_measured:
         pc.plan_view([effect], stages, output="utility", reading="interval")
-    assert unmeasured.value.code == "uncertainty_representation_insufficient"
-    assert unmeasured.value.detail == "propagation_chain.interval_not_measured"
-    assert unmeasured.value.next_attempt == "measure_composed_coverage"
+    assert not_measured.value.code == "uncertainty_representation_insufficient"
+    assert not_measured.value.detail == "propagation_chain.interval_not_measured"
+    assert not_measured.value.next_attempt == "measure_composed_coverage"

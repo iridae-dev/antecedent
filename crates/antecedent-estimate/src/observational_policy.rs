@@ -159,7 +159,7 @@ pub struct PolicyValueEstimate {
     pub objective: PolicyObjective,
     /// Doubly robust policy value.
     pub value: f64,
-    /// Influence-function standard error (calibration unmeasured).
+    /// Influence-function standard error (calibration not_measured).
     pub se: f64,
     /// The value of each declared action given to everyone, in declaration order.
     pub action_values: Vec<ActionValue>,

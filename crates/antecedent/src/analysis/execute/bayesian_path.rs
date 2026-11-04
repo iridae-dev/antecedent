@@ -4607,7 +4607,7 @@ pub(super) fn gcomp_arm_effect_assumption(
                      matching estimand and not the all-observed effect, and it is biased if the \
                      outcome mean is not linear in the adjustment columns and their \
                      interactions with treatment; the arm-effect interval is unsupported and \
-                     its coverage is unmeasured"
+                     its coverage is not_measured"
                 )),
             },
         ),

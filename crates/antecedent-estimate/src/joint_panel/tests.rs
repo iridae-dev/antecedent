@@ -205,7 +205,7 @@ fn failed_optimizer_slots_are_retained_without_a_fabricated_covariance() {
     assert_eq!(fit.diagnostics.failed_draws, 7);
     assert_eq!(fit.diagnostics.cluster_rank_bound, Some(3));
     assert_eq!(fit.diagnostics.claim, "model_conditional_mechanism_only");
-    assert_eq!(fit.diagnostics.calibration, "unmeasured");
+    assert_eq!(fit.diagnostics.calibration, "not_measured");
     assert!(fit.point.group_intercepts.iter().any(|value| value.abs() > 0.0));
     assert!(fit.retained_bytes() > 0);
 }

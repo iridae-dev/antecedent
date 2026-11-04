@@ -25,7 +25,7 @@
       "independence_basis": "The generator reads only the scenario block of expected.json and recomputes values, revised_values and the overlap pool in exact rational arithmetic; it imports no Antecedent code and no statistics package, and the covariance-aware pool is solved by explicit 2x2 inversion rather than by the product's pooling routine. The shared object is the fixture README's modelling statement (risk-difference composition, prevalence-weighted risk, utility = benefit*excess - cost): a misreading common to the README and the generator would not be detected.",
       "historical_exposure": "Written during this review from the fixture README and scenario inputs; the executing assertion was read to establish which values it compares; no product implementation source was consulted. Who first derived the hand arithmetic is unrecorded.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "Numeric chain for one scenario only. The refusal codes and details in mutations, conversions and variants are product contract strings: this reference neither derives nor compares them, and the delta-method variance of the corrected prevalence is asserted by the test against a formula inside the test and is not a fixture value. Point-only claims; no interval, coverage or calibration (unmeasured).",
+      "limitations": "Numeric chain for one scenario only. The refusal codes and details in mutations, conversions and variants are product contract strings: this reference neither derives nor compares them, and the delta-method variance of the corrected prevalence is asserted by the test against a formula inside the test and is not a fixture value. Point-only claims; no interval, coverage or calibration (not_measured).",
       "sources": [],
       "artifacts": [
         {
@@ -244,6 +244,6 @@
       "code": "not_supported"
     }
   },
-  "calibration": "unmeasured",
+  "calibration": "not_measured",
   "label": "point_only"
 }

@@ -97,7 +97,7 @@ fn categorical_dummy_regression_covariance_matches_group_mean_algebra() {
     close(fit.level_contrasts[1].standard_error, 1.5_f64.sqrt(), "se c");
     close(fit.level_contrasts[1].z, 7.0 / 1.5_f64.sqrt(), "z c");
     close(fit.level_contrasts[1].p_value, normal_p(7.0 / 1.5_f64.sqrt()), "p c");
-    assert_eq!(fit.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(fit.calibration, CalibrationStatus::NotMeasured);
     assert!(fit.monotonicity.is_none());
 }
 
@@ -270,7 +270,7 @@ fn categorical_monotonicity_constant_effect_is_never_rejected() {
         // p = min(1, 2 Phi(0)) = 1.
         close(result.p_value, 1.0, "p");
         assert!(result.conservative);
-        assert_eq!(result.calibration, CalibrationStatus::Unmeasured);
+        assert_eq!(result.calibration, CalibrationStatus::NotMeasured);
     }
 }
 

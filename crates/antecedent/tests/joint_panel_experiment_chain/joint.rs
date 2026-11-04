@@ -192,7 +192,7 @@ pub fn verify_joint_conditioning(
         source.authorize(ScientificConsumptionScope::ModelConditional, &ledger).unwrap();
         assert!(source.authorize(ScientificConsumptionScope::IdentifiedCausal, &ledger).is_err());
     }
-    assert!(joint.scope().contains("calibration_unmeasured"));
+    assert!(joint.scope().contains("calibration_not_measured"));
 
     // Ranking a further study of one component uses the jointly updated weights.
     let coefficients = &fixtures[0].coefficients;

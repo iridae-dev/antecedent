@@ -59,6 +59,13 @@ from typing import Any, Literal
 from antecedent import _reason_details
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
@@ -68,11 +75,13 @@ from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .outcomes import outcome_operation, require_success
 
 __all__ = [
+    "ConsumedTransportedDecision",
     "TransportDeclaration",
     "TransportReceipt",
     "TransportedDecision",
     "TransportedResponse",
     "TransportedResponseRefusal",
+    "consume_transported_decision",
     "evaluate_transported",
 ]
 
@@ -399,6 +408,34 @@ class TransportedDecision(ScientificResult):
     bound_identity: str
     causal_target: str
     causal_identification: str
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @artifact_export
+    def export(self, artifact_id: str = "transported-decision") -> ExportedArtifact[Any]:
+        """Seal this decision as a ``transported_decision_v1`` artifact.
+
+        The artifact carries the contract it was made under, the transported point with its
+        receipt, the support policy that accepted it and the values the decision produced; a
+        consumer (:func:`consume_transported_decision`) never trusts those values, it
+        re-evaluates the decision. Only a transported point is exported: a law is exported as its
+        distribution artifact.
+
+        Raises:
+            ~antecedent.decision.DecisionRefusal: a law (``transported_decision_artifact.
+                law_not_exportable``) or any refusal of the decision itself.
+        """
+        from .decision import DecisionRefusal
+
+        if self._handle is None:
+            raise CausalTypeError("this transported decision retains no contract to export")
+        declaration, response, unsupported, weakest = self._handle
+        data = _unwrap(
+            _native.transported_decision_export(
+                declaration, response, unsupported, weakest, text(artifact_id, "artifact_id")
+            ),
+            DecisionRefusal,
+        )
+        return _DecisionExport(bytes(data), self.decision_identity)
 
     @property
     def verdict(self) -> Any:
@@ -502,4 +539,88 @@ def evaluate_transported(
         bound_identity=str(wire["bound_identity"]),
         causal_target=str(wire["causal_target"]),
         causal_identification=str(wire["causal_identification"]),
+        _handle=(
+            admissible._declaration(),
+            response._handle,
+            policy.unsupported,
+            policy.weakest_support,
+        ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _DecisionExport:
+    artifact: bytes
+    identity: str
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class ConsumedTransportedDecision(ScientificResult):
+    """A transported decision re-derived by a consumer from an artifact.
+
+    ``decision`` is the support-aware decision the consumer recomputed (never the stored
+    numbers); ``response`` is the transported point rebuilt from the artifact and
+    ``receipt`` the transport it travelled with. The decision is point-only and the value is
+    never native target data.
+    """
+
+    decision: Any
+    response: TransportedResponse
+    receipt: TransportReceipt
+    assumptions: tuple[str, ...]
+    inference: str
+    native_target_data: bool
+    decision_identity: str
+
+    @property
+    def verdict(self) -> Any:
+        """The verdict over the evaluated actions."""
+        return self.decision.verdict
+
+    @property
+    def outcomes(self) -> Any:
+        """The outcomes of the evaluated actions, in declaration order."""
+        return self.decision.outcomes
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="transported_response.consume_transported_decision: rebuilds the contract, validates the receipt, re-evaluates the decision and requires its identity and every action value to match bit for bit",
+    replayable=True,
+)
+def consume_transported_decision(
+    artifact: bytes, expected_identity: str | None = None
+) -> ConsumedTransportedDecision:
+    """Consume a ``transported_decision_v1`` artifact by re-evaluating its decision.
+
+    The contract is rebuilt from its declaration, the carried point and receipt are validated as
+    at construction, the decision is evaluated again and its identity and every action value must
+    equal the stored ones bit for bit; a resealed edit of the receipt, the means, the contract or
+    the support policy changes what the re-evaluation produces and is refused.
+    ``expected_identity`` is the decision identity the consumer retained independently of the
+    bytes.
+
+    Raises:
+        ~antecedent.decision.DecisionRefusal: damaged or foreign bytes, an invalid contract or
+            receipt, a stored value the re-evaluation does not reproduce
+            (``transported_decision_artifact.replay_mismatch``) or an identity that differs from
+            the expected one (``transported_decision_artifact.identity_expected``).
+    """
+    from .composition import _supported_from_wire
+    from .decision import DecisionRefusal
+
+    data = container_bytes(artifact)
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        raise CausalTypeError("artifact must be bytes")
+    payload, handle, refusal = _native.transported_decision_consume(bytes(data), expected_identity)
+    raise_refusal(refusal, DecisionRefusal)
+    wire = json.loads(payload)
+    return ConsumedTransportedDecision(
+        decision=_supported_from_wire(wire["decision"]),
+        response=TransportedResponse._of(handle),
+        receipt=TransportReceipt._from_wire(wire["receipt"]),
+        assumptions=tuple(wire["assumptions"]),
+        inference=str(wire["inference"]),
+        native_target_data=False,
+        decision_identity=str(wire["decision_identity"]),
     )

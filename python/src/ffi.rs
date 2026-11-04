@@ -8,8 +8,9 @@
 #![allow(unsafe_code)]
 
 use antecedent::data::arrow_adapter::ArrowFrameView;
-use antecedent::data::arrow_ffi::{ArrowCStream, FfiArrowArrayStream};
-use antecedent::data::{ArrowCColumn, FfiArrowArray, FfiArrowSchema};
+use antecedent::data::arrow_c::{
+    ArrowCColumn, ArrowCStream, FfiArrowArray, FfiArrowArrayStream, FfiArrowSchema,
+};
 use pyo3::exceptions::PyBufferError;
 use pyo3::prelude::*;
 use pyo3::types::PyCapsule;

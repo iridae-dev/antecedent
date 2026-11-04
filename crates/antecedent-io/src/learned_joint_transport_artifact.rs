@@ -1,6 +1,6 @@
 //! Independent artifact of the learned joint source-target transport row
 //! (`learned_joint_transport`). The original
-//! candidate format and its posterior quantities retain their `unmeasured` standing.
+//! candidate format and its posterior quantities retain their `not_measured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
 //! protocol and its basis resolves to a current attesting calibration record.
@@ -11,7 +11,7 @@
 //! the source and target identities with the observations themselves, and the result: the
 //! exact posterior moments of the `antecedent-learn` fit, the aligned joint draws with their
 //! RNG identity, the diagnostics (including the basis rank), the graph / provider / query
-//! record and the calibration status (always `unmeasured`).
+//! record and the calibration status (always `not_measured`).
 //!
 //! A consumer trusts none of the result. Under its own bounds (a stored count above them
 //! refuses before any work) it checks the two digests, re-fits the model from the stored
@@ -61,7 +61,7 @@ pub const LEARNED_JOINT_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const LEARNED_JOINT_ARTIFACT_FEATURE: &str = "learned_joint_transport_conjugate_v1";
 /// The only calibration status of this cell until coverage is measured.
-pub const LEARNED_JOINT_CALIBRATION: &str = "unmeasured";
+pub const LEARNED_JOINT_CALIBRATION: &str = "not_measured";
 
 /// Why a learned joint transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -291,7 +291,7 @@ pub struct LearnedDiagnosticsWire {
     pub max_abs_z: f64,
     /// Whether the disagreement is flagged.
     pub flagged: bool,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
 }
 
@@ -335,7 +335,7 @@ impl LearnedResultWire {
     fn from_fit(fit: &LearnedJointFit) -> Self {
         let d = &fit.diagnostics;
         let calibration = match d.calibration {
-            JointTransportCalibration::Unmeasured => LEARNED_JOINT_CALIBRATION,
+            JointTransportCalibration::NotMeasured => LEARNED_JOINT_CALIBRATION,
         };
         let p = &fit.provider;
         Self {
@@ -417,7 +417,7 @@ pub struct LearnedJointArtifactWire {
     pub target: JointTargetWire,
     /// Posterior result.
     pub result: LearnedResultWire,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest of the scientific premises.
     pub premises_digest: String,
@@ -544,7 +544,7 @@ impl LearnedJointArtifactWire {
         if wire.calibration != LEARNED_JOINT_CALIBRATION
             || wire.result.diagnostics.calibration != LEARNED_JOINT_CALIBRATION
         {
-            return Err(unsupported("calibration is unmeasured").into());
+            return Err(unsupported("calibration is not_measured").into());
         }
         if wire.result.draws.alignment != "joint" {
             return Err(unsupported("draws must be aligned joint draws").into());
@@ -671,7 +671,7 @@ impl LearnedJointArtifactWire {
 
 impl LearnedJointArtifactWire {
     /// Produce the unchanged original candidate plus a separately record-bound
-    /// measured target-effect scalar. Other posterior quantities remain unmeasured.
+    /// measured target-effect scalar. Other posterior quantities remain not_measured.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
     pub fn build_measured(

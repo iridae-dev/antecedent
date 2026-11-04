@@ -85,7 +85,7 @@ fn derived_components_match_the_enumerated_law_and_stay_separate() {
     let prepared = PreparedDecisionReliability::assess(law(10), None, request(), &ctx()).unwrap();
     let derived = prepared.derive_uncertainty(&IntervalRequest::marginal(0.95), &ctx()).unwrap();
     assert_eq!(derived.decided_id, "A");
-    assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
+    assert_eq!(derived.standing, DerivedStanding::DerivedNotMeasured);
     assert!(!derived.assumptions.is_empty());
     // Component one is carried over unchanged from the report.
     assert_eq!(derived.source, SourceUncertainty::KnownLaw);

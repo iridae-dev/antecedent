@@ -51,7 +51,7 @@ def test_normal_recovered_effect_bca_original_source_and_fresh_measured_replay(t
     assert scalar.basis["scope"]["row_count"] == 2000
     assert len(scalar.calibration_sha) == 40
     source = measured.source_report()
-    assert source["calibration"] == "unmeasured"
+    assert source["calibration"] == "not_measured"
     receipt = source["receipt"]
     assert receipt["config"]["replicates"] == 2000
     assert receipt["config"]["max_failed_fraction"] == 0
@@ -197,7 +197,7 @@ print(json.dumps(r.source_report(),sort_keys=True))
 
 def test_raw_recovery_candidate_factory_requires_original_native_hook(monkeypatch):
     payload = json.dumps(
-        {"calibration": "unmeasured", "result": {"interval": {"lower": -1, "upper": 1}}}
+        {"calibration": "not_measured", "result": {"interval": {"lower": -1, "upper": 1}}}
     )
     calls = []
     monkeypatch.setattr(

@@ -154,7 +154,7 @@ fn append_retained_panel_obligations(
                         statistical_limitations: vec![
                             "frozen modular conditional update; not a joint refit".into(),
                         ],
-                        calibration: "registered_unmeasured_candidate_bound".into(),
+                        calibration: "registered_not_measured_candidate_bound".into(),
                         stages: stages.iter().map(|s| (*s).into()).collect(),
                     });
                 }

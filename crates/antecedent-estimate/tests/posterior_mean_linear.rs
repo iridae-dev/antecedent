@@ -193,7 +193,7 @@ fn quadratic_posterior_mean_stays_near_the_linear_dose_response() {
 }
 
 #[test]
-fn quadratic_posterior_refuses_an_unmeasured_band() {
+fn quadratic_posterior_refuses_an_not_measured_band() {
     let (dose, outcome) = line();
     let message = refusal(
         local_quadratic_posterior(

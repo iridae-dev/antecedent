@@ -30,7 +30,7 @@ fn contrast(data: &Value) -> SequentialContrast {
         contrast: contrast_scores.iter().sum::<f64>() / n,
         active_mean: active.iter().sum::<f64>() / n,
         control_mean: control.iter().sum::<f64>() / n,
-        unmeasured_score_scale: 0.0,
+        not_measured_score_scale: 0.0,
         evaluated_rows: active.len() as u64,
         minimum_action_probability: 0.5,
         active_scores: active,

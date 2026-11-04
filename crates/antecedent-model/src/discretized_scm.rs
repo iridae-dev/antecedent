@@ -1251,10 +1251,10 @@ pub const PARITY_TABLE: [ParityRow; 15] = [
     ParityRow {
         route: ParityRoute::DecisionReliabilityUncertainty,
         frequentist: ParadigmCell::Supported(
-            "Monte Carlo and selection components over draws whose law is the supplied one; derived, unmeasured",
+            "Monte Carlo and selection components over draws whose law is the supplied one; derived, not_measured",
         ),
         bayesian: ParadigmCell::Supported(
-            "the same derivation over posterior draws; the source-distribution spread is carried unchanged, derived, unmeasured",
+            "the same derivation over posterior draws; the source-distribution spread is carried unchanged, derived, not_measured",
         ),
     },
     ParityRow {

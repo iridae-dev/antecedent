@@ -55,9 +55,10 @@ from ._artifact_protocol import (
 )
 from ._columns import coerce_fields
 from ._scientific import ScientificResult
-from .errors import CausalTypeError
+from .errors import CausalTypeError, CausalValueError
 from .provider_callbacks import (
     CallbackDeclaration,
+    CallbackRefusal,
     Support,
     _dumps,
     _name,
@@ -66,9 +67,12 @@ from .provider_callbacks import (
 from .scientific_bridge import _quantity_wire
 
 __all__ = [
+    "AdmittedProviderSource",
+    "ProviderSource",
     "TransportHandoff",
     "TransportIdentity",
     "TransportedClaimOffer",
+    "admit_provider_source",
     "consume_for_callback",
     "hand_to_callback",
 ]
@@ -247,3 +251,172 @@ def consume_for_callback(
     _raise(refusal)
     assert summary is not None
     return _summary(json.loads(summary), bytes(data))
+
+
+# -- a provider's output as source evidence for a transported claim ---------------------------------
+
+_SOURCE_TRUST = ("externally_attested", "exact_request_verified", "native_supported")
+_SOURCE_REQUIREMENT = ("attestation_accepted", "exact_request_verified")
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderSource:
+    """A provider's output offered as source evidence for a transport route.
+
+    ``provider`` is the :class:`~antecedent.provider_callbacks.CallbackDeclaration` whose provider
+    object (at its exact request) produced the output; ``quantity`` is the coordinate it answers,
+    including the **source** population and regime it was established in; ``assumptions`` are the
+    invariance and selection assumptions it relies on; ``evidence`` the evidence-ledger sources
+    (64-hex) it rests on (``None`` is undeclared, which has unknown overlap with every other
+    source). ``trust`` is ``externally_attested`` (name the ``attestor``) or
+    ``exact_request_verified`` (pass the ``receipt`` that
+    :meth:`~antecedent.provider_callbacks.CallbackDeclaration.verify` issued); a claim of
+    ``native_supported`` is refused. ``requirement`` is what the route demands of the trust:
+    ``attestation_accepted`` or ``exact_request_verified`` (an attestation then refuses).
+    """
+
+    provider: CallbackDeclaration
+    component: str
+    quantity: Any
+    semantic_identity: str
+    support: Support
+    assumptions: tuple[str, ...]
+    evidence: tuple[str, ...] | None = None
+    trust: str = "externally_attested"
+    attestor: str | None = None
+    requirement: str = "attestation_accepted"
+    receipt: Any = None
+
+    def __post_init__(self) -> None:
+        coerce_fields(
+            self,
+            assumptions=tuple(self.assumptions),
+            evidence=None if self.evidence is None else tuple(sorted(set(self.evidence))),
+        )
+
+    def _wire(self) -> dict[str, Any]:
+        if self.trust not in _SOURCE_TRUST:
+            raise CausalValueError(f"trust must be one of {_SOURCE_TRUST}")
+        if self.requirement not in _SOURCE_REQUIREMENT:
+            raise CausalValueError(f"requirement must be one of {_SOURCE_REQUIREMENT}")
+        return {
+            "component": _name(self.component, "component"),
+            "quantity": _quantity_wire(self.quantity, "quantity"),
+            "semantic_identity": _name(self.semantic_identity, "semantic_identity"),
+            "support": self.support._wire(),
+            "assumptions": list(self.assumptions),
+            "evidence": None if self.evidence is None else list(self.evidence),
+            "requirement": self.requirement,
+            "trust": self.trust,
+            "attestor": self.attestor,
+        }
+
+    def _receipt(self) -> Any:
+        if self.receipt is None:
+            return None
+        from .extensibility import ProviderVerificationReceipt
+
+        if not isinstance(self.receipt, ProviderVerificationReceipt):
+            raise CausalTypeError("receipt must be a ProviderVerificationReceipt")
+        return self.receipt._native_value
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class AdmittedProviderSource(ScientificResult):
+    """A provider source that passed admission.
+
+    ``trust`` is the standing it holds (``externally_attested`` or ``verified_extension``), never
+    native; ``native_target_data`` is always ``False``; ``population`` and ``regime`` are the ones
+    its output was established in. ``contract`` is the source as an interface contract (a produced
+    port that supplies the ``external_provider`` provenance stage; point-only for a mean alone,
+    ``not_measured`` otherwise, never measured). ``identity`` changes with the request, the
+    population, regime, assumptions, evidence and trust.
+    """
+
+    identity: str
+    trust: str
+    population: str
+    regime: str
+    operations: tuple[str, ...]
+    native_target_data: bool
+    contract: Any
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    def connect(
+        self,
+        consumer: Any,
+        consumed_port: str,
+        *,
+        transport: TransportIdentity,
+    ) -> Any:
+        """Connect this source to a transport route's consumer port.
+
+        The source must belong to ``transport``: its population is one of the transport's source
+        populations and every assumption it relies on is carried by the transport identity. Then
+        the one connection check decides the rest (population and regime, operations, evidence).
+        The connection keeps the producer's calibration label.
+
+        Raises:
+            ~antecedent.provider_callbacks.CallbackRefusal: ``provider_transport.
+                population_not_a_source``, ``provider_transport.assumptions_not_carried`` or any
+                defect of the connection; ``refusals`` lists every one.
+        """
+        from .interface_contract import InterfaceContract, _connection
+
+        if not isinstance(consumer, InterfaceContract):
+            raise CausalTypeError("consumer must be an interface_contract.InterfaceContract")
+        if not isinstance(transport, TransportIdentity):
+            raise CausalTypeError("transport must be a TransportIdentity")
+        source = self._handle
+        wire, refusal = _native.provider_source_connect(
+            _dumps(source.provider._wire()),
+            _dumps(source._wire()),
+            _dumps(transport._wire()),
+            _dumps(consumer._wire()),
+            _name(consumed_port, "consumed_port"),
+            source._receipt(),
+        )
+        if refusal is not None:
+            found = json.loads(refusal)
+            error = CallbackRefusal(found[0])
+            error.refusals = tuple(CallbackRefusal(item) for item in found)
+            raise error
+        assert wire is not None
+        return _connection(json.loads(wire))
+
+
+def admit_provider_source(source: ProviderSource) -> AdmittedProviderSource:
+    """Decide from declarations alone whether a provider's output may be source evidence.
+
+    Admission refuses a missing population or regime, a quantity the provider object does not
+    declare, missing assumptions, a claim of native support, a verification receipt that does not
+    cover the object, and an attestation where the route requires exact-request verification
+    (``provider_transport.verification_required``). An admitted source is never native target
+    data and supports no interval or calibration claim. Nothing runs.
+
+    Raises:
+        ~antecedent.provider_callbacks.CallbackRefusal: the first defect, with its registered
+            code, ``provider_transport.*`` detail and the declaration that would support it.
+    """
+    from .interface_contract import InterfaceContract
+
+    if not isinstance(source, ProviderSource):
+        raise CausalTypeError("source must be a ProviderSource")
+    if not isinstance(source.provider, CallbackDeclaration):
+        raise CausalTypeError("provider must be a provider_callbacks.CallbackDeclaration")
+    wire, refusal = _native.provider_source_admit(
+        _dumps(source.provider._wire()), _dumps(source._wire()), source._receipt()
+    )
+    _raise(refusal)
+    assert wire is not None
+    admitted = json.loads(wire)
+    return AdmittedProviderSource(
+        identity=admitted["identity"],
+        trust=admitted["trust"],
+        population=admitted["population"],
+        regime=admitted["regime"],
+        operations=tuple(admitted["operations"]),
+        native_target_data=bool(admitted["native_target_data"]),
+        contract=InterfaceContract._from_wire(admitted["contract"]),
+        _handle=source,
+    )

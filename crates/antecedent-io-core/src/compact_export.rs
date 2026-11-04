@@ -12,7 +12,7 @@
 //! declared support and outside the refusal mask, and nothing else. The only
 //! uncertainty it can report is the model-based standard error
 //! `se = sqrt(phi' V phi)` from the stored covariance. That number is marked as
-//! model-based with calibration unmeasured; it is never an interval or a
+//! model-based with calibration not_measured; it is never an interval or a
 //! coverage claim, and it carries no extrapolation or misspecification
 //! uncertainty. The verifier evaluates from the stored fields only.
 
@@ -43,7 +43,7 @@ pub const POINT_SCOPE: &str = "point prediction f(x) = b'phi(x) of the declared 
 /// Stored statement of what the reported uncertainty means.
 pub const UNCERTAINTY_SCOPE: &str = "model-based standard error se = sqrt(phi' V phi) from the stored covariance; not an interval, not a coverage claim, and without extrapolation or misspecification uncertainty";
 /// Stored calibration status of the standard error.
-pub const CALIBRATION_STATUS: &str = "calibration unmeasured";
+pub const CALIBRATION_STATUS: &str = "calibration not_measured";
 /// Label carried by every reported standard error.
 pub const SE_BASIS: &str = "model_based_sqrt_phi_v_phi";
 /// Default largest polynomial degree a term may declare. This is a numeric-stability

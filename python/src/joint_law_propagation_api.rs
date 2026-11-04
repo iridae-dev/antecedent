@@ -18,16 +18,20 @@ use antecedent::analysis::joint_law_propagation::{
 };
 use antecedent::contract::{
     InputAlignment, InputRole, PropagationDependence, PropagationInput, PropagationOperation,
-    PropagationRequest,
+    PropagationRequest, check_propagation, check_propagation_with_ledger,
+    check_rows_pairable_across,
 };
 use antecedent::io::joint_law_propagation_artifact::{PropagationRequestWire, float_bits};
 use antecedent::scientific::RequestedReading;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
 use crate::PyCancellationToken;
+use crate::bridge::external_refusal_json;
 use crate::distribution_api::PyJointDistributionArtifact;
+use crate::evidence_ledger_api::EvidenceLedgerHandle;
 use crate::transport_common::execution_context;
 
 type Refused<T> = (Option<T>, Option<String>);
@@ -827,6 +831,143 @@ fn joint_law_coordinate_id(artifact: &[u8]) -> Refused<String> {
     }
 }
 
+/// One input of a composition to check, as the rule reads it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckedInputIn {
+    id: String,
+    evidence_id: String,
+    role: String,
+    alignment: String,
+    #[serde(default)]
+    alignment_id: Option<String>,
+}
+
+fn checked_input(entry: &CheckedInputIn) -> Result<PropagationInput, String> {
+    let alignment = match entry.alignment.as_str() {
+        "joint" | "aligned" => InputAlignment::Aligned {
+            alignment_id: entry.alignment_id.clone().ok_or_else(|| {
+                invalid_json(format!(
+                    "input `{}` is aligned but names no alignment identity",
+                    entry.id
+                ))
+            })?,
+        },
+        "independent_marginals" => InputAlignment::IndependentMarginals,
+        "moments_only" => InputAlignment::MomentsOnly,
+        other => return Err(invalid_json(format!("unknown alignment `{other}`"))),
+    };
+    Ok(PropagationInput {
+        id: entry.id.clone(),
+        evidence_id: entry.evidence_id.clone(),
+        role: role(&entry.role)?,
+        alignment,
+    })
+}
+
+fn checked_inputs(text: &str) -> Result<Vec<PropagationInput>, String> {
+    let entries: Vec<CheckedInputIn> = parse_bounded(text).map_err(invalid_json)?;
+    entries.iter().map(checked_input).collect()
+}
+
+/// The dependence information a caller supplies for a check.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckedDependenceIn {
+    kind: String,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    rho_lo: Option<f64>,
+    #[serde(default)]
+    rho_hi: Option<f64>,
+}
+
+fn checked_dependence(text: &str) -> Result<PropagationDependence, String> {
+    let entry: CheckedDependenceIn = parse_bounded(text).map_err(invalid_json)?;
+    match entry.kind.as_str() {
+        "unknown" => Ok(PropagationDependence::Unknown),
+        "declared_independent" => Ok(PropagationDependence::DeclaredIndependent),
+        "aligned_joint_law" => Ok(PropagationDependence::AlignedJointLaw),
+        "known_weights" => Ok(PropagationDependence::KnownWeights),
+        "marginals_only" => Ok(PropagationDependence::MarginalsOnly),
+        "covariance" => Ok(PropagationDependence::Covariance {
+            id: entry.id.ok_or_else(|| {
+                invalid_json("a covariance dependence names its identity".to_owned())
+            })?,
+        }),
+        "correlation_range" => match (entry.rho_lo, entry.rho_hi) {
+            (Some(rho_lo), Some(rho_hi)) => {
+                Ok(PropagationDependence::CorrelationRange { rho_lo, rho_hi })
+            }
+            _ => Err(invalid_json("a correlation range names both bounds".to_owned())),
+        },
+        other => Err(invalid_json(format!("unknown dependence `{other}`"))),
+    }
+}
+
+/// Check a composition against the propagation rule before any number is formed. With a ledger,
+/// whether inputs share evidence is decided from the ledger's observation rows (each input's
+/// evidence identity read as a ledger source) rather than from the equality of identity strings;
+/// an overlap the ledger cannot compute is unknown, never independence.
+#[pyfunction]
+#[pyo3(signature = (operation_name, inputs_json, dependence_json, reading, ledger=None))]
+fn joint_law_check_propagation(
+    operation_name: &str,
+    inputs_json: &str,
+    dependence_json: &str,
+    reading: &str,
+    ledger: Option<PyRef<'_, EvidenceLedgerHandle>>,
+) -> Refused<String> {
+    let operation = tri!(operation(operation_name));
+    let inputs = tri!(checked_inputs(inputs_json));
+    let dependence = tri!(checked_dependence(dependence_json));
+    let reading = tri!(
+        RequestedReading::from_name(reading)
+            .ok_or_else(|| invalid_json(format!("unknown reading `{reading}`")))
+    );
+    let request = PropagationRequest { operation, inputs, dependence, reading };
+    let checked = match &ledger {
+        Some(ledger) => check_propagation_with_ledger(&request, ledger.ledger()),
+        None => check_propagation(&request),
+    };
+    match checked {
+        Ok(plan) => (
+            Some(
+                json!({
+                    "operation": plan.operation.as_str(),
+                    "route": plan.route.as_str(),
+                    "alignment_id": plan.alignment_id,
+                    "covariance_id": plan.covariance_id,
+                    "shared_evidence": plan.shared_evidence,
+                    "label": plan.label,
+                    "missing_transport_pieces": plan.missing_transport_pieces,
+                })
+                .to_string(),
+            ),
+            None,
+        ),
+        Err(refusal) => (None, Some(external_refusal_json(&refusal))),
+    }
+}
+
+/// Whether the rows of several inputs may be paired row by row: the inputs' own alignment
+/// identities decide, so draws of different joint laws or of independently produced marginals
+/// are never paired. Returns the refusal JSON or `None`.
+#[pyfunction]
+fn joint_law_check_rows_pairable(inputs_json: &str) -> Option<String> {
+    let inputs = match checked_inputs(inputs_json) {
+        Ok(inputs) => inputs,
+        Err(refusal) => return Some(refusal),
+    };
+    let pairs: Vec<(&str, &InputAlignment)> =
+        inputs.iter().map(|input| (input.id.as_str(), &input.alignment)).collect();
+    match check_rows_pairable_across(&pairs) {
+        Ok(()) => None,
+        Err(refusal) => Some(external_refusal_json(&refusal)),
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(joint_law_column, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_aligned_functional, module)?)?;
@@ -846,5 +987,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(joint_law_transported_spread_aligned, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_check_composed_interval, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_coordinate_id, module)?)?;
+    module.add_function(wrap_pyfunction!(joint_law_check_propagation, module)?)?;
+    module.add_function(wrap_pyfunction!(joint_law_check_rows_pairable, module)?)?;
     Ok(())
 }

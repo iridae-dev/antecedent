@@ -491,6 +491,7 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
         | EstimatorId::FrontDoorFunctional
         | EstimatorId::IvWald
         | EstimatorId::Iv2Sls
+        | EstimatorId::RandomizedQuantile
         | EstimatorId::RdSharp => frequentist(AVERAGE, ANY),
         EstimatorId::BayesianGcomp
         | EstimatorId::BayesianRobustAte
@@ -759,6 +760,7 @@ pub(super) const fn estimator_target(id: EstimatorId) -> EstimatorTarget {
         | EstimatorId::CausalForest
         | EstimatorId::BayesianGcomp
         | EstimatorId::BayesianRobustAte
+        | EstimatorId::RandomizedQuantile
         | EstimatorId::BayesianRandomizedQuantile
         | EstimatorId::ConditionalLinearAdjustment
         | EstimatorId::BayesianConditional
@@ -882,6 +884,7 @@ pub(super) const fn estimator_target(id: EstimatorId) -> EstimatorTarget {
         | EstimatorId::DrLearner
         | EstimatorId::CausalForest
         | EstimatorId::BayesianRobustAte
+        | EstimatorId::RandomizedQuantile
         | EstimatorId::BayesianRandomizedQuantile
         | EstimatorId::BayesianIvJointLinear
         | EstimatorId::BayesianRdLocalLinear => {
@@ -899,6 +902,7 @@ pub(super) const fn estimator_target(id: EstimatorId) -> EstimatorTarget {
         EstimatorId::BayesianRobustAte
         | EstimatorId::BayesianBasisGcomp
         | EstimatorId::BayesianRdLocalLinear
+        | EstimatorId::RandomizedQuantile
         | EstimatorId::BayesianRandomizedQuantile
         | EstimatorId::BayesianIvJointLinear => target.validation = ValidationTarget::NoneOnly,
         _ => {}

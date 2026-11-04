@@ -11,7 +11,7 @@
 //! at `t`, outcome `horizon` steps after the treatment. Rows of one series are serially dependent
 //! and the contrast treats them as independent, so its homoskedastic standard error and the
 //! Bayesian reduced-form ratio posterior carry no serial-dependence correction; that premise is
-//! recorded on the result. Neither estimator is supported and calibration is unmeasured.
+//! recorded on the result. Neither estimator is supported and calibration is not_measured.
 
 use antecedent_estimate::DrawSpec;
 use antecedent_estimate::lagged_instrument::{
@@ -120,7 +120,7 @@ impl super::Study {
                 .with_n_obs(u64::try_from(fit.aligned_rows).unwrap_or(u64::MAX));
                 let note = format!(
                     "{}; first-stage F {:.3}, {} aligned rows, lag {}; homoskedastic standard \\
-                     error of independent rows; calibration unmeasured",
+                     error of independent rows; calibration not_measured",
                     fit.model, fit.first_stage_f, fit.aligned_rows, fit.lag
                 );
                 (estimate, None, EstimatorId::TemporalLaggedInstrument, note, None)
@@ -153,7 +153,7 @@ impl super::Study {
                     .with_n_obs(u64::try_from(fit.aligned_rows).unwrap_or(u64::MAX));
                 let note = format!(
                     "{}; first-stage F {:.3}, {} aligned rows, lag {}; N(0, {}^2) prior on each \\
-                     reduced-form coefficient; calibration unmeasured",
+                     reduced-form coefficient; calibration not_measured",
                     fit.model, fit.first_stage_f, fit.aligned_rows, fit.lag, fit.prior_sd
                 );
                 let draws = u32::try_from(fit.effect_draws.len()).unwrap_or(u32::MAX);

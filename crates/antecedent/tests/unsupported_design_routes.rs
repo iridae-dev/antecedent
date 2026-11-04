@@ -102,14 +102,14 @@ fn sequential_contrast_wald_matches_the_pinned_reference_and_round_trips() {
     let [lower, upper] = fit.interval.unwrap();
     close(lower, 2.230_853_305_140_346 - half, 1.0e-3);
     close(upper, 2.230_853_305_140_346 + half, 1.0e-3);
-    assert_eq!(&*fit.uncertainty, "normal_interval_calibration_unmeasured");
+    assert_eq!(&*fit.uncertainty, "normal_interval_calibration_not_measured");
     assert_eq!(fit.contrast_scores.len(), SUBJECTS);
 
     // The retained artifact is decoded by the independent loader and recomputed.
     let bytes = prepared.encode_contracted_result(&result, "sequential-wald", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.sequential_contrast.as_ref().unwrap();
-    assert!(!wire.supported && wire.calibration == "unmeasured");
+    assert!(!wire.supported && wire.calibration == "not_measured");
     close(wire.contrast, fit.contrast, 1.0e-12);
     let mut shifted = body.clone();
     shifted.sequential_contrast.as_mut().unwrap().interval = Some([0.0, 100.0]);
@@ -285,7 +285,7 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     close(fit.interval_upper.unwrap(), fit.contrast + 1.959_963_984_540_054 * serial_se, 1.0e-12);
     assert_eq!(
         &*fit.uncertainty,
-        "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured"
+        "abadie_imbens_and_newey_west_period_interval_calibration_not_measured"
     );
     let bytes = prepared.encode_contracted_result(&result, "history-match", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();

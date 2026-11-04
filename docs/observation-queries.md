@@ -204,7 +204,7 @@ continuous outcome, or the probability of each level of a finite outcome.
 The result is aligned draws: one row is one joint realization of every
 quantity (one parameter draw produced them all), carried with the alignment
 identity of the distribution artifact (`ObservationClaim.distribution()` builds
-it: alignment `Joint`, calibration `Unmeasured`). The draws are a deterministic
+it: alignment `Joint`, calibration `NotMeasured`). The draws are a deterministic
 function of the retained statistics, priors, seed and draw count, and an
 independent consumer replays them. Their spread is exact for the posterior and
 is labelled `uncalibrated_spread`. An interval is returned by

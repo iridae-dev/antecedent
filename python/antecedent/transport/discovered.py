@@ -65,7 +65,7 @@ never point backward in time, a selection target applies at every slice, and the
 largest lag is reported as ``max_lag``. :func:`estimate_discovered_temporal_transport` discovers
 on a source series, unrolls the class and estimates from two integer-coded series; its interval,
 when ``bootstrap_replicates`` is requested, is a circular block bootstrap of each series' window
-rows (``block_length``, default twice the window span) and is unmeasured like the static one.
+rows (``block_length``, default twice the window span) and is not_measured like the static one.
 
 **Lifecycle.** The envelope is derived on every call from the class and the declared query.
 Outcome-only data leaves the class and so the envelope's content unchanged; a rerun that yields

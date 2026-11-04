@@ -33,7 +33,7 @@ What the answer is **not**:
   Otherwise ``interval`` is ``None``, ``interval_status`` is the calibration status of the
   construction (``"outside_measured_scope"``, ``"measured_below_nominal"`` or
   ``"not_measured"``), ``interval_reason`` names why, and the standard error is labelled
-  ``calibration == "unmeasured"``. The pairwise-subpopulation target has no coverage
+  ``calibration == "not_measured"``. The pairwise-subpopulation target has no coverage
   measurement and always reports ``interval_status == "not_measured"``.
 * With ``target="full_population"`` every row must be at a declared level; a row at an
   undeclared level refuses ``treatment_level_undeclared`` instead of being dropped.
@@ -114,7 +114,7 @@ class MultiLevelEffect:
     excluded_rows: int
     #: Standardized mean per declared level (full-population target only).
     level_means: tuple[LevelMean, ...]
-    #: ``"calibrated"`` when a coverage record governs the interval, else ``"unmeasured"``.
+    #: ``"calibrated"`` when a coverage record governs the interval, else ``"not_measured"``.
     calibration: str
     #: The 95% interval, present only when a current coverage record covers this construction.
     interval: MultiLevelInterval | None

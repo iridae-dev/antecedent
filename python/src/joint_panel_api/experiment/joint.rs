@@ -140,7 +140,7 @@ impl PyJointExperiment {
                 "quantities": result.informed_quantities().iter()
                     .map(antecedent::io::quantity_wire::ScientificQuantityWire::from)
                     .collect::<Vec<_>>(),
-                "calibration": "unmeasured",
+                "calibration": "not_measured",
             })
             .to_string())
         })
@@ -158,7 +158,7 @@ impl PyJointExperiment {
             Ok(serde_json::json!({
                 "prior_mean": c.prior_mean, "posterior_mean": c.posterior_mean,
                 "prior_variance": c.prior_variance, "posterior_variance": c.posterior_variance,
-                "scope": "model_conditional", "calibration": "unmeasured",
+                "scope": "model_conditional", "calibration": "not_measured",
             })
             .to_string())
         })

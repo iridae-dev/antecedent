@@ -202,7 +202,7 @@ fn compact_scope_states_point_and_model_based_se_only() {
     assert_eq!(result.se_basis, SE_BASIS);
     assert_eq!(result.se_basis, "model_based_sqrt_phi_v_phi");
     assert_eq!(result.calibration, CALIBRATION_STATUS);
-    assert_eq!(result.calibration, "calibration unmeasured");
+    assert_eq!(result.calibration, "calibration not_measured");
     assert_eq!(result.export_identity, export.identity());
     let scope = &export.body().scope;
     assert_eq!(scope.point, POINT_SCOPE);
@@ -210,7 +210,7 @@ fn compact_scope_states_point_and_model_based_se_only() {
     assert!(scope.point.starts_with("point prediction"));
     assert!(scope.uncertainty.contains("model-based standard error"));
     assert!(scope.uncertainty.contains("not an interval"));
-    assert_eq!(scope.calibration, "calibration unmeasured");
+    assert_eq!(scope.calibration, "calibration not_measured");
 }
 
 #[test]

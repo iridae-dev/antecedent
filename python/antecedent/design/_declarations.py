@@ -36,7 +36,7 @@ whose law the consumer rebuilt and recomputed. A study cost is compared with a v
 through an explicit :class:`CostMap` into the decision's utility unit; without one, value and
 cost are reported separately and an incompatible unit refuses. An exact-integration EVSI is a
 point value; the calibration of Monte Carlo error coverage and rank guarantees is
-``unmeasured`` and no coverage is claimed.
+``not_measured`` and no coverage is claimed.
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ _BELIEF_MEANINGS = frozenset(
     }
 )
 
-CALIBRATION: Literal["unmeasured"] = "unmeasured"
+CALIBRATION: Literal["not_measured"] = "not_measured"
 #: Identity of the reported ranking within the result's ``lineage``.
 RESULT_LINK_ID = "design_ranking_result"
 ARTIFACT_KIND = "design_ranking_v1"
@@ -967,7 +967,7 @@ class ConsumedRanking:
     source_digests: tuple[str, ...]
     entries: tuple[ConsumedEntry, ...]
     search: DesignSearchReceipt
-    calibration: Literal["unmeasured"]
+    calibration: Literal["not_measured"]
     #: Checked derivation chain, retained independently of the original provider.
     lineage: tuple[LineageLink, ...] = ()
 

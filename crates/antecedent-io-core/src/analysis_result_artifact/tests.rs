@@ -1250,7 +1250,7 @@ fn temporal_design_result() -> AnalysisResultWire {
         replicates: Some([10, 0]),
         draws: None,
         uncertainty: "cluster_bootstrap".into(),
-        calibration: "unmeasured".into(),
+        calibration: "not_measured".into(),
         supported: false,
     });
     result
@@ -1332,7 +1332,7 @@ fn quasi_rollout_intervals_bands_and_diagnostics_must_be_finite() {
                 comparison: 2,
             }],
             uncertainty: "cluster_bootstrap".into(),
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
             replicates_requested: 10,
             replicates_ok: 10,
             replicates_failed: 0,

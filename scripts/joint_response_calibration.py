@@ -23,7 +23,7 @@ MANIFEST = ROOT / "parity/joint_response_calibration.toml"
 def procedures() -> list[dict]:
     document = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
     if document["schema"] != 1 or document["grants_release_support"]:
-        raise ValueError("invalid unmeasured procedure registry")
+        raise ValueError("invalid not_measured procedure registry")
     rows = document["procedure"]
     ids = set()
     for row in rows:
@@ -77,7 +77,7 @@ def main() -> int:
                         "id": row["id"],
                         "cells": row["cells"],
                         "command": command(row),
-                        "status": "registered_unmeasured",
+                        "status": "registered_not_measured",
                     }
                     for row in rows
                 ],

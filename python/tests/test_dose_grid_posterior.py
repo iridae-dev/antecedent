@@ -2,7 +2,7 @@
 
 The oracle is the conjugate ridge posterior of the rescaled polynomial design, computed here with
 numpy from the normal equations (not by the library). The row is unsupported and its calibration is
-unmeasured; the joint covariance across grid points is retained and exported.
+not_measured; the joint covariance across grid points is retained and exported.
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covarianc
     result = _run()
     row = result.posterior
     assert row.estimator == "bayesian.dose_grid"
-    assert (row.uncertainty, row.calibration, row.supported) == ("posterior", "unmeasured", False)
+    assert (row.uncertainty, row.calibration, row.supported) == ("posterior", "not_measured", False)
     assert row.exact_mean == pytest.approx(basis @ mean, abs=1e-9)
     exact = row.exact_covariance_matrix()
     assert exact == pytest.approx(basis @ covariance @ basis.T, abs=1e-9)

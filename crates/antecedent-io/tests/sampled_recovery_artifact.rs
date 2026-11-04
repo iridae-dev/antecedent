@@ -1,11 +1,11 @@
 //! The sampled observation-recovery artifact
 //! (version 3: derivation identity, observation rows and pattern counts, recovered law,
-//! point, `BCa` interval with calibration `unmeasured`, replicate receipt) replays
+//! point, `BCa` interval with calibration `not_measured`, replicate receipt) replays
 //! independently and refuses a changed pattern, snapshot, seed or interval receipt.
 //!
 //! The oracle is the enumerated binary missingness SCM of the engine's own tests (the
 //! shared fixture module is included by path), never the code under test. Interval
-//! calibration is unmeasured; nothing here asserts a coverage claim.
+//! calibration is not_measured; nothing here asserts a coverage claim.
 #![allow(clippy::cast_precision_loss, reason = "test counts and indices are small and nonnegative")]
 
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]
@@ -380,13 +380,13 @@ fn sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
     let message = SampledRecoveryArtifactWire::decode(&calibrated.export().expect("export"))
         .expect_err("an interval calibration claim is refused")
         .to_string();
-    assert!(message.contains("interval calibration is unmeasured"), "{message}");
+    assert!(message.contains("interval calibration is not_measured"), "{message}");
     let mut claim = wire;
     claim.calibration = "calibrated".into();
     let message = SampledRecoveryArtifactWire::decode(&claim.export().expect("export"))
         .expect_err("a calibration claim is refused")
         .to_string();
-    assert!(message.contains("interval calibration is unmeasured"), "{message}");
+    assert!(message.contains("interval calibration is not_measured"), "{message}");
 }
 
 #[test]
@@ -396,7 +396,7 @@ fn sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() {
     let tight = [
         SampledRecoveryConsumeLimits { max_rows: 10, ..SampledRecoveryConsumeLimits::default() },
         SampledRecoveryConsumeLimits {
-            max_replicates: 5,
+            max_replay_work: 5,
             ..SampledRecoveryConsumeLimits::default()
         },
     ];
@@ -448,12 +448,12 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
     assert!(message.contains("unsupported semantics"), "{message}");
     let message = SampledRecoveryArtifactWire::consume_with_limits(
         &bytes,
-        SampledRecoveryConsumeLimits { max_replicates: 500, ..Default::default() },
+        SampledRecoveryConsumeLimits { max_replay_work: 500, ..Default::default() },
         &ctx(),
     )
     .expect_err("consumer work limit")
     .to_string();
-    assert!(message.contains("consumer limit exceeded: replicate count"), "{message}");
+    assert!(message.contains("consumer limit exceeded: replay work"), "{message}");
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let message = SampledRecoveryArtifactWire::consume_with_limits(
@@ -541,4 +541,54 @@ fn original_unknown_or_clustered_row_design_reports_its_interval_as_not_measured
         .expect("calibration annotates: the interval is reported");
         assert_not_measured_outside_protocol(&measured);
     }
+}
+
+/// Size is bounded by the limits the caller sets, not by a fixed replicate count: a run of
+/// more than 2000 replicates exports and replays under limits that cover its work
+/// (replicates times rows), and the same artifact is refused, at export and at
+/// consumption, by limits that do not.
+#[test]
+fn sampled_recovery_artifact_bounds_replicates_by_caller_limits_not_a_fixed_count() {
+    let config = SampledRecoveryConfig { replicates: 2500, ..loose(61) };
+    let f = fixture(seeded_rows(4000, 17), &config);
+    let input = SampledRecoveryArtifactInput {
+        graph: &f.model.graph,
+        effect: &f.effect,
+        derivation: &f.derivation,
+        catalog: &f.catalog,
+        input: &f.data,
+        result: &f.result,
+        variable_names: &[],
+    };
+    let adequate = SampledRecoveryConsumeLimits {
+        max_replay_work: 2500 * 4000,
+        ..SampledRecoveryConsumeLimits::default()
+    };
+    let wire = SampledRecoveryArtifactWire::checked_within(&input, &adequate)
+        .expect("more than 2000 replicates export under adequate limits");
+    assert_eq!(wire.receipt.replicates.len(), 2500);
+    let consumed = SampledRecoveryArtifactWire::consume_with_limits(
+        &wire.export().expect("export"),
+        adequate,
+        &ctx(),
+    )
+    .expect("the rerun reproduces the 2500-replicate receipt");
+    assert_eq!(consumed.result.receipt.receipt_digest, f.result.receipt.receipt_digest);
+
+    let tight = SampledRecoveryConsumeLimits {
+        max_replay_work: 2500 * 4000 - 1,
+        ..SampledRecoveryConsumeLimits::default()
+    };
+    let refused = SampledRecoveryArtifactWire::checked_within(&input, &tight)
+        .expect_err("the producer honours the stated limits")
+        .to_string();
+    assert!(refused.contains("consumer limit exceeded"), "{refused}");
+    let refused = SampledRecoveryArtifactWire::consume_with_limits(
+        &wire.export().expect("export"),
+        tight,
+        &ctx(),
+    )
+    .expect_err("a tight consumer limit refuses")
+    .to_string();
+    assert!(refused.contains("consumer limit exceeded: replay work"), "{refused}");
 }

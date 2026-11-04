@@ -2,7 +2,7 @@
 # requires-python = ">=3.12,<3.13"
 # dependencies = []
 # ///
-"""Independent derivation of the linear front-door fixture: with T -> M -> Y and an unmeasured U -> T, U -> Y, the effect is the product of the stage coefficients 0.4 * 5 = 2, the confounded Y ~ T slope is 2 + Var(U)/Var(T), and the delta-method variance numerator quoted in the README is b^2 Var(a) + a^2 Var(b).
+"""Independent derivation of the linear front-door fixture: with T -> M -> Y and a unmeasured U -> T, U -> Y, the effect is the product of the stage coefficients 0.4 * 5 = 2, the confounded Y ~ T slope is 2 + Var(U)/Var(T), and the delta-method variance numerator quoted in the README is b^2 Var(a) + a^2 Var(b).
 
 Standard library only; imports no Antecedent code and no statistics package.
 

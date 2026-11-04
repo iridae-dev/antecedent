@@ -1,4 +1,4 @@
-"""Normal public measured scalar lifecycle; original full posterior remains unmeasured."""
+"""Normal public measured scalar lifecycle; original full posterior remains not_measured."""
 
 import json
 import subprocess
@@ -112,7 +112,7 @@ def test_normal_public_measured_joint_scalar_and_original_source_fresh_replay(
     assert len(scalar.calibration_sha) == 40
     assert scalar.basis["scope"]["row_count"] == 150 * len(opts["sources"])
     report = measured.source_report()
-    assert report["calibration"] == "unmeasured"
+    assert report["calibration"] == "not_measured"
     result = report["result"]
     assert result["posterior_mean"] == pytest.approx(mean, abs=2e-10)
     assert np.asarray(result["posterior_covariance"]).reshape(
@@ -163,7 +163,7 @@ print(json.dumps(r.inspect(),sort_keys=True))
         replace(measured.expected_identity, data_digest="0" * 64),
         replace(measured.expected_identity, route="unknown"),
         replace(measured.expected_identity, level=0.9),
-        replace(measured.expected_identity, scalars=("unmeasured_coefficient",)),
+        replace(measured.expected_identity, scalars=("not_measured_coefficient",)),
     ]:
         with pytest.raises(CausalError):
             MeasuredInference.load(bytes(measured.export()), expected=expected)
@@ -188,7 +188,7 @@ print(json.dumps(r.inspect(),sort_keys=True))
 
 
 @pytest.mark.parametrize("learned", [False, True])
-def test_nearby_unmeasured_joint_protocols_are_annotated_not_calibrated(learned):
+def test_nearby_not_measured_joint_protocols_are_annotated_not_calibrated(learned):
     opts = options(learned, "independent")
     first = opts["sources"][0]
     priors = opts["priors"]
@@ -221,7 +221,7 @@ def test_nearby_unmeasured_joint_protocols_are_annotated_not_calibrated(learned)
     # A named prior bank without its consumed-data lineage is a malformed declaration, not a
     # calibration question: it is refused before any fit.
     banked = {
-        "priors": replace(priors, invariant=replace(priors.invariant, bank_id="unmeasured-bank"))
+        "priors": replace(priors, invariant=replace(priors.invariant, bank_id="not_measured-bank"))
     }
     with pytest.raises(CausalValueError, match="prior_bank_lineage_missing"):
         produce(learned, opts | banked)
@@ -252,7 +252,7 @@ def test_normal_joint_original_proof_bounds_and_cancel_are_required(learned):
 
 def test_normal_measured_hooks_do_not_publish_internal_candidate_factories():
     # The native module is private. The candidate factories are internal producers of the
-    # original unmeasured artifacts; no public namespace exports them.
+    # original not_measured artifacts; no public namespace exports them.
     import antecedent
     from antecedent import transport
 

@@ -7,7 +7,7 @@
 //! `psi_h(a)` over the grid: posterior mean and equal-tailed 95% credible interval of every
 //! grid dose, the joint covariance across the grid, and the exact Gaussian moments when the
 //! residual variance is known. It is a posterior for an outcome-model likelihood with
-//! calibration `unmeasured`; it is not supported.
+//! calibration `not_measured`; it is not supported.
 //!
 //! A consumer trusts nothing in the result. It re-derives the transport certificate from the
 //! stored graph and query and requires the stored certificate record to match, then

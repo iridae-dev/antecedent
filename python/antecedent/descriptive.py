@@ -27,7 +27,7 @@ decompose a causal effect.
   predictive model scored on held-out folds, from the outcome scale and the functional. The
   answer (``result.answer.kind == "associational"``, ``result.association``) describes the
   observed law: identification is not claimed, it is never the effect of an intervention, it ranks
-  no action, and every uncertainty it reports is unsupported with calibration ``unmeasured``.
+  no action, and every uncertainty it reports is unsupported with calibration ``not_measured``.
   Rows are independent units (``temporal=False``) or the consecutive points of one series
   (``temporal=True``, resampled in circular blocks under the declared dependent-series design).
   After a causal query was refused, ``refused_after=`` keeps the refusal's reason code beside the
@@ -582,7 +582,7 @@ class Association:
     The answer describes the observed law: ``result.answer.kind == "associational"``, identification
     is not claimed, and it is never the effect of an intervention or a ranking of actions. Pass
     ``refused_after=`` the reason code (or the error) of a refused causal query to keep the
-    refusal beside the description. The route is unsupported and its calibration is unmeasured.
+    refusal beside the description. The route is unsupported and its calibration is not_measured.
     """
 
     outcome: str
@@ -706,13 +706,13 @@ class AssociationPrediction:
     score: str
     mean_score: float
     baseline_score: float
-    calibration: str = "unmeasured"
+    calibration: str = "not_measured"
     mean_crps: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class AssociationEstimate:
-    """A noncausal association and the evidence behind it. Unsupported, calibration unmeasured.
+    """A noncausal association and the evidence behind it. Unsupported, calibration not_measured.
 
     ``analysis`` is what the declared selection rule (``rule``) picked for the ``outcome_kind``
     and ``modality``; ``requested`` is the functional the query asked for. The result is never an
@@ -734,7 +734,7 @@ class AssociationEstimate:
     posterior: AssociationPosterior | None = None
     prediction: AssociationPrediction | None = None
     refused_after: str | None = None
-    calibration: str = "unmeasured"
+    calibration: str = "not_measured"
     supported: bool = False
     ranks_actions: bool = False
     is_intervention_effect: bool = False
@@ -833,5 +833,5 @@ def describe_association(association: AssociationEstimate) -> str:
     )
     return (
         f"{head}{spread}. Identification is not claimed: this is not the effect of changing any "
-        f"variable and ranks no action.{follows} Unsupported, calibration unmeasured."
+        f"variable and ranks no action.{follows} Unsupported, calibration not_measured."
     )

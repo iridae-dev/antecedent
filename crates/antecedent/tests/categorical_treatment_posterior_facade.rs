@@ -148,7 +148,7 @@ fn the_section_states_its_estimand_prior_and_standing() {
     let posterior = sealed.posterior().unwrap();
     assert!(posterior.estimand.starts_with("superpopulation_dummy_coefficient_contrast"));
     assert_eq!(posterior.likelihood, "gaussian_homoskedastic_dummy_regression");
-    assert_eq!(posterior.calibration, "unmeasured");
+    assert_eq!(posterior.calibration, "not_measured");
     assert!(!posterior.supported);
     assert_eq!(posterior.declaration, declaration(1.0));
     assert_eq!(sealed.report().posterior.as_ref(), Some(posterior));

@@ -2633,7 +2633,7 @@ class _PreparedEngine(Generic[ResultT]):
         are compiled from this study with that one change. Negative controls default to the
         graph's candidates. Refuters the study cannot construct are returned as refusals with
         the next attempt. A ``TargetRefutation``
-        (:mod:`antecedent.validation`); calibration is unmeasured.
+        (:mod:`antecedent.validation`); calibration is not_measured.
         """
         from .validation import TargetRefutation
 

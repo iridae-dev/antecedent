@@ -25,8 +25,8 @@ use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ReasoningView, SlotAvailability,
 };
+use antecedent::identity::ContractIdentities;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
-use antecedent::schema::ContractIdentities;
 use antecedent::scientific::{ScientificQuantity, SemanticDigest};
 use antecedent::{
     ConsumedScientificBridge, PreparedScientificBridge, PreparedScientificBridgeDistribution,
@@ -965,7 +965,7 @@ fn distribution_summary(result: &ScientificBridgeDistributionResult) -> Json {
         "contract_identity": inspection.contract_identity,
         "transported": inspection.transported,
         "reading": inspection.reading,
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
         "units": envelope.outcome_units.as_deref(),
         "domains": {
             "identification": envelope.domains.identification.as_str(),

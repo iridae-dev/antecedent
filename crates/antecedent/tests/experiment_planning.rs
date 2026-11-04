@@ -102,7 +102,7 @@ fn compiled_plan_carries_every_assumption_in_its_identity() {
     let executed = plan.execute(&ctx).unwrap();
     assert_eq!(executed.program_identity, plan.identity());
     assert!(executed.result.target_met);
-    assert_eq!(executed.result.calibration, "unmeasured");
+    assert_eq!(executed.result.calibration, "not_measured");
 }
 
 #[test]

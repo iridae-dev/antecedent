@@ -244,7 +244,7 @@ def test_mediation_weak_overlap_refuses() -> None:
     assert caught.value.detail == reason_details.nonlinear_mediation.OVERLAP
 
 
-def test_mediation_bootstrap_is_seeded_unmeasured_and_has_no_interval() -> None:
+def test_mediation_bootstrap_is_seeded_not_measured_and_has_no_interval() -> None:
     g = grid(scm())
     a = run(g, bootstrap_replicates=30, seed=7)
     b = run(g, bootstrap_replicates=30, seed=7)

@@ -7,7 +7,6 @@
 use antecedent::estimate::{
     CellStatus, DEFAULT_RIDGE_GRID, EstimationError, FactorizedJointConfig, FactorizedJointFit,
     JointCellReport, JointContrast, RidgeTuning, declared_joint_nuisance, orderings_for,
-    refuse_joint_inference, refuse_joint_learner_inference,
 };
 use antecedent::{
     CausalError, ConstituentRole, DerivedTreatmentDeclaration, check_derived_treatment,
@@ -156,9 +155,9 @@ fn factorized_joint_cells_json(
     let learner = declared_joint_nuisance(nuisance).map_err(estimation_err)?;
     if interval {
         return Err(estimation_err(if learner.is_some() {
-            refuse_joint_learner_inference()
+            antecedent::refusal::joint_learner_interval_unsupported()
         } else {
-            refuse_joint_inference()
+            antecedent::refusal::joint_interval_unsupported()
         }));
     }
     let grid = match penalties {

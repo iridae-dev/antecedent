@@ -780,7 +780,7 @@ def _coverage_record(row: dict) -> dict:
 
 
 def _interval_method_reasons(records: list[dict]) -> list[dict]:
-    """An unmeasured method carries the reason the runtime reports for it."""
+    """A not_measured method carries the reason the runtime reports for it."""
     measured = {str(row["interval_method"]) for row in records}
     methods = [
         ("AnalyticSe", "analytic_se"),

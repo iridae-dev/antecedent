@@ -372,7 +372,7 @@ fn a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records() {
     };
     let weighted = session.measured_interval(&request, "weighted", &ctx()).expect("measured");
     assert_eq!(weighted.report().scalars[0].name, "treatment_minus_control");
-    // An unmeasured weighting scheme borrows no record.
+    // A not_measured weighting scheme borrows no record.
     let uniform = contrast_request(false);
     let uniform = session.measured_interval(&uniform, "uniform", &ctx()).expect("reported");
     assert_eq!(uniform.report().scalars[0].calibration.status, "not_measured");

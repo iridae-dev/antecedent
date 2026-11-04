@@ -4,7 +4,7 @@ This page records the mathematical scope of the general cyclic-system families.
 For a practitioner walk-through start with the [cyclic systems guide](../guides/cyclic-systems.md).
 Calibration and attestation are separate topics: every family is complete under
 the standalone implementation gate, with the scopes below, and its statistical
-outputs remain calibration-unmeasured. The tracked roadmap and release-scope
+outputs remain calibration-not_measured. The tracked roadmap and release-scope
 registry record the commitment.
 
 ## Executing workflows
@@ -176,7 +176,7 @@ the derived coordinates and diagnostics.
 Use `evidence.decide_means(contract)` with the existing affine expected-utility
 contract, `evidence.joint_law()` with existing aligned-distribution composition,
 or `evidence.decide_enclosures(contract)` for conservative set decisions. These
-paths preserve model-conditional scope and unmeasured calibration status.
+paths preserve model-conditional scope and not_measured calibration status.
 Bootstrap samples, numerical roots, unresolved/undefined mass and a joint
 selection law have distinct meanings. Roots acquire no implicit weights;
 unresolved boxes remain in robust utility bounds; impossible posterior evidence
@@ -335,5 +335,5 @@ in `provenance/cyclic.general_systems.toml`.
 - Rohbeck et al., PMLR 236 (2024): stochastic stationary-dynamics research lane.
 - Mooij, PMLR 337 / arXiv:2608.19831v1 (2026), Definitions 3/5/13/33 and Lemma 42.
 
-Statistical outputs remain explicitly calibration-unmeasured. This standing is
+Statistical outputs remain explicitly calibration-not_measured. This standing is
 separate from the engineering and scientific-correctness acceptance above.

@@ -21,7 +21,7 @@ its record must then be supported. Composes the committed refusal tests
 ``test_advanced_producers.py``, ``test_temporal_extensions.py`` and ``test_temporal_counterfactual.py``
 by copying their request builders.
 
-Calibration is unmeasured for the calibrated A claims at this commit; this file asserts the
+Calibration is not_measured for the calibrated A claims at this commit; this file asserts the
 registry state, it does not measure anything.
 """
 
@@ -178,9 +178,9 @@ def test_ledger_inferential_claim_has_a_construction_check_or_is_not_supported(
             encoding="utf-8"
         )
     # The failed gate is recorded in the record, not silently dropped.
-    assert "unmeasured" in record.get("inference_notes", "") or coverage, record["id"]
+    assert "not_measured" in record.get("inference_notes", "") or coverage, record["id"]
     for cell in CELLS_BY_ID.get(record["id"], []):
-        assert "unmeasured" in cell["calibration"] or cell["calibration"].startswith("cov."), cell
+        assert "not_measured" in cell["calibration"] or cell["calibration"].startswith("cov."), cell
 
 
 @pytest.mark.parametrize("record", CARRIED, ids=ids(CARRIED))

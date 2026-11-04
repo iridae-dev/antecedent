@@ -16,7 +16,7 @@
 //!   fraction is a finite-draw Monte Carlo estimate, not a calibrated frequentist p-value;
 //!   zero means no sampled draw exceeded the observed discrepancy, not a zero tail probability.
 //!   The threshold verdict is a diagnostic convention whose operating characteristics are
-//!   unmeasured. No permutation-test plus-one correction is applied.
+//!   not_measured. No permutation-test plus-one correction is applied.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -15,7 +15,7 @@
 //!   `m_h - m` is not estimated and not included in any interval.
 //!   [`estimate_dose_grid_quadratic_mean`] adds a caller-attested exact quadratic mean
 //!   premise: polynomial reproduction derives zero smoothing bias at fixed bandwidth.
-//!   Its sampling calibration remains unmeasured.
+//!   Its sampling calibration remains not_measured.
 //! * **Graph certificate.** [`DoseDesign::RandomizedDose`]: the dose is assigned
 //!   independently of the potential-outcome process (no parent of the dose is an
 //!   ancestor of the outcome and no backdoor path is open), so the empty adjustment
@@ -51,9 +51,9 @@
 //!   local solve. It is a measured residual, not a bound on estimation error.
 //! * **Inference claim.** A pointwise normal interval (heteroskedasticity-robust
 //!   sandwich standard error from the linearized influences) at one dose or for one
-//!   contrast, with calibration [`IntervalCalibration::Unmeasured`]: no coverage
+//!   contrast, with calibration [`IntervalCalibration::NotMeasured`]: no coverage
 //!   claim is made and the public route is not supported while calibration is
-//!   unmeasured. Level, derivative and contrast claims are separate typed
+//!   not_measured. Level, derivative and contrast claims are separate typed
 //!   fields, enabled separately through [`ClaimSet`]. A simultaneous band is a
 //!   different claim: requesting it is refused (`dose_grid.no_simultaneous_band_method`)
 //!   and [`DoseGridRow::simultaneous_band`] is always `None`.
@@ -62,7 +62,7 @@
 //!   derivative of the dose response, each interval is the bias-aware (folded-normal)
 //!   interval at the worst-case smoothing bias bound of the linear smoother, and the
 //!   simultaneous band over the grid adds that bias to a Gaussian multiplier sup-t half-width.
-//!   Calibration stays unmeasured.
+//!   Calibration stays not_measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -120,11 +120,11 @@ pub struct ClaimSet {
     pub simultaneous_band: bool,
 }
 
-/// Calibration status of an interval. Only `Unmeasured` exists.
+/// Calibration status of an interval. Only `NotMeasured` exists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntervalCalibration {
     /// Coverage has not been measured; no coverage claim is made.
-    Unmeasured,
+    NotMeasured,
 }
 
 /// A pointwise normal interval for one functional value.
@@ -136,7 +136,7 @@ pub struct PointwiseInterval {
     pub upper: f64,
     /// Nominal level the normal quantile was taken at; not a coverage claim.
     pub nominal_level: f64,
-    /// Calibration status (always unmeasured here).
+    /// Calibration status (always not_measured here).
     pub calibration: IntervalCalibration,
     /// Whether smoothing bias is accounted for (only under the exact-quadratic premise).
     pub smoothing_bias_included: bool,
@@ -650,7 +650,7 @@ fn interval(estimate: f64, standard_error: f64, quantile: f64) -> PointwiseInter
         lower: estimate - quantile * standard_error,
         upper: estimate + quantile * standard_error,
         nominal_level: 0.95,
-        calibration: IntervalCalibration::Unmeasured,
+        calibration: IntervalCalibration::NotMeasured,
         smoothing_bias_included: false,
     }
 }
@@ -1180,7 +1180,7 @@ pub fn estimate_dose_grid_quadratic_mean_declared(
 /// coordinate's interval is the bias-aware interval of Armstrong and Kolesar (the folded-normal
 /// critical value at the standardized worst-case bias), and the simultaneous band adds the
 /// worst-case bias to the Gaussian multiplier sup-t half-width over the grid. A bound of zero
-/// is the exact-quadratic premise. No coverage is claimed: calibration stays unmeasured.
+/// is the exact-quadratic premise. No coverage is claimed: calibration stays not_measured.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BiasAwareDoseGrid {
     /// The unrestricted row the bias-aware claims are built on.
@@ -1288,7 +1288,7 @@ fn band_units(n: usize, dependence: RowDependence<'_>) -> Vec<usize> {
 /// The pointwise intervals use the declared-dependence standard error of the row. The band's
 /// Gaussian multipliers are drawn per cluster (clustered rows) or per block of `lag + 1`
 /// consecutive rows (serial rows) instead of per row, so a band never assumes more independence
-/// than the pointwise intervals do. Calibration stays unmeasured.
+/// than the pointwise intervals do. Calibration stays not_measured.
 ///
 /// # Errors
 /// As [`estimate_dose_grid_bias_aware`] and [`estimate_dose_grid_functional_declared`].
@@ -1417,7 +1417,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
                 lower: estimates[j] - half,
                 upper: estimates[j] + half,
                 nominal_level: 0.95,
-                calibration: IntervalCalibration::Unmeasured,
+                calibration: IntervalCalibration::NotMeasured,
                 smoothing_bias_included: true,
             }
         })

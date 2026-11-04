@@ -4078,7 +4078,7 @@ configuration = { rows = 5000, fitted_mechanisms = true }
 expected = { kind = "value", outputs = ["mechanism fitting uncertainty marked not quantified", "no total-uncertainty claim made"] }
 targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3691105, n = 5000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::every_interval_names_its_component_and_unmeasured_ones_say_so" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::every_interval_names_its_component_and_not_measured_ones_say_so" }
 
 [[case]]
 id = "attribution_uncertainty_permutation_only_interval_not_labelled_total"
@@ -4088,7 +4088,7 @@ configuration = { rows = 100000, interval = "permutation_only" }
 expected = { kind = "value", outputs = ["interval labelled as permutation error only", "total uncertainty field left unquantified"] }
 targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2673392, n = 100000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::every_interval_names_its_component_and_unmeasured_ones_say_so" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::every_interval_names_its_component_and_not_measured_ones_say_so" }
 
 [[case]]
 id = "attribution_uncertainty_exact_enumeration_has_zero_permutation_error"

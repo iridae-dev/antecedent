@@ -8550,7 +8550,7 @@ pub const antecedent_core::reason_details::graph_imputation::WRONG_DISPATCH: &st
 pub const antecedent_core::reason_details::graph_selection_imputation::COLUMNS: &str
 pub const antecedent_core::reason_details::graph_selection_imputation::DATA: &str
 pub const antecedent_core::reason_details::graph_selection_imputation::DOMAIN: &str
-pub const antecedent_core::reason_details::graph_selection_imputation::INTERVAL_UNMEASURED: &str
+pub const antecedent_core::reason_details::graph_selection_imputation::INTERVAL_NOT_MEASURED: &str
 pub const antecedent_core::reason_details::graph_selection_imputation::MODEL: &str
 pub const antecedent_core::reason_details::graph_selection_imputation::RESULT: &str
 pub const antecedent_core::reason_details::graph_selection_imputation::VARIABLES: &str
@@ -15376,7 +15376,7 @@ pub variant antecedent_core::recalc::Boundary::FreshProcess(antecedent_core::rec
 pub variant antecedent_core::recalc::Boundary::InProcess
 pub variant antecedent_core::recalc::CalibrationInput::Held { record: antecedent_core::recalc::StageIdentity, coordinate: antecedent_core::recalc::StageIdentity }
 pub variant antecedent_core::recalc::CalibrationInput::PointOnly
-pub variant antecedent_core::recalc::CalibrationInput::Unmeasured
+pub variant antecedent_core::recalc::CalibrationInput::NotMeasured
 pub variant antecedent_core::recalc::CalibrationInput::Withdrawn { record: antecedent_core::recalc::StageIdentity }
 pub variant antecedent_core::recalc::ChangeKind::Added
 pub variant antecedent_core::recalc::ChangeKind::Modified

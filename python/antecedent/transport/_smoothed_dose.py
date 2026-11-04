@@ -447,7 +447,7 @@ class SmoothedDosePosterior(ScientificResult):
     ``posterior`` holds the posterior mean and equal-tailed 95% credible interval at every grid
     dose and the covariance across the grid from the joint draws (exact Gaussian moments when
     the residual variance is known). The row is unsupported and its calibration is
-    ``"unmeasured"``; the interval of the point estimate comes from :meth:`PreparedSmoothedDose.interval`.
+    ``"not_measured"``; the interval of the point estimate comes from :meth:`PreparedSmoothedDose.interval`.
     """
 
     posterior: PosteriorRowEstimate

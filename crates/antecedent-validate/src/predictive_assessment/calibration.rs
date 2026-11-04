@@ -2,7 +2,7 @@
 //!
 //! Everything here is a *diagnostic*: it describes how a predictive law behaved
 //! on the assessed observations. None of it is a calibration guarantee for the
-//! law and none of it has a measured error rate (`calibration = "unmeasured"`):
+//! law and none of it has a measured error rate (`calibration = "not_measured"`):
 //! no coordinate of this route has measured whole-method calibration.
 //!
 //! * **PIT.** The probability integral transform of the outcome under its law.
@@ -29,7 +29,7 @@ use super::refusal::{PredictiveAssessmentError, detail, invalid, unsupported};
 /// The label every diagnostic carries.
 pub const DIAGNOSTIC_LABEL: &str = "diagnostic";
 /// The calibration status of every diagnostic of this route: not measured.
-pub const DIAGNOSTIC_CALIBRATION: &str = "unmeasured";
+pub const DIAGNOSTIC_CALIBRATION: &str = "not_measured";
 /// Most PIT or reliability bins: a resolution bound, since each is a count over the cases.
 pub const MAX_BINS: usize = 100_000;
 /// Most interval levels: each is one quantile pass over the cases.

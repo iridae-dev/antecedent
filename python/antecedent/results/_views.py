@@ -1082,7 +1082,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     continuous_dose_response: Any | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
     #: Unsupported Bayesian randomized-design posterior (``bayesian.piecewise_survival`` or
-    #: ``bayesian.continuous_dose_policy``); never supported, calibration ``unmeasured``.
+    #: ``bayesian.continuous_dose_policy``); never supported, calibration ``not_measured``.
     posterior_row: PosteriorRowEstimate | None = None
     longitudinal_regime: Any | None = None
     sequential_contrast: Any | None = None
@@ -1092,14 +1092,14 @@ class AnalysisResult(ResultModel, ResultAPI):
     iv_bounds: Any | None = None
     #: Noncausal association of the observed data
     #: (:class:`antecedent.descriptive.AssociationEstimate`): identification is not claimed, never
-    #: an intervention effect, ranks no action; unsupported, calibration unmeasured.
+    #: an intervention effect, ranks no action; unsupported, calibration not_measured.
     association: Any | None = None
     #: Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
     #: or optioned local ratio (:class:`antecedent.quasi.QuasiRolloutEstimate`); unsupported.
     quasi_rollout: Any | None = None
     #: Sequentially randomized unit-period design or regime survival
     #: (:class:`antecedent.temporal_designs.TemporalDesignEstimate`); unsupported, calibration
-    #: unmeasured.
+    #: not_measured.
     temporal_design: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).

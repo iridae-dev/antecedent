@@ -1112,7 +1112,7 @@ impl TransportedRefusal {
                 .remedy("a transported value is labelled extrapolative at best; transport never raises a support label")
                 .build(),
             Self::CalibrationLabelInflated => build(DETAIL_CALIBRATION_INFLATED)
-                .remedy("a transported law carries no measured calibration; relabel it point-only or unmeasured")
+                .remedy("a transported law carries no measured calibration; relabel it point-only or not_measured")
                 .build(),
             Self::NativeLabelOnTransported => build(DETAIL_NATIVE_LABEL)
                 .remedy("a transported law is an external or derived claim, never native target data")

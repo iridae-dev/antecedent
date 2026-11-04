@@ -45,7 +45,7 @@ def check(directory: Path) -> dict[str, object]:
     assert artifact.semantic == "causal_functional_posterior"
     metadata = json.loads(artifact.metadata_json)
     assert metadata["identity"] == identity
-    assert metadata["calibration"] == "unmeasured"
+    assert metadata["calibration"] == "not_measured"
     assert artifact.source_evidence is None, "historical loading cannot mint current authority"
     rows = artifact.draws_copy()
     assert rows.shape == shape and rows.dtype == np.float64
@@ -71,7 +71,7 @@ def check(directory: Path) -> dict[str, object]:
         "draw_bits": "exact",
         "means_and_covariance": "exact",
         "current_authority": False,
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
     }
 
 

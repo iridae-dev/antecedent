@@ -1139,14 +1139,14 @@ impl EvidenceLedgerSession {
         // Legacy HKSJ records share a broad `studies=5-30` key. Only the
         // baseline designs at 20, 25 and 30 studies passed; at other counts the interval is
         // still reported and its calibration is annotated `not_measured`.
-        let unmeasured_hksj_count = matches!(
+        let not_measured_hksj_count = matches!(
             self.values.get(&result),
             Some(SynthesisValue::RandomEffects(fit))
                 if ![20, 25, 30].contains(&(fit.degrees_of_freedom + 1))
         );
         // A study count outside the measured family has no record either, whatever the
         // smallest study's sample size says.
-        let unmeasured_study_count = unmeasured_hksj_count
+        let not_measured_study_count = not_measured_hksj_count
             || candidate.scope["studies"].as_u64().is_some_and(|k| {
                 usize::try_from(k).map_or(true, |k| !MEASURED_STUDY_COUNTS.contains(&k))
             });
@@ -1158,7 +1158,7 @@ impl EvidenceLedgerSession {
         let report = [candidate.basis, candidate.exact_count_basis]
             .into_iter()
             .map(|mut basis| {
-                if unmeasured_study_count {
+                if not_measured_study_count {
                     // No record measures this study count (or, for the legacy HKSJ interval,
                     // identifies its generating family): the interval is reported and its
                     // calibration says that no record measured it.
@@ -1226,7 +1226,7 @@ impl EvidenceLedgerSession {
                 "the result is not in the ledger",
             )
         })?;
-        let unmeasured = |what: &str| {
+        let not_measured = |what: &str| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 antecedent_core::reason_details::evidence_ledger::INTERVAL_CONSTRUCTION_UNAVAILABLE,
@@ -1288,14 +1288,14 @@ impl EvidenceLedgerSession {
                         ..
                     }) => (estimates, variances, "random_effects_reml"),
                     _ => {
-                        return Err(unmeasured(
+                        return Err(not_measured(
                             "a random-effects result whose study summaries are not carried",
                         ));
                     }
                 };
                 let k = estimates.len();
                 if variances.len() != k {
-                    return Err(unmeasured(
+                    return Err(not_measured(
                         "a random-effects result whose study summaries are inconsistent",
                     ));
                 }
@@ -1324,14 +1324,14 @@ impl EvidenceLedgerSession {
                 }
             }
             SynthesisValue::Hierarchical(_) => {
-                return Err(unmeasured("a hierarchical borrowing posterior"));
+                return Err(not_measured("a hierarchical borrowing posterior"));
             }
             SynthesisValue::DependenceEnvelope(_) => {
-                return Err(unmeasured("an assumption range over a declared dependence"));
+                return Err(not_measured("an assumption range over a declared dependence"));
             }
         };
         if !(half.is_finite() && estimate.is_finite()) {
-            return Err(unmeasured("a non-finite pooled value"));
+            return Err(not_measured("a non-finite pooled value"));
         }
         // A study count outside the measured family, or studies whose observations are not all
         // declared, still report the interval: the exact-count key matches no record and the

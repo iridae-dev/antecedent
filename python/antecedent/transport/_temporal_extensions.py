@@ -19,7 +19,7 @@ answered here, and each has its own typed result so none can be relabeled as ano
   the finite validated binary two-step whole-unit protocol, with explicit target
   initial-state law and current method-specific evidence. Other scopes refuse with
   their structured causal errors. Original internal candidate artifacts and numerical
-  diagnostics retain unmeasured standing; a measured scalar cannot relabel them.
+  diagnostics retain not_measured standing; a measured scalar cannot relabel them.
 
 Rust owns every identity, check, replay and refusal rule; this module builds declarations
 and raises each refusal as :class:`TemporalExtensionRefusal`, a
@@ -550,7 +550,7 @@ def temporal_new_period_refresh(
 class TemporalIntervalCandidate(ScientificResult):
     """Original whole-unit candidate, available only in internal acceptance builds.
 
-    Calibration is unmeasured; this object is not a released interval support.
+    Calibration is not_measured; this object is not a released interval support.
     The native artifact retains the entire panel, estimator and replicate identities.
     """
 
@@ -582,8 +582,8 @@ class TemporalIntervalCandidate(ScientificResult):
             )
         payload = json.loads(native.payload())
         row = payload["result"]
-        if row["calibration"] != "unmeasured":
-            raise CausalValueError("temporal interval candidate must remain unmeasured")
+        if row["calibration"] != "not_measured":
+            raise CausalValueError("temporal interval candidate must remain not_measured")
         result = object.__new__(cls)
         coerce_fields(
             result,
@@ -605,7 +605,7 @@ class TemporalIntervalCandidate(ScientificResult):
 
     @artifact_export
     def export(self) -> ExportedArtifact[Any]:
-        """Export the original full-panel replay artifact, still unmeasured."""
+        """Export the original full-panel replay artifact, still not_measured."""
         return artifact_from_receipt(self, bytes(self._native.export()))
 
     def to_dict(self) -> dict[str, Any]:
@@ -686,7 +686,7 @@ def temporal_dependent_interval(
 def _temporal_dependent_interval_candidate(
     panel: TemporalUnitPanel, **kwargs: Any
 ) -> TemporalIntervalCandidate:
-    """Explicit internal historical interval; retains unmeasured standing."""
+    """Explicit internal historical interval; retains not_measured standing."""
     return cast(
         TemporalIntervalCandidate, _temporal_interval_entry(panel, measured=False, **kwargs)
     )

@@ -737,9 +737,9 @@ fn inherited_calibration_resolves_against_the_upstream_that_holds_it() {
 
     // An upstream that no longer holds a measured record: the composition holds and the
     // downstream connection carries the calibration status the upstream holds.
-    let mut unmeasured = measured("rec-7");
-    unmeasured.produces[0].calibration = CalibrationStatus::NotMeasured;
-    let composed = check_composition(&[unmeasured, interval_in("mid", false), sink], &wires)
+    let mut not_measured = measured("rec-7");
+    not_measured.produces[0].calibration = CalibrationStatus::NotMeasured;
+    let composed = check_composition(&[not_measured, interval_in("mid", false), sink], &wires)
         .expect("calibration annotates and never refuses");
     let mid_to_sink = composed.connections.iter().find(|c| c.consumer == "sink").expect("edge");
     assert_eq!(mid_to_sink.calibration, CalibrationStatus::NotMeasured);

@@ -15,7 +15,7 @@ papers = []
 implementation_deviations = [
   "Gaussian outcomes, two arms, 2 to 32 measurements per unit; fixed or epsilon-greedy unit-level assignment with no interim analysis and no stopping.",
   "The within-unit dependence is declared and never defaulted; independence assumed for dependent measurements is refused.",
-  "Exact forms and Monte Carlo error are reported separately; no coverage or calibration is claimed (derived_unmeasured).",
+  "Exact forms and Monte Carlo error are reported separately; no coverage or calibration is claimed (derived_not_measured).",
 ]
 upstream_implementations_observed = []
 test_sources = [

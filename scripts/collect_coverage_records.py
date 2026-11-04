@@ -51,7 +51,7 @@ fingerprint of the tree to say whether the record is current; nothing here or
 there fails a code change. Existing records the logs do not re-measure stay in
 the registry with the fingerprint they were measured with:
 
-    python3 scripts/collect_coverage_records.py --keep-unmeasured
+    python3 scripts/collect_coverage_records.py --keep-not_measured
 
 Without it the registry is exactly the logs.
 
@@ -79,7 +79,7 @@ Every log must show a passing `test result: ok. N passed` with N >= 1 and no
 failure, and end with the `calibration-measured-at <sha>` line the gate wrote
 (scripts/measure_calibration_groups.sh); all logs must agree on that sha and it must equal
 the stamped one. A run whose groups failed, matched no test, or was measured at
-another commit than the one being stamped is refused. Without `--keep-unmeasured`
+another commit than the one being stamped is refused. Without `--keep-not_measured`
 the registry is exactly the logs, and the collector refuses to drop a record id
 the registry already holds unless it is named with `--allow-removal <id>`.
 
@@ -858,7 +858,7 @@ def load_records(
             raise SystemExit(f"invalid frozen-family decision log: {error}") from error
     records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
     # A pass/fail-only re-run (the record-less groups) measures no record but still
-    # refreshes the group ledger; --keep-unmeasured keeps every existing record.
+    # refreshes the group ledger; --keep-not_measured keeps every existing record.
     if not records and allow_gate_only and gate_ledger(logs, sha):
         return records
     if not records:
@@ -920,7 +920,7 @@ def existing_records() -> dict[str, dict]:
     return {rec["id"]: rec for rec in calibration_status.load_records(OUT)}
 
 
-def keep_unmeasured(measured: dict[str, dict]) -> dict[str, dict]:
+def keep_not_measured(measured: dict[str, dict]) -> dict[str, dict]:
     """Existing records the logs did not re-measure; their status stays an annotation."""
     return {rid: rec for rid, rec in existing_records().items() if rid not in measured}
 
@@ -1206,7 +1206,7 @@ def sync_supported_cells(
                     f"supported cell {cell_key}: bound records not owned by the supported cell: {incompatible}"
                 )
             if not ids:
-                # An unmeasured cell must not acquire a claim from an unrelated
+                # A not_measured cell must not acquire a claim from an unrelated
                 # new estimator sharing broad support axes.
                 out.append(block)
                 continue
@@ -1333,7 +1333,7 @@ def main() -> int:
         help="with --keep-existing, permit fresh evidence to replace this existing record (repeatable)",
     )
     parser.add_argument(
-        "--keep-unmeasured",
+        "--keep-not_measured",
         dest="keep_attested",
         action="store_true",
         help="keep every existing record the logs do not re-measure",
@@ -1349,7 +1349,7 @@ def main() -> int:
         default=[],
         metavar="ID",
         help="record ids the registry holds that this run is allowed to drop "
-        "(without --keep-unmeasured the registry becomes exactly the logs)",
+        "(without --keep-not_measured the registry becomes exactly the logs)",
     )
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
@@ -1380,11 +1380,11 @@ def main() -> int:
         args.keep_attested or args.append_attested or args.allow_removal
     ):
         raise SystemExit(
-            "--keep-existing forbids --keep-unmeasured/--append-attested/--allow-removal"
+            "--keep-existing forbids --keep-not_measured/--append-attested/--allow-removal"
         )
     if args.append_attested and (args.keep_attested or args.no_cells or not args.only_cell):
         raise SystemExit(
-            "--append-attested requires --only-cell and forbids --keep-unmeasured/--no-cells"
+            "--append-attested requires --only-cell and forbids --keep-not_measured/--no-cells"
         )
     if args.only_cell and not args.append_attested:
         raise SystemExit("--only-cell is only valid with --append-attested")
@@ -1464,11 +1464,11 @@ def main() -> int:
             raise SystemExit(
                 f"the logs do not re-measure {len(dropped)} record(s) the registry holds, so this "
                 "run would silently delete them (a renamed or unrun group?). Run the missing "
-                "groups, use --keep-unmeasured, or name each id in --allow-removal:\n  "
+                "groups, use --keep-not_measured, or name each id in --allow-removal:\n  "
                 + "\n  ".join(dropped)
             )
     if args.keep_attested:
-        kept = keep_unmeasured(records)
+        kept = keep_not_measured(records)
         print(f"kept {len(kept)} existing records the logs did not re-measure")
         records = {**kept, **records}
     write_registry(records)

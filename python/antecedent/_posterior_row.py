@@ -9,7 +9,7 @@ variance is known, and the named scalar and vector summaries of the row.
 
 The posterior is that of a declared likelihood and prior, the study's
 ``Bayesian(design_model=...)``; the prior supplies no identifying premise. The row is never
-supported: ``supported`` is always ``False`` and ``calibration`` is ``"unmeasured"``, so no
+supported: ``supported`` is always ``False`` and ``calibration`` is ``"not_measured"``, so no
 coverage claim is made for any interval.
 """
 

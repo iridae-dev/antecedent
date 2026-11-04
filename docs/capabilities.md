@@ -609,7 +609,7 @@ Implemented identification strategies:
   correlation, or a predictive model scored on held-out folds, over the rows of a table or the
   points of one series. Identification is not claimed (claim kind `associational`); the
   result is never an intervention effect, ranks no action, and is not a support-matrix cell; its
-  uncertainty is labelled `unmeasured`;
+  uncertainty is labelled `not_measured`;
 * classical single-source sID (Bareinboim–Pearl Figure-5 recursion, access to
   all source experiments): an independently checked symbolic distribution, an
   independently verified s-hedge `ProvenNonTransportable` certificate, or

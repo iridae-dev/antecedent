@@ -111,7 +111,7 @@ fn the_posterior_matches_the_hand_calculation() {
     assert_eq!(report.estimator_id, REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID);
     assert_eq!(report.uncertainty, "posterior_equal_tailed_credible_interval");
     assert!(!report.supported && !report.calibration_measured);
-    assert_eq!(report.calibration, "unmeasured");
+    assert_eq!(report.calibration, "not_measured");
     close(report.unit_summary_variance, 1.5, "unit summary variance");
     close(report.arms[0].mean, 1.684_210_526_315_789_4, "arm 0 mean");
     close(report.arms[0].standard_deviation, 0.794_719_414_239_026_4, "arm 0 sd");

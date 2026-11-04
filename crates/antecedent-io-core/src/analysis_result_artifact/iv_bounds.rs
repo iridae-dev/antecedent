@@ -6,7 +6,7 @@
 //! loader recomputes the Balke-Pearl bounds from the retained observed law and checks that they
 //! are the reported ones, that the law is a law (each instrument arm sums to one), that the
 //! sampling interval, when present, is ordered and covers the identified set when it is a
-//! frequentist Imbens-Manski interval, and that the result claims no support and an unmeasured
+//! frequentist Imbens-Manski interval, and that the result claims no support and a not_measured
 //! calibration.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -73,7 +73,7 @@ pub struct IvBoundsPosteriorWire {
     pub upper_sd: f64,
 }
 
-/// Sharp bounds on the average effect under a binary instrument (unsupported, unmeasured).
+/// Sharp bounds on the average effect under a binary instrument (unsupported, not_measured).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct IvBoundsWire {
@@ -97,7 +97,7 @@ pub struct IvBoundsWire {
     pub posterior: Option<IvBoundsPosteriorWire>,
     /// Uncertainty construction.
     pub uncertainty: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,
@@ -116,7 +116,7 @@ pub(in crate::analysis_result_artifact) fn validate_iv_bounds(
         (true, Some(section)) => section,
     };
     if section.supported
-        || section.calibration != "unmeasured"
+        || section.calibration != "not_measured"
         || result.estimate.is_some()
         || result.standard_error.is_some()
         || result.interval_lower.is_some()

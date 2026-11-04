@@ -60,9 +60,9 @@ Before the experiment the retained mean contrast (about 0.985) is below break-ev
 ## Read the update's status
 
 ```python
-report["scope"]            # model_conditional_experimental_update;calibration_unmeasured
+report["scope"]            # model_conditional_experimental_update;calibration_not_measured
 report["modular_policy"]   # frozen_joint_importance
-report["calibration"]      # unmeasured
+report["calibration"]      # not_measured
 ```
 
 The update reweights draws from a fit whose design premises are listed in `report["identification"]`. It does not re-derive identification, and it does not measure calibration. So the result of the update is a model-conditional experimental update, and the field says so. The decision above is a decision under that status.
@@ -87,7 +87,7 @@ The same call accepts studies in another regime through `rank_next_studies` and 
 
 ## What this established
 
-Under a stated mapping, a later experiment changed a retained response and, with it, a decision, without refitting the model. A further study's value was computed and checked against independent integration, and the update stayed a model-conditional experimental update with calibration unmeasured.
+Under a stated mapping, a later experiment changed a retained response and, with it, a decision, without refitting the model. A further study's value was computed and checked against independent integration, and the update stayed a model-conditional experimental update with calibration not_measured.
 
 The next scientific question is which of two things you need: a study that sharpens this decision (the ranking above), or a study whose design identifies the contrast you are deciding on, which would change the status rather than the weights. The [design ranking guide](../design-ranking.md) covers ranking studies in general, and [decide under uncertainty](decide-under-uncertainty.md) follows a decision and the value of more evidence from its start.
 

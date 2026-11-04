@@ -20,7 +20,7 @@ Candidate studies are ranked on an explicit basis, named on the result as ``basi
 Structural candidate declarations use ``"structural_sufficiency_cost"`` and have no
 numeric score. Typed ``objective=`` declarations expose the native graph entropy,
 linear-model effect-width, model-distinction and callable decision-regret functionals.
-Their names, evaluation methods and unmeasured precision diagnostics are retained on
+Their names, evaluation methods and not_measured precision diagnostics are retained on
 :class:`ObjectiveCandidate` entries.
 
 The basis is part of the result's repr and :meth:`DesignRankingResult.explain`; different
@@ -240,7 +240,7 @@ class DesignRankingResult:
         CandidateValue | IdentificationCandidate | ObjectiveCandidate | StructuralEntry, ...
     ]
     search: DesignSearchReceipt
-    calibration: Literal["unmeasured"]
+    calibration: Literal["not_measured"]
     gate: IdentificationGate | None = None
     _value: _ValueBody | None = field(default=None, repr=False)
     _ident: _PlanBody | None = field(default=None, repr=False)
@@ -553,7 +553,7 @@ class DesignRankingResult:
                 f"The search was truncated: {self.search.evaluated} of {self.search.supplied} "
                 f"candidates evaluated; unevaluated {list(self.search.unevaluated_ids)}."
             )
-        lines.append("Calibration of error coverage and rank guarantees: unmeasured.")
+        lines.append("Calibration of error coverage and rank guarantees: not_measured.")
         return "\n".join(lines)
 
     def to_dict(self) -> dict[str, Any]:
@@ -841,7 +841,7 @@ def rank_designs(
             basis="structural_sufficiency_cost",
             candidates=structural.entries,
             search=DesignSearchReceipt(len(candidates), len(candidates), False, ()),
-            calibration="unmeasured",
+            calibration="not_measured",
             _structural=structural,
         )
     if decision is not None and objective is not None:
@@ -1023,7 +1023,7 @@ def _rank_plans(
             truncated=False,
             unevaluated_ids=tuple(ids[i] for i in excluded),
         ),
-        calibration="unmeasured",
+        calibration="not_measured",
         _ident=_PlanBody(
             query_id=query_id,
             mc_samples=int(native.mc_samples),

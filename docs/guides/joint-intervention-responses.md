@@ -82,7 +82,7 @@ compiled = require_success(
 print(compiled.inspect()["fitted"])            # False: compilation fits nothing
 
 law = require_success(compiled.execute(execution=ant.Execution(seed=7)))
-print(law.means, law.uncertainty, law.calibration)   # sampling_covariance, unmeasured
+print(law.means, law.uncertainty, law.calibration)   # sampling_covariance, not_measured
 value, standard_error = law.contrast                   # one linear functional of the joint law
 
 other = require_success(compiled.retarget(outcome="y", worlds=worlds[:2]))   # reuse the fit
@@ -141,7 +141,7 @@ Exact interventions with the same empirical population, parameter path and ident
 
 ## Limits
 
-Frequentist cluster-sandwich and local Gaussian realizations are approximations, not posterior draws. Bayesian consumption requires its convergence checks. Calibration of the whole procedure and the reliability of a selected decision need their own measured evidence; successful numerical execution does not supply it, and `calibration` reads `unmeasured` until that evidence exists.
+Frequentist cluster-sandwich and local Gaussian realizations are approximations, not posterior draws. Bayesian consumption requires its convergence checks. Calibration of the whole procedure and the reliability of a selected decision need their own measured evidence; successful numerical execution does not supply it, and `calibration` reads `not_measured` until that evidence exists.
 
 Frozen artifacts keep the numerical law, dependencies, uncertainty meaning and failed slots. Independent historical replay grants no current authorization and does not attest that stored fit numbers were generated honestly. Current consumers supply the expected compiled program, frozen law and relevant evidence authority.
 

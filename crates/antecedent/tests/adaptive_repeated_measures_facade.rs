@@ -18,7 +18,7 @@ use antecedent::analysis::adaptive_procedure_report::{
 };
 use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference::{
-    AnalysisEstimator, DERIVED_UNMEASURED, FinalAnalysis, OutcomeModelPrior, OutcomeStructure,
+    AnalysisEstimator, DERIVED_NOT_MEASURED, FinalAnalysis, OutcomeModelPrior, OutcomeStructure,
     RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, StoppingRule, UncertaintyParadigm,
     UnitAssignment, UnitSummary, WeightScheme, WithinUnitCorrelation,
 };
@@ -181,7 +181,7 @@ fn the_closed_forms_are_the_design_effect_and_the_enumerated_mixture() {
         &procedure,
         &RepeatedMeasuresReportRequest::ClosedForm { arm_means: vec![0.0, 0.5] },
     );
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(report.route, "cluster_robust_unit_summaries");
     assert_eq!(
         report.cell.id(),
@@ -225,7 +225,7 @@ fn the_derived_fixed_sample_report_separates_exact_values_from_monte_carlo_error
     let RepeatedMeasuresReportBody::Derived(derived) = report.body else {
         panic!("a derived body");
     };
-    assert_eq!(derived.calibration, DERIVED_UNMEASURED);
+    assert_eq!(derived.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(derived.paradigm, UncertaintyParadigm::FrequentistFixedSample);
     assert!((derived.unit_summary_variance - 4.0 / 3.0).abs() < TOL);
     assert!((derived.design_effect - 2.0).abs() < TOL);
@@ -259,7 +259,7 @@ fn the_adaptive_weighting_route_is_labelled_and_unbiased() {
     );
     let report = report_of(&procedure, &derive(&[0.0, 0.5], 2_000));
     assert_eq!(report.route, "adaptively_weighted_unit_scores");
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     let RepeatedMeasuresReportBody::Derived(derived) = report.body else {
         panic!("a derived body");
     };

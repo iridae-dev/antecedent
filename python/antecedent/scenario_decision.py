@@ -63,8 +63,8 @@ from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import ScientificQuantity
 
 _POLICIES = ("require_invariant_best_action", "maximin", "bayes_over_structures", "report_only")
-_CALIBRATIONS = ("exact", "point_only", "unmeasured")
-Calibration = Literal["exact", "point_only", "unmeasured"]
+_CALIBRATIONS = ("exact", "point_only", "not_measured")
+Calibration = Literal["exact", "point_only", "not_measured"]
 #: What the structural analysis of a scenario decision can claim.
 StructuralVerdictKind = Literal[
     "invariant_best",
@@ -429,7 +429,7 @@ def decide_from_scenarios(
     ``premises_digest`` and ``data_digest`` are the identities the caller retains for
     the scenario set; by default each is the SHA-256 of the exported scenario
     artifact. ``calibration`` is ``exact`` for supplied exact laws and
-    ``unmeasured`` for an empirical plug-in. ``support`` maps a scenario to the
+    ``not_measured`` for an empirical plug-in. ``support`` maps a scenario to the
     empirical support of its evidence and ``default_support`` covers the rest
     (unassessed support is ``missing_evidence``).
     """

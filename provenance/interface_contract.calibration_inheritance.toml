@@ -19,7 +19,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "hand-enumerated compositions: a measured upstream whose record resolves through an inheriting component, and an unmeasured upstream that refuses the inheritance and the consumer relying on it",
+  "hand-enumerated compositions: a measured upstream whose record resolves through an inheriting component, and a not_measured upstream that refuses the inheritance and the consumer relying on it",
 ]
 
 [non_algorithm_review]

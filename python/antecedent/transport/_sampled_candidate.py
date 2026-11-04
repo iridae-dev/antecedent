@@ -1,4 +1,4 @@
-"""Whole-row recovery acceptance lifecycle; candidate inference stays unmeasured."""
+"""Whole-row recovery acceptance lifecycle; candidate inference stays not_measured."""
 
 from __future__ import annotations
 
@@ -71,8 +71,8 @@ class SampledRecoveryCandidate(ScientificResult):
                 reason_code="not_supported",
             )
         decoded = json.loads(payload)
-        if decoded.get("calibration") != "unmeasured":
-            raise CausalValueError("sampled recovery candidate must remain unmeasured")
+        if decoded.get("calibration") != "not_measured":
+            raise CausalValueError("sampled recovery candidate must remain not_measured")
         result = object.__new__(cls)
         coerce_fields(result, _body=freeze(decoded))
         coerce_fields(result, _artifact=bytes(artifact))
@@ -80,7 +80,7 @@ class SampledRecoveryCandidate(ScientificResult):
 
     @property
     def calibration(self) -> str:
-        return "unmeasured"
+        return "not_measured"
 
     @property
     def interval_method(self) -> Literal["bootstrap_bca"]:
@@ -140,12 +140,10 @@ class SampledRecoveryCandidate(ScientificResult):
             raise CausalTypeError("artifact must be bytes")
         if not isinstance(expected, SampledRecoveryIdentity):
             raise CausalTypeError("expected must be a retained SampledRecoveryIdentity")
-        for name, value, ceiling in (
-            ("max_rows", max_rows, 100_000),
-            ("max_replicates", max_replicates, 2000),
-        ):
-            if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= ceiling:
-                raise CausalValueError(f"{name} must be an integer in 1..={ceiling}")
+        if isinstance(max_rows, bool) or not isinstance(max_rows, int) or not 0 < max_rows <= 100_000:
+            raise CausalValueError("max_rows must be an integer in 1..=100000")
+        if isinstance(max_replicates, bool) or not isinstance(max_replicates, int) or max_replicates < 1:
+            raise CausalValueError("max_replicates must be a positive integer")
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if consume is None:
             raise CausalUnsupportedError(

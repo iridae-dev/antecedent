@@ -5,12 +5,12 @@
 //! declared range, the minimum local effective sample size, the declared claims and
 //! a compact `(dose, outcome)` table. It stores the full result: per-dose support
 //! labels with local effective sample sizes, the point values with pointwise
-//! standard errors and intervals (calibration `unmeasured`, smoothing bias not
+//! standard errors and intervals (calibration `not_measured`, smoothing bias not
 //! included), the measured numerical residual of the local solves, and the closed
 //! simultaneous-band marker.
 //! The optional caller-attested exact quadratic mean premise requires
 //! `dose_grid_quadratic_mean_v1`; polynomial reproduction accounts for zero smoothing
-//! bias under that premise. The sampling calibration remains unmeasured. Omitting the
+//! bias under that premise. The sampling calibration remains not_measured. Omitting the
 //! premise preserves the historical format and digests.
 //!
 //! A consumer trusts nothing in the result. It re-validates the stored request,
@@ -23,7 +23,7 @@
 //! result then differs.
 //!
 //! Scope. Pointwise intervals are normal intervals around the smoother's level,
-//! derivative or contrast with calibration unmeasured: no coverage claim is made.
+//! derivative or contrast with calibration not_measured: no coverage claim is made.
 //! Without a declared curvature bound the simultaneous band is not supported and a stored band
 //! marker other than `closed` is refused. A request that declares `bias_aware` (a bound on
 //! the absolute third derivative of the dose response, the multiplier replicates and the
@@ -63,11 +63,11 @@ pub const DOSE_GRID_ARTIFACT_FEATURE: &str = "dose_grid_functional_row_v1";
 /// Additional required semantics: caller attests an exact conditional quadratic mean.
 pub const DOSE_GRID_QUADRATIC_FEATURE: &str = "dose_grid_quadratic_mean_v1";
 /// Calibration status of every interval of this row.
-pub const DOSE_GRID_CALIBRATION: &str = "unmeasured";
+pub const DOSE_GRID_CALIBRATION: &str = "not_measured";
 /// State of the simultaneous band of this row.
 pub const DOSE_GRID_BAND_CLOSED: &str = "closed";
 /// The only inference claim of this row.
-pub const DOSE_GRID_INFERENCE_CLAIM: &str = "pointwise_calibration_unmeasured";
+pub const DOSE_GRID_INFERENCE_CLAIM: &str = "pointwise_calibration_not_measured";
 /// Additional required semantics: bias-aware intervals and band under a curvature bound.
 pub const DOSE_GRID_BIAS_AWARE_FEATURE: &str = "dose_grid_bias_aware_band_v1";
 /// Additional required semantics: declared sampling weights, clusters or a serial lag.
@@ -251,7 +251,7 @@ pub struct DoseGridRequestWire {
     pub design: String,
     /// Caller-attested exact `E[Y|D=d] = beta0 + beta1*d + beta2*d²`.
     /// Under this premise polynomial reproduction implies zero smoothing bias.
-    /// It is not inferred from the observed residuals; sampling calibration stays unmeasured.
+    /// It is not inferred from the observed residuals; sampling calibration stays not_measured.
     #[serde(default, skip_serializing_if = "is_false")]
     pub quadratic_mean: bool,
     /// The one named functional.
@@ -368,7 +368,7 @@ pub struct DosePointWire {
     pub upper: f64,
     /// Nominal level the normal quantile was taken at; not a coverage claim.
     pub nominal_level: f64,
-    /// Calibration status (`unmeasured`).
+    /// Calibration status (`not_measured`).
     pub calibration: String,
     /// Whether smoothing bias is accounted for: only the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
@@ -396,7 +396,7 @@ pub struct DoseContrastWire {
     pub upper: f64,
     /// Nominal level the normal quantile was taken at; not a coverage claim.
     pub nominal_level: f64,
-    /// Calibration status (`unmeasured`).
+    /// Calibration status (`not_measured`).
     pub calibration: String,
     /// Whether smoothing bias is accounted for: only the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
@@ -440,7 +440,7 @@ pub struct DoseGridResultWire {
     pub fits: usize,
     /// Largest absolute sum of linearized influences (zero in exact arithmetic).
     pub max_abs_influence_sum: f64,
-    /// Calibration status of every interval (`unmeasured`).
+    /// Calibration status of every interval (`not_measured`).
     pub calibration: String,
     /// Whether zero smoothing bias is derived under the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
@@ -536,7 +536,7 @@ fn status_name(label: SupportStatus) -> String {
 
 fn calibration_name(calibration: IntervalCalibration) -> String {
     match calibration {
-        IntervalCalibration::Unmeasured => DOSE_GRID_CALIBRATION.to_owned(),
+        IntervalCalibration::NotMeasured => DOSE_GRID_CALIBRATION.to_owned(),
     }
 }
 
@@ -984,7 +984,7 @@ impl DoseGridArtifactWire {
             || self.result.smoothing_bias_included != self.request.quadratic_mean
             || self.result.inference_claim != DOSE_GRID_INFERENCE_CLAIM
         {
-            return Err(unsupported("this row publishes pointwise unmeasured intervals only"));
+            return Err(unsupported("this row publishes pointwise not_measured intervals only"));
         }
         let band_open = self.result.bias_aware.as_ref().is_some_and(|s| s.band_lower.is_some());
         let expected_band =

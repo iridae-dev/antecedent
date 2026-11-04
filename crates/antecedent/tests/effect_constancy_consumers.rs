@@ -133,7 +133,7 @@ fn original_covariance_aware_contrast_replays_and_does_not_support_transport() {
             < 1e-9
     );
     assert!(diagnostic.separate_transport_identification_required);
-    assert_eq!(diagnostic.evidence.calibration, "unmeasured");
+    assert_eq!(diagnostic.evidence.calibration, "not_measured");
     let reversed = consumer(&original).transport_diagnostic("b", "a").unwrap_err();
     assert_eq!(
         (reversed.code, reversed.detail.as_ref()),

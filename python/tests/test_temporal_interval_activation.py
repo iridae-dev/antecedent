@@ -108,8 +108,8 @@ def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh
     result = produce(method)
     assert isinstance(result, TemporalIntervalCandidate)
     assert result.point == pytest.approx(0.49, abs=1e-12)
-    assert result.calibration == "unmeasured"
-    assert result.claim == "dependence_preserving_calibration_unmeasured"
+    assert result.calibration == "not_measured"
+    assert result.claim == "dependence_preserving_calibration_not_measured"
     with pytest.raises(FrozenInstanceError):
         result.calibration = "calibrated"
     with pytest.raises(TypeError, match="unexpected keyword argument"):

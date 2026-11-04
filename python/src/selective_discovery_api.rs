@@ -412,7 +412,7 @@ pub(crate) fn temporal_contract(
 // ---------------------------------------------------------------------------
 
 pub(crate) fn hex(bytes: &[u8; 32]) -> String {
-    antecedent::schema::to_hex(bytes)
+    antecedent::identity::to_hex(bytes)
 }
 
 pub(crate) fn node_json(node: antecedent::discovery::selective::StructureNode) -> Json {

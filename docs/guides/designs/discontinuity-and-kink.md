@@ -49,7 +49,7 @@ The route refuses singular local fits, too few positive-kernel observations on e
 | `balance_covariates=(...)` | Reports each covariate's jump at the cutoff. A diagnostic only. |
 | `temporal_replicates=B` | Declares that the running variable is calendar time. The interval comes from a within-side moving-block bootstrap that refits the whole ratio. |
 
-Any of these options returns the answer on `result.quasi_rollout` with an unsupported interval whose calibration is `unmeasured`. Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks, with the whole ratio refit per draw.
+Any of these options returns the answer on `result.quasi_rollout` with an unsupported interval whose calibration is `not_measured`. Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks, with the whole ratio refit per draw.
 
 ## Assumptions you declare
 

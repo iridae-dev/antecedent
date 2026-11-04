@@ -110,7 +110,7 @@ def joint_bayesian_transport(
     Gaussian priors. Native authorization is confined to the measured known-variance
     finite validation design at .95; every scalar retains its own record and actual
     basis. Nearby unsupported protocols refuse. The original complete candidate law
-    remains model-conditional and unmeasured; these records are not universal prior
+    remains model-conditional and not_measured; these records are not universal prior
     calibration or confidence guarantees for arbitrary data-generating laws.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
@@ -301,7 +301,7 @@ def binary_nested_markov(
     Native execution checks the frozen prior/sampler/model/count protocol and resolves
     each scalar's original measured basis. Evidence concerns the finite declared
     interior model design; it does not support arbitrary prior or model coverage.
-    The underlying continuous posterior artifact retains unmeasured standing.
+    The underlying continuous posterior artifact retains not_measured standing.
     """
     execution = resolve(execution)
     return cast(
@@ -411,7 +411,7 @@ def binary_nested_markov_fisher_interval(
     Each scalar resolves its actual construction and current measured record. The
     finite interior IID binary validation protocol and original supported ID remain
     mandatory; other nominal levels/options/count scopes refuse without support
-    the complete unmeasured candidate covariance or an arbitrary model.
+    the complete not_measured candidate covariance or an arbitrary model.
     """
     return cast(
         MeasuredInference,
@@ -508,7 +508,7 @@ def sampled_observation_recovery(
     reported with a calibration annotation, never refused. Native
     execution and fresh replay retain the original query, proof, data, configuration
     and complete attempted-work receipt. The original recovery artifact and numerical
-    diagnostics stay unmeasured.
+    diagnostics stay not_measured.
     """
     execution = resolve(execution)
     return cast(

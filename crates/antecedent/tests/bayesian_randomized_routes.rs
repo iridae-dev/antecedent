@@ -1,6 +1,6 @@
 //! Bayesian arm contrasts and switchback effect of the randomized designs through the public
 //! study facade. The two-arm Gaussian IPW pseudo-posterior is supported with calibration
-//! unmeasured; other constructions retain their separate scope. Each posterior is compared
+//! not_measured; other constructions retain their separate scope. Each posterior is compared
 //! with a reference computed outside the library (quadrature of the Beta and Student-t densities,
 //! enumeration of the Beta-Binomial missing-count laws, exact conjugate moments, a whitened
 //! least-squares derivation for the switchback), the retained artifact is read with an
@@ -592,7 +592,7 @@ mod dose_grid_route {
             let result = consumed.result();
             assert_eq!(result.coordinates, coordinates, "{kind}");
             assert!(!result.supported);
-            assert_eq!(result.calibration, "unmeasured");
+            assert_eq!(result.calibration, "not_measured");
             // And both equal the independent closed form.
             let exact = result.exact_mean.as_ref().unwrap();
             for (got, want) in exact.iter().zip(mean) {
@@ -955,7 +955,7 @@ fn supported_ipow_posterior_replays_after_the_builder_is_dropped() {
         assert!(antecedent_io::consume_analysis_result_within(&bytes, &bounds).is_err());
         let row = consumed.body.posterior_row.as_ref().unwrap();
         assert!(row.supported);
-        assert_eq!(row.calibration, "unmeasured");
+        assert_eq!(row.calibration, "not_measured");
         let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
         for edit in 0..3 {
             let mut changed = body.clone();

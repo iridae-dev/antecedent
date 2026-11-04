@@ -544,7 +544,7 @@ def test_obligation_quantities_refuse_untyped_inputs(quantities):
 
 
 def frontdoor_contract(observed=("t", "y")):
-    # t -> m -> y with an unmeasured u confounding t and y: the mediator m identifies.
+    # t -> m -> y with a unmeasured u confounding t and y: the mediator m identifies.
     return repair.FrontDoorContract(
         graph=Dag.from_edges(
             ["t", "m", "y", "u"], [("t", "m"), ("m", "y"), ("u", "t"), ("u", "y")]

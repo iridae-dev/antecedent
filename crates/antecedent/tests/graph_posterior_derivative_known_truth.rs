@@ -307,7 +307,7 @@ fn graph_posterior_derivative_mixtures_and_refuter_states_known_truth() {
 }
 
 #[test]
-fn frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured() {
+fn frequentist_dag_posterior_vector_derivative_uncertainty_is_not_measured() {
     let pin = fixture();
     let weights = numbers(&pin["atoms"], "fully_identified_weights");
     for (key, functional, _) in cases(number(&pin, "at")) {

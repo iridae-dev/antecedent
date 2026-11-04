@@ -260,8 +260,8 @@ fn latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
     assert!((other.classes[0].effect_se.expect("se") - se_q).abs() > 0.0);
     close(other.classes[0].effect, first.classes[0].effect, 1e-9);
 
-    // Honest scope: calibration unmeasured, premises declared vs checked are distinguished.
-    assert_eq!(first.calibration, CalibrationStatus::Unmeasured);
+    // Honest scope: calibration not_measured, premises declared vs checked are distinguished.
+    assert_eq!(first.calibration, CalibrationStatus::NotMeasured);
     let randomization = first
         .premises
         .iter()

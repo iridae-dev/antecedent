@@ -20,6 +20,10 @@ id = "FrontDoorFunctional"
 reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
 
 [[estimator]]
+id = "RandomizedQuantile"
+reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+
+[[estimator]]
 id = "BayesianIvJointLinear"
 reason = "the specialist sealer admits these by study shape and the Bayesian prior, not by estimator id; the id is not named in any sealer"
 

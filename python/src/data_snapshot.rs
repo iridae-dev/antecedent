@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 #[pyclass(name = "_IndexSnapshot", frozen)]
 pub(crate) struct IndexSnapshot {
     pub(crate) values: Arc<[i64]>,
-    pub(crate) retention: Arc<antecedent::execution::AdmissionLease>,
+    pub(crate) retention: Arc<antecedent::execution::Retention>,
 }
 
 #[pymethods]
@@ -27,14 +27,13 @@ impl IndexSnapshot {
             let mut ctx = antecedent::prelude::ExecutionContext::production_default(1);
             crate::execution_api::apply(&mut ctx);
             let retention = Arc::new(
-                ctx.acquire_admission_bounded(0, bytes, std::time::Duration::ZERO).map_err(
-                    |error| match error {
-                        antecedent::execution::AdmissionError::Cancelled => {
+                antecedent::execution::retain_bounded(&ctx, bytes, std::time::Duration::ZERO)
+                    .map_err(|error| match error {
+                        antecedent::execution::AdmissionRefusal::Cancelled => {
                             crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
                         }
                         error => crate::CausalResourceError::new_err(error.to_string()),
-                    },
-                )?,
+                    })?,
             );
             let values = if let Ok(array) = values.extract::<numpy::PyReadonlyArray1<'_, i64>>() {
                 match array.as_slice() {
@@ -169,13 +168,17 @@ impl TableSnapshot {
             let mut ctx = antecedent::prelude::ExecutionContext::production_default(1);
             crate::execution_api::apply(&mut ctx);
             let retention = Arc::new(
-                ctx.acquire_admission_bounded(0, bytes_to_retain, std::time::Duration::ZERO)
-                    .map_err(|error| match error {
-                        antecedent::execution::AdmissionError::Cancelled => {
-                            crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
-                        }
-                        error => crate::CausalResourceError::new_err(error.to_string()),
-                    })?,
+                antecedent::execution::retain_bounded(
+                    &ctx,
+                    bytes_to_retain,
+                    std::time::Duration::ZERO,
+                )
+                .map_err(|error| match error {
+                    antecedent::execution::AdmissionRefusal::Cancelled => {
+                        crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
+                    }
+                    error => crate::CausalResourceError::new_err(error.to_string()),
+                })?,
             );
             // Arrow can alias writable NumPy arrays. Default snapshots therefore take
             // ownership too; only the explicit borrow constructor accepts that contract.
@@ -197,7 +200,8 @@ impl TableSnapshot {
                 .map(|(index, column)| match column {
                     OwnedColumn::Float64(mut column) => {
                         if !shared[index] {
-                            column.values = column.values.with_admission(Arc::clone(&retention));
+                            column.values =
+                                antecedent::data::buffer_with_retention(column.values, &retention);
                         }
                         OwnedColumn::Float64(column)
                     }
@@ -215,7 +219,7 @@ impl TableSnapshot {
             );
             // The columns hold the lease where a view can outlive the table; the table holds it
             // whatever its column types.
-            let data = data.with_retention(retention);
+            let data = antecedent::data::with_retention(data, &retention);
             let borrowed_bytes = if borrow { borrowed.unwrap_or(0) } else { 0 };
             Ok(Self { data: Arc::new(data), copied_bytes, borrowed_bytes })
         })

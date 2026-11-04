@@ -2392,7 +2392,7 @@ def _check_cohort_decision(o: Objs) -> None:
     diagnostic = source.uncalibrated_standard_error
     assert diagnostic is not None
     assert diagnostic.value == pytest.approx(0.049225**0.5, abs=1e-12)
-    assert diagnostic.calibration == "calibration unmeasured"
+    assert diagnostic.calibration == "calibration not_measured"
     with pytest.raises(cd.CohortDecisionRefusal) as closed:
         source.interval()
     assert closed.value.reason_code == "route_not_supported"
@@ -3559,7 +3559,7 @@ def test_producer_consumer_matrix_fitted_effect_model_row(consumer: str, objs: O
     # Its own consumer is the only thing that evaluates it, with a model-based SE and no more.
     estimate = objs.compact.evaluate({"x": 2.0})
     assert estimate.point == pytest.approx(3.0, abs=1e-12)
-    assert "unmeasured" in estimate.calibration
+    assert "not_measured" in estimate.calibration
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)

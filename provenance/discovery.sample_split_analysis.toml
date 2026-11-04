@@ -13,7 +13,7 @@ papers = [
   { title = "A note on data-splitting for the evaluation of significance levels", citation_note = "Previously recorded title and bibliographic detail: A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
 ]
 implementation_deviations = [
-  "No error rate or coverage is measured. The split removes a dependence; it supports an interval for the effect given the selected graph only. Unconditional coverage needs a measured bound on P(selected graph not adequate), which the whole-method calibration design (recorded in the module, unmeasured) is to supply.",
+  "No error rate or coverage is measured. The split removes a dependence; it supports an interval for the effect given the selected graph only. Unconditional coverage needs a measured bound on P(selected graph not adequate), which the whole-method calibration design (recorded in the module, not_measured) is to supply.",
   "Reuse of the same rows for selection and analysis is refused for an interval: no selective-inference correction is implemented because the event 'PC with these tests returned g' has no tractable truncated law.",
   "Rows are assumed exchangeable. Temporal, panel, clustered, weighted or masked rows are refused; a gap-separated temporal window is a different design not covered here.",
   "The split fraction is declared, enters the identity, and has no free default.",

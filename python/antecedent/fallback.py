@@ -177,7 +177,7 @@ def _no_form(part: Literal["associational", "evidence_plan"], query: Any) -> Fal
     )
 
 
-def _unmeasured(part: Literal["associational", "evidence_plan"], what: str) -> FallbackUnavailable:
+def _not_measured(part: Literal["associational", "evidence_plan"], what: str) -> FallbackUnavailable:
     return FallbackUnavailable(
         part,
         "invalid_argument",
@@ -231,7 +231,7 @@ def fallback_roles(
         *(("an effect modifier", modifier) for modifier in modifiers),
     ):
         if name not in columns:
-            return _unmeasured("associational", what)
+            return _not_measured("associational", what)
     adjustment = set(modifiers)
     rule = "declared_modifiers_only"
     directed = _directed_graph(graph, columns)

@@ -894,7 +894,7 @@ def matrix_problems(shard: str = "all", *, resolve: bool = False) -> tuple[list[
     # Estimator wire-ids recorded on supported rows (secondary axis; not cartesian).
     # When present, every entry must be a non-empty string. Empty lists are allowed
     # only when the row honestly has no estimator evidence (classify_estimator then
-    # refuses every concrete EstimatorId, including the five unmeasured families).
+    # refuses every concrete EstimatorId, including the five not_measured families).
     def check_estimators(label: str, row: dict) -> None:
         named = row.get("estimators")
         if named is None:

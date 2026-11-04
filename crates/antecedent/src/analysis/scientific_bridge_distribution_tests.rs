@@ -75,7 +75,7 @@ fn draws_table(
             shape: [rows, 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

@@ -189,9 +189,9 @@ mod tests {
         assert_ne!(record.kind(), Some(RouteKind::Convergence));
         assert!(!record.is_model_restriction());
         assert!(!record.is_unsupported_inference());
-        let unmeasured = error.route_record(f64::NAN).expect("the check failed");
-        assert!(unmeasured.failed());
-        assert!(unmeasured.unevaluable_mass().is_unreported());
+        let not_measured = error.route_record(f64::NAN).expect("the check failed");
+        assert!(not_measured.failed());
+        assert!(not_measured.unevaluable_mass().is_unreported());
     }
 
     #[test]

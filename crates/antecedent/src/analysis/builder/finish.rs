@@ -1331,12 +1331,14 @@ fn refuse_outcome_functional(
             && !graph_posterior
             && match query {
                 CausalQuery::AverageEffect(q) => {
-                    selected == Some(EstimatorId::Aipw)
-                        && q.target_population == antecedent_core::TargetPopulation::AllObserved
-                        && (graph_class == GraphClass::Dag
-                            || tiered.is_some_and(|b| {
-                                b.within_tier == antecedent_graph::WithinTier::CoDetermined
-                            }))
+                    q.target_population == antecedent_core::TargetPopulation::AllObserved
+                        && ((selected == Some(EstimatorId::Aipw)
+                            && (graph_class == GraphClass::Dag
+                                || tiered.is_some_and(|b| {
+                                    b.within_tier == antecedent_graph::WithinTier::CoDetermined
+                                })))
+                            || (selected == Some(EstimatorId::RandomizedQuantile)
+                                && graph_class == GraphClass::Dag))
                 }
                 CausalQuery::ConditionalEffect(q) => {
                     q.inner.target_population == antecedent_core::TargetPopulation::AllObserved
@@ -1355,7 +1357,7 @@ fn refuse_outcome_functional(
         let supported = bayesian_quantile || frequentist_supported;
         if !supported {
             return Err(CausalError::Unsupported {
-                message: "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
+                message: "quantiles require Frequentist AllObserved AIPW or randomized-quantile AverageEffect, binary ConditionalEffect, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
             });
         }
         if *refute != RefuteSuite::None {
@@ -1707,7 +1709,7 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         }
         // The untempered posterior of a declared white-innovation premise is a different
         // construction from the supported tempered posterior of the same cell: it is unsupported
-        // and its calibration is unmeasured, so the cell's support does not carry to it.
+        // and its calibration is not_measured, so the cell's support does not carry to it.
         if carry.settings.retain_joint_horizons
             && matches!(carry.settings.inference, InferenceMode::Bayesian(_))
             && support_status == Some(CellStatus::Supported)

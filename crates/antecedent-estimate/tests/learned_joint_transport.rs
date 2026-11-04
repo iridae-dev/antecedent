@@ -5,7 +5,7 @@
 //! posterior precision, polynomial basis written out by hand) and never calls the code under
 //! test. The one exception is `learned_joint_linear_basis_reproduces_joint_bayesian_moments`,
 //! which is a labelled regression cross-check between two Antecedent paths, not independent
-//! truth. Calibration is unmeasured; nothing here asserts coverage.
+//! truth. Calibration is not_measured; nothing here asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
     clippy::similar_names,
@@ -891,7 +891,7 @@ fn learned_joint_draws_are_seeded_deterministic_and_bounded() {
     assert!(a.diagnostics.r_hat.is_none());
     assert_eq!(a.diagnostics.basis_rank, a.parameter_names.len());
     assert!(a.diagnostics.precision_condition.is_finite());
-    assert_eq!(a.diagnostics.calibration, JointTransportCalibration::Unmeasured);
+    assert_eq!(a.diagnostics.calibration, JointTransportCalibration::NotMeasured);
     let top = fit(&model(), &sources, &JointTransportOptions { draws: 100_000, seed: 1 }).unwrap();
     assert_eq!(top.draws.n_draws, 100_000);
     for bad in [0, 100_001] {

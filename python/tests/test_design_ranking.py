@@ -288,7 +288,7 @@ def test_frozen_values_and_net_value_only_with_a_cost_mapping() -> None:
     assert row.net_value is None and row.study_cost_utility is None
     assert (row.study_cost, row.cost_unit) == (0.1, "usd")
     assert separate.basis == "evsi"
-    assert separate.calibration == "unmeasured"
+    assert separate.calibration == "not_measured"
 
     net = _rank([_guess_candidate("study", 0.75)], cost_map=UTILITY_MAP).candidates[0]
     assert net.study_cost_utility == pytest.approx(0.1, abs=1e-12)
@@ -390,7 +390,7 @@ def test_monte_carlo_value_reports_error_and_makes_no_coverage_claim() -> None:
     assert abs(value.evsi - 0.05383827316648051) <= 4.0 * value.integration.stderr
     assert value.claim == "monte_carlo_estimate"
     assert not value.natively_replayed and value.replay == "monte_carlo_not_replayed"
-    assert ranking.calibration == "unmeasured"
+    assert ranking.calibration == "not_measured"
 
 
 def test_ties_and_truncated_search_are_reported() -> None:
@@ -430,7 +430,7 @@ def test_export_consume_round_trip_with_retained_expectation() -> None:
     consumed = require_success(dr.consume(data, expected_identity=result.expectation()))
     assert consumed.identity == result.identity
     assert consumed.ranking_identity == result.ranking_identity
-    assert consumed.calibration == "unmeasured"
+    assert consumed.calibration == "not_measured"
     assert consumed.source_digests == ("digest-a", "digest-b")
     assert [e.id for e in consumed.entries] == ["cand-1", "cand-2"]
     assert consumed.entries[0].net_value == pytest.approx(0.15, abs=1e-12)

@@ -32,7 +32,7 @@ is recorded; an assumption range from a sensitivity analysis is never a probabil
 A plan is hypothetical identification, not an estimate: ``inference_claim`` is ``none``, no
 proposed study establishes an assumption (an instrument's validity stays an assumption), a
 search that a budget stopped is ``budget_exhausted`` and never an impossibility claim, the
-ordering is ``point_only`` and its calibration ``unmeasured``.
+ordering is ``point_only`` and its calibration ``not_measured``.
 """
 
 from __future__ import annotations
@@ -402,7 +402,7 @@ class EvidencePlan:
     declared was certified; never an impossibility claim) or ``budget_exhausted`` (a budget
     stopped a search with nothing certified; never a verdict). :attr:`options` are ordered by
     the identification gate and then by value net of the declared cost map;
-    :attr:`ranking_guarantee` is ``point_only`` and :attr:`calibration` ``unmeasured``.
+    :attr:`ranking_guarantee` is ``point_only`` and :attr:`calibration` ``not_measured``.
     """
 
     __slots__ = (
@@ -734,7 +734,7 @@ class StudyRanking:
     violations: tuple[ConstraintViolation, ...]
     mc_samples: int
     early_stopped: bool
-    calibration: Literal["unmeasured"] = "unmeasured"
+    calibration: Literal["not_measured"] = "not_measured"
 
     @property
     def best(self) -> RankedStudy | None:
@@ -770,7 +770,7 @@ def rank_studies(
     names the failure route that decides sufficiency (``backdoor``, ``frontdoor``,
     ``instrument``, ``hedge``) and may be omitted when the failure has exactly one.
     ``prior`` is the :class:`~antecedent.design.StructurePrior` ranked against; ordering is
-    ``point_only`` and its calibration ``unmeasured``.
+    ``point_only`` and its calibration ``not_measured``.
     """
     if not isinstance(contract, FailureContract):
         raise CausalTypeError("rank_studies requires a repair.FailureContract")

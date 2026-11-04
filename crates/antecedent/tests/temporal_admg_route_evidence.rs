@@ -787,7 +787,7 @@ fn transport_study(
 /// frequentist standard error is the Newey-West long-run variance of the per-row influence at
 /// the series block length, and the Bayesian interval is the posterior of one Dirichlet weight
 /// per circular block. Both are wider than the same rows read as independent, which a static
-/// ADMG does. Both are unsupported with calibration unmeasured.
+/// ADMG does. Both are unsupported with calibration not_measured.
 #[test]
 fn temporal_admg_transport_reports_a_serial_dependence_aware_interval() {
     let data = dependent_transport_series(1000);

@@ -12,7 +12,7 @@ kernel (:meth:`~ChoiceInferenceSession.operating_characteristics`) and the expec
 sample information of candidate studies (:meth:`~ChoiceInferenceSession.rank_studies`) come from
 the same contract. Results export as ``choice_inference_result_v1`` and are consumed by replay.
 
-Every result is point-only with calibration ``unmeasured``; ``measured_interval`` reports the
+Every result is point-only with calibration ``not_measured``; ``measured_interval`` reports the
 interval of a named result annotated with its calibration status (``not_measured`` until a
 coverage record matches), and only a stopping decision has no interval. Stated preferences do not identify behavioural or
 causal outcomes. Every number, identity and refusal is computed by the Rust core.
@@ -63,7 +63,7 @@ __all__ = [
     "consume_choice_inference_result_artifact",
 ]
 
-CALIBRATION = "unmeasured"
+CALIBRATION = "not_measured"
 
 
 class ChoiceInferenceRefusal(StructuredRefusal):

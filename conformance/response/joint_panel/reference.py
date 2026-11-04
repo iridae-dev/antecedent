@@ -264,7 +264,7 @@ def reference() -> dict:
         "evidence": {
             "kind": "independent synthetic reference only",
             "fit": "not performed",
-            "calibration": "unmeasured",
+            "calibration": "not_measured",
             "external_parity": "not measured",
             "additive_variant": "zero-interaction reference shares the same histories, covariates and noise",
         },

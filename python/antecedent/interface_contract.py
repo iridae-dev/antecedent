@@ -25,7 +25,7 @@ contracts alone, before any component runs::
     connection = ic.check_connection(estimator, "effect", decision, "effect")
 
 A connection never raises a calibration label: a point-only producer stays point-only, and a
-consumer that relies on measured calibration is refused rather than served an unmeasured interval.
+consumer that relies on measured calibration is refused rather than served a not_measured interval.
 A set of components is checked with :func:`check_composition`, which refuses feedback cycles with
 their path named. :func:`export_interface_contract` writes ``interface_contract_v1`` (specified in
 ``spec/``); :func:`consume_interface_contract_artifact` rebuilds and re-validates it against an

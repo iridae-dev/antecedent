@@ -49,7 +49,7 @@
 //!   declared tolerance.
 //! * The weighted information matrix of the basis design must have full rank: a
 //!   proper prior would otherwise answer a design the data cannot identify.
-//! * Calibration is **unmeasured**; no coverage is claimed and the public interval route
+//! * Calibration is **not_measured**; no coverage is claimed and the public interval route
 //!   is reported with its calibration annotation, never refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -183,7 +183,7 @@ pub struct LearnedJointDiagnostics {
     pub overlap: OverlapDiagnostic,
     /// Source disagreement.
     pub disagreement: SourceDisagreement,
-    /// Always [`JointTransportCalibration::Unmeasured`].
+    /// Always [`JointTransportCalibration::NotMeasured`].
     pub calibration: JointTransportCalibration,
 }
 
@@ -1171,7 +1171,7 @@ fn assemble(parts: FitParts<'_>) -> Result<LearnedJointFit, EstimationError> {
                 tolerance: model.max_unsupported_mass,
             },
             disagreement,
-            calibration: JointTransportCalibration::Unmeasured,
+            calibration: JointTransportCalibration::NotMeasured,
         },
         provider: LearnedProviderRecord {
             provider: LEARNED_JOINT_PROVIDER,

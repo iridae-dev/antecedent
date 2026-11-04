@@ -11,7 +11,7 @@
 //!
 //! The two-arm Gaussian IPW superpopulation construction has an exact graphless support as a
 //! modular pseudo-posterior conditional on the fitted observation model. Its interval calibration
-//! is unmeasured. Other arm constructions retain their separate scope. Draws are quantile grids.
+//! is not_measured. Other arm constructions retain their separate scope. Draws are quantile grids.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -430,7 +430,7 @@ impl super::CheckedRandomizedOperation {
                  score-adjusted inverse-probability pseudo-outcome to a Gaussian working \
                  likelihood. The observation model is estimated and held fixed in the posterior, \
                  with its score correction incorporated in the pseudo-outcome spread. \
-                 Quantiles are pointwise and calibration remains unmeasured",
+                 Quantiles are pointwise and calibration remains not_measured",
             ));
         }
         let mut result = finish_design_posterior_as(

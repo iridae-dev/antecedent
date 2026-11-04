@@ -1,8 +1,8 @@
-# Implementation delivery evidence; release calibration remains separately unmeasured.
+# Implementation delivery evidence; release calibration remains separately not_measured.
 schema = 1
 id = "response.joint_panel.experiment_acceptance"
 owner = "X05.2"
-status = "implemented_calibration_unmeasured"
+status = "implemented_calibration_not_measured"
 closure_kind = "delivered"
 report = "conformance/response/joint_panel/experiment_acceptance_report.json"
 executable_source_sha256 = "0035d40c7f89da8ec9f827fd88ec7436d28bf5f2e2c403697767d155282159b3"
@@ -26,6 +26,6 @@ compatibility = "Original fitted-panel and generic source adapters agree on all 
 python_validation = "All 14 affected public Python workflow tests passed against the final rebuilt native extension, including constrained next-study values, action identity changes, local mapping premises and current artifact withdrawal."
 calibration_registration = "parity/joint_response_calibration.toml"
 calibration_owners = ["Q08", "E14"]
-calibration_status = "registered_unmeasured_candidate_bound"
+calibration_status = "registered_not_measured_candidate_bound"
 method_spec_review_status = "not_admitted"
 grants_release_support = false

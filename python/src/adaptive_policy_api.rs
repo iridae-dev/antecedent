@@ -23,7 +23,7 @@ fn bad(message: impl AsRef<str>) -> PyErr {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    antecedent::schema::identity::to_hex(bytes)
+    antecedent::identity::to_hex(bytes)
 }
 
 /// Largest number of simulated rows, steps or cells a rollout may allocate.

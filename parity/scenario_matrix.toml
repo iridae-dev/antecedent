@@ -3237,7 +3237,7 @@ axis = "held_out_regime"
 value = "held_out_intervention"
 status = "unavailable"
 test = "crates/antecedent/tests/cells_01_panel_search_inputs.rs::cells_01_a_model_only_response_is_searched_as_conditional_and_its_identified_reading_is_refused"
-reason = "declared whole programs the data never realized as a unit are ranked only as the fitted model's response (exhaustive over the finite set, no continuous gap, selected-decision reliability unmeasured) and an identified causal reading is refused with 'the compiled design does not identify this target' unless a whole-program design earns it; a candidate outside its declared control bounds is excluded and never valued (crates/antecedent-design/tests/cells_01_finite_program_search.rs::cells_01_a_candidate_outside_its_control_bounds_is_excluded_and_never_valued)"
+reason = "declared whole programs the data never realized as a unit are ranked only as the fitted model's response (exhaustive over the finite set, no continuous gap, selected-decision reliability not_measured) and an identified causal reading is refused with 'the compiled design does not identify this target' unless a whole-program design earns it; a candidate outside its declared control bounds is excluded and never valued (crates/antecedent-design/tests/cells_01_finite_program_search.rs::cells_01_a_candidate_outside_its_control_bounds_is_excluded_and_never_valued)"
 
 [[cell]]
 family = "P15.pulse"

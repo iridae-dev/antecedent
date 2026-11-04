@@ -8,7 +8,7 @@
 //!   the mixture-average effect, a responsibilities summary (per-class means, hard-assignment
 //!   counts, separation and a digest of the full matrix), the head and digest of the
 //!   log-likelihood trace, the premises with their declared or checked status, the
-//!   configuration, the identity digests and the **unmeasured** calibration coordinate;
+//!   configuration, the identity digests and the **not_measured** calibration coordinate;
 //! * `latent_class.data` (little-endian `f64`): the compact analysis dataset (outcome,
 //!   treatment, then each covariate), or nothing when the record binds its dataset by digest.
 //!
@@ -37,7 +37,7 @@
 //!   refuses it unless the digest matches.
 //!
 //! What this does **not** say: class labels are an effect ordering, not a discovered meaning;
-//! bootstrap standard errors carry no coverage claim (`calibration = "unmeasured"`); the
+//! bootstrap standard errors carry no coverage claim (`calibration = "not_measured"`); the
 //! within-class randomization and Gaussian-linear class model are declared, not tested. Unknown
 //! major versions refuse.
 //!
@@ -61,7 +61,7 @@ pub const LATENT_CLASS_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const LATENT_CLASS_ARTIFACT_FEATURE: &str = "latent_class_effects_v1";
 /// Calibration coordinate of the bootstrap standard errors: coverage was not measured.
-pub const LATENT_CLASS_ARTIFACT_CALIBRATION: &str = "unmeasured";
+pub const LATENT_CLASS_ARTIFACT_CALIBRATION: &str = "not_measured";
 /// Most analysis rows an artifact embedded under the earlier fixed ceiling.
 #[deprecated(
     since = "2.4.1",
@@ -304,7 +304,7 @@ pub struct LatentClassMeta {
     /// absent when the dataset is embedded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_binding: Option<String>,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Always `point_with_bootstrap_se`.
     pub inference_claim: String,
@@ -651,7 +651,7 @@ fn encode_parts_impl(
     let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "latent_class_point_with_bootstrap_se_unmeasured",
+            note: "latent_class_point_with_bootstrap_se_not_measured",
             max_bytes: MAX_LATENT_CLASS_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),

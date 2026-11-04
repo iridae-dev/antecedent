@@ -253,7 +253,7 @@ impl Study {
                     "Dirichlet-multinomial arm laws on a declared grid of {} thresholds with \
                      symmetric concentration {}; piecewise-linear inversion at tau={tau}; \
                      treatment unconfounded (empty adjustment set); unsupported, calibration \
-                     unmeasured",
+                     not_measured",
                     thresholds.len(),
                     bin_concentration
                 ),

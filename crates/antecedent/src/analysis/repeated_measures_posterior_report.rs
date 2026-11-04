@@ -25,7 +25,7 @@
 //! The within-unit variance and correlation are declared, not estimated, and the arm-mean priors
 //! are declared, not defaulted: a prior alone never identifies the contrast, and an arm without a
 //! completed unit is refused. The report is unsupported and its repeated-sampling calibration is
-//! unmeasured; both facts are retained in the artifact.
+//! not_measured; both facts are retained in the artifact.
 //!
 //! The retained report carries the completed units, so the loader recomputes every reported
 //! number from them under the declared procedure and refuses a payload that does not reproduce.
@@ -46,8 +46,8 @@ use super::adaptive_procedure_report::{RepeatedMeasuresProcedure, refusal_of};
 pub const REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID: &str =
     "bayesian.repeated_measures_arm_contrast";
 
-/// Calibration standing carried by the report: repeated-sampling calibration is unmeasured.
-const UNCALIBRATED_STANDING: &str = "unmeasured";
+/// Calibration standing carried by the report: repeated-sampling calibration is not_measured.
+const UNCALIBRATED_STANDING: &str = "not_measured";
 
 /// Format name of the retained artifact envelope.
 pub const REPEATED_MEASURES_POSTERIOR_ARTIFACT_FORMAT: &str =
@@ -168,9 +168,9 @@ pub struct RepeatedMeasuresPosteriorReport {
     pub unit_measurements: Vec<Vec<f64>>,
     /// Always `false`: no support covers this estimator.
     pub supported: bool,
-    /// Always `false`: repeated-sampling calibration is unmeasured.
+    /// Always `false`: repeated-sampling calibration is not_measured.
     pub calibration_measured: bool,
-    /// Calibration standing; `unmeasured`.
+    /// Calibration standing; `not_measured`.
     pub calibration: String,
 }
 
@@ -213,7 +213,7 @@ fn assumptions() -> Vec<String> {
          randomization, so the likelihood of the arm means is the same under any such policy",
         "the arm-mean priors are declared; a prior alone does not identify the contrast",
         "the posterior is not the frequentist whole-procedure analysis and its repeated-sampling \
-         calibration is unmeasured",
+         calibration is not_measured",
     ]
     .map(str::to_owned)
     .to_vec()

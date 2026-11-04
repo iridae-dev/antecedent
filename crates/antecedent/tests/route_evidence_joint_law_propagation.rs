@@ -83,7 +83,7 @@ fn artifact(
             shape: [x.len(), 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,

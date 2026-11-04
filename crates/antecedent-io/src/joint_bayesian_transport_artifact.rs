@@ -1,5 +1,5 @@
 //! Independent artifact of the joint Bayesian source-target transport engine. The original candidate
-//! format and its posterior quantities retain their `unmeasured` standing.
+//! format and its posterior quantities retain their `not_measured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
 //! protocol and its basis resolves to a current attesting calibration record.
@@ -10,7 +10,7 @@
 //! model reads, the draw request (count and seed), the source and target data identities
 //! with the observations themselves, and the result: exact posterior mean and covariance,
 //! the aligned joint draws with their RNG identity, the diagnostics, and the calibration
-//! status (always `unmeasured`).
+//! status (always `not_measured`).
 //!
 //! A consumer trusts none of the result. Under its own bounds (a stored count above them
 //! refuses before any work) it checks the two digests, re-fits the conjugate model from
@@ -59,7 +59,7 @@ pub const JOINT_BAYESIAN_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const JOINT_BAYESIAN_ARTIFACT_FEATURE: &str = "joint_bayesian_transport_conjugate_v1";
 /// The unchanged standing of the original candidate artifact format.
-pub const JOINT_BAYESIAN_CALIBRATION: &str = "unmeasured";
+pub const JOINT_BAYESIAN_CALIBRATION: &str = "not_measured";
 
 /// Why a joint Bayesian transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -388,7 +388,7 @@ pub struct JointDiagnosticsWire {
     pub max_abs_z: f64,
     /// Whether the disagreement is flagged.
     pub flagged: bool,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
 }
 
@@ -430,7 +430,7 @@ impl JointResultWire {
     fn from_fit(fit: &JointTransportFit) -> Self {
         let d = &fit.diagnostics;
         let calibration = match d.calibration {
-            JointTransportCalibration::Unmeasured => JOINT_BAYESIAN_CALIBRATION,
+            JointTransportCalibration::NotMeasured => JOINT_BAYESIAN_CALIBRATION,
         };
         Self {
             parameter_names: fit.parameter_names.clone(),
@@ -500,7 +500,7 @@ pub struct JointBayesianArtifactWire {
     pub target: JointTargetWire,
     /// Posterior result.
     pub result: JointResultWire,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest of the scientific premises.
     pub premises_digest: String,
@@ -627,7 +627,7 @@ impl JointBayesianArtifactWire {
         if wire.calibration != JOINT_BAYESIAN_CALIBRATION
             || wire.result.diagnostics.calibration != JOINT_BAYESIAN_CALIBRATION
         {
-            return Err(unsupported("calibration is unmeasured").into());
+            return Err(unsupported("calibration is not_measured").into());
         }
         if wire.result.draws.alignment != "joint" {
             return Err(unsupported("draws must be aligned joint draws").into());
@@ -757,7 +757,7 @@ impl JointBayesianArtifactWire {
 
 impl JointBayesianArtifactWire {
     /// Produce the unchanged original candidate plus a separately record-bound
-    /// measured target-effect scalar. Other posterior quantities remain unmeasured.
+    /// measured target-effect scalar. Other posterior quantities remain not_measured.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
     pub fn build_measured(

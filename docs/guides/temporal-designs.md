@@ -3,7 +3,7 @@
 Estimate what a decision at one period did to a later outcome, or what a whole treatment path would have produced, from tables with one row per unit and period. You can analyse micro-randomized or sequentially randomized trials (the excursion effect of one decision), observational decision data (modelling the decision on measured history), static regimes on a continuous outcome, and survival under always-treat versus never-treat.
 
 `CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. Every route here executes and is **unsupported**: no coverage record exists,
-every interval and posterior carries `calibration = "unmeasured"`, and no support-matrix cell
+every interval and posterior carries `calibration = "not_measured"`, and no support-matrix cell
 is implied.
 
 ## Typed queries

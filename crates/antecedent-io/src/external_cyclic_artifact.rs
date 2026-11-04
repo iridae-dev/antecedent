@@ -83,7 +83,7 @@ pub struct ExternalCyclicReport {
     pub counterfactuals: Option<Vec<EquilibriumResult>>,
     /// `verified_external_model_conditional` or `specified_or_fitted_model_conditional`.
     pub claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
 }
 
@@ -271,7 +271,7 @@ impl ExternalCyclicRequest {
                 MechanismTrust::VerifiedExternal => "verified_external_model_conditional".into(),
                 MechanismTrust::Native => "specified_or_fitted_model_conditional".into(),
             },
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
         })
     }
 
@@ -298,7 +298,7 @@ impl ExternalCyclicRequest {
         let container = crate::encode_container(
             &crate::ArtifactContainer {
                 kind: KIND,
-                note: "verified_external_model_conditional_calibration_unmeasured",
+                note: "verified_external_model_conditional_calibration_not_measured",
                 max_bytes: MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES,
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),

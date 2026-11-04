@@ -198,7 +198,7 @@ model is fitted and held fixed; its score correction enters the pseudo-outcome s
 its coefficients do not receive a posterior. This is a modular pseudo-posterior conditional
 on the fitted observation model. Its support covers pointwise 95% posterior quantiles under
 the declared MAR, positivity and correct logistic-model assumptions; repeated-sampling
-calibration remains **unmeasured**.
+calibration remains **not_measured**.
 
 The prior shrinks each arm's pseudo-mean, so the posterior mean is not exactly a Hajek
 responder mean. With saturated response strata the unshrunk pseudo-mean equals the

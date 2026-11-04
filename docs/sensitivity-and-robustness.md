@@ -10,11 +10,11 @@ Five modules:
 
 | Module | Question | Claim |
 | --- | --- | --- |
-| `antecedent.msm_sensitivity` | How far can a stratified ATE move if unmeasured confounding shifts the odds of treatment by at most a factor Lambda? | assumption range; calibration unmeasured |
-| `antecedent.mnar_sensitivity` | How does an arm-mean effect, and the decision resting on it, move if the missing outcomes depart from missing at random by a bounded, declared amount? | assumption range per declared departure; untestable assumption; calibration unmeasured |
+| `antecedent.msm_sensitivity` | How far can a stratified ATE move if unmeasured confounding shifts the odds of treatment by at most a factor Lambda? | assumption range; calibration not_measured |
+| `antecedent.mnar_sensitivity` | How does an arm-mean effect, and the decision resting on it, move if the missing outcomes depart from missing at random by a bounded, declared amount? | assumption range per declared departure; untestable assumption; calibration not_measured |
 | `antecedent.sensitivity_decision` | Over a declared assumption grid, does the best action change, and where? | point-only; grid points only |
 | `antecedent.decision_robust` | Is the choice robust across causal structures, support-robust, graph-dependent or under-claimed? | point-only verdicts over supplied structures |
-| `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration unmeasured |
+| `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration not_measured |
 
 For the label vocabulary (point-only, no claim, closed without a measured calibration) see
 [decision routes at a glance](decisions.md#routes-at-a-glance).
@@ -180,7 +180,7 @@ a front-door or general-ID estimator need not equal this empirical stratified
 ATE even when both address the same query. The supplemental sample supplies empirical stratum
 masses, propensities and discrete outcome laws. Its bounds are sharp for the
 empirical distribution and estimate population bounds; sampling uncertainty is
-unmeasured and withheld. The sample gets its own content digest and is explicitly
+not_measured and withheld. The sample gets its own content digest and is explicitly
 labelled supplemental, so it is never represented as the original analysis
 snapshot. `to_sensitivity_artifact` carries this distinction, the original
 program identity and the sampling limitation into a decision. Every stratum
@@ -325,9 +325,9 @@ Read it as a diagnostic, not a certificate:
   not invariant, so a selection node there cannot be excluded; non-rejection
   leaves it open and says nothing about selection nodes on other variables.
 - It is a linear-Gaussian-mean diagnostic: a shift in a nonlinear or higher-moment
-  feature may go undetected. Type I error and power are **unmeasured**
-  (`calibration == "unmeasured"`, `inference_claim ==
-  "asymptotic_wald_calibration_unmeasured"`).
+  feature may go undetected. Type I error and power are **not_measured**
+  (`calibration == "not_measured"`, `inference_claim ==
+  "asymptotic_wald_calibration_not_measured"`).
 - The test is valid only for **independent** samples. Shared units
   (`dependence="shared_units"` or a common `unit_ids` entry) or an unknown
   dependence refuse as `dependence_unknown`.
@@ -357,7 +357,7 @@ parent set, unit or protocol id, or a blank declaration; `route_not_supported`),
 | Mechanism discrepancy | statistic, p-value, minimal detectable differences, `informs_selection_on` | Type I error, power; invariance on non-rejection |
 
 Every standard error, p-value and interval on this page is a diagnostic with
-calibration unmeasured. It is reported so it can be
+calibration not_measured. It is reported so it can be
 inspected, not as a confidence statement.
 
 Runnable examples:

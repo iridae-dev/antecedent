@@ -451,7 +451,7 @@ fn a_compact_linear_model_carries_the_uncalibrated_variance_diagnostic_only() {
     let diagnostic = source.uncalibrated_standard_error().unwrap();
     // phibar = (1, 0.45): 0.04 - 2 * 0.01 * 0.45 + 0.09 * 0.45^2 = 0.049225.
     close(diagnostic.value, 0.049_225_f64.sqrt(), 1e-12);
-    assert_eq!(diagnostic.calibration, "calibration unmeasured");
+    assert_eq!(diagnostic.calibration, "calibration not_measured");
     // A declared model is attested, never native, and exposes no interval.
     assert!(!source.is_native());
     let refused = cohort_decision_input("c", &source, TrustRequirement::Native).err().unwrap();

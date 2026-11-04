@@ -16,7 +16,7 @@
 //!   not the request is refused with `not_supported` and the premise's
 //!   `adaptive_inference.*` detail, and nothing is computed.
 //!
-//! Every result is labelled `derived_unmeasured`: the numbers are exact (or
+//! Every result is labelled `derived_not_measured`: the numbers are exact (or
 //! simulated with a reported Monte Carlo error) under the stated model, and no
 //! interval or coverage support follows until the whole-procedure coverage is
 //! measured.
@@ -26,7 +26,7 @@
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError, AnalysisEstimator, AnytimeReport, AssignmentRule, BayesianReport,
-    BetaPrior, CellLabel, DERIVED_UNMEASURED, DecisionReport, Estimand, EstimandStatement,
+    BetaPrior, CellLabel, DERIVED_NOT_MEASURED, DecisionReport, Estimand, EstimandStatement,
     EstimatorLaw, Functional, GaussianMixtureLaw, InversionGrid, InversionInterval,
     ObservedTerminal, OrderingPValues, OutcomeKernel, PosteriorMeanGap, ProcedureLaw,
     RepeatedMeasuresDeclaration, RepeatedMeasuresDerivation, RepeatedMeasuresRequest,
@@ -194,7 +194,7 @@ pub struct ProcedureReport {
     pub contract_identity: Option<String>,
     /// What the arm-level quantity is.
     pub estimand: EstimandStatement,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The numbers.
     pub body: ProcedureReportBody,
@@ -208,7 +208,7 @@ pub struct ProcedureReport {
 pub struct ProcedureLawReport {
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The terminal atoms and work accounting.
     pub law: ProcedureLaw,
@@ -219,7 +219,7 @@ pub struct ProcedureLawReport {
 pub struct ProcedureSimulationReport {
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The replicates.
     pub law: SimulatedLaw,
@@ -375,7 +375,7 @@ impl AdaptiveProcedure {
         .map_err(|e| refusal_of(&e))?;
         Ok(ProcedureLawReport {
             procedure_identity: self.identity().to_owned(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             law,
         })
     }
@@ -402,7 +402,7 @@ impl AdaptiveProcedure {
             .map_err(|e| refusal_of(&e))?;
         Ok(ProcedureSimulationReport {
             procedure_identity: self.identity().to_owned(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             law,
         })
     }
@@ -559,7 +559,7 @@ impl AdaptiveProcedure {
             procedure_identity: self.identity().to_owned(),
             contract_identity: self.contract_identity().map(str::to_owned),
             estimand,
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             body,
             receipt,
         })
@@ -710,7 +710,7 @@ pub struct RepeatedMeasuresReport {
     pub cell: CellLabel,
     /// Name of the analysis route (cluster-robust, pooled, weighted).
     pub route: &'static str,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The numbers.
     pub body: RepeatedMeasuresReportBody,
@@ -891,7 +891,7 @@ impl RepeatedMeasuresProcedure {
             procedure_identity: self.identity.clone(),
             cell: spec.cell(),
             route: spec.route_name(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             body,
         })
     }

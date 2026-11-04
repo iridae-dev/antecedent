@@ -12,7 +12,7 @@
 //!
 //! Every reading keeps the posterior claim and the anytime-valid frequentist
 //! claim in separate, labelled fields, and every result is labelled
-//! `derived_unmeasured`.
+//! `derived_not_measured`.
 
 use antecedent::analysis::adaptive_inference::AdaptiveInferenceSession;
 use antecedent::analysis::adaptive_participant_procedure::ParticipantProcedure;

@@ -13,7 +13,7 @@
 //! The diagnostic is a linear-Gaussian-mean Wald test of a single node's mechanism. A
 //! non-rejection never certifies invariance (`non_rejection_certifies_invariance` is always
 //! `false`), it informs only a selection node on the compared node, and its Type I error and
-//! power are unmeasured.
+//! power are not_measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -30,7 +30,7 @@
 //! The mean of `psi` is consistent for the estimand when either the propensity and censoring
 //! models, or the outcome model, are correct. All nuisance models are fitted on the other
 //! folds. The standard error is the standard deviation of the scores over the square root of
-//! the rows; its calibration is unmeasured and no interval is produced here.
+//! the rows; its calibration is not_measured and no interval is produced here.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -157,7 +157,7 @@ pub struct ArmSurvival {
 pub struct SurvivalContrast {
     /// Contrast value.
     pub estimate: f64,
-    /// Influence-function standard error (calibration unmeasured).
+    /// Influence-function standard error (calibration not_measured).
     pub se: f64,
 }
 

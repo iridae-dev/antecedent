@@ -152,7 +152,7 @@ if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --u
   elif [[ -n "$ALL" ]]; then
     echo "  python3 scripts/collect_coverage_records.py"
   else
-    echo "  python3 scripts/collect_coverage_records.py --keep-unmeasured"
+    echo "  python3 scripts/collect_coverage_records.py --keep-not_measured"
   fi
   exit 1
 fi
@@ -163,7 +163,7 @@ if [[ "$MISSING_ONLY" == "1" || "$HAVE_FILTERS" == 1 || "$HAVE_REPLACEMENTS" == 
 elif [[ -n "$ALL" ]]; then
   python3 scripts/collect_coverage_records.py
 else
-  python3 scripts/collect_coverage_records.py --keep-unmeasured
+  python3 scripts/collect_coverage_records.py --keep-not_measured
 fi
 
 if [[ "$RUN_STATUS" != "0" ]]; then

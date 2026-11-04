@@ -453,7 +453,7 @@ fn an_interval_without_the_source_standard_error_is_refused_with_its_remedy() {
 }
 
 #[test]
-fn an_unscoped_request_a_posterior_and_an_unmeasured_level_stay_refused() {
+fn an_unscoped_request_a_posterior_and_an_not_measured_level_stay_refused() {
     let contract = surrogate_contract();
     let result = derive(&contract, 0.8, "mmol_per_l", Some(0.1));
     assert_eq!(
@@ -463,7 +463,7 @@ fn an_unscoped_request_a_posterior_and_an_unmeasured_level_stay_refused() {
     );
     // No record measures the trial-level construction at level 0.8: the interval is reported
     // with a calibration that is not `calibrated`.
-    let reported = result.bridged_interval(0.8).expect("reported at an unmeasured level");
+    let reported = result.bridged_interval(0.8).expect("reported at a not_measured level");
     assert_ne!(reported.calibration.status, CalibrationStatus::Calibrated);
     // A level outside (0, 1) has no interval at all.
     assert_eq!(

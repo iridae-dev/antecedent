@@ -70,7 +70,7 @@ pub struct CyclicExecutionReport {
     pub counterfactuals: Option<Vec<EquilibriumResult>>,
     /// Always `specified_or_fitted_model_conditional` in this execution family.
     pub claim: String,
-    /// Always `unmeasured`; no nominal interval/coverage claim is produced.
+    /// Always `not_measured`; no nominal interval/coverage claim is produced.
     pub calibration: String,
 }
 
@@ -281,7 +281,7 @@ impl CyclicExecutionRequest {
             worlds,
             counterfactuals,
             claim: "specified_or_fitted_model_conditional".into(),
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
             lowered: crate::cyclic_family_artifact::LoweredStamp::default(),
         })
     }
@@ -329,7 +329,7 @@ fn encode_report(
     let container = crate::encode_container(
         &crate::ArtifactContainer {
             kind: KIND,
-            note: "model_conditional_calibration_unmeasured",
+            note: "model_conditional_calibration_not_measured",
             max_bytes: MAX_CYCLIC_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),

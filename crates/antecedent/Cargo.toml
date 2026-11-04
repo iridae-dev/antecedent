@@ -670,6 +670,10 @@ name = "derivative_refuter_known_truth"
 path = "tests/derivative_refuter_known_truth.rs"
 
 [[test]]
+name = "response_curve_validation_known_truth"
+path = "tests/response_curve_validation_known_truth.rs"
+
+[[test]]
 name = "staged_derivatives"
 path = "tests/staged_derivatives.rs"
 
@@ -1443,6 +1447,10 @@ path = "tests/frontdoor_known_truth.rs"
 [[test]]
 name = "bayesian_static_known_truth"
 path = "tests/bayesian_static_known_truth.rs"
+
+[[test]]
+name = "randomized_quantile_known_truth"
+path = "tests/randomized_quantile_known_truth.rs"
 
 [[test]]
 name = "temporal_sequential_gcomp_multistep_known_truth"

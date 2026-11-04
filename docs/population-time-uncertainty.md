@@ -2,12 +2,12 @@
 
 You can ask how an effect behaves across populations, over time and under sampling uncertainty with routes that go beyond a single static estimate: a joint posterior over source and target models, an uncertain initial state, a refresh onto a new observation period, a test that an effect is constant across a partition, and a counterfactual replay of a fixed population. For each route this page states the question it answers, the scope it runs within, the claim it makes, the Python entry point and the namespace of its refusal details.
 
-Whether a route is available, and what its claim is, follows from its current coverage evidence; read `result.inspect().calibration` and `result.inspect().uncertainty` on the result. The statistical adapters below return a factory-only `inference.MeasuredInference` only when their actual scalar bases resolve to current attesting records. Missing or stale evidence refuses, and the underlying model artifacts keep their `unmeasured` standing outside the named scalar intervals.
+Whether a route is available, and what its claim is, follows from its current coverage evidence; read `result.inspect().calibration` and `result.inspect().uncertainty` on the result. The statistical adapters below return a factory-only `inference.MeasuredInference` only when their actual scalar bases resolve to current attesting records. Missing or stale evidence refuses, and the underlying model artifacts keep their `not_measured` standing outside the named scalar intervals.
 
 ## Claim labels
 
 - **Structural envelope.** An unweighted range over a finite, enumerated set of scenarios. It is not a probability statement and carries no sampling uncertainty.
-- **Point only.** A value (or a matrix of values) with no interval and no coverage claim. Where a test is reported, its Type I error and power are unmeasured.
+- **Point only.** A value (or a matrix of values) with no interval and no coverage claim. Where a test is reported, its Type I error and power are not_measured.
 - **Measured scalar inference.** The native producer and fresh consumer derive each reported scalar's full method-specific basis and require a current, passing record. Only the named scalar intervals receive that standing. Sampling and model assumptions remain declarations, and covariance, posterior draws and simultaneous intervals receive no blanket support.
 - **Closed or unsupported.** A missing implementation, unsupported protocol or nonattesting record produces a typed refusal.
 
@@ -68,7 +68,7 @@ The measured direct-panel adapter uses a whole-unit equal-tailed studentized boo
 - **Contrasts.** Two-sided normal p-values over a declared family (all pairs, or every partition against a named reference) with Holm adjustment at a fixed, caller-supplied level. Partitions are put in label order before any arithmetic, so input order does not change the result.
 - **Scope.** At most 1024 partitions that share one effect, unit, regime and population; a partition with unsupported coordinate support refuses.
 - **Checked example.** Equal effects give difference 0 and statistic 0; effects 1 and 2 with variance 1/4 each give statistic 2.
-- **Claim.** Point only. Non-rejection does not prove constancy, the test's Type I error and power are unmeasured for an arbitrary estimator or estimated covariance, and no power claim is made. A known-Gaussian reference experiment checks the test composition under known covariance; it does not certify an arbitrary supplied estimator.
+- **Claim.** Point only. Non-rejection does not prove constancy, the test's Type I error and power are not_measured for an arbitrary estimator or estimated covariance, and no power claim is made. A known-Gaussian reference experiment checks the test composition under known covariance; it does not certify an arbitrary supplied estimator.
 - **Artifact.** `effect_constancy_v1` keeps partition identities, covariance, the multiplicity family, the null and the calibration coordinate. A consumer recomputes the result and requires every stored value to match; a changed identity is refused only against an `expected` identity the consumer retained itself.
 - **Entry points.** `antecedent.temporal.effect_constancy` and `consume_effect_constancy_artifact`; the conclusion is `ConstancyConclusion.NOT_REJECTED` or `REJECTED`.
 - **Refusals.** `effect_constancy.*` with `invalid_argument` (`invalid_alpha`, `too_few_partitions`, `too_many_partitions`, `non_finite_estimate`, `invalid_standard_error`, `invalid_covariance`, `unknown_reference`, `estimand_missing`, `invalid_request`, `limits_exceeded`, `invalid_identity`) or `route_not_supported` (`incompatible_partitions`, `unsupported_partition`, `wrong_contract`).

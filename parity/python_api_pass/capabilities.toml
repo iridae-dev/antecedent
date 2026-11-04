@@ -346,7 +346,7 @@ assertion_contract = "Relabelled variable names are refused with variable names 
 test = "python/tests/test_transport_multi_source.py::test_counted_laws_report_the_interval_with_its_calibration_annotation"
 assertion_scopes = ["_edit_inner", "_replace_once", "identified_stage", "test_counted_laws_report_the_interval_with_its_calibration_annotation"]
 dimensions = ["refusal"]
-assertion_contract = "The unmeasured interval route refuses not_supported."
+assertion_contract = "The not_measured interval route refuses not_supported."
 
 [[capability]]
 id = "analysis.api.consume_observation_recovery_artifact"
@@ -1023,7 +1023,7 @@ assertion_contract = "Same names and units but another population, an unavailabl
 test = "python/tests/test_interface_contract.py::test_measured_calibration_is_carried_never_raised"
 assertion_scopes = ["test_measured_calibration_is_carried_never_raised"]
 dimensions = ["success", "branch"]
-assertion_contract = "No or unmeasured calibration against a measured requirement connects and carries the label."
+assertion_contract = "No or not_measured calibration against a measured requirement connects and carries the label."
 [[capability.evidence]]
 test = "python/tests/test_interface_contract.py::test_a_malformed_declaration_is_refused_alone"
 assertion_scopes = ["test_a_malformed_declaration_is_refused_alone"]
@@ -1859,7 +1859,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_decision_reliability_derived.py::test_three_components_match_the_enumerated_law"
 assertion_scopes = ["test_three_components_match_the_enumerated_law"]
 dimensions = ["success"]
-assertion_contract = "On the hand-enumerated 4-state law A=(3,3,2,2), B=(2,1,3,2), C=(1,2,1,2): utility 2.5 with standard error 0.5/sqrt(39) and the normal interval, the A-B difference 0.5 with variance 5/4 over 39, P(A best)=7/12 with the closed-form Wilson interval at effective sample 40, 8 intervals reported, standing derived_unmeasured."
+assertion_contract = "On the hand-enumerated 4-state law A=(3,3,2,2), B=(2,1,3,2), C=(1,2,1,2): utility 2.5 with standard error 0.5/sqrt(39) and the normal interval, the A-B difference 0.5 with variance 5/4 over 39, P(A best)=7/12 with the closed-form Wilson interval at effective sample 40, 8 intervals reported, standing derived_not_measured."
 [[capability.evidence]]
 test = "python/tests/test_decision_reliability_derived.py::test_selection_component_is_a_confidence_set_and_a_corrected_interval"
 assertion_scopes = ["test_selection_component_is_a_confidence_set_and_a_corrected_interval"]
@@ -2338,7 +2338,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_evidence_plan.py::test_a_back_door_study_is_verified_and_its_unlocks_are_derived"
 assertion_scopes = ["test_a_back_door_study_is_verified_and_its_unlocks_are_derived", "template_measuring"]
 dimensions = ["success", "inspection"]
-assertion_contract = "A back-door cohort measuring t,y,z is verified_sufficient with unlocks derived from it (variable z) while the blind registry is insufficient; the plan is closing, inference_claim none, point_only/unmeasured, with hypothetical-identification wording."
+assertion_contract = "A back-door cohort measuring t,y,z is verified_sufficient with unlocks derived from it (variable z) while the blind registry is insufficient; the plan is closing, inference_claim none, point_only/not_measured, with hypothetical-identification wording."
 [[capability.evidence]]
 test = "python/tests/test_evidence_plan.py::test_several_routes_are_compared_in_one_plan"
 assertion_scopes = ["test_several_routes_are_compared_in_one_plan"]
@@ -2530,7 +2530,7 @@ python = "antecedent.provider_callbacks.inspect_callback_result"
 test = "python/tests/test_provider_callbacks.py::test_exported_result_round_trips_and_mutations_are_refused"
 assertion_scopes = ["test_exported_result_round_trips_and_mutations_are_refused", "refusal_of"]
 dimensions = ["success", "inspection", "artifact", "refusal"]
-assertion_contract = "Inspection reads the computed stage, supported_external standing and unmeasured calibration from the stored result without replay; another identity and mutated bytes are refused."
+assertion_contract = "Inspection reads the computed stage, supported_external standing and not_measured calibration from the stored result without replay; another identity and mutated bytes are refused."
 [[capability.evidence]]
 test = "python/tests/test_provider_callbacks.py::test_untrusted_artifact_never_executes_code"
 assertion_scopes = ["test_untrusted_artifact_never_executes_code", "refusal_of"]
@@ -2836,7 +2836,7 @@ legacy_internal = ["antecedent::analysis::joint_panel::joint_panel_target"]
 test = "python/tests/test_joint_panel.py::test_generic_python_panel_matches_shared_rust_mechanism_and_retains_failed_slots"
 assertion_scopes = ["test_generic_python_panel_matches_shared_rust_mechanism_and_retains_failed_slots"]
 dimensions = ["success", "inspection", "artifact"]
-assertion_contract = "The two declared programs compile to a target whose per-world, per-time group-averaged means equal an independently written saturating-adstock expression evaluated at the reported parameters to 1e-12; failed optimizer slots stay None, calibration is unmeasured, fits_performed is 0 before and 1 after estimate and the exported artifact replays the same point without current authority."
+assertion_contract = "The two declared programs compile to a target whose per-world, per-time group-averaged means equal an independently written saturating-adstock expression evaluated at the reported parameters to 1e-12; failed optimizer slots stay None, calibration is not_measured, fits_performed is 0 before and 1 after estimate and the exported artifact replays the same point without current authority."
 [[capability.evidence]]
 test = "python/tests/test_joint_panel.py::test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds"
 assertion_scopes = ["test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds"]
@@ -2864,7 +2864,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_record"
 assertion_scopes = ["test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_record"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_not_measured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
 
 [[capability.evidence]]
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
@@ -2887,7 +2887,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_record"
 assertion_scopes = ["test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_record"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_not_measured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
 
 [[capability.evidence]]
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
@@ -2911,7 +2911,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_record"
 assertion_scopes = ["test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_record"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused not_supported joint_law_propagation.coverage_record_not_measured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
 
 [[capability.evidence]]
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
@@ -3494,7 +3494,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_multi_level_treatment.py::test_the_interval_is_reported_with_its_calibration_status"
 assertion_scopes = ["test_the_interval_is_reported_with_its_calibration_status"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "The pairwise-subpopulation target has no coverage measurement: interval None, interval_status scope_not_assessed with a reason and calibration unmeasured (also in to_dict); the full-population interval is either withheld the same way or, once a record attests, the published normal interval effect -/+ 1.959963984540054 * se_analytic labelled calibrated with its coverage record."
+assertion_contract = "The pairwise-subpopulation target has no coverage measurement: interval None, interval_status scope_not_assessed with a reason and calibration not_measured (also in to_dict); the full-population interval is either withheld the same way or, once a record attests, the published normal interval effect -/+ 1.959963984540054 * se_analytic labelled calibrated with its coverage record."
 
 [[capability]]
 id = "analysis.multi_level_treatment.multi_level_normal_interval"
@@ -3511,7 +3511,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_multi_level_treatment.py::test_the_interval_is_reported_with_its_calibration_status"
 assertion_scopes = ["test_the_interval_is_reported_with_its_calibration_status"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "The pairwise-subpopulation target has no coverage measurement: interval None, interval_status scope_not_assessed with a reason and calibration unmeasured (also in to_dict); the full-population interval is either withheld the same way or, once a record attests, the published normal interval effect -/+ 1.959963984540054 * se_analytic labelled calibrated with its coverage record."
+assertion_contract = "The pairwise-subpopulation target has no coverage measurement: interval None, interval_status scope_not_assessed with a reason and calibration not_measured (also in to_dict); the full-population interval is either withheld the same way or, once a record attests, the published normal interval effect -/+ 1.959963984540054 * se_analytic labelled calibrated with its coverage record."
 
 [[capability]]
 id = "analysis.native_claims.native_response_coordinates"
@@ -3528,7 +3528,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_program_claims.py::test_native_claim_exposes_coordinates_support_and_native_trust"
 assertion_scopes = ["test_native_claim_exposes_coordinates_support_and_native_trust"]
 dimensions = ["success", "inspection"]
-assertion_contract = "A native mean-curve claim exposes the program-derived coordinates and means 3.0 and 5.0 (1+2a) with native-supported trust and unmeasured calibration."
+assertion_contract = "A native mean-curve claim exposes the program-derived coordinates and means 3.0 and 5.0 (1+2a) with native-supported trust and not_measured calibration."
 [[capability.evidence]]
 test = "python/tests/test_program_claims.py::test_native_claim_refuses_a_response_for_another_request"
 assertion_scopes = ["test_native_claim_refuses_a_response_for_another_request", "_refusal"]
@@ -4634,8 +4634,8 @@ deferred_to = "the sample-split parent-set coverage record being measured and at
 deferred_dimensions = ["success"]
 
 [[capability.evidence]]
-test = "python/tests/test_sample_split_parent_set_effect.py::test_an_unmeasured_variable_count_is_computed_and_reported_uncalibrated"
-assertion_scopes = ["test_an_unmeasured_variable_count_is_computed_and_reported_uncalibrated"]
+test = "python/tests/test_sample_split_parent_set_effect.py::test_an_not_measured_variable_count_is_computed_and_reported_uncalibrated"
+assertion_scopes = ["test_an_not_measured_variable_count_is_computed_and_reported_uncalibrated"]
 dimensions = ["refusal", "branch"]
 assertion_contract = "Twelve variables lie between measured counts: the estimate is computed under its own functional key (total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path) and measure() reports its interval annotated not calibrated rather than borrowing another count's record."
 
@@ -5132,12 +5132,12 @@ required_dimensions = ["success", "inspection", "lifecycle", "refusal"]
 test = "python/tests/test_target_validation_lifecycle.py::test_prepared_and_completed_target_refits_preserve_exact_producer_and_original_execution_count"
 assertion_scopes = ["test_prepared_and_completed_target_refits_preserve_exact_producer_and_original_execution_count"]
 dimensions = ["success", "inspection", "lifecycle"]
-assertion_contract = "A prepared derivative study executes its target once, a retained outcome reuses the original result with zero executions, both give the same target identity, certificate and reports, the response_derivative family and a placebo of about 2 versus a refuted near zero, with unmeasured calibration and a compact repr."
+assertion_contract = "A prepared derivative study executes its target once, a retained outcome reuses the original result with zero executions, both give the same target identity, certificate and reports, the response_derivative family and a placebo of about 2 versus a refuted near zero, with not_measured calibration and a compact repr."
 [[capability.evidence]]
 test = "python/tests/test_target_validation.py::test_a_prepared_study_refutes_its_own_target"
 assertion_scopes = ["test_a_prepared_study_refutes_its_own_target"]
 dimensions = ["success"]
-assertion_contract = "A prepared scalar study refutes its own target: scalar_average_effect family, the placebo-treatment refuter present and passing, every report bound to the target identity and calibration unmeasured."
+assertion_contract = "A prepared scalar study refutes its own target: scalar_average_effect family, the placebo-treatment refuter present and passing, every report bound to the target identity and calibration not_measured."
 [[capability.evidence]]
 test = "python/tests/test_target_validation_lifecycle.py::test_declaration_is_immutable_and_no_live_producer_is_a_scientific_refusal"
 assertion_scopes = ["test_declaration_is_immutable_and_no_live_producer_is_a_scientific_refusal"]
@@ -7874,7 +7874,7 @@ assertion_contract = "The prepared multi-source stage estimates points and contr
 test = "python/tests/test_transport_multi_source.py::test_counted_laws_report_the_interval_with_its_calibration_annotation"
 assertion_scopes = ["_edit_inner", "_replace_once", "identified_stage", "test_counted_laws_report_the_interval_with_its_calibration_annotation"]
 dimensions = ["refusal"]
-assertion_contract = "The unmeasured interval route of the prepared stage refuses not_supported."
+assertion_contract = "The not_measured interval route of the prepared stage refuses not_supported."
 
 [[capability]]
 id = "PreparedObservationRecovery"
@@ -8625,8 +8625,8 @@ assertion_scopes = ["test_temporal_accepts_one_hundred_thousand_history_rows_as_
 dimensions = ["success", "refusal"]
 assertion_contract = "102,400 history rows give the 640-unit means and a 1 MB memory limit refuses recalc.memory_budget_exceeded."
 [[capability.evidence]]
-test = "python/tests/test_recalc_temporal.py::test_temporal_unmeasured_history_protocol_preserves_source_state"
-assertion_scopes = ["test_temporal_unmeasured_history_protocol_preserves_source_state"]
+test = "python/tests/test_recalc_temporal.py::test_temporal_not_measured_history_protocol_preserves_source_state"
+assertion_scopes = ["test_temporal_not_measured_history_protocol_preserves_source_state"]
 dimensions = ["refusal", "lifecycle"]
 assertion_contract = "The default dependent interval on an unbalanced history refuses route_not_supported (recalc.temporal_history_unsupported), a percentile request outside the measured protocol is reported annotated not_measured, and identities and reuse stay unchanged."
 [[capability.evidence]]
@@ -8925,7 +8925,7 @@ required_dimensions = ["success", "artifact"]
 test = "python/tests/test_adaptive_repeated_measures.py::test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact_premises"
 assertion_scopes = ["test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact_premises"]
 dimensions = ["success", "artifact", "lifecycle"]
-assertion_contract = "A posterior exported by the declared procedure is a self-contained bundle whose bytes equal the outcome export, consumes verified and replayable with the same contrast and arms and unmeasured calibration, and replays in a fresh process."
+assertion_contract = "A posterior exported by the declared procedure is a self-contained bundle whose bytes equal the outcome export, consumes verified and replayable with the same contrast and arms and not_measured calibration, and replays in a fresh process."
 [[capability.evidence]]
 test = "python/tests/test_adaptive_repeated_measures.py::test_the_posterior_artifact_round_trips_and_refuses_a_forgery"
 assertion_scopes = ["test_the_posterior_artifact_round_trips_and_refuses_a_forgery"]
@@ -9641,7 +9641,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_joint_panel.py::test_compiler_derived_program_certificate_replays_current_fit_and_domain"
 assertion_scopes = ["test_compiler_derived_program_certificate_replays_current_fit_and_domain"]
 dimensions = ["success", "lifecycle", "artifact", "refusal"]
-assertion_contract = "A certified program-search bound (gap <= 1e-3, model-conditional, reliability unmeasured) exports; verify_current accepts the same fit and domain, the independent historical consumer reproduces the domain identity and gap without current authority, and a changed utility scale is refused as changed dependencies."
+assertion_contract = "A certified program-search bound (gap <= 1e-3, model-conditional, reliability not_measured) exports; verify_current accepts the same fit and domain, the independent historical consumer reproduces the domain identity and gap without current authority, and a changed utility scale is refused as changed dependencies."
 [[capability.evidence]]
 test = "python/tests/test_joint_panel.py::test_historical_panel_consumers_refuse_malformed_artifacts"
 assertion_scopes = ["test_historical_panel_consumers_refuse_malformed_artifacts"]
@@ -10461,7 +10461,7 @@ assertion_contract = "A declaration with only arms refuses with adaptive_contrac
 test = "python/tests/test_adaptive_procedure.py::test_the_fixed_design_contrast_law_matches_the_hand_enumeration"
 assertion_scopes = ["test_the_fixed_design_contrast_law_matches_the_hand_enumeration"]
 dimensions = ["success"]
-assertion_contract = "A two-unit fixed allocation reports the hand-enumerated contrast law (+1 with 0.24, 0 with 0.22, -1 with 0.04, undefined 0.5), mean 0.4 and the derived_unmeasured label under the procedure identity."
+assertion_contract = "A two-unit fixed allocation reports the hand-enumerated contrast law (+1 with 0.24, 0 with 0.22, -1 with 0.04, undefined 0.5), mean 0.4 and the derived_not_measured label under the procedure identity."
 [[capability.evidence]]
 test = "python/tests/test_adaptive_procedure.py::test_the_identity_changes_with_an_element_of_unchanged_shape"
 assertion_scopes = ["test_the_identity_changes_with_an_element_of_unchanged_shape"]
@@ -10773,7 +10773,7 @@ required_dimensions = ["success", "inspection"]
 test = "python/tests/test_unsupported_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
 assertion_scopes = ["test_period_history_match_matches_the_brute_force_reference"]
 dimensions = ["success", "controls", "inspection"]
-assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unsupported with the abadie_imbens_and_newey_west_period_interval_calibration_unmeasured uncertainty label."
+assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unsupported with the abadie_imbens_and_newey_west_period_interval_calibration_not_measured uncertainty label."
 
 [[capability]]
 id = "analysis.batch.retarget"
@@ -10818,7 +10818,7 @@ required_dimensions = ["success", "refusal", "controls"]
 test = "python/tests/test_observational_policy.py::test_a_prespecified_policy_recovers_its_value"
 assertion_scopes = ["test_a_prespecified_policy_recovers_its_value"]
 dimensions = ["success", "inspection"]
-assertion_contract = "A prespecified treat-when-z-positive policy recovers the closed-form value 1 + 1.5 phi(0) within 4 standard errors, the reference level 0 is reported, per-action values are listed for the declared support and calibration is unmeasured."
+assertion_contract = "A prespecified treat-when-z-positive policy recovers the closed-form value 1 + 1.5 phi(0) within 4 standard errors, the reference level 0 is reported, per-action values are listed for the declared support and calibration is not_measured."
 [[capability.evidence]]
 test = "python/tests/test_observational_policy.py::test_known_propensity_replaces_the_fitted_model"
 assertion_scopes = ["test_known_propensity_replaces_the_fitted_model"]
@@ -11075,7 +11075,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_quasi_rollout.py::test_callaway_santanna_recovers_the_simple_aggregate_the_two_way_coefficient_misses"
 assertion_scopes = ["test_callaway_santanna_recovers_the_simple_aggregate_the_two_way_coefficient_misses"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The simple aggregate is 3.5 within 0.4 while the two-way fixed-effects diagnostic is more than 1.0 away, and the result is unsupported, unmeasured and point-only."
+assertion_contract = "The simple aggregate is 3.5 within 0.4 while the two-way fixed-effects diagnostic is more than 1.0 away, and the result is unsupported, not_measured and point-only."
 [[capability.evidence]]
 test = "python/tests/test_quasi_rollout.py::test_cluster_multiplier_refit_reports_intervals_and_simultaneous_bands"
 assertion_scopes = ["test_cluster_multiplier_refit_reports_intervals_and_simultaneous_bands"]
@@ -11107,10 +11107,10 @@ assertion_scopes = ["test_a_fresh_consumer_rederives_the_dynamic_summary_from_th
 dimensions = ["artifact"]
 assertion_contract = "The loaded overall estimate equals the mean of the loaded non-negative event-time effects to 1e-12."
 [[capability.evidence]]
-test = "python/tests/test_quasi_rollout.py::test_rollout_answer_is_structured_unsupported_and_unmeasured"
-assertion_scopes = ["test_rollout_answer_is_structured_unsupported_and_unmeasured"]
+test = "python/tests/test_quasi_rollout.py::test_rollout_answer_is_structured_unsupported_and_not_measured"
+assertion_scopes = ["test_rollout_answer_is_structured_unsupported_and_not_measured"]
 dimensions = ["inspection"]
-assertion_contract = "The answer is a structured unsupported_quasi_rollout record with calibration unmeasured, supported false, design staggered_did and the overall effect first."
+assertion_contract = "The answer is a structured unsupported_quasi_rollout record with calibration not_measured, supported false, design staggered_did and the overall effect first."
 
 [[capability]]
 id = "result.synthetic_did_estimate"
@@ -11214,7 +11214,7 @@ assertion_contract = "Draw counts 2000, 3000 and 8000 keep the point 31/42, 1999
 test = "python/tests/test_observation_query.py::test_count_fitted_interval_is_reported_with_its_calibration_status"
 assertion_scopes = ["test_count_fitted_interval_is_reported_with_its_calibration_status"]
 dimensions = ["refusal"]
-assertion_contract = "The interval is a scalar bracketing the point with a calibration status, and an unmeasured level is annotated, not refused."
+assertion_contract = "The interval is a scalar bracketing the point with a calibration status, and a not_measured level is annotated, not refused."
 
 [[capability]]
 id = "analysis.nonlinear_mediation.mediation_effects"
@@ -11346,14 +11346,14 @@ rust = ["export:antecedent::analysis::observational_survival::CensoringAssumptio
 rust_types = ["antecedent::analysis::observational_survival::ObservationalSurvivalEffect", "antecedent::analysis::observational_survival::ObservationalSurvivalRequest", "antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire", "antecedent::analysis::observational_survival::ObservationalSurvivalReportWire", "antecedent::analysis::observational_survival::ArmSurvivalWire", "antecedent::analysis::observational_survival::ContrastWire"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::observational_survival"
-behavior = "Cross-fitted observational survival-probability and restricted-mean-survival differences with a declared horizon and censoring assumption, returned as a typed report with per-arm values, contrasts, scores and unmeasured calibration."
+behavior = "Cross-fitted observational survival-probability and restricted-mean-survival differences with a declared horizon and censoring assumption, returned as a typed report with per-arm values, contrasts, scores and not_measured calibration."
 python = "antecedent.observational_survival.survival_effect"
 required_dimensions = ["success", "refusal", "controls"]
 [[capability.evidence]]
 test = "python/tests/test_observational_survival.py::test_survival_and_rmst_differences_recover_the_closed_form_truth"
 assertion_scopes = ["test_survival_and_rmst_differences_recover_the_closed_form_truth"]
 dimensions = ["success", "inspection", "controls"]
-assertion_contract = "Survival and RMST differences, and each arm's survival and RMST, lie within four standard errors of the closed-form truth; the declared horizon and censoring assumption are echoed, the coarsening-at-random premise is listed, calibration is unmeasured, 5000 rows give 5000 row indexes and to_dict reproduces the contrast estimate."
+assertion_contract = "Survival and RMST differences, and each arm's survival and RMST, lie within four standard errors of the closed-form truth; the declared horizon and censoring assumption are echoed, the coarsening-at-random premise is listed, calibration is not_measured, 5000 rows give 5000 row indexes and to_dict reproduces the contrast estimate."
 [[capability.evidence]]
 test = "python/tests/test_observational_survival.py::test_the_horizon_and_the_censoring_assumption_have_no_default"
 assertion_scopes = ["test_the_horizon_and_the_censoring_assumption_have_no_default"]
@@ -11438,7 +11438,7 @@ required_dimensions = ["success", "controls", "refusal"]
 test = "python/tests/test_nuisance_scores.py::test_the_product_matches_newton_and_a_laplace_sample"
 assertion_scopes = ["test_the_product_matches_newton_and_a_laplace_sample"]
 dimensions = ["success", "controls"]
-assertion_contract = "For two prior scales the declared summary rows' at-mode scores equal an independent Newton logistic mode to 1e-5, the posterior mean, sd and outside-band mass match a large Laplace sample, the estimator id is bayesian.propensity.coefficient_posterior and the product is unsupported with unmeasured calibration."
+assertion_contract = "For two prior scales the declared summary rows' at-mode scores equal an independent Newton logistic mode to 1e-5, the posterior mean, sd and outside-band mass match a large Laplace sample, the estimator id is bayesian.propensity.coefficient_posterior and the product is unsupported with not_measured calibration."
 [[capability.evidence]]
 test = "python/tests/test_nuisance_scores.py::test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_laplace_mean"
 assertion_scopes = ["test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_laplace_mean"]
@@ -11483,7 +11483,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_association_compiled.py::test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal"
 assertion_scopes = ["test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The compiled study reports the least-squares slope to 1e-8 with an HC1 sandwich standard error, is unsupported with unmeasured calibration, never ranks actions or claims an intervention effect, lists the descriptive-only premise, and its answer is associational with no value and detail noncausal_association."
+assertion_contract = "The compiled study reports the least-squares slope to 1e-8 with an HC1 sandwich standard error, is unsupported with not_measured calibration, never ranks actions or claims an intervention effect, lists the descriptive-only premise, and its answer is associational with no value and detail noncausal_association."
 [[capability.evidence]]
 test = "python/tests/test_association_compiled.py::test_correlations_and_a_scored_predictive_model"
 assertion_scopes = ["test_correlations_and_a_scored_predictive_model"]
@@ -12255,7 +12255,7 @@ required_dimensions = ["success", "inspection", "refusal", "lifecycle"]
 test = "python/tests/test_effect_constancy_review.py::test_original_covariance_contrast_retains_adjustment_and_separate_theorem_requirement"
 assertion_scopes = ["test_original_covariance_contrast_retains_adjustment_and_separate_theorem_requirement"]
 dimensions = ["success", "inspection", "refusal"]
-assertion_contract = "The p0 versus p1 contrast has difference -1 and se 0.5 under the declared covariance, equals the oracle Holm p, retains the source identity, calibration unmeasured and the separate transport-identification requirement; the reversed pair refuses contrast_missing."
+assertion_contract = "The p0 versus p1 contrast has difference -1 and se 0.5 under the declared covariance, equals the oracle Holm p, retains the source identity, calibration not_measured and the separate transport-identification requirement; the reversed pair refuses contrast_missing."
 [[capability.evidence]]
 test = "python/tests/test_effect_constancy_review.py::test_original_catalog_filtering_does_not_turn_preference_into_transfer_authority"
 assertion_scopes = ["test_original_catalog_filtering_does_not_turn_preference_into_transfer_authority"]
@@ -12270,7 +12270,7 @@ assertion_contract = "Disagreeing partitions have no common leader, ties leave b
 test = "python/tests/test_effect_constancy_review.py::test_fresh_process_recomputes_original_artifact_before_policy_consumption"
 assertion_scopes = ["test_fresh_process_recomputes_original_artifact_before_policy_consumption"]
 dimensions = ["lifecycle", "artifact"]
-assertion_contract = "A fresh interpreter consumes the exported constancy artifact against its identity and reproduces difference -3, se 2^-0.5, unmeasured calibration and the separate-identification flag."
+assertion_contract = "A fresh interpreter consumes the exported constancy artifact against its identity and reproduces difference -3, se 2^-0.5, not_measured calibration and the separate-identification flag."
 
 [[capability]]
 id = "period_refresh.session"
@@ -12564,10 +12564,10 @@ behavior = "A dose-grid functional recovers level, derivative and contrast value
 python = "antecedent.dose_grid.dose_functional"
 required_dimensions = ["success", "inspection", "refusal", "artifact", "controls"]
 [[capability.evidence]]
-test = "python/tests/test_dose_grid.py::test_level_recovers_closed_form_with_unmeasured_calibration"
-assertion_scopes = ["test_level_recovers_closed_form_with_unmeasured_calibration"]
+test = "python/tests/test_dose_grid.py::test_level_recovers_closed_form_with_not_measured_calibration"
+assertion_scopes = ["test_level_recovers_closed_form_with_not_measured_calibration"]
 dimensions = ["success", "inspection"]
-assertion_contract = "Level values 1.3125, 1.75, 3.0 and 5.8125 match the closed form at the four grid doses, are supported with unmeasured calibration, and the influence sum is below 1e-9."
+assertion_contract = "Level values 1.3125, 1.75, 3.0 and 5.8125 match the closed form at the four grid doses, are supported with not_measured calibration, and the influence sum is below 1e-9."
 [[capability.evidence]]
 test = "python/tests/test_dose_grid.py::test_derivative_recovers_closed_form"
 assertion_scopes = ["test_derivative_recovers_closed_form"]
@@ -12630,14 +12630,14 @@ rust = ["export:antecedent::TemporalDesignFunctional", "export:antecedent::query
 rust_types = ["antecedent::TemporalDesignEstimate"]
 status = "covered"
 owner = "Python API integration: antecedent::result"
-behavior = "A temporal design estimate (two-arm excursion or local quadratic dose grid) recovers the generating effect with an analytic or Bayesian interval, carries the unmeasured-calibration standing, and refuses a missing curvature bound or a bootstrap request where the interval is analytic."
+behavior = "A temporal design estimate (two-arm excursion or local quadratic dose grid) recovers the generating effect with an analytic or Bayesian interval, carries the not_measured-calibration standing, and refuses a missing curvature bound or a bootstrap request where the interval is analytic."
 python = "antecedent.temporal_designs.estimate_temporal_design"
 required_dimensions = ["success", "inspection", "refusal", "branch"]
 [[capability.evidence]]
 test = "python/tests/test_temporal_designs.py::test_the_two_arm_excursion_recovers_the_effect_in_both_modes"
 assertion_scopes = ["test_the_two_arm_excursion_recovers_the_effect_in_both_modes"]
 dimensions = ["success", "inspection", "branch"]
-assertion_contract = "The excursion estimate recovers 1.2 within four standard errors with lower<estimate<upper, is unsupported with unmeasured calibration, and the Bayesian mode with 300 draws agrees with the frequentist estimate."
+assertion_contract = "The excursion estimate recovers 1.2 within four standard errors with lower<estimate<upper, is unsupported with not_measured calibration, and the Bayesian mode with 300 draws agrees with the frequentist estimate."
 [[capability.evidence]]
 test = "python/tests/test_temporal_designs.py::test_the_local_quadratic_dose_grid_needs_its_curvature_bound"
 assertion_scopes = ["test_the_local_quadratic_dose_grid_needs_its_curvature_bound"]
@@ -12662,7 +12662,7 @@ required_dimensions = ["success", "inspection", "refusal", "branch"]
 test = "python/tests/test_unsupported_design_routes.py::test_sequential_contrast_normal_interval_matches_the_pinned_reference"
 assertion_scopes = ["test_sequential_contrast_normal_interval_matches_the_pinned_reference"]
 dimensions = ["success", "inspection"]
-assertion_contract = "Active mean 3.5770, control mean 1.3462 and contrast 2.2309 equal the pinned reference to 1e-4, the standard error and normal interval equal those computed from the contrast scores, and the estimate is unsupported with unmeasured calibration."
+assertion_contract = "Active mean 3.5770, control mean 1.3462 and contrast 2.2309 equal the pinned reference to 1e-4, the standard error and normal interval equal those computed from the contrast scores, and the estimate is unsupported with not_measured calibration."
 [[capability.evidence]]
 test = "python/tests/test_unsupported_design_routes.py::test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior"
 assertion_scopes = ["test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior"]
@@ -12732,7 +12732,7 @@ required_dimensions = ["success", "refusal", "controls"]
 test = "python/tests/test_multi_level_treatment.py::test_both_targets_recover_their_own_truth_and_differ"
 assertion_scopes = ["test_both_targets_recover_their_own_truth_and_differ"]
 dimensions = ["success", "inspection"]
-assertion_contract = "On a three-level multinomial-logit confounded simulation the full-population effect recovers 3 within 4 standard errors, the pairwise-subpopulation effect recovers the independently integrated truth, the two differ by more than 0.1, the excluded rows equal the undeclared-level rows, each level mean recovers its intercept and calibration is unmeasured."
+assertion_contract = "On a three-level multinomial-logit confounded simulation the full-population effect recovers 3 within 4 standard errors, the pairwise-subpopulation effect recovers the independently integrated truth, the two differ by more than 0.1, the excluded rows equal the undeclared-level rows, each level mean recovers its intercept and calibration is not_measured."
 [[capability.evidence]]
 test = "python/tests/test_multi_level_treatment.py::test_a_row_at_an_undeclared_level_is_refused_not_dropped"
 assertion_scopes = ["test_a_row_at_an_undeclared_level_is_refused_not_dropped"]
@@ -12762,7 +12762,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_proposal_arrival.py::test_arrival_public_actual_count_truth_and_original_artifact_replay"
 assertion_scopes = ["test_arrival_public_actual_count_truth_and_original_artifact_replay"]
 dimensions = ["success", "inspection", "artifact"]
-assertion_contract = "For transport and z-transport proposals the arrived mean equals the enumerated truth, probabilities are [0.2, 0.8], sample size and the empirical_point_only inference are reported with unmeasured calibration, the work counts compilations and provider calls, an independent consume of the exported artifact reproduces the result, and the control assignment and the contrast match the enumerated values."
+assertion_contract = "For transport and z-transport proposals the arrived mean equals the enumerated truth, probabilities are [0.2, 0.8], sample size and the empirical_point_only inference are reported with not_measured calibration, the work counts compilations and provider calls, an independent consume of the exported artifact reproduces the result, and the control assignment and the contrast match the enumerated values."
 [[capability.evidence]]
 test = "python/tests/test_proposal_arrival.py::test_arrival_fresh_process_replays_original_artifacts_and_complete_raw_providers"
 assertion_scopes = ["test_arrival_fresh_process_replays_original_artifacts_and_complete_raw_providers"]
@@ -13108,7 +13108,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_dose_grid_posterior.py::test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"
 assertion_scopes = ["test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The posterior row is estimator bayesian.dose_grid, posterior, unmeasured and unsupported, its exact mean and covariance equal the conjugate reference to 1e-9, the Monte Carlo mean is within 0.01 and the joint covariance within 5 percent of the exact one and positively correlated across doses."
+assertion_contract = "The posterior row is estimator bayesian.dose_grid, posterior, not_measured and unsupported, its exact mean and covariance equal the conjugate reference to 1e-9, the Monte Carlo mean is within 0.01 and the joint covariance within 5 percent of the exact one and positively correlated across doses."
 [[capability.evidence]]
 test = "python/tests/test_dose_grid_posterior.py::test_derivative_and_contrast_use_the_same_joint_draws"
 assertion_scopes = ["test_derivative_and_contrast_use_the_same_joint_draws"]
@@ -13234,7 +13234,7 @@ assertion_contract = "Partitions that change the estimand refuse."
 test = "python/tests/test_effect_constancy.py::test_artifact_round_trip_retains_identities_covariance_and_calibration"
 assertion_scopes = ["test_artifact_round_trip_retains_identities_covariance_and_calibration"]
 dimensions = ["artifact", "lifecycle"]
-assertion_contract = "The artifact round-trips with statistic, p-value, contrasts, partitions and identity equal, calibration unmeasured and covariance dependence retained, and its bytes are reproduced."
+assertion_contract = "The artifact round-trips with statistic, p-value, contrasts, partitions and identity equal, calibration not_measured and covariance dependence retained, and its bytes are reproduced."
 [[capability.evidence]]
 test = "python/tests/test_effect_constancy.py::test_resealed_mutations_are_refused_against_the_retained_identity"
 assertion_scopes = ["test_resealed_mutations_are_refused_against_the_retained_identity"]
@@ -14311,7 +14311,7 @@ assertion_contract = "A quadratic export returns the hand-computed point 3.0 and
 test = "python/tests/test_compact_export.py::test_compact_scope_states_point_and_model_based_se_only"
 assertion_scopes = ["test_compact_scope_states_point_and_model_based_se_only"]
 dimensions = ["inspection"]
-assertion_contract = "The export states a point prediction with a model-based standard error that is not an interval, calibration unmeasured, a 64-character identity, and the answer type has no interval field."
+assertion_contract = "The export states a point prediction with a model-based standard error that is not an interval, calibration not_measured, a 64-character identity, and the answer type has no interval field."
 
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_one_hot_terms_select_the_level_with_hand_values"
@@ -14416,8 +14416,8 @@ dimensions = ["inspection"]
 assertion_contract = "The allocation residual equals total variance minus the summed contributions, is small against its stderr and the total variance is within 10 percent of the closed form."
 
 [[capability.evidence]]
-test = "python/tests/test_intrinsic_influence.py::test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero"
-assertion_scopes = ["test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero"]
+test = "python/tests/test_intrinsic_influence.py::test_not_measured_mechanism_fit_is_marked_unquantified_not_zero"
+assertion_scopes = ["test_not_measured_mechanism_fit_is_marked_unquantified_not_zero"]
 dimensions = ["inspection", "branch"]
 assertion_contract = "Without a bootstrap the mechanism fit is unquantified with reason bootstrap_not_requested and no stderr rather than zero, and with permutation sampling and a fit bootstrap every component and the whole procedure are quantified with an interval containing the contribution."
 
@@ -14575,7 +14575,7 @@ assertion_contract = "Loading under a changed snapshot identity, a one-dimension
 test = "python/tests/test_joint_distribution_artifact.py::test_weights_and_coordinate_mask_survive_python_export"
 assertion_scopes = ["test_weights_and_coordinate_mask_survive_python_export"]
 dimensions = ["artifact"]
-assertion_contract = "Weights (1, 3) and the support mask survive export and load, and the loaded artifact is unverified with calibration unmeasured."
+assertion_contract = "Weights (1, 3) and the support mask survive export and load, and the loaded artifact is unverified with calibration not_measured."
 
 [[capability.evidence]]
 test = "python/tests/test_joint_distribution_artifact.py::test_independent_marginals_refuse_python_joint_operations"
@@ -14714,7 +14714,7 @@ assertion_contract = "A quadratic export gives the hand point and standard error
 test = "python/tests/test_compact_export.py::test_compact_scope_states_point_and_model_based_se_only"
 assertion_scopes = ["test_compact_scope_states_point_and_model_based_se_only"]
 dimensions = ["inspection"]
-assertion_contract = "The result states a model-based standard error basis, calibration unmeasured, the export identity and a scope that is a point prediction and not an interval."
+assertion_contract = "The result states a model-based standard error basis, calibration not_measured, the export identity and a scope that is a point prediction and not an interval."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_one_hot_terms_select_the_level_with_hand_values"
 assertion_scopes = ["test_compact_one_hot_terms_select_the_level_with_hand_values"]
@@ -14829,8 +14829,8 @@ assertion_scopes = ["test_efficiency_gap_is_reported_and_small"]
 dimensions = ["inspection"]
 assertion_contract = "The allocation residual equals total variance minus the summed contributions, is within six standard errors of zero and the total variance matches the closed form within 10 percent."
 [[capability.evidence]]
-test = "python/tests/test_intrinsic_influence.py::test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero"
-assertion_scopes = ["test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero"]
+test = "python/tests/test_intrinsic_influence.py::test_not_measured_mechanism_fit_is_marked_unquantified_not_zero"
+assertion_scopes = ["test_not_measured_mechanism_fit_is_marked_unquantified_not_zero"]
 dimensions = ["inspection", "controls"]
 assertion_contract = "An unrequested bootstrap leaves mechanism fit unquantified with reason bootstrap_not_requested and no standard error, while sampled permutations with a bootstrap quantify it and the whole-procedure interval covers the contribution."
 [[capability.evidence]]
@@ -15031,7 +15031,7 @@ assertion_contract = "At x = 2 the point is 3.0 and the standard error 0.08*sqrt
 test = "python/tests/test_compact_export.py::test_compact_scope_states_point_and_model_based_se_only"
 assertion_scopes = ["test_compact_scope_states_point_and_model_based_se_only"]
 dimensions = ["inspection"]
-assertion_contract = "Every estimate is labelled model_based_sqrt_phi_v_phi with calibration unmeasured, its scope says not an interval, and PointEstimate has no interval field."
+assertion_contract = "Every estimate is labelled model_based_sqrt_phi_v_phi with calibration not_measured, its scope says not an interval, and PointEstimate has no interval field."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
@@ -15127,7 +15127,7 @@ assertion_contract = "A law no response-type distribution can reproduce raises C
 test = "python/tests/test_iv_bounds_compiled.py::test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"
 assertion_scopes = ["test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The analyze section reproduces the frozen bounds within 1e-9, is unsupported with unmeasured calibration, carries no interval or posterior and counts 20000 rows."
+assertion_contract = "The analyze section reproduces the frozen bounds within 1e-9, is unsupported with not_measured calibration, carries no interval or posterior and counts 20000 rows."
 [[capability.evidence]]
 test = "python/tests/test_iv_bounds_compiled.py::test_the_answer_is_an_identified_set_never_a_point"
 assertion_scopes = ["test_the_answer_is_an_identified_set_never_a_point"]
@@ -15383,7 +15383,7 @@ assertion_contract = "At x=2 the quadratic export gives 3.0 with standard error 
 test = "python/tests/test_compact_export.py::test_compact_scope_states_point_and_model_based_se_only"
 assertion_scopes = ["test_compact_scope_states_point_and_model_based_se_only"]
 dimensions = ["inspection"]
-assertion_contract = "The result and the body scope state point prediction with a model-based standard error that is not an interval, calibration unmeasured, a 64 character identity and no interval field."
+assertion_contract = "The result and the body scope state point prediction with a model-based standard error that is not an interval, calibration not_measured, a 64 character identity and no interval field."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
@@ -15468,10 +15468,10 @@ assertion_scopes = ["test_undeclared_and_latent_confounded_noise_is_refused_with
 dimensions = ["refusal"]
 assertion_contract = "Undeclared noise independence and latent-confounded noise refuse with route_not_supported and their intrinsic_influence details."
 [[capability.evidence]]
-test = "python/tests/test_intrinsic_influence.py::test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero"
-assertion_scopes = ["test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero"]
+test = "python/tests/test_intrinsic_influence.py::test_not_measured_mechanism_fit_is_marked_unquantified_not_zero"
+assertion_scopes = ["test_not_measured_mechanism_fit_is_marked_unquantified_not_zero"]
 dimensions = ["inspection", "branch"]
-assertion_contract = "An unmeasured mechanism fit is marked unquantified, not zero."
+assertion_contract = "A not_measured mechanism fit is marked unquantified, not zero."
 [[capability.evidence]]
 test = "python/tests/test_intrinsic_influence.py::test_the_posterior_over_the_mechanisms_covers_the_closed_form_shares"
 assertion_scopes = ["test_the_posterior_over_the_mechanisms_covers_the_closed_form_shares"]
@@ -15582,7 +15582,7 @@ assertion_contract = "A violated instrumental inequality is named."
 test = "python/tests/test_iv_bounds_compiled.py::test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"
 assertion_scopes = ["test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The compiled study reproduces the frozen bounds to 1e-9, unsupported and unmeasured."
+assertion_contract = "The compiled study reproduces the frozen bounds to 1e-9, unsupported and not_measured."
 [[capability.evidence]]
 test = "python/tests/test_iv_bounds_compiled.py::test_the_answer_is_an_identified_set_never_a_point"
 assertion_scopes = ["test_the_answer_is_an_identified_set_never_a_point"]
@@ -16689,3 +16689,739 @@ test = "python/tests/test_panel_future_study.py::test_compiled_excursion_conditi
 assertion_scopes = ["test_compiled_excursion_conditions_panel_jointly_with_the_retained_covariance"]
 dimensions = ["success"]
 assertion_contract = "Conditioning a panel jointly on two retained excursion components yields two posterior quantities with posterior weights, finite derived moments and an exported artifact that replays historically."
+
+[[capability]]
+id = "python.query.temporal_conditional_pulse"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A conditional pulse effect on a temporal graph is stated as one TemporalConditionalPulse query object and answered on the same window as the unconditional pulse."
+python = "antecedent.TemporalConditionalPulse"
+supports = ["query:TemporalConditionalPulse"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_temporal_admg_window.py::test_a_conditional_pulse_is_idc_on_the_same_window"
+assertion_scopes = ["test_a_conditional_pulse_is_idc_on_the_same_window"]
+dimensions = ["success"]
+assertion_contract = "The conditional pulse effect equals the hand-counted conditional contrast on the same three-period window within 1e-12, differs from the unadjusted contrast by more than 1e-3, and discloses the window it used."
+[[capability.evidence]]
+test = "python/tests/test_query_populations.py::test_an_unsupported_population_refuses_by_code"
+assertion_scopes = ["test_an_unsupported_population_refuses_by_code"]
+dimensions = ["refusal"]
+assertion_contract = "A conditional pulse query scoped to a treated, untreated, named, row-set or custom-distribution population refuses with population_not_estimable, both as an outcome refusal and as the raised CausalUnsupportedError reason code."
+
+[[capability]]
+id = "python.query.temporal_conditional_sustained"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A conditional sustained effect on a temporal graph is stated as one TemporalConditionalSustained query object whose target population is declared on the query."
+python = "antecedent.TemporalConditionalSustained"
+supports = ["query:TemporalConditionalSustained"]
+required_dimensions = ["refusal"]
+[[capability.evidence]]
+test = "python/tests/test_query_populations.py::test_an_unsupported_population_refuses_by_code"
+assertion_scopes = ["test_an_unsupported_population_refuses_by_code"]
+dimensions = ["refusal"]
+assertion_contract = "A conditional sustained query scoped to a treated, untreated, named, row-set or custom-distribution population refuses with population_not_estimable, both as an outcome refusal and as the raised CausalUnsupportedError reason code."
+
+[[capability]]
+id = "python.sensitivity.joint_uncertainty"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "The conservative endpoint bootstrap interval around the joint mechanism deviation range of a counted surrogate-z transport law."
+python = "antecedent.transport.advanced.joint_mechanism_sensitivity_interval"
+supports = ["capability:sensitivity.joint_uncertainty"]
+required_dimensions = ["success", "refusal", "controls"]
+[[capability.evidence]]
+test = "python/tests/test_transport_joint_sensitivity.py::test_the_endpoint_bootstrap_interval_replays"
+assertion_scopes = ["test_the_endpoint_bootstrap_interval_replays"]
+dimensions = ["success", "controls", "refusal"]
+assertion_contract = "With 199 replicates the one-sided endpoint interval contains both the plug-in range of the counted law and the exact closed-form population range, is identical on repeat, and carries a calibration status that is annotated rather than refused for other replicate counts or levels; replicate counts 1 and 2001 refuse route_not_supported with the bounds detail, and an exact supplied law refuses transport_numerical_failure because it has no sampling uncertainty."
+
+[[capability]]
+id = "python.design.prior_signal_planning"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A prior bank and a candidate signal are combined into a checked decision-planning prior that reaches the canonical design ranker."
+python = "antecedent.design.adapt_prior_to_signal"
+supports = ["capability:design.prior_signal_planning"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_prior_signal_bridge.py::test_original_checked_prior_reaches_canonical_ranker_and_replays"
+assertion_scopes = ["test_original_checked_prior_reaches_canonical_ranker_and_replays"]
+dimensions = ["success", "artifact", "inspection"]
+assertion_contract = "The checked prior ranks with evsi basis, prior expected utility 0, evpi 0.125 and first-candidate evsi 0.0625, retains source ids, observation count and pooled mean, binds its source digest into the ranking, and the exported ranking is consumed with a natively replayed entry."
+[[capability.evidence]]
+test = "python/tests/test_prior_signal_bridge.py::test_incomplete_or_relabelled_sources_refuse"
+assertion_scopes = ["test_incomplete_or_relabelled_sources_refuse"]
+dimensions = ["refusal"]
+assertion_contract = "Summary-only or coefficient-named catalogs, sources without lineage and a state in another population each refuse with their own prior_signal detail."
+[[capability.evidence]]
+test = "python/tests/test_prior_signal_bridge.py::test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff"
+assertion_scopes = ["test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff"]
+dimensions = ["success", "artifact", "refusal"]
+assertion_contract = "A native Bayesian fit's exported posterior flows through the catalog and adapter into a Monte Carlo ranking with finite evsi, the resampled-original-draws approximation disclosed and calibration not_measured; the consumed ranking keeps its source digests, an altered source digest refuses, and reusing a training observation refuses with SourceOverlapRefusal."
+
+[[capability]]
+id = "python.design.proposal_receipt"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A repair artifact and a design ranking are linked per proposed study into a verifiable receipt bundle, and arrived evidence is re-identified without treating the hypothetical derivation as available evidence."
+python = "antecedent.proposals.ProposalBundle.build"
+supports = ["capability:design.proposal_receipt"]
+required_dimensions = ["success", "refusal", "lifecycle", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_proposals.py::test_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision"
+assertion_scopes = ["test_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision"]
+dimensions = ["success", "inspection", "artifact"]
+assertion_contract = "Each proposal binds the base failure obligation, the verified hypothetical delta and derivation digest, the declared cost and lineage, the net-value valuation (evsi 0.25, net 0.05, rank 0 against 0.075 rank 1 for the insufficient study) and the decision identity, and the bundle verifies against its repair and ranking bytes."
+[[capability.evidence]]
+test = "python/tests/test_proposals.py::test_receipt_never_marks_a_hypothetical_derivation_as_available"
+assertion_scopes = ["test_receipt_never_marks_a_hypothetical_derivation_as_available"]
+dimensions = ["success"]
+assertion_contract = "A verified hypothetical derivation is still reported as hypothetical evidence, never as available evidence."
+[[capability.evidence]]
+test = "python/tests/test_proposals.py::test_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker"
+assertion_scopes = ["test_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker"]
+dimensions = ["lifecycle", "success"]
+assertion_contract = "Arrival of the exact proposed law is verified by the family checker."
+[[capability.evidence]]
+test = "python/tests/test_proposals.py::test_receipt_bundle_level_mutations_refuse"
+assertion_scopes = ["refused"]
+dimensions = ["refusal"]
+assertion_contract = "Forging the bundle identity, repair digest, ranking digest or decision contract identity, dropping a ranked candidate, or naming a candidate absent from the ranking each refuses verification with its own proposal_receipt detail."
+[[capability.evidence]]
+test = "python/tests/test_proposals.py::test_receipt_transport_arrival_in_another_population_or_regime_is_invalidated"
+assertion_scopes = ["test_receipt_transport_arrival_in_another_population_or_regime_is_invalidated"]
+dimensions = ["lifecycle", "refusal"]
+assertion_contract = "Transport arrival in the target population, under observation, or under another intervention set is invalidated with the arrived population or interventions named."
+
+[[capability]]
+id = "python.inference.measured_scalar"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A fresh consumer reloads a measured inference from its exported bytes against the retained identity and reads method-specific scalars with their calibration status."
+python = "antecedent.inference.MeasuredInference"
+supports = ["capability:inference.measured_scalar"]
+required_dimensions = ["success", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_measured_inference.py::test_bounds_and_missing_native_cannot_be_overridden_by_basis"
+assertion_scopes = ["test_bounds_and_missing_native_cannot_be_overridden_by_basis"]
+dimensions = ["refusal", "artifact"]
+assertion_contract = "MeasuredInference.load refuses an oversize artifact, rejects consumer-side bound overrides, a non-Execution, and a serialized identity in place of the retained MeasuredInferenceIdentity, and refuses an empty artifact with not_supported, so no serialized coverage assertion is trusted."
+[[capability.evidence]]
+test = "python/tests/test_advanced_producers.py::test_nested_bayesian_below_measured_row_range_is_annotated_not_borrowed"
+assertion_scopes = ["test_nested_bayesian_below_measured_row_range_is_annotated_not_borrowed"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The nested-Markov Bayesian producer returns a MeasuredInference with the named scalars mean0, mean1 and contrast, each with its interval bracketing its point and a calibration status other than calibrated outside the measured row range."
+
+[[capability]]
+id = "python.transport.adaptive_trial_source"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "Arm means of an adaptively assigned trial standardized to a target stratum law are re-derived from the request and compared with the stored evaluation."
+python = "antecedent.transported_constructors.verify_adaptive_trial"
+supports = ["capability:transport.adaptive_trial_source"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_transported_route_verification.py::test_an_adaptive_trial_estimate_replays_and_an_edited_mean_does_not"
+assertion_scopes = ["test_an_adaptive_trial_estimate_replays_and_an_edited_mean_does_not"]
+dimensions = ["success", "refusal"]
+assertion_contract = "The adaptive trial evaluation built for the target stratum law (0.25, 0.75) re-derives bit for bit from its request, and an evaluation whose treatment mean is edited by 0.01 refuses with the adaptive_transport value_mismatch detail."
+
+[[capability]]
+id = "python.sensitivity.missing_outcome_departure"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "The average treatment effect and the decisions resting on it are recomputed over a declared bounded departure of missing outcomes from missing at random, with tipping points and a separate sampling interval."
+python = "antecedent.mnar_sensitivity.mnar_ate_sensitivity"
+supports = ["capability:sensitivity.missing_outcome_departure"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_mnar_sensitivity.py::test_mnar_shift_changes_the_mean_by_delta_times_the_missing_fraction"
+assertion_scopes = ["test_mnar_shift_changes_the_mean_by_delta_times_the_missing_fraction"]
+dimensions = ["success"]
+assertion_contract = "Under a treated-only delta shift the treated mean equals 3.5 + 0.4 delta, the control mean stays 2.0 and the effect equals 1.5 + 0.4 delta at every grid point within 1e-12."
+[[capability.evidence]]
+test = "python/tests/test_mnar_sensitivity.py::test_mnar_tipping_points_match_the_closed_form"
+assertion_scopes = ["test_mnar_tipping_points_match_the_closed_form"]
+dimensions = ["success", "branch"]
+assertion_contract = "The sign tipping point is at delta -3.75 and the treat decision tips at -1.25 within 1e-9, with no tipping on the positive side, and a common loading tips at 15.0."
+[[capability.evidence]]
+test = "python/tests/test_mnar_sensitivity.py::test_mnar_sampling_interval_is_conditional_and_separate_from_the_range"
+assertion_scopes = ["test_mnar_sampling_interval_is_conditional_and_separate_from_the_range"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The sampling interval at each grid point brackets its effect, is reported as conditional, and the assumption range equals the min and max of the grid effects."
+[[capability.evidence]]
+test = "python/tests/test_mnar_sensitivity.py::test_mnar_ranges_are_never_labelled_as_confidence_intervals"
+assertion_scopes = ["test_mnar_ranges_are_never_labelled_as_confidence_intervals"]
+dimensions = ["inspection"]
+assertion_contract = "The departure range is never labelled a confidence interval."
+[[capability.evidence]]
+test = "python/tests/test_mnar_sensitivity.py::test_mnar_refuses_undeclared_unbounded_and_unsupported"
+assertion_scopes = ["test_mnar_refuses_undeclared_unbounded_and_unsupported"]
+dimensions = ["refusal"]
+assertion_contract = "Undeclared, unbounded and unsupported departures refuse."
+[[capability.evidence]]
+test = "python/tests/test_mnar_sensitivity.py::test_from_analysis_uses_the_checked_query_and_rejects_a_foreign_result"
+assertion_scopes = ["test_from_analysis_uses_the_checked_query_and_rejects_a_foreign_result"]
+dimensions = ["success", "refusal"]
+assertion_contract = "The sensitivity built from an analysed AverageEffect reproduces the hand-computed observed-case effect 5/7 - 2/6 within 1e-12 and a result of a foreign query is rejected with a type error."
+
+[[capability]]
+id = "python.mnar_fixed_shift.compiled_candidate"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A fixed-shift MNAR computation is prepared from its declared randomized-arm source and its measured interval is released only under a covering record."
+python = "antecedent.mnar_fixed_shift.prepare_fixed_shift"
+supports = ["capability:mnar_fixed_shift.compiled_candidate"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_mnar_fixed_shift.py::test_declared_shifts_and_unbalanced_arms_prepare"
+assertion_scopes = ["test_declared_shifts_and_unbalanced_arms_prepare"]
+dimensions = ["success"]
+assertion_contract = "Shifts from -50 to 40 and unbalanced arms prepare."
+[[capability.evidence]]
+test = "python/tests/test_mnar_fixed_shift.py::test_interval_is_released_only_under_a_covering_record"
+assertion_scopes = ["test_interval_is_released_only_under_a_covering_record"]
+dimensions = ["success", "refusal", "branch"]
+assertion_contract = "The measured interval either brackets the declared-shift point at level 0.95, or the preparation refuses not_supported because no attesting record covers the shift, missingness and row count."
+[[capability.evidence]]
+test = "python/tests/test_mnar_fixed_shift.py::test_source_violations_are_refused_with_specific_details"
+assertion_scopes = ["test_source_violations_are_refused_with_specific_details"]
+dimensions = ["refusal"]
+assertion_contract = "Arms with fewer than two observed outcomes refuse invalid_argument with the insufficient_observations detail."
+
+[[capability]]
+id = "python.distribution.meanings"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A distribution object declares which random quantity its draws represent (its meaning), and a consumer refuses a distribution of the wrong meaning before evaluating it."
+python = "antecedent.joint_distribution.DistributionIdentity"
+supports = ["capability:distribution.meanings"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_composition_exit_joint_and_external.py::test_joint_draw_refuses_independent_marginals_and_wrong_meaning"
+assertion_scopes = ["test_joint_draw_refuses_independent_marginals_and_wrong_meaning"]
+dimensions = ["refusal", "artifact"]
+assertion_contract = "A joint-law artifact loaded under an expected identity whose meaning is bootstrap or causal_functional_posterior, whose second quantity or whose bytes differ refuses; independently paired marginals refuse covariance and joint product expectation, and a nonlinear decision refuses them with joint_law_required."
+[[capability.evidence]]
+test = "python/tests/test_composition_exit_joint_and_external.py::test_external_response_refuses_observational_mismatched_and_unverified"
+assertion_scopes = ["test_external_response_refuses_observational_mismatched_and_unverified"]
+dimensions = ["refusal"]
+assertion_contract = "An external response from a provider declaring the posterior_predictive meaning refuses binding with distribution_meaning_mismatch, and an observational law, a kPa-for-mmHg coordinate and an unattested unprobed response refuse with their own registered details."
+[[capability.evidence]]
+test = "python/tests/test_provider_identity.py::test_distribution_identity_takes_provider_and_snapshot_from_the_object"
+assertion_scopes = ["test_distribution_identity_takes_provider_and_snapshot_from_the_object"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A provider object derives the identity of its draws: provider and snapshot are the object's and the semantic is its declared meaning, serializable on the shared wire."
+[[capability.evidence]]
+test = "python/tests/test_posterior_boundaries.py::test_unmodeled_serial_dependence_refuses_the_ordinary_reading"
+assertion_scopes = ["test_unmodeled_serial_dependence_refuses_the_ordinary_reading"]
+dimensions = ["refusal"]
+assertion_contract = "An unmodeled serial error model refuses the ordinary temporal-curve posterior reading with distribution_meaning_mismatch and a next attempt."
+[[capability.evidence]]
+test = "python/tests/test_posterior_boundaries.py::test_attested_independent_innovations_support_the_ordinary_reading"
+assertion_scopes = ["test_attested_independent_innovations_support_the_ordinary_reading"]
+dimensions = ["success"]
+assertion_contract = "Attested independent innovations support the ordinary reading and an unknown serial error model is a value error."
+
+[[capability]]
+id = "python.external.scientific_providers"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A typed external law or posterior provider is declared with its identity, meaning, support, operations, dependencies, replay and trust, and consumed through a checked callback session."
+python = "antecedent.provider_callbacks.CallbackDeclaration"
+supports = ["capability:external.scientific_providers"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_provider_callbacks.py::test_gaussian_callback_mean_cdf_quantile_match_closed_forms"
+assertion_scopes = ["test_gaussian_callback_mean_cdf_quantile_match_closed_forms"]
+dimensions = ["success"]
+assertion_contract = "A declared Gaussian law's mean equals mu, its cdf at three thresholds equals the closed-form normal cdf and the tabulated values 0.0249978951482205, 0.5, 0.8413447460685429 within 1e-9, its quantiles equal mu + sd z, and 20000 sampled draws match the mean and variance within five standard errors, with exactly four invocations."
+[[capability.evidence]]
+test = "python/tests/test_provider_callbacks.py::test_conjugate_posterior_update_matches_closed_form"
+assertion_scopes = ["test_conjugate_posterior_update_matches_closed_form"]
+dimensions = ["success", "refusal"]
+assertion_contract = "A declared posterior update with prior N(0,4), unit noise and observation 2 returns mean 1.6 within 1e-12 and draws with mean 1.6 and variance 0.8 within five standard errors; a quantile query is refused external_capability_missing with zero invocations."
+[[capability.evidence]]
+test = "python/tests/test_provider_callbacks.py::test_malformed_laws_are_refused_whole"
+assertion_scopes = ["test_malformed_laws_are_refused_whole"]
+dimensions = ["refusal"]
+assertion_contract = "A decreasing cdf, non-finite sample draws and a wrongly shaped quantile output each refuse with their own callback_protocol detail and register nothing in the session."
+[[capability.evidence]]
+test = "python/tests/test_provider_callbacks.py::test_exported_result_round_trips_and_mutations_are_refused"
+assertion_scopes = ["test_exported_result_round_trips_and_mutations_are_refused"]
+dimensions = ["artifact", "refusal"]
+assertion_contract = "An exported callback result is consumed under its retained identity with equal values and declaration identity, its calibration is not_measured, another identity refuses identity_mismatch, and flipped bytes, truncation and junk refuse."
+
+[[capability]]
+id = "python.external.response_binding"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "An external response is bound to the coordinates of an identified causal contract, with units, support, evidence and trust checked, and is never reported as native."
+python = "antecedent.external.ExternalSpec.bind"
+supports = ["capability:external.response_binding"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_external_binding.py::test_bound_claim_is_inspectable_exportable_and_never_native"
+assertion_scopes = ["test_bound_claim_is_inspectable_exportable_and_never_native"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The bound claim has values 1, 3, 5, is not native, is externally attested, reports missing_evidence support when the provider declared none, carries a Merkle-digested lineage ending in the claim, and states it was not estimated natively."
+[[capability.evidence]]
+test = "python/tests/test_external_binding.py::test_each_mismatch_refuses_with_a_registered_code_and_structured_fields"
+assertion_scopes = ["test_each_mismatch_refuses_with_a_registered_code_and_structured_fields"]
+dimensions = ["refusal"]
+assertion_contract = "Wrong units at coordinate 1, a foreign graph and missing required evidence each refuse with a registered reason code and structured offending, expected and supplied fields."
+[[capability.evidence]]
+test = "python/tests/test_external_binding.py::test_observational_law_is_refused_without_a_checked_equivalence"
+assertion_scopes = ["test_observational_law_is_refused_without_a_checked_equivalence"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "An observational law offered for do(a=1) refuses unless a checked equivalence on the same graph and regime is declared, and then it binds with the equivalence in its lineage."
+[[capability.evidence]]
+test = "python/tests/test_external_binding.py::test_fresh_process_consumer_loads_only_under_its_own_identity"
+assertion_scopes = ["test_fresh_process_consumer_loads_only_under_its_own_identity"]
+dimensions = ["artifact", "lifecycle"]
+assertion_contract = "A claim exported and loaded by a fresh consumer reproduces values 1, 3, 5 under its own retained identity and refuses a changed snapshot identity."
+
+[[capability]]
+id = "python.external.capability_negotiation"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A provider's declared operation set is negotiated per request: a requested operation absent from the declaration is refused before the provider runs and is never inferred from another operation."
+python = "antecedent.provider_callbacks.CallbackSession.execute"
+supports = ["capability:external.capability_negotiation"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_provider_callbacks.py::test_operations_are_negotiated_separately"
+assertion_scopes = ["test_operations_are_negotiated_separately"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "A sample-only declaration refuses mean, cdf and quantile with external_capability_missing and zero invocations, a cdf-only declaration refuses a quantile with the operation_not_declared detail, and an update declaration without its observation law or a mean-and-update declaration of the wrong kind refuses validation."
+[[capability.evidence]]
+test = "python/tests/test_provider_callbacks.py::test_gaussian_callback_mean_cdf_quantile_match_closed_forms"
+assertion_scopes = ["test_gaussian_callback_mean_cdf_quantile_match_closed_forms"]
+dimensions = ["success"]
+assertion_contract = "Each operation the declaration offers (mean, cdf, quantile, sample) is accepted and answered with the closed-form Gaussian values."
+
+[[capability]]
+id = "python.external.object_verification"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A provider object is verified against independently computed probes at its exact request, issuing a receipt only when every required probe passes within its predeclared tolerance."
+python = "antecedent.provider_callbacks.CallbackDeclaration.verify"
+supports = ["capability:external.object_verification"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_provider_callbacks.py::test_verifying_a_callback_provider_issues_a_receipt_only_for_passing_independent_probes"
+assertion_scopes = ["test_verifying_a_callback_provider_issues_a_receipt_only_for_passing_independent_probes"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Passing Gaussian probes issue a 64-character receipt digest for provider lab and query family gaussian, repeatable for the same object; a moments probe outside its tolerance, a missing normalization probe and non-probe tuples each refuse."
+[[capability.evidence]]
+test = "python/tests/test_provider_verification.py::test_mismatched_fixture_refuses_capability"
+assertion_scopes = ["test_mismatched_fixture_refuses_capability"]
+dimensions = ["refusal"]
+assertion_contract = "A fixture whose estimate, uncertainty, assumptions, support, provenance, artifact digest or decoded artifact differs refuses with a message naming the difference and leaves the provider externally attested with no report."
+[[capability.evidence]]
+test = "python/tests/test_external_binding.py::test_verified_trust_is_recomputed_from_independent_probes"
+assertion_scopes = ["test_verified_trust_is_recomputed_from_independent_probes"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Four passing independent probes raise a bound claim to verified_extension, never native; a missing known_truth probe refuses with the missing_probe detail naming it and a failing known_truth probe refuses with the failed_probe detail."
+
+[[capability]]
+id = "python.external.trust_receipt"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A verification receipt scopes a provider's trust to the exact requests it verified; verified_extension never becomes native and a receipt does not cover another request, snapshot or capability set."
+python = "antecedent.extensibility.ProviderVerificationReceipt.load"
+supports = ["capability:external.trust_receipt"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_provider_verification.py::test_verified_provider_capability_records_evidence_and_shared_result"
+assertion_scopes = ["test_verified_provider_capability_records_evidence_and_shared_result"]
+dimensions = ["success", "inspection"]
+assertion_contract = "After fixture verification a verified request executes with verified_extension trust and the evidence digest in its provenance while an unseen request stays externally attested, the calibration is not_measured, and re-verifying an already verified provider refuses."
+[[capability.evidence]]
+test = "python/tests/test_provider_verification.py::test_receipt_exports_and_loads_only_under_the_retained_digest"
+assertion_scopes = ["test_receipt_exports_and_loads_only_under_the_retained_digest"]
+dimensions = ["artifact", "refusal"]
+assertion_contract = "A receipt exported and loaded under its retained digest equals the original and covers the verified request but not another; a different retained digest and a byte-flipped container refuse."
+[[capability.evidence]]
+test = "python/tests/test_provider_verification.py::test_receipt_is_consumable_by_composition_as_exact_request_evidence"
+assertion_scopes = ["test_receipt_is_consumable_by_composition_as_exact_request_evidence"]
+dimensions = ["success", "refusal"]
+assertion_contract = "The receipt is verified_extension evidence for a decision input of its exact provider and snapshot, and a decision input at another snapshot refuses."
+[[capability.evidence]]
+test = "python/tests/test_composition.py::test_composition_boundary_exact_request_verification_needs_a_matching_receipt"
+assertion_scopes = ["test_composition_boundary_exact_request_verification_needs_a_matching_receipt"]
+dimensions = ["refusal"]
+assertion_contract = "An exact-request verified claim without a receipt, or with none or only an attestation as evidence, is refused."
+
+[[capability]]
+id = "python.support.coordinate"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "Support is labelled per finite coordinate in order, from the Kish effective sample size of local weights for a dose grid and from declared labels for a bound response, with missing evidence kept distinct from zero overlap and the summary the worst label."
+python = "antecedent.dose_grid.dose_support_table"
+supports = ["capability:support.coordinate"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_dose_grid.py::test_unsupported_doses_refuse_and_the_support_table_labels_them"
+assertion_scopes = ["test_unsupported_doses_refuse_and_the_support_table_labels_them"]
+dimensions = ["success", "refusal"]
+assertion_contract = "A dose support table labels doses -1, 2 and 10 as outside_empirical_support, supported and outside_empirical_support, labels a dose weak_overlap with local ess between 10 and 1000 when the minimum is raised, and the functional refuses the unsupported dose and the insufficient local weight with positivity_violated."
+[[capability.evidence]]
+test = "python/tests/test_support_artifact.py::test_three_ordered_doses_exclude_only_the_middle_and_keep_order_through_export"
+assertion_scopes = ["test_three_ordered_doses_exclude_only_the_middle_and_keep_order_through_export"]
+dimensions = ["success", "artifact"]
+assertion_contract = "A claim over three ordered doses with labels supported, weak_overlap, supported excludes only the middle dose, its summary is the worst label, the order survives export and reload, and relabelling moves only that coordinate's label."
+[[capability.evidence]]
+test = "python/tests/test_support_artifact.py::test_missing_evidence_is_not_zero_overlap_and_ranks_weakest"
+assertion_scopes = ["test_missing_evidence_is_not_zero_overlap_and_ranks_weakest"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Undeclared support is missing_evidence at every coordinate, distinct from weak_overlap and outside_empirical_support, and a mixed summary is the worst label with missing_evidence last in severity."
+
+[[capability]]
+id = "python.composition.provenance"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "Every score traces through contract, snapshot, provider, artifact, transform and decision links in order, each link digest recomputed from its parents, and a changed predecessor moves exactly its dependents."
+python = "antecedent.design.ranking.DesignRankingResult.stages_behind"
+supports = ["capability:composition.provenance"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_coordinate_lifecycle.py::test_ranking_lineage_has_the_literal_order_and_stages_rust_writes"
+assertion_scopes = ["test_ranking_lineage_has_the_literal_order_and_stages_rust_writes"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A design ranking's lineage lists decision, two distribution, per-candidate provider and signal links and the result in the literal order with their stages, and stages_behind of a signal names decision_contract, external_provider and study_ranking_provider."
+[[capability.evidence]]
+test = "python/tests/test_coordinate_lifecycle.py::test_ranking_lineage_digests_move_with_every_upstream_identity"
+assertion_scopes = ["test_ranking_lineage_digests_move_with_every_upstream_identity"]
+dimensions = ["branch", "inspection"]
+assertion_contract = "The same constants give the same chain in any digest order; a different decision contract moves the root, every signal and the result, a different source digest moves the result only, and a different signal law moves that signal and the result only."
+[[capability.evidence]]
+test = "python/tests/test_coordinate_lifecycle.py::test_sensitivity_lineage_links_contract_snapshot_input_and_claim"
+assertion_scopes = ["test_sensitivity_lineage_links_contract_snapshot_input_and_claim"]
+dimensions = ["success", "artifact"]
+assertion_contract = "A sensitivity artifact's lineage is contract, snapshot, input and claim with 64-character digests each recording its parents' digests, equal in a consumer of the exported bytes."
+[[capability.evidence]]
+test = "python/tests/test_composition_bundle.py::test_tamper_table_names_the_failed_stage_on_the_dependent_node"
+assertion_scopes = ["test_tamper_table_names_the_failed_stage_on_the_dependent_node"]
+dimensions = ["refusal"]
+assertion_contract = "A quantity swapped upstream, another decision contract upstream, and a result with its source left out each fail the dependent result node with tampered_quantity or graph_or_snapshot_mismatch while the upstream node still verifies."
+
+[[capability]]
+id = "python.composition.language_parity"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A joint law built in Rust is read in Python (and the reverse) through one bounded versioned wire format with the same draws, identity and refusals."
+python = "antecedent.joint_distribution.JointDistributionArtifact.load"
+supports = ["capability:composition.language_parity"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_cross_surface.py::test_rust_built_joint_law_reports_the_enumerated_truth"
+assertion_scopes = ["test_rust_built_joint_law_reports_the_enumerated_truth"]
+dimensions = ["success"]
+assertion_contract = "The Rust-built two-coordinate law read in Python reports means 1/2 and 1, covariance 1/2 and product expectation 1 within 1e-12 under an identity built from constants, equal draws to the Python twin."
+[[capability.evidence]]
+test = "python/tests/test_cross_surface.py::test_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surface_too"
+assertion_scopes = ["test_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surface_too"]
+dimensions = ["refusal"]
+assertion_contract = "A changed second quantity, the bootstrap meaning, the causal_functional_posterior meaning and independently paired marginals each refuse with the shared details."
+[[capability.evidence]]
+test = "python/tests/test_cross_surface.py::test_both_directions_use_one_wire_format"
+assertion_scopes = ["test_both_directions_use_one_wire_format"]
+dimensions = ["artifact"]
+assertion_contract = "The Python-built and Rust-built bytes load to equal draws and identity, and a flipped last byte refuses."
+
+[[capability]]
+id = "python.decision.structural_policy"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A decision over structure atoms is made under a declared structural policy: invariant best, graph-dependent choice, or a Bayes choice only over genuine atom probabilities, with unevaluated mass reported and never normalized away."
+python = "antecedent.decision_robust.finite_scenarios"
+supports = ["capability:decision.structural_policy"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_decision_robust.py::test_invariant_best_is_structurally_robust_and_graph_dependence_is_named"
+assertion_scopes = ["test_invariant_best_is_structurally_robust_and_graph_dependence_is_named"]
+dimensions = ["success", "branch"]
+assertion_contract = "Atoms with payoffs A in {5, 6} and B in {3, 2} make A structurally robust with ranges (5, 6) and (2, 3) and no shortfalls; structures that disagree give a graph_dependent_choice naming each structure's leader, selecting nothing."
+[[capability.evidence]]
+test = "python/tests/test_decision_robust.py::test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weights"
+assertion_scopes = ["test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weights"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Bayes over atoms weighted 0.5 and 0.5 values A at 3.0 and B at 3.5 and chooses B; completion counts refuse as probabilities, graph claims carry no probability, and 0.2 unidentified mass is held beside 0.8 evaluated mass with an insufficient_claims verdict."
+[[capability.evidence]]
+test = "python/tests/test_decision_robust.py::test_robust_result_exports_replays_and_refuses_changed_inputs"
+assertion_scopes = ["test_robust_result_exports_replays_and_refuses_changed_inputs"]
+dimensions = ["artifact", "refusal"]
+assertion_contract = "A robust result exports and replays against the same contract and claims with an equal verdict and lineage, and different draws, another policy contract or changed support refuse."
+
+[[capability]]
+id = "python.composition.verifiers"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "Each embedded artifact of a composition bundle is verified through its own consumer and the binding facts are published from the decoded fields, with external mean decisions kept point-only attested and joint-draw decisions kept to the aligned-law requirement."
+python = "antecedent.composition_bundle.consume_bundle"
+supports = ["capability:composition.verifiers"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_composition_bundle.py::test_python_built_bundle_is_consumed_in_process_and_reports_the_decision"
+assertion_scopes = ["test_python_built_bundle_is_consumed_in_process_and_reports_the_decision"]
+dimensions = ["success", "artifact"]
+assertion_contract = "A joint decision bundle verifies every node and reads expected utilities 2.0 and 3.0 and the joint_draw claim label, with node identities equal to those the artifact's own consumer recomputes."
+[[capability.evidence]]
+test = "python/tests/test_composition_bundle.py::test_joint_requirement_over_a_mean_only_claim_is_unsupported_law"
+assertion_scopes = ["test_joint_requirement_over_a_mean_only_claim_is_unsupported_law"]
+dimensions = ["refusal"]
+assertion_contract = "A joint-law requirement over a mean-only claim fails the result node as unsupported_law and require_verified raises with joint_law_required."
+[[capability.evidence]]
+test = "python/tests/test_composition_bundle.py::test_external_mean_decision_is_exportable_as_a_point_only_attested_result"
+assertion_scopes = ["test_external_mean_decision_is_exportable_as_a_point_only_attested_result"]
+dimensions = ["success", "refusal"]
+assertion_contract = "An external mean decision verifies as point_only_attested with expected utilities 1.0 and 9.0 equal to the direct evaluation, and a functional a mean cannot answer is refused when the result is made."
+[[capability.evidence]]
+test = "python/tests/test_composition_bundle.py::test_swapped_evidence_fails_the_declared_relationship"
+assertion_scopes = ["test_swapped_evidence_fails_the_declared_relationship"]
+dimensions = ["refusal"]
+assertion_contract = "A declared independence relation over claims sharing evidence fails as swapped_evidence."
+[[capability.evidence]]
+test = "python/tests/test_composition_bundle.py::test_describe_reports_facts_read_from_the_decoded_artifact"
+assertion_scopes = ["test_describe_reports_facts_read_from_the_decoded_artifact"]
+dimensions = ["inspection"]
+assertion_contract = "Describe reports law, trust, request fingerprint and graph-or-snapshot read from the decoded claim and refuses a mismatched kind or junk bytes."
+
+[[capability]]
+id = "python.composition.multi_source"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "One decision over a dose-indexed program is answered from a native response claim and external studies with each action's support reported, shared data refused as independent, a design ranked and the whole composed into one portable bundle."
+python = "antecedent.composition.evaluate_with_support"
+supports = ["capability:composition.multi_source"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_multi_source_acceptance.py::test_an_unsupported_action_is_reported_with_its_reason_and_the_rest_are_compared"
+assertion_scopes = ["test_an_unsupported_action_is_reported_with_its_reason_and_the_rest_are_compared"]
+dimensions = ["success", "branch", "refusal"]
+assertion_contract = "Native means leave dose 2 unsupported with the coordinate_missing reason; wait (2) and treat (3) are compared and treat is uniquely optimal with no EVPI, and requiring all actions supported refuses unsupported_action_not_comparable naming extend."
+[[capability.evidence]]
+test = "python/tests/test_multi_source_acceptance.py::test_the_joint_law_decision_matches_the_hand_derived_values"
+assertion_scopes = ["test_the_joint_law_decision_matches_the_hand_derived_values"]
+dimensions = ["success"]
+assertion_contract = "The joint-law decision gives expected utilities 2, 2.5 and 2, treat uniquely optimal, EVPI 2, expected regrets 2.5, 2 and 2.5 and two draws, and masking the dose-2 coordinate scores only wait and treat with EVPI 1."
+[[capability.evidence]]
+test = "python/tests/test_multi_source_acceptance.py::test_shared_data_refuses_independent_pooling_and_supported_routes_lift_it"
+assertion_scopes = ["test_shared_data_refuses_independent_pooling_and_supported_routes_lift_it"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Shared registry data refuses statistical pooling of native and law sources, independent studies pool with independence assumed, evidence reuse and transport count the registry once, and a supported joint-law route lifts the refusal."
+[[capability.evidence]]
+test = "python/tests/test_multi_source_acceptance.py::test_the_ranking_matches_the_hand_derived_evsi_and_net_values"
+assertion_scopes = ["test_the_ranking_matches_the_hand_derived_evsi_and_net_values"]
+dimensions = ["success"]
+assertion_contract = "The ranking reads EVSI 0.0625 for the native trial, EVPI 1/8, net values 0.0425 and 0.0125, calibration not_measured, and is invariant to candidate order."
+[[capability.evidence]]
+test = "python/tests/test_multi_source_acceptance.py::test_the_composed_bundle_is_consumed_in_process_with_the_hand_derived_values"
+assertion_scopes = ["test_the_composed_bundle_is_consumed_in_process_with_the_hand_derived_values"]
+dimensions = ["artifact", "success"]
+assertion_contract = "The composed bundle is consumed with the joint_draw label and the hand-derived utilities, ranking values and EVSI, the unresolved native node stays unresolved until its supplied data digest is given, and then every node verifies."
+
+[[capability]]
+id = "python.transport.scenario_invariance"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "For each scenario of a finite transport scenario set the report states the selection differences assumed, the invariances and target factors the identified formula relies on, and the scenario behind each extreme of the range."
+python = "antecedent.scenario_invariance.invariance_report"
+supports = ["capability:transport.scenario_invariance"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_scenario_invariance.py::test_invariance_standardize_relies_on_the_source_conditional_and_target_marginal"
+assertion_scopes = ["test_invariance_standardize_relies_on_the_source_conditional_and_target_marginal"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Selection on z over z->x, z->y, x->y with x<->y is identified by pretreatment standardization, relying on the source conditional of y given z under do(x) and the target marginal of z, with no conditional reduction or obstruction."
+[[capability.evidence]]
+test = "python/tests/test_scenario_invariance.py::test_invariance_selection_on_the_outcome_is_an_obstruction_without_an_invariance_list"
+assertion_scopes = ["test_invariance_selection_on_the_outcome_is_an_obstruction_without_an_invariance_list"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Selection on the outcome is structurally unidentified with an s-hedge rooted at y and no invariance or target-factor list."
+[[capability.evidence]]
+test = "python/tests/test_scenario_invariance.py::test_invariance_envelope_extremes_carry_the_report_of_the_scenario_behind_them"
+assertion_scopes = ["test_invariance_envelope_extremes_carry_the_report_of_the_scenario_behind_them"]
+dimensions = ["success"]
+assertion_contract = "The lower extreme 0.35 comes from the standardize scenario and the upper 0.56 from the direct scenario, equal to the hand-computed 0.2*0.75+0.8*0.25 and 0.08+0.48 within 1e-12, each carrying that scenario's report."
+[[capability.evidence]]
+test = "python/tests/test_scenario_invariance.py::test_invariance_requires_an_estimated_scenario_stage"
+assertion_scopes = ["test_invariance_requires_an_estimated_scenario_stage"]
+dimensions = ["refusal"]
+assertion_contract = "An unestimated stage refuses not_estimated with reason code not_executed and a non-stage object refuses wrong_result_type."
+
+[[capability]]
+id = "python.recalculation.frozen_scores_artifact"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "The frozen cross-fitted or cell AIPW score table of one run is exported as an identity-bound artifact that a fresh consumer verifies by recomputation and resumes with zero fits, carrying scores but no data and no model."
+python = "antecedent.recalc_cell.CellSession.export_frozen_scores"
+supports = ["capability:recalculation.frozen_scores_artifact"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_recalc_cell.py::test_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_zero_fits"
+assertion_scopes = ["test_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_zero_fits"]
+dimensions = ["success", "artifact", "lifecycle"]
+assertion_contract = "A fresh interpreter resumes the exported cell scores under the retained identity, retargets with zero fits and score builds, and reproduces the in-process ate, standard error, net benefit and decision within 1e-12 and the independent weighted-contrast oracle within 1e-10; the export is deterministic."
+[[capability.evidence]]
+test = "python/tests/test_recalc_cell.py::test_cell_resume_refuses_resealed_foreign_or_corrupt_artifact_bytes"
+assertion_scopes = ["test_cell_resume_refuses_resealed_foreign_or_corrupt_artifact_bytes"]
+dimensions = ["refusal", "artifact"]
+assertion_contract = "A consistently sealed artifact of another run refuses under the retained identity with the frozen_scores identity_mismatch detail, and an edited byte, a truncation and non-artifact bytes refuse."
+[[capability.evidence]]
+test = "python/tests/test_recalc_cell.py::test_cell_crossfit_scores_resume_the_same_way"
+assertion_scopes = ["test_cell_crossfit_scores_resume_the_same_way"]
+dimensions = ["success", "artifact"]
+assertion_contract = "Cross-fitted scores resume with zero fold fits and reproduce the in-process ate, standard error and net benefit within 1e-12, and nothing is exportable before a run."
+
+[[capability]]
+id = "python.composition.native_authority"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "Caller-supplied arrays and historical trust labels never acquire native execution authority; only an issued native result is native."
+python = "antecedent.composition.DecisionInput.from_distribution"
+supports = ["capability:composition.native_authority"]
+required_dimensions = ["refusal", "branch"]
+[[capability.evidence]]
+test = "python/tests/test_composition.py::test_composition_boundary_caller_native_constructor_refuses_before_coercion"
+assertion_scopes = ["test_composition_boundary_caller_native_constructor_refuses_before_coercion"]
+dimensions = ["refusal"]
+assertion_contract = "A caller-asserted native trust refuses invalid_argument with the authority_required detail before the draws are coerced."
+[[capability.evidence]]
+test = "python/tests/test_composition.py::test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native"
+assertion_scopes = ["test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native"]
+dimensions = ["refusal", "artifact"]
+assertion_contract = "A historical artifact whose metadata says native_supported keeps its draws and labels but is refused as native by composition with attested_not_reverifiable, with or without an attestation, and a plain artifact is refused native_required."
+[[capability.evidence]]
+test = "python/tests/test_composition.py::test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused"
+assertion_scopes = ["test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused"]
+dimensions = ["branch"]
+assertion_contract = "An unbacked native label is stored as unverified with exact_claim_unverified calibration and no receipt; an attestation records the attestor and nothing stronger and changes the lineage digest."
+[[capability.evidence]]
+test = "python/tests/test_composition.py::test_composition_boundary_python_cannot_assert_a_native_or_verified_provider"
+assertion_scopes = ["test_composition_boundary_python_cannot_assert_a_native_or_verified_provider"]
+dimensions = ["refusal"]
+assertion_contract = "Python has no constructor naming native or verified trust evidence and a decision input cannot be constructed directly."
+
+[[capability]]
+id = "python.decision_reliability.optimality_confidence_set"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "The candidates that cannot be excluded as best at a stated level are derived from paired difference errors, beside a selection-corrected interval for the chosen candidate."
+python = "antecedent.decision_reliability.DecisionReliability.derive_uncertainty"
+supports = ["capability:decision_reliability.optimality_confidence_set"]
+required_dimensions = ["success", "branch"]
+[[capability.evidence]]
+test = "python/tests/test_decision_reliability_derived.py::test_selection_component_is_a_confidence_set_and_a_corrected_interval"
+assertion_scopes = ["test_selection_component_is_a_confidence_set_and_a_corrected_interval"]
+dimensions = ["success"]
+assertion_contract = "On the enumerated three-candidate law the paired-comparison confidence set has member A and excludes B and C at critical value z0.975, and the corrected interval for the selected A has the Bonferroni critical value for three candidates, a half-width of 2 z SE and positive selection extra width."
+[[capability.evidence]]
+test = "python/tests/test_decision_reliability_derived.py::test_a_prespecified_decision_has_no_selection_correction"
+assertion_scopes = ["test_a_prespecified_decision_has_no_selection_correction"]
+dimensions = ["branch"]
+assertion_contract = "A prespecified decision carries no selection-corrected interval."
+
+[[capability]]
+id = "python.transport.assumption_range"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "The range of a transported quantity under a bounded declared violation of its transport premise, and the smallest shift at which a decision changes."
+python = "antecedent.transport.sensitivity.transport_sensitivity"
+supports = ["capability:transport.assumption_range"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_transport_sensitivity.py::test_the_range_is_built_from_the_responses_value_quantity_and_receipt"
+assertion_scopes = ["test_the_range_is_built_from_the_responses_value_quantity_and_receipt"]
+dimensions = ["success"]
+assertion_contract = "For a transported point 2.0 with an additive bound 0.25 the grid is (0, 0.25, 0.5), lower (2, 1.75, 1.5), upper (2, 2.25, 2.5) and the range at the bound (1.5, 2.5); a proportional shift of 0.25 gives the same range and the reference-reached shifts are 0.2 additive and 0.1 proportional, none beyond the bound."
+[[capability.evidence]]
+test = "python/tests/test_transport_sensitivity.py::test_the_sealed_artifact_exports_and_a_consumer_recomputes_it"
+assertion_scopes = ["test_the_sealed_artifact_exports_and_a_consumer_recomputes_it"]
+dimensions = ["artifact", "branch"]
+assertion_contract = "The sealed artifact is consumed under its identity, a reference below the range gives the invariant action act and one above flips it, and another target or another point value gives another identity and range."
+[[capability.evidence]]
+test = "python/tests/test_transport_sensitivity.py::test_a_response_that_cannot_be_shifted_is_refused_with_its_own_reason"
+assertion_scopes = ["test_a_response_that_cannot_be_shifted_is_refused_with_its_own_reason"]
+dimensions = ["refusal"]
+assertion_contract = "An undeclared route, an out-of-range coordinate, a structural premise and a proportional shift of zero each refuse with their own transport_sensitivity detail."
+[[capability.evidence]]
+test = "python/tests/test_transport_sensitivity.py::test_a_transported_law_has_no_single_point_to_shift"
+assertion_scopes = ["test_a_transported_law_has_no_single_point_to_shift"]
+dimensions = ["refusal"]
+assertion_contract = "A transported law refuses route_not_supported with the law_response_not_scalar detail and a remedy."
+
+[[capability]]
+id = "python.decision.transported_source"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A transported point, with its transport receipt, is the source of a decision under the contract's acceptance, support and uncertainty rules."
+python = "antecedent.decision.Contract.evaluate_transported"
+supports = ["capability:decision.transported_source"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_transported_decision.py::test_a_transported_point_decides_by_the_utility_of_the_mean_and_names_its_transport"
+assertion_scopes = ["test_a_transported_point_decides_by_the_utility_of_the_mean_and_names_its_transport"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A transported mean 2.0 gives expected utilities 6.5, 0 and -3, treat uniquely optimal, point_only inference, the receipt naming clinic_b, source trial and extrapolative support, never native target data, with a repeatable identity that another transport changes."
+[[capability.evidence]]
+test = "python/tests/test_transported_decision.py::test_a_support_rule_stronger_than_the_transported_label_refuses"
+assertion_scopes = ["test_a_support_rule_stronger_than_the_transported_label_refuses"]
+dimensions = ["refusal"]
+assertion_contract = "A rule requiring supported refuses a transported extrapolative label with transport_support_failure and a remedy."
+[[capability.evidence]]
+test = "python/tests/test_transported_decision.py::test_an_uncertainty_requirement_a_point_cannot_meet_refuses"
+assertion_scopes = ["test_an_uncertainty_requirement_a_point_cannot_meet_refuses"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Credible or structural-envelope uncertainty requirements refuse a transported point with decision_contract_unsatisfied while a point_only requirement is met."
+
+[[capability]]
+id = "python.inverse.transported_forward_source"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A transported response is the forward claim of a finite-action inverse query when the consumer accepts transported claims, carrying its transport receipt."
+python = "antecedent.inverse_sources.transported_forward_source"
+supports = ["capability:inverse.transported_forward_source"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_inverse_sources.py::test_a_transported_response_is_read_only_when_accepted_and_carries_its_receipt"
+assertion_scopes = ["test_a_transported_response_is_read_only_when_accepted_and_carries_its_receipt"]
+dimensions = ["success", "refusal", "artifact"]
+assertion_contract = "A consumer accepting only native data refuses the transported response; accepted, it is a transported_response origin with extrapolative support and target population pop, action xb is feasible at 3.0 and xa infeasible, quantile and interval requests refuse, and sealed artifacts differ across transport identities."
+[[capability.evidence]]
+test = "python/tests/test_inverse_sources.py::test_only_a_transported_response_is_a_transported_source"
+assertion_scopes = ["test_only_a_transported_response_is_a_transported_source"]
+dimensions = ["refusal"]
+assertion_contract = "A non-response object refuses with a type error."
+
+[[capability]]
+id = "python.estimate.uncertainty"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "A published scalar names the uncertainty it uses: the selected standard error, the interval method that labels it, and the sampling-weight record that shaped it."
+python = "antecedent.results.IntervalBindingView"
+supports = ["capability:estimate.uncertainty"]
+required_dimensions = ["success", "refusal", "controls"]
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_the_published_standard_error_is_the_selected_one_and_matches_the_ols_oracle"
+assertion_scopes = ["test_the_published_standard_error_is_the_selected_one_and_matches_the_ols_oracle"]
+dimensions = ["success"]
+assertion_contract = "The published analytic standard error equals the independent homoskedastic OLS standard error of the treatment coefficient within relative 1e-9 and is labelled analytic_se; with bootstrap replicates the published standard error is the bootstrap one, labelled bootstrap_se, and differs from the analytic one."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_analytic_bootstrap_and_posterior_intervals_name_their_own_construction"
+assertion_scopes = ["test_analytic_bootstrap_and_posterior_intervals_name_their_own_construction"]
+dimensions = ["inspection"]
+assertion_contract = "Analytic, bootstrap and posterior intervals name analytic_se, bootstrap_se and posterior_quantile with level 0.95, their replicate or draw counts and the iid dependence."
+[[capability.evidence]]
+test = "python/tests/test_sampling_weights.py::test_the_effective_sample_size_and_row_accounting_are_reported"
+assertion_scopes = ["test_the_effective_sample_size_and_row_accounting_are_reported"]
+dimensions = ["controls", "inspection"]
+assertion_contract = "The sampling-weight record reports rows used, zero-weight rows, the Kish effective sample size, design effect and weight sum equal to values computed by hand."
+[[capability.evidence]]
+test = "python/tests/test_sampling_weights.py::test_invalid_weights_are_refused_naming_the_first_offender"
+assertion_scopes = ["test_invalid_weights_are_refused_naming_the_first_offender"]
+dimensions = ["refusal"]
+assertion_contract = "Negative or NaN weights refuse naming the first offending source row with sampling_weights.invalid, and all-zero weights refuse."

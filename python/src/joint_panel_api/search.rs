@@ -55,14 +55,14 @@ impl PyJointPanelResult {
             "panel program search",
         )?;
         let ctx = context(seed, threads, max_bytes, cancel)?;
-        let _input = ctx
-            .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(8))
-            .map_err(|e| match e {
-                antecedent::execution::AdmissionError::Cancelled => {
-                    crate::CausalCancelledError::new_err(e.to_string())
-                }
-                _ => crate::CausalResourceError::new_err(e.to_string()),
-            })?;
+        let _input =
+            antecedent::execution::retain(&ctx, (declaration_json.len() as u64).saturating_mul(8))
+                .map_err(|e| match e {
+                    antecedent::execution::AdmissionRefusal::Cancelled => {
+                        crate::CausalCancelledError::new_err(e.to_string())
+                    }
+                    _ => crate::CausalResourceError::new_err(e.to_string()),
+                })?;
         let d: Declaration =
             serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
         let c = d.certificate;
@@ -143,7 +143,7 @@ impl PyJointPanelResult {
                     "splits":r.certificate.splits,"frontier":r.certificate.frontier,
                     "monotone_reductions":r.certificate.monotone_reductions,"dual_bound":r.certificate.dual_bound,
                     "separable_bound":r.certificate.separable_bound,"fitted_dependency":r.fitted_dependency.to_hex(),
-                    "scope":"model_conditional","selected_value_reliability":"unmeasured" }),
+                    "scope":"model_conditional","selected_value_reliability":"not_measured" }),
                 facade::JointPanelProgramSearchResult::BestFound { result,certificate_refusal }=>serde_json::json!({
                     "route":"best_found","certificate_refusal":certificate_refusal,"best":result.search.best.as_ref().map(|b|
                         serde_json::json!({"id":b.id,"controls":b.controls,"cost":b.cost,"value":b.value,

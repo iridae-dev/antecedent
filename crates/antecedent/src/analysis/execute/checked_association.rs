@@ -7,7 +7,7 @@
 //! program, or for a program lowered on different data, is refused with `route_not_lowered`
 //! before any work runs. The result is a [`crate::analysis::association::AssociationPayload`]:
 //! never an intervention effect, never a ranking of actions, with the assumptions of a
-//! description, and with every uncertainty labelled `unmeasured` because no coverage record
+//! description, and with every uncertainty labelled `not_measured` because no coverage record
 //! measures it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -300,6 +300,6 @@ fn disclosure(estimate: &AssociationEstimate, refused_after: Option<&str>) -> Di
         ("analysis", estimate.selection.analysis.as_str().to_owned()),
         ("rows", estimate.rows.to_string()),
         ("rows_dropped", estimate.rows_dropped.to_string()),
-        ("calibration", "unmeasured".to_owned()),
+        ("calibration", "not_measured".to_owned()),
     ])
 }

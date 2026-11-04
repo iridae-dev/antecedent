@@ -399,7 +399,7 @@ pub struct PanelFitDiagnostics {
     pub uncertainty: String,
     /// The likelihood fit itself grants no causal permission.
     pub claim: String,
-    /// Calibration remains unmeasured until a separate whole-procedure campaign.
+    /// Calibration remains not_measured until a separate whole-procedure campaign.
     pub calibration: String,
 }
 

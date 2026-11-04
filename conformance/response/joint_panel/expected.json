@@ -972,7 +972,7 @@
     "periods": 24
   },
   "evidence": {
-    "calibration": "unmeasured",
+    "calibration": "not_measured",
     "external_parity": "not measured",
     "fit": "not performed",
     "kind": "independent synthetic reference only",

@@ -113,7 +113,7 @@ class Bayesian:
         row, or ``bayesian.randomized_superpopulation``) and its switchback effect
         (``bayesian.switchback_effect``) need it with the ``conjugate`` backend; there is no
         default, because a prior alone does not identify a contrast. The results are unsupported
-        and their calibration is unmeasured. A ``ComplierEffect`` or ``TreatmentOnTreated``
+        and their calibration is not_measured. A ``ComplierEffect`` or ``TreatmentOnTreated``
         under ``Bayesian`` runs ``bayesian.complier_effect``, a Bayesian bootstrap of the Wald
         ratio that needs no ``design_model`` and refuses a first stage whose posterior reaches
         zero; a cluster-randomized interference total runs

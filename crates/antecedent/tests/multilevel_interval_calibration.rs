@@ -11,7 +11,7 @@
 //! the candidate and the plain tests pin that the route keys the same construction.
 //!
 //! `multilevel_generalized_propensity_interval` is registered in `scripts/measure_calibration_groups.sh`
-//! (`run_ml`) and its coverage is unmeasured: the coverage record is the only missing piece.
+//! (`run_ml`) and its coverage is not_measured: the coverage record is the only missing piece.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -139,7 +139,7 @@ fn the_design_construction_is_the_one_the_route_keys() {
 }
 
 /// A published interval is `effect ± z · se` of the report; without a covering record the
-/// interval is withheld with its calibration status and the standard error stays unmeasured.
+/// interval is withheld with its calibration status and the standard error stays not_measured.
 #[test]
 fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withheld() {
     let report = fit(3000, BASE_SEED).expect("a full-population fit");

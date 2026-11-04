@@ -9038,6 +9038,9 @@ class TransportedCompositionHandle:
 def mechanism_composition_prepare(
     composition_json: str, *, cancel: CancellationToken | None = None
 ) -> tuple[PreparedCompositionHandle | None, str | None]: ...
+def mechanism_composition_check_ledger_independence(
+    composition_json: str, ledger: EvidenceLedgerHandle
+) -> str | None: ...
 def mechanism_composition_consume(
     artifact: bytes,
     expected_premises_digest: str | None = None,
@@ -9527,6 +9530,14 @@ def decision_reliability_derive_producer(
     seed: int = 0,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
+def joint_law_check_propagation(
+    operation_name: str,
+    inputs_json: str,
+    dependence_json: str,
+    reading: str,
+    ledger: EvidenceLedgerHandle | None = None,
+) -> tuple[str | None, str | None]: ...
+def joint_law_check_rows_pairable(inputs_json: str) -> str | None: ...
 def joint_law_column(
     input_id: str, artifact: JointDistributionArtifact, column: int
 ) -> tuple[str | None, str | None]: ...
@@ -10236,6 +10247,16 @@ def transported_decision_evaluate(
     unsupported: str,
     weakest_support: str,
 ) -> tuple[str | None, str | None]: ...
+def transported_decision_export(
+    declaration_json: str,
+    response: TransportedResponseHandle,
+    unsupported: str,
+    weakest_support: str,
+    artifact_id: str,
+) -> tuple[bytes | None, str | None]: ...
+def transported_decision_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, TransportedResponseHandle | None, str | None]: ...
 def transported_history_alphabet(model_json: str) -> tuple[str | None, str | None]: ...
 def transported_policy_construct(
     model_json: str,
@@ -10460,6 +10481,19 @@ def transport_handoff_seal(
 ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
 def transport_handoff_consume(
     artifact: bytes, callback_json: str, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
+def provider_source_admit(
+    declaration_json: str,
+    source_json: str,
+    receipt: ProviderVerificationReceipt | None = None,
+) -> tuple[str | None, str | None]: ...
+def provider_source_connect(
+    declaration_json: str,
+    source_json: str,
+    transport_json: str,
+    consumer_json: str,
+    consumed_port: str,
+    receipt: ProviderVerificationReceipt | None = None,
 ) -> tuple[str | None, str | None]: ...
 
 class RetentionPolicy:

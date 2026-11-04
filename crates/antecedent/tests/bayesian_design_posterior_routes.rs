@@ -118,7 +118,7 @@ fn survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws()
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.piecewise_survival"));
     let row = result.posterior_row().unwrap();
     assert_eq!(row.estimator, "bayesian.piecewise_survival");
-    assert_eq!((row.uncertainty.as_str(), row.calibration.as_str()), ("posterior", "unmeasured"));
+    assert_eq!((row.uncertainty.as_str(), row.calibration.as_str()), ("posterior", "not_measured"));
     assert!(!row.supported);
     assert_eq!(row.coordinates, ["survival_difference", "rmst_difference"]);
     // Events and exposure by hand; Gamma(1, 1) updates are shape 1 + events, rate 1 + exposure.
@@ -209,21 +209,21 @@ fn survival_posterior_artifact_round_trips_and_refuses_forgeries() {
     supported.posterior_row.as_mut().unwrap().supported = true;
     assert_refused(
         encode(&supported),
-        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays",
         "supported",
     );
     let mut calibrated = body.clone();
     calibrated.posterior_row.as_mut().unwrap().calibration = "measured".into();
     assert_refused(
         encode(&calibrated),
-        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays",
         "calibrated",
     );
     let mut misaligned = body.clone();
     misaligned.posterior_row.as_mut().unwrap().covariance = Some(vec![0.0; 3]);
     assert_refused(
         encode(&misaligned),
-        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays",
         "misaligned",
     );
     let mut inverted = body.clone();
@@ -231,7 +231,7 @@ fn survival_posterior_artifact_round_trips_and_refuses_forgeries() {
     std::mem::swap(&mut row.lower, &mut row.upper);
     assert_refused(
         encode(&inverted),
-        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays",
         "inverted",
     );
     let mut without_posterior = body.clone();
@@ -480,7 +480,7 @@ fn dose_policy_artifact_round_trips_and_refuses_forgeries() {
     forged.posterior_row.as_mut().unwrap().supported = true;
     assert_refused(
         antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names.clone(), "x"),
-        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays",
         "supported",
     );
     let mut missing = body;
@@ -605,7 +605,7 @@ fn quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.randomized_quantile"));
     let row = result.posterior_row().unwrap();
     assert_eq!(row.estimator, "bayesian.randomized_quantile");
-    assert!(!row.supported && row.calibration == "unmeasured");
+    assert!(!row.supported && row.calibration == "not_measured");
     assert_eq!(row.coordinates, ["control_quantile", "treated_quantile", "quantile_difference"]);
     // Bin counts by hand (control 0,2,3,3,2,2,0; treated 0,1,2,3,3,3,0) under a 0.5 prior per
     // bin give total mass 15.5 and these cumulative masses at the grid.
@@ -666,7 +666,7 @@ fn quantile_posterior_artifact_round_trips_and_refuses_forgeries() {
     supported.posterior_row.as_mut().unwrap().supported = true;
     assert_refused(
         encode(&supported),
-        "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays",
+        "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays",
         "supported",
     );
     let mut foreign = body.clone();

@@ -157,7 +157,7 @@ algorithm, with the Johnson–Welch normal form above a noncentrality of 37.5); 
 binary outcome, an HC0 ANCOVA variance and a sandwich over few sequences are normal or
 large-sample approximations whose finite-sample error the simulation shows. The calibration of
 the simulation procedures has not been measured: every plan reports `calibration =
-"unmeasured"` and carries no coverage claim.
+"not_measured"` and carries no coverage claim.
 
 ## Related
 

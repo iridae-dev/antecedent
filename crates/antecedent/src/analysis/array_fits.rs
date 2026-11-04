@@ -3,7 +3,7 @@
 //! A prepared average-effect study knows its treatment and certified adjustment set;
 //! [`crate::PreparedStudy::treatment_score_posterior`] fits the Laplace posterior of the logistic
 //! treatment model on those columns and returns it as an [`ArrayFit`]. The product is a posterior
-//! of a nuisance, never of an effect, it is unsupported with calibration unmeasured, and the
+//! of a nuisance, never of an effect, it is unsupported with calibration not_measured, and the
 //! result and the artifact say so.
 //!
 //! [`ArrayFit::consume`] refits from the exported artifact and refuses any resealed change of

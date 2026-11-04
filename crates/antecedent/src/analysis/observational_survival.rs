@@ -10,7 +10,7 @@
 //!
 //! No graph is identified or checked: the caller owns that the declared covariates are a valid
 //! adjustment set. The report lists the assumptions the numbers rest on. The standard errors
-//! are influence-function standard errors whose calibration is **unmeasured**, and no interval
+//! are influence-function standard errors whose calibration is **not_measured**, and no interval
 //! is produced.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -28,7 +28,7 @@ use super::multi_level_treatment::AdjustmentColumn;
 use crate::error::CausalError;
 
 /// Calibration standing of the reported standard errors.
-pub const OBSERVATIONAL_SURVIVAL_CALIBRATION: &str = "unmeasured";
+pub const OBSERVATIONAL_SURVIVAL_CALIBRATION: &str = "not_measured";
 
 /// The declared horizon, levels and censoring assumption.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

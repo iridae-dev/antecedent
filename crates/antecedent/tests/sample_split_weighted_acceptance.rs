@@ -250,7 +250,7 @@ fn weighted_discovery_and_downstream_estimation_equal_the_weighted_population_or
     assert_eq!(effect.rows, analysis.row_count() as u64);
 
     // The interval is the sandwich standard error at the Student quantile of the effective
-    // sample size less the regression's coefficients, and its coverage is labelled unmeasured.
+    // sample size less the regression's coefficients, and its coverage is labelled not_measured.
     let coefficients = parents.len() + 2;
     assert_eq!(effect.coefficients, coefficients as u64);
     let interval = effect.interval(0.95).unwrap();
@@ -259,7 +259,7 @@ fn weighted_discovery_and_downstream_estimation_equal_the_weighted_population_or
     assert!((centre - effect.effect).abs() < 1e-12);
     let half = (interval.upper - interval.lower) / 2.0;
     assert!(half > 1.96 * effect.standard_error && half < 2.1 * effect.standard_error);
-    assert_eq!(interval.calibration, "unmeasured");
+    assert_eq!(interval.calibration, "not_measured");
     assert!(effect.interval(1.0).is_err() && effect.interval(0.0).is_err());
 
     // Normalization: the estimate, its standard error and the effective size do not move when

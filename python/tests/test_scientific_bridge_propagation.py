@@ -120,11 +120,11 @@ def test_an_affine_map_carries_the_hand_delta_variance_beside_the_plug_in_value(
     assert propagation.mean == pytest.approx(claim.value)
     assert claim.propagated_mean == pytest.approx(claim.value)
     assert propagation.reading == "uncalibrated_spread"
-    assert propagation.calibration == "unmeasured"
+    assert propagation.calibration == "not_measured"
     assert propagation.standard_deviation == pytest.approx(math.sqrt(propagation.variance))
     assert propagation.dependence["kind"] == "independent"
     components = {c["target"]: c["omitted"] for c in claim.components}
-    assert components["propagated_variance:uncalibrated_spread:calibration_unmeasured"] is False
+    assert components["propagated_variance:uncalibrated_spread:calibration_not_measured"] is False
     assert components["source_standard_error"] is False
 
 

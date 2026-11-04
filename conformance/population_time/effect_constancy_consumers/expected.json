@@ -13,7 +13,7 @@
       "policy common leaders for disagreement, tie and same-sign cases"
     ],
     "context_only_outputs": [
-      "standing block (point-only, unmeasured calibration, support flags: declared repository policy)",
+      "standing block (point-only, not_measured calibration, support flags: declared repository policy)",
       "incompatible_source label",
       "disagreement partition values read by the test"
     ],
@@ -24,7 +24,7 @@
       "independence_basis": "The generator applies the variance-of-a-difference identity, the normal tail through erfc, absolute-distance scoring and argmax-set intersection to the declared inputs; it imports no Antecedent code and no statistics package. The shared object is the declared inputs and the source-name order used by the test (far, near).",
       "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "The 'standing' flags (point_only, unmeasured, no posterior transfer) are repository policy declarations, not derived. The ranking uses the source order far/near taken from the executing test, which this reference does not otherwise verify. Single contrast, so Holm adjustment is the identity. No calibration.",
+      "limitations": "The 'standing' flags (point_only, not_measured, no posterior transfer) are repository policy declarations, not derived. The ranking uses the source order far/near taken from the executing test, which this reference does not otherwise verify. Single contrast, so Holm adjustment is the identity. No calibration.",
       "sources": [],
       "artifacts": [
         {
@@ -113,7 +113,7 @@
   },
   "standing": {
     "inference": "point_only",
-    "calibration": "unmeasured",
+    "calibration": "not_measured",
     "transport_identification_required": true,
     "data_dependent_prior_selection": true,
     "posterior_transfer_supported": false,

@@ -70,7 +70,7 @@ def test_three_components_match_the_enumerated_law() -> None:
     derived = require_success(
         dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.95))
     )
-    assert derived.standing == "derived_unmeasured"
+    assert derived.standing == "derived_not_measured"
     assert derived.decided_id == "A"
     assert derived.source == "known_law"
     assert derived.assumptions

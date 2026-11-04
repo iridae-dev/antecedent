@@ -12,7 +12,7 @@
 //!
 //! Uncertainty is a whole-procedure resample of the inference clusters (whole subjects under a
 //! declared independent-subject design; a dependent single series is refused), and every
-//! interval is unsupported with calibration `unmeasured`.
+//! interval is unsupported with calibration `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{

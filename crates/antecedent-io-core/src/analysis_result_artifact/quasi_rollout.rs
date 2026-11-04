@@ -64,7 +64,7 @@ pub struct DesignEffectWire {
 }
 
 /// A rollout design result with its whole-procedure uncertainty (unsupported, calibration
-/// unmeasured).
+/// not_measured).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct QuasiRolloutWire {
@@ -76,7 +76,7 @@ pub struct QuasiRolloutWire {
     pub effects: Vec<DesignEffectWire>,
     /// How the uncertainty was computed.
     pub uncertainty: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Requested replicates.
     pub replicates_requested: u32,
@@ -190,7 +190,7 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
         return fail("a Bayesian rollout section needs its posterior, a frequentist one none");
     }
     if rollout.supported
-        || rollout.calibration != "unmeasured"
+        || rollout.calibration != "not_measured"
         || (!bayesian && result.standard_error.is_some())
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()

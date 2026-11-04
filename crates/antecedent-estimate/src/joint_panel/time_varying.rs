@@ -158,7 +158,7 @@ pub struct TemporalPanelFit {
     pub uncertainty: String,
     /// Always model conditional; an engine cannot identify an attribution.
     pub claim: String,
-    /// Calibration remains unmeasured.
+    /// Calibration remains not_measured.
     pub calibration: String,
     /// Frozen data/history/group dependency.
     pub source_identity: SemanticDigest,
@@ -843,7 +843,7 @@ fn fit_temporal_inner(
         posterior_converged,
         uncertainty,
         claim: "model_conditional_temporal_mechanism_only".into(),
-        calibration: "unmeasured".into(),
+        calibration: "not_measured".into(),
         source_identity: data.identity()?,
         retention,
         retained_volume: retained,

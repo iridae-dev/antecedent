@@ -18,10 +18,11 @@ use antecedent::analysis::evidence_ledger::ResultId;
 use antecedent::analysis::selective_discovery::revalidate_after_discovery;
 use antecedent::contract::ClaimEnvelope;
 use antecedent::execution::recalc::{ChangeKind, Stage, StageIdentity};
+use antecedent::identity::ContractIdentities;
 use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, DeclaredStageWire, plan_from_wire, stage_from_label,
 };
-use antecedent::schema::{ContractIdentities, ModelId, QueryId, StateVersion};
+use antecedent::schema::{ModelId, QueryId, StateVersion};
 use antecedent::scientific::SemanticDigest;
 use antecedent::state::{ChangedInput, InvalidationLog, InvalidationTarget};
 use pyo3::prelude::*;

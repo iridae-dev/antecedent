@@ -71,8 +71,8 @@ def test_prepared_and_completed_target_refits_preserve_exact_producer_and_origin
     assert placebo.original[0] == pytest.approx(2, abs=0.1)
     assert abs(placebo.refuted[0]) < 0.5
     assert _reports(retained)["target.finite_difference_consistency"].passed
-    assert retained.calibration == "unmeasured"
-    assert retained.inspect().uncertainty.reason == "diagnostic_unmeasured"
+    assert retained.calibration == "not_measured"
+    assert retained.inspect().uncertainty.reason == "diagnostic_not_measured"
     assert len(repr(retained)) < 350
     assert original.inspect().program_id == identities["program_id"]
 
@@ -138,7 +138,7 @@ def test_conjugate_posterior_controls_refit_the_original_inference_declaration()
     reports = _reports(report)
     assert reports["target.prior_sensitivity"].original[0] == pytest.approx(2, abs=0.2)
     assert "target.posterior_predictive" in reports
-    assert report.calibration == "unmeasured"
+    assert report.calibration == "not_measured"
 
 
 def test_bayesian_derivative_reports_unsupported_conjugate_and_checks_compatible_route():
@@ -166,7 +166,7 @@ def test_bayesian_derivative_reports_unsupported_conjugate_and_checks_compatible
         and "does not use a coefficient prior" in item.reason
         for item in report.refused
     )
-    assert report.calibration == "unmeasured"
+    assert report.calibration == "not_measured"
 
 
 def test_inspection_does_not_refit_or_serialize_payload(monkeypatch):
@@ -236,7 +236,7 @@ def test_failed_suite_cannot_claim_pass_by_vacuous_truth():
         (),
         (),
         "certificate",
-        "unmeasured",
+        "not_measured",
     )
     assert report.passed is None
     assert replace(report, reports=()).passed is None
@@ -478,7 +478,7 @@ def test_partial_reports_preserve_failed_checks_and_never_claim_an_unrun_suite_p
         (check,),
         (refusal,),
         "certificate",
-        "unmeasured",
+        "not_measured",
     )
     assert report.passed is False
     assert report.answer.kind == "partial"

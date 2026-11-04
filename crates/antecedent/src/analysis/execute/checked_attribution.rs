@@ -2562,7 +2562,7 @@ fn disclose_model_bootstrap(
         diagnostic.severity = DiagnosticSeverity::Warning;
         diagnostic.message = format!(
             "fitted-model attribution bootstrap: {} refits completed without a named quantity, \
-             {} refits failed; no standard error is published. Calibration is unmeasured.",
+             {} refits failed; no standard error is published. Calibration is not_measured.",
             outcome.rows.len(),
             outcome.failed,
         )
@@ -2580,7 +2580,7 @@ fn disclose_model_bootstrap(
         .chain([
             ("replicates_ok".to_owned(), primary.replicates_ok.unwrap_or(0).to_string()),
             ("replicates_failed".to_owned(), primary.replicates_failed.unwrap_or(0).to_string()),
-            ("calibration".to_owned(), "unmeasured".to_owned()),
+            ("calibration".to_owned(), "not_measured".to_owned()),
         ])
         .collect();
     diagnostic.with_fields(fields)

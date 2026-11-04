@@ -357,7 +357,7 @@ fn a_seeded_sample_from_the_provider_estimates_the_hand_values_within_five_sigma
     let n = 20_000_usize;
     let mut rng = CausalRng::from_seed(11);
     let draws: Vec<f64> = (0..n).map(|_| f64::from(u8::from(rng.next_f64() >= 0.75))).collect();
-    let sample = bernoulli_artifact(None, draws, DistributionCalibration::Unmeasured);
+    let sample = bernoulli_artifact(None, draws, DistributionCalibration::NotMeasured);
     let band = 5.0 * (3.0 / 16.0 / n as f64).sqrt();
     let mean = sample.mean(0).unwrap();
     assert!((mean - 0.25).abs() <= band, "sample mean {mean}");

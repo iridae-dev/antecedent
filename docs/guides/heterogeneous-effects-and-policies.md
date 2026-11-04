@@ -37,7 +37,7 @@ result = observational_policy.policy_value(
 )
 truth = 1.0 + 1.5 / np.sqrt(2.0 * np.pi)
 assert abs(result.value - truth) < 4 * result.se
-assert result.calibration == "unmeasured"
+assert result.calibration == "not_measured"
 ```
 
 The Rust entry is `antecedent::analysis::observational_policy::ObservationalPolicyValue`. The test suite (`python/tests/test_observational_policy.py`, `observational_policy_value.rs`) checks this closed form and a three-action process.
@@ -79,7 +79,7 @@ Identification needs conditional exchangeability given the `adjust` columns (you
 
 ### What the standard errors support
 
-They are influence-function standard errors labelled `calibration == "unmeasured"`; no interval is produced and no coverage claim is made. For `cross_fitted_learning` the standard error pools the scores of all folds and treats the fold policies as fixed. That is reasonable when the learned policy stabilises across folds (the cross-fitting argument of Athey and Wager, 2021; Zhou, Athey and Wager, 2023), as a low-dimensional parametric rule does at moderate sample sizes. When the rule changes materially between folds the standard error is approximate and no correction is applied. The learned policy class is the greedy rule over per-action linear outcome models, not an optimal policy search. This route creates no support-matrix support.
+They are influence-function standard errors labelled `calibration == "not_measured"`; no interval is produced and no coverage claim is made. For `cross_fitted_learning` the standard error pools the scores of all folds and treats the fold policies as fixed. That is reasonable when the learned policy stabilises across folds (the cross-fitting argument of Athey and Wager, 2021; Zhou, Athey and Wager, 2023), as a low-dimensional parametric rule does at moderate sample sizes. When the rule changes materially between folds the standard error is approximate and no correction is applied. The learned policy class is the greedy rule over per-action linear outcome models, not an optimal policy search. This route creates no support-matrix support.
 
 ## Evaluate a fixed policy under randomized assignment
 

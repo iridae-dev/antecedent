@@ -64,7 +64,7 @@ fn context() -> NativeResponseContext {
         },
         snapshot_id: "snap-1".into(),
         rng_id: "pcg:seed=7".into(),
-        calibration: DistributionCalibration::Unmeasured,
+        calibration: DistributionCalibration::NotMeasured,
     }
 }
 

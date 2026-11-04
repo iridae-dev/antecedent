@@ -226,7 +226,7 @@ fn contrast_between_named_doses_matches_closed_form() {
     assert!((noisy.estimate - difference).abs() < 1e-9, "{} vs {difference}", noisy.estimate);
     let se = to.4.iter().zip(&from.4).map(|(a, b)| (a - b).powi(2)).sum::<f64>().sqrt();
     assert!((noisy.standard_error - se).abs() < 1e-9, "se {} vs {se}", noisy.standard_error);
-    assert_eq!(noisy.interval.calibration, IntervalCalibration::Unmeasured);
+    assert_eq!(noisy.interval.calibration, IntervalCalibration::NotMeasured);
     assert!(noisy.interval.lower < noisy.estimate && noisy.estimate < noisy.interval.upper);
     assert!(!noisy.interval.smoothing_bias_included);
 }
@@ -240,7 +240,7 @@ fn claims_are_separate_typed_fields_and_band_is_not_supported() {
     assert!(derivative.levels.is_empty() && derivative.contrast.is_none());
     assert!(derivative.simultaneous_band.is_none());
     for item in &derivative.derivatives {
-        assert_eq!(item.interval.calibration, IntervalCalibration::Unmeasured);
+        assert_eq!(item.interval.calibration, IntervalCalibration::NotMeasured);
     }
 
     let (dose, outcome) = design(0.1);
@@ -416,7 +416,7 @@ fn exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration
             for p in &scoped.levels {
                 assert!((p.level - (b[0] + b[1] * p.dose + b[2] * p.dose.powi(2))).abs() < 1e-6);
                 assert!(p.interval.smoothing_bias_included);
-                assert_eq!(p.interval.calibration, IntervalCalibration::Unmeasured);
+                assert_eq!(p.interval.calibration, IntervalCalibration::NotMeasured);
             }
             for p in &scoped.derivatives {
                 assert!((p.derivative - (b[1] + 2.0 * b[2] * p.dose)).abs() < 1e-5);

@@ -404,7 +404,7 @@ impl From<&HistoryMatchEstimate> for HistoryMatchWire {
             serial_bandwidth: fit.serial_bandwidth,
             caliper: fit.caliper,
             uncertainty: fit.uncertainty.to_string(),
-            calibration: "unmeasured".to_owned(),
+            calibration: "not_measured".to_owned(),
             supported: false,
         }
     }
@@ -428,7 +428,7 @@ impl From<&SequentialContrastEstimate> for SequentialContrastWire {
             control_scores: fit.control_scores.to_vec(),
             contrast_scores: fit.contrast_scores.to_vec(),
             uncertainty: fit.uncertainty.to_string(),
-            calibration: "unmeasured".to_owned(),
+            calibration: "not_measured".to_owned(),
             supported: false,
         }
     }
@@ -600,7 +600,7 @@ pub(crate) fn iv_bounds_wire(
                 upper_sd: posterior.upper_sd,
             }),
             uncertainty,
-            calibration: "unmeasured".to_owned(),
+            calibration: "not_measured".to_owned(),
             supported: false,
         }
     }

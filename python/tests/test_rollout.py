@@ -49,7 +49,7 @@ def law(**kwargs: object) -> JointDistributionArtifact:
     return JointDistributionArtifact(
         identity,
         np.array([[0.25, 1.0], [0.75, 2.0]], dtype=np.float64),
-        calibration="unmeasured",
+        calibration="not_measured",
         trust="external_attested",
         **kwargs,
     )  # type: ignore[arg-type]
@@ -225,7 +225,7 @@ print(json.dumps({'identity':value.identity, 'trust':value.source_trust, 'calibr
     assert result == {
         "identity": rollout.identity,
         "trust": "external_attested",
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
     }
 
 

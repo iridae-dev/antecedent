@@ -836,7 +836,7 @@ pub struct SurvivalDifferenceBandWire {
 ///
 /// Every coordinate has a posterior mean and an equal-tailed 95% credible interval; the
 /// covariance across coordinates is the covariance of the retained joint draws, so draw `k` of
-/// every coordinate comes from one posterior sample. The calibration is always `unmeasured`
+/// every coordinate comes from one posterior sample. The calibration is always `not_measured`
 /// and support is separate from calibration. The IPW randomized-arm row has its own exact
 /// graphless support and retained replay inputs; other rows remain unsupported.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -848,7 +848,7 @@ pub struct PosteriorRowWire {
     pub target: String,
     /// Always `posterior`.
     pub uncertainty: String,
-    /// Calibration status of every interval (`unmeasured`).
+    /// Calibration status of every interval (`not_measured`).
     pub calibration: String,
     /// Whether an exact graphless support admits this row's construction.
     pub supported: bool,
@@ -880,7 +880,7 @@ pub struct PosteriorRowWire {
 /// What every stored posterior row's uncertainty is.
 pub const POSTERIOR_ROW_UNCERTAINTY: &str = "posterior";
 /// Calibration status of every posterior row.
-pub const POSTERIOR_ROW_CALIBRATION: &str = "unmeasured";
+pub const POSTERIOR_ROW_CALIBRATION: &str = "not_measured";
 
 impl PosteriorRowWire {
     /// An empty posterior of `estimator` over `coordinates`, calibration status `not_measured`.
@@ -959,7 +959,7 @@ impl PosteriorRowWire {
             || self.lower.iter().zip(&self.upper).any(|(lower, upper)| lower > upper)
         {
             return Err(crate::IoError::Convert(
-                "a posterior row must have supported support semantics, unmeasured calibration and aligned finite arrays".into(),
+                "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays".into(),
             ));
         }
         Ok(())
@@ -969,7 +969,7 @@ impl PosteriorRowWire {
 /// Retained observational two-decision regime contrast and its uncertainty.
 ///
 /// The cross-fit scores are kept so a loader recomputes the means, the standard error and the
-/// interval. The result is unsupported and its repeated-sampling calibration is unmeasured.
+/// interval. The result is unsupported and its repeated-sampling calibration is not_measured.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SequentialContrastWire {
@@ -1003,9 +1003,9 @@ pub struct SequentialContrastWire {
     pub control_scores: Vec<f64>,
     /// Active minus control score of each subject.
     pub contrast_scores: Vec<f64>,
-    /// `normal_interval_calibration_unmeasured` or the modular posterior label.
+    /// `normal_interval_calibration_not_measured` or the modular posterior label.
     pub uncertainty: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,
@@ -1075,9 +1075,9 @@ pub struct HistoryMatchWire {
     /// The caliper, when one was declared.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caliper: Option<f64>,
-    /// Always `abadie_imbens_and_newey_west_period_interval_calibration_unmeasured`.
+    /// Always `abadie_imbens_and_newey_west_period_interval_calibration_not_measured`.
     pub uncertainty: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,

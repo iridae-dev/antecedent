@@ -69,7 +69,7 @@ def test_a_declared_bound_widens_intervals_and_carries_a_replayable_band() -> No
         assert section.band_lower[j] <= section.lower[j]
         assert section.upper[j] <= section.band_upper[j]
         assert section.band_lower[j] <= truth_level(point.dose) <= section.band_upper[j]
-    assert "calibration unmeasured" in result.explain()
+    assert "calibration not_measured" in result.explain()
     assert result.to_dict()["bias_aware"]["band_replicates"] == 500
 
     fresh = consume_dose_grid_artifact(bytes(result.export()))

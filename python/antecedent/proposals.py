@@ -560,7 +560,7 @@ class ProposalBundle:
         Structural ``on_arrival`` remains available separately. This route requires
         original producer artifacts, supplied explicitly when the bundle was loaded
         from a dictionary. Unrepresented sampling designs refuse; point uncertainty
-        remains unmeasured.
+        remains not_measured.
         """
         repair_artifact = container_bytes(repair_artifact) if repair_artifact is not None else None
         ranking_artifact = (

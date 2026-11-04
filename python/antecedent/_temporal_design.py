@@ -417,7 +417,7 @@ class TemporalDesignEstimate:
     ``estimate`` is the point estimate (frequentist) or the posterior mean (Bayesian);
     ``standard_error`` is the standard error (the whole-procedure bootstrap standard
     deviation when ``replicates`` is set) or the posterior standard deviation (when ``draws``
-    is set). Unsupported; calibration unmeasured.
+    is set). Unsupported; calibration not_measured.
     """
 
     design: str
@@ -544,7 +544,7 @@ def temporal_design_from_wire(wire: Any) -> TemporalDesignEstimate | None:
         replicates=None if replicates is None else (int(replicates[0]), int(replicates[1])),
         draws=None if wire.get("draws") is None else int(wire["draws"]),
         uncertainty=str(wire["uncertainty"]),
-        calibration=str(wire.get("calibration", "unmeasured")),
+        calibration=str(wire.get("calibration", "not_measured")),
         supported=bool(wire.get("supported", False)),
     )
 

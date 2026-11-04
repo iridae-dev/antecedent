@@ -48,7 +48,7 @@
 //! [`marginal_interval_candidate`] are interval *constructions* at the composed
 //! coordinate and [`composed_exceedance_decision`] is a decision about a
 //! composed exceedance probability with its Monte Carlo band. Each carries the
-//! calibration status [`CALIBRATION_STATUS`] (`unmeasured`): a construction is
+//! calibration status [`CALIBRATION_STATUS`] (`not_measured`): a construction is
 //! not a coverage statement, and the joint-law rule reports the interval
 //! reading with that status until a record measured at that exact coordinate and
 //! construction exists.
@@ -70,7 +70,7 @@ pub const UNCALIBRATED_SPREAD_LABEL: &str = "uncalibrated_spread";
 /// Calibration status of every interval candidate and decision verdict of this
 /// module: the construction is wired, and no coverage record of the composed
 /// coordinate exists until one is measured and attested.
-pub const CALIBRATION_STATUS: &str = "unmeasured";
+pub const CALIBRATION_STATUS: &str = "not_measured";
 /// Label of a Fréchet-Hoeffding envelope over every coupling of the marginals.
 pub use antecedent_core::STRUCTURAL_ENVELOPE_LABEL;
 /// Label of the range implied by a declared correlation range.
@@ -1036,7 +1036,7 @@ fn check_level(level: f64) -> Result<(), JointLawError> {
 /// An interval built at a composed coordinate whose coverage is not measured.
 ///
 /// This is a construction, not a coverage statement: it is reported with the
-/// calibration status `unmeasured` until a record for exactly this composed
+/// calibration status `not_measured` until a record for exactly this composed
 /// coordinate and construction is attested, and the joint-law rule closes the
 /// interval reading until then.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1805,7 +1805,7 @@ mod tests {
         let normal = normal_interval_candidate(10.0, 4.0, 0.95).expect("normal");
         assert!((normal.lower - (10.0 - 2.0 * 1.959_963_984_540_054)).abs() < 1e-9);
         assert!((normal.upper - (10.0 + 2.0 * 1.959_963_984_540_054)).abs() < 1e-9);
-        assert_eq!(normal.calibration, "unmeasured");
+        assert_eq!(normal.calibration, "not_measured");
         assert_eq!(normal.construction, NORMAL_APPROXIMATION_CONSTRUCTION);
         // Draws 0..=100: type 7 ranks p (n - 1), type 6 ranks p (n + 1).
         let draws: Vec<f64> = (0..=100).map(f64::from).collect();
@@ -1876,7 +1876,7 @@ mod tests {
         assert!((d.standard_error - 0.031_284).abs() < 1e-5, "{d:?}");
         assert!((d.band - 1.959_964 * d.standard_error).abs() < 1e-8);
         assert_eq!(d.verdict, DecisionVerdict::Act);
-        assert_eq!(d.calibration, "unmeasured");
+        assert_eq!(d.calibration, "not_measured");
         for (cutoff, expected) in [
             (0.5, DecisionVerdict::Act),
             (0.9, DecisionVerdict::Unresolved),

@@ -18586,7 +18586,7 @@ pub variant antecedent_io_core::dependency_key::ReusableProduct::SourceSnapshot
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::Exact
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::Measured
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::PointOnly
-pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::Unmeasured
+pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::NotMeasured
 pub variant antecedent_io_core::distribution_artifact::DistributionTrust::ExternalAttested
 pub variant antecedent_io_core::distribution_artifact::DistributionTrust::NativeSupported
 pub variant antecedent_io_core::distribution_artifact::DistributionTrust::Unverified

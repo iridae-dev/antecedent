@@ -259,7 +259,7 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     with pytest.raises(GraphSelectionImputationRefusal) as interval:
         result.interval()
     assert interval.value.reason_code == "not_supported"
-    assert interval.value.detail == reason_details.graph_selection_imputation.INTERVAL_UNMEASURED
+    assert interval.value.detail == reason_details.graph_selection_imputation.INTERVAL_NOT_MEASURED
     assert result.total >= result.within and result.between >= 0.0
 
     with pytest.raises(GraphSelectionImputationRefusal) as unknown:

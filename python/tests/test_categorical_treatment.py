@@ -150,7 +150,7 @@ def test_categorical_monotonicity_test_and_its_null() -> None:
     # p = min(1, 2 Phi(-sqrt(3/2))) = erfc(sqrt(3/4)): conservative union-intersection bound.
     assert mono.p_value == pytest.approx(math.erfc(math.sqrt(0.75)), abs=1e-9)
     assert mono.conservative is True
-    assert mono.calibration == "unmeasured"
+    assert mono.calibration == "not_measured"
     assert any("failing to reject does not prove" in c for c in result.caveats)
     flipped = monotone(monotonicity=Direction.NON_INCREASING).monotonicity
     assert flipped is not None
@@ -160,13 +160,13 @@ def test_categorical_monotonicity_test_and_its_null() -> None:
     assert flipped.p_value == pytest.approx(1.0, abs=1e-9)
 
 
-def test_categorical_calibration_is_unmeasured_and_says_so() -> None:
+def test_categorical_calibration_is_not_measured_and_says_so() -> None:
     result = abc()
-    assert result.calibration == "unmeasured"
-    assert result.inference_claim == "asymptotic_wald_calibration_unmeasured"
-    assert any("calibration is unmeasured" in c for c in result.caveats)
+    assert result.calibration == "not_measured"
+    assert result.inference_claim == "asymptotic_wald_calibration_not_measured"
+    assert any("calibration is not_measured" in c for c in result.caveats)
     summary = result.to_dict()
-    assert summary["calibration"] == "unmeasured"
+    assert summary["calibration"] == "not_measured"
     assert summary["table"][0]["level"] == "a"
     assert summary["table"][0]["estimate"] == 0.0
     assert [row["rows"] for row in summary["table"]] == [2, 3, 4]
@@ -398,7 +398,7 @@ def test_the_posterior_states_its_estimand_prior_and_standing() -> None:
     posterior = abc(posterior=PRIOR).posterior
     assert posterior is not None
     assert posterior.estimand.startswith("superpopulation_dummy_coefficient_contrast")
-    assert posterior.calibration == "unmeasured"
+    assert posterior.calibration == "not_measured"
     assert posterior.supported is False
     assert posterior.prior == PRIOR
     assert abc().posterior is None
@@ -408,7 +408,7 @@ def test_the_posterior_interval_is_reported_with_its_calibration_status() -> Non
     result = abc(posterior=PRIOR)
     posterior = result.posterior
     assert posterior is not None
-    assert posterior.calibration == "unmeasured"
+    assert posterior.calibration == "not_measured"
     for level in ("b", "c"):
         effect = posterior.effect(level)
         lower, upper = effect.interval

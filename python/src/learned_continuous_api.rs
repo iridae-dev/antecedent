@@ -32,7 +32,7 @@ fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwI
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =
         value.get("sampling").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
-    antecedent::estimate::parse_learned_continuous_sampling(&sampling).map_err(error)?;
+    antecedent::declared::IidSampling::parse_learned_continuous(&sampling).map_err(error)?;
     value["sampling"] = sampling.into();
     serde_json::from_value(value).map_err(value_error)
 }
@@ -243,7 +243,7 @@ fn prepare_learned_continuous(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedLearnedContinuousNative> {
-    antecedent::estimate::parse_learned_continuous_target(&target_name).map_err(error)?;
+    target_name.parse::<antecedent::declared::LearnedContinuousTarget>().map_err(error)?;
     let (diagram, query) = build(graph, &selections, source, target, &treatment, &outcome)?;
     let input = parse_input(data, &graph.names)?;
     let options: LearnedContinuousOptions = serde_json::from_str(&options).map_err(value_error)?;

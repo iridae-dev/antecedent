@@ -189,7 +189,7 @@ fn cells_01_a_model_only_response_is_searched_as_conditional_and_its_identified_
         .unwrap();
     assert!(conditional.result.exhaustive);
     assert_eq!(conditional.result.continuous_gap, None);
-    assert_eq!(conditional.result.reliability, "unmeasured");
+    assert_eq!(conditional.result.reliability, "not_measured");
     assert_eq!(conditional.result.rows.len(), 4);
     let error = result
         .compile_search(&search_request(&result, JointPanelScientificScope::IdentifiedCausal), &ctx)

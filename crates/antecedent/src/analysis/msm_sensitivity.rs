@@ -12,7 +12,7 @@
 //! Every number is an assumption range or an identified value. The sampling interval is
 //! withheld (`sampling interval: not reported`) and a requested sampling composition refuses
 //! with `not_supported` / `msm_sensitivity.composition_not_supported`. Calibration is
-//! unmeasured.
+//! not_measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

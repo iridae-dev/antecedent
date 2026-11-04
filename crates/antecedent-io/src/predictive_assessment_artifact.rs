@@ -8,7 +8,7 @@
 //! design, with the scores and diagnostics computed from them.
 //!
 //! * `predictive_assessment_meta` (CBOR): version, feature marker, the
-//!   point-only claim, the **unmeasured** calibration status, the closed interval
+//!   point-only claim, the **not_measured** calibration status, the closed interval
 //!   status, the target, the validation design and dependence declarations, the
 //!   scoring and diagnostic configuration, each predictor's source and fit
 //!   declaration, the identity digests, the stored result labels and the standing
@@ -34,7 +34,7 @@
 //!
 //! What this does **not** say: no interval or significance level for a score or
 //! a score difference (not supported: `not_supported`), no calibration guarantee
-//! (diagnostics are labelled and `unmeasured`), no causal validity (a score is
+//! (diagnostics are labelled and `not_measured`), no causal validity (a score is
 //! not a causal claim) and no probability that a claim holds.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -57,7 +57,7 @@ pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 2;
 /// The feature marker of the accepted format.
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE: &str = "predictive_assessment_v1";
 /// Calibration status: diagnostics of this route have no measured calibration.
-pub const PREDICTIVE_ASSESSMENT_CALIBRATION: &str = "unmeasured";
+pub const PREDICTIVE_ASSESSMENT_CALIBRATION: &str = "not_measured";
 /// Interval status: a score or score-difference interval is not supported.
 pub const PREDICTIVE_ASSESSMENT_INTERVAL: &str = "not_reported";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
@@ -67,7 +67,7 @@ pub const MAX_PREDICTIVE_ASSESSMENT_NUMBERS: usize = 32 * 1024 * 1024;
 /// The standing caveats every artifact carries.
 pub const PREDICTIVE_ASSESSMENT_CAVEATS: [&str; 3] = [
     "a predictive score is not causal validity and not the probability that a claim holds",
-    "calibration, PIT, coverage and drift diagnostics are labelled and unmeasured: no \
+    "calibration, PIT, coverage and drift diagnostics are labelled and not_measured: no \
      calibration guarantee, interval or significance level is claimed",
     "no interval is reported for a score or a score difference; exact finite-law scoring \
      supplies no sampling interval",
@@ -270,7 +270,7 @@ pub struct PredictiveAssessmentMeta {
     pub feature: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Always `not_established`.
     pub causal_validity: String,
@@ -848,7 +848,7 @@ fn encode_container(
     crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "predictive_assessment_point_only_unmeasured",
+            note: "predictive_assessment_point_only_not_measured",
             max_bytes: MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),

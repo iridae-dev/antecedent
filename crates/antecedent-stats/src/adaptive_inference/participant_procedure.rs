@@ -88,7 +88,7 @@
 //! ([`SequenceKind::MixtureHoeffding`], arms at `alpha / (2 (K - 1))`) keep
 //! that construction when they are replayed. The sequence is a finite-time
 //! theorem under its premise; it is not a measured coverage of the whole
-//! procedure, and every number carries [`DERIVED_UNMEASURED`].
+//! procedure, and every number carries [`DERIVED_NOT_MEASURED`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -112,7 +112,7 @@ use super::procedure_law::{
 };
 use super::procedure_repeated_measures::{CellLabel, MAX_UNIT_LAG};
 use super::procedure_simulation::{MAX_SIMULATION_REPLICATIONS, draw};
-use super::procedure_uncertainty::DERIVED_UNMEASURED;
+use super::procedure_uncertainty::DERIVED_NOT_MEASURED;
 use antecedent_core::named_variants;
 
 /// Most binary responses per participant.
@@ -800,7 +800,7 @@ pub struct ComparisonReading {
 pub struct FrequentistClaim {
     /// Always `anytime_valid_frequentist`.
     pub paradigm: &'static str,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// Label of the sequence construction ([`SequenceKind::label`]).
     pub sequence: &'static str,
@@ -1112,7 +1112,7 @@ impl ParticipantSpec {
         let best_treatment_comparison = comparisons[best_treatment - 1];
         let frequentist = FrequentistClaim {
             paradigm: "anytime_valid_frequentist",
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             sequence: self.sequence.label(),
             alpha: self.anytime.alpha,
             alpha_per_comparison: 2.0 * self.alpha_per_arm(),

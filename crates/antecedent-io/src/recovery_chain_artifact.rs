@@ -23,7 +23,7 @@
 //! arithmetic, not that the table describes real data), and the m-graph's untestable
 //! premises (for example that no further self-censoring edge exists): they are
 //! declared, never verified from data. The row evaluates exact laws; any sampled
-//! provider composed on it is calibrated separately and is unmeasured and not supported.
+//! provider composed on it is calibrated separately and is not_measured and not supported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

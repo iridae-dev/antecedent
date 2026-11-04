@@ -9,7 +9,7 @@
 //! number and every refusal are Rust's; a refusal comes back as structured
 //! JSON for the Python layer to raise as a typed exception.
 //!
-//! Every result is labelled `derived_unmeasured`: exact (or simulated with a
+//! Every result is labelled `derived_not_measured`: exact (or simulated with a
 //! reported Monte Carlo error) under the stated model, with no interval or
 //! coverage support.
 

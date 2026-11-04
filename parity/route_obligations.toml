@@ -1439,14 +1439,14 @@ graph_class = "Dag"
 structure = "explicit"
 inference = "Frequentist"
 validation = "none"
-estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional"]
+estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional", "randomized.quantile"]
 route_estimator = "linear.adjustment.ate"
 matrix_digest = "59ed928de356c0bb"
 support_basis = "explicit_support"
-compiler_execution = ["frontdoor.functional = crates/antecedent/tests/frontdoor_known_truth.rs::frontdoor_functional_matches_the_enumerated_effect_on_every_dag_coordinate", "distance.matching = crates/antecedent/tests/static_adjustment_known_truth.rs::distance_matching_matches_the_back_door_contrast_on_every_claimed_coordinate", "propensity.stratification = crates/antecedent/tests/static_adjustment_known_truth.rs::propensity_stratification_matches_the_back_door_contrast_on_every_claimed_coordinate", "causal.forest = crates/antecedent/tests/static_adjustment_known_truth.rs::causal_forest_matches_the_back_door_contrast_on_every_claimed_coordinate", "dr.learner = crates/antecedent/tests/static_adjustment_known_truth.rs::dr_learner_matches_the_back_door_contrast_on_every_claimed_coordinate", "dml = crates/antecedent/tests/static_adjustment_known_truth.rs::dml_matches_the_back_door_contrast_on_every_claimed_coordinate", "functional.effect = crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_frequentist_none", "linear.adjustment.ate = crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "aipw = crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_explicit_frequentist_aipw_none", "frontdoor.linear_two_stage = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_frontdoor_none", "glm.adjustment = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal", "iv.2sls = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_2sls_none", "iv.wald = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_wald_none", "propensity.matching = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "propensity.weighting = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "rd.sharp = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal"]
+compiler_execution = ["randomized.quantile = crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none", "frontdoor.functional = crates/antecedent/tests/frontdoor_known_truth.rs::frontdoor_functional_matches_the_enumerated_effect_on_every_dag_coordinate", "distance.matching = crates/antecedent/tests/static_adjustment_known_truth.rs::distance_matching_matches_the_back_door_contrast_on_every_claimed_coordinate", "propensity.stratification = crates/antecedent/tests/static_adjustment_known_truth.rs::propensity_stratification_matches_the_back_door_contrast_on_every_claimed_coordinate", "causal.forest = crates/antecedent/tests/static_adjustment_known_truth.rs::causal_forest_matches_the_back_door_contrast_on_every_claimed_coordinate", "dr.learner = crates/antecedent/tests/static_adjustment_known_truth.rs::dr_learner_matches_the_back_door_contrast_on_every_claimed_coordinate", "dml = crates/antecedent/tests/static_adjustment_known_truth.rs::dml_matches_the_back_door_contrast_on_every_claimed_coordinate", "functional.effect = crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_frequentist_none", "linear.adjustment.ate = crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "aipw = crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_explicit_frequentist_aipw_none", "frontdoor.linear_two_stage = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_frontdoor_none", "glm.adjustment = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal", "iv.2sls = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_2sls_none", "iv.wald = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_wald_none", "propensity.matching = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "propensity.weighting = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "rd.sharp = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/supported_static_cells.rs|average_effect_dag_frequentist_known_truth_all_structures_and_suites|conformance/estimate/linear_gaussian_ate"
 uncertainty = "coverage_records"
-evidence_reachability = ["crates/antecedent/tests/aipw_ate_route_evidence.rs", "crates/antecedent/tests/checked_propensity_route_evidence.rs", "crates/antecedent/tests/checked_static_estimators_route_evidence.rs", "crates/antecedent/tests/frontdoor_iv_route_evidence.rs", "crates/antecedent/tests/frontdoor_known_truth.rs", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs", "crates/antecedent/tests/linear_adjustment_route_evidence.rs", "crates/antecedent/tests/static_adjustment_known_truth.rs", "crates/antecedent/tests/supported_static_cells.rs", "conformance/estimate/linear_gaussian_ate"]
+evidence_reachability = ["crates/antecedent/tests/aipw_ate_route_evidence.rs", "crates/antecedent/tests/checked_propensity_route_evidence.rs", "crates/antecedent/tests/checked_static_estimators_route_evidence.rs", "crates/antecedent/tests/frontdoor_iv_route_evidence.rs", "crates/antecedent/tests/frontdoor_known_truth.rs", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs", "crates/antecedent/tests/linear_adjustment_route_evidence.rs", "crates/antecedent/tests/randomized_quantile_known_truth.rs", "crates/antecedent/tests/static_adjustment_known_truth.rs", "crates/antecedent/tests/supported_static_cells.rs", "conformance/estimate/linear_gaussian_ate"]
 
 [[obligation]]
 id = "AverageEffect:Dag:explicit:Frequentist:cheap"
@@ -1490,14 +1490,14 @@ graph_class = "Dag"
 structure = "accepted"
 inference = "Frequentist"
 validation = "none"
-estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional"]
+estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional", "randomized.quantile"]
 route_estimator = "linear.adjustment.ate"
 matrix_digest = "efa21018b23c9a00"
 support_basis = "explicit_support"
-compiler_execution = ["frontdoor.functional = crates/antecedent/tests/frontdoor_known_truth.rs::frontdoor_functional_matches_the_enumerated_effect_on_every_dag_coordinate", "distance.matching = crates/antecedent/tests/static_adjustment_known_truth.rs::distance_matching_matches_the_back_door_contrast_on_every_claimed_coordinate", "propensity.stratification = crates/antecedent/tests/static_adjustment_known_truth.rs::propensity_stratification_matches_the_back_door_contrast_on_every_claimed_coordinate", "causal.forest = crates/antecedent/tests/static_adjustment_known_truth.rs::causal_forest_matches_the_back_door_contrast_on_every_claimed_coordinate", "dr.learner = crates/antecedent/tests/static_adjustment_known_truth.rs::dr_learner_matches_the_back_door_contrast_on_every_claimed_coordinate", "dml = crates/antecedent/tests/static_adjustment_known_truth.rs::dml_matches_the_back_door_contrast_on_every_claimed_coordinate", "functional.effect = crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_accepted_frequentist_none", "linear.adjustment.ate = crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_accepted_frequentist_none_linear_adjustment_coordinate", "aipw = crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_accepted_frequentist_aipw_none", "frontdoor.linear_two_stage = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_frontdoor_none", "glm.adjustment = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal", "iv.2sls = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_iv_2sls_none", "iv.wald = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_iv_wald_none", "propensity.matching = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "propensity.weighting = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "rd.sharp = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal"]
+compiler_execution = ["randomized.quantile = crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_accepted_frequentist_none", "frontdoor.functional = crates/antecedent/tests/frontdoor_known_truth.rs::frontdoor_functional_matches_the_enumerated_effect_on_every_dag_coordinate", "distance.matching = crates/antecedent/tests/static_adjustment_known_truth.rs::distance_matching_matches_the_back_door_contrast_on_every_claimed_coordinate", "propensity.stratification = crates/antecedent/tests/static_adjustment_known_truth.rs::propensity_stratification_matches_the_back_door_contrast_on_every_claimed_coordinate", "causal.forest = crates/antecedent/tests/static_adjustment_known_truth.rs::causal_forest_matches_the_back_door_contrast_on_every_claimed_coordinate", "dr.learner = crates/antecedent/tests/static_adjustment_known_truth.rs::dr_learner_matches_the_back_door_contrast_on_every_claimed_coordinate", "dml = crates/antecedent/tests/static_adjustment_known_truth.rs::dml_matches_the_back_door_contrast_on_every_claimed_coordinate", "functional.effect = crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_accepted_frequentist_none", "linear.adjustment.ate = crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_accepted_frequentist_none_linear_adjustment_coordinate", "aipw = crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_accepted_frequentist_aipw_none", "frontdoor.linear_two_stage = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_frontdoor_none", "glm.adjustment = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal", "iv.2sls = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_iv_2sls_none", "iv.wald = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_iv_wald_none", "propensity.matching = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "propensity.weighting = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "rd.sharp = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/supported_static_cells.rs|average_effect_dag_frequentist_known_truth_all_structures_and_suites|conformance/estimate/linear_gaussian_ate"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/aipw_ate_route_evidence.rs", "crates/antecedent/tests/checked_propensity_route_evidence.rs", "crates/antecedent/tests/checked_static_estimators_route_evidence.rs", "crates/antecedent/tests/frontdoor_iv_route_evidence.rs", "crates/antecedent/tests/frontdoor_known_truth.rs", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs", "crates/antecedent/tests/linear_adjustment_route_evidence.rs", "crates/antecedent/tests/static_adjustment_known_truth.rs", "crates/antecedent/tests/supported_static_cells.rs", "conformance/estimate/linear_gaussian_ate"]
+evidence_reachability = ["crates/antecedent/tests/aipw_ate_route_evidence.rs", "crates/antecedent/tests/checked_propensity_route_evidence.rs", "crates/antecedent/tests/checked_static_estimators_route_evidence.rs", "crates/antecedent/tests/frontdoor_iv_route_evidence.rs", "crates/antecedent/tests/frontdoor_known_truth.rs", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs", "crates/antecedent/tests/linear_adjustment_route_evidence.rs", "crates/antecedent/tests/randomized_quantile_known_truth.rs", "crates/antecedent/tests/static_adjustment_known_truth.rs", "crates/antecedent/tests/supported_static_cells.rs", "conformance/estimate/linear_gaussian_ate"]
 
 [[obligation]]
 id = "AverageEffect:Dag:accepted:Frequentist:cheap"
@@ -45834,3 +45834,71 @@ compiler_execution = ["functional.effect = crates/antecedent/tests/functional_gr
 identification_evidence = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
 uncertainty = "estimator_grid_not_measured"
 evidence_reachability = ["crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs", "conformance/estimate/functional_graph_posterior_mixtures"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["response.kennedy_dr"]
+route_estimator = ""
+matrix_digest = ""
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["response.kennedy_dr"]
+route_estimator = ""
+matrix_digest = ""
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["response.kennedy_dr"]
+route_estimator = ""
+matrix_digest = ""
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["response.kennedy_dr"]
+route_estimator = ""
+matrix_digest = ""
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]

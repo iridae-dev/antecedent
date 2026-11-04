@@ -51,7 +51,7 @@ pub struct NativeResponseContext {
     /// RNG algorithm, seed and stream identity, or a deterministic marker.
     pub rng_id: String,
     /// Calibration status of the response's uncertainty. A response with no
-    /// measured calibration record is `Unmeasured`; a point value is `PointOnly`.
+    /// measured calibration record is `NotMeasured`; a point value is `PointOnly`.
     pub calibration: DistributionCalibration,
 }
 

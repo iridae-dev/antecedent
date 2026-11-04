@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 use antecedent_kernels::{norm_pdf, norm_sf};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AssignmentRule, Attribution, BetaPosterior, BetaPrior,
-    ContractGap, DERIVED_UNMEASURED, Estimand, EstimandStatement, ExposureModel, FinalSelection,
+    ContractGap, DERIVED_NOT_MEASURED, Estimand, EstimandStatement, ExposureModel, FinalSelection,
     Functional, InversionGrid, ObservedTerminal, OutcomeKernel, OutcomeModelPrior,
     OutcomeObservation, ProcedureDeclaration, ProcedureSpec, Sidedness, SimulationRequest,
     SpendingFunction, StagewiseLook, StoppingRule, UncertaintyParadigm, WeightScheme, admit,
@@ -834,7 +834,7 @@ fn bayesian_report_matches_closed_forms() {
     let spec = build(declaration(thompson(), vec![1, 1]));
     // Arm 0: 3 successes, 1 failure -> Beta(4, 2); arm 1: Beta(2, 2).
     let report = bayesian_report(&spec, BetaPrior::UNIFORM, &[3, 1, 1, 1], &never).unwrap();
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     close(report.posteriors[0].mean(), 4.0 / 6.0, 1e-15, "posterior mean");
     let best_zero = 1.0 - miller_b_exceeds_a((4, 2), (2, 2));
     close(report.probability_best[0], best_zero, 1e-9, "probability best");
@@ -866,7 +866,7 @@ fn expected_loss_rule_decides_at_the_first_look_with_closed_form_regret() {
     close(report.decision_probabilities[0], decide_zero, 1e-9, "decide arm 0");
     close(report.wrong_decision_probability, decide_zero, 1e-9, "wrong decision");
     close(report.expected_regret, decide_zero * 0.3, 1e-9, "regret");
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     // A fixed-sample design is not a decision-theoretic procedure.
     let plain = build(declaration(fixed_half(), vec![2]));
     assert!(matches!(decision_report(&plain, &truth, &never), Err(Error::PremiseFailed { .. })));
@@ -1107,7 +1107,7 @@ fn inversion_matches_the_enumerated_supremum_tests() {
         InversionGrid { contrasts: vec![-0.4, 0.0, 0.2, 0.4, 0.8], baselines: vec![0.1, 0.3, 0.5] };
     let alpha = 0.3;
     let interval = inversion_interval(&spec, &observed, &grid, alpha, &never).unwrap();
-    assert_eq!(interval.calibration, DERIVED_UNMEASURED);
+    assert_eq!(interval.calibration, DERIVED_NOT_MEASURED);
     // Independent enumeration of the supremum tail probabilities.
     let choose = |n: u32, k: u32| -> f64 {
         (0..k).fold(1.0, |acc, i| acc * f64::from(n - i) / f64::from(i + 1))

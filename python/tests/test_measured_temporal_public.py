@@ -116,7 +116,7 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
         "cov.temporal_transport."
     )
     assert len(scalar.calibration_sha) == 40
-    assert source["calibration"] == "unmeasured"
+    assert source["calibration"] == "not_measured"
     assert source["source"]["request"]["functional"] == json.loads(
         json.dumps(req._wire()["functional"])
     )
@@ -154,7 +154,7 @@ def test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_c
     )
     scalar = result.scalar("response")
     source = result.source_report()
-    assert source["result"]["calibration"] == "unmeasured"
+    assert source["result"]["calibration"] == "not_measured"
     assert scalar.record_id.endswith("temporal_two_step_units_studentized_l95")
     points = independent_replicates(source)
     values = np.array([0.49 + (0.2 if i % 2 else -0.2) for i in range(100)])

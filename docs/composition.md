@@ -32,7 +32,7 @@ entry point and refusal namespace. The measured-spread routes are in
   claim whose coordinates, support, trust and calibration travel with it,
   without a mean ever becoming an outcome law?
 - **Scope.** One coordinate per dose with a support label, native provider trust
-  and an unmeasured calibration. A coordinate outside empirical support or
+  and a not_measured calibration. A coordinate outside empirical support or
   lacking evidence is withheld and reported, not used. A caller cannot assert a
   calibrated status. The joint law a Rust response can supply is a posterior
   over the mean curve, not an interventional outcome law.
@@ -86,7 +86,7 @@ entry point and refusal namespace. The measured-spread routes are in
   [recalculation capabilities](recalculation-capabilities.md).
 - **Claim.** Point-only: the plan table, the counted work, and the point law and
   net benefit of that route. Its law standard error is a diagnostic with
-  calibration unmeasured.
+  calibration not_measured.
 - **Python.** `antecedent.recalc`: `plan_recalculation`, `RecalcSession`,
   `RecalcRequest`, `Declaration`, `Capabilities`.
 - **Refusals.** `recalc.*`.

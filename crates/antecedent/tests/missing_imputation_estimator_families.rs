@@ -634,7 +634,7 @@ fn graph_selection_is_rerun_on_every_completed_table_and_the_posteriors_are_stac
     let interval_refusal = GraphSelectionPerImputation::interval().unwrap_err();
     assert_eq!(interval_refusal.reason_code(), Some("not_supported"));
     assert!(interval_refusal.to_string().contains(
-        antecedent_core::reason_details::graph_selection_imputation::INTERVAL_UNMEASURED
+        antecedent_core::reason_details::graph_selection_imputation::INTERVAL_NOT_MEASURED
     ));
     let effect = result.estimate().as_effect().unwrap();
     let pooled_mean = effect.ate;

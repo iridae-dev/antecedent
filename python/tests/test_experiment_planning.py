@@ -41,7 +41,7 @@ def test_two_sample_sizes_match_the_published_table() -> None:
     assert abs(plan.units - 128) <= 1
     assert plan.analytic.value >= 0.8
     assert plan.target_met
-    assert plan.calibration == "unmeasured"
+    assert plan.calibration == "not_measured"
     assert plan.analytic.method == "noncentral_t"
 
 

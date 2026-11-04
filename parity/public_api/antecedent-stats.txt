@@ -3231,7 +3231,7 @@ pub const antecedent_stats::MAX_MULTIWAY_WORK: u64
 pub const antecedent_stats::MIXTURE_EQUAL_TAIL_CONSTRUCTION: &str
 pub const antecedent_stats::NORMAL_APPROXIMATION_CONSTRUCTION: &str
 pub const antecedent_stats::UNCALIBRATED_SPREAD_LABEL: &str
-pub const antecedent_stats::adaptive_inference::DERIVED_UNMEASURED: &str
+pub const antecedent_stats::adaptive_inference::DERIVED_NOT_MEASURED: &str
 pub const antecedent_stats::adaptive_inference::EXACT_BETA_TRIALS: u64
 pub const antecedent_stats::adaptive_inference::MAX_ADAPTIVE_UNITS: usize
 pub const antecedent_stats::adaptive_inference::MAX_BANDIT_ARMS: usize
@@ -5321,7 +5321,7 @@ pub use antecedent_stats::adaptive_inference::procedure_simulation::SimulationSu
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::AnytimeCellBound = antecedent_stats::adaptive_inference::AnytimeCellBound
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::AnytimeReport = antecedent_stats::adaptive_inference::AnytimeReport
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::BayesianReport = antecedent_stats::adaptive_inference::BayesianReport
-pub use antecedent_stats::adaptive_inference::procedure_uncertainty::DERIVED_UNMEASURED = antecedent_stats::adaptive_inference::DERIVED_UNMEASURED
+pub use antecedent_stats::adaptive_inference::procedure_uncertainty::DERIVED_NOT_MEASURED = antecedent_stats::adaptive_inference::DERIVED_NOT_MEASURED
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::DecisionReport = antecedent_stats::adaptive_inference::DecisionReport
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::EstimandStatement = antecedent_stats::adaptive_inference::EstimandStatement
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::EstimatorLaw = antecedent_stats::adaptive_inference::EstimatorLaw

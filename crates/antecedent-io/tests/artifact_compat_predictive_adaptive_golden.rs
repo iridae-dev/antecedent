@@ -3,13 +3,12 @@
 //!
 //! Each golden lives at `tests/fixtures/<family>_v1.bin`. A loader consumes it as a fresh
 //! consumer, re-scoring or replaying rather than trusting stored numbers, and requires
-//! the stored claims to stay closed. The predictive v1 identity predates key-provenance
-//! binding and is checked under its own identity; a fresh v2 artifact is checked separately. A missing
+//! the stored claims to stay closed. A missing
 //! golden fails with the command that writes it. A changed golden is a compatibility
 //! decision and needs a migration note.
 //!
-//! The predictive v1 golden is historical and must not be regenerated with a v2 producer.
-//! The adaptive fixture generator remains available as `--ignored write_adaptive_`.
+//! Both goldens are written by ignored generators (`write_predictive_assessment_golden`,
+//! `write_adaptive_inference_result_golden`); a changed golden is a compatibility decision.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -36,7 +35,7 @@ use antecedent_validate::predictive_assessment::{
     ScoreKind, ValidationDesign,
 };
 
-const GENERATOR: &str = "cargo test -p antecedent-io --test suite_01 -- --ignored artifact_compat_predictive_adaptive_golden::write_adaptive_";
+const GENERATOR: &str = "cargo test -p antecedent-io --test suite_01 -- --ignored artifact_compat_predictive_adaptive_golden::write_";
 const PREDICTIVE_GOLDEN: &str = "predictive_assessment_v1.bin";
 const ADAPTIVE_GOLDEN: &str = "adaptive_inference_result_v1.bin";
 
@@ -45,11 +44,7 @@ fn fixture_dir() -> PathBuf {
 }
 
 fn load(name: &str) -> Vec<u8> {
-    let missing = if name == PREDICTIVE_GOLDEN {
-        "restore the historical predictive v1 fixture from version control".to_owned()
-    } else {
-        format!("generate it with `{GENERATOR}`")
-    };
+    let missing = format!("generate it with `{GENERATOR}`");
     read_fixture_bytes(&fixture_dir(), name, &missing)
 }
 
@@ -97,27 +92,26 @@ fn assessment_spec() -> PredictiveAssessmentSpec {
 }
 
 #[test]
+#[ignore = "writes tests/fixtures; run with `-- --ignored write_`"]
+fn write_predictive_assessment_golden() {
+    let artifact = PredictiveAssessmentArtifact::seal(&assessment_spec(), &ctx()).expect("seals");
+    write(PREDICTIVE_GOLDEN, &artifact.to_bytes("golden-predictive-assessment").expect("bytes"));
+}
+
+#[test]
 fn the_predictive_assessment_golden_is_rescored_and_gated() {
     let bytes = load(PREDICTIVE_GOLDEN);
     let fresh = PredictiveAssessmentArtifact::seal(&assessment_spec(), &ctx()).expect("seals");
-    // V1 retained only key digests; replay it under its legacy identity and then
-    // require that exact identity. A v2 caller-minted identity is not v1's identity.
-    let legacy = PredictiveAssessmentArtifact::from_bytes(&bytes, None, &ctx())
-        .expect("the historical not-fitted fixture re-scores under its legacy identity");
-    assert_eq!(legacy.meta().version, 1);
-    let consumed =
-        PredictiveAssessmentArtifact::from_bytes(&bytes, Some(legacy.identity()), &ctx())
-            .expect("the historical identity gates the re-scored fixture");
-    assert_eq!(consumed.identity(), legacy.identity());
-    assert_eq!(consumed.report(), legacy.report());
-    assert_eq!(consumed.report().predictors, fresh.report().predictors);
-    assert!(matches!(
-        PredictiveAssessmentArtifact::from_bytes(&bytes, Some(fresh.identity()), &ctx()),
-        Err(PredictiveAssessmentArtifactError::IdentityMismatch { field: "observations" })
-    ));
+    // The stored artifact re-scores under the identity the current producer mints for the
+    // same specification, and a caller-supplied identity for other observations is refused.
+    let consumed = PredictiveAssessmentArtifact::from_bytes(&bytes, Some(fresh.identity()), &ctx())
+        .expect("the golden re-scores under the current identity");
+    assert_eq!(consumed.meta().version, PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION);
+    assert_eq!(consumed.identity(), fresh.identity());
+    assert_eq!(consumed.report(), fresh.report());
     let meta = consumed.meta();
     assert_eq!(meta.inference_claim, "point_only");
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
     assert_eq!(meta.interval, "not_reported");
 
     // Current provenance-bound identity must also survive an independent encode
@@ -242,7 +236,7 @@ fn the_adaptive_inference_result_golden_is_replayed_and_gated() {
     assert_eq!(meta.version, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION);
     assert_eq!(meta.feature, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE);
     assert_eq!(meta.claim, "point_only");
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
     // The conjugate posterior reports every claim through an interval route: no unsupported claim.
     assert_eq!(meta.unsupported_claim, None);
 

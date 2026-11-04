@@ -8,7 +8,7 @@
 //! the fitted propensities and conditional means held at their cross-fit values. Sequential
 //! conditional exchangeability given the measured history, positivity, consistency and no
 //! interference are declared, not derived. The route is unsupported and its calibration is
-//! unmeasured.
+//! not_measured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{
@@ -45,7 +45,7 @@ use antecedent_estimate::sequential_crossfit::{
 const BACKEND: &str = "bayesian_bootstrap.sequential_crossfit_contrast";
 
 /// Uncertainty label of the normal interval.
-const INTERVAL_UNCERTAINTY: &str = "normal_interval_calibration_unmeasured";
+const INTERVAL_UNCERTAINTY: &str = "normal_interval_calibration_not_measured";
 
 /// Uncertainty label of the modular posterior.
 const POSTERIOR_UNCERTAINTY: &str = "modular_bayesian_bootstrap_posterior_no_interval";

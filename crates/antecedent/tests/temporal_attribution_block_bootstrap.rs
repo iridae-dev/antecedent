@@ -2,7 +2,7 @@
 //! attribution: known truth, reproducibility across thread budgets, the admission
 //! refusal, and the declared-design refusal of a non-series resample.
 //!
-//! The interval is unsupported and its calibration unmeasured; these tests pin what the
+//! The interval is unsupported and its calibration not_measured; these tests pin what the
 //! construction computes, not its coverage.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

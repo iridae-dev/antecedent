@@ -54,7 +54,7 @@ def test_nonlinear_shared_worlds_counterfactual_and_fresh_artifact(tmp_path: Pat
     assert result.to_dict()["worlds"][1][0]["values"][1] == pytest.approx(math.tanh(1.0) + 0.2)
     assert result.to_dict()["worlds"][0][0]["globally_unique"] is True
     assert result.to_dict()["claim"] == "specified_or_fitted_model_conditional"
-    assert result.to_dict()["calibration"] == "unmeasured"
+    assert result.to_dict()["calibration"] == "not_measured"
     loaded = require_success(
         consume_artifact(bytes(result.export()), expected_identity=result.identity)
     )

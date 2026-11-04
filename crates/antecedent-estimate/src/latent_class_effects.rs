@@ -60,7 +60,7 @@
 //! classes by the permutation minimizing the squared distance in `(tau, alpha)`. Failed
 //! replicates (degenerate, not converged) are counted and skipped; fewer than two successes
 //! refuses. The reported quantity is the bootstrap standard deviation; **calibration is
-//! [`CalibrationStatus::Unmeasured`]** and no coverage or interval claim is made.
+//! [`CalibrationStatus::NotMeasured`]** and no coverage or interval claim is made.
 //!
 //! # Identification premises
 //!
@@ -101,7 +101,7 @@
 //!
 //! # What a result does not say
 //!
-//! Point estimates and bootstrap standard errors only; the bootstrap's coverage is unmeasured.
+//! Point estimates and bootstrap standard errors only; the bootstrap's coverage is not_measured.
 //! Nothing here supports a causal claim beyond the declared premises, and the class labels are
 //! an ordering convenience, not a discovered meaning.
 //!
@@ -137,7 +137,7 @@ pub const LATENT_CLASS_MAX_ITERATIONS: usize = 100_000;
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";
 
 /// Statement attached to every result.
-pub const LATENT_CLASS_CAVEAT: &str = "bootstrap standard errors are unmeasured for coverage; class \
+pub const LATENT_CLASS_CAVEAT: &str = "bootstrap standard errors are not_measured for coverage; class \
                                        labels are an effect ordering, not a discovered meaning; \
                                        identification rests on the declared within-class \
                                        randomization and Gaussian-linear class models";
@@ -304,7 +304,7 @@ pub struct LatentClassResult {
     pub bootstrap: Option<LatentClassBootstrap>,
     /// Identification premises and their status.
     pub premises: Vec<LatentClassPremise>,
-    /// Calibration state: unmeasured.
+    /// Calibration state: not_measured.
     pub calibration: CalibrationStatus,
     /// [`LATENT_CLASS_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,
@@ -1079,7 +1079,7 @@ pub fn fit_latent_class_effects(
         min_effect_gap,
         bootstrap: boot.map(|b| b.summary),
         premises: premises(),
-        calibration: CalibrationStatus::Unmeasured,
+        calibration: CalibrationStatus::NotMeasured,
         inference_claim: LATENT_CLASS_INFERENCE_CLAIM,
         caveat: LATENT_CLASS_CAVEAT,
     })

@@ -10,7 +10,7 @@
 //! refuses weak or degenerate classes (`latent_class.weak_class`,
 //! `latent_class.degenerate_class`).
 //!
-//! Standard errors are a seeded, label-aligned bootstrap with **unmeasured** calibration: no
+//! Standard errors are a seeded, label-aligned bootstrap with **not_measured** calibration: no
 //! coverage or interval claim is made.
 //!
 //! [`LatentClassEffects::fit`] fits and seals; [`LatentClassEffects::consume`] refits from the

@@ -4,7 +4,7 @@ Hand values mirror the Rust core tests. Quadratic model ``y = 1 + 2 x - 0.5 x^2`
 ``[0, 10]`` with ``V = [[0.04, 0, -0.002], [0, 0.01, 0], [-0.002, 0, 0.0004]]``; one-hot model
 ``y = 1 + 2 x + 0.5 [g = b] - 1 [g = c]`` refusing ``x`` in ``[8, 10]`` with ``g = c``. The only
 uncertainty the export reports is the model-based ``sqrt(phi' V phi)``; it is never an interval
-and its calibration is unmeasured.
+and its calibration is not_measured.
 """
 
 from __future__ import annotations
@@ -89,13 +89,13 @@ def test_compact_scope_states_point_and_model_based_se_only() -> None:
     export = quadratic()
     result = export.evaluate({"x": 2.0})
     assert result.se_basis == "model_based_sqrt_phi_v_phi"
-    assert result.calibration == "calibration unmeasured"
+    assert result.calibration == "calibration not_measured"
     assert result.export_identity == export.identity
     scope = export.body["scope"]
     assert scope["point"].startswith("point prediction")
     assert "model-based standard error" in scope["uncertainty"]
     assert "not an interval" in scope["uncertainty"]
-    assert scope["calibration"] == "calibration unmeasured"
+    assert scope["calibration"] == "calibration not_measured"
     assert len(export.identity) == 64
     assert not any("interval" in field for field in PointEstimate.__slots__)
 

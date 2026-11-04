@@ -10,7 +10,7 @@
 //! from one semantic stream per replicate, so the result does not depend on the thread
 //! count. A replicate whose refit or evaluation fails is kept as failed mass; it is
 //! never redrawn or dropped from the accounting. The interval is the normal interval of
-//! the bootstrap standard error; it is unsupported and its calibration is unmeasured.
+//! the bootstrap standard error; it is unsupported and its calibration is not_measured.
 
 use super::{CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext};
 use antecedent_estimate::BootstrapAccounting;
@@ -183,7 +183,7 @@ pub(super) fn bootstrap_diagnostic_over(
              Bayesian-bootstrap cell is) and recomputes the quantity on the original units. \
              replicates_ok={ok}, replicates_failed={failed} (failed replicates are retained \
              as failed mass). The interval is estimate ± z·SE from the bootstrap standard \
-             error{}. It is unsupported and its calibration is unmeasured: no coverage \
+             error{}. It is unsupported and its calibration is not_measured: no coverage \
              record names this construction.",
             if accounting.se.is_some() {
                 ""
@@ -195,7 +195,7 @@ pub(super) fn bootstrap_diagnostic_over(
     .with_fields([
         ("replicates_ok", ok.to_string()),
         ("replicates_failed", failed.to_string()),
-        ("calibration", "unmeasured".to_owned()),
+        ("calibration", "not_measured".to_owned()),
     ])
 }
 

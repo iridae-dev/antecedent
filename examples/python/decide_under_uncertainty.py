@@ -181,7 +181,7 @@ for study in (sampling, bayesian):
 # -- 4. Downside risk, under a belief you declare ---------------------------------------------
 # The belief is a normal law with the estimate as its mean and the standard error as its standard
 # deviation: the posterior of a flat prior and approximately normal sampling error. That is your
-# judgment, stated, and Antecedent labels the source unverified with calibration unmeasured. The
+# judgment, stated, and Antecedent labels the source unverified with calibration not_measured. The
 # finite law below holds 4,001 equally weighted atoms, so its mean is the estimate.
 belief_law = NormalDist(belief_mean, standard_error)
 atoms = np.array([[belief_law.inv_cdf((k + 0.5) / 4001)] for k in range(4001)], dtype=np.float64)

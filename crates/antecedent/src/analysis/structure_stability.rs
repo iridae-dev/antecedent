@@ -11,7 +11,7 @@
 //!
 //! The table is a bootstrap distribution of the search. It is not a posterior and it is not
 //! one structure, so it carries no review gate. It executes unsupported and its coverage is
-//! unmeasured.
+//! not_measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

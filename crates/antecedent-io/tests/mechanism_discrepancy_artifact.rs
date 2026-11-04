@@ -1,6 +1,6 @@
 //! Mechanism discrepancy artifact: hand-derived acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unresealed
-//! tampering, unknown versions, the never-certifies-invariance flag and the unmeasured
+//! tampering, unknown versions, the never-certifies-invariance flag and the not_measured
 //! calibration coordinate.
 //!
 //! Frozen summaries (one parent `x = [0,1,2,3]`, n = 4): `X'X = [[4,6],[6,14]]`; the source has
@@ -78,7 +78,7 @@ fn discrepancy_artifact_acceptance_numbers_replay_through_the_container() {
     let mdd = report.result.coefficients[1].minimal_detectable_difference;
     assert!((mdd - (1.959_964 + 0.841_621) * 0.6).abs() < 1e-6, "mdd {mdd}");
     assert_eq!(report.calibration, MECHANISM_DISCREPANCY_CALIBRATION);
-    assert_eq!(report.calibration, "unmeasured");
+    assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.version, MECHANISM_DISCREPANCY_ARTIFACT_VERSION);
     assert!(!report.result.non_rejection_certifies_invariance);
     assert_eq!(report.result.informs_selection_on, ["V"]);

@@ -243,11 +243,11 @@ fn candidate_mut<'a>(
 fn round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
     let wire = seal_guess(frozen_candidates());
     assert_eq!(wire.calibration, DESIGN_RANKING_CALIBRATION);
-    assert_eq!(wire.calibration, "unmeasured");
+    assert_eq!(wire.calibration, "not_measured");
     let bytes = wire.to_bytes("ranking-1").unwrap();
     let consumed = consume(&bytes, &retained(&wire)).unwrap();
     assert_eq!(consumed.identity, wire.digest);
-    assert_eq!(consumed.calibration, "unmeasured");
+    assert_eq!(consumed.calibration, "not_measured");
     assert_eq!(consumed.provenance_chain, wire.provenance_chain().unwrap());
     let entries = &consumed.ranking.entries;
     assert_eq!(entries[0].semantic_id, "cand-1");
@@ -848,7 +848,7 @@ fn monte_carlo_value_is_bound_but_never_marked_replayed() {
     let consumed = consume(&wire.to_bytes("mc").unwrap(), &open()).unwrap();
     assert_eq!(consumed.candidates[0].replay, ReplayKind::MonteCarloNotReplayed);
     assert!(!consumed.candidates[0].natively_replayed());
-    assert_eq!(consumed.calibration, "unmeasured");
+    assert_eq!(consumed.calibration, "not_measured");
     // Its error cannot be erased: a Monte Carlo value claiming zero error is refused.
     let mut edited = wire.clone();
     candidate_mut(&mut edited, "mc").stderr = 0.0;

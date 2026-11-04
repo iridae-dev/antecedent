@@ -3,7 +3,7 @@
 //! Format version 1, kind marker `array_fit_replay_v1`. The request carries the design the
 //! product was fitted on; the stored result is the posterior summary of that nuisance, labelled
 //! with its target, the meaning of its uncertainty and the premises declared. It is unsupported
-//! with calibration unmeasured, and a consumer refuses any other value.
+//! with calibration not_measured, and a consumer refuses any other value.
 //!
 //! The product is a posterior of the treatment model only. Its scores are in-sample summaries,
 //! not out-of-fold effect scores, so this artifact is a different kind from the cross-fitted
@@ -36,7 +36,7 @@ pub const ARRAY_FIT_ARTIFACT_FEATURE: &str = "array_fit_replay_v1";
 /// Support state of this product.
 pub const ARRAY_FIT_SUPPORT: &str = "unsupported";
 /// Calibration state of this product.
-pub const ARRAY_FIT_CALIBRATION: &str = "unmeasured";
+pub const ARRAY_FIT_CALIBRATION: &str = "not_measured";
 
 /// Nuisance posterior of a static logistic propensity.
 pub const ID_BAYESIAN_PROPENSITY: &str = "bayesian.propensity.coefficient_posterior";
@@ -237,7 +237,7 @@ pub struct ArrayFitResultWire {
     pub uncertainty: String,
     /// Always `unsupported`.
     pub support: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Named reals, in a fixed order.
     pub values: Vec<NamedValueWire>,
@@ -433,7 +433,7 @@ fn run_score(wire: &PenalizedScoreWire) -> Fit {
     let meta = Meta {
         id: ID_TEMPORAL_PROPENSITY,
         target: "propensity_score_nuisance",
-        uncertainty: "penalized_target_subject_influence_interval_calibration_unmeasured",
+        uncertainty: "penalized_target_subject_influence_interval_calibration_not_measured",
     };
     Ok(finish(&meta, values, Vec::new(), declared(&PENALIZED_SCORE_PREMISES), Vec::new()))
 }
@@ -614,7 +614,7 @@ impl ArrayFitArtifactWire {
         if self.result.support != ARRAY_FIT_SUPPORT
             || self.result.calibration != ARRAY_FIT_CALIBRATION
         {
-            return Err(unsupported("this family is unsupported and its calibration unmeasured"));
+            return Err(unsupported("this family is unsupported and its calibration not_measured"));
         }
         if self.result.estimator_id != self.request.estimator_id() {
             return Err(unsupported("the result belongs to another estimator"));

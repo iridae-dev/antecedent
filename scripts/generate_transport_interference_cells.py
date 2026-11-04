@@ -234,7 +234,7 @@ def transport_limitations(graph: str, structure: str, inference: str, validation
                 "uncertainty is not propagated."
             )
     parts.append(
-        "RecursiveFactorization and NotCertified refuse. The calibration slot stays unmeasured "
+        "RecursiveFactorization and NotCertified refuse. The calibration slot stays not_measured "
         "(estimator_grid_not_measured): no coverage of the reported interval is claimed."
     )
     text = " ".join(parts)
@@ -299,7 +299,7 @@ def interference_limitations(graph: str, structure: str, inference: str, validat
             "four-unit network."
         )
     parts.append(
-        "The calibration slot stays unmeasured (estimator_grid_not_measured): no coverage of "
+        "The calibration slot stays not_measured (estimator_grid_not_measured): no coverage of "
         "the reported interval is claimed."
     )
     return " ".join(parts) + INTERFERENCE_SUITE_TEXT[validation]

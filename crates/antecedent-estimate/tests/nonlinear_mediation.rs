@@ -1,7 +1,7 @@
 //! Nonlinear continuous-mediator mediation: exact-SCM closed-form truth, quadrature error
 //! check, confounding and overlap refusals, the total = direct + indirect identity, and a
 //! labelled regression cross-check against the linear product of coefficients. Calibration is
-//! `unmeasured` and nothing here measures coverage.
+//! `not_measured` and nothing here measures coverage.
 //!
 //! SCM: `M = alpha*A + gamma*X + e_M`, `e_M ~ N(0, sigma2)`;
 //! `Y = b0 + b1*A + c1*M + c2*M^2 + delta*A*M + bx*X` (no outcome noise, so the outcome fit is

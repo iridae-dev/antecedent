@@ -378,20 +378,20 @@ pub enum EstimatorId {
     /// Bayesian g-computation on the lag-aligned temporal adjustment design.
     BayesianTemporalGcomp,
     /// Untempered Gaussian-likelihood posterior of a single-step temporal linear effect, under a
-    /// declared serially independent innovation. Unsupported; calibration unmeasured.
+    /// declared serially independent innovation. Unsupported; calibration not_measured.
     BayesianTemporalWhiteInnovation,
     /// Mean-scale contrast of a Bernoulli logit temporal model over independent panel subjects:
     /// the unpenalized maximum-likelihood fit with a delta-method standard error. Unsupported;
-    /// calibration unmeasured.
+    /// calibration not_measured.
     TemporalGlmLinkContrast,
     /// Laplace posterior of the same mean-scale contrast under a Gaussian coefficient prior.
-    /// Unsupported; calibration unmeasured.
+    /// Unsupported; calibration not_measured.
     BayesianTemporalGlmLinkContrast,
     /// Wald contrast of a lagged instrument on the unfolded window graph: the effect of treatment
-    /// under the declared exclusion and exogeneity of the lag. Unsupported; calibration unmeasured.
+    /// under the declared exclusion and exogeneity of the lag. Unsupported; calibration not_measured.
     TemporalLaggedInstrument,
     /// Reduced-form ratio posterior of the same lagged-instrument effect. Unsupported; calibration
-    /// unmeasured.
+    /// not_measured.
     BayesianTemporalLaggedInstrument,
     /// Sequential g-computation of a sustained treatment window.
     TemporalSequentialGcomp,
@@ -500,6 +500,9 @@ pub enum EstimatorId {
     /// Piecewise-exponential posterior of the randomized survival and restricted-mean
     /// contrast (unsupported, uncalibrated).
     BayesianPiecewiseSurvival,
+    /// Frequentist empirical-distribution-function quantiles of a randomized trial's potential
+    /// outcomes and their difference, with the delta-method influence interval.
+    RandomizedQuantile,
     /// Dirichlet-multinomial grid-distribution posterior of the randomized potential-outcome
     /// quantiles and their difference (unsupported, uncalibrated).
     BayesianRandomizedQuantile,
@@ -1285,6 +1288,13 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "bayesian_survival.piecewise_exponential_gamma",
             provenance: same_step("estimate.bayesian_piecewise_survival"),
         },
+        EstimatorId::RandomizedQuantile => EstimatorData {
+            compatible: BACKDOOR_AND_AUTO,
+            name: "randomized.quantile",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized_quantile.empirical_cdf_inversion",
+            provenance: same_step("estimate.randomized_quantile"),
+        },
         EstimatorId::BayesianRandomizedQuantile => EstimatorData {
             compatible: BACKDOOR_AND_AUTO,
             name: "bayesian.randomized_quantile",
@@ -1680,6 +1690,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::DrLearner
         | EstimatorId::CausalForest
         | EstimatorId::ResponseBayesian
+        | EstimatorId::RandomizedQuantile
         | EstimatorId::BayesianRandomizedQuantile
         | EstimatorId::BayesianRobustAte => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional => {

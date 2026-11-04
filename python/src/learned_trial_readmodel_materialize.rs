@@ -1,6 +1,6 @@
 //! Borrowed historical transport wire encoding with one exactly admitted JSON output.
 //! No proof/certificate arrays or strings are cloned for serialization.
-use antecedent::execution::{AdmissionError, AdmissionLease};
+use antecedent::execution::{AdmissionRefusal, Retention};
 use antecedent::identify::{
     PopulationFactor, TransportCertificate, TransportFormula, TransportIdentification,
 };
@@ -168,7 +168,7 @@ impl Write for Counter<'_> {
 /// Dropping the owner drops the Vec before releasing the admission lease.
 pub(super) struct AdmittedJson {
     bytes: Vec<u8>,
-    _lease: AdmissionLease,
+    _lease: Retention,
 }
 impl AdmittedJson {
     pub(super) fn as_str(&self) -> PyResult<&str> {
@@ -201,8 +201,8 @@ pub(super) fn admitted(
     let length = u64::try_from(counter.length).map_err(|error| {
         crate::py_err(antecedent::CausalError::Resource { message: error.to_string() })
     })?;
-    let lease = context.acquire_admission(0, length).map_err(|error| match error {
-        AdmissionError::Cancelled => crate::py_err(antecedent::CausalError::Cancelled {
+    let lease = antecedent::execution::retain(context, length).map_err(|error| match error {
+        AdmissionRefusal::Cancelled => crate::py_err(antecedent::CausalError::Cancelled {
             stage: "trial_identification_materialize",
         }),
         error => crate::py_err(antecedent::CausalError::Resource { message: error.to_string() }),
@@ -224,7 +224,7 @@ pub(super) fn admitted(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent::execution::AdmissionPool;
+    use antecedent::execution::FixedBudget;
     #[test]
     fn borrowed_encoding_matches_every_native_transport_wire_variant() {
         let factor = PopulationFactor {
@@ -292,12 +292,12 @@ mod tests {
                 serializer.serialize_str("native-json-buffer")
             }
         }
-        let pool = AdmissionPool::fixed(1, 64);
-        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let pool = FixedBudget::new(1, 64);
+        let ctx = pool.apply(ExecutionContext::for_tests(1));
         let value = CancelSecond { calls: AtomicUsize::new(0), token: ctx.cancellation.clone() };
         assert!(admitted(&value, &ctx).is_err());
         assert_eq!(value.calls.load(Ordering::SeqCst), 2);
-        assert_eq!(pool.available().bytes(), 64);
+        assert_eq!(pool.available_bytes(), 64);
     }
 
     #[test]
@@ -323,25 +323,22 @@ mod tests {
         );
         let source = Proof::from(&proof);
         let length = serde_json::to_vec(&source).unwrap().len() as u64;
-        let pool = AdmissionPool::fixed(1, length);
-        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let pool = FixedBudget::new(1, length);
+        let ctx = pool.apply(ExecutionContext::for_tests(1));
         let owner = Arc::new(admitted(&source, &ctx).unwrap());
-        assert_eq!(pool.available().bytes(), 0);
+        assert_eq!(pool.available_bytes(), 0);
         let retained = Arc::clone(&owner);
         drop(owner);
-        assert_eq!(pool.available().bytes(), 0);
+        assert_eq!(pool.available_bytes(), 0);
         assert_eq!(retained.bytes.len() as u64, length);
         drop(retained);
-        assert_eq!(pool.available().bytes(), length);
-        let too_small = AdmissionPool::fixed(1, length - 1);
-        assert!(
-            admitted(&source, &ExecutionContext::for_tests(1).with_admission(too_small.clone()))
-                .is_err()
-        );
-        assert_eq!(too_small.available().bytes(), length - 1);
-        let cancelled = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        assert_eq!(pool.available_bytes(), length);
+        let too_small = FixedBudget::new(1, length - 1);
+        assert!(admitted(&source, &too_small.apply(ExecutionContext::for_tests(1))).is_err());
+        assert_eq!(too_small.available_bytes(), length - 1);
+        let cancelled = pool.apply(ExecutionContext::for_tests(1));
         cancelled.cancellation.cancel();
         assert!(admitted(&source, &cancelled).is_err());
-        assert_eq!(pool.available().bytes(), length);
+        assert_eq!(pool.available_bytes(), length);
     }
 }

@@ -34,7 +34,7 @@
 //!   confidence set of a contrast obtained by inverting a stagewise-ordered
 //!   test whose null law is the exact law of the declared procedure.
 //!
-//! Every result carries [`DERIVED_UNMEASURED`]: the method is derived for the
+//! Every result carries [`DERIVED_NOT_MEASURED`]: the method is derived for the
 //! procedure and its law is exact under the stated model, but no coverage of
 //! the method has been measured, so none is claimed.
 //!
@@ -49,7 +49,7 @@ use super::procedure_contract::{
 use super::procedure_law::{OutcomeKernel, ProcedureLaw, TerminalAtom, enumerate_law};
 
 /// Calibration status carried by every result of this module.
-pub const DERIVED_UNMEASURED: &str = "derived_unmeasured";
+pub const DERIVED_NOT_MEASURED: &str = "derived_not_measured";
 /// Most laws one inversion may evaluate.
 pub const MAX_INVERSION_LAWS: usize = 4096;
 
@@ -250,7 +250,7 @@ pub struct BayesianReport {
     pub expected_loss: Vec<f64>,
     /// What the posterior is about.
     pub estimand: EstimandStatement,
-    /// Always [`DERIVED_UNMEASURED`].
+    /// Always [`DERIVED_NOT_MEASURED`].
     pub calibration: &'static str,
 }
 
@@ -288,7 +288,7 @@ pub fn bayesian_report(
         probability_best,
         expected_loss,
         estimand,
-        calibration: DERIVED_UNMEASURED,
+        calibration: DERIVED_NOT_MEASURED,
     })
 }
 
@@ -530,7 +530,7 @@ pub struct DecisionReport {
     /// Expected regret `E[(max_a theta_a - theta_decided) 1{decided}]`; an
     /// undecided run contributes zero and is reported separately.
     pub expected_regret: f64,
-    /// Always [`DERIVED_UNMEASURED`].
+    /// Always [`DERIVED_NOT_MEASURED`].
     pub calibration: &'static str,
 }
 
@@ -571,7 +571,7 @@ pub fn decision_report(
         undecided_probability: undecided,
         wrong_decision_probability: wrong,
         expected_regret: regret,
-        calibration: DERIVED_UNMEASURED,
+        calibration: DERIVED_NOT_MEASURED,
     })
 }
 
@@ -601,7 +601,7 @@ pub struct AnytimeReport {
     pub alpha_per_cell: f64,
     /// What the bounds are about.
     pub estimand: EstimandStatement,
-    /// Always [`DERIVED_UNMEASURED`].
+    /// Always [`DERIVED_NOT_MEASURED`].
     pub calibration: &'static str,
 }
 
@@ -642,7 +642,7 @@ pub fn anytime_valid_report(
             upper: (mean + radius).min(1.0),
         });
     }
-    Ok(AnytimeReport { bounds, alpha_per_cell, estimand, calibration: DERIVED_UNMEASURED })
+    Ok(AnytimeReport { bounds, alpha_per_cell, estimand, calibration: DERIVED_NOT_MEASURED })
 }
 
 /// Exact probability, under the success probabilities `truth` (one per
@@ -833,7 +833,7 @@ pub struct InversionInterval {
     pub upper: Option<f64>,
     /// Laws evaluated (observed work).
     pub laws_evaluated: usize,
-    /// Always [`DERIVED_UNMEASURED`]: exact for the declared grid and
+    /// Always [`DERIVED_NOT_MEASURED`]: exact for the declared grid and
     /// procedure, with no measured coverage.
     pub calibration: &'static str,
 }
@@ -910,6 +910,6 @@ pub fn inversion_interval(
         upper: accepted.last().copied(),
         accepted,
         laws_evaluated: evaluated,
-        calibration: DERIVED_UNMEASURED,
+        calibration: DERIVED_NOT_MEASURED,
     })
 }

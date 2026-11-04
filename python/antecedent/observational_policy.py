@@ -41,7 +41,7 @@ What the answer is **not**:
 
 * No graph is checked: the caller owns that ``adjust`` is a valid adjustment set.
 * The standard error is an influence-function standard error. Its calibration is
-  **unmeasured** (``calibration == "unmeasured"``): no interval is produced and no coverage
+  **not_measured** (``calibration == "not_measured"``): no interval is produced and no coverage
   claim is made.
 * An action outside the declared support, or one whose propensity falls below the floor,
   refuses instead of being extrapolated.
@@ -105,7 +105,7 @@ class ObservationalPolicyValue:
     #: ``"estimated"`` (multinomial logit) or ``"known"`` (declared assignment probabilities).
     propensity_source: str
     value: float
-    #: Influence-function standard error (calibration unmeasured).
+    #: Influence-function standard error (calibration not_measured).
     se: float
     action_values: tuple[ActionValue, ...]
     reference: ReferenceComparison | None

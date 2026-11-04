@@ -73,8 +73,8 @@ fn temporal_actual_facade_candidate_and_independent_consumer_preserve_frozen_coo
         let wire = prepare(IntervalMethod::Studentized);
         // Independent SCM integration: .3*.35 + .7*.55 = .49; unit shocks sum to zero.
         assert!((wire.result.point - 0.49).abs() < 1e-12);
-        assert_eq!(wire.result.calibration, "unmeasured");
-        assert_eq!(wire.result.claim, "dependence_preserving_calibration_unmeasured");
+        assert_eq!(wire.result.calibration, "not_measured");
+        assert_eq!(wire.result.claim, "dependence_preserving_calibration_not_measured");
         assert_eq!(wire.result.replicates.len(), 500);
         assert_eq!(wire.result.failed, 0);
         let bytes = wire.export().unwrap();

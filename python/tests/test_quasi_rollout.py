@@ -39,7 +39,7 @@ def _rollout(data: dict[str, list[object]], query: StaggeredRollout) -> QuasiRol
     result = require_success(antecedent.analyze(data, query=query)).quasi_rollout
     assert isinstance(result, QuasiRolloutEstimate)
     assert result.supported is False
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     return result
 
 
@@ -238,7 +238,7 @@ def test_conformal_synthetic_control_recovers_a_known_effect_with_an_interval():
     query = SyntheticControl("y", "unit", "period", "treated", 41, conformal=True)
     result = require_success(antecedent.analyze(rows, query=query)).quasi_rollout
     assert isinstance(result, QuasiRolloutEstimate)
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     overall = result.overall
     assert overall is not None and overall.interval is not None
     assert overall.estimate == pytest.approx(3.0, abs=0.8)
@@ -280,7 +280,7 @@ def test_bayesian_rollout_is_a_whole_unit_bayesian_bootstrap_beside_the_posterio
     rollout = result.quasi_rollout
     assert isinstance(rollout, QuasiRolloutEstimate)
     assert rollout.uncertainty.startswith("bayesian_")
-    assert rollout.supported is False and rollout.calibration == "unmeasured"
+    assert rollout.supported is False and rollout.calibration == "not_measured"
     overall = rollout.overall
     assert overall is not None and overall.interval is not None
     # Dynamic summary: the mean of the post event-time effects 0, 3, 6, 9.
@@ -412,14 +412,14 @@ def test_a_fresh_consumer_rederives_the_dynamic_summary_from_the_loaded_effects(
     assert rollout.overall.estimate == pytest.approx(sum(post) / len(post), rel=1e-12, abs=1e-12)
 
 
-def test_rollout_answer_is_structured_unsupported_and_unmeasured():
+def test_rollout_answer_is_structured_unsupported_and_not_measured():
     result = _resampled_dynamic_rollout()
     answer = result.answer
     assert answer.kind == "structured"
     assert answer.detail is not None and answer.detail.startswith("unsupported_quasi_rollout_")
     structured = answer.structured
     assert structured is not None
-    assert structured["calibration"] == "unmeasured"
+    assert structured["calibration"] == "not_measured"
     assert structured["supported"] is False
     assert structured["design"] == "staggered_did"
     assert structured["effects"][0]["kind"] == "overall"

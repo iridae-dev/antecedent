@@ -402,7 +402,7 @@ fn temporal_history_source_program_uses_only_reachable_actual_observational_sour
 }
 
 #[test]
-fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
+fn temporal_history_uncertainty_rejects_not_measured_scope_and_checks_graph() {
     use antecedent_estimate::temporal_dependent_interval::{
         DependentIntervalConfig, IntervalMethod,
     };
@@ -473,7 +473,7 @@ fn temporal_history_closed_candidate_replays_whole_unit_identities_without_cover
     let result = result.unwrap();
     close(result.point, 0.5675);
     assert_eq!(result.units, 640);
-    assert_eq!(result.calibration, "unmeasured");
+    assert_eq!(result.calibration, "not_measured");
     assert_eq!(result.replicates.len(), 20);
     // A percentile interval uses the original panel and each paired whole-unit draw;
     // unlike BCa, it does not fit delete-one jackknife panels.

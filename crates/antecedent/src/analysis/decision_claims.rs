@@ -194,7 +194,7 @@ pub struct ScenarioClaimBinding {
     pub outcomes: Vec<OutcomeBinding>,
     /// Meaning of the scenario laws.
     pub semantic: DistributionMeaningWire,
-    /// Calibration of the laws: `Exact` for supplied exact laws, `Unmeasured`
+    /// Calibration of the laws: `Exact` for supplied exact laws, `NotMeasured`
     /// (or `PointOnly`) for an empirical plug-in.
     pub calibration: DistributionCalibration,
     /// Stable source or study identity.

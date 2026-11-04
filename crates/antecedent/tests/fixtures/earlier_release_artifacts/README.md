@@ -27,3 +27,8 @@ and that a tampered or other-version artifact is refused.
 
 They are immutable evidence of what shipped. Do not regenerate them with current
 code; regenerate only from a checkout of the `v2.3.0` tag.
+
+`sampled_recovery.cbor` additionally carries the calibration label `unmeasured`, the
+former spelling of `not_measured`. No alias is accepted, so it is a malformed artifact
+now: the test asserts that decoding refuses it with the calibration error, and the file
+is kept as it shipped (do not regenerate it).

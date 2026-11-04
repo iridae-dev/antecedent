@@ -701,7 +701,7 @@ class DecisionReliability(ScientificResult):
         *,
         execution: Execution | None = None,
     ) -> DerivedUncertainty:
-        """Derive the three components for this decision (derived, unmeasured)."""
+        """Derive the three components for this decision (derived, not_measured)."""
         return require_success(
             derive_uncertainty(
                 self._draws,
@@ -905,9 +905,9 @@ class IntervalRequest:
 
 
 class DerivedUncertainty(ScientificResult):
-    """Three separate derived uncertainty components, labelled derived and unmeasured.
+    """Three separate derived uncertainty components, labelled derived and not_measured.
 
-    The components are never summed. ``standing`` is always ``"derived_unmeasured"``.
+    The components are never summed. ``standing`` is always ``"derived_not_measured"``.
     """
 
     def __init__(self, wire: Mapping[str, Any]) -> None:
@@ -920,7 +920,7 @@ class DerivedUncertainty(ScientificResult):
 
     @property
     def standing(self) -> str:
-        """Always ``"derived_unmeasured"``."""
+        """Always ``"derived_not_measured"``."""
         return str(self.raw["standing"])
 
     @property
@@ -1314,7 +1314,7 @@ class ProducerCarrier(ScientificResult):
         validation: DecisionDraws | None = None,
         execution: Execution | None = None,
     ) -> DerivedUncertainty:
-        """Derive the three components for the carrier's decision (derived, unmeasured)."""
+        """Derive the three components for the carrier's decision (derived, not_measured)."""
         policy = _execution_policy(execution)
         text, refusal = policy._call(
             _native.decision_reliability_derive_producer,

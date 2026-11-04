@@ -658,7 +658,7 @@ fn admg_conditional_posterior_mean_stays_at_the_enumerated_truth() {
 }
 
 #[test]
-fn admg_conditional_posterior_refuses_an_unmeasured_band() {
+fn admg_conditional_posterior_refuses_an_not_measured_band() {
     let error = dirichlet_supported_mean(
         &[0.5, 0.5],
         PosteriorRequest::CredibleBand,

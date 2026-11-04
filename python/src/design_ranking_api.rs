@@ -7,7 +7,7 @@
 //! recomputation and every refusal are Rust's. A refusal comes back as structured JSON for the
 //! Python layer to raise as its own exception type; corruption, truncation and unknown versions
 //! raise `CausalSerializationError`. Monte Carlo error coverage and rank guarantees are
-//! `unmeasured`; an exact-integration EVSI is a point-only value.
+//! `not_measured`; an exact-integration EVSI is a point-only value.
 
 use std::collections::BTreeMap;
 

@@ -3,8 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Isolated Arrow C Data Interface FFI.
-pub use antecedent_data::ArrowCColumn;
 /// Data-layer errors.
 pub use antecedent_data::DataError;
 /// Split strategies for discovery / estimation.
@@ -23,8 +21,6 @@ pub use antecedent_data::RowAccounting;
 pub use antecedent_data::TableView;
 /// Pooled multi-environment lagged frames with space/time dummies (J-PCMCI+).
 pub use antecedent_data::TimeDummyEncoding;
-/// Column conversion: Arrow arrays and record batches to owned library columns.
-pub use antecedent_data::tabular_from_arrow_c_columns;
 /// Columnar storage and typed column views.
 pub use antecedent_data::{
     BooleanColumn, Float64Column, Int64Column, OwnedColumn, TimestampColumn, ValidityBitmap,
@@ -33,8 +29,6 @@ pub use antecedent_data::{
 pub use antecedent_data::{
     CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, UnknownCategoryPolicy,
 };
-/// `antecedent-data` items at the crate root.
-pub use antecedent_data::{FfiArrowArray, FfiArrowSchema};
 /// Sample construction policies.
 pub use antecedent_data::{
     ImputationDomain, ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy,
@@ -46,7 +40,42 @@ pub use antecedent_data::{SamplingRegularity, TimeIndex};
 pub mod arrow_adapter {
     pub use antecedent_data::arrow_adapter::ArrowFrameView;
 }
-/// Isolated Arrow C Data Interface FFI.
-pub mod arrow_ffi {
-    pub use antecedent_data::arrow_ffi::{ArrowCStream, FfiArrowArrayStream};
+/// Import from the Arrow C Data Interface: one entry point from exporter columns to a table.
+///
+/// The FFI structs are the capsule layouts a host moves an exporter's arrays out of; only the
+/// types needed to build an [`ArrowCColumn`] or an [`ArrowCStream`] are published.
+pub mod arrow_c {
+    pub use antecedent_data::arrow_ffi::{ArrowCColumn, ArrowCStream, FfiArrowArrayStream};
+    pub use antecedent_data::{ArrowLoadResult, FfiArrowArray, FfiArrowSchema};
+
+    /// Copy exporter columns into library-owned storage (borrowing contiguous float64 value
+    /// buffers where the exporter allows), joining a column's chunks into one buffer.
+    ///
+    /// # Errors
+    /// Empty input, an unsupported type, a C Data Interface or schema failure, a category or
+    /// timestamp that cannot be kept exact, or more than `u32::MAX` columns.
+    pub fn load_columns(
+        columns: Vec<ArrowCColumn>,
+    ) -> Result<ArrowLoadResult, antecedent_data::DataError> {
+        antecedent_data::tabular_from_arrow_c_columns(columns)
+    }
+}
+
+/// `data` holding `retention`, so the admitted memory is released only when the last holder of
+/// the table drops.
+#[must_use]
+pub fn with_retention(
+    data: antecedent_data::TabularData,
+    retention: &crate::execution::Retention,
+) -> antecedent_data::TabularData {
+    data.with_retention(retention.shared_lease())
+}
+
+/// `buffer` holding `retention` for as long as any view of the buffer lives.
+#[must_use]
+pub fn buffer_with_retention(
+    buffer: F64Buffer,
+    retention: &crate::execution::Retention,
+) -> F64Buffer {
+    buffer.with_admission(retention.shared_lease())
 }

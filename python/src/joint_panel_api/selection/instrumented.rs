@@ -62,9 +62,9 @@ fn select_instrumented_program(
     if ctx.cancellation.is_cancelled() {
         return Err(crate::CausalCancelledError::new_err("instrumented selection cancelled"));
     }
-    let _input = ctx
-        .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(16))
-        .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
+    let _input =
+        antecedent::execution::retain(&ctx, (declaration_json.len() as u64).saturating_mul(16))
+            .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
     let request = declaration(declaration_json)?;
     let inner = crate::detach_catch(py, || {
         request.execute(repetitions, tie_tolerance, &ctx).map_err(error)

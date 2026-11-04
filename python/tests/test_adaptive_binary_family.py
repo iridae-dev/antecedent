@@ -15,7 +15,7 @@ Truth is computed here in pure Python, never by native code:
   and Ramdas 2024), written out from the paper's formulas, for the confidence-sequence reading at
   every look, at the level ``alpha / K`` per arm.
 
-Every result is ``derived_unmeasured``. The posterior claim and the anytime-valid frequentist claim
+Every result is ``derived_not_measured``. The posterior claim and the anytime-valid frequentist claim
 of a look are separate, labelled fields.
 """
 
@@ -243,7 +243,7 @@ def histograms(history: ai.ParticipantHistory, look: int, lag: int):
 
 def test_the_posterior_claim_is_the_exact_beta_binomial_posterior(procedure, history):
     readings = procedure.read_history(history)
-    assert readings.claim == "derived_unmeasured"
+    assert readings.claim == "derived_not_measured"
     assert len(readings.looks) == len(history.batches)
     for look, reading in enumerate(readings.looks):
         posterior = reading["posterior"]
@@ -318,7 +318,7 @@ def test_simulating_an_estimated_correlation_needs_the_true_correlation():
     )
     assert "needs the true correlation" in str(error)
     simulation = procedure.simulate(TRUTH, replications=3, seed=1, true_correlation=0.3)
-    assert simulation.claim == "derived_unmeasured"
+    assert simulation.claim == "derived_not_measured"
     assert len(simulation.replicates) == 3
 
 
@@ -348,7 +348,7 @@ def test_the_frequentist_claim_is_a_confidence_sequence_read_at_every_look(proce
     for look, reading in enumerate(readings.looks):
         claim = reading["frequentist"]
         assert claim["paradigm"] == "anytime_valid_frequentist"
-        assert claim["calibration"] == "derived_unmeasured"
+        assert claim["calibration"] == "derived_not_measured"
         assert claim["sequence"] == "predictable_plug_in_empirical_bernstein"
         assert claim["alpha_per_arm"] == pytest.approx(alpha_arm)
         assert claim["alpha_per_comparison"] == pytest.approx(2 * alpha_arm)
@@ -405,7 +405,7 @@ def test_the_recruitment_cap_ends_the_procedure_at_the_batch_boundary_that_reach
         )
     )
     simulation = capped.simulate((0.4, 0.4, 0.4), replications=20, seed=4)
-    assert simulation.claim == "derived_unmeasured"
+    assert simulation.claim == "derived_not_measured"
     assert {r["reason"] for r in simulation.replicates} == {"recruitment_cap"}
     assert {(r["look"], r["enrolled"]) for r in simulation.replicates} == {(1, 80)}
     assert simulation.summary["stop_fractions"]["recruitment_cap"] == pytest.approx(1.0)

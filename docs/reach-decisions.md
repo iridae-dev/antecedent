@@ -214,7 +214,7 @@ probability that a claim holds.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | proper scores (log, CRPS, Brier, energy) | point-only | REFUSED (`CausalTypeError`: a score is neither a response, an outcome law under an action nor a utility) | REFUSED (`CausalTypeError`) | REFUSED | REFUSED (`CausalTypeError`: a score is neither prior nor signal) | REFUSED `predictive_assessment.not_a_causal_claim` (`route_not_supported`) | REFUSED `predictive_assessment.target_mismatch` (`quantity_semantics_mismatch`) when law and observations differ in population or units | NO ROUTE (the rolling-origin design is the route's own; a horizon that differs is `predictive_assessment.horizon_mismatch`) | REFUSED (`predictive_assessment_v1` has no node kind) | NO ROUTE (a loss of a law on observations is not a decision utility) |
 | score differences of paired predictors | point-only, labelled statistic | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED `predictive_assessment.not_a_causal_claim` | REFUSED `predictive_assessment.target_mismatch` | NO ROUTE | REFUSED | NO ROUTE |
-| calibration diagnostics (PIT, reliability, coverage, sharpness) | diagnostic, unmeasured | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | NO ROUTE | REFUSED | NO ROUTE |
+| calibration diagnostics (PIT, reliability, coverage, sharpness) | diagnostic, not_measured | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | NO ROUTE | REFUSED | NO ROUTE |
 | interval or significance level of a score | closed interval | REFUSED `predictive_assessment.interval_not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Overlap with fitting data is checked through the evidence ledger:

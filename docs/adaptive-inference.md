@@ -233,7 +233,7 @@ procedure, and a contract records it as `predictable_plug_in_empirical_bernstein
 declared and validated, and only the Hoeffding sequence reads it. This is a
 finite-time theorem under its
 premise, not a measured coverage of the whole procedure: every number is
-`derived_unmeasured`, and its calibration status stays `not_measured` until a
+`derived_not_measured`, and its calibration status stays `not_measured` until a
 coverage record exists. `simulate_participant_procedure` runs the whole procedure end to
 end and records, per replicate, how it ended and whether the sequences covered
 the truth at every look and at the end; it is the entry point a calibration
@@ -285,7 +285,7 @@ measurements (`adaptive_inference.measurements_invalid`).
 
 Per replicate it records how the run ended, whether the sequences covered the truth at every look and at the end, the false-superiority rate (a treatment comparison whose lower bound exceeds zero at any look), the selection-error and best-arm rates, regret, the stopping look, and the participants enrolled and completed. Use it to see, under a truth you choose, how early the rule stops on average, how wide the sequences are at the stop, and how sensitive the procedure is to a wrong correlation or a misleading historical prior.
 
-These are properties of the simulation under the stated truth. They are not a coverage claim for another design, and the claim stays `derived_unmeasured` while no coverage record exists.
+These are properties of the simulation under the stated truth. They are not a coverage claim for another design, and the claim stays `derived_not_measured` while no coverage record exists.
 
 ## Artifacts
 

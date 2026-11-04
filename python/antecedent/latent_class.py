@@ -31,7 +31,7 @@ covariates (pass ``within_class_randomization=True``; without it the fit refuses
 weights hold, and ``K`` is the true number of classes. Weak or degenerate classes refuse
 (``latent_class.weak_class``, ``latent_class.degenerate_class``).
 
-Standard errors are a seeded, label-aligned bootstrap with calibration ``"unmeasured"``: no
+Standard errors are a seeded, label-aligned bootstrap with calibration ``"not_measured"``: no
 coverage claim and no interval is made. :func:`consume_latent_class_artifact` refits from the
 artifact's embedded dataset under the stored seed and configuration and refuses unless the
 canonical output reproduces bit for bit; with ``expected_identity`` (the
@@ -180,7 +180,7 @@ class LatentClassEffects:
     ``classes`` are in canonical order; ``mixture_effect`` is ``sum_k pi_k tau_k``.
     ``responsibilities`` is the ``(n, K)`` matrix of posterior class probabilities (canonical
     columns) and ``hard_assignment`` each unit's most probable canonical class. Bootstrap
-    standard errors have ``calibration == "unmeasured"``: they carry no coverage claim.
+    standard errors have ``calibration == "not_measured"``: they carry no coverage claim.
     """
 
     classes_declared: int

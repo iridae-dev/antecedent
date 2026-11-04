@@ -228,7 +228,7 @@ impl JointPanelResult {
             shape: [self.draws.len(), coordinates.len()],
             weights: None,
             supported: Some(vec![true; coordinates.len()]),
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

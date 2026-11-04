@@ -5,7 +5,7 @@
 //! detectable differences, the artifact, its identity digests and every refusal are Rust's. A
 //! refusal comes back as structured JSON (`code`, `detail`, `message`) for the Python layer to
 //! raise as its own typed exception. Non-rejection never certifies invariance and the test's
-//! Type I error and power are unmeasured.
+//! Type I error and power are not_measured.
 use crate::bridge::RefusalJson;
 use crate::detach_catch;
 use antecedent::analysis::mechanism_discrepancy::{

@@ -68,7 +68,7 @@ cannot establish completion.
 coverage record is measured and attested, which is calibration work outside this pass. A deferred
 row names what it waits for (`deferred_to`) and a strict subset of its required dimensions
 (`deferred_dimensions`); it still needs executing evidence for every other dimension, normally the
-typed refusal while the record is unmeasured. Deferred rows are listed beside the unresolved gaps,
+typed refusal while the record is not_measured. Deferred rows are listed beside the unresolved gaps,
 never counted as earned, and support they would grant stays unsupported.
 
 ## Commands

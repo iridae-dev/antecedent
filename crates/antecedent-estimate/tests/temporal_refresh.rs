@@ -106,7 +106,7 @@ fn refresh_posterior_mean_stays_at_the_new_period_response() {
 }
 
 #[test]
-fn refresh_posterior_refuses_an_unmeasured_band() {
+fn refresh_posterior_refuses_an_not_measured_band() {
     let error = normal_mean_posterior(
         &[3.0, 5.0, 10.0],
         PosteriorRequest::CredibleBand,

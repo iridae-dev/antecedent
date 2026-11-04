@@ -68,7 +68,7 @@
 //! * Sources must be independent samples with disjoint units; overlapping or unknown
 //!   dependence refuses. Conflicting sources are never silently pooled: pairwise
 //!   posterior disagreement of the per-source target effects is reported.
-//! * Calibration is **unmeasured**. No coverage is claimed and the public interval route
+//! * Calibration is **not_measured**. No coverage is claimed and the public interval route
 //!   is reported with its calibration annotation, never refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -392,8 +392,8 @@ pub struct IdentificationRecord {
 /// Inferential status of a fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JointTransportCalibration {
-    /// Calibration of credible intervals is unmeasured; no coverage is claimed.
-    Unmeasured,
+    /// Calibration of credible intervals is not_measured; no coverage is claimed.
+    NotMeasured,
 }
 
 /// Target-effect posterior of one source alone, for disagreement diagnostics.
@@ -457,7 +457,7 @@ pub struct JointTransportDiagnostics {
     pub overlap: OverlapDiagnostic,
     /// Source disagreement.
     pub disagreement: SourceDisagreement,
-    /// Always [`JointTransportCalibration::Unmeasured`].
+    /// Always [`JointTransportCalibration::NotMeasured`].
     pub calibration: JointTransportCalibration,
 }
 
@@ -1639,7 +1639,7 @@ fn fit_inner(
                 tolerance: model.max_unsupported_mass,
             },
             disagreement,
-            calibration: JointTransportCalibration::Unmeasured,
+            calibration: JointTransportCalibration::NotMeasured,
         },
         parameter_names: names,
         posterior_mean: posterior.mean,

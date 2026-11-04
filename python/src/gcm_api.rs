@@ -1806,7 +1806,7 @@ impl<T> FitCache<T> {
 
 struct PolicyMaterialization {
     fitted: Arc<FittedGcm>,
-    _retention: antecedent::execution::AdmissionLease,
+    _retention: antecedent::execution::Retention,
 }
 
 /// Checked topology and program over owned observations, before statistical fitting.
@@ -1890,7 +1890,7 @@ impl PyPreparedPolicyAnalysis {
             self.template.interventions(),
         )
         .ok()
-        .map(|digest| antecedent::schema::to_hex(&digest))
+        .map(|digest| antecedent::identity::to_hex(&digest))
     }
 
     fn export_program<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
@@ -1935,14 +1935,13 @@ impl PyPreparedPolicyAnalysis {
         let fitted = detach_catch(py, || {
             let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
             // Admission also checks cancellation on a reused fit, before publishing a run.
-            let admission_error = |error: antecedent::execution::AdmissionError| match error {
-                antecedent::execution::AdmissionError::Cancelled => {
+            let admission_error = |error: antecedent::execution::AdmissionRefusal| match error {
+                antecedent::execution::AdmissionRefusal::Cancelled => {
                     py_err(antecedent::CausalError::Cancelled { stage: "policy_fit" })
                 }
                 error => crate::CausalResourceError::new_err(error.to_string()),
             };
-            let _check = ctx
-                .acquire_admission_bounded(0, 0, std::time::Duration::ZERO)
+            let _check = antecedent::execution::retain_bounded(&ctx, 0, std::time::Duration::ZERO)
                 .map_err(admission_error)?;
             self.fitted.materialize(
                 &ctx,
@@ -1953,9 +1952,12 @@ impl PyPreparedPolicyAnalysis {
                         .ok_or_else(|| {
                             crate::CausalResourceError::new_err("policy fit workspace overflow")
                         })?;
-                    let workspace = ctx
-                        .acquire_admission_bounded(0, bytes, std::time::Duration::ZERO)
-                        .map_err(admission_error)?;
+                    let workspace = antecedent::execution::retain_bounded(
+                        &ctx,
+                        bytes,
+                        std::time::Duration::ZERO,
+                    )
+                    .map_err(admission_error)?;
                     let selection = if self.selection.is_standard() {
                         None
                     } else {
@@ -1968,9 +1970,9 @@ impl PyPreparedPolicyAnalysis {
                         &ctx,
                     )
                     .map_err(py_err)?;
-                    let _completed = ctx
-                        .acquire_admission_bounded(0, 0, std::time::Duration::ZERO)
-                        .map_err(admission_error)?;
+                    let _completed =
+                        antecedent::execution::retain_bounded(&ctx, 0, std::time::Duration::ZERO)
+                            .map_err(admission_error)?;
                     Ok(PolicyMaterialization { fitted: Arc::new(fitted), _retention: workspace })
                 },
                 ctx.progress.is_some(),

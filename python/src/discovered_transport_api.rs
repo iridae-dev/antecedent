@@ -716,7 +716,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 mod transport_operational_error_tests {
     use super::{DiscoveredTransportError, refusal_of};
     use antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure as map_io;
-    use antecedent::execution::AdmissionError;
+    use antecedent::execution::artifact_io_admission_error;
     use antecedent::identify::{IdentificationBudget, IdentificationError};
     use antecedent::io::IoError;
     use pyo3::prelude::*;
@@ -738,8 +738,8 @@ mod transport_operational_error_tests {
             assert!(
                 refusal_of(&budget).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
             );
-            let cancelled = map_io(IoError::Admission(AdmissionError::Cancelled));
-            let resource = map_io(IoError::Admission(AdmissionError::Overflow));
+            let cancelled = map_io(artifact_io_admission_error(true));
+            let resource = map_io(artifact_io_admission_error(false));
             let ambiguous = map_io(IoError::Refused {
                 code: "transport_budget_cancel",
                 message: "unknown stop".into(),

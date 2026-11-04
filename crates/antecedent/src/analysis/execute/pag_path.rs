@@ -458,10 +458,13 @@ impl super::Study {
         let started = Instant::now();
         let is_intervention =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        if self.settings.refute != RefuteSuite::None && !is_intervention {
+        if self.settings.refute != RefuteSuite::None
+            && !is_intervention
+            && !matches!(query.functional, ResponseFunctional::MeanCurve { .. })
+        {
             return Err(CausalError::Unsupported {
-                message: "Admg ResponseCurve has no native non-ATE refuter suite; \
-                          ATE refuters do not apply to a function-valued surface",
+                message: "Admg response refutation is supported for InterventionResponse and \
+                          ResponseCurve",
             });
         }
         match &query.functional {
@@ -559,9 +562,14 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         diagnostics.extend(extra_diagnostics);
-        let (refutations, refute_diags) =
+        let (mut refutations, refute_diags) =
             self.refute_admg_response_level(&run, &estimand, &estimate, scalar, &mut diagnostics)?;
         diagnostics.extend(refute_diags);
+        if curve && !matches!(self.settings.refute, RefuteSuite::None) {
+            let (reports, notes) = self.refute_admg_curve(&run, query, &response)?;
+            refutations.extend(reports);
+            diagnostics.extend(notes);
+        }
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -724,6 +732,69 @@ impl super::Study {
     }
 
     /// Plugin-level refutation of a scalar ADMG response level, when one is supported.
+    /// Curve refuter state of an ADMG curve: the whole general-ID plug-in curve is refit on
+    /// perturbed data (a permuted placebo treatment and, under full, a random 80% row subset).
+    /// The random common cause is not applicable: the plug-in is identified by the ID
+    /// algorithm over the graph's discrete variables, so there is no adjustment set to which
+    /// an extra covariate could be added.
+    fn refute_admg_curve(
+        &self,
+        run: &AdmgLevelRun<'_>,
+        query: &ResponseQuery,
+        response: &CausalResponse,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        let Some((grid, _)) = super::curve_refutation::published_curve(response) else {
+            return Ok((Vec::new(), Vec::new()));
+        };
+        let level_queries: Vec<ResponseQuery> = grid
+            .iter()
+            .map(|level| admg_response_at_level(query, run.treatment, run.outcome, *level))
+            .collect();
+        let width = grid.len();
+        let fit = |data: &TabularData, extra: &[VariableId]| -> Option<Vec<f64>> {
+            if !extra.is_empty() {
+                return None;
+            }
+            let refit = AdmgLevelRun {
+                data,
+                admg: run.admg,
+                curve: true,
+                bayesian: run.bayesian,
+                identifier_id: run.identifier_id,
+                estimator_id: run.estimator_id,
+                treatment: run.treatment,
+                outcome: run.outcome,
+                physical: run.physical,
+                ctx: run.ctx,
+            };
+            let fits = self.fit_admg_response_levels(&refit, &level_queries).ok()?;
+            let refit_response = fits.into_response(query, true).response;
+            let (refit_grid, curve) = super::curve_refutation::published_curve(&refit_response)?;
+            let same = refit_grid.len() == width
+                && refit_grid
+                    .iter()
+                    .zip(&grid)
+                    .all(|(a, b)| (a - b).abs() <= 1e-9 * b.abs().max(1.0));
+            (same && curve.iter().all(|value| value.is_finite())).then_some(curve)
+        };
+        super::curve_refutation::refute_curve_run(
+            &super::curve_refutation::CurveRun {
+                data: run.data,
+                treatment: run.treatment,
+                response,
+                suite: self.settings.refute,
+                replicates: self.settings.bootstrap_replicates,
+                fit: &fit,
+                common_cause: Err(
+                    "the ADMG curve is the ID-algorithm plug-in over the graph's discrete \
+                     variables, so there is no adjustment set to which an independent \
+                     covariate could be added",
+                ),
+            },
+            run.ctx,
+        )
+    }
+
     fn refute_admg_response_level(
         &self,
         run: &AdmgLevelRun<'_>,

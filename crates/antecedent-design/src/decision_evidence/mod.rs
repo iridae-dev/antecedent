@@ -28,7 +28,7 @@
 //! and statistical obligations before anything is fitted.
 //!
 //! Nothing here estimates a nuisance, widens an interval, or turns a sensitivity bound into a
-//! probability. A derived interval is a delta-method construction with calibration `unmeasured`.
+//! probability. A derived interval is a delta-method construction with calibration `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::too_many_lines,
@@ -76,7 +76,7 @@ pub const MAX_UNKNOWN_DIMENSIONS: usize = 12;
 pub const SEPARATION_STATEMENT: &str = "a sampling interval, an identified set and an assumption range are different objects; the assumption range is not a probability law and no sampling interval has been composed into it";
 
 /// Statement carried by every delta-method interval.
-pub const DELTA_METHOD_STATEMENT: &str = "first-order delta method through the conservative Neyman covariance of the arm-mean estimators; calibration is unmeasured and no support is inherited from the components";
+pub const DELTA_METHOD_STATEMENT: &str = "first-order delta method through the conservative Neyman covariance of the arm-mean estimators; calibration is not_measured and no support is inherited from the components";
 
 /// Why a request, a declaration or a combination of evidence is refused.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -1386,7 +1386,7 @@ pub fn compile_joint_experiment(
         statistical_requirements: vec![
             "at least 30 independently assigned units in each arm for a normal interval over the covariance",
             "the number of independent units, not the number of rows, limits precision; extra rows inside existing clusters do not remove between-cluster variance",
-            "a function of the outcomes carries a delta-method interval with calibration unmeasured",
+            "a function of the outcomes carries a delta-method interval with calibration not_measured",
         ],
         unit_of_analysis,
         scientific_identity: String::new(),

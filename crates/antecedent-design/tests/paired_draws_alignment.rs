@@ -56,7 +56,7 @@ fn joint(provider: &str, snapshot: &str) -> DistributionArtifact {
             shape: [4, 1],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

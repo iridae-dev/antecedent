@@ -3,7 +3,7 @@
 The fixture is the two-cell propensity: 100 rows at ``z = 0`` with 30 treated and 100 rows at
 ``z = 1`` with 60 treated. References are Newton modes of the logistic model under the stated
 Gaussian prior and the score moments of a large Laplace sample drawn here with numpy. The product
-is a posterior of a nuisance, never of an effect; it is unsupported with calibration unmeasured,
+is a posterior of a nuisance, never of an effect; it is unsupported with calibration not_measured,
 and its artifact is refit on load in this process and in a fresh one.
 """
 
@@ -86,7 +86,7 @@ def test_the_product_matches_newton_and_a_laplace_sample() -> None:
             assert product[f"row{index}.outside_band"] == pytest.approx(outside, abs=0.03)
     assert product.estimator_id == "bayesian.propensity.coefficient_posterior"
     assert "not_an_effect_posterior" in product.uncertainty
-    assert product.support == "unsupported" and product.calibration == "unmeasured"
+    assert product.support == "unsupported" and product.calibration == "not_measured"
     assert not product.supported and not product.calibration_measured
     assert "nuisance" in product.explain()
 
@@ -220,7 +220,7 @@ def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_l
         float(sigmoid(mode[0] + 1.5 * mode[1])), abs=1e-6
     )
     assert ridge.estimator_id == "temporal.penalized_propensity"
-    assert ridge.support == "unsupported" and ridge.calibration == "unmeasured"
+    assert ridge.support == "unsupported" and ridge.calibration == "not_measured"
 
     posterior = require_success(
         prepared_study.temporal_treatment_score(

@@ -185,7 +185,7 @@ _EXTERNAL = tuple(
 _STANDING = (
     IdentityRequirement(
         Stage.CALIBRATION,
-        ("calibration record identity", "coordinate it holds at", "unmeasured/point-only state"),
+        ("calibration record identity", "coordinate it holds at", "not_measured/point-only state"),
     ),
     IdentityRequirement(
         Stage.REPRESENTATION, ("model family", "representation version", "measurement model")
@@ -377,7 +377,7 @@ _ADJUSTED = Adapter(
     "antecedent.recalc_adjusted.AdjustedSession.execute",
     "antecedent::analysis::recalc_adjusted::execute_adjusted_with_receipt",
     "checked selective adjusted execution",
-    "Linear/GLM and vector/categorical mean contrasts over a checked common adjustment set. Compatible contrasts, same-row target weights and utility reuse the joint fit; raw snapshot/model/roles/coding changes refit. Full coefficient covariance retained; conditional analytic uncertainty has unmeasured calibration. Receipts and flags provide no portable fit.",
+    "Linear/GLM and vector/categorical mean contrasts over a checked common adjustment set. Compatible contrasts, same-row target weights and utility reuse the joint fit; raw snapshot/model/roles/coding changes refit. Full coefficient covariance retained; conditional analytic uncertainty has not_measured calibration. Receipts and flags provide no portable fit.",
 )
 _ADJUSTED_PREDICT = replace(
     _ADJUSTED,
@@ -457,7 +457,7 @@ _BAYESIAN = Adapter(
     "antecedent.recalc_bayesian.BayesianSession.execute",
     "antecedent::analysis::recalc_bayesian::execute_bayesian_with_receipt",
     "native-issued ordinary posterior projection",
-    "Checked conjugate Gaussian identity effect model, linear or quadratic basis. Summary/utility reuse actual aligned native rows; model/data/prior/RNG/draw-budget changes refit. Posterior quantiles are model projections with unmeasured calibration. Caller draws and joint transport publication are unsupported.",
+    "Checked conjugate Gaussian identity effect model, linear or quadratic basis. Summary/utility reuse actual aligned native rows; model/data/prior/RNG/draw-budget changes refit. Posterior quantiles are model projections with not_measured calibration. Caller draws and joint transport publication are unsupported.",
 )
 _BAYESIAN_RESUME = replace(
     _BAYESIAN,

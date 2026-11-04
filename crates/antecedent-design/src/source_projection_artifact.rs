@@ -430,7 +430,7 @@ fn affine_output(
         })?;
     Ok(json!({"contract_identity":result.contract_identity,"utility_units":contract.utility_units,
         "actions":result.actions.iter().map(|action| json!({"id":action.id,"expected_utility":action.expected_utility,"criterion_value":action.value,"standard_error":action.standard_error})).collect::<Vec<_>>(),
-        "point_only":true,"calibration":"unmeasured","caller_declared_utility_units":true}))
+        "point_only":true,"calibration":"not_measured","caller_declared_utility_units":true}))
 }
 
 fn affine_functional_output(
@@ -475,7 +475,7 @@ fn affine_functional_output(
         json!({"contract_identity":contract.identity().map_err(|cause| IoError::Refused { code:antecedent_core::reason_code!("decision_contract_unsatisfied"),message:format!("source_projection.affine_contract_refused: {cause:?}") })?,"utility_units":contract.utility_units,
             "action_id":action_id,"value":result.value,"standard_error":result.standard_error,
             "actions":[{"id":action_id,"expected_utility":result.value,"criterion_value":result.value,"standard_error":result.standard_error}],
-            "point_only":true,"calibration":"unmeasured","caller_declared_utility_units":true}),
+            "point_only":true,"calibration":"not_measured","caller_declared_utility_units":true}),
     )
 }
 

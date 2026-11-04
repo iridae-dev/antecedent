@@ -296,7 +296,7 @@ impl PreparedDecisionReliability {
     /// distribution, Monte Carlo error at the effective sample size, and selection
     /// (confidence set for the best candidate and a selection-corrected interval).
     ///
-    /// The result is labelled [`DerivedStanding::DerivedUnmeasured`]; it is recomputed
+    /// The result is labelled [`DerivedStanding::DerivedNotMeasured`]; it is recomputed
     /// from the carried draws, so nothing here is stored beside the artifact.
     ///
     /// # Errors

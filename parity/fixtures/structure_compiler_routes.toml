@@ -84,5 +84,5 @@ claim = "With a mechanism-fit bootstrap, every intrinsic-influence source report
 evidence = [
   "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_bootstrap_with_data_quantifies_mechanism_fit_separately",
   "crates/antecedent-attribution/tests/intrinsic_influence.rs::without_a_bootstrap_the_whole_procedure_is_unquantified",
-  "python/tests/test_intrinsic_influence.py::test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero",
+  "python/tests/test_intrinsic_influence.py::test_not_measured_mechanism_fit_is_marked_unquantified_not_zero",
 ]

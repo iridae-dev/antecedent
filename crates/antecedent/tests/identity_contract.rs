@@ -5730,7 +5730,7 @@ fn calibration_slot_is_not_calibrated_with_fewer_bootstrap_replicates_than_measu
 }
 
 #[test]
-fn an_unmeasured_bootstrap_construction_is_unavailable() {
+fn an_not_measured_bootstrap_construction_is_unavailable() {
     // The review's reproducer: AIPW with two bootstrap replicates reported
     // `calibrated` against a record whose cited test never ran AIPW.
     let ctx = ExecutionContext::for_tests(28);

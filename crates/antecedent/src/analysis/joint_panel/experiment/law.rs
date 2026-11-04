@@ -157,7 +157,7 @@ impl JointLawExperimentResult {
         metadata.weights = Some(weights);
         metadata.identity.causal_contract_id = dependency.to_hex();
         metadata.identity.provider_id = "antecedent.joint_design.conditional_experiment".into();
-        metadata.calibration = DistributionCalibration::Unmeasured;
+        metadata.calibration = DistributionCalibration::NotMeasured;
         metadata.trust = DistributionTrust::Unverified;
         let law = DistributionArtifact::new(metadata, prior.draws().to_vec())
             .map_err(JointPanelError::compile)?;
@@ -575,7 +575,7 @@ impl JointLawExperimentResult {
         metadata.weights = Some(weights);
         metadata.identity.causal_contract_id = dependency.to_hex();
         metadata.identity.provider_id = "antecedent.joint_design.conditional_experiment".into();
-        metadata.calibration = DistributionCalibration::Unmeasured;
+        metadata.calibration = DistributionCalibration::NotMeasured;
         metadata.trust = DistributionTrust::Unverified;
         let law = DistributionArtifact::new(metadata, prior.draws().to_vec())
             .map_err(JointPanelError::compile)?;

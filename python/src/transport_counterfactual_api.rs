@@ -363,7 +363,7 @@ impl PreparedCounterfactualTransportNative {
     #[pyo3(signature=(seed=None))]
     fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
         let ctx = execution_context(seed.unwrap_or(0), self.memory_bytes, None);
-        antecedent::estimate::refuse_cancelled(&ctx, "counterfactual transport fork")
+        antecedent::refusal::ensure_not_cancelled(&ctx, "counterfactual transport fork")
             .map_err(error)?;
         let inner = match self.inner.data() {
             Some(data) => self.inner.refresh(data.clone(), &ctx).map_err(error)?,

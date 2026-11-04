@@ -128,7 +128,7 @@ fn wilson_interval_at_the_effective_sample_size_matches_hand_arithmetic() {
     let derived =
         derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.95), &ctx())
             .unwrap();
-    assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
+    assert_eq!(derived.standing, DerivedStanding::DerivedNotMeasured);
     // Wilson, p = 0.5, n = 100, z = 1.959964: centre 0.5, half-width 0.09617.
     let best = derived
         .numerical
@@ -470,7 +470,7 @@ fn levels_outside_the_derived_range_and_undeclared_dependence_are_refused() {
 }
 
 #[test]
-fn a_derivation_is_unmeasured_but_every_route_is_published_and_the_combined_number_is_not_supported()
+fn a_derivation_is_not_measured_but_every_route_is_published_and_the_combined_number_is_not_supported()
  {
     let derived = derive_uncertainty(
         &three(100),
@@ -510,7 +510,7 @@ fn a_derivation_is_annotated_by_the_record_that_covers_its_coordinate() {
     let draws = simulate_selection_draws(&design(1000), &stream).unwrap();
     let small = simulate_selection_draws(&design(100), &stream).unwrap();
     // Every request is published; the status never exceeds what a record measured, and a
-    // simultaneous marginal-only route, another level or an unmeasured budget is not calibrated.
+    // simultaneous marginal-only route, another level or a not_measured budget is not calibrated.
     let simultaneous =
         IntervalRequest { level: 0.95, multiplicity: IntervalMultiplicity::Simultaneous };
     for (derived, route, may_calibrate) in [
@@ -519,7 +519,7 @@ fn a_derivation_is_annotated_by_the_record_that_covers_its_coordinate() {
         (derive(&draws, simultaneous), PublishedRoute::RankingProbability, false),
         (derive(&small, IntervalRequest::marginal(0.95)), PublishedRoute::UtilityInterval, false),
     ] {
-        assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
+        assert_eq!(derived.standing, DerivedStanding::DerivedNotMeasured);
         let slot = derived.publish(route).unwrap();
         if !may_calibrate {
             assert_ne!(slot.status, CalibrationStatus::Calibrated, "{}", route.as_str());

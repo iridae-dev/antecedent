@@ -189,7 +189,7 @@ def test_lifecycle_identify_bind_inspect_decide_and_rank_a_study(tmp_path: Path)
     assert second.net_value == pytest.approx(0.025, abs=1e-12)
     assert first.provider_trust == "externally_attested"
     assert not first.natively_replayed
-    assert ranked.calibration == "unmeasured"
+    assert ranked.calibration == "not_measured"
 
     # The ranking names the same decision contract link the decision result does, with the
     # same digest, and every stage behind the ranked numbers.
@@ -246,7 +246,7 @@ def test_lifecycle_identify_bind_inspect_decide_and_rank_a_study(tmp_path: Path)
         assert abs(ranked.entries[1].net_value - 0.025) < 1e-12
         assert not any(e.natively_replayed for e in ranked.entries)
         assert ranked.source_digests == (digest,)
-        assert ranked.calibration == "unmeasured"
+        assert ranked.calibration == "not_measured"
         """
     )
     claim_file = tmp_path / "claim.bin"
@@ -771,7 +771,7 @@ def test_rust_built_design_ranking_and_obligation_are_consumed_by_python():
     assert [e.id for e in ranked.entries] == ["cand-1", "cand-2"]
     assert ranked.entries[0].net_value == pytest.approx(0.15, abs=1e-12)
     assert ranked.entries[1].net_value == pytest.approx(0.025, abs=1e-12)
-    assert ranked.calibration == "unmeasured"
+    assert ranked.calibration == "not_measured"
     assert not any(entry.natively_replayed for entry in ranked.entries)
     # Python derives the identity of the same hand contract Rust wrote.
     assert (

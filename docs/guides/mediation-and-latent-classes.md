@@ -1,6 +1,6 @@
 # Split an effect into direct and indirect parts, or into latent classes
 
-Two outcome-model routes answer questions about how an effect is built. `antecedent.nonlinear_mediation` splits the effect of a binary treatment into the part that passes through a continuous mediator and the part that does not. `antecedent.latent_class` asks for the effect of a treatment within each of a declared number of unobserved classes. Both are model-conditional point estimates: the numbers are only as good as the premises you declare, and every standard error is a diagnostic with calibration `unmeasured`.
+Two outcome-model routes answer questions about how an effect is built. `antecedent.nonlinear_mediation` splits the effect of a binary treatment into the part that passes through a continuous mediator and the part that does not. `antecedent.latent_class` asks for the effect of a treatment within each of a declared number of unobserved classes. Both are model-conditional point estimates: the numbers are only as good as the premises you declare, and every standard error is a diagnostic with calibration `not_measured`.
 
 ## Natural direct and indirect effects through a continuous mediator
 
@@ -43,7 +43,7 @@ result = mediation_effects(
 result.natural_direct, result.natural_indirect, result.total   # NDE is 0.95
 ```
 
-The integral over the cross-world mediator law is a Gauss-Hermite rule. Antecedent computes the estimate with `n` and `2n` nodes and reports the disagreement; a disagreement above the tolerance is refused rather than reported. `bootstrap_replicates=` adds a seeded bootstrap standard error with interval status `closed_calibration_unmeasured`: no interval is produced. Weak overlap is refused. `result.export()` with `consume_mediation_artifact(..., expected_identity=result.identity)` recomputes the answer from a retained artifact.
+The integral over the cross-world mediator law is a Gauss-Hermite rule. Antecedent computes the estimate with `n` and `2n` nodes and reports the disagreement; a disagreement above the tolerance is refused rather than reported. `bootstrap_replicates=` adds a seeded bootstrap standard error with interval status `closed_calibration_not_measured`: no interval is produced. Weak overlap is refused. `result.export()` with `consume_mediation_artifact(..., expected_identity=result.identity)` recomputes the answer from a retained artifact.
 
 ## Per-class effects of a finite mixture
 
@@ -78,10 +78,10 @@ result.mixture_effect                            # -0.2
 result.responsibilities                          # (n, K) posterior class probabilities
 ```
 
-Labels carry no meaning, so classes are reported in a canonical order: ascending effect. `mixture_effect` is the weight-averaged class effect. `result.separation` and `result.min_effect_gap` say how well the classes are separated, and a class weight too small to estimate refuses. EM finds a local maximum from seeded restarts, not a certified global one, so the result is a fit of the declared mixture. A class effect is an average effect within an unobserved group, not an individual effect, and a class is not a subgroup you can observe: read `responsibilities` as model probabilities. Bootstrap standard errors are seeded, label-aligned and `unmeasured`.
+Labels carry no meaning, so classes are reported in a canonical order: ascending effect. `mixture_effect` is the weight-averaged class effect. `result.separation` and `result.min_effect_gap` say how well the classes are separated, and a class weight too small to estimate refuses. EM finds a local maximum from seeded restarts, not a certified global one, so the result is a fit of the declared mixture. A class effect is an average effect within an unobserved group, not an individual effect, and a class is not a subgroup you can observe: read `responsibilities` as model probabilities. Bootstrap standard errors are seeded, label-aligned and `not_measured`.
 
 ## Related
 
 - [Estimate an effect when treatment has several levels](treatment-levels.md) for categorical and joint treatments.
 - [Heterogeneous effects and policies](heterogeneous-effects-and-policies.md) when the variation is by observed covariates.
-- [Reading a result](../start/reading-a-result.md) for how to read an unmeasured calibration status.
+- [Reading a result](../start/reading-a-result.md) for how to read a not_measured calibration status.

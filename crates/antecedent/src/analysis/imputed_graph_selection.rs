@@ -76,7 +76,7 @@ impl GraphSelectionPerImputation {
     pub fn interval() -> Result<std::convert::Infallible, CausalError> {
         Err(crate::unsupported_reason!(
             "not_supported",
-            "graph_selection_imputation.interval_unmeasured: an interval for the combined \
+            "graph_selection_imputation.interval_not_measured: an interval for the combined \
              imputation, graph-selection and effect procedure is not supported"
         ))
     }

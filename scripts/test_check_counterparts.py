@@ -136,7 +136,7 @@ class GeneratorChecks(unittest.TestCase):
         )
         narrowed = {
             "gap": "validation",
-            "missing": "interval unmeasured",
+            "missing": "interval not_measured",
             "module": "crates/c/src/m.rs",
         }
         self.assertEqual(

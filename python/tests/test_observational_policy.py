@@ -41,7 +41,7 @@ def test_a_prespecified_policy_recovers_its_value() -> None:
     )
     assert abs(result.value - TRUTH) < 4 * result.se
     assert result.reference is not None and result.reference.level == 0.0
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     assert result.evaluation == "prespecified"
     assert result.support == (0.0, 1.0)
     assert [a.level for a in result.action_values] == [0.0, 1.0]

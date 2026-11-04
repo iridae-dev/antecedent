@@ -29,7 +29,7 @@ dependency under the shared recalculation planner.
 
 `CallbackDeclaration::interface_contract()` projects it to one produced port
 `output` and one consumed port per input; the port is point-only when only a
-mean is offered and *unmeasured* otherwise, never measured.
+mean is offered and *not_measured* otherwise, never measured.
 `provider_object()` and `update_object()` bridge it to `LawProviderContract`,
 `PosteriorProviderContract` and `SignalProviderContract`, so `negotiate` and
 `verify_external_object` apply to a callback unchanged. A declared

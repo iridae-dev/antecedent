@@ -73,7 +73,7 @@ def test_survival_and_rmst_differences_recover_the_closed_form_truth() -> None:
     assert abs(effect.control.rmst - r0) < 4 * effect.control.rmst_se
     assert effect.horizon == HORIZON
     assert effect.censoring == "at_random_given_covariates"
-    assert effect.calibration == "unmeasured"
+    assert effect.calibration == "not_measured"
     assert any("coarsening at random" in text for text in effect.assumptions)
     assert effect.n_obs == 5000 and len(effect.row_index) == 5000
     assert (

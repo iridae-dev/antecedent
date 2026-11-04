@@ -15,8 +15,9 @@ pub use antecedent_contract::TransformationReport;
 pub use antecedent_contract::response_coordinates;
 /// Semantic contract for composing independently fitted causal mechanisms.
 pub use antecedent_contract::{
-    AdmissionBasis, AdmissionCoordinate, LatentCauseDeclaration, MechanismDeclaration,
-    MechanismOriginKind, TransportAdmission,
+    AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
+    MechanismCompositionDeclaration, MechanismDeclaration, MechanismOriginKind, TransportAdmission,
+    check_declared_independence_against_ledger,
 };
 /// Four typed reasoning slots: Identification, Support, Uncertainty, Assumptions.
 pub use antecedent_contract::{AssumptionSlot, ReasoningView, SlotAvailability, SupportSlot};
@@ -44,7 +45,8 @@ pub use antecedent_contract::{
 /// The joint-law propagation rule.
 pub use antecedent_contract::{
     InputAlignment, InputRole, PropagationDependence, PropagationInput, PropagationOperation,
-    PropagationRequest, check_propagation,
+    PropagationRequest, check_propagation, check_propagation_with_ledger,
+    check_rows_pairable_across,
 };
 /// Typed obligation references that extend `antecedent_core::AssumptionRecord`.
 pub use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
@@ -55,6 +57,13 @@ pub use antecedent_contract::{
     ResponseCoordinateLabels, ResponseCoordinateSkeleton, label_coordinates,
     response_coordinate_skeleton,
 };
+/// External providers and consumers of transported evidence, through the one interface contract.
+pub mod provider_transport {
+    pub use antecedent_contract::provider_transport::{
+        AdmittedProviderSource, ProviderTransportSource, SourceTrustRequirement,
+        connect_bound_provider_source, connect_provider_source,
+    };
+}
 /// Typed bridges between scientific quantities.
 pub mod bridge {
     pub use antecedent_contract::bridge::{

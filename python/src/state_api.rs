@@ -8,11 +8,12 @@ use std::sync::Arc;
 
 use antecedent::analysis::composition_verification::ObservedEffect;
 use antecedent::execution::CacheBudget;
+use antecedent::identity::ContractIdentities;
 use antecedent::prelude::VariableId;
 use antecedent::query::{AverageEffectQuery, CausalQuery};
 use antecedent::schema::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    ContractIdentities, ModelId, QueryId, StateVersion,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus, ModelId,
+    QueryId, StateVersion,
 };
 use antecedent::scientific::SemanticDigest;
 use antecedent::state::{
@@ -46,11 +47,9 @@ fn identities_of(map: &IdentityMap) -> PyResult<ContractIdentities> {
     }
     let layer = |name: &str, required: bool| -> PyResult<Option<SemanticDigest>> {
         match map.get(name).and_then(Option::as_deref) {
-            Some(hex) => antecedent::schema::digest_from_hex(hex)
-                .map(|bytes| Some(SemanticDigest::from_bytes(bytes)))
-                .ok_or_else(|| {
-                    crate::value_err(format!("identity `{name}` must be 64 hexadecimal characters"))
-                }),
+            Some(hex) => antecedent::identity::parse_digest(hex).map(Some).ok_or_else(|| {
+                crate::value_err(format!("identity `{name}` must be 64 hexadecimal characters"))
+            }),
             None if required => Err(crate::value_err(format!("identity `{name}` is required"))),
             None => Ok(None),
         }

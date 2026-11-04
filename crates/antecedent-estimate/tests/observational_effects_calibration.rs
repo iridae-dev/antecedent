@@ -1,7 +1,7 @@
 //! Whole-route calibration designs for the observational survival and policy-value
 //! standard errors. Nothing here is measured at implementation time: every test is
 //! `#[ignore]`d and runs only at the final measurement step, and the routes report their
-//! standard errors as `unmeasured` and publish no interval until a record exists.
+//! standard errors as `not_measured` and publish no interval until a record exists.
 //!
 //! The scored statement is the Wald interval `estimate +- 1.96 se` built from the reported
 //! influence-function standard error, against a truth computed from the generating process

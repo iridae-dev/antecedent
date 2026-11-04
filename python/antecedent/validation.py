@@ -13,7 +13,7 @@
   :func:`prior_sensitivity_target` and :func:`posterior_predictive_target`. A prepared study
   refutes its own target with ``PreparedAnalysis.refute_target``.
 
-Every number is computed in Rust; calibration of these diagnostics is unmeasured.
+Every number is computed in Rust; calibration of these diagnostics is not_measured.
 """
 
 from __future__ import annotations
@@ -655,8 +655,8 @@ class TargetRefutation(ScientificResult):
                 update={
                     "uncertainty": SlotModel(
                         available=False,
-                        reason="diagnostic_unmeasured",
-                        summary="Target-native diagnostic; operating characteristics unmeasured",
+                        reason="diagnostic_not_measured",
+                        summary="Target-native diagnostic; operating characteristics not_measured",
                     ),
                     "next_actions": tuple(
                         {"refuter": r.refuter, "action": r.next_attempt} for r in self.refused

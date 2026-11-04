@@ -25,7 +25,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
-    AdaptiveInferenceError as Error, AnalysisEstimator, ContractGap, DERIVED_UNMEASURED,
+    AdaptiveInferenceError as Error, AnalysisEstimator, ContractGap, DERIVED_NOT_MEASURED,
     FinalAnalysis, GaussianMixtureLaw, MAX_UNIT_LAG, OutcomeModelPrior, OutcomeStructure,
     RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, RepeatedMeasuresSpec, Sidedness,
     StoppingRule, UncertaintyParadigm, UnitAssignment, UnitSummary, WeightScheme,
@@ -447,7 +447,7 @@ fn the_derivation_reports_exact_forms_and_monte_carlo_error_separately() {
     let means = [0.0, 0.2];
     let derived =
         derive_repeated_measures(&spec, &means, &request(2_000, 7), 1.96, &never).unwrap();
-    assert_eq!(derived.calibration, DERIVED_UNMEASURED);
+    assert_eq!(derived.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(derived.paradigm, UncertaintyParadigm::FrequentistFixedSample);
     assert_eq!(derived.route, "cluster_robust_unit_summaries");
     close(derived.design_effect, 1.0 + 2.0 * 0.3, 1e-12, "design effect");

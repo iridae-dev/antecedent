@@ -29,7 +29,7 @@ reason = "TransportQuery and InterferenceQuery are typed against static graphs; 
 
 [[n_a]]
 queries = ["ResponseCurve"]
-graph_classes = ["Dag", "Admg", "TemporalAdmg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
+graph_classes = ["Admg", "TemporalAdmg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."

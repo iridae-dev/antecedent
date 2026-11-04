@@ -10,7 +10,7 @@
 //! `bayesian.continuous_dose_policy`) and the smoothed dose transport posterior is
 //! [`crate::PreparedSmoothedDose::posterior`].
 //!
-//! The row is explicitly unsupported and its calibration is `unmeasured`; the result says so and
+//! The row is explicitly unsupported and its calibration is `not_measured`; the result says so and
 //! no support-matrix coordinate is claimed. [`BayesianPosteriorRow::evaluate`] runs and seals the
 //! row; [`BayesianPosteriorRow::consume`] recomputes the posterior from the exported table and
 //! refuses any resealed change of premise, table or value.
@@ -356,7 +356,7 @@ mod prepared_tests {
         assert_eq!(observed.report.counts(Operation::PosteriorFit).attempted, 0);
         let result = observed.result.unwrap();
         assert_eq!(result.execution_facts().unwrap().observed_model_fits(), Some(0));
-        assert_eq!(result.result().calibration, "unmeasured");
+        assert_eq!(result.result().calibration, "not_measured");
         assert!(!result.result().supported);
         let bytes = result.export().unwrap();
         drop(prepared);

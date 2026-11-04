@@ -166,7 +166,7 @@ def test_rollout_ranking_handoff_consumes_original_source_and_retains_named_stat
         is ProviderTrust(source.trust)
         is ProviderTrust.EXTERNALLY_ATTESTED
     )
-    assert loaded.calibration == source.calibration == "unmeasured"
+    assert loaded.calibration == source.calibration == "not_measured"
     assert loaded.ranking.ranking_identity == ranked.ranking_identity
     assert loaded.ranking.entries[0].evsi == pytest.approx(ranked.candidates[0].evsi)
     assert loaded.lineage == rollout.lineage
@@ -568,7 +568,7 @@ def test_issued_native_aligned_law_functionals_and_evsi_match_independent_finite
         oracle, abs=5.0 * candidate.integration.stderr + 2e-4
     )
     assert consumed.source_trust == "native_supported"
-    assert consumed.calibration == "unmeasured"
+    assert consumed.calibration == "not_measured"
     assert consumed.native_execution_authority is False
 
 

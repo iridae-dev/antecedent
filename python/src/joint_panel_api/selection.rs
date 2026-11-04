@@ -67,7 +67,7 @@ impl PyPreparedRandomizedSelection {
         })?;
         Ok(serde_json::json!({"ids":r.ids,"intervals":r.intervals,"level":r.level,
             "critical_value":r.critical_value,"roots":r.roots,"selected_id":r.selected_id,
-            "selected_index":r.selected_index,"calibration":"unmeasured",
+            "selected_index":r.selected_index,"calibration":"not_measured",
             "uncertainty":"fixed_set_joint_complete_procedure_bootstrap_max_statistic"})
         .to_string())
     }
@@ -121,9 +121,9 @@ fn prepare_randomized_program_selection(
     if ctx.cancellation.is_cancelled() {
         return Err(crate::CausalCancelledError::new_err("randomized selection cancelled"));
     }
-    let _input = ctx
-        .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(8))
-        .map_err(|e| super::panel_error(engine::PanelError::Resource(e.to_string()).into()))?;
+    let _input =
+        antecedent::execution::retain(&ctx, (declaration_json.len() as u64).saturating_mul(8))
+            .map_err(|e| super::panel_error(engine::PanelError::Resource(e.to_string()).into()))?;
     let d: Declaration =
         serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
     crate::detach_catch(py, || {

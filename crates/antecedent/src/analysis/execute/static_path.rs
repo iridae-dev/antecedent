@@ -989,6 +989,9 @@ impl super::Study {
         if matches!(estimator_id, EstimatorId::BayesianRandomizedQuantile) {
             return Some(self.execute_bayesian_quantile(data, graph, query, physical, ctx));
         }
+        if matches!(estimator_id, EstimatorId::RandomizedQuantile) {
+            return Some(self.execute_randomized_quantile(data, graph, query, physical, ctx));
+        }
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return Some(self.execute_bayesian(
                 data,

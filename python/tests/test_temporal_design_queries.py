@@ -93,7 +93,7 @@ def test_analyze_equals_the_standalone_module(bayesian: bool) -> None:
     assert _same(design.standard_error, standalone.standard_error)
     assert _same(design.lower, standalone.lower)
     assert _same(design.upper, standalone.upper)
-    assert not design.supported and design.calibration == "unmeasured"
+    assert not design.supported and design.calibration == "not_measured"
     assert (design.draws is not None) is bayesian
     # Equal to the standalone module is not enough: the data are y = level + 1.2 a_{t-1} + noise,
     # so the lag-1 excursion effect is 1.2 and the arm means differ by it.
@@ -109,7 +109,7 @@ def test_the_answer_is_structured_and_reads_back_equal() -> None:
     structured = answer.structured
     assert structured is not None
     assert structured["design"] == "two_arm"
-    assert structured["supported"] is False and structured["calibration"] == "unmeasured"
+    assert structured["supported"] is False and structured["calibration"] == "not_measured"
     assert structured["estimate"][0] == result.temporal_design.estimate[0]
     assert "two_arm temporal design" in result.claim()
     artifact = bytes(result.export())

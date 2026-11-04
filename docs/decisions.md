@@ -356,7 +356,7 @@ overlap, not a density-ratio overlap diagnostic.
 Adjacent uncertainty route. For a linear compact model with a retained coefficient covariance
 `V`, the variance of the weighted cohort-mean contrast is `phibar' V phibar` with
 `phibar = sum_i w_i phi(x_i)`. It is reported as `uncalibrated_standard_error`
-(`model_based_sqrt_phibar_v_phibar`, calibration unmeasured) on the source only. It conditions
+(`model_based_sqrt_phibar_v_phibar`, calibration not_measured) on the source only. It conditions
 on the declared cohort rows and weights and on the fitted structure and excludes cohort
 sampling variation, the support-selection step, misspecification and extrapolation. It is
 never an interval by itself and is not passed to a decision input.
@@ -413,7 +413,7 @@ Each row gives the question a route answers, its scope bounds, its claim label, 
   quantity). No interval, coverage or probability claim comes with it.
 - **No claim** means the route states a request or a classification and
   computes no estimate.
-- A standard error, p-value, interval or Monte Carlo error reported by these routes is a **diagnostic with calibration unmeasured**. Read it as a diagnostic; its nominal level is not a coverage claim.
+- A standard error, p-value, interval or Monte Carlo error reported by these routes is a **diagnostic with calibration not_measured**. Read it as a diagnostic; its nominal level is not a coverage claim.
 
 A refusal carries a registered reason code plus a namespaced detail
 (`<namespace>.<snake_case>`); the namespace named per route is the stable
@@ -445,7 +445,7 @@ an external mean claim is labelled point-only attested, not native.
 | Design ranking artifact | Can a ranking of candidate studies be exported and replayed by a fresh consumer? | Native values are recomputed on replay; external values are retained as attested; an altered signal fingerprint, overlapping source data or an incompatible cost unit refuses. | point-only | `antecedent.design` (`consume`) | `design_ranking` |
 
 The Monte Carlo error of a sampled EVSI and any rank uncertainty are
-diagnostics with calibration unmeasured, not supported claims.
+diagnostics with calibration not_measured, not supported claims.
 
 ### Repair
 
@@ -471,7 +471,7 @@ diagnostics with calibration unmeasured, not supported claims.
 | Chain observation recovery | Is the law of two binary variables recoverable from the observed pattern law when one response indicator causes the other? | An m-graph with exactly one response edge; a self-censoring edge is refused with a verified two-model witness, and a graph outside the class is `route_not_supported`, never nonrecoverable. | point-only | `antecedent.recovery_chain` (`recover_chain`) | `recovery_chain` |
 
 For the dose grid the pointwise normal intervals and standard errors are
-diagnostics with calibration unmeasured, the smoothing bias is not included, and
+diagnostics with calibration not_measured, the smoothing bias is not included, and
 a simultaneous band is a separate claim and is refused (`route_not_supported`,
 `dose_grid.no_simultaneous_band_method`): without a smoothing-bias bound it would
 exclude the bias. The bias-aware route (`estimate_dose_grid_bias_aware`, or a
@@ -483,7 +483,7 @@ its calibration is separate and `not_measured`.
 
 These estimators report point values. Every standard error, covariance
 entry, Wald statistic, p-value (raw and Holm) and bootstrap standard error they
-report is a diagnostic with calibration unmeasured.
+report is a diagnostic with calibration not_measured.
 
 | Route | Question | Scope bounds | Claim | Python entry | Refusal namespace |
 | --- | --- | --- | --- | --- | --- |
@@ -494,7 +494,7 @@ report is a diagnostic with calibration unmeasured.
 | Compact runtime export | Can a fitted linear-in-coefficients effect model be exported as an identity-bound runtime object that predicts only inside its declared support? | A finite basis, a coefficient vector and a covariance; a query outside the support or inside a mask region refuses. The model-based standard error carries no extrapolation or misspecification uncertainty. | point-only | `antecedent.compact_export` (`CompactExport`) | `compact_export` |
 
 For nonlinear mediation the bootstrap standard error is reported with interval
-status `closed_calibration_unmeasured`: no interval is produced.
+status `closed_calibration_not_measured`: no interval is produced.
 
 ## What these routes do not claim
 

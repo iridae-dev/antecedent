@@ -34,7 +34,7 @@ artifact = "a"
 closure = "{closure}"
 scope_status = "mandatory"
 gap = "{gap}"
-reason = "calibration of the interval is unmeasured"
+reason = "calibration of the interval is not_measured"
 next_attempt = "measure it"
 """
 

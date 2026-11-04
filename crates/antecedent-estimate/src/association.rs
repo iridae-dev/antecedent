@@ -24,7 +24,7 @@
 //! and the Bayesian bootstrap (Dirichlet row weights, or Dirichlet weights on contiguous blocks
 //! for a series) for every other analysis. No interval here is calibrated: no coverage record
 //! measures any construction, so a spread or posterior interval carries the label
-//! `unmeasured`.
+//! `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

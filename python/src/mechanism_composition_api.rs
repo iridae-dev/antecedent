@@ -18,8 +18,9 @@ use antecedent::analysis::transported_mechanism::{
     TransportedMechanismReceipt, verify_mechanism_transport,
 };
 use antecedent::contract::{
-    AdmissionBasis, AdmissionCoordinate, ExternalRefusal, LatentCauseDeclaration,
-    MechanismDeclaration, MechanismOriginKind, TransportAdmission,
+    AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, ExternalRefusal,
+    LatentCauseDeclaration, MechanismCompositionDeclaration, MechanismDeclaration,
+    MechanismOriginKind, TransportAdmission, check_declared_independence_against_ledger,
 };
 use antecedent::gcm::compose::{
     ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
@@ -37,6 +38,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
+use crate::evidence_ledger_api::EvidenceLedgerHandle;
 use crate::measurement_model_api::{
     flag, list, member, object, parse, present, real, reals, text, texts,
 };
@@ -87,6 +89,26 @@ fn refusal_json(refusal: &MechanismCompositionRefusal) -> String {
     let mut first = all.first().cloned().unwrap_or_else(|| {
         json!({
             "code": refusal.code(),
+            "stage": "compose",
+            "detail": antecedent::reason::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
+            "message": "mechanism composition refused",
+            "offending": Json::Null,
+            "expected": Json::Null,
+            "supplied": Json::Null,
+            "remedy": Json::Null,
+        })
+    });
+    first["refusals"] = Json::Array(all);
+    first.to_string()
+}
+
+/// Every refusal of a check that returns only refusals, spelled as the composition's own
+/// structured refusal: the first defect with all of them under `refusals`.
+fn external_refusals_json(refusals: &[ExternalRefusal]) -> String {
+    let all: Vec<Json> = refusals.iter().map(one_refusal).collect();
+    let mut first = all.first().cloned().unwrap_or_else(|| {
+        json!({
+            "code": antecedent::reason::reason_code!("joint_law_required"),
             "stage": "compose",
             "detail": antecedent::reason::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             "message": "mechanism composition refused",
@@ -949,6 +971,40 @@ fn mechanism_composition_prepare(
     })
 }
 
+/// Decide the evidence independence a composition declares from the evidence ledger's
+/// observation rows rather than from the equality of evidence identity strings.
+///
+/// Applies only to a composition declared independent by design; any other dependence is not
+/// this check's. Returns the refusal JSON (every offending pair under `refusals`) or `None`.
+#[pyfunction]
+fn mechanism_composition_check_ledger_independence(
+    composition_json: &str,
+    ledger: PyRef<'_, EvidenceLedgerHandle>,
+) -> PyResult<Option<String>> {
+    crate::catch_ffi(|| {
+        let request = parse_request(&parse(composition_json, "composition")?)?;
+        let dependence = match &request.dependence {
+            DependenceInput::IndependentByDesign { justification } => {
+                DependenceDeclaration::IndependentByDesign { justification: justification.clone() }
+            }
+            _ => DependenceDeclaration::Unknown,
+        };
+        let declaration = MechanismCompositionDeclaration {
+            target_population_id: request.target_population_id.clone(),
+            target_regime_id: request.target_regime_id.clone(),
+            mechanisms: request.mechanisms.iter().map(|m| m.declaration.clone()).collect(),
+            edges: request.edges.clone(),
+            admissions: request.admissions.clone(),
+            dependence,
+            admit_declared_mechanisms: request.admit_declared_mechanisms,
+        };
+        Ok(match check_declared_independence_against_ledger(&declaration, ledger.ledger()) {
+            Ok(()) => None,
+            Err(refusals) => Some(external_refusals_json(&refusals)),
+        })
+    })
+}
+
 /// Independently consume a composition artifact: recompute the premises
 /// digest, recompile under the coherence checker and replay the query.
 #[pyfunction]
@@ -1047,6 +1103,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedCompositionHandle>()?;
     module.add_class::<TransportedCompositionHandle>()?;
     module.add_function(wrap_pyfunction!(mechanism_composition_prepare, module)?)?;
+    module
+        .add_function(wrap_pyfunction!(mechanism_composition_check_ledger_independence, module)?)?;
     module.add_function(wrap_pyfunction!(mechanism_composition_consume, module)?)?;
     module.add_function(wrap_pyfunction!(mechanism_composition_fitted_source, module)?)?;
     Ok(())

@@ -348,7 +348,7 @@ class StaggeredRollout:
     ``resampling`` (``cluster_bootstrap`` or ``cluster_multiplier``) refits the whole procedure
     on ``replicates`` reweightings of whole clusters and reports pointwise intervals and
     simultaneous bands. The result is ``result.quasi_rollout``: unsupported, calibration
-    unmeasured. Under ``Bayesian`` inference the whole procedure is refit on flat-Dirichlet
+    not_measured. Under ``Bayesian`` inference the whole procedure is refit on flat-Dirichlet
     whole-unit weights (a Bayesian bootstrap): the section reports posterior means with
     credible intervals and bands beside the posterior; ``resampling=`` is frequentist and
     is refused there.
@@ -423,7 +423,7 @@ class CovariateAdjustedDiD:
     ``subject`` rows); ``covariates`` name the baseline covariates, read at each subject's
     first row. ``nuisance`` is ``outcome_regression``, ``inverse_probability_weighting`` or
     ``doubly_robust``. ``resampling`` refits the whole procedure on whole-cluster
-    reweightings. The result is ``result.quasi_rollout``: unsupported, calibration unmeasured.
+    reweightings. The result is ``result.quasi_rollout``: unsupported, calibration not_measured.
     ``Bayesian`` inference refits it on flat-Dirichlet whole-unit weights (a Bayesian
     bootstrap) and reports credible intervals beside the posterior.
     """
@@ -491,7 +491,7 @@ class DesignEffect:
 class QuasiRolloutEstimate:
     """Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
     or optioned local ratio. The first effect is the scalar summary. Never supported; the
-    calibration of every interval is unmeasured."""
+    calibration of every interval is not_measured."""
 
     design: str
     method: str
@@ -502,7 +502,7 @@ class QuasiRolloutEstimate:
     replicates_failed: int = 0
     critical_value: float | None = None
     diagnostics: tuple[tuple[str, float], ...] = ()
-    calibration: str = "unmeasured"
+    calibration: str = "not_measured"
     supported: bool = False
 
     @property
@@ -547,7 +547,7 @@ class SyntheticControl:
     uniform_unit_randomization: bool = False
     sharp_null_effect: float | None = None
     augmentation_ridge: float | None = None
-    #: Conformal intervals for the single treated unit (unsupported, calibration unmeasured);
+    #: Conformal intervals for the single treated unit (unsupported, calibration not_measured);
     #: under ``Bayesian`` inference, posterior predictive per-period intervals instead.
     conformal: bool = False
     #: Staggered adoptions ``(unit, adoption period)`` fitted against never-treated donors,
@@ -789,7 +789,7 @@ class AugmentedPanelDiDEstimate:
         "no_interval_or_calibrated_inference",
     )
     #: Whole-cluster resample interval when ``resampling`` was declared (calibration
-    #: unmeasured, nuisance predictions held fixed).
+    #: not_measured, nuisance predictions held fixed).
     interval_95: tuple[float, float] | None = None
     #: Whole-cluster resample standard error behind ``interval_95``; ``None`` without it.
     standard_error: float | None = None
@@ -803,7 +803,7 @@ class FuzzyRegressionDiscontinuity:
     ``bandwidth``; ``temporal_replicates`` treats the running variable as calendar time and
     reports a block-bootstrap interval; ``density_test`` runs the manipulation test of the
     running variable at the cutoff; ``balance_covariates`` report their jumps at the cutoff.
-    Any of these returns ``result.quasi_rollout`` (unsupported, calibration unmeasured).
+    Any of these returns ``result.quasi_rollout`` (unsupported, calibration not_measured).
     Under ``Bayesian`` inference ``mse_optimal`` selects the window and
     ``temporal_replicates`` gives a within-side block-bootstrap credible interval beside the
     posterior.
@@ -956,7 +956,7 @@ class IvBounds:
     interval about the set from row-bootstrap endpoint replicates; ``Bayesian`` inference reports
     the Bayesian-bootstrap posterior of the endpoints. Rows are independent subjects, so a
     declared dependent-series, trajectory or clustered sampling design refuses the row-level
-    draw. The route is unsupported and its calibration is unmeasured.
+    draw. The route is unsupported and its calibration is not_measured.
     """
 
     outcome: str
@@ -1020,7 +1020,7 @@ class IvBoundsEstimate:
     uncertainty: str
     interval: IvBoundsInterval | None = None
     posterior: IvBoundsPosterior | None = None
-    calibration: str = "unmeasured"
+    calibration: str = "not_measured"
     supported: bool = False
 
 

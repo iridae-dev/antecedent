@@ -272,7 +272,7 @@ fn weights_are_normalized_and_change_the_answer() {
 fn sampled_laws_report_point_values_without_unsupported_monte_carlo_errors() {
     let exact = joint(P, Q);
     for calibration in [
-        DistributionCalibration::Unmeasured,
+        DistributionCalibration::NotMeasured,
         DistributionCalibration::PointOnly,
         DistributionCalibration::Measured,
     ] {

@@ -152,24 +152,6 @@ scope_fixture = { path = "crates/antecedent-counterfactual/tests/temporal_cross_
 
 [[bound]]
 record = "recovery.sampled_observation"
-key = "min_replicates"
-implementation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MIN_REPLICATES" }]
-documentation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MIN_REPLICATES" }]
-guard = { path = "crates/antecedent-estimate/src/recovery_sampled.rs", pattern = "if\\ config\\.replicates\\ <\\ SAMPLED_RECOVERY_MIN_REPLICATES\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/recovery_sampled.rs", pattern = "if\\ config\\.replicates\\ <\\ SAMPLED_RECOVERY_MIN_REPLICATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = "\\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\\b" }
-
-[[bound]]
-record = "recovery.sampled_observation"
-key = "max_replicates"
-implementation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_REPLICATES" }]
-documentation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_REPLICATES" }]
-guard = { path = "crates/antecedent/src/analysis/scope_refusals.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{' }
-refusal = { path = "crates/antecedent/src/analysis/scope_refusals.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{\s*return Some\(sampled\(\s*SampledRecoveryDetail::BoundsExceeded' }
-scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = '\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\b' }
-
-[[bound]]
-record = "recovery.sampled_observation"
 key = "max_rows"
 implementation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_ROWS" }]
 documentation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_ROWS" }]

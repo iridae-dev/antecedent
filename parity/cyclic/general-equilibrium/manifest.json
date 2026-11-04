@@ -3,6 +3,6 @@
   "generator_sha256": "f3fe06a9b983abf390adcbf1808b0ace3acc5ec36876444357593b72651942ee",
   "artifact_sha256": "2754b858b9b57042fe2a53bfbd84402e9081642c89cd58aa0b8e42fdfc7f7036",
   "fresh_process_cpu_replay": true,
-  "calibration": "separate_unmeasured",
+  "calibration": "separate_not_measured",
   "attestation": "separate_not_performed"
 }

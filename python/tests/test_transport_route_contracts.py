@@ -37,7 +37,7 @@ print(json.dumps(result.inspect(),sort_keys=True))
     assert all(scalar.calibration == "calibrated" for scalar in loaded.scalars)
     source = loaded.source_report()
     source = source["result"] if loaded.route == "temporal_interval" else source
-    assert source["calibration"] == "unmeasured"
+    assert source["calibration"] == "not_measured"
     with pytest.raises(CausalError):
         MeasuredInference.load(payload, expected=replace(identity, data_digest="0" * 64))
     with pytest.raises(CausalError):

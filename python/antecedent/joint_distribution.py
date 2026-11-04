@@ -400,7 +400,7 @@ class JointDistributionArtifact(ScientificResult):
         *,
         weights: tuple[float, ...] | None = None,
         supported: tuple[bool, ...] | None = None,
-        calibration: Literal["exact", "point_only", "measured", "unmeasured"] = "unmeasured",
+        calibration: Literal["exact", "point_only", "measured", "not_measured"] = "not_measured",
         claimed_trust: str | None = None,
         trust: str | None = None,
     ) -> None:

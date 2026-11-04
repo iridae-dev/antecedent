@@ -10,7 +10,7 @@
 //! equality-constraint residuals of the empirical law, normalization, boundary margin),
 //! the model-versus-plug-in target contrast, and **three separate status fields**:
 //! nonparametric identification, likelihood fit and inferential standing. Calibration is
-//! `unmeasured`.
+//! `not_measured`.
 //!
 //! A consumer trusts none of the receipt. Under its own bounds it checks the two digests,
 //! rebuilds the declared graph and counts, re-runs the pilot (scope check, fit, residuals
@@ -48,7 +48,7 @@ pub const NESTED_MARKOV_GRAPH_ID: &str = "binary_admg.verma.x1_x2_x3_x4.v1";
 /// Id of the district (c-factor) Mobius parameterization.
 pub const NESTED_MARKOV_PARAMETERIZATION: &str = "district_mobius_c_factor.v1";
 /// The only calibration status of this cell until coverage is measured.
-pub const NESTED_MARKOV_CALIBRATION: &str = "unmeasured";
+pub const NESTED_MARKOV_CALIBRATION: &str = "not_measured";
 
 /// Why a nested-Markov artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -456,7 +456,7 @@ pub struct NestedMarkovArtifactWire {
     pub options: NestedOptionsWire,
     /// The fit receipt.
     pub receipt: NestedReceiptWire,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest of the scientific premises.
     pub premises_digest: String,
@@ -584,7 +584,7 @@ impl NestedMarkovArtifactWire {
             return Err(unsupported("required features").into());
         }
         if wire.calibration != NESTED_MARKOV_CALIBRATION {
-            return Err(unsupported("calibration is unmeasured").into());
+            return Err(unsupported("calibration is not_measured").into());
         }
         if wire.receipt.status.inference != "interval_candidates_calibration_annotated" {
             return Err(unsupported(
@@ -688,7 +688,7 @@ impl NestedMarkovArtifactWire {
     }
 }
 
-/// Original unmeasured covariance/interval candidate envelope.
+/// Original not_measured covariance/interval candidate envelope.
 /// A distinct measured outer envelope resolves scalar authority without changing
 /// this historical standing. The public point artifact does not accept this marker.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -700,7 +700,7 @@ pub struct NestedFisherArtifact {
     pub method: String,
     /// Declared sampling assumption, not authenticated from the count table.
     pub sampling: String,
-    /// Original candidate standing remains unmeasured, including inside a measured envelope.
+    /// Original candidate standing remains not_measured, including inside a measured envelope.
     pub calibration: String,
     /// Bound point-fit premises, data and likelihood receipt.
     pub point: NestedMarkovArtifactWire,
@@ -710,7 +710,7 @@ pub struct NestedFisherArtifact {
     pub parameter_covariance: Vec<f64>,
     /// Covariance of two means and their contrast.
     pub effect_covariance: [[f64; 3]; 3],
-    /// Unmeasured normal-delta candidates.
+    /// Not measured normal-delta candidates.
     pub interval_candidates: [[f64; 2]; 3],
     /// Inverse information residual.
     pub inverse_residual: f64,
@@ -746,7 +746,7 @@ impl NestedFisherArtifact {
             version: 1,
             method: "binary_verma_expected_fisher_delta_internal_v1".into(),
             sampling: "iid_multinomial_integer_counts_correctly_specified_interior_model".into(),
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
             point: NestedMarkovArtifactWire::from_report(input, options, &candidate.pilot)?,
             nominal_level,
             parameter_covariance: candidate.parameter_covariance.clone(),

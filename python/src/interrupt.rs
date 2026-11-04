@@ -421,7 +421,7 @@ where
             .collect::<Vec<_>>()
     }));
     let slot: (Mutex<Option<PyResult<T>>>, Condvar) = (Mutex::new(None), Condvar::new());
-    let observation = antecedent::execution::execution_attempt::ObservationToken::capture();
+    let observation = antecedent::execution::ObservationToken::capture();
     let execution_policy = crate::execution_api::capture();
     // One worker only so the calling thread can poll signals; it runs the same work serially, so no extra parallelism is added and the work admits itself.
     let outcome = std::thread::scope(|s| {

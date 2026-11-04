@@ -3,7 +3,7 @@
 //! Python sees the Rust result as is: coordinates, means, equal-tailed 95% credible intervals,
 //! the covariance of the joint draws (row-major), the exact Gaussian moments when the residual
 //! variance is known, and the named scalar and vector summaries. The row is never supported and
-//! its calibration is `unmeasured`.
+//! its calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;

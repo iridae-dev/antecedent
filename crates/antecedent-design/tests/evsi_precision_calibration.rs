@@ -166,7 +166,7 @@ fn evsi_finite_and_conjugate_exact_precision() {
             )
             .unwrap();
             assert!(replay.candidates[0].natively_replayed());
-            assert_eq!(replay.calibration, "unmeasured");
+            assert_eq!(replay.calibration, "not_measured");
         }
     }
     println!(
@@ -221,7 +221,7 @@ fn evsi_monte_carlo_score_error_and_net_value_precision() {
             )
             .unwrap();
             assert_eq!(replay.candidates[0].replay, ReplayKind::MonteCarloNotReplayed);
-            assert_eq!(replay.calibration, "unmeasured");
+            assert_eq!(replay.calibration, "not_measured");
             (row.evsi - truth, row.integration.stderr, row.net_value.unwrap())
         });
         let count = results.len() as f64;

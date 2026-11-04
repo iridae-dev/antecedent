@@ -3107,7 +3107,7 @@ fn cyclic_joint_columns(
             shape: [count, quantities.len()],
             weights,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

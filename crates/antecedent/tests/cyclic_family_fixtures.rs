@@ -355,7 +355,7 @@ fn write_cyclic_family_fixtures() {
                 "artifact_blake3": antecedent_core::blake3_hex(&bytes),
                 "analytic": analytic,
                 "fresh_process_cpu_replay": true,
-                "calibration": "separate_unmeasured",
+                "calibration": "separate_not_measured",
                 "attestation": "separate_not_performed",
             })),
         );
@@ -385,7 +385,7 @@ fn write_cyclic_family_fixtures() {
             "record_format": 1,
             "artifact_blake3": antecedent_core::blake3_hex(&bytes),
             "fresh_process_cpu_replay": true,
-            "calibration": "separate_unmeasured",
+            "calibration": "separate_not_measured",
             "attestation": "separate_not_performed",
         })),
     );

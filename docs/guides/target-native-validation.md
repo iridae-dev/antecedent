@@ -216,7 +216,7 @@ representation read bounded retained metadata and execute nothing.
 An independently loaded artifact has no live study or observations and cannot
 be refitted. Supply a preparation or retained live outcome. Resource failure,
 cancellation and callback failure remain typed exceptions; diagnostic operating
-characteristics remain unmeasured.
+characteristics remain not_measured.
 
 ## Sensitivity ranges
 

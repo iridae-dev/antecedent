@@ -996,7 +996,7 @@ pub struct VarianceComponent {
 /// A corrected functional bound to the model that produced it.
 ///
 /// No interval is carried: coverage of the whole measurement-plus-estimation
-/// method is unmeasured, so the interval route is not supported.
+/// method is not_measured, so the interval route is not supported.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CorrectedFunctionalRecord {
     /// Model identity the result is bound to.

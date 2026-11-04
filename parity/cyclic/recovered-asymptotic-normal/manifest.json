@@ -5,7 +5,7 @@
   },
   "artifact_blake3": "385de440a0332dee7eb6e96ec7338f1e400842d2aa78e4d985798a74bb289ceb",
   "attestation": "separate_not_performed",
-  "calibration": "separate_unmeasured",
+  "calibration": "separate_not_measured",
   "family": "experimental_recovery",
   "fresh_process_cpu_replay": true,
   "generator": "cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_",

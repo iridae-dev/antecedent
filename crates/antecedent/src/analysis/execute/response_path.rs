@@ -1129,6 +1129,38 @@ impl super::Study {
                 predictive_checks = state.predictive_checks;
                 (state.refutations, state.diagnostics)
             }
+            inference
+                if super::curve_refutation::is_mean_curve(&query.functional)
+                    && !matches!(self.settings.refute, RefuteSuite::None) =>
+            {
+                let mut fitter =
+                    ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+                if let Some(options) = &self.response_options {
+                    fitter.options = options.clone();
+                }
+                let bayesian = match inference {
+                    InferenceMode::Bayesian(config) => Some(
+                        super::bayesian_level_refutation::bayesian_response_estimator_in_force(
+                            &fitter, &data_est, query, config, ctx,
+                        )?,
+                    ),
+                    InferenceMode::Frequentist => None,
+                };
+                super::curve_refutation::refute_curve(
+                    &super::curve_refutation::CurveRefutationInput {
+                        data: &data_est,
+                        query,
+                        fitter: &fitter,
+                        bayesian: bayesian.as_ref(),
+                        status: identification.status,
+                        assumptions: &identification.required_assumptions,
+                        response: &response,
+                        suite: self.settings.refute,
+                        replicates: self.settings.bootstrap_replicates,
+                    },
+                    ctx,
+                )?
+            }
             _ => self.refute_response_plugin_level(
                 ResponseRefuteInput {
                     data: &data_est,
@@ -2284,6 +2316,14 @@ impl super::Study {
             diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != "refute.response.skipped");
             diagnostics.extend(notes);
         } else if !matches!(self.settings.refute, RefuteSuite::None)
+            && super::curve_refutation::is_mean_curve(&query.functional)
+        {
+            let (reports, notes) =
+                self.refute_class_curve_atoms(&data_est, query, envelope, &mixed.weighted, ctx)?;
+            refutations = reports;
+            diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != "refute.response.skipped");
+            diagnostics.extend(notes);
+        } else if !matches!(self.settings.refute, RefuteSuite::None)
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
         {
             let (reports, notes) =
@@ -2752,7 +2792,7 @@ impl super::Study {
             && weighted.iter().all(|(_, _, r)| matches!(r.uncertainty, ResponseUncertainty::None))
         {
             diagnostics.push(Diagnostic::new(
-                "estimate.response.derivative_class_band_unmeasured",
+                "estimate.response.derivative_class_band_not_measured",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "the band is formed from the completions' joint row influence (the additive-GAM \

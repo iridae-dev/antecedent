@@ -49,7 +49,7 @@ without the option.
   compile, retained execution, plan view), is labelled noncausal
   (`answer.kind == "associational"`), carries the refusal's reason code in its identification
   layer (`refused_after`), and keeps the inference you chose (Bayesian posterior or analytic and
-  resampling standard errors, all unmeasured for coverage). It ranks no action.
+  resampling standard errors, all not_measured for coverage). It ranks no action.
 * `evidence_plan` is the evidence the failure determines. `obligations` are the verified evidence
   obligations, each with its proof step; `next_actions` are the evidence-gathering actions they
   imply (`measure_variable:<name>`, `run_experiment:<name>`, `find_instrument`,
@@ -84,7 +84,7 @@ plan.best.labels, plan.best.gate     # each option is checked by the theorem of 
 ```
 
 The plan is hypothetical identification, not an estimate: the ordering is `point_only` and its
-calibration `unmeasured`. Plan again over other candidates, or with a declared value and cost
+calibration `not_measured`. Plan again over other candidates, or with a declared value and cost
 map, with `antecedent.design.evidence_plan(outcome.evidence_plan.contract, ...)`.
 
 ## What the description is not
@@ -103,7 +103,7 @@ described object say so, and the host record (`antecedent.host.fallback_response
 an outcome varies with predictors in the observed data. It answers a different question from a
 causal query. Identification is **not claimed**, the result is never the effect of an
 intervention, and it ranks no action. Every standard error, spread and posterior it reports is
-unsupported: no independent check covers any of them, and the calibration label is `unmeasured`.
+unsupported: no independent check covers any of them, and the calibration label is `not_measured`.
 
 ```python
 import antecedent as ant

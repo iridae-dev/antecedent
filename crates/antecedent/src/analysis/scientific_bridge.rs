@@ -478,7 +478,7 @@ impl ScientificBridgeResult {
     }
 
     /// The propagated uncertainty of the bridged value. The claim value is the plug-in
-    /// value; the variance is an uncalibrated spread (calibration unmeasured), never an
+    /// value; the variance is an uncalibrated spread (calibration not_measured), never an
     /// interval, and the propagated mean is reported beside the value.
     ///
     /// # Errors

@@ -102,7 +102,7 @@ pub struct PooledDifferentialCorrection {
     pub truncated_draws: usize,
     /// Retained draws of the corrected prevalence.
     pub draws: Vec<f64>,
-    /// Calibration status: always `unmeasured`.
+    /// Calibration status: always `not_measured`.
     pub calibration: &'static str,
 }
 
@@ -277,7 +277,7 @@ pub fn transport_pooled_differential_prevalence(
         discarded_draws: discarded,
         truncated_draws: truncated,
         draws,
-        calibration: "unmeasured",
+        calibration: "not_measured",
     })
 }
 

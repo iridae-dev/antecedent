@@ -40,8 +40,8 @@
 //!   `m > 1`. Rejection is evidence that the effects are *not* monotone in that direction;
 //!   failing to reject does not prove monotonicity.
 //!
-//! The Type I error and power of the test are *unmeasured*
-//! ([`CalibrationStatus::Unmeasured`]); every p-value is asymptotic and no coverage claim is
+//! The Type I error and power of the test are *not_measured*
+//! ([`CalibrationStatus::NotMeasured`]); every p-value is asymptotic and no coverage claim is
 //! made.
 //!
 //! # Declared rows
@@ -90,7 +90,7 @@ pub const MONOTONICITY_NON_INCREASING_NULL: &str =
 pub const CATEGORICAL_OMNIBUS_NULL: &str = "every level has the reference level's effect";
 
 /// Inference claim of the route.
-pub const CATEGORICAL_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_unmeasured";
+pub const CATEGORICAL_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_not_measured";
 
 /// Whether the declared level order is a scale.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -461,7 +461,7 @@ fn monotonicity_result(
         statistic,
         p_value,
         conservative: true,
-        calibration: CalibrationStatus::Unmeasured,
+        calibration: CalibrationStatus::NotMeasured,
     }
 }
 
@@ -920,6 +920,6 @@ fn assemble_categorical(
         omnibus: fit.joint_wald,
         monotonicity,
         covariance_kind: spec.covariance,
-        calibration: CalibrationStatus::Unmeasured,
+        calibration: CalibrationStatus::NotMeasured,
     }
 }

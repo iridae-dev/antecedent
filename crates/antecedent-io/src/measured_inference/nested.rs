@@ -150,7 +150,7 @@ fn bayesian_authority(artifact: &Artifact) -> Result<MeasuredInference, IoError>
 }
 impl NestedFisherArtifact {
     /// Execute the original Fisher engine and authorize every reported scalar.
-    /// The original candidate retains its unmeasured standing.
+    /// The original candidate retains its not_measured standing.
     /// # Errors
     /// Unsupported protocol, native estimation refusal, or missing current calibration.
     pub fn build_measured(
@@ -295,7 +295,7 @@ mod tests {
         assert!(error.to_string().contains("256 UTF-8 byte bound"));
     }
     #[test]
-    fn unmeasured_nested_settings_no_longer_gate_so_invalid_data_is_what_refuses() {
+    fn not_measured_nested_settings_no_longer_gate_so_invalid_data_is_what_refuses() {
         let input = NestedMarkovInput {
             graph: antecedent_estimate::nested_markov_binary::AdmgDeclaration::selected(),
             regimes: vec![],

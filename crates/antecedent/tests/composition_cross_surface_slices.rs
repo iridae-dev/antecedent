@@ -771,7 +771,7 @@ fn reload_candidate(temporal: &Temporal, panel: &[UnitHistories], point: f64) ->
     )
     .unwrap();
     assert_close(candidate.result.point, point, EXACT);
-    assert_eq!(candidate.result.calibration, "unmeasured");
+    assert_eq!(candidate.result.calibration, "not_measured");
     let bytes = candidate.export().unwrap();
     drop(candidate);
     let (fresh, interval) = TemporalIntervalArtifactWire::consume(

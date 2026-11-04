@@ -73,7 +73,7 @@ fn pieces_artifact(snapshot: &str) -> DistributionArtifact {
             shape: [4, 3],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,

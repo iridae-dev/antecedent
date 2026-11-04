@@ -152,7 +152,7 @@ def test_substrate_native_claim_carries_quantities_support_trust_and_provenance(
     assert claim.support_status == fx.OUTSIDE
     # Trust and provenance.
     assert claim.trust is ProviderTrust.NATIVE_SUPPORTED
-    assert claim.calibration in {"point_only", "unmeasured"}
+    assert claim.calibration in {"point_only", "not_measured"}
     assert claim.provenance_id == fx.native_view().provenance["operation_id"]
     assert claim.program_identity == fx.program().identity
     assert len(claim.program_identity) == 64

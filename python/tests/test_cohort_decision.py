@@ -508,7 +508,7 @@ def test_a_declared_compact_model_carries_the_uncalibrated_variance_and_is_never
     diagnostic = source.uncalibrated_standard_error
     assert diagnostic is not None
     assert diagnostic.value == pytest.approx(variance**0.5, abs=1e-12)
-    assert diagnostic.calibration == "calibration unmeasured"
+    assert diagnostic.calibration == "calibration not_measured"
     # A double-sum oracle agrees.
     phi = np.array([[1.0, z] for z in Z])
     v = np.array([[0.04, -0.01], [-0.01, 0.09]])

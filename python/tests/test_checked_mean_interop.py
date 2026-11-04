@@ -183,7 +183,7 @@ def test_constancy_dispatch_preserves_uncalibrated_boundary():
     envelope = claim.export()
     loaded = require_success(ant.load(envelope, expected=envelope.expectation))
     assert loaded.statistic == claim.statistic
-    assert loaded.calibration == "unmeasured"
+    assert loaded.calibration == "not_measured"
     assert bytes(loaded.export()) == envelope.data
 
 

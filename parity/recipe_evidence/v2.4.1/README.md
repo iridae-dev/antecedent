@@ -50,7 +50,7 @@ paths to its own checkout/cache while keeping the source, parameters and domain.
 These receipts own the exact manual `estimate +/- Z95 * se` construction under
 the measured generating family and evaluation strategy. The public policy and
 survival APIs still publish estimates and standard errors, with their existing
-`calibration = "unmeasured"` fields. No new interval endpoint or automatic facade
+`calibration = "not_measured"` fields. No new interval endpoint or automatic facade
 calibration binding is implied.
 
 ## KNN source-asserted receipts

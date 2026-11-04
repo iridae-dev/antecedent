@@ -37,7 +37,7 @@ record_sha256 = "5abd2feabd04df0d062a5fbedb6fcba8106830c2b06396d6d2cf8dcb06ecce8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-items = ["const DERIVED_UNMEASURED", "const TIE_TOLERANCE", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn as_str", "fn check_paradigm", "fn decision_probabilities", "fn decision_report", "fn expected_enrolled", "fn horizon_probability", "fn premise", "fn rule_stop_probabilities", "struct DecisionReport"]
+items = ["const DERIVED_NOT_MEASURED", "const TIE_TOLERANCE", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn as_str", "fn check_paradigm", "fn decision_probabilities", "fn decision_report", "fn expected_enrolled", "fn horizon_probability", "fn premise", "fn rule_stop_probabilities", "struct DecisionReport"]
 sha256 = "ef7bf701884a122909c8f1e2b9dbc1bcf58d3db2f7ccfc43036937e1b848001a"
 
 [[method_review.artifacts]]

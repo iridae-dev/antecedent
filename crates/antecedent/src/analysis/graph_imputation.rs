@@ -780,7 +780,7 @@ mod compiled_tests {
     }
 
     #[test]
-    fn interval_is_reported_with_the_slot_of_an_unmeasured_construction() {
+    fn interval_is_reported_with_the_slot_of_an_not_measured_construction() {
         let ctx = ExecutionContext::for_tests(19);
         let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
         let point = plan.execute(&ctx).unwrap();

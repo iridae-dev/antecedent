@@ -9,7 +9,7 @@ Truth is computed here in pure Python, never by native code:
 * the standard normal distribution function for a single-look stagewise p-value;
 * the martingale property of a posterior mean, and the anytime-valid bound ``<= alpha``.
 
-Every result is labelled ``derived_unmeasured`` and every premise failure is refused with
+Every result is labelled ``derived_not_measured`` and every premise failure is refused with
 ``adaptive_assumption_violated`` and the premise's own detail.
 """
 
@@ -85,7 +85,7 @@ def test_each_missing_element_is_its_own_refusal():
 def test_the_fixed_design_contrast_law_matches_the_hand_enumeration():
     procedure = declare(EVEN, (2,))
     report = procedure.report(ai.FixedSampleProcedureReport(truth=(0.2, 0.6)))
-    assert report.claim == ai.DERIVED_UNMEASURED
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     assert report.procedure_identity == procedure.identity
     law = report.body["law"]
     assert law["undefined_mass"] == pytest.approx(0.5, abs=TOL)
@@ -248,7 +248,7 @@ def test_a_deterministic_rule_has_no_weighted_estimate():
 def test_the_exact_law_reports_atoms_and_work():
     procedure = declare(EVEN, (1, 1), observation=ai.OutcomeObservation(lag_looks=1))
     law = procedure.law((0.3, 0.7))
-    assert law.claim == ai.DERIVED_UNMEASURED
+    assert law.claim == ai.DERIVED_NOT_MEASURED
     assert law.cumulative_enrolment == (1, 2)
     assert sum(atom["probability"] for atom in law.atoms) == pytest.approx(1.0, abs=TOL)
     assert all(sum(atom["observed"]) == 1 for atom in law.atoms)

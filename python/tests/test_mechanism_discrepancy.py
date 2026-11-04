@@ -241,9 +241,9 @@ def test_discrepancy_non_rejection_never_certifies_invariance():
     assert result.conclusion == "not_rejected"
     assert result.non_rejection_certifies_invariance is False
     assert any("does not certify" in caveat for caveat in result.caveats)
-    assert any("unmeasured" in caveat for caveat in result.caveats)
-    assert result.calibration == "unmeasured"
-    assert result.inference_claim == "asymptotic_wald_calibration_unmeasured"
+    assert any("not_measured" in caveat for caveat in result.caveats)
+    assert result.calibration == "not_measured"
+    assert result.inference_claim == "asymptotic_wald_calibration_not_measured"
     assert result.informs_selection_on == ("V",)
     assert "non-rejection leaves a selection node" in result.alignment
     assert "cannot be excluded" in result.alignment

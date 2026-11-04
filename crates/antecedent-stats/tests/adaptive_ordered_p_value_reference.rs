@@ -91,6 +91,6 @@ fn the_inversion_accepts_exactly_the_contrasts_the_exact_tails_allow() {
         );
         assert_eq!(result.lower, want.first().copied());
         assert_eq!(result.upper, want.last().copied());
-        assert_eq!(result.calibration, antecedent_stats::adaptive_inference::DERIVED_UNMEASURED);
+        assert_eq!(result.calibration, antecedent_stats::adaptive_inference::DERIVED_NOT_MEASURED);
     }
 }

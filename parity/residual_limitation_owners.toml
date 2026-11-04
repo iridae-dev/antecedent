@@ -54,7 +54,7 @@ owner = "E14"
 # ---- counterpart narrowed promises ---------------------------------------------------------------
 
 [[owner]]
-name = "unmeasured_composed_and_selected_decision_reliability"
+name = "not_measured_composed_and_selected_decision_reliability"
 kind = "^narrowed_promise$"
 locator = "^(P16|X04\\.1|X04\\.2|X05|X06)\\."
 owner = "E14"

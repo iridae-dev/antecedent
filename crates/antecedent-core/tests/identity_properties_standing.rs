@@ -25,7 +25,7 @@ fn calibration_variants_and_fields_are_all_distinct() {
     let c = id("coordinate-c");
     let d = id("coordinate-d");
     let identities = [
-        CalibrationInput::Unmeasured.identity(),
+        CalibrationInput::NotMeasured.identity(),
         CalibrationInput::PointOnly.identity(),
         CalibrationInput::Held { record: a, coordinate: c }.identity(),
         CalibrationInput::Held { record: b, coordinate: c }.identity(),
@@ -51,8 +51,8 @@ fn calibration_variants_and_fields_are_all_distinct() {
 fn absence_digests_differently_from_every_held_record() {
     let held =
         CalibrationInput::Held { record: StageIdentity::ABSENT, coordinate: StageIdentity::ABSENT };
-    assert_ne!(CalibrationInput::Unmeasured.identity(), held.identity());
-    assert_ne!(CalibrationInput::Unmeasured.identity(), StageIdentity::ABSENT);
+    assert_ne!(CalibrationInput::NotMeasured.identity(), held.identity());
+    assert_ne!(CalibrationInput::NotMeasured.identity(), StageIdentity::ABSENT);
     assert_ne!(CouplingInput::None.identity(), StageIdentity::ABSENT);
     assert_ne!(
         ProviderStandingInput::Unverified.identity(Branch::new(0).unwrap()),

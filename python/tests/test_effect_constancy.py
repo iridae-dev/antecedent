@@ -70,13 +70,13 @@ def test_frozen_acceptance_one_versus_two_has_statistic_two() -> None:
     assert not contrast.rejected
 
 
-def test_calibration_is_unmeasured_and_non_rejection_is_not_proof() -> None:
+def test_calibration_is_not_measured_and_non_rejection_is_not_proof() -> None:
     result = run([("p1", 1.0, 0.5), ("p2", 1.0, 0.5)])
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     assert result.inference_claim == "point_only"
     assert any("does not prove" in caveat for caveat in result.caveats)
-    assert any("unmeasured" in caveat for caveat in result.caveats)
-    assert result.to_dict()["calibration"] == "unmeasured"
+    assert any("not_measured" in caveat for caveat in result.caveats)
+    assert result.to_dict()["calibration"] == "not_measured"
     assert result.to_dict()["conclusion"] == "not_rejected"
 
 
@@ -281,7 +281,7 @@ def test_artifact_round_trip_retains_identities_covariance_and_calibration() -> 
     assert fresh.contrasts == result.contrasts
     assert fresh.partitions == result.partitions
     assert fresh.identity == result.identity
-    assert fresh.calibration == "unmeasured"
+    assert fresh.calibration == "not_measured"
     assert fresh.dependence == "covariance"
     assert fresh.estimand == EFFECT
     assert bytes(fresh.export()) == artifact

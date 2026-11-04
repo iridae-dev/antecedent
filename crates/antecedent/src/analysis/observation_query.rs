@@ -522,7 +522,7 @@ impl ObservationClaim {
     }
 
     /// The aligned draws of a parameter-redraw claim as the repo's
-    /// distribution artifact (alignment `Joint`, calibration `Unmeasured`).
+    /// distribution artifact (alignment `Joint`, calibration `NotMeasured`).
     ///
     /// # Errors
     /// A claim that redraws nothing, or draws that do not form a distribution.

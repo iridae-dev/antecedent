@@ -163,7 +163,7 @@ row = result.posterior_row
 row.posterior_mean("survival_difference"), row.credible_interval("survival_difference")
 ```
 
-The answer is on `result.posterior_row` (estimator `bayesian.piecewise_survival`), with coordinates `survival_difference` and `rmst_difference`; there is no `result.survival` and no scalar `ate`. The interval is a posterior statement under the declared partition and prior, not a calibrated interval: `row.calibration` is `"unmeasured"` and `row.supported` is `False`. With a nearly flat prior and a fine partition the posterior tracks the product-limit estimate; with twelve rows the prior matters a great deal and the interval is wide. See [Declare a likelihood and prior](randomized-experiments.md#declare-a-likelihood-and-prior-for-a-bayesian-answer) for the other declarations.
+The answer is on `result.posterior_row` (estimator `bayesian.piecewise_survival`), with coordinates `survival_difference` and `rmst_difference`; there is no `result.survival` and no scalar `ate`. The interval is a posterior statement under the declared partition and prior, not a calibrated interval: `row.calibration` is `"not_measured"` and `row.supported` is `False`. With a nearly flat prior and a fine partition the posterior tracks the product-limit estimate; with twelve rows the prior matters a great deal and the interval is wide. See [Declare a likelihood and prior](randomized-experiments.md#declare-a-likelihood-and-prior-for-a-bayesian-answer) for the other declarations.
 
 ## When treatment was observed, not randomized
 
@@ -211,7 +211,7 @@ psi_R = R_a(Z)    - 1{A = a}/e_a(Z) * integral_0^{t*} [integral_u^{t*} S_a(s|Z) 
 
 The estimate is the mean score and its standard error is the standard deviation of the scores over the square root of the row count. The scores are returned with `row_index`, so a consumer can replay the estimate and its standard error. A `NaN` is a missing cell: the row leaves the complete cases and is counted in `rows_dropped_missing`.
 
-The standard errors are influence-function standard errors with `calibration == "unmeasured"`. No interval is produced. Delayed entry, competing risks and time-varying covariates are not covered by this route. Tests compare it to closed-form survival and RMST for exponential event times with a proportional-hazards effect and six confounder cells, and show that the unadjusted Kaplan-Meier contrast is biased under the same confounding (`crates/antecedent/tests/observational_survival_effects.rs`, `python/tests/test_observational_survival.py`).
+The standard errors are influence-function standard errors with `calibration == "not_measured"`. No interval is produced. Delayed entry, competing risks and time-varying covariates are not covered by this route. Tests compare it to closed-form survival and RMST for exponential event times with a proportional-hazards effect and six confounder cells, and show that the unadjusted Kaplan-Meier contrast is biased under the same confounding (`crates/antecedent/tests/observational_survival_effects.rs`, `python/tests/test_observational_survival.py`).
 
 ### Refusals on the observational route
 

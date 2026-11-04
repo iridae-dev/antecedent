@@ -21,7 +21,7 @@
       "independence_basis": "Rational arithmetic only; the local fit uses weights of this script's own choosing, not the product's kernel, so it establishes the spanning argument rather than the product's numerics. The mean function is the fixture's statement.",
       "historical_exposure": "Written during this review from the fixture README and the asserting test; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "Noiseless exact-mean case; sampling uncertainty, bandwidth selection and coverage are not addressed. Calibration unmeasured.",
+      "limitations": "Noiseless exact-mean case; sampling uncertainty, bandwidth selection and coverage are not addressed. Calibration not_measured.",
       "sources": [],
       "artifacts": [
         {

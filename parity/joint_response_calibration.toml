@@ -1,6 +1,6 @@
 schema = 1
 validation_domain = "joint_response_complete_procedures_v1"
-status = "registered_unmeasured"
+status = "registered_not_measured"
 requires_stable_candidate = true
 grants_release_support = false
 

@@ -81,9 +81,7 @@ fn target_of(
     let source = if let Some(text) = source {
         parse_source(text)?
     } else {
-        let mut writer = antecedent::schema::CanonicalWriter::new("antecedent.python_target");
-        writer.texts(&labels[..]);
-        writer.finish()
+        *antecedent::identity::digest_labels("antecedent.python_target", &labels[..]).as_bytes()
     };
     RefutationTarget::new(family, TargetQuadrant { temporal, bayesian }, labels, source)
         .map_err(py_err)
@@ -132,7 +130,7 @@ fn range_json(range: &AssumptionRange) -> Value {
         "break_even": range.break_even.map(finite),
         "break_even_significance": range.break_even_significance.map(finite),
         "identity": range.identity_hex(),
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
     })
 }
 
@@ -612,7 +610,7 @@ fn sensitivity_matched_sets(
         "alpha": alpha,
         "grid": grid,
         "gamma_break_even": gamma_break_even.map(finite),
-        "calibration": "unmeasured",
+        "calibration": "not_measured",
     })
     .to_string())
 }
@@ -1182,7 +1180,7 @@ impl PyPreparedAnalysis {
                     "next_attempt": r.next_attempt.as_ref(),
                 })).collect::<Vec<_>>(),
                 "certificate": hex(&outcome.certificate.identity),
-                "calibration": "unmeasured",
+                "calibration": "not_measured",
                 "reused_original_result": reused_original,
                 "original_executions": original_executions,
                 "program": result.lowered_program_identity().map(|id| hex(id.as_bytes())),
@@ -1271,7 +1269,7 @@ impl PyPreparedAnalysis {
                     "next_attempt": r.next_attempt.as_ref(),
                 })).collect::<Vec<_>>(),
                 "certificate": hex(&outcome.certificate.identity),
-                "calibration": "unmeasured",
+                "calibration": "not_measured",
             })
             .to_string())
         })

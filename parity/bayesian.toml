@@ -392,7 +392,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "crates/antecedent-estimate/tests/z_transport_cited_evidence.rs"
 evidence_test = "crates/antecedent-estimate/tests/z_transport_cited_evidence.rs"
-evidence_assertion = "bayesian_cited_margin_publishes_an_unmeasured_posterior"
+evidence_assertion = "bayesian_cited_margin_publishes_an_not_measured_posterior"
 limitations = "Single-source z-transport cited count tables. The empirical-support Bayesian bootstrap and the declared-state-space Dirichlet each re-evaluate the bound formula. Intervals are withheld when fewer than two draws succeed, the failure fraction exceeds the bootstrap rule, or the draw count is below the percentile floor. A published equal-tail interval is pointwise and its reason is estimator_grid_not_measured until the release calibration pass. Exact laws stay point-only."
 notes = "The default empirical interval remains the percentile bootstrap. Coverage is not measured here."
 

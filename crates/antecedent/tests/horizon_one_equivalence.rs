@@ -1361,7 +1361,7 @@ fn one_decision_two_arm_excursion_reproduces_the_static_bernoulli_contrast() {
     assert!(close(design.estimate[1], treated_mean));
     assert!(close(design.estimate[2], control_mean));
     assert!(close(treated_mean - control_mean, effect));
-    assert_eq!(design.calibration.as_ref(), "unmeasured");
+    assert_eq!(design.calibration.as_ref(), "not_measured");
     assert!(!design.supported);
 }
 

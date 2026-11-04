@@ -146,7 +146,7 @@ class JointPanelReference(unittest.TestCase):
         self.assertEqual(design["expected_causal_claim"], "withhold")
         self.assertEqual(design["missing_worlds"], ["a", "b"])
         self.assertEqual(len(design["obligations"]), 2)
-        self.assertEqual(self.truth["evidence"]["calibration"], "unmeasured")
+        self.assertEqual(self.truth["evidence"]["calibration"], "not_measured")
 
     def test_whole_program_experiment_retains_its_actual_independent_assignment(self):
         rng = random.Random(194)

@@ -54,7 +54,7 @@ BASES = (
     "point_only_cell",
     "asserted_in_test",
     "estimator_records",
-    "declared_unmeasured",
+    "declared_not_measured",
     "declared_and_corroborated",
     "graphless_claim",
     "no_executing_route",

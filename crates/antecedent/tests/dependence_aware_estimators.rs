@@ -166,7 +166,7 @@ fn independent_subject_trajectories_declare_no_dependence_to_read() {
 
 const FRONTDOOR_ROWS: usize = 300;
 
-/// Binary treatment `t`, binary mediator `m`, outcome `y` confounded with `t` by an unmeasured
+/// Binary treatment `t`, binary mediator `m`, outcome `y` confounded with `t` by a unmeasured
 /// `u`; the graph is the front-door shape `t -> m -> y`.
 fn frontdoor() -> (TabularData, Dag, AverageEffectQuery) {
     let mut rng = ExecutionContext::for_tests(37).rng.stream_for(StreamDomain::Test, 0xFD);

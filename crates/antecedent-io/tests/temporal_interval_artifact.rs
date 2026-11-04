@@ -1,7 +1,7 @@
 //! `dependent_temporal_interval`: the internal interval artifact replays the whole
 //! unit resampling from its embedded panel and refuses every resealed mutation of a unit,
 //! time id, value, snapshot, design, estimator or stored replicate. The public interval
-//! route is not supported; this artifact is internal and records calibration `unmeasured`.
+//! route is not supported; this artifact is internal and records calibration `not_measured`.
 #![allow(
     clippy::cast_precision_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
@@ -134,7 +134,7 @@ fn dependent_interval_artifact_replays_the_whole_resampling() {
         TemporalIntervalArtifactWire::consume(&wire.export().unwrap(), &limits(), &ctx()).unwrap();
     assert_eq!(replayed, interval);
     assert_eq!(decoded.result.replicates.len(), 40);
-    assert_eq!(decoded.result.calibration, "unmeasured");
+    assert_eq!(decoded.result.calibration, "not_measured");
     assert_eq!(decoded.result.calibration, INTERVAL_CALIBRATION_STATUS);
     assert_eq!(decoded.result.claim, INTERVAL_CLAIM);
     assert_eq!(decoded.result.units, 24);
@@ -158,7 +158,7 @@ fn dependent_interval_artifact_replays_the_marginalized_estimator() {
     let (_, replayed) =
         TemporalIntervalArtifactWire::consume(&wire.export().unwrap(), &limits(), &ctx()).unwrap();
     assert_eq!(replayed.estimand, "marginalized_initial_state");
-    assert_eq!(replayed.calibration, "unmeasured");
+    assert_eq!(replayed.calibration, "not_measured");
 }
 
 #[test]

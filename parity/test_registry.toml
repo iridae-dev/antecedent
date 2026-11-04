@@ -7033,6 +7033,13 @@ path = "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "response-curve-validation-known-truth"
+crate = "antecedent"
+cargo_target = "response_curve_validation_known_truth"
+path = "crates/antecedent/tests/response_curve_validation_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "derivative-refuter-known-truth"
 crate = "antecedent"
 cargo_target = "derivative_refuter_known_truth"
@@ -14781,6 +14788,13 @@ path = "crates/antecedent-estimate/src/quantile_posterior.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "audit-crates-antecedent-estimate-src-randomized-quantile-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/randomized_quantile.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "audit-crates-antecedent-estimate-src-randomized-missing-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
@@ -18047,6 +18061,13 @@ id = "quantile-inversion-reference"
 crate = "antecedent-estimate"
 cargo_target = "quantile_inversion_reference"
 path = "crates/antecedent-estimate/tests/quantile_inversion_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "randomized-quantile-reference"
+crate = "antecedent-estimate"
+cargo_target = "randomized_quantile_reference"
+path = "crates/antecedent-estimate/tests/randomized_quantile_reference.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -21800,6 +21821,13 @@ id = "bayesian-static-known-truth"
 crate = "antecedent"
 cargo_target = "bayesian_static_known_truth"
 path = "crates/antecedent/tests/bayesian_static_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "randomized-quantile-known-truth"
+crate = "antecedent"
+cargo_target = "randomized_quantile_known_truth"
+path = "crates/antecedent/tests/randomized_quantile_known_truth.rs"
 gates = ["inventory", "named"]
 
 [[test]]

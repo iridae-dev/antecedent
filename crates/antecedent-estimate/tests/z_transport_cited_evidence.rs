@@ -274,7 +274,7 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
     clippy::too_many_lines,
     reason = "one staged artifact lifecycle covers both posterior providers"
 )]
-fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
+fn bayesian_cited_margin_publishes_an_not_measured_posterior() {
     let diagram = surrogate_diagram();
     let query = surrogate_query();
     let catalog = EvidenceCatalog::try_new(

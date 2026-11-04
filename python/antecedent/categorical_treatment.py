@@ -26,7 +26,7 @@ What the answer is **not**:
 
 * Every p-value (per-level and pairwise Wald values, their Holm adjustment over the family of
   :attr:`CategoricalEffects.family_size` contrasts, the omnibus chi-square and the monotonicity
-  bound) is asymptotic and its calibration is **unmeasured** (``calibration == "unmeasured"``):
+  bound) is asymptotic and its calibration is **not_measured** (``calibration == "not_measured"``):
   no coverage, Type I error or power claim is made.
 * The monotonicity null is ``every adjacent step is >= 0`` (non-decreasing) or ``<= 0``
   (non-increasing); the p-value is a conservative one-sided union-intersection (Bonferroni)
@@ -264,7 +264,7 @@ class CategoricalPosterior:
 
     The estimand is the superpopulation dummy-coefficient contrast of the stated linear model
     (Gaussian homoskedastic errors), not the finite-population average of the rows' effects.
-    It is unsupported (``supported`` is ``False``) and its calibration is ``"unmeasured"``; the
+    It is unsupported (``supported`` is ``False``) and its calibration is ``"not_measured"``; the
     covariance kind of the frequentist fit is not read. The artifact recomputes it from the stored
     design when it is consumed.
     """
@@ -324,7 +324,7 @@ class MonotonicityTest:
     ``statistic`` is the oriented minimum step z-score and ``p_value`` the conservative
     one-sided union-intersection (Bonferroni) bound ``min(1, m * Phi(statistic))``. Rejection is
     evidence against monotonicity in :attr:`direction`; failing to reject does not prove it.
-    ``calibration`` is ``"unmeasured"``.
+    ``calibration`` is ``"not_measured"``.
     """
 
     direction: Direction
@@ -403,7 +403,7 @@ class CategoricalEffects(ScientificResult):
     otherwise); ``counts`` the rows per level. ``coefficients`` are the dummy coefficients
     (``level:<name>``, non-reference levels) with the read-only ``covariance`` between them.
     ``family_size`` is the size of the Holm family (levels against the reference plus the
-    requested pairs). ``calibration`` is ``"unmeasured"``.
+    requested pairs). ``calibration`` is ``"not_measured"``.
     """
 
     reference: str
@@ -768,7 +768,7 @@ def categorical_effects(
     ``posterior`` declares a prior and attaches the Bayesian counterpart
     (:attr:`CategoricalEffects.posterior`): a Student-t posterior of every level and requested
     pair under Gaussian homoskedastic errors, sealed in the artifact and recomputed on
-    consumption. It is unsupported with unmeasured calibration; its estimand is the
+    consumption. It is unsupported with not_measured calibration; its estimand is the
     superpopulation coefficient contrast of the stated linear model, not the finite-population
     average of the rows' effects, and the covariance kind of the frequentist fit is not read.
 

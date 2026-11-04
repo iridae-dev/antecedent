@@ -32,7 +32,7 @@ fn tag_word(version_label: &str, variant: &str) -> Vec<u8> {
 pub enum CalibrationInput {
     /// No calibration record exists or has been measured. Interval or posterior claims have no
     /// backing; point values are unaffected.
-    Unmeasured,
+    NotMeasured,
     /// The claim states a point value only.
     PointOnly,
     /// A calibration record established at exactly this coordinate (method, target population,
@@ -56,7 +56,7 @@ impl CalibrationInput {
     pub fn identity(&self) -> StageIdentity {
         const LABEL: &str = "recalc.calibration_input.v1";
         match self {
-            Self::Unmeasured => StageIdentity::of(LABEL, &[&tag_word(LABEL, "unmeasured")]),
+            Self::NotMeasured => StageIdentity::of(LABEL, &[&tag_word(LABEL, "not_measured")]),
             Self::PointOnly => StageIdentity::of(LABEL, &[&tag_word(LABEL, "point_only")]),
             Self::Held { record, coordinate } => StageIdentity::of(
                 LABEL,

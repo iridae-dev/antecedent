@@ -65,7 +65,7 @@ def test_efficiency_gap_is_reported_and_small():
     assert result.total_variance == pytest.approx(float(np.var(_data()["z"], ddof=1)), rel=0.01)
 
 
-def test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero():
+def test_not_measured_mechanism_fit_is_marked_unquantified_not_zero():
     result = intrinsic_influence(_data(), EDGES, "z", independent_noise=True)
     for source in result.sources:
         fit = source.component("mechanism_fit")

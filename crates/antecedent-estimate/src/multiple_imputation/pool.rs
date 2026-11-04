@@ -50,7 +50,7 @@ impl RubinPooled {
     }
 
     /// Two-sided `level` interval `Q̄ ± t_{ν, (1+level)/2} √T` (normal quantile when `ν`
-    /// is infinite). The interval is an unmeasured construction until a coverage record
+    /// is infinite). The interval is a not_measured construction until a coverage record
     /// measures the whole impute-fit-pool procedure.
     #[must_use]
     pub fn interval(&self, level: f64) -> (f64, f64) {

@@ -26,7 +26,7 @@ use antecedent::analysis::adaptive_procedure_report::{
 use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_stats::adaptive_inference::group_sequential::{Sidedness, StagewiseLook};
 use antecedent_stats::adaptive_inference::{
-    AssignmentRule, Attribution, BetaPrior, DERIVED_UNMEASURED, Estimand, ExposureModel,
+    AssignmentRule, Attribution, BetaPrior, DERIVED_NOT_MEASURED, Estimand, ExposureModel,
     FinalSelection, OutcomeModelPrior, OutcomeObservation, ProcedureDeclaration, SimulationRequest,
     StoppingRule, WeightScheme,
 };
@@ -260,7 +260,7 @@ fn the_fixed_design_contrast_law_matches_the_hand_enumeration() {
         },
     )
     .unwrap();
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(report.procedure_identity, procedure.identity());
     let ProcedureReportBody::FixedSample { law, ordering } = &report.body else {
         panic!("fixed-sample report body");
@@ -285,7 +285,7 @@ fn the_exact_law_carries_the_terminal_atoms_and_work() {
     )
     .unwrap();
     let law = procedure.law(&[0.3, 0.7], &ctx()).unwrap();
-    assert_eq!(law.calibration, DERIVED_UNMEASURED);
+    assert_eq!(law.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(law.law.cumulative_enrolment, vec![1, 2]);
     let mass: f64 = law.law.atoms.iter().map(|a| a.probability).sum();
     assert!((mass - 1.0).abs() < TOL);
@@ -469,7 +469,7 @@ fn the_expected_loss_rule_decides_with_hand_integrated_losses() {
     assert!((d.decision_probabilities[1] - 0.3).abs() < 1e-8);
     assert!((d.wrong_decision_probability - 0.3).abs() < 1e-8);
     assert!((d.expected_regret - 0.3 * (0.7 - 0.4)).abs() < 1e-8);
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
 }
 
 #[test]

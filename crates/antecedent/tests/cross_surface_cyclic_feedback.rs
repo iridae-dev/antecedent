@@ -148,7 +148,7 @@ fn specified_and_recovered_cycles_execute_and_reload() {
     let (report, bytes) = prepared.export("equilibrium-intervention", &ctx()).unwrap();
     assert_eq!(prepared.inspect().unwrap().fits_performed, 0);
     assert_eq!(report.claim, "specified_or_fitted_model_conditional");
-    assert_eq!(report.calibration, "unmeasured");
+    assert_eq!(report.calibration, "not_measured");
     assert!(report.fit.is_none());
     assert!(report.worlds[0][0].values[0].abs() < 1e-8);
     assert!(report.worlds[0][0].values[1].abs() < 1e-8);

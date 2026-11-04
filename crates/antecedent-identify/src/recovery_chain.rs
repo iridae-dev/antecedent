@@ -63,7 +63,7 @@
 //!
 //! The decision charges one [`SearchBudget`]: one operation per edge inspected
 //! and per witness configuration enumerated. Calibration of any sampled provider
-//! composed on this row is separate and unmeasured: the evaluator is an exact-law
+//! composed on this row is separate and not_measured: the evaluator is an exact-law
 //! evaluator.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

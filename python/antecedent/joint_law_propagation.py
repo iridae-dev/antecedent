@@ -43,7 +43,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -74,9 +74,12 @@ __all__ = [
     "MomentInput",
     "PropagationClaim",
     "PropagationDraws",
+    "PropagationPlan",
     "aligned_functional",
     "aligned_linear",
     "aligned_linear_spread",
+    "check_propagation",
+    "check_rows_pairable",
     "composed_exceedance",
     "consume_joint_law_propagation_artifact",
     "correlation_range",
@@ -202,6 +205,15 @@ class PropagationDraws(ScientificResult):
             alignment_id=None,
             values=np.asarray(_floats(values, "values"), dtype=np.float64),
         )
+
+    def with_evidence_source(self, source: str) -> PropagationDraws:
+        """The same draws resting on the evidence-ledger source ``source`` (its identity).
+
+        A check that has the ledger (``check_propagation(..., ledger=ledger)``) then decides
+        whether this input shares observations with the others from the ledger's rows, rather
+        than from the equality of data-snapshot identity strings.
+        """
+        return replace(self, evidence_id=_text(source, "source"))
 
     def _require_artifact(self) -> tuple[Any, int]:
         if self._artifact is None or self._column is None:
@@ -533,6 +545,158 @@ def _claim(result: tuple[tuple[bytes, str] | None, str | None]) -> PropagationCl
     _refuse(refusal)
     assert parts is not None
     return PropagationClaim._from(parts)
+
+
+_DEPENDENCES = (
+    "unknown",
+    "declared_independent",
+    "covariance",
+    "aligned_joint_law",
+    "known_weights",
+    "correlation_range",
+    "marginals_only",
+)
+_READINGS = ("point", "spread", "interval", "posterior", "envelope")
+_OPERATIONS = (
+    "linear_transform",
+    "contrast",
+    "sum",
+    "weighted_sum",
+    "product",
+    "nonlinear_functional",
+    "chained_sampling",
+    "mixture",
+    "transported_composition",
+)
+
+
+@dataclass(repr=False, frozen=True)
+class PropagationPlan(ScientificResult):
+    """What a passed check of a composition recorded, before any number is formed.
+
+    ``route`` is the computation the rule would run (``linear_moments``, ``aligned_joint_law``,
+    ``known_weight_mixture`` or an envelope), ``alignment_id`` the identity the inputs share for
+    an aligned route, ``covariance_id`` the declared covariance for a covariance route and
+    ``shared_evidence`` the evidence identities two or more inputs share. ``label`` is the
+    label the result would carry; nothing here is an interval or a posterior.
+    """
+
+    operation: str
+    route: str
+    alignment_id: str | None
+    covariance_id: str | None
+    shared_evidence: tuple[str, ...]
+    label: str
+    missing_transport_pieces: tuple[str, ...]
+
+
+def _checked_inputs(inputs: Sequence[PropagationDraws | MomentInput]) -> str:
+    rows = []
+    for item in inputs:
+        if isinstance(item, PropagationDraws):
+            rows.append(
+                {
+                    "id": item.id,
+                    "evidence_id": item.evidence_id,
+                    "role": item.role,
+                    "alignment": item.alignment,
+                    "alignment_id": item.alignment_id,
+                }
+            )
+        elif isinstance(item, MomentInput):
+            wire = item._wire()
+            rows.append(
+                {
+                    "id": wire["id"],
+                    "evidence_id": wire["evidence_id"],
+                    "role": wire["role"],
+                    "alignment": "moments_only",
+                    "alignment_id": None,
+                }
+            )
+        else:
+            raise CausalTypeError("inputs must be PropagationDraws or MomentInput")
+    return json.dumps(rows)
+
+
+def check_propagation(
+    operation: str,
+    inputs: Sequence[PropagationDraws | MomentInput],
+    *,
+    dependence: str = "unknown",
+    covariance_id: str | None = None,
+    correlation_range: tuple[float, float] | None = None,
+    reading: str = "point",
+    ledger: Any = None,
+) -> PropagationPlan:
+    """Check a composition against the propagation rule before any number is formed.
+
+    ``dependence`` is the information supplied: ``"unknown"`` (never independence),
+    ``"declared_independent"`` (distinct evidence only), ``"covariance"`` (name it with
+    ``covariance_id``), ``"aligned_joint_law"``, ``"known_weights"`` (a mixture),
+    ``"correlation_range"`` (pass ``correlation_range=(low, high)``) or ``"marginals_only"``.
+
+    With ``ledger`` (an :class:`~antecedent.evidence_ledger.EvidenceLedger`) whether inputs share
+    evidence is decided from the ledger's observation rows, each input's ``evidence_id`` read as
+    a ledger source identity (:meth:`PropagationDraws.with_evidence_source`): two sources that
+    share observations are shared evidence however their identities are spelled, and a pair whose
+    overlap the ledger cannot compute is unknown dependence, so a declared independence of it is
+    refused (``joint_law_propagation.evidence_overlap_unknown``).
+
+    Raises:
+        JointLawPropagationRefusal: the first failed check, with a registered code, a
+            ``joint_law_propagation.*`` detail and the dependence information that would support
+            the request.
+    """
+    if operation not in _OPERATIONS:
+        raise CausalValueError(f"operation must be one of {_OPERATIONS}")
+    if dependence not in _DEPENDENCES:
+        raise CausalValueError(f"dependence must be one of {_DEPENDENCES}")
+    if reading not in _READINGS:
+        raise CausalValueError(f"reading must be one of {_READINGS}")
+    declared: dict[str, Any] = {"kind": dependence}
+    if dependence == "covariance":
+        declared["id"] = _text(covariance_id, "covariance_id")
+    if dependence == "correlation_range":
+        if correlation_range is None or len(correlation_range) != 2:
+            raise CausalValueError("correlation_range is a (low, high) pair")
+        declared["rho_lo"] = _real(correlation_range[0], "correlation_range[0]")
+        declared["rho_hi"] = _real(correlation_range[1], "correlation_range[1]")
+    handle = None
+    if ledger is not None:
+        handle = getattr(ledger, "_handle", None)
+        if handle is None:
+            raise CausalTypeError("ledger must be an EvidenceLedger")
+    wire, refusal = _native.joint_law_check_propagation(
+        operation, _checked_inputs(inputs), json.dumps(declared), reading, handle
+    )
+    _refuse(refusal)
+    assert wire is not None
+    plan = json.loads(wire)
+    return PropagationPlan(
+        operation=plan["operation"],
+        route=plan["route"],
+        alignment_id=plan["alignment_id"],
+        covariance_id=plan["covariance_id"],
+        shared_evidence=tuple(plan["shared_evidence"]),
+        label=plan["label"],
+        missing_transport_pieces=tuple(plan["missing_transport_pieces"]),
+    )
+
+
+def check_rows_pairable(inputs: Sequence[PropagationDraws | MomentInput]) -> None:
+    """Whether the rows of several inputs may be paired row by row.
+
+    Returns ``None`` when they may. The inputs' own alignment identities decide: draws of one
+    joint law share an identity and pair; draws of different artifacts (other draws, another
+    snapshot) are refused ``joint_law_propagation.alignment_mismatch``, and independently
+    produced marginals or a summary are refused ``joint_law_propagation.index_pairing_refused``.
+    A covariance or a declared independence is never a route to row pairing.
+
+    Raises:
+        JointLawPropagationRefusal: ``joint_law_required``.
+    """
+    _refuse(_native.joint_law_check_rows_pairable(_checked_inputs(inputs)))
 
 
 @outcome_operation

@@ -219,11 +219,13 @@ impl CheckedTransportProgram {
                 FuelProvider { data: &data, remaining: std::cell::Cell::new(max_operations) };
             // An evaluation failure is a coded transport refusal; an exhausted
             // operation or support budget surfaces as a resource error.
-            let evaluator =
-                self.program.compile().map_err(|e| error(antecedent::estimate::refuse_eval(&e)))?;
+            let evaluator = self
+                .program
+                .compile()
+                .map_err(|e| error(antecedent::refusal::evaluation_failure(&e)))?;
             evaluator
                 .evaluate_with(&provider, &EvalContext::default(), &request)
-                .map_err(|e| error(antecedent::estimate::refuse_eval(&e)))
+                .map_err(|e| error(antecedent::refusal::evaluation_failure(&e)))
         })
     }
 }
@@ -1267,12 +1269,13 @@ fn estimate_network_interference(
             u64::try_from(assignment_probabilities.len()).ok()?.checked_mul(16)?.checked_add(n)
         })
         .ok_or_else(|| crate::CausalResourceError::new_err("interference input size overflow"))?;
-    let input_lease = ctx.acquire_admission(0, input_bytes).map_err(|error| match error {
-        antecedent::execution::AdmissionError::Cancelled => {
-            crate::CausalCancelledError::new_err("cancelled")
-        }
-        other => crate::CausalResourceError::new_err(other.to_string()),
-    })?;
+    let input_lease =
+        antecedent::execution::retain(&ctx, input_bytes).map_err(|error| match error {
+            antecedent::execution::AdmissionRefusal::Cancelled => {
+                crate::CausalCancelledError::new_err("cancelled")
+            }
+            other => crate::CausalResourceError::new_err(other.to_string()),
+        })?;
     let names = vec!["outcome".to_owned()];
     let batch = numeric_columns_to_batch(&names, &[crate::NumericColumn::F64(outcome)])?;
     if matches!(assignment_kind.as_str(), "saturation" | "observed_exposure") {
@@ -1313,8 +1316,8 @@ fn estimate_network_interference(
                 crate::CausalResourceError::new_err("network workspace size overflow")
             })?;
         let _network_lease =
-            ctx.acquire_admission(0, network_bytes).map_err(|error| match error {
-                antecedent::execution::AdmissionError::Cancelled => {
+            antecedent::execution::retain(&ctx, network_bytes).map_err(|error| match error {
+                antecedent::execution::AdmissionRefusal::Cancelled => {
                     crate::CausalCancelledError::new_err("cancelled")
                 }
                 other => crate::CausalResourceError::new_err(other.to_string()),

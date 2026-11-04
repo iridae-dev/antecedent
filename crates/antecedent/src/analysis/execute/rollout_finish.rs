@@ -4,7 +4,7 @@
 //!
 //! Every rollout result is unsupported: its scalar summary carries no published interval, the
 //! design's own whole-procedure intervals ride on the [`crate::QuasiRolloutEstimate`] payload,
-//! and their calibration is `unmeasured` until a coverage record measures them.
+//! and their calibration is `not_measured` until a coverage record measures them.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
@@ -16,7 +16,7 @@ use antecedent_core::VariableId;
 use antecedent_estimate::rollout_resampling::DesignEffect;
 
 /// Calibration label of every rollout interval.
-pub(super) const UNMEASURED: &str = "unmeasured";
+pub(super) const NOT_MEASURED: &str = "not_measured";
 
 /// Named diagnostics from fixed names.
 pub(super) fn named(values: &[(&str, f64)]) -> Vec<(String, f64)> {
@@ -54,14 +54,14 @@ pub(super) struct RolloutPayloadParts {
     pub(super) diagnostics: Vec<(String, f64)>,
 }
 
-/// The unsupported rollout payload of `parts`; calibration is always `unmeasured`.
+/// The unsupported rollout payload of `parts`; calibration is always `not_measured`.
 pub(super) fn rollout_payload(parts: RolloutPayloadParts) -> crate::result::ResultPayload {
     crate::result::ResultPayload::QuasiRollout(Box::new(crate::QuasiRolloutEstimate {
         design: Arc::from(parts.design),
         method: Arc::from(parts.method),
         effects: Arc::from(parts.effects),
         uncertainty: Arc::from(parts.uncertainty),
-        calibration: Arc::from(UNMEASURED),
+        calibration: Arc::from(NOT_MEASURED),
         replicates_requested: parts.replicates[0],
         replicates_ok: parts.replicates[1],
         replicates_failed: parts.replicates[2],
@@ -142,7 +142,7 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
         DiagnosticSeverity::Info,
         format!(
             "unsupported route: the {design} intervals come from the design's whole-procedure \
-             path ({uncertainty}); their repeated-sampling coverage is unmeasured and no scalar \
+             path ({uncertainty}); their repeated-sampling coverage is not_measured and no scalar \
              interval is published on the effect"
         ),
     ));

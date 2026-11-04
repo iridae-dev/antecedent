@@ -188,7 +188,7 @@ pub fn whole_path_interval_basis(
             a(&if measured_class {
                 quantity_label(&request.quantity).to_owned()
             } else {
-                format!("{}.unmeasured_model_class", quantity_label(&request.quantity))
+                format!("{}.not_measured_model_class", quantity_label(&request.quantity))
             }),
         ],
         CROSS_WORLD_LEVEL,

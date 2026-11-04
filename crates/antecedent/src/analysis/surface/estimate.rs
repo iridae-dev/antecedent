@@ -54,6 +54,8 @@ pub use antecedent_estimate::DrLearner;
 pub use antecedent_estimate::FrontDoorTwoStage;
 /// Generalized linear model (logistic) adjustment ATE estimator for binary outcomes.
 pub use antecedent_estimate::GlmAdjustmentAte;
+/// Learned continuous-outcome trial-to-target transport.
+pub use antecedent_estimate::LearnedContinuousOptions;
 /// Declared treatment levels of a propensity problem.
 pub use antecedent_estimate::OtherLevels;
 /// Propensity stratification estimator.
@@ -83,11 +85,12 @@ pub use antecedent_estimate::estimate_saturation_interference;
 pub use antecedent_estimate::joint_panel;
 /// Supported temporal intervention plans.
 pub use antecedent_estimate::plan_from_response_query;
+/// Trial-to-target transport estimators.
+pub use antecedent_estimate::trial_to_target_effect;
 /// Descriptive raw-versus-adjusted comparison and declared reporting-scale transforms.
 pub use antecedent_estimate::{
     AdjustedEstimate, ArmSummary, Availability, MeanPair, RawContrast, ReportingScale,
-    ReportingTransform, Unavailable, compare_raw_adjusted, raw_contrast, refuse_column_attribution,
-    transform_mean_pair,
+    ReportingTransform, Unavailable, compare_raw_adjusted, raw_contrast, transform_mean_pair,
 };
 /// Finite categorical frequency plug-in for transport joints.
 pub use antecedent_estimate::{
@@ -99,12 +102,11 @@ pub use antecedent_estimate::{CaliperScale, PropensityMatching};
 /// Factorized-propensity AIPW for bounded discrete joint cells.
 pub use antecedent_estimate::{
     CellStatus, FactorizedJointConfig, FactorizedJointFit, JointCellReport, JointContrast,
-    declared_joint_nuisance, orderings_for, refuse_joint_inference, refuse_joint_learner_inference,
+    declared_joint_nuisance, orderings_for,
 };
 /// Cluster-aware cross-fitted AIPW: the independence unit is a declared cluster.
 pub use antecedent_estimate::{
     ClusterDml, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD, DeclaredUnits,
-    flexible_learner_dependence_refusal,
 };
 /// Explicit penalized binary-propensity configuration for cross-fitted AIPW.
 pub use antecedent_estimate::{
@@ -118,10 +120,6 @@ pub use antecedent_estimate::{FittedEffect, IdentifiedSetIntervalMethod, Learner
 pub use antecedent_estimate::{IntervalRequest, ResamplingReport};
 /// Nonparametric estimation of identified interventional distributions via discrete empirical.
 pub use antecedent_estimate::{InterventionalDistributionEstimate, ProbabilityInterval};
-/// Learned continuous-outcome trial-to-target transport.
-pub use antecedent_estimate::{
-    LearnedContinuousOptions, parse_learned_continuous_sampling, parse_learned_continuous_target,
-};
 /// Linear adjustment ATE estimator.
 pub use antecedent_estimate::{LinearAdjustmentAte, LinearFitKind};
 /// Estimator-side handling of explicit outcome-observation mechanisms.
@@ -142,11 +140,7 @@ pub use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
 /// Instrumental-variable estimators: Wald ratio and two-stage least squares.
 pub use antecedent_estimate::{TwoStageLeastSquares, WaldIv};
 /// Conditional odds ratio from matched case-control sets.
-pub use antecedent_estimate::{
-    conditional_odds_ratio, parse_matched_estimand, parse_matched_sampling,
-};
-/// Trial-to-target transport estimators.
-pub use antecedent_estimate::{refuse_cancelled, refuse_eval, trial_to_target_effect};
+pub use antecedent_estimate::{conditional_odds_ratio, parse_matched_sampling};
 /// Validated finite-discrete laws.
 pub use antecedent_expr::ExactLawError;
 /// `antecedent-expr` items at the crate root.
@@ -301,10 +295,6 @@ pub mod randomized_scores {
 pub mod rollout_resampling {
     pub use antecedent_estimate::rollout_resampling::DesignEffect;
 }
-/// Declared sampling weights.
-pub mod sampling_weights {
-    pub use antecedent_estimate::sampling_weights::{invalid, unsupported_route};
-}
 /// Shared-data covariance of scenario-specific estimates over one row sample.
 pub mod scenario_covariance {
     pub use antecedent_estimate::scenario_covariance::ScenarioCovariance;
@@ -325,9 +315,7 @@ pub mod scores {
 }
 /// Smoothed dose-response transport grid.
 pub mod smoothed_dose {
-    pub use antecedent_estimate::smoothed_dose::{
-        parse_smoothed_dose_sampling, parse_smoothed_dose_target, parse_smoothing_kernel,
-    };
+    pub use antecedent_estimate::smoothed_dose::parse_smoothing_kernel;
 }
 /// Cohort-specific event-time contrasts against never-treated subjects.
 pub mod staggered_event_study {

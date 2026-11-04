@@ -229,5 +229,5 @@
     }
   ],
   "claim": "specified_or_fitted_model_conditional",
-  "calibration": "unmeasured"
+  "calibration": "not_measured"
 }

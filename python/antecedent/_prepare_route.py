@@ -2451,7 +2451,7 @@ class _PrepareRoute:
         self._refuse_ids(route)
         self._refuse_estimator_config(route)
         # A Frequentist replicate count runs the whole-procedure mechanism-refit row
-        # bootstrap (unsupported, calibration unmeasured); the Bayesian cell publishes
+        # bootstrap (unsupported, calibration not_measured); the Bayesian cell publishes
         # its Bayesian-bootstrap posterior instead.
         if self.bootstrap and isinstance(self.inference, Bayesian):
             raise CausalUnsupportedError(

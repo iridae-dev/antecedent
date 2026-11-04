@@ -24,7 +24,7 @@
 //!
 //! Non-rejection does **not** prove constancy ([`ConstancyConclusion::NotRejected`] is the
 //! absence of evidence against the null at the stated level). The test's Type I error and
-//! power are *unmeasured* ([`CalibrationStatus::Unmeasured`]); no coverage or false-positive
+//! power are *not_measured* ([`CalibrationStatus::NotMeasured`]); no coverage or false-positive
 //! claim is made here, and the result grants no causal or interval support. The per-partition
 //! effects are exposed so transport diagnostics, prior transfer and policy generalization can
 //! consume them directly.
@@ -53,8 +53,8 @@ pub const EFFECT_CONSTANCY_MAX_PARTITIONS: usize = 1024;
 pub const NON_REJECTION_CAVEAT: &str = "failing to reject the null does not prove the effect is \
                                         constant across partitions";
 
-/// Statement attached to every result about the unmeasured error rates.
-pub const POWER_CAVEAT: &str = "Type I error and power of this test are unmeasured; the test may \
+/// Statement attached to every result about the not_measured error rates.
+pub const POWER_CAVEAT: &str = "Type I error and power of this test are not_measured; the test may \
                                 lack power to detect heterogeneity of a size that matters";
 
 /// Relative tolerance for covariance symmetry and its agreement with the standard errors.
@@ -142,7 +142,7 @@ pub enum ConstancyConclusion {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CalibrationStatus {
     /// Null Type I error and power have not been measured; no claim is made.
-    Unmeasured,
+    NotMeasured,
 }
 
 /// Global heterogeneity test output.
@@ -213,7 +213,7 @@ pub struct EffectConstancyResult {
     pub non_rejection_caveat: &'static str,
     /// [`POWER_CAVEAT`].
     pub power_caveat: &'static str,
-    /// Calibration state: unmeasured.
+    /// Calibration state: not_measured.
     pub calibration: CalibrationStatus,
     /// The declared multiplicity family.
     pub family: ContrastFamily,
@@ -566,7 +566,7 @@ pub fn test_effect_constancy(
         },
         non_rejection_caveat: NON_REJECTION_CAVEAT,
         power_caveat: POWER_CAVEAT,
-        calibration: CalibrationStatus::Unmeasured,
+        calibration: CalibrationStatus::NotMeasured,
         family: family.clone(),
         contrasts,
         pooled_effect,

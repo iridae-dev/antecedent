@@ -79,7 +79,7 @@ def refused(call, detail: str, code: str) -> DoseGridRefusal:
     return error
 
 
-def test_level_recovers_closed_form_with_unmeasured_calibration() -> None:
+def test_level_recovers_closed_form_with_not_measured_calibration() -> None:
     result = run("level")
     expected = [1.3125, 1.75, 3.0, 5.8125]
     assert [p.dose for p in result.levels] == GRID
@@ -87,16 +87,16 @@ def test_level_recovers_closed_form_with_unmeasured_calibration() -> None:
         assert point.value == pytest.approx(truth, abs=1e-6)
         assert truth == pytest.approx(truth_level(point.dose), abs=1e-12)
         assert point.support == "supported"
-        assert point.calibration == "unmeasured"
+        assert point.calibration == "not_measured"
         assert not point.smoothing_bias_included
     assert result.derivatives == () and result.contrast is None
     assert result.functional == "level"
     assert result.design == "randomized_dose"
-    assert result.calibration == "unmeasured"
-    assert result.inference_claim == "pointwise_calibration_unmeasured"
+    assert result.calibration == "not_measured"
+    assert result.inference_claim == "pointwise_calibration_not_measured"
     assert result.claims == DoseClaims(pointwise_level=True)
     assert result.max_abs_influence_sum < 1e-9
-    assert result.to_dict()["calibration"] == "unmeasured"
+    assert result.to_dict()["calibration"] == "not_measured"
 
 
 def test_derivative_recovers_closed_form() -> None:
@@ -123,7 +123,7 @@ def test_noisy_rows_give_finite_pointwise_intervals_without_a_coverage_claim() -
         assert point.lower == pytest.approx(point.value - 1.959963984540054 * sandwich, rel=1e-8)
         assert point.upper == pytest.approx(point.value + 1.959963984540054 * sandwich, rel=1e-8)
         assert point.nominal_level == 0.95
-        assert point.calibration == "unmeasured"
+        assert point.calibration == "not_measured"
 
 
 def test_contrast_between_named_doses_matches_closed_form() -> None:
@@ -143,7 +143,7 @@ def test_contrast_between_named_doses_matches_closed_form() -> None:
         float(np.sqrt(np.sum(influence**2))), rel=1e-8
     )
     assert noisy.contrast.lower < noisy.contrast.estimate < noisy.contrast.upper
-    assert noisy.contrast.calibration == "unmeasured"
+    assert noisy.contrast.calibration == "not_measured"
     assert noisy.levels == () and noisy.derivatives == ()
     assert [s.dose for s in noisy.support_table] == [1.0, 3.0]
 
@@ -234,7 +234,7 @@ def test_export_consume_round_trip_recomputes_the_result() -> None:
     assert fresh.premises_digest == result.premises_digest
     assert fresh.data_digest == result.data_digest
     assert bytes(fresh.export()) == artifact
-    assert fresh.calibration == "unmeasured" and fresh.simultaneous_band == "closed"
+    assert fresh.calibration == "not_measured" and fresh.simultaneous_band == "closed"
     contrast = consume_dose_grid_artifact(bytes(run("contrast", noise=0.1).export()))
     assert contrast.contrast is not None and contrast.levels == ()
 
@@ -275,7 +275,7 @@ def test_quadratic_scope_recovers_functional_across_fixed_bandwidths(
         **options,
     )
     assert result.quadratic_mean and result.smoothing_bias_included
-    assert result.calibration == "unmeasured" and result.simultaneous_band == "closed"
+    assert result.calibration == "not_measured" and result.simultaneous_band == "closed"
     for point in result.levels:
         assert point.value == pytest.approx(truth_level(point.dose), abs=1e-6)
         assert point.smoothing_bias_included
@@ -356,5 +356,5 @@ def test_quadratic_scope_fresh_process_replays_attested_artifact() -> None:
     replayed = json.loads(child.stdout)
     assert replayed["value"] == pytest.approx(1.75, abs=1e-6)
     assert replayed["quadratic_mean"] is True and replayed["bias"] is True
-    assert replayed["calibration"] == "unmeasured"
+    assert replayed["calibration"] == "not_measured"
     assert replayed["premises"] == produced.premises_digest

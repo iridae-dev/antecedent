@@ -23,7 +23,7 @@
 //! `sampled_recovery.unrecoverable_pattern` with the offending patterns retained.
 //!
 //! The interval is reported with its calibration annotation; whole-method coverage is
-//! UNMEASURED outside the measured scope, and no coverage claim is made. The digests are fingerprints (FNV-based),
+//! NOT_MEASURED outside the measured scope, and no coverage claim is made. The digests are fingerprints (FNV-based),
 //! not cryptographic.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -50,11 +50,6 @@ use crate::arm::TreatmentArm;
 use crate::recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 
-/// Replicate count of the measured `BCa` protocol. More replicates are admitted; the count is
-/// bounded by the execution budget, not by this constant.
-pub const SAMPLED_RECOVERY_MAX_REPLICATES: usize = 2000;
-/// Fewest bootstrap replicates required by the supported `BCa` protocol.
-pub const SAMPLED_RECOVERY_MIN_REPLICATES: usize = 2000;
 /// Most observation rows one request may carry.
 pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
 /// Binary substantive variables (`X ∪ O`) every request may carry. Larger requests are admitted
@@ -63,7 +58,7 @@ pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
 /// Nominal level of the whole-row `BCa` interval.
 pub(crate) const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
 /// Original source artifact status, distinct from measured-envelope authorization.
-pub const SAMPLED_RECOVERY_CALIBRATION: &str = "unmeasured";
+pub const SAMPLED_RECOVERY_CALIBRATION: &str = "not_measured";
 
 /// Why a sampled-recovery request was refused. The detail and reason code are
 /// fixed per kind.
@@ -289,7 +284,7 @@ pub struct SampledBcaReceipt {
 pub struct SampledRecoveryConfig {
     /// Explicit supported interval procedure.
     pub interval_method: SampledIntervalMethod,
-    /// Bootstrap replicates, at least `SAMPLED_RECOVERY_MIN_REPLICATES`.
+    /// Bootstrap replicates, at least 2; the count is bounded by the declared work limit.
     pub replicates: usize,
     /// Bootstrap seed; replicate `r` draws from a stream depending only on
     /// `(seed, r)`.
@@ -1123,7 +1118,7 @@ fn covariance(samples: &[Vec<f64>]) -> Vec<f64> {
     out.iter().map(|value| value / divisor).collect()
 }
 
-/// Efron (1987) `BCa` transformation. This is an unmeasured candidate, not a
+/// Efron (1987) `BCa` transformation. This is a not_measured candidate, not a
 /// finite-sample coverage guarantee. Failures and unresolved tails are refused.
 #[allow(
     clippy::float_cmp,

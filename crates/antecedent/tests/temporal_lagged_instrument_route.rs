@@ -5,7 +5,7 @@
 //! The identifier certifies the instrument on the unfolded window graph (not from a time column);
 //! the data checks relevance by the first-stage F. The reference is the closed-form Wald ratio of
 //! covariances and its homoskedastic standard error on the lag-aligned rows, computed here from
-//! the raw series. Both estimators are unsupported with calibration unmeasured.
+//! the raw series. Both estimators are unsupported with calibration not_measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(

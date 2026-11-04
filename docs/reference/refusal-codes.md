@@ -629,7 +629,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `transported_decision.invalid_value` | `invalid_argument` | Supply finite values for distinct coordinates. |
 | `transported_decision.coordinate_not_in_target` | `quantity_semantics_mismatch` | State every coordinate in the target population. |
 | `transported_decision.support_label_inflated` | `transport_not_certified` | Declare extrapolative or weaker. |
-| `transported_decision.calibration_label_inflated` | `transport_not_certified` | Declare point-only or unmeasured. |
+| `transported_decision.calibration_label_inflated` | `transport_not_certified` | Declare point-only or not_measured. |
 | `transported_decision.native_label_on_transported_value` | `transport_not_certified` | A transported value is never native. |
 | `transported_decision.mixed_transports` | `transport_not_certified` | Decide each transport's value on its own. |
 | `transported_decision.law_not_supplied` | `decision_contract_unsatisfied` | Supply a transported law. |
@@ -859,7 +859,7 @@ It never converts a refusal into a verdict about the world:
 | `evidence_plan_artifact.replay_mismatch` | `transport_not_certified` | A stored option, outcome or identity differs from the replay of its routes and value ranking. |
 
 A plan is hypothetical identification, not an estimate: its inference claim is `none`, the
-ordering is `point_only` and its calibration `unmeasured`.
+ordering is `point_only` and its calibration `not_measured`.
 
 ### An opt-in description beside the refusal
 
@@ -1016,7 +1016,7 @@ Every code below is registered in `parity/reason_codes.toml`. Each is a scientif
 | `execution_resource_limit` | The execution could not obtain the shared worker or memory resources needed to run; no scientific conclusion follows from the refusal. |
 | `choice_evidence_scope_mismatch` | Retained choice evidence does not describe the target: its ordered option set, the meaning of its choices (stated or observed) or its population differs, and no transfer with a discount was declared. Nothing is carried across; the refusal names the source. |
 | `choice_evidence_overlap` | The same observation identity would be counted more than once, as two sources or as a source and the observations being conditioned on. The refusal names the identity. |
-| `choice_evidence_conflict` | A source of choice evidence conflicts with the remaining evidence beyond the screening threshold and the policy refuses conflict. The diagnostic is a screen with unmeasured calibration. |
+| `choice_evidence_conflict` | A source of choice evidence conflicts with the remaining evidence beyond the screening threshold and the policy refuses conflict. The diagnostic is a screen with not_measured calibration. |
 | `choice_evidence_invalid` | A choice-evidence declaration is not well formed, or the inference family refused its shape or size: fewer than two distinct options, a Dirichlet shape below one, a discount outside [0, 1], misaligned counts, or a study beyond the supported size. The refusal names the field. |
 
 ## Remedies

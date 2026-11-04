@@ -80,7 +80,7 @@ impl PrepareRequest {
             return Ok(());
         }
         Err(crate::estimator_config::coded_refusal(
-            antecedent::estimate::sampling_weights::unsupported_route(
+            antecedent::refusal::sampling_weights_unsupported_route(
                 "this route reads no sampling weights; declare them on an estimator \
                  (weights=) or on a randomized trial or balanced two-period panel DiD",
             ),
@@ -107,7 +107,7 @@ impl PrepareRequest {
         antecedent::estimate::SamplingWeights::new(weights.to_vec())
             .map_err(crate::estimator_config::coded_refusal)?;
         data.with_weights(std::sync::Arc::clone(weights)).map_err(|error| {
-            crate::estimator_config::coded_refusal(antecedent::estimate::sampling_weights::invalid(
+            crate::estimator_config::coded_refusal(antecedent::refusal::sampling_weights_invalid(
                 &error.to_string(),
             ))
         })
@@ -140,7 +140,7 @@ impl PrepareRequest {
                 Ok(super::FrameInput::Series(self.attach_sampling_weights(data)?))
             }
             _ => Err(crate::estimator_config::coded_refusal(
-                antecedent::estimate::sampling_weights::unsupported_route(
+                antecedent::refusal::sampling_weights_unsupported_route(
                     "sampling weights are read by a single series; panel, multi-environment and \
                      event frames have no sampling-weighted construction",
                 ),

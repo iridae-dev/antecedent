@@ -423,7 +423,7 @@ def _reload_candidate(panel, point):
     except TemporalExtensionRefusal as refusal:
         pytest.skip(f"the candidate route is closed in this build: {refusal}")
     assert candidate.point == pytest.approx(point, abs=1e-12)
-    assert candidate.calibration == "unmeasured"
+    assert candidate.calibration == "not_measured"
     artifact = bytes(candidate.export())
     identity = candidate.identity
     del candidate

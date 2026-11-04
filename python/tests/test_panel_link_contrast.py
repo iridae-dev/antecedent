@@ -4,7 +4,7 @@ Each unit contributes one decision time (its earliest row with a full lag window
 independent subjects. References are computed here with numpy from the raw first rows: the Newton
 logistic maximum-likelihood fit, the probability-scale contrast averaged over the observed lag,
 its Fisher delta-method standard error, and for the Bayesian route the Newton mode and a Laplace
-sample under the stated Gaussian prior. Both routes are unsupported with calibration unmeasured.
+sample under the stated Gaussian prior. Both routes are unsupported with calibration not_measured.
 """
 
 from __future__ import annotations

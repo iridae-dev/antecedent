@@ -64,23 +64,19 @@ fn an_earlier_observation_recovery_artifact_is_inspectable_and_refused() {
 }
 
 #[test]
-fn an_earlier_sampled_recovery_artifact_is_inspectable_and_refused() {
-    let wire = SampledRecoveryArtifactWire::decode(SAMPLED_RECOVERY)
-        .expect("the stored wire is still readable");
-    assert_eq!(wire.derivation.rule_version, "x10.recovery.v1");
+fn an_earlier_sampled_recovery_artifact_with_the_old_calibration_label_is_malformed() {
+    // The stored wire carries the calibration label `unmeasured`, which was renamed to
+    // `not_measured` with no alias: the artifact is malformed and decoding refuses it.
+    let error = SampledRecoveryArtifactWire::decode(SAMPLED_RECOVERY)
+        .expect_err("the old calibration label is not accepted");
+    let error = format!("{error:?}");
+    assert!(error.contains("interval calibration is not_measured"), "{error}");
     let outcome = SampledRecoveryArtifactWire::consume_with_limits(
         SAMPLED_RECOVERY,
         SampledRecoveryConsumeLimits::default(),
         &ctx(),
     );
-    assert!(
-        wire.derivation
-            .margins
-            .iter()
-            .any(|margin| margin.identity.starts_with("catalog_distribution.v1|"))
-    );
-    let error = format!("{:?}", outcome.expect_err("the earlier catalog binding is not accepted"));
-    assert!(error.contains("recovery.invalid_derivation: recovery formula check: a leaf's margin binding disagrees with the catalog distribution"), "{error}");
+    assert!(outcome.is_err(), "a malformed artifact is not consumed");
 }
 
 #[test]

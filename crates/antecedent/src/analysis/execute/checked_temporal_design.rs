@@ -10,7 +10,7 @@
 //! Bayesian-bootstrap posterior of the same functional. Regime survival reads observational
 //! trajectories: its frequentist interval refits the treatment and censoring models in every
 //! subject-bootstrap replicate, and its posterior is the joint-likelihood parametric g-formula.
-//! Every route is unsupported and its calibration is unmeasured.
+//! Every route is unsupported and its calibration is not_measured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{
@@ -63,7 +63,7 @@ use antecedent_estimate::temporal_design::{
 use crate::analysis::missing_data::{self, MissingRoute};
 
 /// Calibration status of every interval this route reports.
-const CALIBRATION: &str = "unmeasured";
+const CALIBRATION: &str = "not_measured";
 
 /// What a prepared temporal design keeps beside its query: the Bayesian configuration of a
 /// posterior study and the whole-procedure bootstrap replicates of a frequentist one.
@@ -1114,7 +1114,7 @@ impl CheckedTemporalDesignOperation {
             },
         ));
         let mut inference = InferenceDiagnostics::analytic(method);
-        inference.notes = vec![Arc::from("interval=equal_tailed_95 calibration=unmeasured")];
+        inference.notes = vec![Arc::from("interval=equal_tailed_95 calibration=not_measured")];
         assemble_posterior(&columns, &self.identification, assumptions, inference)
     }
 }

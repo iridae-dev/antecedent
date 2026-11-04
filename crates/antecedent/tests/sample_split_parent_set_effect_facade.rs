@@ -627,7 +627,7 @@ fn version_one_sources_replay_the_half_split_and_keep_their_original_basis() {
 }
 
 #[test]
-fn an_unmeasured_variable_count_is_computed_and_never_attested() {
+fn an_not_measured_variable_count_is_computed_and_never_attested() {
     // Twelve variables lie between measured counts: the estimate is computed and `measure`
     // reports it annotated as not calibrated, never borrowing the ten- or fifteen-variable record.
     let study = study(Topology::HubConfoundedMultiPath, 12, false, ROWS);

@@ -329,7 +329,7 @@ def test_a_whole_path_interval_is_annotated_outside_the_measured_cells() -> None
     )
     interval = require_success(small.measured_interval("independent_sample"))
     assert interval.calibration["status"] != "calibrated"
-    # The unqualified interval and posterior readings are closed, never an unmeasured number.
+    # The unqualified interval and posterior readings are closed, never a not_measured number.
     with pytest.raises(R) as error:
         small.interval()
     assert error.value.reason_code == "sampling_dependence_unknown"

@@ -90,8 +90,8 @@ def test_nested_bayesian_public_original_posterior_matches_conjugate_reference_a
     for array in (result.samples, result.covariance):
         with pytest.raises(ValueError, match="WRITEABLE"):
             array.setflags(write=True)
-    assert result.calibration == "unmeasured"
-    assert result.inference == "posterior_candidate_withheld_calibration_unmeasured"
+    assert result.calibration == "not_measured"
+    assert result.inference == "posterior_candidate_withheld_calibration_not_measured"
     assert result.identification == "nonparametrically_identified"
     assert result.coordinate_order[:11] == result.prior.coordinates
     assert result.samples.shape == (4, 4096, 14)

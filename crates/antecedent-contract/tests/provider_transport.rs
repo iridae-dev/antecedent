@@ -163,7 +163,7 @@ fn a_verified_provider_output_is_source_evidence_that_reaches_a_transported_clai
         [ContractOperation::Mean, ContractOperation::Draws].into_iter().collect();
     assert_eq!(admitted.operations(), expected);
 
-    // The projection is an interface contract; it is unmeasured, never measured.
+    // The projection is an interface contract; it is not_measured, never measured.
     let contract = admitted.interface_contract();
     contract.validate().expect("the projection is a valid interface contract");
     let port = contract.produced("provider_source").expect("one produced port");

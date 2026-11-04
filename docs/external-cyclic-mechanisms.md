@@ -95,7 +95,7 @@ covariance and mechanism family.
 A system with an external mechanism is `verified_external` in the report, the evidence
 records and the claim string (`verified_external_model_conditional`). No path converts it to
 `native`; native means every mechanism is a built-in, serializable library mechanism.
-Calibration is `unmeasured`.
+Calibration is `not_measured`.
 
 ## Python
 

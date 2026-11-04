@@ -11,7 +11,7 @@
 //!
 //! The frequentist estimate is the unpenalized maximum-likelihood fit with its Fisher delta-method
 //! standard error. The Bayesian estimate is the Laplace posterior of the same contrast under a
-//! Gaussian coefficient prior. Neither is a supported route and their calibration is unmeasured.
+//! Gaussian coefficient prior. Neither is a supported route and their calibration is not_measured.
 
 use std::collections::BTreeMap;
 
@@ -81,7 +81,7 @@ impl super::Study {
                 .with_n_obs(u64::try_from(fit.trajectories).unwrap_or(u64::MAX));
                 let note = format!(
                     "logit link, {} independent subjects, {} lag column(s) held at their observed \
-                     values; Fisher delta-method standard error; calibration unmeasured",
+                     values; Fisher delta-method standard error; calibration not_measured",
                     fit.trajectories, fit.lags
                 );
                 (estimate, None, EstimatorId::TemporalGlmLinkContrast, note)
@@ -103,7 +103,7 @@ impl super::Study {
                 let note = format!(
                     "{link:?} link, {} independent subjects, Laplace posterior under N(0, {}^2) \
                      on every coefficient; the posterior mean {:.6} is not the contrast at the mode \
-                     {:.6}; calibration unmeasured",
+                     {:.6}; calibration not_measured",
                     fit.trajectories, cfg.prior_scale, fit.posterior_mean, fit.functional_at_mode
                 );
                 (estimate, Some(posterior), EstimatorId::BayesianTemporalGlmLinkContrast, note)

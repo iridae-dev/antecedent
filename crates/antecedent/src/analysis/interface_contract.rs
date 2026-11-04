@@ -31,8 +31,8 @@
 //!
 //! A connection never raises a label. The calibration label a connection
 //! carries is the producer's: a point-only producer stays point-only, an
-//! unmeasured interval stays unmeasured, and a consumer that relies on
-//! measured calibration is refused rather than served an unmeasured interval.
+//! not_measured interval stays not_measured, and a consumer that relies on
+//! measured calibration is refused rather than served a not_measured interval.
 //! Calibration of a component is not calibration of a composition, and no
 //! interval or posterior is supported by declaring one. Cyclic scientific
 //! composition is refused, not unrolled.

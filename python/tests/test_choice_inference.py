@@ -2,7 +2,7 @@
 
 Truth is computed here in pure Python: the Dirichlet posterior of one choice per respondent is
 ``initial + sum(discount * source counts) + respondent counts`` and its mean is that vector over
-its sum. Every route is point-only with calibration ``unmeasured``.
+its sum. Every route is point-only with calibration ``not_measured``.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     assert result.alpha == pytest.approx(alpha)
     assert result.mean == pytest.approx([a / sum(alpha) for a in alpha])
     assert result.borrowed_observations == pytest.approx(10.0)
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
 
 
 def test_a_source_sharing_rows_with_the_respondents_is_refused():
@@ -246,5 +246,5 @@ def test_hierarchical_next_study_keeps_repeated_choice_dependence():
     assert rows[0].label == "two"
     assert rows[0].evsi == pytest.approx(0.006765558737430455, abs=2e-6)
     assert rows[0].method["kind"] == "hierarchical_quadrature"
-    assert rows[0].calibration == "unmeasured"
+    assert rows[0].calibration == "not_measured"
     assert rows[0].rank_uncertain

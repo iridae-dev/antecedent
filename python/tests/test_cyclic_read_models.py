@@ -106,7 +106,7 @@ def test_system_live_study_and_native_scientific_metadata():
     )
     outcome = prepared.execute()
     assert outcome.study is prepared
-    assert outcome.inspect().calibration == "unmeasured"
+    assert outcome.inspect().calibration == "not_measured"
     value = require_success(outcome)
     loaded = consume_artifact(bytes(value.export()), expected_identity=value.identity)
     assert loaded.study is None

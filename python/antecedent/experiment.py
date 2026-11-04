@@ -565,7 +565,7 @@ class RandomizedEffect:
     scale). The variance linearizes the two ratio means treating units as independent draws
     (Neyman's conservative bound for equal weights); rows of weight zero are excluded and
     counted, and the Kish effective sample size is reported with the result. No interval is
-    published: its coverage is a separate, unmeasured claim.
+    published: its coverage is a separate, not_measured claim.
     """
 
     outcome: str

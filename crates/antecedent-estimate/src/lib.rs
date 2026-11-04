@@ -139,6 +139,7 @@ pub mod randomized_joint;
 pub mod randomized_missing;
 pub mod randomized_neyman;
 pub mod randomized_posterior;
+pub mod randomized_quantile;
 pub mod randomized_scores;
 pub(crate) mod rd;
 pub mod recovery;
@@ -405,8 +406,7 @@ pub use recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_eff
 pub use recovery_chain::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
 pub use recovery_sampled::{
     ObservationPattern, ObservationRow, SAMPLED_RECOVERY_CALIBRATION,
-    SAMPLED_RECOVERY_MAX_BINARY_VARIABLES, SAMPLED_RECOVERY_MAX_REPLICATES,
-    SAMPLED_RECOVERY_MAX_ROWS, SAMPLED_RECOVERY_MIN_REPLICATES, SampledEffectInterval,
+    SAMPLED_RECOVERY_MAX_BINARY_VARIABLES, SAMPLED_RECOVERY_MAX_ROWS, SampledEffectInterval,
     SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail,
     SampledRecoveryDiagnostics, SampledRecoveryError, SampledRecoveryReceipt,
     SampledRecoveryResult, derive_sampled_recovery, estimate_sampled_recovery,

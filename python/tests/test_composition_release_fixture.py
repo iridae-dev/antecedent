@@ -682,7 +682,7 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
     pooled_interval = world.ledger.pooled_interval(world.pooled.result)
     assert pooled_interval["lower"] < pooled_interval["estimate"] < pooled_interval["upper"]
     assert pooled_interval["calibration"]["status"] != "calibrated"
-    # The measurement: the estimate's interval is reported with an unmeasured calibration slot,
+    # The measurement: the estimate's interval is reported with a not_measured calibration slot,
     # and a prepared model with no estimate has none to bound.
     prepared = mm.prepare_measurement_model(
         rb.measurement_model(),
@@ -715,6 +715,6 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
         decision.DecisionRefusal,
     )
     assert refusal.reason_code == "decision_contract_unsatisfied"
-    assert FIXTURE["calibration"] == "unmeasured"
+    assert FIXTURE["calibration"] == "not_measured"
     assert FIXTURE["label"] == "point_only"
     assert require_success(world.result).evpi is None

@@ -118,7 +118,7 @@ def test_public_sampled_recovery_whole_method_matches_independent_oracle(tmp_pat
     result = produce(sample=sample)
     law, point = oracle(sample)
     evidence = result.inspect()
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     assert result.level == 0.95
     assert result.effect == pytest.approx(point, abs=1e-12)
     assert result.effect == pytest.approx(0.36, abs=0.01)
@@ -358,7 +358,7 @@ def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_pa
         seed=7,
     )
     assert candidate.interval_method == "bootstrap_bca"
-    assert candidate.calibration == "unmeasured"
+    assert candidate.calibration == "not_measured"
     receipt = candidate.inspect()["receipt"]
     assert receipt["config"]["replicates"] == 2000
     assert receipt["config"]["max_failed_fraction"] == 0

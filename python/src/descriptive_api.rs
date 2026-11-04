@@ -3,7 +3,7 @@
 use crate::transport_common::execution_context;
 use antecedent::estimate::{
     AdjustedEstimate, Availability, EstimationError, MeanPair, RawContrast, ReportingScale,
-    ReportingTransform, compare_raw_adjusted, raw_contrast, refuse_column_attribution,
+    ReportingTransform, compare_raw_adjusted, raw_contrast,
 };
 use pyo3::prelude::*;
 
@@ -67,7 +67,7 @@ fn raw_vs_adjusted(
 /// A column attribution of the gap is always refused.
 #[pyfunction]
 fn attribute_gap_to_columns() -> PyResult<()> {
-    Err(estimation_err(refuse_column_attribution()))
+    Err(estimation_err(antecedent::refusal::column_attribution_unsupported()))
 }
 
 /// `(values, gradients, covariance)` of a transformed family; the covariance is column-major

@@ -54,7 +54,7 @@ def joint(
     snapshot: str = "snap-n",
     *,
     trust: Any = "unverified",
-    calibration: Any = "unmeasured",
+    calibration: Any = "not_measured",
     supported: tuple[bool, ...] | None = None,
 ) -> JointDistributionArtifact:
     identity = DistributionIdentity(

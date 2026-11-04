@@ -938,7 +938,7 @@ pub struct MechanismInterfaceBasis {
     pub parents: BTreeMap<String, PortFacts>,
     /// The operation the mechanism requires of each parent.
     pub parent_operation: ContractOperation,
-    /// The calibration the output holds; `None` is unmeasured when the
+    /// The calibration the output holds; `None` is not_measured when the
     /// offering carries uncertainty and point-only otherwise.
     pub calibration: Option<CalibrationStatus>,
     /// The evidence the output rests on; `None` reads `evidence_id` as a

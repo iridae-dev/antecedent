@@ -8,7 +8,7 @@
 //! `.row_snapshot_mismatch`, `.row_count_mismatch`); nothing is dropped silently.
 //!
 //! Every p-value (Wald, Holm, joint chi-square) is asymptotic and its calibration is
-//! **unmeasured**: no coverage claim is made and no interval is produced. The caller owns that
+//! **not_measured**: no coverage claim is made and no interval is produced. The caller owns that
 //! the shared adjustment set is valid.
 //!
 //! [`VectorTreatment::evaluate`] fits and seals the result with its embedded compact design;

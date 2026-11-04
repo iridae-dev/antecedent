@@ -215,9 +215,9 @@ grid_group() {
     smoothed_dose_calibration:*_psi_h) return 0 ;;
     # Joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
     joint_sensitivity_calibration:*) return 0 ;;
-    # Batch retarget: the unpublished family-level max-t band (wired, unmeasured).
+    # Batch retarget: the unpublished family-level max-t band (wired, not_measured).
     batch_retarget_calibration:*) return 0 ;;
-    # Clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
+    # Clustered DML: the published t_(G-1) Wald interval (wired, not_measured).
     cluster_dml_calibration:*) return 0 ;;
     # Randomized outcomes missing at random: the responder-weighted and complete-case
     # candidate intervals (designs only; nothing is published until a record measures them).
@@ -225,7 +225,7 @@ grid_group() {
     # Sampling-weighted effects: the candidate intervals of the weighted routes (designs only;
     # nothing is published until a record measures them).
     weighted_interval_calibration:*) return 0 ;;
-    # Multi-level observational contrast: the full-population normal interval (wired, unmeasured).
+    # Multi-level observational contrast: the full-population normal interval (wired, not_measured).
     multilevel_interval_calibration:*) return 0 ;;
     # Randomized-trial intervals at 300 participants, including the small-arm Student intervals.
     randomized_interval_calibration:*) return 0 ;;
@@ -556,7 +556,7 @@ run_observational_effects() {
   local name="$1"
   check "observational_effects_calibration: ${name}" cargo test --release -p antecedent-estimate --test observational_effects_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== observational survival and policy-value standard errors (wired, unmeasured) =="
+echo "== observational survival and policy-value standard errors (wired, not_measured) =="
 run_observational_effects survival_difference_covariate_censoring_n1000_l95
 run_observational_effects survival_difference_covariate_censoring_n3000_l95
 run_observational_effects rmst_difference_covariate_censoring_n1000_l95

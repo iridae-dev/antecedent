@@ -305,7 +305,7 @@ the `penalized_support` diagnostic). The route keeps the score table and retarge
 covariance) and publishes the cross-fitted influence-function SE; with `bootstrap > 0` it
 publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
 fitting (`penalized_bootstrap` lists the penalties each replicate selected). Both
-rest on a stated remainder condition and are calibration-wired and unmeasured, so
+rest on a stated remainder condition and are calibration-wired and not_measured, so
 they report `not_measured`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
 `PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
 GLM fit fails and records the failed fit in `penalized_fallback`;

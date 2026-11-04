@@ -48,7 +48,7 @@ fn classified(error: &(dyn std::error::Error + 'static), ctx: &ExecutionContext)
     }
     let mut cause: &(dyn std::error::Error + 'static) = error;
     loop {
-        if cause.is::<antecedent::execution::AdmissionError>()
+        if antecedent::execution::is_admission_refusal(cause)
             || matches!(
                 cause.downcast_ref::<EquilibriumError>(),
                 Some(EquilibriumError::Resource(_))
@@ -67,14 +67,14 @@ fn classified(error: &(dyn std::error::Error + 'static), ctx: &ExecutionContext)
 fn input_admission(
     json: &str,
     ctx: &ExecutionContext,
-) -> PyResult<antecedent::execution::AdmissionLease> {
+) -> PyResult<antecedent::execution::Retention> {
     if json.len() > MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES {
         return Err(crate::value_err("external cyclic input byte limit"));
     }
     if ctx.cancellation.is_cancelled() {
         return Err(crate::CausalCancelledError::new_err("cancelled"));
     }
-    ctx.acquire_admission(0, (json.len() as u64).saturating_mul(4))
+    antecedent::execution::retain(&ctx, (json.len() as u64).saturating_mul(4))
         .map_err(|e| operation_error(e, ctx))
 }
 
@@ -208,7 +208,7 @@ fn resolver_of(resolver: Option<Py<PyAny>>) -> Option<PythonResolver> {
 /// BLAKE3 digest of implementation content, as registered in a specification.
 #[pyfunction]
 fn external_content_digest(content: &[u8]) -> String {
-    antecedent::schema::blake3_hex(content)
+    antecedent::identity::blake3_hex(content)
 }
 
 /// Validate a specification and return its identity.

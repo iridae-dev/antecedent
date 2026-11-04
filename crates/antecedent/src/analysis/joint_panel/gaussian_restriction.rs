@@ -47,7 +47,7 @@ pub fn declare_joint_panel_gaussian_restriction(target: &ScientificTarget) -> Sc
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from(GAUSSIAN_RESTRICTION),
             description: Arc::from(
-                "Conditional on the observed context, the outcome is a saturated lag-weighted sum of the channels (and declared products) plus a covariate and season effect, with Gaussian group intercepts and stationary Gaussian AR(1) errors independent of the whole program: linear-Gaussian conditional laws and no unmeasured group-level or serial cause of assignment",
+                "Conditional on the observed context, the outcome is a saturated lag-weighted sum of the channels (and declared products) plus a covariate and season effect, with Gaussian group intercepts and stationary Gaussian AR(1) errors independent of the whole program: linear-Gaussian conditional laws and no not_measured group-level or serial cause of assignment",
             ),
         }),
         source: AssumptionSource::UserDeclared,

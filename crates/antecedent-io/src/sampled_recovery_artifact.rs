@@ -1,6 +1,6 @@
 //! Independent artifact of sampled observation recovery
 //! (`recovery.sampled_observation`), format version 2. Internal and non-routed: the
-//! interval stored here carries calibration `unmeasured`.
+//! interval stored here carries calibration `not_measured`.
 //!
 //! Version 1 of the recovery artifact ([`crate::recovery_artifact`]) is the
 //! exact-law point artifact and is unchanged: this reader refuses its bytes by version,
@@ -11,7 +11,7 @@
 //! observed snapshot), the observation rows (id and pattern, in order: the whole-row
 //! bootstrap depends on the order), the pattern-count summary, the request configuration
 //! with its seed, the recovered law, the recovered effect point, the `BCa` interval
-//! (`calibration = "unmeasured"`), the diagnostics, the bootstrap covariance of the
+//! (`calibration = "not_measured"`), the diagnostics, the bootstrap covariance of the
 //! recovered cells and the replicate receipt (every replicate's selection digest and
 //! effect, failed ones included, and the receipt digest).
 //!
@@ -45,10 +45,9 @@ use antecedent_estimate::recovery_sampled::{
     SampledBcaReceipt, SampledIntervalMethod, SampledJackknifeRecord, SampledReplicateRecord,
 };
 use antecedent_estimate::{
-    ObservationPattern, ObservationRow, SAMPLED_RECOVERY_CALIBRATION,
-    SAMPLED_RECOVERY_MAX_REPLICATES, SAMPLED_RECOVERY_MAX_ROWS, SampledEffectInterval,
-    SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail, SampledRecoveryError,
-    SampledRecoveryReceipt, SampledRecoveryResult, replay_sampled_recovery,
+    ObservationPattern, ObservationRow, SAMPLED_RECOVERY_CALIBRATION, SAMPLED_RECOVERY_MAX_ROWS,
+    SampledEffectInterval, SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail,
+    SampledRecoveryError, SampledRecoveryReceipt, SampledRecoveryResult, replay_sampled_recovery,
 };
 use antecedent_graph::{Admg, NodeRef};
 use antecedent_identify::{
@@ -124,8 +123,10 @@ pub struct SampledRecoveryConsumeLimits {
     pub decision: RecoveryLimits,
     /// Most observation rows (the rerun costs `replicates * rows`).
     pub max_rows: usize,
-    /// Most bootstrap replicates.
-    pub max_replicates: usize,
+    /// Most replay work, counted as bootstrap replicates times observation rows. The
+    /// consumer's rerun costs this many row draws, so the budget bounds both the stored
+    /// replicate count and the cost of replaying it; no fixed replicate count applies.
+    pub max_replay_work: u64,
 }
 
 impl Default for SampledRecoveryConsumeLimits {
@@ -133,7 +134,7 @@ impl Default for SampledRecoveryConsumeLimits {
         Self {
             decision: RECOVERY_DEFAULT_LIMITS,
             max_rows: 100_000_usize.min(SAMPLED_RECOVERY_MAX_ROWS),
-            max_replicates: SAMPLED_RECOVERY_MAX_REPLICATES,
+            max_replay_work: 200_000_000,
         }
     }
 }
@@ -211,7 +212,7 @@ pub struct SampledIntervalWire {
     pub lower: f64,
     /// Upper endpoint.
     pub upper: f64,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
 }
 
@@ -228,7 +229,7 @@ impl SampledIntervalWire {
     fn to_interval(&self) -> Result<SampledEffectInterval, SampledRecoveryArtifactError> {
         if self.calibration != SAMPLED_RECOVERY_CALIBRATION {
             return Err(SampledRecoveryArtifactError::UnsupportedSemantics(
-                "interval calibration is unmeasured",
+                "interval calibration is not_measured",
             ));
         }
         Ok(SampledEffectInterval {
@@ -539,7 +540,7 @@ pub struct SampledRecoveryArtifactWire {
     pub result: SampledResultWire,
     /// The replicate receipt (carries the request configuration and seed).
     pub receipt: SampledReceiptWire,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest of the scientific premises.
     pub premises_digest: String,
@@ -599,12 +600,26 @@ pub struct ConsumedSampledRecovery {
 }
 
 impl SampledRecoveryArtifactWire {
-    /// Build an artifact from checked premises and a result.
+    /// Build an artifact from checked premises and a result under the default consumer
+    /// limits.
+    ///
+    /// # Errors
+    /// As [`Self::checked_within`].
+    pub fn checked(input: &SampledRecoveryArtifactInput<'_>) -> Result<Self, IoError> {
+        Self::checked_within(input, &SampledRecoveryConsumeLimits::default())
+    }
+
+    /// Build an artifact from checked premises and a result, bounded by the limits the
+    /// caller sets for the consumers it exports to. An artifact the stated limits would
+    /// refuse is not produced.
     ///
     /// # Errors
     /// Premises that do not encode, an m-graph whose nodes are not `0..n`, an effect
-    /// without an expression arena, or a size above the default consumer bounds.
-    pub fn checked(input: &SampledRecoveryArtifactInput<'_>) -> Result<Self, IoError> {
+    /// without an expression arena, or a row count or replay work above `limits`.
+    pub fn checked_within(
+        input: &SampledRecoveryArtifactInput<'_>,
+        limits: &SampledRecoveryConsumeLimits,
+    ) -> Result<Self, IoError> {
         for (i, node) in input.graph.nodes().iter().enumerate() {
             let expected = NodeRef::Static(VariableId::from_raw(
                 u32::try_from(i).map_err(|_| IoError::TooLarge)?,
@@ -642,20 +657,32 @@ impl SampledRecoveryArtifactWire {
             data_digest: String::new(),
         };
         wire.validate_shape()?;
-        wire.check_producer_bounds()?;
+        wire.check_producer_bounds(limits)?;
         wire.premises_digest = wire.expected_premises_digest()?;
         wire.data_digest = wire.expected_data_digest()?;
         Ok(wire)
     }
 
-    fn check_producer_bounds(&self) -> Result<(), SampledRecoveryArtifactError> {
-        let defaults = SampledRecoveryConsumeLimits::default();
-        if self.rows.len() > defaults.max_rows
-            || self.receipt.config.replicates > defaults.max_replicates
-        {
+    fn check_producer_bounds(
+        &self,
+        limits: &SampledRecoveryConsumeLimits,
+    ) -> Result<(), SampledRecoveryArtifactError> {
+        if self.rows.len() > limits.max_rows {
             return Err(SampledRecoveryArtifactError::LimitsExceeded("export bounds"));
         }
+        if self.replay_work() > limits.max_replay_work {
+            return Err(SampledRecoveryArtifactError::LimitsExceeded("export replay work"));
+        }
         Ok(())
+    }
+
+    /// Replicates times rows, taking the larger of the configured and stored replicate
+    /// counts, saturating.
+    fn replay_work(&self) -> u64 {
+        let replicates = self.receipt.config.replicates.max(self.receipt.replicates.len());
+        u64::try_from(replicates)
+            .unwrap_or(u64::MAX)
+            .saturating_mul(u64::try_from(self.rows.len()).unwrap_or(u64::MAX))
     }
 
     /// The premises digest the stored premises should carry. Recomputing it grants
@@ -731,7 +758,7 @@ impl SampledRecoveryArtifactWire {
             || self.result.interval.calibration != SAMPLED_RECOVERY_CALIBRATION
             || self.receipt.interval.calibration != SAMPLED_RECOVERY_CALIBRATION
         {
-            return Err(unsupported("interval calibration is unmeasured"));
+            return Err(unsupported("interval calibration is not_measured"));
         }
         let nodes = self.graph.node_count;
         if !self.variable_names.is_empty()
@@ -804,11 +831,8 @@ impl SampledRecoveryArtifactWire {
         if self.rows.len() > limits.max_rows || self.rows.len() > SAMPLED_RECOVERY_MAX_ROWS {
             return Err(exceeded("row count"));
         }
-        if self.receipt.config.replicates > limits.max_replicates
-            || self.receipt.config.replicates > SAMPLED_RECOVERY_MAX_REPLICATES
-            || self.receipt.replicates.len() > limits.max_replicates
-        {
-            return Err(exceeded("replicate count"));
+        if self.replay_work() > limits.max_replay_work {
+            return Err(exceeded("replay work"));
         }
         // At most 2^6 recovered cells, so at most 64 * 64 covariance entries.
         if self.result.recovered_cell_covariance.len() > 64 * 64 {

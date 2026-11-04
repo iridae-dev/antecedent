@@ -87,7 +87,7 @@ fn iv_dag() -> Dag {
     dag
 }
 
-/// `t -> m -> y` with an unmeasured `t <- u -> y` (absent from the graph).
+/// `t -> m -> y` with a unmeasured `t <- u -> y` (absent from the graph).
 fn frontdoor_data(seed: u64) -> TabularData {
     let mut g = gaussian(seed);
     let (mut t, mut y, mut m) = (vec![0.0; N], vec![0.0; N], vec![0.0; N]);

@@ -419,7 +419,7 @@ impl ObservationRecoveryStage {
 
 #[pymethods]
 impl ObservationRecoveryStage {
-    /// Internal historical candidate; retains unmeasured semantics.
+    /// Internal historical candidate; retains not_measured semantics.
     #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_bca"))]
     #[allow(clippy::too_many_arguments)]
     fn sampled_candidate(
@@ -957,7 +957,7 @@ fn consume_sampled_recovery_candidate(
         || !valid_digest(&premises_digest)
         || !valid_digest(&data_digest)
         || !(1..=100_000).contains(&max_rows)
-        || !(1..=2000).contains(&max_replicates)
+        || max_replicates == 0
     {
         return Err(crate::value_err(
             "sampled_recovery.invalid_input: bounded bytes and retained expected identities required",
@@ -973,7 +973,12 @@ fn consume_sampled_recovery_candidate(
         let consumed = SampledRecoveryArtifactWire::consume_expecting(
             &bytes,
             &expected,
-            SampledRecoveryConsumeLimits { max_rows, max_replicates, ..Default::default() },
+            SampledRecoveryConsumeLimits {
+                max_rows,
+                // The caller's replicate and row ceilings together set the replay work budget.
+                max_replay_work: (max_rows as u64).saturating_mul(max_replicates as u64),
+                ..Default::default()
+            },
             &ctx,
         )
         .map_err(|e| sampled_candidate_io_error(&e))?;

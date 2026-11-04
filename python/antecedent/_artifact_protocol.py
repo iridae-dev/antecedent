@@ -499,6 +499,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "composition_bundle": ("composition_bundle", "consume_bundle"),
     "compact_runtime_export_v1": ("compact_export", "CompactExport.consume"),
     "joint_distribution_v1": ("joint_distribution", "JointDistributionArtifact.load"),
+    "transported_decision_v1": ("transported_response", "consume_transported_decision"),
 }
 
 

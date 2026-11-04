@@ -22,7 +22,7 @@ def test_evalue_reproduces_vanderweele_and_ding():
     assert result.range is not None
     assert result.range.assumption == "unmeasured_confounding_risk_ratio"
     assert result.range.break_even == pytest.approx(result.summary["evalue"])
-    assert result.range.calibration == "unmeasured"
+    assert result.range.calibration == "not_measured"
 
 
 def test_evalue_scales():
@@ -173,7 +173,7 @@ def test_a_prepared_study_refutes_its_own_target():
     placebo = next(r for r in outcome.reports if r.refuter == "target.placebo_treatment")
     assert placebo.passed
     assert all(report.target == outcome.target.identity for report in outcome.reports)
-    assert outcome.calibration == "unmeasured"
+    assert outcome.calibration == "not_measured"
 
 
 def test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confounder():

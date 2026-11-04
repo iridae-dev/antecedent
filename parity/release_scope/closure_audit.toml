@@ -199,7 +199,7 @@ id = "P07.dose_grid.static.frequentist"
 method = "P07.dose_grid"
 side = "static.frequentist"
 status = "not_supported"
-reason = "the bias-aware intervals and simultaneous band (estimate_dose_grid_bias_aware) are carried by the sealed artifact under dose_grid_bias_aware_band_v1 and by antecedent.dose_grid.dose_functional(curvature_bound=...); their calibration is unmeasured"
+reason = "the bias-aware intervals and simultaneous band (estimate_dose_grid_bias_aware) are carried by the sealed artifact under dose_grid_bias_aware_band_v1 and by antecedent.dose_grid.dose_functional(curvature_bound=...); their calibration is not_measured"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -215,7 +215,7 @@ id = "P11.augmented_panel_did.temporal.frequentist"
 method = "P11.augmented_panel_did"
 side = "temporal.frequentist"
 status = "not_supported"
-reason = "whole-cluster resample interval (supplied predictions held fixed) is unsupported with calibration unmeasured; 2x2 graphless row does not cover it"
+reason = "whole-cluster resample interval (supplied predictions held fixed) is unsupported with calibration not_measured; 2x2 graphless row does not cover it"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -231,7 +231,7 @@ id = "P13.attribution.static.frequentist"
 method = "P13.attribution"
 side = "static.frequentist"
 status = "supported"
-reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured"
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -239,7 +239,7 @@ id = "P13.attribution.static.bayesian"
 method = "P13.attribution"
 side = "static.bayesian"
 status = "supported"
-reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -247,7 +247,7 @@ id = "P13.attribution.temporal.frequentist"
 method = "P13.attribution"
 side = "temporal.frequentist"
 status = "supported"
-reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -255,7 +255,7 @@ id = "P13.attribution.temporal.bayesian"
 method = "P13.attribution"
 side = "temporal.bayesian"
 status = "supported"
-reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration unmeasured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are unmeasured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
+reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -263,7 +263,7 @@ id = "P13.refuter.static.frequentist"
 method = "P13.refuter"
 side = "static.frequentist"
 status = "not_supported"
-reason = "executing and unsupported: target-native refuters run on the whole target vector for scalar, conditional, derivative, mediation, world-valued, joint and attribution targets, with error rates and pass thresholds unmeasured. The finite-difference and local-linearity checks cover a point derivative, an average derivative under the observed law (seven quantile nodes; the Gaussian-score Riesz estimator admits no other weighting, and uniform-interval nodes are placed wherever an estimator admits that law), and a directional derivative or Jacobian through the study's own interventional means along each direction (at most six coordinates). A random common cause is declared in every atom of a DAG or lagged-template graph posterior, and of a class posterior under the declared assumption WithinClassDistribution::UniformOverMembers (each class's DAG members enumerated up to 512, an even share each, the common cause added to each, the shares collapsed to the classes of the augmented graphs; the assumption is written into the posterior's diagnostics and without it the class posterior is refused). Typed refusals that name their next attempt: the closed-form sequential-ignorability range needs independent rows and a declared mediator; caller-weighted average derivatives and non-identity scales refuse (next attempt: check chosen points); a row bootstrap refuses a masked, weighted, non-float or incomplete table (subset stability runs; next attempt: resolve missing values first); a class with more than 512 members, a PAG posterior and a lagged class posterior refuse the common cause (next attempt: sample members of a larger class, or refute one accepted structure); the graph negative controls need a variable the graph separates, else one is declared"
+reason = "executing and unsupported: target-native refuters run on the whole target vector for scalar, conditional, derivative, mediation, world-valued, joint and attribution targets, with error rates and pass thresholds not_measured. The finite-difference and local-linearity checks cover a point derivative, an average derivative under the observed law (seven quantile nodes; the Gaussian-score Riesz estimator admits no other weighting, and uniform-interval nodes are placed wherever an estimator admits that law), and a directional derivative or Jacobian through the study's own interventional means along each direction (at most six coordinates). A random common cause is declared in every atom of a DAG or lagged-template graph posterior, and of a class posterior under the declared assumption WithinClassDistribution::UniformOverMembers (each class's DAG members enumerated up to 512, an even share each, the common cause added to each, the shares collapsed to the classes of the augmented graphs; the assumption is written into the posterior's diagnostics and without it the class posterior is refused). Typed refusals that name their next attempt: the closed-form sequential-ignorability range needs independent rows and a declared mediator; caller-weighted average derivatives and non-identity scales refuse (next attempt: check chosen points); a row bootstrap refuses a masked, weighted, non-float or incomplete table (subset stability runs; next attempt: resolve missing values first); a class with more than 512 members, a PAG posterior and a lagged class posterior refuse the common cause (next attempt: sample members of a larger class, or refute one accepted structure); the graph negative controls need a variable the graph separates, else one is declared"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -271,7 +271,7 @@ id = "P13.refuter.static.bayesian"
 method = "P13.refuter"
 side = "static.bayesian"
 status = "not_supported"
-reason = "executing and unsupported: prior sensitivity refits the compiled study under alternative isotropic prior scales and the posterior-predictive check replicates the target from a reference linear-Gaussian outcome model; pass thresholds are unmeasured. Typed refusals that name their next attempt: a study with an explicit coefficient prior or prior artifact has no single scale to vary (next attempt: prepare the study under each alternative prior set and pass the target draws to prior_sensitivity_target_check); the posterior-predictive check refuses a masked or weighted table and a route that retains no target draws"
+reason = "executing and unsupported: prior sensitivity refits the compiled study under alternative isotropic prior scales and the posterior-predictive check replicates the target from a reference linear-Gaussian outcome model; pass thresholds are not_measured. Typed refusals that name their next attempt: a study with an explicit coefficient prior or prior artifact has no single scale to vary (next attempt: prepare the study under each alternative prior set and pass the target draws to prior_sensitivity_target_check); the posterior-predictive check refuses a masked or weighted table and a route that retains no target draws"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -279,7 +279,7 @@ id = "P13.refuter.temporal.frequentist"
 method = "P13.refuter"
 side = "temporal.frequentist"
 status = "not_supported"
-reason = "executing and unsupported: placebo timing, contiguous-window subset stability, pre-trend and anticipation entries run through the compiled program on series and panels, with error rates and pass thresholds unmeasured; a route that reads no row weights takes the bootstrap, pre-trend, anticipation and lagged-placebo refuters as explicit gathered windows and circular-block series (TargetRefitOptions::gathered_resamples forces that construction). The closed-form sequential-ignorability range refuses series (next attempt: the temporal mediation suite's placebo-mediator and contiguous-window checks); a gathered window joins blocks at seams that the weighted construction does not"
+reason = "executing and unsupported: placebo timing, contiguous-window subset stability, pre-trend and anticipation entries run through the compiled program on series and panels, with error rates and pass thresholds not_measured; a route that reads no row weights takes the bootstrap, pre-trend, anticipation and lagged-placebo refuters as explicit gathered windows and circular-block series (TargetRefitOptions::gathered_resamples forces that construction). The closed-form sequential-ignorability range refuses series (next attempt: the temporal mediation suite's placebo-mediator and contiguous-window checks); a gathered window joins blocks at seams that the weighted construction does not"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -287,7 +287,7 @@ id = "P13.refuter.temporal.bayesian"
 method = "P13.refuter"
 side = "temporal.bayesian"
 status = "not_supported"
-reason = "executing and unsupported: prior sensitivity refits the temporal study under alternative prior scales, and the posterior-predictive check replicates a series or the pooled units of a panel under a reference outcome model that carries the graph's lags (the outcome on the treatment, the adjustment set and its own lagged values, simulated recursively); pass thresholds are unmeasured. Typed refusals that name their next attempt: an explicit coefficient prior has no single scale to vary (next attempt: pass the draws of each alternative prior to prior_sensitivity_target_check); the lagged reference is a linear autoregression, so a route whose outcome model is not linear in its own lags is checked against that reference, not its own"
+reason = "executing and unsupported: prior sensitivity refits the temporal study under alternative prior scales, and the posterior-predictive check replicates a series or the pooled units of a panel under a reference outcome model that carries the graph's lags (the outcome on the treatment, the adjustment set and its own lagged values, simulated recursively); pass thresholds are not_measured. Typed refusals that name their next attempt: an explicit coefficient prior has no single scale to vary (next attempt: pass the draws of each alternative prior to prior_sensitivity_target_check); the lagged reference is a linear autoregression, so a route whose outcome model is not linear in its own lags is checked against that reference, not its own"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -407,7 +407,7 @@ id = "X03.temporal.frequentist"
 method = "X03"
 side = "temporal.frequentist"
 status = "not_supported"
-reason = "Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
+reason = "Whole-procedure calibration of the selection-and-decomposition law is not_measured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -415,7 +415,7 @@ id = "X03.temporal.bayesian"
 method = "X03"
 side = "temporal.bayesian"
 status = "not_supported"
-reason = "Whole-procedure calibration of the selection-and-decomposition law is unmeasured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
+reason = "Whole-procedure calibration of the selection-and-decomposition law is not_measured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -423,7 +423,7 @@ id = "X04.1.static.frequentist"
 method = "X04.1"
 side = "static.frequentist"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -431,7 +431,7 @@ id = "X04.1.static.bayesian"
 method = "X04.1"
 side = "static.bayesian"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -439,7 +439,7 @@ id = "X04.1.temporal.frequentist"
 method = "X04.1"
 side = "temporal.frequentist"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -447,7 +447,7 @@ id = "X04.1.temporal.bayesian"
 method = "X04.1"
 side = "temporal.bayesian"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -455,7 +455,7 @@ id = "X04.2.static.frequentist"
 method = "X04.2"
 side = "static.frequentist"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -463,7 +463,7 @@ id = "X04.2.static.bayesian"
 method = "X04.2"
 side = "static.bayesian"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -471,7 +471,7 @@ id = "X04.2.temporal.frequentist"
 method = "X04.2"
 side = "temporal.frequentist"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -479,7 +479,7 @@ id = "X04.2.temporal.bayesian"
 method = "X04.2"
 side = "temporal.bayesian"
 status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains unmeasured."
+reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
@@ -487,7 +487,7 @@ id = "X05.temporal.bayesian"
 method = "X05"
 side = "temporal.bayesian"
 status = "not_supported"
-reason = "Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed; the delivered chain is unmeasured as a whole procedure."
+reason = "Joint observational-experimental refitting, new-regime bridge proofs and whole-chain Q09/E14 calibration are not claimed; the delivered chain is not_measured as a whole procedure."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -495,7 +495,7 @@ id = "X06.temporal.frequentist"
 method = "X06"
 side = "temporal.frequentist"
 status = "not_supported"
-reason = "Q09/E14 whole-procedure calibration and uncertainty validation remain unmeasured; no nominal interval support or arbitrary observational causal identification."
+reason = "Q09/E14 whole-procedure calibration and uncertainty validation remain not_measured; no nominal interval support or arbitrary observational causal identification."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -503,7 +503,7 @@ id = "X06.temporal.bayesian"
 method = "X06"
 side = "temporal.bayesian"
 status = "not_supported"
-reason = "Q09/E14 whole-procedure calibration and posterior uncertainty validation remain unmeasured."
+reason = "Q09/E14 whole-procedure calibration and posterior uncertainty validation remain not_measured."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -695,7 +695,7 @@ id = "supported.DirectionalDerivative.Dag#static.frequentist"
 method = "DirectionalDerivative"
 side = "static.frequentist"
 status = "supported"
-reason = "the route publishes a point value and no interval (declared_unmeasured)"
+reason = "the route publishes a point value and no interval (declared_not_measured)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -759,7 +759,7 @@ id = "supported.ResponseJacobian.Dag#static.frequentist"
 method = "ResponseJacobian"
 side = "static.frequentist"
 status = "supported"
-reason = "the route publishes a point value and no interval (declared_unmeasured)"
+reason = "the route publishes a point value and no interval (declared_not_measured)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[audited_attempt]]

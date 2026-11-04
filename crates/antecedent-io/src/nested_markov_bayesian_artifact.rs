@@ -82,7 +82,7 @@ pub struct Artifact {
     pub coordinates: Vec<String>,
     /// Declared sampling assumption.
     pub sampling: String,
-    /// Original candidate standing remains unmeasured; a distinct outer envelope resolves scalar authority.
+    /// Original candidate standing remains not_measured; a distinct outer envelope resolves scalar authority.
     pub calibration: String,
     /// Inferential standing, distinct from nonparametric identification.
     pub inference: String,
@@ -159,7 +159,7 @@ pub enum BayesianFunctional {
 impl Artifact {
     /// Actual candidate construction for its own later calibration suite.
     /// Prior families and frozen numerical settings are read from this receipt;
-    /// unmeasured variants cannot borrow a different prior/settings record.
+    /// not_measured variants cannot borrow a different prior/settings record.
     #[must_use]
     pub fn calibration_basis(
         &self,
@@ -184,7 +184,7 @@ impl Artifact {
         } else if fixed && all_shapes(2.0) {
             "continuous_truncated_beta_mobius_beta2"
         } else {
-            "continuous_truncated_beta_mobius_declared_unmeasured"
+            "continuous_truncated_beta_mobius_declared_not_measured"
         };
         #[allow(
             clippy::cast_possible_truncation,
@@ -238,8 +238,8 @@ impl Artifact {
             rng: nested_markov_bayesian::RNG.into(),
             coordinates: nested_markov_bayesian::COORDINATES.iter().map(|s| (*s).into()).collect(),
             sampling: SAMPLING.into(),
-            calibration: "unmeasured".into(),
-            inference: "posterior_candidate_withheld_calibration_unmeasured".into(),
+            calibration: "not_measured".into(),
+            inference: "posterior_candidate_withheld_calibration_not_measured".into(),
             point,
             prior,
             options,
@@ -291,8 +291,8 @@ impl Artifact {
             || wire.rng != nested_markov_bayesian::RNG
             || wire.coordinates != nested_markov_bayesian::COORDINATES
             || wire.sampling != SAMPLING
-            || wire.calibration != "unmeasured"
-            || wire.inference != "posterior_candidate_withheld_calibration_unmeasured"
+            || wire.calibration != "not_measured"
+            || wire.inference != "posterior_candidate_withheld_calibration_not_measured"
         {
             return Err(invalid("unsupported format or inferential standing"));
         }

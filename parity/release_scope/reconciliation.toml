@@ -3,11 +3,11 @@
 # missing element. Regenerate with: python3 scripts/reconcile_release_scope.py
 
 schema = 1
-rows = 234
-reconciled = 233
+rows = 235
+reconciled = 234
 open = 1
-mandatory_rows = 229
-mandatory_reconciled = 229
+mandatory_rows = 230
+mandatory_reconciled = 230
 mandatory_open = 0
 
 [[row]]
@@ -1107,6 +1107,15 @@ status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/dose.rs", "crates/antecedent-estimate"]
 fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
+
+[[row]]
+id = "P07.quantile.static.frequentist"
+source = "method_children"
+list = "mandatory"
+status = "reconciled"
+owner = ["crates/antecedent-estimate/src/randomized_quantile.rs", "crates/antecedent-estimate"]
+fixtures = ["crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none"]
+consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/randomized_quantile_known_truth.rs"]
 
 [[row]]
 id = "P07.quantile.static.bayesian"

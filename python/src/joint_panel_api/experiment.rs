@@ -227,7 +227,7 @@ fn future_problem(declaration_json: &str) -> PyResult<FutureProblem> {
     Ok((problem, candidates))
 }
 fn ranking_json(rows: &[facade::PanelFutureSampleValue]) -> String {
-    serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string()
+    serde_json::json!({"scope":"model_conditional","calibration":"not_measured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string()
 }
 #[pyclass(name = "_JointPanelExperiment", frozen)]
 pub(crate) struct PyPanelExperiment {
@@ -263,7 +263,7 @@ impl PyPanelExperiment {
         crate::detach_catch(py, || {
             let (prior, posterior) = self.inner.response_means(ledger).map_err(panel_error)?;
             let law = self.inner.numerical_law_source(ledger).map_err(panel_error)?;
-            Ok(serde_json::json!({"prior_means":prior,"posterior_means":posterior,"posterior_weights":law.metadata().weights,"scope":self.inner.scope(),"quantities":self.inner.quantities(ledger).map_err(panel_error)?.iter().map(antecedent::io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+            Ok(serde_json::json!({"prior_means":prior,"posterior_means":posterior,"posterior_weights":law.metadata().weights,"scope":self.inner.scope(),"quantities":self.inner.quantities(ledger).map_err(panel_error)?.iter().map(antecedent::io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),"modular_policy":"frozen_joint_importance","calibration":"not_measured"}).to_string())
         })
     }
     fn decide(
@@ -423,7 +423,7 @@ impl PyPanelExperiment {
                 .rank_next_studies(&problem, &studies, replicates, &ledger, &ctx)
                 .map_err(panel_error)
         })?;
-        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.value.id,"gross_evsi":r.value.gross_evsi,"standard_error":r.value.standard_error,"net_value":r.value.net_value,"dependency_identity":r.value.dependency_identity.to_hex(),"question_identity":r.value.question_identity.to_hex(),"admissible_action_identity":r.value.admissible_action_identity.to_hex(),"regime_identity":r.regime_identity.map(|d|d.to_hex())})).collect::<Vec<_>>()}).to_string())
+        Ok(serde_json::json!({"scope":"model_conditional","calibration":"not_measured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.value.id,"gross_evsi":r.value.gross_evsi,"standard_error":r.value.standard_error,"net_value":r.value.net_value,"dependency_identity":r.value.dependency_identity.to_hex(),"question_identity":r.value.question_identity.to_hex(),"admissible_action_identity":r.value.admissible_action_identity.to_hex(),"regime_identity":r.regime_identity.map(|d|d.to_hex())})).collect::<Vec<_>>()}).to_string())
     }
 }
 #[pymethods]
@@ -543,7 +543,7 @@ impl PyDesignExperiment {
                 .rank_next_samples(&problem, &candidates, replicates, &ledger, &ctx)
                 .map_err(panel_error)
         })?;
-        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
+        Ok(serde_json::json!({"scope":"model_conditional","calibration":"not_measured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
     }
     fn report(&self, py: Python<'_>, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
         let ledger = ledger.ledger();
@@ -552,7 +552,7 @@ impl PyDesignExperiment {
             let means = (0..law.shape()[1])
                 .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
                 .collect::<PyResult<Vec<_>>>()?;
-            Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+            Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_not_measured","modular_policy":"frozen_joint_importance","calibration":"not_measured"}).to_string())
         })
     }
     fn decide(
@@ -728,7 +728,7 @@ impl PyNativeExperiment {
                 .rank_next_samples(&problem, &candidates, replicates, &ledger, &ctx)
                 .map_err(panel_error)
         })?;
-        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
+        Ok(serde_json::json!({"scope":"model_conditional","calibration":"not_measured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
     }
     fn report(&self, py: Python<'_>, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
         let ledger = ledger.ledger();
@@ -737,7 +737,7 @@ impl PyNativeExperiment {
             let means = (0..law.shape()[1])
                 .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
                 .collect::<PyResult<Vec<_>>>()?;
-            Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","identification":self.inner.identification(),"local_ratio_regularization":self.inner.local_ratio_regularization(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+            Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_not_measured","identification":self.inner.identification(),"local_ratio_regularization":self.inner.local_ratio_regularization(),"modular_policy":"frozen_joint_importance","calibration":"not_measured"}).to_string())
         })
     }
     fn decide(

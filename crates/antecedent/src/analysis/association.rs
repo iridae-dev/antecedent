@@ -2,7 +2,7 @@
 //!
 //! An association describes the observed law of the columns. It is never the effect of an
 //! intervention, ranks no action, and carries no coverage record: its standard errors, spreads
-//! and posterior intervals are labelled `unmeasured`. A predictive model is scored on held-out
+//! and posterior intervals are labelled `not_measured`. A predictive model is scored on held-out
 //! cases with the proper scores of the predictive-assessment contract (the Gaussian logarithmic
 //! score and CRPS for a real outcome, the Brier score for a 0/1 outcome, the Poisson logarithmic
 //! score and the finite-law CRPS for a count), against the training-mean baseline on the same
@@ -18,7 +18,7 @@ use antecedent_validate::predictive_assessment::{
 };
 
 /// Calibration label of every association result.
-pub const ASSOCIATION_CALIBRATION: &str = "unmeasured";
+pub const ASSOCIATION_CALIBRATION: &str = "not_measured";
 /// Most atoms a count forecast's finite law keeps; the window `rate +- (12 sd + 20)` fits this
 /// bound for every rate below about 2.7e10.
 const MAX_COUNT_ATOMS: usize = 4_000_000;

@@ -390,7 +390,7 @@ def test_the_same_seeds_give_the_same_estimate_and_another_split_seed_another_sp
     assert other.receipt_identity != first.receipt_identity
 
 
-def test_an_unmeasured_variable_count_is_computed_and_reported_uncalibrated() -> None:
+def test_an_not_measured_variable_count_is_computed_and_reported_uncalibrated() -> None:
     # Twelve variables lie between measured counts: the interval is reported, annotated as not
     # calibrated rather than borrowing another count's record.
     estimate = sd.sample_split_parent_set_effect(

@@ -1511,7 +1511,7 @@ fn native_experiment_decision_full_procedure_calibration_l95() {
     );
     assert!(
         (0.90..=0.99).contains(&coverage),
-        "unmeasured candidate failed the declared broad calibration tolerance"
+        "not_measured candidate failed the declared broad calibration tolerance"
     );
     assert!(
         decisions_changed > 0,

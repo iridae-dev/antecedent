@@ -459,7 +459,7 @@ def test_posterior_covers_the_closed_form_target_with_the_joint_covariance(desig
     result = require_success(study.posterior(posterior_model()))
     row = result.posterior
     assert row.estimator == "bayesian.smoothed_dose"
-    assert (row.uncertainty, row.calibration, row.supported) == ("posterior", "unmeasured", False)
+    assert (row.uncertainty, row.calibration, row.supported) == ("posterior", "not_measured", False)
     assert row.coordinates == ("psi_h(1)", "psi_h(2)", "psi_h(3)")
     # psi_h(a) = a^2 + h^2/5 + mean_T(z) (1 + a/2) for the observed target sample.
     target = np.asarray(data.covariates["z"])[~np.asarray(data.source)]

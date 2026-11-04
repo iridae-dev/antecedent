@@ -281,7 +281,7 @@ pub(crate) fn adapt_prior_signal(
                     },
                 });
                 observations.extend(input.observation_ids.iter().cloned());
-                digests.push(antecedent::schema::blake3_hex(bytes));
+                digests.push(antecedent::identity::blake3_hex(bytes));
             }
             refs.push(match bytes {
                 Some(bytes) => PriorSourceRef::with_bytes(meta, bytes),
@@ -337,10 +337,10 @@ pub(crate) fn adapt_prior_signal(
             ));
         }
         let d = &adapted.diagnostics;
-        let diagnostics_json = serde_json::json!({"source_posteriors":posterior_diagnostics,"prior_approximation":"deterministic_resampled_original_posterior_draws","calibration":"unmeasured","source_ids":d.source_ids,"effective_weights":d.effective_weights,"draws_allocated":d.draws_allocated,"pooled_mean":d.pooled_mean,"lineage":d.lineage,"observations_checked":d.observations_checked,"overlapping_observations":d.overlapping_observations,"transport_policy_id":d.transport_policy_id,"source_digest":d.source_digest}).to_string();
+        let diagnostics_json = serde_json::json!({"source_posteriors":posterior_diagnostics,"prior_approximation":"deterministic_resampled_original_posterior_draws","calibration":"not_measured","source_ids":d.source_ids,"effective_weights":d.effective_weights,"draws_allocated":d.draws_allocated,"pooled_mean":d.pooled_mean,"lineage":d.lineage,"observations_checked":d.observations_checked,"overlapping_observations":d.overlapping_observations,"transport_policy_id":d.transport_policy_id,"source_digest":d.source_digest}).to_string();
         digests.push(d.source_digest.clone());
         // Bind population/maps/declared observation lineage, not only numerical adapter rows.
-        digests.push(antecedent::schema::blake3_hex(request_json.as_bytes()));
+        digests.push(antecedent::identity::blake3_hex(request_json.as_bytes()));
         Ok((
             Some(CheckedPriorSignal {
                 adapted,

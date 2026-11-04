@@ -426,7 +426,7 @@ def test_compiled_excursion_conditions_panel_only_under_explicit_bridge():
     updated = result.condition_excursion(
         evidence=evidence, component="y", likelihood_assumption_id="gaussian-excursion", **args
     )
-    assert updated.report(ledger)["calibration"] == "unmeasured"
+    assert updated.report(ledger)["calibration"] == "not_measured"
     with pytest.raises(CausalValueError):
         result.condition_excursion(
             evidence=evidence, component="y", likelihood_assumption_id="missing", **args
@@ -540,7 +540,7 @@ def test_compiled_excursion_conditions_panel_jointly_with_the_retained_covarianc
     )
     updated = result.condition_joint_excursion(**args)
     summary = updated.report(ledger)
-    assert summary["calibration"] == "unmeasured"
+    assert summary["calibration"] == "not_measured"
     assert len(summary["quantities"]) == 2 and summary["posterior_weights"] is not None
     total = {"op": "add", "args": [{"input": 0}, {"input": 1}]}
     moments = updated.derived_quantity(total, ledger)

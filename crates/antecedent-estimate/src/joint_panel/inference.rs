@@ -395,7 +395,7 @@ pub(super) fn fit(
             failed_draws: 0,
             uncertainty: String::new(),
             claim: "model_conditional_mechanism_only".into(),
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
         };
         let draws = match &options.inference {
             PanelInference::Frequentist { draws } => {

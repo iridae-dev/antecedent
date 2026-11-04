@@ -56,8 +56,6 @@ markers below and compares it. Prose outside those markers is not read.
 | temporal.new_period_refresh | max_horizon | 2 | `crates/antecedent-estimate/src/temporal_refresh.rs` |
 | counterfactual.temporal_fixed_population | max_horizon | 2 | `crates/antecedent-counterfactual/src/temporal_cross_world.rs` |
 | counterfactual.temporal_fixed_population | max_units | 100000 | `crates/antecedent-counterfactual/src/temporal_cross_world.rs` |
-| recovery.sampled_observation | min_replicates | 2000 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
-| recovery.sampled_observation | max_replicates | 2000 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
 | recovery.sampled_observation | max_rows | 1000000 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
 | recovery.sampled_observation | max_binary_variables | 6 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
 | distribution.aligned_joint_draws | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |

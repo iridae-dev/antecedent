@@ -51,7 +51,7 @@ A point source whose ``standard_error`` is declared, through a mapping that decl
 :class:`MappingUncertainty` and :class:`SourceDependence`, also carries the first-order propagated
 variance of the bridged value (:attr:`BridgedClaim.propagated_variance`,
 :meth:`BridgedClaim.propagated_uncertainty`), read as an ``uncalibrated_spread`` whose calibration
-is unmeasured and never as an interval. The claim ``value`` stays the plug-in value; the propagated
+is not_measured and never as an interval. The claim ``value`` stays the plug-in value; the propagated
 mean (bias-corrected when ``SourceClaim.nonlinear`` asks for the expectation of a ``square``) is
 reported beside it. The dependence is never assumed: a declared uncertainty with no declared
 dependence is refused ``scientific_bridge.source_dependence_missing``.
@@ -1023,7 +1023,7 @@ class PropagatedUncertainty(ScientificResult):
     ``plug_in_value`` is the claim value; ``mean`` is the propagated mean (the plug-in value plus
     the declared slope-source covariance) and ``propagated_mean`` is the bias-corrected expectation
     when a ``nonlinear`` map was asked for. ``variance`` is read as ``reading``
-    (``uncalibrated_spread``) with ``calibration`` ``unmeasured``: it is not an interval, which
+    (``uncalibrated_spread``) with ``calibration`` ``not_measured``: it is not an interval, which
     stays the separate, scoped :meth:`BridgedClaim.interval`. ``dependence`` is the declared
     dependence the variance was built from.
     """
@@ -1526,7 +1526,7 @@ class BridgedDistribution(ScientificResult):
     column, row for row and with the source table's alignment identity (``alignment_identity``),
     so the bridged column still pairs by index with every column it was sampled with. ``mean`` and
     ``variance`` summarize it. ``reading`` is ``uncalibrated_spread`` and ``calibration`` is
-    ``unmeasured``: the spread is not an interval, and :meth:`interval` publishes one only inside
+    ``not_measured``: the spread is not an interval, and :meth:`interval` publishes one only inside
     a measured design. The bridge's declared assumptions stay in ``unresolved``, with the
     assumption that the mapping's evidence is independent of the other columns of the table.
     """

@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(prepared.fits_performed(), 1);
         assert_eq!(result.point, again.point);
         println!(
-            "fit count after reuse: {}; calibration remains unmeasured",
+            "fit count after reuse: {}; calibration remains not_measured",
             prepared.fits_performed()
         );
     }

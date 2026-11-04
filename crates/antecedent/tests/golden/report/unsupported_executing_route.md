@@ -57,7 +57,7 @@
 | no\_interference | declared |
 | positivity | declared |
 | custom:sequential\_conditional\_exchangeability | declared |
-| custom:no\_unmeasured\_second\_decision\_confounder | declared |
+| custom:no\_not_measured\_second\_decision\_confounder | declared |
 | custom:nuisance\_product\_rate | declared |
 
 ## Diagnostics and evidence

@@ -1,6 +1,6 @@
 # Interval for sampled recovery
 
-When binary variables are missing by a mechanism you declare in a graph, `antecedent.transport.advanced.sampled_observation_recovery` recovers the effect from observed rows and returns an interval for the named `recovered_effect`. It returns a checked `inference.MeasuredInference` at level 0.95 only when the original recovery derivation and method resolve to a current attesting coverage record. The record covers 2,000 whole-row bootstrap draws and sample counts of 1000 to 4000; other sample sizes or protocols cannot inherit it. The missingness assumptions in the graph and independent observations are declared premises, and the source artifact remains `unmeasured` outside the named endpoints.
+When binary variables are missing by a mechanism you declare in a graph, `antecedent.transport.advanced.sampled_observation_recovery` recovers the effect from observed rows and returns an interval for the named `recovered_effect`. It returns a checked `inference.MeasuredInference` at level 0.95 only when the original recovery derivation and method resolve to a current attesting coverage record. The record covers 2,000 whole-row bootstrap draws and sample counts of 1000 to 4000; other sample sizes or protocols cannot inherit it. The missingness assumptions in the graph and independent observations are declared premises, and the source artifact remains `not_measured` outside the named endpoints.
 
 ## How the interval is built
 

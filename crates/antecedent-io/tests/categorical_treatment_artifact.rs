@@ -3,7 +3,7 @@
 //! row-based fit), the absence of a row ceiling, the computation and export budgets, the digest
 //! binding of a summary to its rows, Holm multiplicity over the declared family, the declared
 //! monotonicity test and its null, sparse/absent/undeclared-level refusals, resealed-mutation
-//! refusals against a retained identity, unresealed tampering and the unmeasured calibration
+//! refusals against a retained identity, unresealed tampering and the not_measured calibration
 //! coordinate.
 //!
 //! Frozen dataset A (rows interleaved on purpose): `a = [1,3]`, `b = [4,6,5]`, `c = [9,7,11,9]`;
@@ -204,7 +204,7 @@ fn categorical_artifact_monotonicity_result_and_null_are_stored_and_replayed() {
     // p = min(1, 2 Phi(z)) = erfc(sqrt(3/4)).
     close(mono.p_value, erfc(0.75_f64.sqrt()), "conservative union-intersection p");
     assert!(mono.conservative);
-    assert_eq!(mono.calibration, "unmeasured");
+    assert_eq!(mono.calibration, "not_measured");
     assert!(report.caveats[2].contains("failing to reject does not prove"), "{:?}", report.caveats);
     // The opposite direction has a different null and the reverse orientation (p = 1 here).
     let mut down = ordered_request();
@@ -218,14 +218,14 @@ fn categorical_artifact_monotonicity_result_and_null_are_stored_and_replayed() {
 }
 
 #[test]
-fn categorical_artifact_calibration_is_unmeasured_and_says_so() {
+fn categorical_artifact_calibration_is_not_measured_and_says_so() {
     let report = export(&abc_request()).0.report();
     assert_eq!(report.calibration, CATEGORICAL_TREATMENT_CALIBRATION);
-    assert_eq!(report.calibration, "unmeasured");
-    assert_eq!(report.result.calibration, "unmeasured");
-    assert_eq!(report.inference_claim, "asymptotic_wald_calibration_unmeasured");
+    assert_eq!(report.calibration, "not_measured");
+    assert_eq!(report.result.calibration, "not_measured");
+    assert_eq!(report.inference_claim, "asymptotic_wald_calibration_not_measured");
     assert_eq!(report.version, CATEGORICAL_TREATMENT_ARTIFACT_VERSION);
-    assert!(report.caveats[0].contains("calibration is unmeasured"), "{:?}", report.caveats);
+    assert!(report.caveats[0].contains("calibration is not_measured"), "{:?}", report.caveats);
 }
 
 #[test]

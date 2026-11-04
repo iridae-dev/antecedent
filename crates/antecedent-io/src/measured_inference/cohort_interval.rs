@@ -7,7 +7,7 @@
 //! weighted cohort mean and its model-based standard error from the stored rows and
 //! coefficients, and issues `point +/- t_{n-p} se`. The reported scalar must resolve to
 //! a currently attesting calibration record of the native construction; a declared
-//! (caller-built) export, a shifted cohort and an unmeasured level are refused.
+//! (caller-built) export, a shifted cohort and a not_measured level are refused.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,

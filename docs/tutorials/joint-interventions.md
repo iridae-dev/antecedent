@@ -108,7 +108,7 @@ assert randomized["identified"] is True
 
 With the whole-program assignment declared, the programs are identified, provided `exogenous_context=True` declares the covariate and season paths exogenous to the programs (in this fixture they are generated independently of the whole-program assignment). Leave that declaration out and the attempt is rejected again. This inspection fits nothing: identification comes from the design and the declarations, not from the fit.
 
-What identification does not do is fix the fit's uncertainty. With one group per program there is no replication, so the example does not fit that dataset, and numerical results from any fit stay model-conditional with calibration unmeasured.
+What identification does not do is fix the fit's uncertainty. With one group per program there is no replication, so the example does not fit that dataset, and numerical results from any fit stay model-conditional with calibration not_measured.
 
 ## Continue with the result
 

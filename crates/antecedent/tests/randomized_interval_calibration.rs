@@ -774,7 +774,7 @@ fn decision_margin_centered_cuped_cluster_delta_interval() {
     measure_decision_margin("decision_margin_centered_cuped_cluster_delta_interval", true);
 }
 
-/// Registered but unmeasured coverage design for the joint matched-pair margin.
+/// Registered but not_measured coverage design for the joint matched-pair margin.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn decision_margin_matched_pair_delta_interval() {
@@ -862,7 +862,7 @@ fn decision_margin_matched_pair_delta_interval() {
     tally.assert();
 }
 
-/// Registered but unmeasured coverage design for the joint sequence-level switchback margin.
+/// Registered but not_measured coverage design for the joint sequence-level switchback margin.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn decision_margin_switchback_delta_interval() {
@@ -978,7 +978,7 @@ fn bind_decision_candidate(tally: &mut CoverageTally, basis: &antecedent_core::C
     );
 }
 
-/// Registered, unmeasured coverage design for a lagged randomized excursion margin.
+/// Registered, not_measured coverage design for a lagged randomized excursion margin.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 #[allow(
@@ -1075,7 +1075,7 @@ fn decision_margin_lagged_excursion_delta_interval() {
     tally.assert();
 }
 
-/// Registered, unmeasured joint whole-subject regime bootstrap margin design.
+/// Registered, not_measured joint whole-subject regime bootstrap margin design.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn decision_margin_static_regime_bootstrap_delta_interval() {
@@ -1171,7 +1171,7 @@ fn decision_margin_static_regime_bootstrap_delta_interval() {
     tally.assert();
 }
 
-/// Registered, unmeasured coverage design for finite-history adaptive-policy jackknife margins.
+/// Registered, not_measured coverage design for finite-history adaptive-policy jackknife margins.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn decision_margin_adaptive_regime_jackknife_delta_interval() {

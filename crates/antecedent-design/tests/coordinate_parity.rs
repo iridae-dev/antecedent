@@ -961,7 +961,7 @@ fn consume_python_fixtures() {
     assert_eq!(consumed.ranking.entries[0].semantic_id, "cand-1");
     assert!((consumed.ranking.entries[0].net_value.unwrap() - 0.15).abs() < 1e-12);
     assert!((consumed.ranking.entries[1].net_value.unwrap() - 0.025).abs() < 1e-12);
-    assert_eq!(consumed.calibration, "unmeasured");
+    assert_eq!(consumed.calibration, "not_measured");
     // Python's chain over the same bytes equals Rust's over the same constants.
     let loaded = DesignRankingArtifactWire::from_bytes(&bytes).unwrap();
     assert_eq!(loaded.provenance_chain().unwrap().links().len(), 8);

@@ -128,7 +128,7 @@ fn nonlinear_margin_from_a_clustered_experiment_keeps_dependence_and_inherits_no
     let r = derive(&ev, &request(), &q).unwrap();
     let s = r.sampling.as_ref().expect("40 clusters per arm support an interval");
     assert!(r.contrast.unwrap() > 0.0 && s.standard_error > 0.0);
-    assert_eq!((r.support, r.calibration), ("none", "unmeasured"));
+    assert_eq!((r.support, r.calibration), ("none", "not_measured"));
 
     // Dependence is retained: zeroing the cross-component covariance changes the answer.
     let mut independent = ev.clone();
@@ -1404,7 +1404,7 @@ fn static_regime_bootstrap_refits_outcomes_with_the_same_subject_weights() {
     };
     let result = derive(bound.numerical_evidence(), &request, &quantity).unwrap();
     assert!(result.sampling.is_some());
-    assert_eq!((result.support, result.calibration), ("none", "unmeasured"));
+    assert_eq!((result.support, result.calibration), ("none", "not_measured"));
     let artifact = bound.source().export_artifact().unwrap();
     assert_eq!(
         bound.source().prepared().consume_current(&artifact, &ctx).unwrap().law(),
@@ -1638,7 +1638,7 @@ fn adaptive_regime_compiler_keeps_history_joint_covariance_and_target() {
     assert_eq!(result.contrast, Some(7.0));
     assert!(result.sampling.is_some());
     assert_eq!(result.support, "none");
-    assert_eq!(result.calibration, "unmeasured");
+    assert_eq!(result.calibration, "not_measured");
     let mut wrong = req.clone();
     wrong.target = Target::Regime {
         periods: 2,

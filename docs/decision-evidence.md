@@ -35,7 +35,7 @@ A quantity is evaluated in each arm at that arm's component means; the contrast 
 
 The answer carries:
 
-- `sampling`: delta-method estimate, standard error and 95% interval through the joint covariance. Calibration is `unmeasured` and `support` is `none`.
+- `sampling`: delta-method estimate, standard error and 95% interval through the joint covariance. Calibration is `not_measured` and `support` is `none`.
 - `assumption_range`: the extremes of the contrast over the declared assumptions. Exact when the expression reads each input once (vertex enumeration of a multilinear function); otherwise a guaranteed outer bound, labeled so. It is not a probability law.
 - `unresolved`: why no resolved answer exists: `missing_input`, `joint_law_missing`, `too_few_independent_units`, `sampling_unavailable` (a kink or unstable covariance calculation prevents a reliable interval), `sampling_straddles_threshold`.
 

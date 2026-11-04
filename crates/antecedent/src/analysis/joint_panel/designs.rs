@@ -878,7 +878,7 @@ impl JointDesignResult {
             shape: [posterior.draws.len(), quantities.len()],
             weights: None,
             supported: Some(vec![true; quantities.len()]),
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

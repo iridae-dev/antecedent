@@ -277,7 +277,7 @@ commit. It then works in four steps:
    `target/calibration-archives/`. Each group's console
    output goes to `target/calibration-console/`, and its wall time is appended
    to `target/calibration-timings.tsv` for post-run review.
-3. It runs `scripts/collect_coverage_records.py --keep-unmeasured` (without the
+3. It runs `scripts/collect_coverage_records.py --keep-not_measured` (without the
    flag under `--all`). Each record is stamped with the commit it was measured
    at and the fingerprint of its test there. Records the logs do not re-measure
    keep their own `calibration_sha` and `fingerprint`.

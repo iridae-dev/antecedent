@@ -124,7 +124,7 @@ def quasi_rollout_from_wire(wire: Any) -> QuasiRolloutEstimate | None:
         diagnostics=tuple(
             (str(name), float(value)) for name, value in wire.get("diagnostics") or ()
         ),
-        calibration=str(wire.get("calibration", "unmeasured")),
+        calibration=str(wire.get("calibration", "not_measured")),
         supported=bool(wire.get("supported", False)),
     )
 

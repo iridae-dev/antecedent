@@ -127,7 +127,7 @@ Rust exposes separate interval producers:
   population weights and independent homoskedastic Gaussian arm-linear outcomes,
   with conditional outcome-noise and random-target uncertainty in the population
   score. `population_score_interval` has a separately measured cluster scope;
-  that evidence does not support its unmeasured iid working-quadratic variant.
+  that evidence does not support its not_measured iid working-quadratic variant.
 - `AipwAte`, `DmlAte` and `DrLearner::population_linear_interval`: independent
   homoskedastic Gaussian arm-linear outcomes, complete training-fit uncertainty
   and the declared projection/ridge correction.
@@ -200,7 +200,7 @@ graph** (discovery saw none of these rows); weights are normalized to mean one o
 used; the standard error defaults to the sampling-weighted HC3 sandwich (explicit HC1 remains available for historical replay), or the cluster sandwich over
 declared analysis-part clusters; rows of weight zero are excluded and counted; and the Kish
 size is reported. The result carries the binding that ties it to the split receipt and the
-discovery. Its interval method returns a computed Student interval labelled unmeasured; whole-procedure records belong to the exact declared discovery/split/variance recipe and do not supply automatic calibration authority to an arbitrary split.
+discovery. Its interval method returns a computed Student interval labelled not_measured; whole-procedure records belong to the exact declared discovery/split/variance recipe and do not supply automatic calibration authority to an arbitrary split.
 
 In Python, estimate on the analysis part with `weights=split.analysis_weights`:
 

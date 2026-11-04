@@ -177,7 +177,7 @@ class MeasuredScalar:
 
 @dataclass(frozen=True, slots=True, init=False)
 class MeasuredInference:
-    """Immutable measured scalar carrier, separate from its original unmeasured source."""
+    """Immutable measured scalar carrier, separate from its original not_measured source."""
 
     _native: Any = field(repr=False)
     _body: Mapping[str, Any] = field(repr=False)
@@ -267,7 +267,7 @@ class MeasuredInference:
         return dict(json.loads(self._native.source_report()))
 
     def source_artifact(self) -> bytes:
-        """Original candidate bytes, retaining their own unmeasured calibration label."""
+        """Original candidate bytes, retaining their own not_measured calibration label."""
         return bytes(self._native.source_artifact())
 
     @classmethod

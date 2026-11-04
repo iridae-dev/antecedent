@@ -1125,7 +1125,7 @@ class SplitReceipt:
     Kish effective sample size of each part's weights; ``mask_identity`` is the digest of the
     source mask when it had one.
 
-    ``whole_method_calibration`` is always ``unmeasured`` for an analysis you run yourself on the
+    ``whole_method_calibration`` is always ``not_measured`` for an analysis you run yourself on the
     analysis part. The one whole-method construction with a measured coverage record is
     :func:`sample_split_effect`, which attests its own interval.
     """

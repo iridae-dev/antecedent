@@ -7,7 +7,7 @@
 //!   specifications, the configuration, the NDE / NIE / total effects, the integration error of
 //!   the declared `n` versus `2n` Gauss-Hermite nodes, the overlap diagnostics, the bootstrap
 //!   record (seed and replicate ids, interval status closed), the identity digests, the
-//!   **unmeasured** calibration coordinate and the standing caveats;
+//!   **not_measured** calibration coordinate and the standing caveats;
 //! * `nonlinear_mediation.data` (little-endian `f64`): the compact analysis dataset
 //!   (treatment, mediator, outcome, then each covariate), or nothing when the record binds its
 //!   dataset by digest.
@@ -749,7 +749,7 @@ fn encode_parts_impl(
     let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "nonlinear_mediation_point_with_diagnostics_unmeasured",
+            note: "nonlinear_mediation_point_with_diagnostics_not_measured",
             max_bytes: MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),

@@ -670,7 +670,7 @@ class ResultAPI:
             return (
                 f"Unsupported Bayesian posterior ({posterior_row.estimator}) for "
                 f"{posterior_row.target}: {coordinates}. Equal-tailed 95% credible intervals "
-                "under the declared likelihood and prior; calibration is unmeasured and the "
+                "under the declared likelihood and prior; calibration is not_measured and the "
                 "prior supplies no identifying premise."
             )
         contrast = getattr(self, "sequential_contrast", None)
@@ -683,7 +683,7 @@ class ResultAPI:
             return (
                 f"Observational sequential contrast {contrast.contrast:g} of regime "
                 f"{contrast.active_regime} against {contrast.control_regime}: {spread}. "
-                "Unsupported; repeated-sampling calibration is unmeasured."
+                "Unsupported; repeated-sampling calibration is not_measured."
             )
         design = getattr(self, "temporal_design", None)
         if design is not None:
@@ -705,7 +705,7 @@ class ResultAPI:
             )
             return (
                 f"{rollout.design} ({rollout.method}) summary {overall.estimate:g}: {spread} "
-                f"({rollout.uncertainty}). Unsupported; calibration is unmeasured."
+                f"({rollout.uncertainty}). Unsupported; calibration is not_measured."
             )
         association = getattr(self, "association", None)
         if association is not None:
@@ -724,14 +724,14 @@ class ResultAPI:
             return (
                 f"Average effect under a binary instrument is partially identified: "
                 f"[{iv_bounds.lower:g}, {iv_bounds.upper:g}], a set and not a point."
-                f"{spread} Unsupported, calibration unmeasured."
+                f"{spread} Unsupported, calibration not_measured."
             )
         matched = getattr(self, "history_match", None)
         if matched is not None:
             return (
                 f"Within-period history-matched contrast {matched.contrast:g} on the matched "
                 "treated units. Abadie-Imbens standard error only; no interval, unsupported, "
-                "calibration unmeasured."
+                "calibration not_measured."
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:

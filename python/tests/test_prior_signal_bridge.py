@@ -248,7 +248,7 @@ def test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff():
         checked.diagnostics["prior_approximation"]
         == "deterministic_resampled_original_posterior_draws"
     )
-    assert ranked.calibration == "unmeasured"
+    assert ranked.calibration == "not_measured"
     retained = ranked.expectation()
     consumed = require_success(dr.consume(bytes(ranked.export()), expected_identity=retained))
     assert not consumed.entries[0].natively_replayed

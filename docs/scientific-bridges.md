@@ -137,7 +137,7 @@ mapping law the moments of the bridged draws are those of `a + b M` under the tr
 deterministic stream of the seed, so the mapped table is a function of the contract, the source
 table and the seed.
 
-The bridged table is read as an `uncalibrated_spread` with calibration `unmeasured`. An interval is
+The bridged table is read as an `uncalibrated_spread` with calibration `not_measured`. An interval is
 requested through the same measured-coverage gate as the interval of a bridged mean, on the mean twin
 of the bridge at the source's mean with the standard deviation of the draws as the source standard
 error. A map with uncertain coefficients (propagated by draws, which no construction here covers) and
@@ -204,7 +204,7 @@ variance `V = se^2` and a declared covariance `c` of the slope estimator and the
 | a nonlinear map `g` of the bridged quantity (`square`) | `E[g(X)]` from the second moment of the propagated law: `E[X^2] = mean^2 + variance`, reported beside `g(mean)` | the bias-corrected `E[g(X)]` |
 
 The variance is **not an interval**. It is recorded on the claim as an uncertainty component labelled
-`uncalibrated_spread`, calibration `unmeasured`: it is a first-order propagation that no coverage record
+`uncalibrated_spread`, calibration `not_measured`: it is a first-order propagation that no coverage record
 measured. The interval of the bridged value stays the separate, scoped request that the measured-coverage rule
 gates (below), and an affine map that declares uncertainty is no exact transform of the source interval, so its
 interval request refuses `interval_scope_outside_measured`.
@@ -292,7 +292,7 @@ claim = uncertain_bridge.derive(                      # a mapping that declares 
 )
 claim.value                                           # the plug-in value
 claim.propagated_variance, claim.propagated_mean      # delta-method variance; E[g(X)] for the square
-claim.propagated_uncertainty().reading                # "uncalibrated_spread" (calibration "unmeasured")
+claim.propagated_uncertainty().reading                # "uncalibrated_spread" (calibration "not_measured")
 ```
 
 A bridge of draws is prepared with `prepare_distribution_bridge` and bridges a

@@ -27,7 +27,7 @@
 //!   Diebold-Mariano style standard error under the declared dependence.
 //! * **The diagnostics.** PIT histogram, reliability, interval coverage and
 //!   sharpness, and a separate drift route; all labelled `diagnostic` with
-//!   `calibration = "unmeasured"`.
+//!   `calibration = "not_measured"`.
 //!
 //! # What it does not claim
 //!

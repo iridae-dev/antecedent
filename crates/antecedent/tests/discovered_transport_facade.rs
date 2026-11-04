@@ -725,7 +725,7 @@ fn a_lagged_class_is_estimated_at_the_declared_horizon_against_the_stationary_tr
     assert_eq!(estimate.answer().kind, AnswerKind::Point);
 
     // Windows overlap, so an interval comes from the circular block bootstrap and is labelled
-    // as unmeasured; the point answer is unchanged by asking for it.
+    // as not_measured; the point answer is unchanged by asking for it.
     let mut with_interval = TransportEvidence::new(&source, &target);
     with_interval.bootstrap_replicates = 200;
     let bootstrapped =

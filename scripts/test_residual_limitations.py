@@ -78,7 +78,7 @@ class Scanning(unittest.TestCase):
         self.assertEqual(found[0]["item"], "P9")
         self.assertIn("Next attempt: derive it", found[0]["text"])
 
-    def test_only_unmeasured_sentences_of_a_limitations_field_are_kept(self) -> None:
+    def test_only_not_measured_sentences_of_a_limitations_field_are_kept(self) -> None:
         doc = {
             "cell": [
                 {"id": "a", "limitations": "Fits a model. No coverage record covers the interval."},

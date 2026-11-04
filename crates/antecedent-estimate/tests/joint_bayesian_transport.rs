@@ -2,7 +2,7 @@
 //!
 //! The oracle below is written out in closed-form matrix algebra (Gauss-Jordan inverse of
 //! the posterior precision) and never calls the code under test. Calibration is
-//! unmeasured in this wave; nothing here asserts coverage.
+//! not_measured in this wave; nothing here asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
     clippy::similar_names,
@@ -493,7 +493,7 @@ fn joint_posterior_oracle_draws_are_seeded_and_bounded() {
     assert!((a.diagnostics.effective_sample_size - 500.0).abs() < 1e-12);
     assert_eq!(a.diagnostics.draw_count, 500);
     assert!(a.diagnostics.r_hat.is_none());
-    assert_eq!(a.diagnostics.calibration, JointTransportCalibration::Unmeasured);
+    assert_eq!(a.diagnostics.calibration, JointTransportCalibration::NotMeasured);
     assert_eq!(a.model_identity, b.model_identity);
     let top = fit(&model(), &sources, &JointTransportOptions { draws: 100_000, seed: 1 }).unwrap();
     assert_eq!(top.draws.n_draws, 100_000);

@@ -122,7 +122,7 @@ fn discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
     close(r.source.standard_errors[0], 0.63_f64.sqrt(), "se intercept");
     close(r.source.standard_errors[1], 0.18_f64.sqrt(), "se slope");
     assert_eq!(r.null, MECHANISM_DISCREPANCY_NULL);
-    assert_eq!(r.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(r.calibration, CalibrationStatus::NotMeasured);
 }
 
 #[test]
@@ -260,8 +260,8 @@ fn discrepancy_non_rejection_never_certifies_invariance() {
     assert_eq!(r.conclusion, DiscrepancyConclusion::NotRejected);
     assert!(!r.non_rejection_certifies_invariance);
     assert!(r.caveat.contains("does not certify"));
-    assert!(r.power_caveat.contains("unmeasured"));
-    assert_eq!(r.calibration, CalibrationStatus::Unmeasured);
+    assert!(r.power_caveat.contains("not_measured"));
+    assert_eq!(r.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(r.informs_selection_on, ["V"]);
     assert!(r.alignment.contains("non-rejection leaves a selection node"));
     assert!(r.alignment.contains("cannot be excluded"));
@@ -464,7 +464,7 @@ fn mechanism_posterior_mean_stays_at_the_hand_coefficients() {
 }
 
 #[test]
-fn mechanism_posterior_refuses_an_unmeasured_band() {
+fn mechanism_posterior_refuses_an_not_measured_band() {
     let result = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_BOTH),

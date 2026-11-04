@@ -315,7 +315,7 @@ class SupportedCellSyncTest(unittest.TestCase):
                 self.assertEqual(parsed["calibration"], ["frontdoor"])
                 self.assertEqual(parsed["calibration_reason"], "boundary_record")
 
-    def test_default_sync_leaves_unmeasured_cell_byte_identical(self) -> None:
+    def test_default_sync_leaves_not_measured_cell_byte_identical(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self.source(bound=False)
             path = Path(directory) / "supported.toml"

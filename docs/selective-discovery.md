@@ -257,7 +257,7 @@ is refused (`split_part_weight_invalid`).
   zero are excluded from the estimate and counted (`SamplingWeightRecord::zero_weight_rows`),
   and the effective sample size of the rows used is reported beside the row count.
   `SplitAnalysisEffect::interval` is the Student interval at the effective sample size less
-  the regression's coefficients; its whole-method coverage is `unmeasured` until
+  the regression's coefficients; its whole-method coverage is `not_measured` until
   `tests/sample_split_weighted_effect_calibration.rs` (10 variables, 3,000 participants,
   weights of coefficient of variation 0.8) has been measured.
 

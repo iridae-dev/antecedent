@@ -24,7 +24,7 @@ pub(super) enum FrameInput {
         data: TabularData,
         event_times_ns: Arc<[i64]>,
         align_interval_ns: u64,
-        retention: Option<Arc<antecedent::execution::AdmissionLease>>,
+        retention: Option<Arc<antecedent::execution::Retention>>,
     },
 }
 
@@ -33,7 +33,7 @@ pub(super) enum FrameData {
     Series(TimeSeriesData),
     Panel(antecedent::prelude::PanelData),
     MultiEnv(antecedent::prelude::MultiEnvironmentData),
-    Events(antecedent::prelude::EventData, u64, Option<Arc<antecedent::execution::AdmissionLease>>),
+    Events(antecedent::prelude::EventData, u64, Option<Arc<antecedent::execution::Retention>>),
 }
 
 impl FrameInput {

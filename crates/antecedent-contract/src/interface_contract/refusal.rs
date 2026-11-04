@@ -144,7 +144,7 @@ pub(super) fn posterior_without_posterior_meaning(port: &str) -> InterfaceRefusa
 pub(super) fn point_only_with_uncertainty(port: &str) -> InterfaceRefusal {
     invalid(
         antecedent_core::reason_details::interface_contract::POINT_ONLY_WITH_UNCERTAINTY,
-        "a point-only label cannot accompany a covariance, law, draws, interval or posterior; use none or unmeasured, or drop the operation",
+        "a point-only label cannot accompany a covariance, law, draws, interval or posterior; use none or not_measured, or drop the operation",
     )
     .with_offending(port)
 }

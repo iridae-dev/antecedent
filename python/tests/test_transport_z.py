@@ -214,7 +214,7 @@ def test_z_transport_prepare_exact_compiles_a_checked_plan_after_builder_disposa
     "estimator",
     ["empirical_support_bayesian_bootstrap", "state_space_dirichlet"],
 )
-def test_bayesian_z_transport_publishes_an_unmeasured_posterior(estimator):
+def test_bayesian_z_transport_publishes_an_not_measured_posterior(estimator):
     _, _, _, prepared, _ = fixture(True)
     plugin = json.loads(require_success(prepared.estimate()))
     posterior = json.loads(

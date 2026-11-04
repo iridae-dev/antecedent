@@ -403,7 +403,7 @@ record_state = "frozen"
 
 [[feature]]
 id = "predictive_assessment.calibration_diagnostics"
-purpose = "PIT, reliability, coverage and sharpness labelled as unmeasured diagnostics"
+purpose = "PIT, reliability, coverage and sharpness labelled as not_measured diagnostics"
 depends_on = ["predictive_assessment.proper_scores"]
 record = "predictive_assessment.calibration_diagnostics"
 record_state = "frozen"

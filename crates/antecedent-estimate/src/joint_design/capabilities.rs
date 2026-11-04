@@ -36,7 +36,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         statistical_limitations: &[
             "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
-        calibration: "registered_unmeasured_candidate_bound",
+        calibration: "registered_not_measured_candidate_bound",
     },
     JointDesignCapability {
         design: "switchback",
@@ -49,7 +49,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         statistical_limitations: &[
             "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
-        calibration: "registered_unmeasured_candidate_bound",
+        calibration: "registered_not_measured_candidate_bound",
     },
     JointDesignCapability {
         design: "geo_experiment",
@@ -62,7 +62,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         statistical_limitations: &[
             "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
-        calibration: "registered_unmeasured_candidate_bound",
+        calibration: "registered_not_measured_candidate_bound",
     },
     JointDesignCapability {
         design: "sequential_observational",
@@ -75,7 +75,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         statistical_limitations: &[
             "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
-        calibration: "registered_unmeasured_candidate_bound",
+        calibration: "registered_not_measured_candidate_bound",
     },
     JointDesignCapability {
         design: "instrumented_dose",
@@ -90,7 +90,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
             "local empirical-score ratio law need not have finite moments; finite draw guard does not certify support",
             "Gaussian structural likelihood is distinct from encouragement-specific local score law",
         ],
-        calibration: "registered_unmeasured_candidate_bound",
+        calibration: "registered_not_measured_candidate_bound",
     },
     JointDesignCapability {
         design: "difference_in_differences",
@@ -103,7 +103,7 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         statistical_limitations: &[
             "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
-        calibration: "registered_unmeasured_candidate_bound",
+        calibration: "registered_not_measured_candidate_bound",
     },
     JointDesignCapability {
         design: "synthetic_control",
@@ -116,6 +116,6 @@ pub const JOINT_DESIGN_CAPABILITIES: [JointDesignCapability; 7] = [
         statistical_limitations: &[
             "uncertainty retains its declared sampling/likelihood assumptions; no release calibration support",
         ],
-        calibration: "registered_unmeasured_candidate_bound",
+        calibration: "registered_not_measured_candidate_bound",
     },
 ];

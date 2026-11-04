@@ -14,7 +14,7 @@ coordinate. Neither produces an interval without a measured record.
 
 | Route | Label |
 | --- | --- |
-| Composed spread, interval candidate and exceedance decision | `uncalibrated_spread`; candidates `unmeasured` |
+| Composed spread, interval candidate and exceedance decision | `uncalibrated_spread`; candidates `not_measured` |
 | Whole path of the finite Markovian cross-world row | `uncalibrated_spread` |
 
 The whole-path account is a sealed sibling of the cross-world execution:
@@ -40,7 +40,7 @@ some and omitting others is refused with the missing pieces listed.
 ## Composed interval and exceedance
 
 An interval construction at the composed coordinate (normal, draw percentile or
-marginal) is a candidate with calibration status `unmeasured`. The interval
+marginal) is a candidate with calibration status `not_measured`. The interval
 is reported with that status; it becomes `calibrated` only when a `CoverageRecord` measured at exactly that
 `ComposedCoordinate` (operation, route, transported or not, input roles) and
 construction covers it, and then only at its recorded nominal level. A
@@ -88,7 +88,7 @@ An adaptive experiment's data are shaped by the assignment policy, outcome delay
 and loss, exposure failure, the stopping rule and the final selection. This
 route derives the uncertainty of the complete declared procedure and keeps
 inferential paradigms apart: a report of one paradigm is never a statement of
-another. Every result is labelled derived and unmeasured: the law is exact under the
+another. Every result is labelled derived and not_measured: the law is exact under the
 stated model but no coverage of any method has been measured.
 
 In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). Every premise failure of admission carries the registered code `not_supported` with its own detail.
@@ -144,4 +144,4 @@ more: it is not an interval and not a calibration.
 | Fixed-sample or group-sequential on an adaptive design | `adaptive_assumption_violated` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
 | Rule that does not match the paradigm | `adaptive_assumption_violated` (`adaptive_inference.paradigm_rule_mismatch`) | Declare the matching stopping rule |
 | Anytime-valid with several contexts | `not_supported` (an `adaptive_inference.*` premise failure) | Run per context |
-| Any interval or coverage claim | not supported | Treat as derived and unmeasured |
+| Any interval or coverage claim | not supported | Treat as derived and not_measured |

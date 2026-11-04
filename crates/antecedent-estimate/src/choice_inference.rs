@@ -43,7 +43,7 @@ pub const CONFLICT_LOG_BAYES_FACTOR: f64 = std::f64::consts::LN_10;
 pub const MEANING_STATEMENT: &str = "shares of repeated categorical choices as declared; stated preferences do not identify behavioural or causal outcomes";
 
 /// What a conflict diagnostic is.
-pub const CONFLICT_STATEMENT: &str = "prior-predictive log evidence ratio of each source against a vague prior versus the remaining evidence, including the current look when present; fractional power-prior counts yield a generalized score, and calibration is unmeasured";
+pub const CONFLICT_STATEMENT: &str = "prior-predictive log evidence ratio of each source against a vague prior versus the remaining evidence, including the current look when present; fractional power-prior counts yield a generalized score, and calibration is not_measured";
 
 /// Premise of the posterior's validity under optional stopping.
 pub const CHOICE_POSTERIOR_PREMISE: &str = "the choice set is fixed, respondents are exchangeable draws from the declared population, and the stopping rule depends on the observed choices only";

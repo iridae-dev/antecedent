@@ -10,7 +10,7 @@ Truth is computed here in pure Python, never by native code:
 * the martingale property of the adaptively weighted score (unbiased under epsilon-greedy
   assignment), with its Monte Carlo standard error.
 
-Every result is ``derived_unmeasured``; every refusal is ``adaptive_assumption_violated`` (premise) or
+Every result is ``derived_not_measured``; every refusal is ``adaptive_assumption_violated`` (premise) or
 ``adaptive_contract_incomplete`` / ``invalid_argument`` (declaration) with its own detail.
 """
 
@@ -134,7 +134,7 @@ def test_the_closed_forms_are_the_design_effect_and_the_enumerated_mixture():
     )
     assert procedure.cell["id"] == FIXED_CELL
     report = procedure.closed_form((0.0, 0.5))
-    assert report.claim == ai.DERIVED_UNMEASURED
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     assert report.procedure_identity == procedure.identity
     assert report.route == "cluster_robust_unit_summaries"
     body = report.body
@@ -191,7 +191,7 @@ def test_the_derived_fixed_sample_report_separates_exact_values_from_monte_carlo
         analysis=ai.FinalAnalysis.cluster_robust(),
     )
     report = require_success(procedure.derive((0.0, 0.25), replications=4000, seed=13))
-    assert report.claim == ai.DERIVED_UNMEASURED
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     body = report.body
     assert body["kind"] == "derived"
     assert body["paradigm"] == "frequentist_fixed_sample"
@@ -259,7 +259,7 @@ def test_an_independence_assumption_for_dependent_measurements_is_refused():
         analysis=ai.FinalAnalysis.pooled_independent(),
     )
     report = require_success(independent.derive((0.0, 0.0), replications=200, seed=1))
-    assert report.claim == ai.DERIVED_UNMEASURED
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     assert report.body["design_effect"] == pytest.approx(1.0, abs=TOL)
 
 
@@ -383,7 +383,7 @@ def test_the_posterior_matches_the_hand_calculation_and_is_unsupported():
     )
     assert posterior.estimator_id == "bayesian.repeated_measures_arm_contrast"
     assert posterior.supported is False
-    assert posterior.calibration == "unmeasured"
+    assert posterior.calibration == "not_measured"
 
 
 def test_the_posterior_is_independent_of_the_assignment_probabilities_and_keeps_them():
@@ -521,7 +521,7 @@ def test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact
     assert restored.acceptance.status == "verified"
     assert restored.acceptance.replayable
     assert not restored.supported
-    assert restored.calibration == "unmeasured"
+    assert restored.calibration == "not_measured"
     assert bytes(restored.export()) == bytes(artifact)
     generic = load_scientific(artifact, expected=artifact.expectation)
     assert generic.contrast == posterior.contrast

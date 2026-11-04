@@ -13,7 +13,7 @@ implementation_deviations = [
   "Model-fit counts come from the executing regression component. They are distinct from nuisance-fold fits and frozen-score computations. Zero-model historical receipts retain their five-count wire and digest; nonzero model counts participate in receipt identity and semantic verification.",
   "Retained coefficients and joint covariance support only declared compatible contrasts and point predictions. New rows or outcomes, feature/coding/link/fit changes invalidate the fit; unsupported target laws and provider/prior operations remain typed refusals.",
   "Identity-link contrasts use coefficient differences and the full covariance directly, avoiding cancellation of large predicted levels; fixed target weights are validated before this algebraic reduction. The registered vector fixture checks a large-baseline fractional contrast against the existing public regression engine.",
-  "Reuse preserves estimator inference status. Analytic covariance and p-values remain reported diagnostics with calibration unmeasured; no confidence interval or coverage support is added.",
+  "Reuse preserves estimator inference status. Analytic covariance and p-values remain reported diagnostics with calibration not_measured; no confidence interval or coverage support is added.",
   "An independently consumed historical receipt recreates no fitted state. A fresh process needs supplied compatible data and recomputes, or receives an explicit unavailable-state refusal.",
 ]
 upstream_implementations_observed = []

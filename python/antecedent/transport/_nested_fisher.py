@@ -1,4 +1,4 @@
-"""Typed unmeasured nested Fisher candidate lifecycle for internal acceptance builds."""
+"""Typed not_measured nested Fisher candidate lifecycle for internal acceptance builds."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class NestedFisherCandidate(ScientificResult):
 
     Coordinates are the two intervention means and their difference. The full
     covariance retains the shared fitted mechanisms. Nominal 90%/95% intervals
-    remain unmeasured candidates; neither this object nor artifact replay supports
+    remain not_measured candidates; neither this object nor artifact replay supports
     repeated-sampling coverage. The graph and IID sampling model are declarations.
     """
 
@@ -35,7 +35,7 @@ class NestedFisherCandidate(ScientificResult):
     covariance: Matrix3
     intervals: Intervals3
     nominal_level: float
-    calibration: Literal["unmeasured"]
+    calibration: Literal["not_measured"]
     inference: Literal["interval_candidates_calibration_annotated"]
     identification: Literal["nonparametrically_identified"]
     method: str

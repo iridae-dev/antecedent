@@ -658,7 +658,7 @@ class PanelResult:
         expected utility ``utility_offset + utility_scale * response`` of the fitted
         ``functional``. Exhaustion is over the finite set of compiled worlds and is not a
         continuous optimum: ``continuous_gap`` is absent and ``global_certificate`` is false.
-        The standing is model-conditional and ``selected_value_reliability`` is unmeasured.
+        The standing is model-conditional and ``selected_value_reliability`` is not_measured.
         """
         declaration = {
             "controls": list(controls),
@@ -1147,7 +1147,7 @@ class JointResponseLaw:
     ``covariance`` (``uncertainty == "sampling_covariance"``) or the aligned posterior draws
     (``"aligned_posterior"``) carry the cross-world dependence; marginal intervals are never
     subtracted. ``identified_claim`` is false when conditional joint-world support is not
-    established, and ``calibration`` is ``"unmeasured"``: a numerical result grants neither
+    established, and ``calibration`` is ``"not_measured"``: a numerical result grants neither
     causal nor calibration support.
     """
 

@@ -846,7 +846,7 @@ fn pooled_intervals_refuse_study_counts_outside_the_measured_family() {
 }
 
 #[test]
-fn legacy_hksj_records_cannot_support_unmeasured_study_counts() {
+fn legacy_hksj_records_cannot_support_not_measured_study_counts() {
     for k in [5_usize, 10, 15] {
         for method in [BetweenStudy::DerSimonianLaird, BetweenStudy::RestrictedMaximumLikelihood] {
             let (mut session, summaries) = study_family(k);

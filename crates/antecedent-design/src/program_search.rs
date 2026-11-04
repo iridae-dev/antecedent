@@ -366,7 +366,7 @@ impl PreparedFiniteProgramSearch {
             source_identity,
             exhaustive: true,
             exact_finite_law: exact,
-            reliability: "unmeasured",
+            reliability: "not_measured",
             continuous_gap: None,
             retention,
         })
@@ -865,7 +865,7 @@ mod tests {
         assert!(first.exhaustive);
         assert!(!first.exact_finite_law);
         assert_eq!(first.continuous_gap, None);
-        assert_eq!(first.reliability, "unmeasured");
+        assert_eq!(first.reliability, "not_measured");
         assert!(
             matches!(&first.rows[2].feasibility,ProgramFeasibility::Operational(reason) if reason=="budget")
         );

@@ -1144,7 +1144,7 @@ mod tests {
                 shape: [5, 2],
                 weights: Some(vec![1.0, 2.0, 0.0, 3.0, 4.0]),
                 supported: None,
-                calibration: DistributionCalibration::Unmeasured,
+                calibration: DistributionCalibration::NotMeasured,
                 trust: DistributionTrust::Unverified,
                 legacy_posterior: None,
                 legacy_bindings: None,

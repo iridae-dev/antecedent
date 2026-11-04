@@ -101,7 +101,7 @@ fn a_boundary_saturated_glm_keeps_its_text_and_reports_the_margin_and_count() {
 /// A family that does not measure the probability margin (the fit has none) leaves it absent
 /// rather than reporting zero.
 #[test]
-fn an_unmeasured_margin_is_absent_not_zero() {
+fn an_not_measured_margin_is_absent_not_zero() {
     let error = refusal(&glm_fit(50, false, false, false, None));
     assert_eq!(error.to_string(), NOT_CONVERGED);
     let fields = error.refusal_fields().unwrap();

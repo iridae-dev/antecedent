@@ -53,7 +53,7 @@ def test_nuisance_common_reading_distinguishes_model_uncertainty_from_effects(po
     assert not inspection.identification.available
     assert inspection.identification.reason == "nuisance_not_causal_effect"
     assert not outcome.support.available
-    assert outcome.support.payload == {"support": "unsupported", "calibration": "unmeasured"}
+    assert outcome.support.payload == {"support": "unsupported", "calibration": "not_measured"}
     assert outcome.assumptions.payload["declarations"] == product.assumptions
     assert outcome.diagnostics == product.diagnostics
     assert outcome.provenance == product.provenance

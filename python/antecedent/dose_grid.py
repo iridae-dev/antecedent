@@ -16,12 +16,12 @@ included in any interval.
 :func:`quadratic_dose_functional` adds a caller-attested exact quadratic conditional
 mean premise. Polynomial reproduction then derives zero smoothing bias at the fixed
 bandwidth; the premise and its required feature travel in the artifact. Sampling
-calibration remains unmeasured.
+calibration remains not_measured.
 
 Every requested dose is labelled ``supported`` / ``weak_overlap`` / ``outside_empirical_support``
 (:func:`dose_support_table` shows the labels without refusing). The row *refuses* any dose that
 is not supported; it never extrapolates. Intervals are pointwise normal intervals from a
-heteroskedasticity-robust standard error with calibration ``"unmeasured"``: no coverage claim is
+heteroskedasticity-robust standard error with calibration ``"not_measured"``: no coverage claim is
 made. Level/contrast claims, derivative claims and the simultaneous band are separate
 (:class:`DoseClaims`). Without a declared smoothness bound a simultaneous band refuses
 (``dose_grid.no_simultaneous_band_method``).
@@ -31,7 +31,7 @@ adds bias-aware intervals (:class:`DoseBiasAware`): each level or derivative int
 by the worst-case smoothing bias the bound allows, using the folded-normal critical value, and a
 level or derivative grid of two or more doses also carries a Gaussian-multiplier sup-t band over
 the grid, widened by the same bias bound. The band is drawn from ``band_seed`` and replayed from it
-when the artifact is consumed. Its calibration is unmeasured. The bound is a declaration, not
+when the artifact is consumed. Its calibration is not_measured. The bound is a declaration, not
 something the data establish.
 
 The ``execution`` argument owns the worker threads, the memory limit and cancellation.
@@ -49,7 +49,7 @@ time order at unit spacing) gives the Newey-West (Bartlett) variance. Weights co
 ``cluster`` and ``serial_lag`` together are refused (a panel needs a unit and a time). The
 bias-aware band draws its multipliers per cluster, or per block of ``serial_lag + 1`` consecutive
 rows, so it never assumes more independence than the pointwise intervals. Calibration of every
-interval stays unmeasured. An observational dose is refused (``dose_grid.graph_not_certified``):
+interval stays not_measured. An observational dose is refused (``dose_grid.graph_not_certified``):
 this row does not adjust.
 
 :meth:`DoseFunctionalResult.export` writes an artifact embedding the compact dose/outcome table;
@@ -180,7 +180,7 @@ class DosePoint:
     """A pointwise level ``m(d)`` or derivative ``m'(d)`` at one dose.
 
     ``lower`` / ``upper`` are a pointwise normal interval at ``nominal_level`` with
-    ``calibration == "unmeasured"``: the nominal level is not a coverage claim, and the
+    ``calibration == "not_measured"``: the nominal level is not a coverage claim, and the
     smoothing bias is not included.
     """
 
@@ -219,7 +219,7 @@ class DoseBiasAware:
 
     ``smoothing_bias_bound``, ``lower`` and ``upper`` align with the reported coordinates (the
     levels, the derivatives, or the one contrast). The band fields are ``None`` unless a level or
-    derivative grid of two or more doses was requested. Calibration is unmeasured.
+    derivative grid of two or more doses was requested. Calibration is not_measured.
     """
 
     curvature_bound: float
@@ -268,7 +268,7 @@ class DoseDeclaredRows:
     """What declared sampling weights, clusters or a serial lag did to the fit.
 
     ``rows_used`` counts the rows after zero-weight rows were deleted. ``interval_reference`` is
-    ``"normal"`` or ``"student_t_clusters_minus_one"``. Calibration stays unmeasured.
+    ``"normal"`` or ``"student_t_clusters_minus_one"``. Calibration stays not_measured.
     """
 
     rows_used: int
@@ -372,7 +372,7 @@ class DoseFunctionalResult:
                     f" and a simultaneous band uses critical value "
                     f"{self.bias_aware.band_critical_value:.4g}"
                 )
-            text += " (calibration unmeasured)."
+            text += " (calibration not_measured)."
         return text
 
     def __repr__(self) -> str:
@@ -725,7 +725,7 @@ def dose_functional(
     described in the module documentation. Without ``curvature_bound`` the smoothing bias
     is not included; with it, :attr:`DoseFunctionalResult.bias_aware` carries bias-aware
     intervals and, on a grid of two or more doses, a simultaneous band. Sampling calibration
-    remains unmeasured.
+    remains not_measured.
     """
     execution = resolve_execution(execution)
     return _dose_functional(
@@ -774,7 +774,7 @@ def quadratic_dose_functional(
     throughout the randomized dose support. The local quadratic reproduces that mean
     at every fixed bandwidth, so smoothing bias is zero under this explicit premise.
     The observed residuals do not establish the premise. Sampling uncertainty uses
-    the same residual sandwich and remains unmeasured; no coverage claim is made.
+    the same residual sandwich and remains not_measured; no coverage claim is made.
     All ordinary support, claim, independence and bandwidth restrictions still apply.
     The premise and its required feature are bound into the replayable artifact.
     """
@@ -879,7 +879,7 @@ class DoseGridPosteriorResult:
     :func:`dose_functional`. ``posterior`` carries the posterior mean and equal-tailed 95%
     credible interval of every evaluation dose and the covariance across them, from the joint
     draws; the exact Gaussian moments are added when the residual variance is known. The row is
-    unsupported and its calibration is ``"unmeasured"``.
+    unsupported and its calibration is ``"not_measured"``.
     """
 
     functional: str

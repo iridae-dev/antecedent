@@ -37,7 +37,7 @@ mod internal {
         pub effect_covariance: [[f64; 3]; 3],
         /// Requested nominal two-sided level; no measured coverage claim.
         pub nominal_level: f64,
-        /// Unmeasured normal delta-method interval candidates, in the same effect order.
+        /// Not measured normal delta-method interval candidates, in the same effect order.
         pub interval_candidates: [[f64; 2]; 3],
         /// Maximum absolute `I Cov - identity` residual; no regularization is applied.
         pub inverse_residual: f64,

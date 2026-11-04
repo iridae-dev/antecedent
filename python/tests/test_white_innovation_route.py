@@ -4,7 +4,7 @@
 single-step temporal linear effect and swaps the tempered (generalized) posterior for the
 untempered full-likelihood posterior of the same effect. The premise is declared, never inferred;
 a Ljung-Box test of the residuals can refute it. References are numpy least squares and a
-numpy Ljung-Box statistic. The route is an unsupported estimator with calibration unmeasured.
+numpy Ljung-Box statistic. The route is an unsupported estimator with calibration not_measured.
 """
 
 from __future__ import annotations

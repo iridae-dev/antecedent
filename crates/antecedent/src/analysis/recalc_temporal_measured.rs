@@ -136,7 +136,7 @@ fn preflight(
 impl CheckedMeasuredTemporal {
     /// Produce from a retained checked session and its ORIGINAL source proof.
     /// # Errors
-    /// Unmeasured protocol, source/interval refusal, cancellation, limits or stale evidence.
+    /// Not measured protocol, source/interval refusal, cancellation, limits or stale evidence.
     pub fn produce(
         session: &TemporalSession,
         config: &DependentIntervalConfig,
@@ -169,7 +169,7 @@ impl CheckedMeasuredTemporal {
         let bundle = CheckedSource {
             version: 1,
             required_features: vec!["checked_temporal_measured_source_v1".into()],
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
             source: original,
             config: IntervalConfigWire::from_config(config),
             result: IntervalResultWire::from_interval(&result),
@@ -233,7 +233,7 @@ impl CheckedMeasuredTemporal {
         let bundle: CheckedSource = antecedent_io::from_cbor(&wire.source)?;
         if bundle.version != 1
             || bundle.required_features != ["checked_temporal_measured_source_v1"]
-            || bundle.calibration != "unmeasured"
+            || bundle.calibration != "not_measured"
             || bundle.source.len() > limits.max_source_bytes
             || antecedent_io::to_cbor(&bundle)? != wire.source
         {
@@ -264,7 +264,7 @@ impl CheckedMeasuredTemporal {
     pub const fn report(&self) -> &MeasuredInferenceReport {
         &self.report
     }
-    /// Original source/proof/config/complete interval bundle; standing remains unmeasured.
+    /// Original source/proof/config/complete interval bundle; standing remains not_measured.
     #[must_use]
     pub fn source_artifact(&self) -> &[u8] {
         &self.source
@@ -286,7 +286,7 @@ impl CheckedMeasuredTemporal {
         let bundle: CheckedSource = antecedent_io::from_cbor(&self.source)?;
         let source = TemporalRecalcArtifactWire::decode(&bundle.source)?;
         Ok(
-            serde_json::json!({"calibration":"unmeasured","source":source,"config":bundle.config,"result":bundle.result}),
+            serde_json::json!({"calibration":"not_measured","source":source,"config":bundle.config,"result":bundle.result}),
         )
     }
 }

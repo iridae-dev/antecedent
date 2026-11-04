@@ -218,7 +218,7 @@ def s1_producer():
     # The earlier preparation and its artifact are unchanged by the branch.
     assert bytes(prepared.export()) == before[0]
 
-    # Counted laws: the point is returned, the unmeasured interval route stays closed.
+    # Counted laws: the point is returned, the not_measured interval route stays closed.
     counted = transport.identify_multi_source_z_transport(
         graph=s1_graph(), query=s1_query(source_a, source_b), catalog=s1_catalog()
     ).prepare_empirical(s1_laws(S1_P, sample_size=40_000), {"x": 1.0}, seed=3)

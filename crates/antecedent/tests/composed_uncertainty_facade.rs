@@ -84,7 +84,7 @@ fn artifact(snapshot: &str, alignment: DrawAlignment, columns: &[&[f64]]) -> Dis
             shape: [rows, columns.len()],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,

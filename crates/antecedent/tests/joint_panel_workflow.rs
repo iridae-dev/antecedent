@@ -268,7 +268,7 @@ fn actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes()
     assert!(result.draws.iter().any(Option::is_some));
     assert!(fit.diagnostics.max_rhat.is_some());
     assert_eq!(fit.diagnostics.posterior_converged, Some(true), "{:?}", fit.diagnostics);
-    assert_eq!(fit.diagnostics.calibration, "unmeasured");
+    assert_eq!(fit.diagnostics.calibration, "not_measured");
     assert!(
         result
             .draws
@@ -320,7 +320,7 @@ fn build_joint_panel_lag_zero_bayesian_chain_mixes_and_recovers_the_known_intera
     assert!(bulk >= 400.0 && tail >= 400.0, "ESS bulk {bulk} tail {tail}");
     assert_eq!(diagnostics.posterior_converged, Some(true), "{diagnostics:?}");
     assert!(diagnostics.optimizer_converged && diagnostics.curvature_available);
-    assert_eq!(diagnostics.calibration, "unmeasured");
+    assert_eq!(diagnostics.calibration, "not_measured");
     assert_eq!(result.draws.len(), 100_000);
     assert_eq!(diagnostics.failed_draws, 0);
 
@@ -775,7 +775,7 @@ fn temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechan
     let JointPanelFit::Varying(fit) = &result.fit else { panic!("retained temporal program") };
     assert_eq!(fit.point.parameters.len(), 24);
     assert!(fit.attempts.iter().any(|attempt| attempt.converged));
-    assert_eq!(fit.calibration, "unmeasured");
+    assert_eq!(fit.calibration, "not_measured");
     assert_eq!(fit.claim, "model_conditional_temporal_mechanism_only");
     assert!(!prepared.inspect().identification.is_identified_claim());
     assert!(
@@ -1426,7 +1426,7 @@ fn temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_expe
     let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
     let result = prepared.estimate(&ctx).unwrap();
     let JointPanelFit::Varying(fit) = &result.fit else { panic!("retained temporal program") };
-    assert_eq!(fit.calibration, "unmeasured");
+    assert_eq!(fit.calibration, "not_measured");
     assert!(result.draws.iter().flatten().count() > 0);
     assert!(!prepared.inspect().identification.is_identified_claim());
     exercise_reference_decomposition(&result, &ctx);

@@ -86,7 +86,7 @@ fn vector_coefficients_and_full_covariance_match_hand_algebra() {
     close(fit.coefficients[0].z, 2.75 / (9.0 * S).sqrt(), "z1");
     close(fit.coefficients[0].p_value, erfc(fit.coefficients[0].z.abs() / 2.0_f64.sqrt()), "p1");
     assert_eq!(fit.null, VECTOR_TREATMENT_NULL);
-    assert_eq!(fit.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(fit.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(fit.covariance_kind, VectorCovariance::ModelBased);
 }
 

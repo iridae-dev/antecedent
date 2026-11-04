@@ -3,7 +3,7 @@
 //!
 //! Dependency direction verified: `antecedent-io` depends on `antecedent-estimate`
 //! (its Cargo.toml), so this test lives here rather than in `antecedent-estimate`, which
-//! cannot depend on `antecedent-io`. Calibration is unmeasured and the artifact says so.
+//! cannot depend on `antecedent-io`. Calibration is not_measured and the artifact says so.
 #![allow(clippy::cast_precision_loss, reason = "small deterministic fixtures")]
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
@@ -158,7 +158,7 @@ fn artifact(fit: &JointTransportFit, alignment: DrawAlignment) -> DistributionAr
             shape: [fit.draws.n_draws, names.len()],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,
@@ -177,7 +177,7 @@ fn posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity() {
     let loaded =
         DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint)).unwrap();
     assert_eq!(loaded.shape(), [DRAWS, 3]);
-    assert_eq!(loaded.metadata().calibration, DistributionCalibration::Unmeasured);
+    assert_eq!(loaded.metadata().calibration, DistributionCalibration::NotMeasured);
     assert_eq!(loaded.metadata().identity.alignment, DrawAlignment::Joint);
     assert_eq!(loaded.draws(), original.draws());
     let e = fit.effect_names.len();

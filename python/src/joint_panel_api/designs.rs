@@ -311,9 +311,9 @@ impl PyPreparedNativeJointDesign {
     ) -> PyResult<PyNativeJointDesignResult> {
         bounded_json(inference_json, "native joint-design inference")?;
         let ctx = context(seed, threads, max_bytes, cancel)?;
-        let _input = ctx
-            .acquire_admission(0, (inference_json.len() as u64).saturating_mul(128))
-            .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
+        let _input =
+            antecedent::execution::retain(&ctx, (inference_json.len() as u64).saturating_mul(128))
+                .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
         let inference: JointDesignInference =
             serde_json::from_str(inference_json).map_err(|e| crate::value_err(e.to_string()))?;
         let inner =
@@ -365,9 +365,9 @@ fn prepare_native_joint_design(
 ) -> PyResult<PyPreparedNativeJointDesign> {
     bounded_json(recipe_json, "native joint-design source recipe")?;
     let ctx = context(seed, threads, max_bytes, cancel)?;
-    let _input = ctx
-        .acquire_admission(0, (recipe_json.len() as u64).saturating_mul(128))
-        .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
+    let _input =
+        antecedent::execution::retain(&ctx, (recipe_json.len() as u64).saturating_mul(128))
+            .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
     let recipe: antecedent::estimate::joint_design::compiled::JointDesignRecipe =
         serde_json::from_str(recipe_json).map_err(|e| crate::value_err(e.to_string()))?;
     let inner = crate::detach_catch(py, || {

@@ -404,7 +404,7 @@ use antecedent_io::smoothed_dose_posterior_artifact::{
 /// The posterior is the Bayesian counterpart of the point estimate of
 /// [`PreparedSmoothedDose::estimate`] on the same coordinate (the smoothed dose response at
 /// each grid dose under the same certificate). It is explicitly unsupported with calibration
-/// `unmeasured`; the interval route of the point estimate stays closed.
+/// `not_measured`; the interval route of the point estimate stays closed.
 #[derive(Clone, Debug)]
 pub struct SmoothedDosePosteriorResult {
     wire: SmoothedDosePosteriorArtifactWire,

@@ -250,7 +250,7 @@ classified still valid, recompute or withdrawn by `transport_revalidation`
 | period shift of a policy value (fixed horizon, time-invariant mechanisms) | point-only | ADAPTER | ADAPTER | REFUSED | SCHEDULED | NO ROUTE | REFUSED (`temporal_policy_transport.mechanism_time_varying`) | DIRECT (library; Python `transported_constructors.from_period_shift`) | SCHEDULED |
 | adaptive trial as a transport source (recorded-probability standardization) | point-only, uncalibrated, no variance | ADAPTER (declared mean contrast) | REFUSED | REFUSED | REFUSED | NO ROUTE | DIRECT (library, finite strata; Python `transported_constructors.from_adaptive_trial`) | REFUSED | SCHEDULED |
 | discovered CPDAG class | structural envelope, never a point or interval | REFUSED | REFUSED | REFUSED (`transport_sensitivity.no_scalar_family`) | REFUSED | NO ROUTE | DIRECT (library and Python `transport.discovered.transport_across_class` for a CPDAG or PAG class, estimates through `transport.discovered.estimate_discovered_transport`; temporal classes at a declared horizon in the library) | NO ROUTE | SCHEDULED |
-| provider output as source evidence | point-only or unmeasured, never native target data, never measured | not applicable (source evidence) | not applicable | not applicable | not applicable | NO ROUTE | DIRECT (admission; attested never relabelled verified) | NO ROUTE | SCHEDULED |
+| provider output as source evidence | point-only or not_measured, never native target data, never measured | not applicable (source evidence) | not applicable | not applicable | not applicable | NO ROUTE | DIRECT (admission; attested never relabelled verified) | NO ROUTE | SCHEDULED |
 | discretized composition | point-only with a computed mean-contrast bound | REFUSED (`discretized_scm.point_only` for an interval) | REFUSED | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | whole-path cross-world spread (finite Markovian row) | uncalibrated spread, never added across estimands | REFUSED (`cross_world_execution.no_interval_method`) | REFUSED | REFUSED | REFUSED | DIRECT | REFUSED (`cross_world_uncertainty.no_transported_path_derivation`) | NO ROUTE | SCHEDULED |
 
@@ -280,12 +280,12 @@ cell: it has no decision-reliability route.
 
 | Route | Inference mode | Own consumer | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| composed spread (linear moments, aligned functional) | uncalibrated spread, derived and unmeasured | DIRECT (`propagation_artifact`: rebuilt from its bytes under the retained identity) | NO ROUTE (a spread is not a utility input) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| composed exceedance (probability, band, verdict; known-weight mixture) | uncalibrated spread, derived and unmeasured | DIRECT (`propagation_artifact`) | NO ROUTE (no utility reading) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| composed spread (linear moments, aligned functional) | uncalibrated spread, derived and not_measured | DIRECT (`propagation_artifact`: rebuilt from its bytes under the retained identity) | NO ROUTE (a spread is not a utility input) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| composed exceedance (probability, band, verdict; known-weight mixture) | uncalibrated spread, derived and not_measured | DIRECT (`propagation_artifact`) | NO ROUTE (no utility reading) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | transported spread (source sampling, target sampling, transport functional) | uncalibrated spread, all three pieces and their dependence named | DIRECT (`propagation_artifact`: replays to identical bits); REFUSED for decision-reliability, composition and inverse query | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | composed interval | no interval route; one needs an independent check of the composed construction | REFUSED (`published_route`: `not_supported`, with the mismatch named) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
-| derived decision uncertainty (numerical, selection, rollout components) | derived and unmeasured, components never combined | DIRECT (`decision_reliability_derived`: re-derived from the carried draws); REFUSED when published | DIRECT (assessed on the bound decision's own draws) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| repeated-measures or clustered procedure report | exact forms plus seeded simulation, derived and unmeasured | REFUSED (`decision_reliability_derived`: no route) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| derived decision uncertainty (numerical, selection, rollout components) | derived and not_measured, components never combined | DIRECT (`decision_reliability_derived`: re-derived from the carried draws); REFUSED when published | DIRECT (assessed on the bound decision's own draws) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| repeated-measures or clustered procedure report | exact forms plus seeded simulation, derived and not_measured | REFUSED (`decision_reliability_derived`: no route) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
 | transported cohort effect (facade over the fitted-effect transport) | point-only, extrapolative, typed receipt | DIRECT (`decision`: the existing cohort-mean source) | DIRECT (interval and law REFUSED) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | NO ROUTE | NO ROUTE | DIRECT (revalidation) | NO ROUTE | SCHEDULED |
 | transported measurement estimate (carried or target-established error rates) | point-only, uncalibrated, typed receipt | DIRECT (`measurement_artifact`: the existing artifact replays) | SCHEDULED | SCHEDULED | SCHEDULED | SCHEDULED | NO ROUTE (an error-rate invariance is not a counterfactual claim) | DIRECT (library) | NO ROUTE | SCHEDULED |
 | transported mechanism composition (carried or refitted linear-Gaussian mechanisms) | point-only with a labelled parameter-only variance | DIRECT (`mechanism_composition_artifact`: replays to the same bits) | SCHEDULED | ADAPTER (`inverse_forward_source` of the composition) | SCHEDULED | SCHEDULED | REFUSED (conditioning is a separate query) | DIRECT (library; a selection arrow into a carried mechanism refused) | NO ROUTE | SCHEDULED |
@@ -298,10 +298,10 @@ cell: it has no decision-reliability route.
   has no way to accept this output today and which module owns the adapter.
 - Frequentist and Bayesian modes are not supported for any row: each would need
   an independent check of its whole-method construction, and every such route
-  refuses with a typed refusal until then. A derived, unmeasured statement (a composed
+  refuses with a typed refusal until then. A derived, not_measured statement (a composed
   spread, a decision-reliability numerical or selection interval, a
   whole-procedure adaptive report) is labelled `uncalibrated_spread` or
-  `derived_unmeasured` and is never support: publishing it refuses
+  `derived_not_measured` and is never support: publishing it refuses
   `not_supported`.
 - Which paradigm each route supports, and the typed closed row for a missing
   one (`paradigm_parity.paradigm_not_supported`), is the parity table of

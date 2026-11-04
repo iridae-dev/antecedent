@@ -120,7 +120,7 @@ fn noisy_contrast_matches_the_independent_reference() {
     close(result.active_mean, 3.577_003_395_896_987_6, 1.0e-4);
     close(result.control_mean, 1.346_150_090_756_641_5, 1.0e-4);
     close(result.contrast, 2.230_853_305_140_346, 1.0e-4);
-    close(result.unmeasured_score_scale, 0.689_242_100_473_076_1, 1.0e-4);
+    close(result.not_measured_score_scale, 0.689_242_100_473_076_1, 1.0e-4);
     assert_eq!(result.contrast_scores.len(), SUBJECTS);
 
     let interval = sequential_contrast_wald_interval(&result, 0.95).expect("interval");
@@ -135,6 +135,6 @@ fn noisy_contrast_matches_the_independent_reference() {
     // The Bayesian-bootstrap spread is the Dirichlet moment of the cross-fit scores, which is
     // the score scale up to the (n - 1) / (n + 1) factor of the two divisors.
     let n = SUBJECTS as f64;
-    let expected = result.unmeasured_score_scale * ((n - 1.0) / (n + 1.0)).sqrt();
+    let expected = result.not_measured_score_scale * ((n - 1.0) / (n + 1.0)).sqrt();
     close(posterior.contrast.standard_deviation, expected, 0.06 * expected);
 }

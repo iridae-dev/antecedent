@@ -505,14 +505,14 @@ fn a_measured_construction_reports_an_interval_bound_to_its_coverage_record() {
 }
 
 #[test]
-fn an_unmeasured_sample_size_or_unseen_rule_is_reported_as_not_calibrated() {
+fn an_not_measured_sample_size_or_unseen_rule_is_reported_as_not_calibrated() {
     // Calibration annotates and never withholds, so the interval is reported and its slot says
     // it is not calibrated.
     let above = measure_at(20_000, UnseenCellRule::Refuse)
         .expect("an interval above the measured sample sizes is reported");
     assert_eq!(above.report().calibration, "outside_measured_scope");
     let smoothed = measure_at(1_000, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 })
-        .expect("an interval under an unmeasured unseen-cell rule is reported");
+        .expect("an interval under a not_measured unseen-cell rule is reported");
     assert_ne!(smoothed.report().calibration, "calibrated");
     for measured in [&above, &smoothed] {
         let scalar = &measured.report().scalars[0];

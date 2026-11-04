@@ -112,7 +112,7 @@ pub const STANDARD_ERROR_BASIS: &str = "model_based_sqrt_phibar_v_phibar";
 /// Stored statement of what the variance diagnostic covers.
 pub const STANDARD_ERROR_SCOPE: &str = "conditions on the declared cohort rows and weights and on the fitted structure; excludes cohort sampling variation, support selection, misspecification and extrapolation";
 /// Stored calibration status of the variance diagnostic.
-pub const STANDARD_ERROR_CALIBRATION: &str = "calibration unmeasured";
+pub const STANDARD_ERROR_CALIBRATION: &str = "calibration not_measured";
 /// The invariance assumption a covariate-shift declaration states.
 pub const COVARIATE_SHIFT_ASSUMPTION: &str =
     "conditional_contrast_invariant_given_declared_modifiers_under_covariate_shift";

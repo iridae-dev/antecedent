@@ -137,7 +137,7 @@ fn canonical_json_digest_hex(domain: &str, json: &str) -> PyResult<String> {
 /// Unframed BLAKE3 digest of raw bytes, as 64 lowercase hex characters.
 #[pyfunction]
 fn blake3_digest_hex(data: &[u8]) -> String {
-    antecedent::schema::blake3_hex(data)
+    antecedent::identity::blake3_hex(data)
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

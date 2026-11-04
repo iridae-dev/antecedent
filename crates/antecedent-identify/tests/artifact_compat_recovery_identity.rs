@@ -8,7 +8,7 @@
 //! rather than a version gate. The rule version itself is also spelled by behavior
 //! (`binary_observation_recovery.v1`), and the earlier spelling is not accepted. Coverage
 //! records keyed by the earlier identity are preserved, no longer match, and stay
-//! unmeasured until the whole method is measured again.
+//! not_measured until the whole method is measured again.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

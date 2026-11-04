@@ -65,7 +65,7 @@ fn source(posterior: bool) -> DistributionArtifact {
             shape: [2, 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: if posterior {
                 DistributionTrust::NativeSupported
             } else {
@@ -136,7 +136,7 @@ fn rollout_finite_source_and_ranking_replay_match_independent_bet_truth() {
         assert!((ranking.ranking.entries[0].evsi - pin("evsi").as_f64().unwrap()).abs() < 1e-12);
         assert!((ranking.ranking.entries[0].evpi - pin("evpi").as_f64().unwrap()).abs() < 1e-12);
         assert_eq!(decoded.binding.source.trust, artifact.binding.source.trust);
-        assert_eq!(decoded.binding.source.calibration, DistributionCalibration::Unmeasured);
+        assert_eq!(decoded.binding.source.calibration, DistributionCalibration::NotMeasured);
     }
 }
 fn assert_refused(result: Result<(), IoError>, code: &str, message: &str, edit: usize) {

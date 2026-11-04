@@ -59,7 +59,7 @@ use super::propagation::{
 pub const POINT_PROPAGATION_LABEL: &str = crate::joint_law_rule::UNCALIBRATED_SPREAD_LABEL;
 
 /// The calibration state of the propagated variance: no coverage record measured it.
-pub const POINT_PROPAGATION_CALIBRATION: &str = "unmeasured";
+pub const POINT_PROPAGATION_CALIBRATION: &str = "not_measured";
 
 /// `g(mean)` and `E[g(X)]` of a nonlinear map of the propagated law.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -613,7 +613,7 @@ mod tests {
         assert!(close(propagation.variance, expected), "{} vs {expected}", propagation.variance);
         assert_eq!(bits(propagation.mean), bits(propagation.plug_in_value));
         assert_eq!(propagation.reading(), "uncalibrated_spread");
-        assert_eq!(propagation.calibration(), "unmeasured");
+        assert_eq!(propagation.calibration(), "not_measured");
         // The claim value stays the plug-in value and the interval stays withheld.
         assert!(bridged.request_interval().is_err());
     }

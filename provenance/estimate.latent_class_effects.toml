@@ -15,7 +15,7 @@ papers = [
 ]
 
 implementation_deviations = [
-  "Claim policy: the supported claim is the POINT per-class effects, mixture weights and mixture-average effect. Class standard errors, the mixture-average SE and any bootstrap SE are reported diagnostics with calibration 'unmeasured'; no interval is produced and no coverage record is allocated.",
+  "Claim policy: the supported claim is the POINT per-class effects, mixture weights and mixture-average effect. Class standard errors, the mixture-average SE and any bootstrap SE are reported diagnostics with calibration 'not_measured'; no interval is produced and no coverage record is allocated.",
   "EM finds a local maximum: it is run from several seeded restarts and the best likelihood is kept, with no guarantee of the global maximum. The number of classes K is declared by the caller (at most four), never selected from the data. The log-likelihood is checked to be non-decreasing and a violation refuses (latent_class.likelihood_not_monotone).",
   "Identification is a declared premise, not a result: treatment must be as-if randomized within class given the covariates, and the caller declares it (latent_class.randomization_not_declared otherwise). Class membership is latent and estimated; the per-class effect is a mixture-model quantity, not an individual treatment effect.",
   "Classes are put in a canonical order by (tau, alpha, weight), so the output is invariant to label permutation, restart seeds and row order. A class below the minimum weight, with too little design support, or whose effects are not separated by the declared gap refuses (latent_class.weak_class) and a single-class or noise-free regime refuses as degenerate; overlapping classes are never reported as separated.",

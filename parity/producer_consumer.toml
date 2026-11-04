@@ -284,7 +284,7 @@ built_from = "`adaptive_inference.AdaptiveInferenceSession.analyse(...)` (`Adapt
 
 [[producer]]
 key = "choice_inference_result"
-object = "a choice-study inference result (point-only; one route of the choice procedure matrix, its contract identity and retained sources named; calibration unmeasured)"
+object = "a choice-study inference result (point-only; one route of the choice procedure matrix, its contract identity and retained sources named; calibration not_measured)"
 built_from = "`choice_inference.ChoiceInferenceSession.analyze(...)` (`PosteriorResult`, `HierarchicalPosterior`, `StoppingResult`), its `export` and `consume_choice_inference_result_artifact` (`ConsumedChoiceResult`)"
 
 [[producer]]
@@ -2343,12 +2343,12 @@ built_from = "`joint_law_propagation::{propagate_transported_spread, propagate_t
 
 [[rust_producer]]
 key = "derived_decision_uncertainty"
-object = "the derived numerical, selection and rollout components of a decision-reliability assessment (derived_unmeasured, components kept separate)"
+object = "the derived numerical, selection and rollout components of a decision-reliability assessment (derived_not_measured, components kept separate)"
 built_from = "`decision_reliability::{derive_decision_uncertainty, derive_producer_uncertainty}`"
 
 [[rust_producer]]
 key = "repeated_measures_report"
-object = "the exact forms and the seeded simulation of a repeated-measures or clustered procedure (derived_unmeasured, Monte Carlo error separate)"
+object = "the exact forms and the seeded simulation of a repeated-measures or clustered procedure (derived_not_measured, Monte Carlo error separate)"
 built_from = "`adaptive_procedure_report::RepeatedMeasuresProcedure::report`"
 
 [[rust_producer]]

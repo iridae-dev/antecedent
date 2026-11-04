@@ -141,7 +141,7 @@ def test_both_studies_and_the_native_claim_bind_to_the_same_program() -> None:
     assert native.means == pytest.approx(fx.NATIVE_MEANS, abs=1e-9)
     assert native.support == ("supported", "supported", fx.OUTSIDE)
     assert native.support_status == fx.OUTSIDE
-    assert native.calibration in {"point_only", "unmeasured"}
+    assert native.calibration in {"point_only", "not_measured"}
     assert native.has_joint_law is False
 
     law = fx.law()
@@ -170,7 +170,7 @@ def test_a_fitted_native_response_binds_to_its_program() -> None:
     assert claim.program_identity == program.identity
     assert [q.regime_id for q in claim.coordinates] == ["do(a=-0.5)", "do(a=0)", "do(a=0.5)"]
     assert claim.support == ("supported",) * 3
-    assert claim.calibration in {"point_only", "unmeasured"}
+    assert claim.calibration in {"point_only", "not_measured"}
     # Truth 2a on the grid; the independent least-squares line (np.polyfit) is the reference the
     # kernel response is within 0.04 of (observed deviation 0.024).
     slope, intercept = np.polyfit(treatment, outcome, 1)
@@ -199,7 +199,7 @@ def test_the_native_claim_enters_composition_with_issued_authority_and_supported
     assert native.source == "mean"
     assert native.native is True
     assert native.provenance.trust == "native_supported"
-    assert native.provenance.calibration in {"point_only", "unmeasured"}
+    assert native.provenance.calibration in {"point_only", "not_measured"}
     assert [c.coordinate for c in native.support] == [fx.coordinate(0.0), fx.coordinate(1.0)]
     assert {c.status for c in native.support} == {"supported"}
     assert native.provenance.snapshot_id == SNAPSHOT
@@ -545,7 +545,7 @@ def test_the_ranking_matches_the_hand_derived_evsi_and_net_values() -> None:
     assert fx.near(native.net_value, 0.0425) and fx.near(attested.net_value, 0.0125)
     assert native.provider_trust == "native_supported" and native.natively_replayed
     assert attested.provider_trust == "externally_attested" and not attested.natively_replayed
-    assert ranking.calibration == "unmeasured"
+    assert ranking.calibration == "not_measured"
     assert ranking.source_digests == (decision_source_digest(),)
     assert ranking.ties == ()
     # The order candidates are supplied in does not matter.

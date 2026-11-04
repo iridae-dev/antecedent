@@ -991,7 +991,7 @@ fn redrawn_parameters_are_aligned_draws_with_the_distribution_alignment_identity
     // The draws are labelled a spread: no coverage is claimed.
     assert_eq!(reading, "uncalibrated_spread");
 
-    // The repo's distribution artifact: joint alignment, unmeasured, the same identity.
+    // The repo's distribution artifact: joint alignment, not_measured, the same identity.
     let distribution = wire.distribution().unwrap();
     assert_eq!(distribution.shape(), [300, 2]);
     assert_eq!(distribution.metadata().identity.alignment, DrawAlignment::Joint);

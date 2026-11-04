@@ -193,7 +193,7 @@ def test_latent_mixture_effect_is_the_weighted_sum_of_class_effects() -> None:
     assert weighted == pytest.approx(0.6 - 0.4 * 2.0, abs=1e-8)
 
 
-def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
+def test_latent_bootstrap_is_seeded_label_aligned_and_not_measured() -> None:
     first = fit(seed=7, bootstrap_replicates=60)
     second = fit(seed=7, bootstrap_replicates=60)
     assert first.to_dict() == second.to_dict(), "the same seed replays bit-identically"
@@ -218,9 +218,9 @@ def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
     other = fit(seed=8, bootstrap_replicates=60)
     assert other.classes[0].effect_se != se_q
     assert other.classes[0].effect == pytest.approx(first.classes[0].effect, abs=1e-9)
-    assert first.calibration == "unmeasured"
+    assert first.calibration == "not_measured"
     assert first.inference_claim == "point_with_bootstrap_se"
-    assert "unmeasured" in first.caveat
+    assert "not_measured" in first.caveat
     status = {p.name: p.status for p in first.premises}
     assert status["conditional_randomization_within_class"] == "declared"
     assert status["class_weight_and_separation"] == "checked"

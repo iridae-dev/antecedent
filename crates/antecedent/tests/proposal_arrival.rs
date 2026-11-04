@@ -223,7 +223,7 @@ fn arrival_checked_transport_evaluates_actual_counts_and_full_atom_truth() {
     assert!((point.mean.unwrap() - pin("active_mean").as_f64().unwrap()).abs() < 1e-12);
     assert_eq!(point.point.probabilities, vec![0.2, 0.8]);
     assert_eq!(point.inference, "empirical_point_only");
-    assert_eq!(point.calibration, "unmeasured");
+    assert_eq!(point.calibration, "not_measured");
     assert_eq!(point.work.program_compilations, actual.program_compilations);
     assert_eq!(point.work.provider_calls, actual.provider_calls);
     assert!(actual.program_compilations > 0 && actual.provider_calls > 0);

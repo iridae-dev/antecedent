@@ -7223,7 +7223,7 @@ refusals = [
   { code = "quantity_semantics_mismatch", detail = "joint_law_propagation.coverage_record_construction_mismatch" },
 ]
 routes = [
-  { route = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval.unmeasured_coordinate", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval.not_measured_coordinate", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 
 [[record]]
@@ -7378,7 +7378,7 @@ refusals = [
   { code = "invalid_argument", detail = "graph_selection_imputation.data" },
   { code = "invalid_argument", detail = "graph_selection_imputation.domain" },
   { code = "invalid_argument", detail = "graph_selection_imputation.result" },
-  { code = "not_supported", detail = "graph_selection_imputation.interval_unmeasured" },
+  { code = "not_supported", detail = "graph_selection_imputation.interval_not_measured" },
 ]
 routes = [
   { route = "antecedent.missing.multiple_imputation_with_graph_selection", stage = "evaluate", status = "supported", claim = "point_only" },

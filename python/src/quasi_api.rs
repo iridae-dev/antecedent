@@ -286,7 +286,7 @@ pub struct QuasiRolloutSection {
     /// Reported effects; the first is the scalar summary.
     pub effects: Vec<DesignEffectSection>,
     pub uncertainty: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     pub replicates_requested: u32,
     pub replicates_ok: u32,

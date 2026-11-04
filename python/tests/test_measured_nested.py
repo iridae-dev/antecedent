@@ -1,4 +1,4 @@
-"""Normal nested scalar support retains original unmeasured model artifacts."""
+"""Normal nested scalar support retains original not_measured model artifacts."""
 
 import json
 import subprocess
@@ -43,7 +43,7 @@ def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesia
     assert isinstance(measured, MeasuredInference)
     assert [scalar.name for scalar in measured.scalars] == ["mean0", "mean1", "contrast"]
     source = measured.source_report()
-    assert source["calibration"] == "unmeasured"
+    assert source["calibration"] == "not_measured"
     if bayesian:
         posterior = source["posterior"]
         samples = np.asarray(posterior["samples"]).reshape(4 * 4096, 14)
@@ -51,7 +51,7 @@ def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesia
         points = np.asarray(posterior["mean"])[11:14]
         intervals = np.quantile(samples[:, 11:14], [0.025, 0.975], axis=0).T
         assert points == pytest.approx(samples[:, 11:14].mean(axis=0), abs=2e-12)
-        assert source["inference"] == "posterior_candidate_withheld_calibration_unmeasured"
+        assert source["inference"] == "posterior_candidate_withheld_calibration_not_measured"
     else:
         contrast = source["point"]["receipt"]["contrast"]
         points = np.array([*contrast["model_means"], contrast["model_contrast"]])
@@ -106,7 +106,7 @@ def _annotated_not_calibrated(result):
 
 
 @pytest.mark.parametrize("bayesian", [False, True])
-def test_normal_nested_unmeasured_protocols_are_annotated_not_calibrated(bayesian):
+def test_normal_nested_not_measured_protocols_are_annotated_not_calibrated(bayesian):
     # A protocol, prior or level the grid did not measure is computed and annotated; it never
     # borrows the calibration of the measured protocol.
     for kwargs in ({"max_iterations": 49999}, {"tolerance": 2e-11}):

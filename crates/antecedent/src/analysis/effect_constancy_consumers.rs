@@ -26,7 +26,7 @@ pub struct ConstancyEvidence {
     pub identity: EffectConstancyIdentity,
     /// Point-only inference; this is not a measured heterogeneity guarantee.
     pub inference_claim: String,
-    /// Original effect-constancy calibration status, currently unmeasured.
+    /// Original effect-constancy calibration status, currently not_measured.
     pub calibration: String,
     /// Original non-rejection and power caveats.
     pub caveats: Vec<String>,

@@ -1,6 +1,6 @@
 //! `EffectConstancy` artifact: the frozen acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unknown
-//! versions and the unmeasured calibration coordinate.
+//! versions and the not_measured calibration coordinate.
 
 use antecedent_io::effect_constancy_artifact::{
     DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EFFECT_CONSTANCY_CALIBRATION,
@@ -80,7 +80,7 @@ fn artifact_frozen_acceptance_zero_difference_has_zero_statistic() {
     assert_eq!(report.result.degrees_of_freedom, 1);
     assert_eq!(report.result.conclusion, "not_rejected");
     assert_eq!(report.calibration, EFFECT_CONSTANCY_CALIBRATION);
-    assert_eq!(report.calibration, "unmeasured");
+    assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.inference_claim, "point_only");
     assert_eq!(report.version, EFFECT_CONSTANCY_ARTIFACT_VERSION);
     assert!(report.caveats[0].contains("does not prove"), "{:?}", report.caveats);

@@ -94,7 +94,7 @@ fn admit_grid_copy(
     py: Python<'_>,
     n: usize,
     m: usize,
-) -> PyResult<(antecedent::prelude::ExecutionContext, antecedent::execution::AdmissionLease)> {
+) -> PyResult<(antecedent::prelude::ExecutionContext, antecedent::execution::Retention)> {
     let cells = n
         .checked_mul(m)
         .ok_or_else(|| crate::CausalResourceError::new_err("censoring grid dimensions overflow"))?;
@@ -105,8 +105,8 @@ fn admit_grid_copy(
     let ctx = crate::py_execution_context(0, 1);
     let acquire_ctx = ctx.clone();
     let lease = detach_catch(py, move || {
-        acquire_ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent::execution::AdmissionError::Cancelled => {
+        antecedent::execution::retain(&acquire_ctx, bytes).map_err(|error| match error {
+            antecedent::execution::AdmissionRefusal::Cancelled => {
                 crate::py_err(antecedent::CausalError::Cancelled { stage: "survival" })
             }
             error => crate::CausalResourceError::new_err(error.to_string()),

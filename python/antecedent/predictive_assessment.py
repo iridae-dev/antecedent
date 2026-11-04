@@ -33,7 +33,7 @@ What is decided here, and what is not:
   ensemble estimator, which is not proper for the empirical law).
 * **Point values and a record-gated interval.** Differences are paired on the shared observations
   with a standard error under the declared dependence; diagnostics are labelled ``diagnostic``
-  and ``unmeasured``. :meth:`PredictiveAssessment.score_interval` returns the interval of an
+  and ``not_measured``. :meth:`PredictiveAssessment.score_interval` returns the interval of an
   expected score or difference only for a held-out or unfitted predictor under a declared
   dependence, with a calibration status that is ``calibrated`` only where a current coverage record measured the construction, and raises
   ``not_supported`` for any other predictor or dependence; a score is not causal validity
@@ -828,7 +828,7 @@ class DistributionDrift:
 
 @dataclass(repr=False, frozen=True, slots=True)
 class Diagnostics(ScientificResult):
-    """Calibration and sharpness diagnostics: labelled ``diagnostic``, calibration ``unmeasured``."""
+    """Calibration and sharpness diagnostics: labelled ``diagnostic``, calibration ``not_measured``."""
 
     label: str
     calibration: str

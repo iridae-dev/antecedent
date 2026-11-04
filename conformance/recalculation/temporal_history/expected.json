@@ -22,7 +22,7 @@
       "independence_basis": "Responses are integrated directly from the structural equations and cross-checked by an independent g-formula over enumerated counts; no Antecedent code, identification routine or fit is used. The additive candidate arithmetic depends on the 'balanced complete histories' statement of the fixture.",
       "historical_exposure": "Written during this review from the fixture README and the asserting tests; no product implementation source was consulted. Authorship of the original enumeration is unrecorded.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "Binary structure, point values only; the perturbation pin is unreviewed; the intervals of the temporal route are separately attested elsewhere and not touched by this fixture. Calibration unmeasured.",
+      "limitations": "Binary structure, point values only; the perturbation pin is unreviewed; the intervals of the temporal route are separately attested elsewhere and not touched by this fixture. Calibration not_measured.",
       "sources": [],
       "artifacts": [
         {
@@ -55,7 +55,7 @@
             "fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit",
             "fn temporal_history_response_and_effect_match_enumerated_longitudinal_truth",
             "fn temporal_history_source_program_uses_only_reachable_actual_observational_source_leaves",
-            "fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph",
+            "fn temporal_history_uncertainty_rejects_not_measured_scope_and_checks_graph",
             "fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits"
           ],
           "sha256": "3aaab23474b6eff0bdf6c85db9e83ce329a22fb92f3cfadb6634f4a830d6a866"
@@ -117,6 +117,6 @@
     "effect_11_vs_00": 5.0,
     "model": "1+s0+2*a1+3*a2+0.5*l2+0.01*unit; balanced complete histories duplicated within unit",
     "replicates": 20,
-    "calibration": "unmeasured"
+    "calibration": "not_measured"
   }
 }

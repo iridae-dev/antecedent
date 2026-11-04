@@ -128,7 +128,7 @@ def test_a_back_door_study_is_verified_and_its_unlocks_are_derived():
     assert best.resolves and best.unresolved == ()
     assert plan.options[-1].gate == "insufficient"
     assert plan.inference_claim == "none"
-    assert (plan.ranking_guarantee, plan.calibration) == ("point_only", "unmeasured")
+    assert (plan.ranking_guarantee, plan.calibration) == ("point_only", "not_measured")
     # The ranker's unlock list comes from the verified study, not from a hand-written list.
     assert plan.unlocks.variables == ("z",) and plan.unlocks.verified == ("cohort",)
     assert plan.unlocks.unverified == ("blind registry",)
@@ -495,7 +495,7 @@ def test_only_the_study_the_repair_search_verified_is_ranked_through_the_contrac
     assert [(v.id, v.index, v.constraint) for v in ranking.violations] == [
         ("blind registry", 0, "unsupported_candidate")
     ]
-    assert ranking.calibration == "unmeasured"
+    assert ranking.calibration == "not_measured"
 
 
 def test_without_a_verified_study_nothing_is_ranked_and_no_unlock_is_invented():

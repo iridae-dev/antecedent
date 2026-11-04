@@ -57,7 +57,7 @@ fn survival_report_states_its_estimands_assumptions_and_standing() {
     let report = ObservationalSurvivalEffect::evaluate(&request).unwrap();
     assert!((report.horizon - 2.0).abs() < f64::EPSILON);
     assert_eq!(report.censoring, "at_random_given_covariates");
-    assert_eq!(report.calibration, "unmeasured");
+    assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.estimands.len(), 2);
     assert!(report.assumptions.iter().any(|a| a.contains("coarsening at random")));
     assert!(report.assumptions.iter().any(|a| a.contains("exchangeability")));
@@ -188,7 +188,7 @@ fn policy_value_reports_the_declared_support_evaluation_and_standing() {
         assert_eq!(report.evaluation, evaluation);
         assert_eq!(report.support, vec![0.0, 1.0]);
         assert_eq!(report.evaluation_rows, expected_rows);
-        assert_eq!(report.calibration, "unmeasured");
+        assert_eq!(report.calibration, "not_measured");
         assert_eq!(report.action_values.len(), 2);
         // E[Y(a)] = 1 + E[z] + 1.5 a E[z] = 1 for both actions.
         for action in &report.action_values {

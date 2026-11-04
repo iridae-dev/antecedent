@@ -4,7 +4,7 @@
 //! stopping rule) as the wire declaration, and asks for one route at a time. The contract checks,
 //! the evidence ledger's overlap judgement, the paradigm gate, every number, the exported
 //! artifacts and every refusal are Rust's; a refusal comes back as structured JSON for the Python
-//! layer to raise as a typed exception. Every result is point-only and calibration is unmeasured.
+//! layer to raise as a typed exception. Every result is point-only and calibration is not_measured.
 
 use antecedent::analysis::choice_inference::{
     ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceKernel, ChoiceRequest, StudyCandidate,
@@ -289,7 +289,7 @@ impl ChoiceInferenceHandle {
             }));
         }
         let ctx = execution_context(0, None, cancel);
-        let lease = match ctx.acquire_admission(0, artifact.len() as u64) {
+        let lease = match antecedent::execution::retain(&ctx, artifact.len() as u64) {
             Ok(lease) => lease,
             Err(e) => {
                 return Ok(refused(&ChoiceInferenceRefusal {
@@ -379,7 +379,7 @@ fn choice_inference_prepare(
     let quote = (declaration_json.len() as u64)
         .checked_mul(4)
         .ok_or_else(|| crate::value_err("choice declaration admission overflow"))?;
-    let lease = match ctx.acquire_admission(0, quote) {
+    let lease = match antecedent::execution::retain(&ctx, quote) {
         Ok(lease) => lease,
         Err(e) => {
             return Ok(refused(&ChoiceInferenceRefusal {
@@ -431,7 +431,7 @@ fn choice_inference_retained_source(
         }));
     }
     let ctx = execution_context(0, None, cancel);
-    let lease = match ctx.acquire_admission(0, artifact.len() as u64) {
+    let lease = match antecedent::execution::retain(&ctx, artifact.len() as u64) {
         Ok(lease) => lease,
         Err(e) => {
             return Ok(refused(&ChoiceInferenceRefusal {
@@ -475,7 +475,7 @@ fn choice_inference_result_consume(
         }));
     }
     let ctx = execution_context(0, None, cancel);
-    let lease = match ctx.acquire_admission(0, artifact.len() as u64) {
+    let lease = match antecedent::execution::retain(&ctx, artifact.len() as u64) {
         Ok(lease) => lease,
         Err(e) => {
             return Ok(refused(&ChoiceInferenceRefusal {

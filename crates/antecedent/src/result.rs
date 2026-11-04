@@ -339,14 +339,14 @@ pub struct TemporalDesignEstimate {
     pub draws: Option<u64>,
     /// How the uncertainty was computed.
     pub uncertainty: Arc<str>,
-    /// Calibration status of every interval: always `unmeasured`.
+    /// Calibration status of every interval: always `not_measured`.
     pub calibration: Arc<str>,
     /// Always `false`: the route is not supported.
     pub supported: bool,
 }
 
 /// Effects of a rollout design with the uncertainty of its whole-procedure path
-/// (unsupported; calibration unmeasured).
+/// (unsupported; calibration not_measured).
 ///
 /// Carries a heterogeneity-robust or covariate-adjusted difference in differences (group-time,
 /// aggregated and pre-trend effects), a conformal or multi-unit synthetic control (per-period
@@ -367,7 +367,7 @@ pub struct QuasiRolloutEstimate {
     pub effects: Arc<[antecedent_estimate::rollout_resampling::DesignEffect]>,
     /// How the uncertainty was computed.
     pub uncertainty: Arc<str>,
-    /// Calibration status of every interval: always `unmeasured`.
+    /// Calibration status of every interval: always `not_measured`.
     pub calibration: Arc<str>,
     /// Requested replicates (zero for a conformal inversion).
     pub replicates_requested: u32,
@@ -1229,7 +1229,7 @@ pub struct InterferenceInference {
 
 /// The retained posterior of an unsupported Bayesian randomized-design row: coordinates, means,
 /// equal-tailed 95% credible intervals, the covariance of the joint draws and named summaries.
-/// Its uncertainty is `posterior` and its calibration `unmeasured`; it is never supported.
+/// Its uncertainty is `posterior` and its calibration `not_measured`; it is never supported.
 pub type PosteriorRowEstimate = antecedent_io::PosteriorRowWire;
 
 /// The typed answer of one query family, published beside a result's scalar
@@ -1305,7 +1305,7 @@ pub enum ResultPayload {
     Survival(SurvivalEstimate),
     /// Unsupported Bayesian posterior of a randomized-design row (survival contrast, fixed
     /// group-dose policy value): means, credible intervals and the joint covariance of the
-    /// retained draws, with calibration `unmeasured`.
+    /// retained draws, with calibration `not_measured`.
     PosteriorRow(PosteriorRowEstimate),
     /// Prespecified longitudinal regime value.
     LongitudinalRegime(LongitudinalRegimeEstimate),

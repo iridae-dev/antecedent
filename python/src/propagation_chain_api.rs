@@ -272,7 +272,7 @@ fn propagation_chain_family_table(
     let alignment = alignment.to_owned();
     let ledger = ledger.as_ref().map(|handle| handle.ledger().clone());
     crate::detach_catch(py, move || {
-        let table_result = antecedent::execution::numerical_admission::with_context(&ctx, || {
+        let table_result = antecedent::execution::run_admitted(&ctx, || {
             family_table(&alignment, &estimates, &dependence, ledger.as_ref(), rows, seed)
         });
         if ctx.cancellation.is_cancelled() {

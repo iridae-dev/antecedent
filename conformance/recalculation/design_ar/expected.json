@@ -20,7 +20,7 @@
       "independence_basis": "Neither computation uses Antecedent's incomplete-beta, F quantile or generators; the two routes are mathematically distinct quadrature and continued-fraction evaluations. The t-squared-equals-F identity for one numerator degree of freedom is the shared theorem.",
       "historical_exposure": "The original harness was not retained; this replacement was written during this review from the README's stated method plus an independent continued-fraction cross-check. No product source was consulted.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "Critical values only. The ignored measurement tests that consume the larger-n pins are not run here and are final-calibration only; the IV design, its Anderson-Rubin inversion and error rates are not covered. Calibration unmeasured.",
+      "limitations": "Critical values only. The ignored measurement tests that consume the larger-n pins are not run here and are final-calibration only; the IV design, its Anderson-Rubin inversion and error rates are not covered. Calibration not_measured.",
       "sources": [],
       "artifacts": [
         {

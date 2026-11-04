@@ -348,7 +348,7 @@ identities rather than granting authority from a digest alone. See
 The distinct `inference.MeasuredInference` envelope binds each named scalar to
 its original method and current attesting coverage record. Its independent
 consumer replays the original source calculation under caller-retained identity
-and bounds. An original source artifact can retain unmeasured diagnostics or
+and bounds. An original source artifact can retain not_measured diagnostics or
 parameter summaries inside a measured envelope: only the named endpoints in
 the [measured scope](population-time-uncertainty.md) receive that standing.
 A general `antecedent.load` call is not a substitute for this method-specific

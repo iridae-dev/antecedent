@@ -100,7 +100,7 @@ def test_generic_python_panel_matches_shared_rust_mechanism_and_retains_failed_s
     assert not report["identified"]
     assert not report["diagnostics"]["optimizer_converged"]
     assert report["draws"] == [None] * 4
-    assert report["diagnostics"]["calibration"] == "unmeasured"
+    assert report["diagnostics"]["calibration"] == "not_measured"
     point = report["point_parameters"]
     parameters = point["parameters"]
     for world, response in zip(worlds, report["point"], strict=True):
@@ -201,7 +201,7 @@ def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
     assert report["stop"] == "Certified"
     assert report["gap"] <= 1e-3
     assert report["scope"] == "model_conditional"
-    assert report["selected_value_reliability"] == "unmeasured"
+    assert report["selected_value_reliability"] == "not_measured"
     assert len(report["controls"]) == len(controls)
     # The certified maximiser is the only moving control at its upper bound, and the certified
     # upper value dominates every pointwise schedule of that control (independent of the
@@ -441,7 +441,7 @@ def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
     assert ranked["global_certificate"] is False
     assert ranked["continuous_gap"] is None
     assert ranked["scope"] == "model_conditional"
-    assert ranked["selected_value_reliability"] == "unmeasured"
+    assert ranked["selected_value_reliability"] == "not_measured"
 
     # A negative utility scale reverses the ranking; the same fitted response is reused.
     flipped = result.search_declared_programs(
@@ -741,7 +741,7 @@ def test_broader_family_is_evaluated_by_the_shared_rust_mechanism_and_replays_fr
                 ) / 4
             assert actual == pytest.approx(expected, abs=1e-10)
     assert not report["identified"]
-    assert report["diagnostics"]["calibration"] == "unmeasured"
+    assert report["diagnostics"]["calibration"] == "not_measured"
     # The frozen artifact carries the family and replays the same numbers.
     replay = require_success(
         joint_panel.consume(

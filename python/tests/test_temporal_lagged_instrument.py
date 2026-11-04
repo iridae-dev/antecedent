@@ -5,7 +5,7 @@ adjustment cannot identify the effect, a lagged cause of the treatment can. The 
 certifies the instrument on the unfolded window graph, never from a time column; relevance is
 checked by the first-stage F. References are numpy: the closed-form Wald ratio with its
 homoskedastic standard error, and a numpy Gaussian reduced-form posterior for the ratio.
-Both estimators are unsupported with calibration unmeasured.
+Both estimators are unsupported with calibration not_measured.
 """
 
 from __future__ import annotations

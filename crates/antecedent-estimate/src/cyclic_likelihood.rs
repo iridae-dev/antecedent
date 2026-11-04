@@ -2,7 +2,7 @@
 //! Joint likelihood estimation of specified nonlinear equilibrium families.
 //! Known intervention targets are fixed design. The reported parameter model is
 //! conditional on the specified structure and covariance, not nonparametric ID.
-//! Calibration remains unmeasured; optimization is local and its status explicit.
+//! Calibration remains not_measured; optimization is local and its status explicit.
 
 use antecedent_core::ExecutionContext;
 #[cfg(test)]

@@ -1404,7 +1404,7 @@ fn parameter_draws_distribution(
             shape: [draws.draws, draws.width()],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,

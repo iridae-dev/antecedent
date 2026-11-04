@@ -56,7 +56,7 @@ pub struct ScoreDifference {
     pub fit_overlap: Option<u64>,
     /// Always `diagnostic`.
     pub label: &'static str,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: &'static str,
     /// Always `not_reported`: a score-difference interval is not supported.
     pub interval: &'static str,

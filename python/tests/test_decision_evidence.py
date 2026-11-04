@@ -103,7 +103,7 @@ def test_nonlinear_margin_has_a_sampling_interval_and_inherits_no_support():
     result = de.evaluate(_evidence(80), _margin(Measured("cost")))
     d = result.derived
     assert d["contrast"] > 0 and d["sampling"]["standard_error"] > 0
-    assert (d["support"], d["calibration"]) == ("none", "unmeasured")
+    assert (d["support"], d["calibration"]) == ("none", "not_measured")
     assert d["standing"] == "sampled"
 
 
@@ -600,7 +600,7 @@ def test_static_regime_aligned_bootstrap_retains_joint_sampling_law():
     assert ev.wire["dependence"]["kind"] == "joint_arms"
     result = de.evaluate(ev, DerivedQuantity("y", "u", Expr.input(0), [Measured("y")])).derived
     assert result["sampling"] is not None
-    assert (result["support"], result["calibration"]) == ("none", "unmeasured")
+    assert (result["support"], result["calibration"]) == ("none", "not_measured")
 
 
 def test_compiled_evidence_obeys_execution_memory_limit():

@@ -220,7 +220,7 @@ fn a_simulation_returns_a_receipt_and_labelled_measured_properties() {
             &ctx(),
         )
         .unwrap();
-    assert_eq!(report.calibration, "derived_unmeasured");
+    assert_eq!(report.calibration, "derived_not_measured");
     let receipt = report.simulation.receipt;
     assert_eq!(receipt.replications, 30);
     assert_eq!(receipt.work_planned, 30 * 200 * 6);
@@ -257,7 +257,7 @@ fn a_retained_run_seals_with_its_procedure_and_a_fresh_consumer_replays_it() {
     let run = sealed_run();
     let history = run.procedure.simulate_history(&[0.35, 0.45, 0.4], None, 12, &ctx()).unwrap();
     let report = run.procedure.read_history(&history, &ctx()).unwrap();
-    assert_eq!(report.calibration, "derived_unmeasured");
+    assert_eq!(report.calibration, "derived_not_measured");
     assert!(matches!(report.decision, LookDecision::Stop { .. }));
 
     let consumed = consume_adaptive_monitoring_contract_artifact(&run.bytes, None).unwrap();
@@ -269,7 +269,7 @@ fn a_retained_run_seals_with_its_procedure_and_a_fresh_consumer_replays_it() {
     for reading in record.readings() {
         assert_eq!(reading.posterior.paradigm, "bayesian_posterior");
         assert_eq!(reading.frequentist.paradigm, "anytime_valid_frequentist");
-        assert_eq!(reading.frequentist.calibration, "derived_unmeasured");
+        assert_eq!(reading.frequentist.calibration, "derived_not_measured");
         assert_eq!(reading.frequentist.comparisons.len(), 2);
     }
     // The retained identity is accepted; the artifact is deterministic.

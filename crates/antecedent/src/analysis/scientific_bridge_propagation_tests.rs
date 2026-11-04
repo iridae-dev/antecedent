@@ -266,12 +266,12 @@ fn an_affine_map_publishes_the_hand_delta_variance_beside_the_plug_in_value() {
     assert_eq!(result.propagated_mean().unwrap().to_bits(), result.value().to_bits());
     assert_eq!(result.propagated_variance(), Some(propagation.variance));
     assert_eq!(propagation.reading(), "uncalibrated_spread");
-    assert_eq!(propagation.calibration(), "unmeasured");
+    assert_eq!(propagation.calibration(), "not_measured");
 
     // The variance is a recorded uncertainty component, not an interval.
     let components = result.components();
     assert!(components.iter().any(|(_, target, omitted)| {
-        !omitted && target == "propagated_variance:uncalibrated_spread:calibration_unmeasured"
+        !omitted && target == "propagated_variance:uncalibrated_spread:calibration_not_measured"
     }));
     assert!(
         components.iter().any(|(_, target, omitted)| !omitted && target == "source_standard_error")

@@ -202,7 +202,7 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
     assert point.law.ate == pytest.approx(candidate.point, abs=1e-12)
     assert candidate.functional == functional
     assert candidate.config == config
-    assert candidate.calibration == "unmeasured"
+    assert candidate.calibration == "not_measured"
     assert candidate.expected_identity.snapshot_id == req.snapshot_id
     assert candidate.expected_identity.initial_state_id == req.initial_state_id
     assert candidate.expected_identity.producing_seed == 41

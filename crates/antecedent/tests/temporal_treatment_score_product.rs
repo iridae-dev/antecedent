@@ -184,7 +184,7 @@ fn the_penalized_score_is_the_ridge_mode_with_an_unpenalized_intercept() {
     assert!(product.draws().is_empty());
     assert_eq!(
         product.result().uncertainty,
-        "penalized_target_subject_influence_interval_calibration_unmeasured"
+        "penalized_target_subject_influence_interval_calibration_not_measured"
     );
     for index in 0..2 {
         let (lower, score, upper) = (
@@ -195,7 +195,7 @@ fn the_penalized_score_is_the_ridge_mode_with_an_unpenalized_intercept() {
         assert!(lower < score && score < upper && value(&format!("score{index}.se")) > 0.0);
     }
     assert_eq!(product.result().support, "unsupported");
-    assert_eq!(product.result().calibration, "unmeasured");
+    assert_eq!(product.result().calibration, "not_measured");
     assert_eq!(product.estimator_id(), "temporal.penalized_propensity");
 }
 

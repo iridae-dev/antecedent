@@ -911,7 +911,7 @@ sources = ["stage_registry"]
 carryover = false
 disposition = "prerequisite"
 touched_by = ["counterfactual_transport", "evidence_ledger"]
-rationale = "Coverage for multi-source transport is unmeasured; any composed or pooled interval over these sources needs it measured first and meanwhile ships point-only."
+rationale = "Coverage for multi-source transport is not_measured; any composed or pooled interval over these sources needs it measured first and meanwhile ships point-only."
 new_record = ""
 
 [[route]]

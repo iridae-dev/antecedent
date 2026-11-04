@@ -45,7 +45,7 @@ Individual joint assignments are present in the randomized data. Conditional per
 common cause: P(A=4|z) is 0.35 when z<0 and 0.65 otherwise; P(B=4|z) is 0.65 when
 z<0 and 0.35 otherwise. The two assignments are independent given z, so every
 joint cell has probability at least 0.1225 conditional on history and z. This supplies a design premise for a subsequent
-sequential identification attempt, not automatic support for an arbitrary
+sequential identification attempt, not an automatic support for an arbitrary
 fitted model. The long program has small but positive assignment probability.
 
 In the confounded design, both channel assignments equal
@@ -67,7 +67,7 @@ references. The public retained workflow in
 `crates/antecedent/tests/joint_panel_workflow.rs` exercises actual fitting,
 aligned uncertainty slots, design refusal, reuse and independent artifact
 consumption. Whole-procedure Q09/E14 grids are registered in
-`parity/fixtures/joint_panel_procedures.toml` but remain unmeasured. The additive
+`parity/fixtures/joint_panel_procedures.toml` but remain not_measured. The additive
 and interaction references isolate the declared mechanism features; neither
 reference grants a calibration claim.
 

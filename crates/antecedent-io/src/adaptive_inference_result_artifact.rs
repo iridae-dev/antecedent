@@ -8,7 +8,7 @@
 //!   the observation accounting);
 //! * the request: which look, which route and its parameters; and
 //! * the stored values, the method name, the point-only claim, the
-//!   **unmeasured** calibration status and the unsupported claim (a stopping rule's error rate), if any.
+//!   **not_measured** calibration status and the unsupported claim (a stopping rule's error rate), if any.
 //!
 //! A consumer trusts none of the stored values. It replays the embedded
 //! contract through the contract checks (so a missing element, an inconsistent
@@ -47,7 +47,7 @@ pub const ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str = "adaptive_inference_result_v1";
 /// Calibration status: no whole-procedure coverage record measures any route.
-pub const ADAPTIVE_INFERENCE_CALIBRATION: &str = "unmeasured";
+pub const ADAPTIVE_INFERENCE_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy.
 pub const MAX_ADAPTIVE_INFERENCE_RESULT_BYTES: usize = 256 * 1024 * 1024;
 /// Relative tolerance when comparing a stored value with its recomputation
@@ -569,7 +569,7 @@ pub struct AdaptiveResultMeta {
     pub value_bits: Vec<u64>,
     /// Claim class: always `point_only`.
     pub claim: String,
-    /// Calibration status: always `unmeasured`.
+    /// Calibration status: always `not_measured`.
     pub calibration: String,
     /// The claim with no construction, when the result has one.
     pub unsupported_claim: Option<String>,

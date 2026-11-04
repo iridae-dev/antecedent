@@ -37,7 +37,7 @@ def test_the_parts_partition_the_rows_and_discovery_sees_only_its_part() -> None
 
     receipt = split.receipt
     assert (receipt.n_rows, receipt.n_discovery, receipt.n_analysis) == (N, 200, 300)
-    assert receipt.whole_method_calibration == "unmeasured"
+    assert receipt.whole_method_calibration == "not_measured"
     assert receipt.conditional_on_selected_graph
     split.verify()
 
@@ -68,7 +68,7 @@ def test_only_the_analysis_part_passes_the_check_and_the_binding_says_what_it_su
     split = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, split_seed=6)
     binding = split.check_analysis_table(split.analysis)
     assert binding.conditional_on_selected_graph
-    assert binding.whole_method_calibration == "unmeasured"
+    assert binding.whole_method_calibration == "not_measured"
     assert binding.receipt_identity == split.receipt.identity
     assert binding.structure_identity == split.outcome.structure_identity
 

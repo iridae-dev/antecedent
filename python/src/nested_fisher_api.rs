@@ -48,7 +48,7 @@ struct Candidate {
 impl Candidate {
     fn from_artifact(artifact: NestedFisherArtifact) -> PyResult<Self> {
         let bytes = artifact.export().map_err(error)?;
-        let identity = antecedent::schema::blake3_hex(&bytes);
+        let identity = antecedent::identity::blake3_hex(&bytes);
         Ok(Self { artifact, bytes, identity })
     }
 }
@@ -98,7 +98,7 @@ fn consume_nested_markov_fisher_candidate(
     if bytes.len() > 256 * 1024 {
         return Err(crate::value_err("nested_markov.fisher_artifact_limits: candidate byte bound"));
     }
-    if antecedent::schema::blake3_hex(bytes) != expected_identity {
+    if antecedent::identity::blake3_hex(bytes) != expected_identity {
         return Err(crate::with_reason_code(
             crate::value_err(
                 "nested_markov.fisher_identity_mismatch: candidate identity differs from expected",

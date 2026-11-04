@@ -147,7 +147,7 @@ def test_a_bridge_of_draws_keeps_the_alignment_and_the_declared_uncertainty():
     assert identity.quantities[0] == TARGET
     assert identity.quantities[1] == COST
     assert exact.reading == "uncalibrated_spread"
-    assert exact.calibration == "unmeasured"
+    assert exact.calibration == "not_measured"
     assert exact.value_kind == "posterior"
     np.testing.assert_array_equal(np.asarray(exact.source_distribution()), np.asarray(draws))
 

@@ -119,7 +119,7 @@ fn table_of(
             shape: [source.len(), 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,
@@ -323,7 +323,7 @@ fn draws_in_draws_out_keep_the_alignment_and_every_other_column() {
     assert_eq!(bridged.mapped_column().len(), input.n_draws());
     assert_eq!(bridged.source_column(), source);
     // The bridged table is read as an uncalibrated spread and carries no trust it was not given.
-    assert_eq!(output.metadata().calibration, DistributionCalibration::Unmeasured);
+    assert_eq!(output.metadata().calibration, DistributionCalibration::NotMeasured);
     assert_eq!(output.metadata().trust, DistributionTrust::Unverified);
 
     // An exact map is bit for bit the map of each draw.

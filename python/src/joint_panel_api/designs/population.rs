@@ -43,7 +43,7 @@ fn parse(
     PopulationReferenceBindings,
     SelectionDiagram,
     ScientificConsumptionScope,
-    antecedent::execution::AdmissionLease,
+    antecedent::execution::Retention,
 )> {
     bounded_json(text, "population reference decomposition")?;
     let declaration: Declaration =
@@ -83,9 +83,9 @@ fn parse(
             )
         })
         .ok_or_else(|| crate::value_err("population graph memory quote overflow"))?;
-    let graph_lease = ctx.acquire_admission(0, graph_bytes).map_err(|error| {
+    let graph_lease = antecedent::execution::retain(ctx, graph_bytes).map_err(|error| {
         panel_error(match error {
-            antecedent::execution::AdmissionError::Cancelled => {
+            antecedent::execution::AdmissionRefusal::Cancelled => {
                 antecedent::estimate::joint_panel::PanelError::Cancelled.into()
             }
             error => {
@@ -128,7 +128,7 @@ fn report(result: &PopulationReferenceDecomposition) -> PyResult<String> {
             serde_json::json!({"estimate":format!("{:?}",means.estimate)})
         }
     };
-    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"joint_uncertainty":result.decomposition.joint_uncertainty(),"procedure_failures":result.procedure_failures,"full_procedure_bootstrap":!result.procedure_failures.is_empty(),"transport":{"identity":result.transport.identity().to_hex(),"functional":result.transport.functional(),"graph":graph,"selection_targets":result.transport.diagram().selection_targets().iter().map(|id|id.raw()).collect::<Vec<_>>(),"baseline":result.bindings.baseline.raw(),"strata":result.bindings.strata,"before_weights":result.bindings.before_weights,"after_weights":result.bindings.after_weights},"source_question":result.source.question_identity().to_hex(),"identification":result.source.identification().identity().to_hex(),"dependency":result.source.dependency_identity().to_hex(),"scope":if result.scope==ScientificConsumptionScope::IdentifiedCausal{"identified_population_reference"}else{"model_conditional_population_reference"},"uncertainty":uncertainty,"calibration":"unmeasured","grants_unique_causal_attribution":false})).map_err(|error|crate::serialization_err(error.to_string()))
+    serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"joint_uncertainty":result.decomposition.joint_uncertainty(),"procedure_failures":result.procedure_failures,"full_procedure_bootstrap":!result.procedure_failures.is_empty(),"transport":{"identity":result.transport.identity().to_hex(),"functional":result.transport.functional(),"graph":graph,"selection_targets":result.transport.diagram().selection_targets().iter().map(|id|id.raw()).collect::<Vec<_>>(),"baseline":result.bindings.baseline.raw(),"strata":result.bindings.strata,"before_weights":result.bindings.before_weights,"after_weights":result.bindings.after_weights},"source_question":result.source.question_identity().to_hex(),"identification":result.source.identification().identity().to_hex(),"dependency":result.source.dependency_identity().to_hex(),"scope":if result.scope==ScientificConsumptionScope::IdentifiedCausal{"identified_population_reference"}else{"model_conditional_population_reference"},"uncertainty":uncertainty,"calibration":"not_measured","grants_unique_causal_attribution":false})).map_err(|error|crate::serialization_err(error.to_string()))
 }
 pub(super) fn execute(
     result: &JointDesignResult,

@@ -202,7 +202,7 @@ pub struct DerivedResult {
     pub standing: Standing,
     /// Support inherited: always none.
     pub support: &'static str,
-    /// Calibration of the interval: always unmeasured.
+    /// Calibration of the interval: always not_measured.
     pub calibration: &'static str,
     /// Statement about the interval construction.
     pub interval_statement: &'static str,
@@ -761,19 +761,19 @@ pub fn derive(
             unresolved,
             standing,
             support: "none",
-            calibration: "unmeasured",
+            calibration: "not_measured",
             interval_statement: match evidence.design.assignment_design.as_str() {
                 "matched_pairs" => {
-                    "first-order delta method through the paired-cluster covariance, with a Student reference using pairs minus one degrees of freedom; calibration is unmeasured and no component support is inherited"
+                    "first-order delta method through the paired-cluster covariance, with a Student reference using pairs minus one degrees of freedom; calibration is not_measured and no component support is inherited"
                 }
                 "switchback" => {
-                    "first-order delta method through the sequence-level switchback covariance, with a Student reference using sequences minus one degrees of freedom; calibration is unmeasured and no component support is inherited"
+                    "first-order delta method through the sequence-level switchback covariance, with a Student reference using sequences minus one degrees of freedom; calibration is not_measured and no component support is inherited"
                 }
                 "temporal_regime" => {
-                    "first-order delta method through aligned whole-subject bootstrap covariance with a normal reference; calibration is unmeasured and no component support is inherited"
+                    "first-order delta method through aligned whole-subject bootstrap covariance with a normal reference; calibration is not_measured and no component support is inherited"
                 }
                 "adaptive_regime" => {
-                    "first-order delta method through aligned delete-subject jackknife covariance with a normal reference; calibration is unmeasured and no component support is inherited"
+                    "first-order delta method through aligned delete-subject jackknife covariance with a normal reference; calibration is not_measured and no component support is inherited"
                 }
                 _ => DELTA_METHOD_STATEMENT,
             },
@@ -1396,7 +1396,7 @@ pub(super) mod tests {
         let s = r.sampling.unwrap();
         assert!(s.standard_error > 0.0 && s.lower < 3.2 && s.upper > 3.2);
         assert_eq!(r.standing, Standing::Sampled);
-        assert_eq!((r.support, r.calibration), ("none", "unmeasured"));
+        assert_eq!((r.support, r.calibration), ("none", "not_measured"));
     }
 
     #[test]

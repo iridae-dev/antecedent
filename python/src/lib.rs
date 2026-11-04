@@ -298,7 +298,7 @@ use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 
-use antecedent::data::{DataError, TableView, tabular_from_arrow_c_columns};
+use antecedent::data::{DataError, TableView};
 use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use antecedent::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
@@ -880,12 +880,12 @@ pub(crate) struct AteAnalysisResult {
     /// set, never a point.
     #[pyo3(get)]
     iv_bounds: Option<bounds_api::IvBoundsSection>,
-    /// Noncausal association of the observed data (unsupported, calibration unmeasured): never
+    /// Noncausal association of the observed data (unsupported, calibration not_measured): never
     /// an intervention effect, ranks no action.
     #[pyo3(get)]
     association: Option<association_api::AssociationSection>,
     /// Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic
-    /// panel, or optioned local ratio (unsupported, calibration unmeasured).
+    /// panel, or optioned local ratio (unsupported, calibration not_measured).
     #[pyo3(get)]
     quasi_rollout: Option<quasi_api::QuasiRolloutSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).
@@ -1003,8 +1003,7 @@ impl From<&RefutationReport> for RefutationReportView {
             scope_target_identity: target
                 .map(antecedent::analysis::target_validation::RefutationTarget::identity_hex),
             scope_outer_atom: atom,
-            scope_completion_digest: digest
-                .map(|digest| antecedent::schema::identity::to_hex(digest)),
+            scope_completion_digest: digest.map(|digest| antecedent::identity::to_hex(digest)),
             scope_horizon_index: horizon_index,
             scope_horizon: horizon,
         }

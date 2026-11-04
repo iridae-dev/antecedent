@@ -167,7 +167,7 @@ def test_temporal_source_history_changes_refit_and_match_fresh_execution():
     )
 
 
-def test_temporal_unmeasured_history_protocol_preserves_source_state():
+def test_temporal_not_measured_history_protocol_preserves_source_state():
     session = TemporalSession()
     require_success(session.execute(request(), execution=Execution(seed=41)))
     ids = session.identities

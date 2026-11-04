@@ -17,7 +17,7 @@
 //! is `calibrated` when a current attesting coverage record measured this construction (the
 //! target, the number of declared levels, the folds and the row count are part of the key),
 //! and otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`, in
-//! which case the standard error is labelled **unmeasured**. Only the full-population target
+//! which case the standard error is labelled **not_measured**. Only the full-population target
 //! has a measurement design; the pairwise subpopulation target is reported `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::CausalError;
 
 /// Calibration standing of the reported standard error while no coverage record governs it.
-pub const MULTI_LEVEL_TREATMENT_CALIBRATION: &str = "unmeasured";
+pub const MULTI_LEVEL_TREATMENT_CALIBRATION: &str = "not_measured";
 /// Calibration standing once a current attesting coverage record governs the interval.
 pub const MULTI_LEVEL_TREATMENT_CALIBRATED: &str = "calibrated";
 /// Interval status when a governing coverage record measured the construction at this scope.
@@ -174,7 +174,7 @@ pub struct MultiLevelReportWire {
     /// Standardized mean per declared level (full-population target only).
     pub level_means: Vec<LevelMeanWire>,
     /// Calibration standing of the standard error: `calibrated` when a coverage record governs
-    /// the interval, `unmeasured` otherwise.
+    /// the interval, `not_measured` otherwise.
     pub calibration: String,
     /// The 95% interval `effect ± z · se_analytic`; present whenever the standard error is
     /// positive and finite, annotated by `interval_status`.

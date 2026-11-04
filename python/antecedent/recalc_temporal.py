@@ -232,7 +232,7 @@ class TemporalSession(_Session):
         config: CheckedTemporalIntervalConfig,
         execution: Execution | None = None,
     ) -> CheckedTemporalIntervalCandidate:
-        """Original checked source/proof whole-unit interval; unmeasured and feature-only."""
+        """Original checked source/proof whole-unit interval; not_measured and feature-only."""
         run = _execution(execution)
         memory_limit_bytes, cancel = run.limits.memory_bytes, run.cancel
         if not isinstance(config, CheckedTemporalIntervalConfig):
@@ -488,7 +488,7 @@ class CheckedTemporalIntervalIdentity:
 
 @dataclass(frozen=True, slots=True, init=False)
 class CheckedTemporalIntervalCandidate:
-    """Immutable original checked source/proof candidate; calibration is unmeasured.
+    """Immutable original checked source/proof candidate; calibration is not_measured.
 
     Constructed by TemporalSession.interval_candidate or independent load. Both arms
     of an effect retain their original declarations and share every whole-unit draw.
@@ -511,10 +511,10 @@ class CheckedTemporalIntervalCandidate:
         if (
             body.get("version") != 1
             or body.get("required_features") != ["checked_temporal_interval_candidate_v1"]
-            or body.get("calibration") != "unmeasured"
-            or body["result"].get("calibration") != "unmeasured"
-            or body.get("claim") != "dependence_preserving_calibration_unmeasured"
-            or body["result"].get("claim") != "dependence_preserving_calibration_unmeasured"
+            or body.get("calibration") != "not_measured"
+            or body["result"].get("calibration") != "not_measured"
+            or body.get("claim") != "dependence_preserving_calibration_not_measured"
+            or body["result"].get("claim") != "dependence_preserving_calibration_not_measured"
         ):
             raise CausalSerializationError("unsupported checked temporal interval standing")
         identity = CheckedTemporalIntervalIdentity._from_wire(body["identity"])
@@ -529,8 +529,8 @@ class CheckedTemporalIntervalCandidate:
         return result
 
     @property
-    def calibration(self) -> Literal["unmeasured"]:
-        return "unmeasured"
+    def calibration(self) -> Literal["not_measured"]:
+        return "not_measured"
 
     @property
     def expected_identity(self) -> CheckedTemporalIntervalIdentity:

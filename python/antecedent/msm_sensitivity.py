@@ -24,7 +24,7 @@ Three things stay distinct and are never merged:
 * the **sampling interval** is withheld (``sampling interval: not reported``): the strata are
   supplied as exact quantities, so nothing here is estimated, and composing a sampling
   interval with the range refuses (``not_supported`` /
-  ``msm_sensitivity.composition_not_supported``). Calibration is unmeasured.
+  ``msm_sensitivity.composition_not_supported``). Calibration is not_measured.
 
 Rust owns the bounds, the bisection tipping point, the artifact and every refusal; this module
 builds declarations and raises each refusal as :class:`MsmSensitivityRefusal`, a
@@ -750,6 +750,6 @@ def from_analysis(
         uncertainty=MsmUncertainty(
             sampling_interval="sampling interval: not reported",
             reason_code="not_supported",
-            detail="empirical plug-in bounds have unmeasured sampling uncertainty",
+            detail="empirical plug-in bounds have not_measured sampling uncertainty",
         ),
     )

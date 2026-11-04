@@ -40,7 +40,7 @@ unresolved DOI or title mismatch; explicit `--fetch` uses Crossref/DataCite.
   `requires_calibration` marker. The default Python lane deselects them (and the
   `scientific` assertions, which `tests/conftest.py` marks from the registries);
   `python-calibration-acceptance` selects them after lockdown and calibration.
-  No skip, xfail or fabricated attestation turns an unmeasured branch green.
+  No skip, xfail or fabricated attestation turns a not_measured branch green.
   The audit inventories these assertions from their source markers.
 - Thirteen Rust measured-record consumers are classified by exact assertion in
   the existing test registry. The nextest default filter

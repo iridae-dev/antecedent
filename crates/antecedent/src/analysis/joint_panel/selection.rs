@@ -404,7 +404,7 @@ impl RandomizedSelectionResult {
             "changed_selection":self.procedure.changed_selection,"near_ties":self.procedure.near_ties,
             "uncertainty":"independent_unit_sandwich_on_reserved_observations",
             "bootstrap_role":"whole_procedure_diagnostics_no_ordinary_bootstrap_coverage_at_ties",
-            "calibration":"unmeasured"})
+            "calibration":"not_measured"})
     }
     /// Export original data and policy with a report that must be re-executed.
     /// # Errors

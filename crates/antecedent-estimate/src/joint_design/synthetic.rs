@@ -149,7 +149,7 @@ fn subset(
 /// Fit every requested joint rollout against its supported unaffected donor world.
 /// Bonferroni inversion gives one simultaneous region without assuming independent
 /// marginal effects. Native weights, preperiod fit and counterfactual restrictions
-/// survive projection. The reported release calibration status remains unmeasured.
+/// survive projection. The reported release calibration status remains not_measured.
 /// # Errors
 /// Missing design or exchangeability premises, contaminated/unsupported donor worlds,
 /// insufficient conformal resolution, cancellation or admission refusal.

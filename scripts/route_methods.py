@@ -135,6 +135,7 @@ DECLARED_KIND = {
     "bayesian.switchback_effect": "posterior",
     "bayesian.piecewise_survival": "posterior",
     "bayesian.continuous_dose_policy": "posterior",
+    "randomized.quantile": "analytic",
     "bayesian.randomized_quantile": "posterior",
     "attribution.mechanism_change_detection": "none",
     "attribution.unit_change": "none",
@@ -260,7 +261,7 @@ CORROBORATION = {
 }
 # Sibling coordinates of an estimator whose cells carry no record of their own: the Bayesian
 # cells that publish the linear-mechanism point on each identified completion.
-DECLARED_UNMEASURED = {
+DECLARED_NOT_MEASURED = {
     ("temporal.linear.adjustment", "Bayesian"): (
         ["posterior", "enclosure"],
         "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_cross_world_points_match_the_linear_mechanism",
@@ -291,7 +292,7 @@ def derivative_uncertainty(
     if graph == "Dag" and structure == "graph_posterior":
         return (
             ["analytic", "none"],
-            "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured",
+            "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_not_measured",
         )
     # A TemporalAdmg answers through the contemporaneous projection of the class executor.
     if graph in {"Cpdag", "Pag", "Admg", "TemporalAdmg"} and structure in {"explicit", "accepted"}:
@@ -800,11 +801,11 @@ def supported_methods(src: Sources) -> list[dict]:
                 elif inherited:
                     kinds, basis = inherited, "estimator_records"
                     sources_ = [f"estimator:{estimator}:{inference}:{inherited_design}:{structure}"]
-                elif declaration := derivative_uncertainty(query, graph, estimator, inference, structure) or DECLARED_UNMEASURED.get((estimator, inference)):
+                elif declaration := derivative_uncertainty(query, graph, estimator, inference, structure) or DECLARED_NOT_MEASURED.get((estimator, inference)):
                     kinds_list, test = declaration
                     kinds, basis, sources_ = (
                         set(kinds_list),
-                        "declared_unmeasured",
+                        "declared_not_measured",
                         [f"test:{test}"],
                     )
             by_structure[structure] = (
@@ -1189,7 +1190,7 @@ def verify_uncertainty(src: Sources, m: dict) -> list[str]:
             "point_only_cell",
             "asserted_in_test",
             "estimator_records",
-            "declared_unmeasured",
+            "declared_not_measured",
         ):
             return [f"{mid}: uncertainty basis {label!r} is outside the vocabulary"]
         if label == "construction_fixture":
@@ -1212,7 +1213,7 @@ def verify_uncertainty(src: Sources, m: dict) -> list[str]:
             kinds = {INTERVAL_KIND[VARIANT_METHOD[v]] for v in INTERVAL_REF.findall(ev.text(path))}
             if kind not in kinds:
                 return [f"{mid}: {path} asserts no {kind} interval"]
-        if label == "declared_unmeasured":
+        if label == "declared_not_measured":
             for problem in ev.fixture_findings(detail.removeprefix("test:")):
                 return [f"{mid}: {problem}"]
         return []

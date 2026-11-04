@@ -14304,7 +14304,7 @@ pub variant antecedent_design::decision_reliability::ConfidenceSetBasis::Margina
 pub variant antecedent_design::decision_reliability::ConfidenceSetBasis::PairedComparisonsWithBest
 pub variant antecedent_design::decision_reliability::DecisionChoice::PreSpecified(alloc::string::String)
 pub variant antecedent_design::decision_reliability::DecisionChoice::SelectedByRule
-pub variant antecedent_design::decision_reliability::DerivedStanding::DerivedUnmeasured
+pub variant antecedent_design::decision_reliability::DerivedStanding::DerivedNotMeasured
 pub variant antecedent_design::decision_reliability::Functional::Cvar { alpha: f64, tail: antecedent_design::decision_reliability::RiskTail }
 pub variant antecedent_design::decision_reliability::Functional::ExpectedUtility
 pub variant antecedent_design::decision_reliability::Functional::Quantile { p: f64 }

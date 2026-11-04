@@ -283,7 +283,7 @@ fn verified_options_come_first_and_are_ordered_by_net_value_under_the_declared_c
     assert_eq!(plan.options[2].gate, RepairClassification::Insufficient);
     assert_eq!(plan.options[2].unresolved.len(), 1);
     assert_eq!(plan.ranking_guarantee(), "point_only");
-    assert_eq!(plan.calibration(), "unmeasured");
+    assert_eq!(plan.calibration(), "not_measured");
 
     // A dearer cost map reverses the verified pair, never the gate.
     let dear = value_of(&evaluate(&[&cheap, &large], 0.02));

@@ -23,8 +23,8 @@ coefficient is zero::
 What the answer is **not**:
 
 * Every p-value (the per-coefficient and per-contrast Wald values, their Holm adjustment and the
-  joint chi-square) is asymptotic and its calibration is **unmeasured**
-  (``calibration == "unmeasured"``): no coverage, Type I error or power claim is made, and no
+  joint chi-square) is asymptotic and its calibration is **not_measured**
+  (``calibration == "not_measured"``): no coverage, Type I error or power claim is made, and no
   interval is produced.
 * It is a regression-coefficient estimate, not an identification statement. The caller owns that
   the shared adjustment set is valid.
@@ -178,7 +178,7 @@ class Coefficient:
     estimate: float
     standard_error: float
     z: float
-    #: Two-sided asymptotic normal p-value (calibration unmeasured).
+    #: Two-sided asymptotic normal p-value (calibration not_measured).
     p_value: float
 
     @property
@@ -215,7 +215,7 @@ class JointWald:
 
     statistic: float
     degrees_of_freedom: int
-    #: Asymptotic chi-square upper-tail p-value (calibration unmeasured).
+    #: Asymptotic chi-square upper-tail p-value (calibration not_measured).
     p_value: float
 
 
@@ -245,7 +245,7 @@ class JointEffects:
     """The joint fit: named coefficients, full covariance, contrasts and the portable artifact.
 
     ``covariance`` is the read-only ``k x k`` matrix in the order of :attr:`names`.
-    ``calibration`` is ``"unmeasured"`` and ``inference_claim`` names the asymptotic Wald basis;
+    ``calibration`` is ``"not_measured"`` and ``inference_claim`` names the asymptotic Wald basis;
     read :attr:`caveats`. ``replay`` is ``"summary"`` (model-based covariance) or
     ``"robust_summary"`` (robust covariance) and states what the artifact embeds.
     """

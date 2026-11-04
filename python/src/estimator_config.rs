@@ -334,8 +334,7 @@ pub(crate) fn parse_estimator_config(
             && !declares_units
         {
             let message =
-                antecedent::estimate::flexible_learner_dependence_refusal(resolved_id, &key)
-                    .to_string();
+                antecedent::refusal::flexible_learner_dependence(resolved_id, &key).to_string();
             let (code, tail) = antecedent::reason::reason_code::split_prefix(&message).unwrap_or((
                 antecedent::reason::reason_code!("route_not_supported"),
                 message.as_str(),

@@ -302,13 +302,13 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
     # posterior are nested records); an identified set carries its recomputable observed law.
     "iv_bounds": _FamilySpec(),
     # The live dataclasses spell every field as the wire body (terms are nested records); the
-    # calibration ``unmeasured`` and the three false flags travel on both sides.
+    # calibration ``not_measured`` and the three false flags travel on both sides.
     "association": _FamilySpec(),
     "history_match": _FamilySpec(
         exclude=frozenset({"calibration", "supported", "calibration_measured", "support_status"}),
     ),
     # The live dataclass and the wire body spell every field alike (effects are nested
-    # records); calibration ``unmeasured`` and ``supported`` false travel on both sides.
+    # records); calibration ``not_measured`` and ``supported`` false travel on both sides.
     "quasi_rollout": _FamilySpec(),
     # The live dataclass spells every field as the wire body; a probability floor that was
     # not reported is ``None`` on both sides.

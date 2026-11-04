@@ -117,6 +117,7 @@ class Estimator(StrEnum):
     CAUSAL_FOREST = "causal.forest"
     BAYESIAN_PIECEWISE_SURVIVAL = "bayesian.piecewise_survival"
     BAYESIAN_DOSE_POLICY = "bayesian.continuous_dose_policy"
+    RANDOMIZED_QUANTILE = "randomized.quantile"
     BAYESIAN_RANDOMIZED_QUANTILE = "bayesian.randomized_quantile"
     BAYESIAN_BINARY_POLICY_VALUE = "bayesian.binary_policy_value"
     BAYESIAN_SEQUENTIAL_REGIME_VALUE = "bayesian.sequential_regime_value"

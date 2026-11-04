@@ -19,7 +19,7 @@
 //! The plan is hypothetical identification, not an estimate: no data are consumed,
 //! no assumption is established by a proposed study, a stopped search is a budget and
 //! never an impossibility, the ordering is `point_only` and its calibration
-//! `unmeasured`.
+//! `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,8 +1,6 @@
 //! Python binding for the matched case-control conditional odds ratio.
 use crate::transport_common::execution_context;
-use antecedent::estimate::{
-    EstimationError, conditional_odds_ratio, parse_matched_estimand, parse_matched_sampling,
-};
+use antecedent::estimate::{EstimationError, conditional_odds_ratio, parse_matched_sampling};
 use pyo3::prelude::*;
 
 fn estimation_err(error: EstimationError) -> PyErr {
@@ -37,7 +35,7 @@ fn matched_case_control_odds_ratio(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<MatchedOddsRatio> {
     parse_matched_sampling(sampling).map_err(estimation_err)?;
-    parse_matched_estimand(estimand).map_err(estimation_err)?;
+    estimand.parse::<antecedent::declared::MatchedEstimand>().map_err(estimation_err)?;
     if level.is_some_and(|level| !(level > 0.0 && level < 1.0)) {
         return Err(crate::with_reason_code(
             crate::value_err(

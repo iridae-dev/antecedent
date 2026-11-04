@@ -24,9 +24,9 @@ use std::collections::BTreeMap;
 
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan,
-    ContractGap, CorrelationPrior, DERIVED_UNMEASURED, DecisionRules, ExactPosterior, FutilityRule,
-    HistoricalPrior, LookDecision, LookReading, ParticipantDeclaration, ParticipantHistory,
-    ParticipantSimulationRequest, ParticipantSpec, SequenceKind, StopReason,
+    ContractGap, CorrelationPrior, DERIVED_NOT_MEASURED, DecisionRules, ExactPosterior,
+    FutilityRule, HistoricalPrior, LookDecision, LookReading, ParticipantDeclaration,
+    ParticipantHistory, ParticipantSimulationRequest, ParticipantSpec, SequenceKind, StopReason,
     apply_exploration_floor, beta_binomial_pmf, design_effect, simulate_participant_history,
     simulate_participant_procedure,
 };
@@ -715,7 +715,7 @@ fn check_sequence_readings(
         assert_eq!(reading.posterior.paradigm, "bayesian_posterior");
         let f = &reading.frequentist;
         assert_eq!(f.paradigm, "anytime_valid_frequentist");
-        assert_eq!(f.calibration, DERIVED_UNMEASURED);
+        assert_eq!(f.calibration, DERIVED_NOT_MEASURED);
         close(f.alpha, 0.06, 0.0, "family alpha");
         close(f.alpha_per_comparison, alpha_comparison, 1e-15, "alpha per comparison");
         assert_eq!(f.sequence, s.sequence_kind().label());

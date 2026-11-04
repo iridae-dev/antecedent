@@ -18,7 +18,7 @@
 //!   designed over-coverage passes.
 //!
 //! Both are registered in `scripts/measure_calibration_groups.sh` (`run_js`, measured over
-//! the sample-size grid); coverage is unmeasured, so the interval route stays
+//! the sample-size grid); coverage is not_measured, so the interval route stays
 //! closed (`not_supported`). The estimator is
 //! compiled only under `calibration-internal`.
 //!

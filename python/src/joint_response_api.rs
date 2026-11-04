@@ -141,12 +141,12 @@ impl PyPreparedJointResponse {
         Ok(serde_json::json!({
             "world_ids": program.world_ids().iter().map(|w| w.raw()).collect::<Vec<_>>(),
             "contrast_coefficients": program.contrast_coefficients(),
-            "source_digest": antecedent::schema::to_hex(&program.source_digest()),
+            "source_digest": antecedent::identity::to_hex(&program.source_digest()),
             "target": program.target().identity().to_hex(),
             "identified_claim": program.identification().is_identified_claim(),
             "identification": program.identification().identity().to_hex(),
             "fitted": program.numerical_program().has_fit(),
-            "calibration": "unmeasured",
+            "calibration": "not_measured",
         })
         .to_string())
     }
@@ -219,7 +219,7 @@ impl PyJointResponseResult {
             "identified_claim": self.inner.identification().is_identified_claim(),
             "identification": self.inner.identification().identity().to_hex(),
             "target": self.inner.target().identity().to_hex(),
-            "source_digest": antecedent::schema::to_hex(&self.inner.source_digest()),
+            "source_digest": antecedent::identity::to_hex(&self.inner.source_digest()),
             "calibration": self.inner.calibration(),
         })
         .to_string())

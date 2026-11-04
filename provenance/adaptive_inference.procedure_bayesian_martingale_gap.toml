@@ -17,7 +17,7 @@ papers = [
 implementation_deviations = [
   "The gap is a diagnostic computed from the exact prior-predictive law, not a test; a zero gap under outcome-independent loss is the expected result, a nonzero gap under value-dependent loss is the witness.",
   "Outcome-dependent delay is refused (the observed counts alone are not the likelihood).",
-  "Reports DERIVED_UNMEASURED: no coverage of a credible interval for the whole procedure has been measured and none is claimed.",
+  "Reports DERIVED_NOT_MEASURED: no coverage of a credible interval for the whole procedure has been measured and none is claimed.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -39,7 +39,7 @@ record_sha256 = "932876a2e3aaaa83e1cd586474c6f9fc63f9a7a0785998c1c7269deafc356c7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-items = ["const DERIVED_UNMEASURED", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn as_str", "fn bayesian_report", "fn check_paradigm", "fn posterior_mean_gaps", "fn premise", "struct BayesianReport", "struct PosteriorMeanGap"]
+items = ["const DERIVED_NOT_MEASURED", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn as_str", "fn bayesian_report", "fn check_paradigm", "fn posterior_mean_gaps", "fn premise", "struct BayesianReport", "struct PosteriorMeanGap"]
 sha256 = "1384027a6ad36d2e8c57c460dc2fcef1e927a7454292135cbe11b2202a24edfc"
 
 [[method_review.artifacts]]
