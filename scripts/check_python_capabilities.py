@@ -1,9 +1,39 @@
 #!/usr/bin/env python3
-"""Reconcile Python capabilities with Rust declarations and executing journey evidence.
+"""Reconcile Python capabilities with executing journey evidence.
 
-The normal mode checks inventory integrity and reports open gaps. --require-complete
-also refuses unresolved capabilities, unmapped methods/exports and absent or stale
-execution evidence. Static assertion scopes establish reviewable semantics, not execution.
+Python parity here is SEMANTIC capability parity, not API parity. Python is not Rust: mirroring
+the Rust API item by item in Python is an explicit non-goal. Every capability Antecedent supports
+must be reachable from Python in Python's own idiom; an individual Rust method, type, function
+or re-export need not have a Python counterpart, and its absence is never a gap.
+
+The capability universe is the supported units of `scripts/gate_support.py` (the one support
+count), collapsed to what a Python user recognizes as "a thing I can do":
+
+  query:<Q>        a matrix question (average effect, pulse effect, mediation, ...). The matrix
+                   has one cell per (query, graph class, structure, inference, validation), but a
+                   Python user states the question by constructing one query object and passes
+                   the graph, the structure, the inference paradigm and the validation as
+                   arguments of the same call. The cells of one query differ only by those
+                   arguments, so the query is the unit; its cells stay with gate_support.
+  design:<family>  a graphless design family (randomized effect, policy value, survival, ...).
+                   The design and the method inside a family are arguments of one Python entry,
+                   so the family is the unit.
+  capability:<id>  a supported capability record outside the matrix (transport stages, adaptive
+                   procedures, decisions, bridges): a record is one question a consumer asks
+                   (`consumer_question`), which is already the Python user's granularity.
+
+A unit is exercised when a row of `parity/python_api_pass/capabilities.toml` (status covered,
+plumbing or deferred) cites a Python test whose reachable code exercises it: the test names the
+query or family, is the Python test the capability record itself cites, or calls one of the
+record's Python-named routes. A row may also state `supports = [unit ids]` when no static link
+can show it. Rows may keep `rust` / `rust_types` as optional traceability pointers; if present
+they must resolve, but their absence is never a finding.
+
+A GAP is a supported unit that no such row exercises and that carries no recorded
+`rust_only_reason` (a row with status "rust_only", a reason and the `supports` it applies to: a
+capability intentionally not offered in Python). --require-complete fails on any gap, on any
+integrity finding, and on absent or stale execution evidence. Static assertion scopes establish
+reviewable semantics, not execution.
 """
 
 from __future__ import annotations
@@ -41,60 +71,6 @@ DIMENSIONS = {
 
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def export_owners(items: dict[str, dict[str, str]]) -> dict[str, str]:
-    """Resolve exact export edges; never guess an owner from a matching leaf name.
-
-    External crate paths are terminal identities. Relative paths resolve only
-    against an inventoried declaration/export, so flattened `super` exports
-    without their original module remain open instead of gaining false parity.
-    """
-    declarations = {key for key in items if not key.startswith("export:")}
-    exports = {
-        key[7:]: value["target"] for key, value in items.items() if value["kind"] == "reexport"
-    }
-
-    def target_of(alias: str, target: str) -> str | None:
-        if target.startswith("antecedent_"):
-            return target
-        if target.startswith("antecedent::"):
-            return target
-        if target.startswith("crate::"):
-            return "antecedent::" + target[7:]
-        namespace = alias.rsplit("::", 1)[0].split("::")
-        parts = target.split("::")
-        if parts[0] == "self":
-            return "::".join(namespace + parts[1:])
-        if parts[0] == "super":
-            while parts and parts[0] == "super":
-                if len(namespace) <= 1:
-                    return None
-                namespace.pop()
-                parts.pop(0)
-            return "::".join(namespace + parts)
-        while namespace:
-            candidate = "::".join(namespace + parts)
-            if candidate in declarations or candidate in exports:
-                return candidate
-            namespace.pop()
-        return None
-
-    owners = {}
-    for alias in exports:
-        current, visited = alias, set()
-        while current in exports and current not in visited:
-            visited.add(current)
-            target = target_of(current, exports[current])
-            if target is None:
-                break
-            current = target
-        else:
-            if current not in visited and (
-                current in declarations or current.startswith("antecedent_")
-            ):
-                owners["export:" + alias] = current
-    return owners
 
 
 def source_digest(root: Path) -> str:
@@ -347,6 +323,188 @@ def type_members(items: dict[str, dict[str, str]], type_name: str) -> set[str]:
     return members
 
 
+def test_tokens(root: Path, test: str) -> set[str]:
+    """Names and string words in a cited test's reachable code and in its module-level setup."""
+    filename, name = test.split("::", 1)
+    try:
+        tree = ast.parse(local_path(root, filename).read_text(encoding="utf-8"))
+        defs = functions(tree)
+    except (OSError, ValueError, SyntaxError):
+        return set()
+    nodes: list[ast.AST] = [defs[scope] for scope in reachable_scopes(name, defs)]
+    nodes += [
+        node
+        for node in tree.body
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
+    tokens: set[str] = set()
+    for node in nodes:
+        for item in ast.walk(node):
+            if isinstance(item, ast.Name):
+                tokens.add(item.id)
+            elif isinstance(item, ast.Attribute):
+                tokens.add(item.attr)
+            elif isinstance(item, ast.Constant) and isinstance(item.value, str):
+                tokens.update(re.findall(r"[A-Za-z0-9_]+", item.value))
+    return tokens
+
+
+def route_exercised(route: str, tokens: set[str]) -> bool:
+    """A Python-named route `antecedent.<path>` whose callable (and class, if any) the test names."""
+    parts = route.split(".")[1:]
+    if not parts or parts[-1] not in tokens:
+        return False
+    return parts[-2] in tokens if len(parts) > 1 and parts[-2][:1].isupper() else True
+
+
+def unit_exercised(unit: dict, row: dict, tokens: set[str], tests: set[str]) -> bool:
+    if unit["id"] in row.get("supports", []):
+        return True
+    if tokens & set(unit.get("names", [])):
+        return True
+    files = {t.split("::")[0] for t in tests}
+    for cited in unit.get("tests", []):
+        if cited in tests or ("::" not in cited and cited in files):
+            return True
+    python = row.get("python")
+    return any(
+        route == python or route_exercised(route, tokens) for route in unit.get("routes", [])
+    )
+
+
+def module_tokens(path: Path) -> frozenset[str]:
+    """Every name a test module mentions (cached; used only to explain a gap)."""
+    key = str(path)
+    if key not in _MODULE_TOKENS:
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            tree = ast.parse("")
+        _MODULE_TOKENS[key] = frozenset(
+            item.id if isinstance(item, ast.Name) else item.attr
+            for item in ast.walk(tree)
+            if isinstance(item, (ast.Name, ast.Attribute))
+        )
+    return _MODULE_TOKENS[key]
+
+
+_MODULE_TOKENS: dict[str, frozenset[str]] = {}
+
+
+def gap_reason(root: Path, unit: dict) -> str:
+    """Why a unit is a gap: Python tests that mention it but no row cites, or none at all."""
+    near = []
+    for path in sorted((root / "python/tests").glob("test_*.py")):
+        tokens = set(module_tokens(path))
+        if tokens & set(unit.get("names", [])) or any(
+            route_exercised(route, tokens) for route in unit.get("routes", [])
+        ):
+            near.append(path.relative_to(root).as_posix())
+    if near:
+        return (
+            "no capabilities.toml row cites a Python test of it (uncited tests touching it: "
+            + ", ".join(near[:3])
+            + ")"
+        )
+    missing = unit.get("unresolved_routes", [])
+    if missing:
+        return (
+            "no Python test exercises it and its declared Python route(s) do not resolve to a "
+            f"Python definition ({', '.join(missing[:2])}); either reach it in Python's own idiom "
+            "or record a rust_only_reason"
+        )
+    return "no Python test found that exercises it, and no recorded rust_only_reason"
+
+
+def semantic_gaps(root: Path, manifest: dict, universe: list[dict]) -> list[str]:
+    """Supported capability units that no executing row exercises and none records as Rust-only."""
+    rows = []
+    for cap in manifest.get("capability", []):
+        if cap.get("status") not in EXECUTING:
+            continue
+        tests = {e["test"] for e in cap.get("evidence", []) if "::" in e.get("test", "")}
+        tokens: set[str] = set()
+        for test in tests:
+            tokens |= test_tokens(root, test)
+        rows.append((cap, tokens, tests))
+    rust_only = {
+        unit
+        for cap in manifest.get("capability", [])
+        if cap.get("status") == "rust_only" and str(cap.get("rust_only_reason", "")).strip()
+        for unit in cap.get("supports", [])
+    }
+    gaps = []
+    for unit in universe:
+        if unit["id"] in rust_only:
+            continue
+        if not any(unit_exercised(unit, row[0], row[1], row[2]) for row in rows):
+            gaps.append(f"{unit['id']}: {gap_reason(root, unit)}")
+    return gaps
+
+
+def capability_universe() -> list[dict]:
+    """The supported units of scripts/gate_support.py, collapsed to what a Python user chooses."""
+    import gate_support
+
+    result = gate_support.evaluate()
+    records = {r["id"]: r for r in gate_support._load(gate_support.RECORDS).get("record") or []}
+    units: dict[str, dict] = {}
+    for unit in result["matrix"]:
+        if unit.supported:
+            query = unit.ident.split("/")[0]
+            units.setdefault(
+                f"query:{query}",
+                {"id": f"query:{query}", "names": [query, query.removesuffix("Effect")]},
+            )
+    for unit in result["graphless"]:
+        if unit.supported:
+            family = unit.ident.split(":")[0]
+            units.setdefault(f"design:{family}", {"id": f"design:{family}", "names": [family]})
+    for unit in result["capabilities"]:
+        if not unit.supported:
+            continue
+        record = records[unit.ident]
+        cited: set[str] = set()
+
+        def walk(value):
+            if isinstance(value, dict):
+                for item in value.values():
+                    walk(item)
+            elif isinstance(value, list):
+                for item in value:
+                    walk(item)
+            elif isinstance(value, str) and value.startswith("python/tests/"):
+                cited.add(value.split("::")[0] if value.endswith(".py") else value)
+                cited.add(value) if "::" in value else None
+
+        walk(record)
+        routes = [
+            r["name"]
+            for r in record.get("routes") or []
+            if r.get("status") == "supported" and r["name"].startswith("antecedent.")
+        ]
+        ident = unit.ident
+        # A Bayesian twin (`<id>.bayesian`) is reached through the same Python call as its
+        # frequentist base by choosing the inference paradigm, so it is one unit with the base.
+        if ident.endswith(".bayesian") and ident.removesuffix(".bayesian") in records:
+            ident = ident.removesuffix(".bayesian")
+        merged = units.setdefault(
+            f"capability:{ident}",
+            {"id": f"capability:{ident}", "tests": [], "routes": [], "names": []},
+        )
+        merged["tests"] = sorted(set(merged["tests"]) | cited)
+        merged["routes"] = sorted(set(merged["routes"]) | set(routes))
+        merged["names"] = sorted(set(merged["names"]) | set(record.get("owned_exports") or []))
+    from check_python_surface import PythonIndex
+
+    index = PythonIndex(ROOT)
+    for unit in units.values():
+        unit["unresolved_routes"] = [
+            r for r in unit.get("routes", []) if not index.resolves(r)
+        ]
+    return list(units.values())
+
+
 def check(
     root: Path,
     manifest: dict,
@@ -354,7 +512,10 @@ def check(
     *,
     complete: bool = False,
     execution: dict | None = None,
+    universe: list[dict] | None = None,
 ) -> tuple[list[str], list[str]]:
+    """Integrity problems and semantic gaps. `universe` is `capability_universe()`; None checks
+    integrity only (no capability is demanded)."""
     problems, gaps = [], []
     LAST_DEFERRED.clear()
     if manifest.get("schema") != 1 or inventory.get("schema") != 1:
@@ -369,14 +530,15 @@ def check(
         (root / "parity/python_facade_surface.toml").read_text(encoding="utf-8")
     )["entry"]
     internal = {row["rust"] for row in registry if row["status"] == "internal"}
-    seen, old_internal, mapped = set(), set(), set()
+    seen, old_internal = set(), set()
+    unit_ids = {unit["id"] for unit in universe or []}
     for cap in manifest.get("capability", []):
         label = cap.get("id", "")
         if not label or label in seen:
             problems.append(f"duplicate or empty capability id: {label}")
         seen.add(label)
         status = cap.get("status")
-        if status not in {"covered", "plumbing", "gap", "deferred"}:
+        if status not in {"covered", "plumbing", "gap", "deferred", "rust_only"}:
             problems.append(f"{label}: invalid status")
         for legacy in cap.get("legacy_internal", []):
             if legacy not in cap.get("rust", []):
@@ -384,20 +546,23 @@ def check(
         old_internal.update(cap.get("legacy_internal", []))
         if not cap.get("owner") or not cap.get("behavior"):
             problems.append(f"{label}: missing concrete owner/behavior")
-        rust = cap.get("rust", [])
-        if not rust and not cap.get("rust_types"):
-            problems.append(f"{label}: no exact Rust entry")
-        for symbol in rust:
+        # `rust` / `rust_types` are optional traceability pointers; when present they resolve.
+        for symbol in cap.get("rust", []):
             if symbol not in actual:
                 problems.append(f"{label}: unknown Rust symbol {symbol}")
-            mapped.add(symbol)
-        # A row may claim a whole type: the type item and every inherent method of it belong to
-        # this journey, whose evidence must exercise the type. Claims are exact type names.
         for claimed in cap.get("rust_types", []):
-            members = type_members(actual, claimed)
-            if not members:
+            if not type_members(actual, claimed):
                 problems.append(f"{label}: unknown Rust type {claimed}")
-            mapped.update(members)
+        if universe is not None:
+            for unit in cap.get("supports", []):
+                if unit not in unit_ids:
+                    problems.append(f"{label}: supports unknown capability unit {unit}")
+        if status == "rust_only":
+            if not str(cap.get("rust_only_reason", "")).strip():
+                problems.append(f"{label}: a rust_only row records why Python does not offer it")
+            if not cap.get("supports"):
+                problems.append(f"{label}: a rust_only row names the capability units it covers")
+            continue
         required = set(cap.get("required_dimensions", []))
         if not required or required - DIMENSIONS:
             problems.append(f"{label}: invalid required dimensions")
@@ -438,13 +603,8 @@ def check(
         problems.append(
             f"internal classifications not reconciled: missing={sorted(internal - old_internal)}, extra={sorted(old_internal - internal)}"
         )
-    # An export spelling adds no scientific behavior. Its exact canonical owner
-    # must still have a capability row; that row's gap/evidence checks remain.
-    owners = export_owners(actual)
-    mapped_owners = {owners.get(symbol, symbol) for symbol in mapped}
-    mapped.update(alias for alias, owner in owners.items() if owner in mapped_owners)
-    for symbol in sorted(actual.keys() - mapped):
-        gaps.append(f"unmapped Rust {actual[symbol]['kind']}: {symbol}")
+    if universe is not None:
+        gaps.extend(semantic_gaps(root, manifest, universe))
     if complete:
         problems.extend(gaps)
         if execution is None:
@@ -455,6 +615,7 @@ def check(
 
 
 def main() -> int:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--execution", type=Path)
@@ -471,7 +632,12 @@ def main() -> int:
     inventory = json.loads((ROOT / SURFACE).read_text(encoding="utf-8"))
     execution = json.loads(args.execution.read_text(encoding="utf-8")) if args.execution else None
     problems, gaps = check(
-        ROOT, manifest, inventory, complete=args.require_complete, execution=execution
+        ROOT,
+        manifest,
+        inventory,
+        complete=args.require_complete,
+        execution=execution,
+        universe=capability_universe(),
     )
     for problem in problems:
         print(f"ERROR: {problem}")
@@ -481,7 +647,7 @@ def main() -> int:
     for label, target, waits in LAST_DEFERRED:
         print(f"DEFERRED: {label}: waits for {target} ({', '.join(waits)})")
     print(
-        f"Integrity findings: {len(problems)}; unresolved capability/surface gaps: {len(gaps)}; "
+        f"Integrity findings: {len(problems)}; semantic capability gaps: {len(gaps)}; "
         f"deferred to calibration or attestation: {len(LAST_DEFERRED)}"
     )
     print("Inventory integrity alone is not capability completion or runtime evidence.")

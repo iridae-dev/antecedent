@@ -16,7 +16,6 @@ from check_python_capabilities import (
     digest,
     evidence_problems,
     execution_problems,
-    export_owners,
     rust_surface,
     source_digest,
     write_surface,
@@ -41,35 +40,6 @@ class CapabilityGateTests(unittest.TestCase):
         self.assertEqual(source.call_args.args, (self.root,))
         self.assertEqual(json.loads(first)["items"], items)
         self.assertEqual(target.read_bytes(), first)
-
-    def test_aliases_require_exact_canonical_owner_not_a_shared_leaf(self):
-        items = {
-            "antecedent::family::Claim": {"kind": "type"},
-            "antecedent::other::Claim": {"kind": "type"},
-            "export:antecedent::api::Claim": {
-                "kind": "reexport",
-                "target": "super::family::Claim",
-            },
-            "export:antecedent::prelude::Claim": {
-                "kind": "reexport",
-                "target": "antecedent::api::Claim",
-            },
-            "export:antecedent::Unresolved": {
-                "kind": "reexport",
-                "target": "super::Claim",
-            },
-        }
-        owners = export_owners(items)
-        self.assertEqual(owners["export:antecedent::api::Claim"], "antecedent::family::Claim")
-        self.assertEqual(owners["export:antecedent::prelude::Claim"], "antecedent::family::Claim")
-        self.assertNotIn("export:antecedent::Unresolved", owners)
-
-    def test_alias_cycle_does_not_establish_a_canonical_owner(self):
-        items = {
-            "export:antecedent::A": {"kind": "reexport", "target": "antecedent::B"},
-            "export:antecedent::B": {"kind": "reexport", "target": "antecedent::A"},
-        }
-        self.assertEqual(export_owners(items), {})
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -188,7 +158,7 @@ class CapabilityGateTests(unittest.TestCase):
         recorder.pytest_runtest_logreport(report)
         self.assertEqual(recorder.tests[report.nodeid]["outcome"], "xfail")
 
-    def test_completion_cannot_ignore_a_named_gap_or_unmapped_method(self):
+    def test_completion_cannot_ignore_a_named_gap(self):
         (self.root / "parity/public_api").mkdir()
         snapshot = "pub fn <antecedent::Study>::fn inspect(&self) -> Report\n"
         (self.root / "parity/public_api/antecedent.txt").write_text(snapshot, encoding="utf-8")
@@ -211,11 +181,8 @@ class CapabilityGateTests(unittest.TestCase):
         problems, gaps = check(self.root, manifest, inventory, complete=True)
         self.assertTrue(gaps)
         self.assertTrue(any("No asserting Python consumer" in p for p in problems))
-        manifest["capability"] = []
-        problems, gaps = check(self.root, manifest, inventory, complete=True)
-        self.assertTrue(any("unmapped Rust method" in p for p in problems))
 
-    def test_a_row_claims_a_whole_type_only_by_its_exact_name(self):
+    def test_a_rust_pointer_must_resolve_but_its_absence_is_never_a_finding(self):
         (self.root / "parity/public_api").mkdir()
         snapshot = (
             "pub struct antecedent::Study\n"
@@ -226,8 +193,6 @@ class CapabilityGateTests(unittest.TestCase):
         (self.root / "parity/python_facade_surface.toml").write_text("entry=[]\n", encoding="utf-8")
         row = {
             "id": "study",
-            "rust": [],
-            "rust_types": ["antecedent::Study"],
             "status": "gap",
             "owner": "integration",
             "behavior": "study lifecycle",
@@ -235,12 +200,100 @@ class CapabilityGateTests(unittest.TestCase):
             "required_dimensions": ["inspection"],
         }
         inventory = {"schema": 1, "items": rust_surface(snapshot)}
-        _, gaps = check(self.root, {"schema": 1, "capability": [row]}, inventory)
-        unmapped = [gap for gap in gaps if gap.startswith("unmapped")]
-        self.assertEqual(unmapped, ["unmapped Rust type: antecedent::StudyBuilder"])
+        manifest = {"schema": 1, "capability": [row]}
+        problems, gaps = check(self.root, manifest, inventory)
+        self.assertEqual(problems, [])
+        self.assertEqual(gaps, ["study: open"])
         row["rust_types"] = ["antecedent::Missing"]
-        problems, _ = check(self.root, {"schema": 1, "capability": [row]}, inventory)
+        problems, _ = check(self.root, manifest, inventory)
         self.assertTrue(any("unknown Rust type antecedent::Missing" in p for p in problems))
+        row["rust_types"] = []
+        row["rust"] = ["<antecedent::Study>::missing"]
+        problems, _ = check(self.root, manifest, inventory)
+        self.assertTrue(any("unknown Rust symbol" in p for p in problems))
+
+    def semantic_setup(self):
+        """A facade with an unmapped binding-used item, one executing row and a universe."""
+        patcher = patch("check_python_surface.PythonIndex.resolves", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        (self.root / "parity/public_api").mkdir()
+        snapshot = "pub fn <antecedent::Study>::fn inspect(&self) -> Report\n"
+        (self.root / "parity/public_api/antecedent.txt").write_text(snapshot, encoding="utf-8")
+        (self.root / "parity/python_facade_surface.toml").write_text("entry=[]\n", encoding="utf-8")
+        self.source.write_text(
+            "def test_live():\n    assert Study().inspect() == 4\n", encoding="utf-8"
+        )
+        self.evidence["assertion_scopes"] = ["test_live"]
+        row = {
+            "id": "inspect",
+            "status": "covered",
+            "owner": "integration",
+            "behavior": "inspect a study",
+            "python": "antecedent",
+            "required_dimensions": ["success"],
+            "evidence": [self.evidence],
+        }
+        inventory = {"schema": 1, "items": rust_surface(snapshot)}
+        return {"schema": 1, "capability": [row]}, inventory
+
+    def test_a_binding_used_rust_item_without_a_row_is_not_a_gap(self):
+        manifest, inventory = self.semantic_setup()
+        universe = [{"id": "capability:inspect", "names": ["Study"]}]
+        problems, gaps = check(self.root, manifest, inventory, complete=False, universe=universe)
+        self.assertEqual((problems, gaps), ([], []))
+        # The Rust method has no row anywhere and no pointer from this row: still no gap.
+        self.assertNotIn("inspect", " ".join(manifest["capability"][0].get("rust", [])))
+
+    def test_a_supported_capability_with_no_python_journey_is_a_gap(self):
+        manifest, inventory = self.semantic_setup()
+        universe = [
+            {"id": "capability:inspect", "names": ["Study"]},
+            {"id": "query:Absent", "names": ["Absent"]},
+        ]
+        problems, gaps = check(self.root, manifest, inventory, universe=universe)
+        self.assertEqual(problems, [])
+        self.assertEqual(len(gaps), 1)
+        self.assertTrue(gaps[0].startswith("query:Absent"))
+        problems, _ = check(self.root, manifest, inventory, complete=True, universe=universe)
+        self.assertTrue(any(p.startswith("query:Absent") for p in problems))
+        # An explicit statement still needs an executing row, not a bare assertion.
+        manifest["capability"][0]["supports"] = ["query:Absent"]
+        _, gaps = check(self.root, manifest, inventory, universe=universe)
+        self.assertEqual(gaps, [])
+        manifest["capability"][0]["supports"] = ["query:Unknown"]
+        problems, _ = check(self.root, manifest, inventory, universe=universe)
+        self.assertTrue(any("supports unknown capability unit" in p for p in problems))
+
+    def test_a_rust_only_reason_row_is_not_a_gap(self):
+        manifest, inventory = self.semantic_setup()
+        universe = [{"id": "query:Absent", "names": ["Absent"]}]
+        manifest["capability"].append(
+            {
+                "id": "absent-by-design",
+                "status": "rust_only",
+                "owner": "integration",
+                "behavior": "an in-process hook with no meaning outside Rust",
+                "supports": ["query:Absent"],
+                "rust_only_reason": "Needs a Rust trait object; Python callers use the callback API.",
+            }
+        )
+        problems, gaps = check(self.root, manifest, inventory, universe=universe)
+        self.assertEqual((problems, gaps), ([], []))
+        manifest["capability"][1]["rust_only_reason"] = " "
+        problems, gaps = check(self.root, manifest, inventory, universe=universe)
+        self.assertTrue(any("records why Python does not offer it" in p for p in problems))
+        self.assertEqual(len(gaps), 1)
+
+    def test_a_row_exercises_a_unit_by_the_python_name_its_test_calls(self):
+        manifest, inventory = self.semantic_setup()
+        universe = [
+            {"id": "query:Study", "names": ["Study"]},
+            {"id": "capability:routed", "routes": ["antecedent.module.Study.inspect"]},
+            {"id": "capability:other", "routes": ["antecedent.module.Other.run"]},
+        ]
+        _, gaps = check(self.root, manifest, inventory, universe=universe)
+        self.assertEqual([g.split(":")[0] + ":" + g.split(":")[1] for g in gaps], ["capability:other"])
 
     def test_a_deferred_row_still_needs_executing_evidence_for_what_it_does_not_wait_for(self):
         (self.root / "parity/public_api").mkdir()
