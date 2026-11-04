@@ -287,21 +287,19 @@ fn a_negotiated_bernoulli_law_is_consumed_by_the_library_functionals() {
         meaning: DistributionMeaning::InterventionalPredictive,
         capabilities: vec![ExternalCapability::Sample, ExternalCapability::Mean],
     });
-    let ask = |operation| ExternalCapabilityRequest {
-        expected_identity: provider_identity(),
-        operation,
-    };
+    let ask =
+        |operation| ExternalCapabilityRequest { expected_identity: provider_identity(), operation };
     assert!(law.negotiate(&ask(ExternalCapability::Sample)).is_ok());
     assert!(law.negotiate(&ask(ExternalCapability::Mean)).is_ok());
     for missing in [ExternalCapability::Cdf, ExternalCapability::Quantile] {
-        assert_eq!(law.negotiate(&ask(missing)), Err(ExternalContractError::MissingCapability(missing)));
+        assert_eq!(
+            law.negotiate(&ask(missing)),
+            Err(ExternalContractError::MissingCapability(missing))
+        );
     }
 
-    let exact = bernoulli_artifact(
-        Some(vec![0.75, 0.25]),
-        vec![0.0, 1.0],
-        DistributionCalibration::Exact,
-    );
+    let exact =
+        bernoulli_artifact(Some(vec![0.75, 0.25]), vec![0.0, 1.0], DistributionCalibration::Exact);
     near(exact.mean(0).unwrap(), 0.25, "mean of the law");
     near(exact.interventional_probability_above(0, 0.0).unwrap(), 0.25, "P(Y > 0)");
     near(exact.interventional_probability_above(0, 1.0).unwrap(), 0.0, "P(Y > 1)");

@@ -174,8 +174,12 @@ const SEEDS: [u64; 3] = [1, 2, 3];
 /// the posterior mean, which differs from the plug-in truth by at most the nonlinearity bias
 /// `sd^2` (the prior scale is made negligible with `prior_scale = 1e6`).
 fn bayesian_tolerance(pin: &serde_json::Value) -> f64 {
-    let rows: u64 =
-        pin["contingency_table"].as_array().unwrap().iter().map(|c| c["count"].as_u64().unwrap()).sum();
+    let rows: u64 = pin["contingency_table"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["count"].as_u64().unwrap())
+        .sum();
     let sd = 2.0 / (rows as f64).sqrt();
     5.0 * sd / (DRAWS as f64).sqrt() + sd * sd
 }
@@ -208,27 +212,34 @@ fn admg_graph_posterior_average_effect_matches_the_frontdoor_formula_under_cheap
         (truth - pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs() < 1e-12,
         "the hand formula reproduces the fixture's enumerated oracle"
     );
-    let gp = admg_posterior(n, &[0.8, 0.2], &[adjacency_mask_from_admg(&admg).unwrap(), cyclic_mask(n)]);
+    let gp =
+        admg_posterior(n, &[0.8, 0.2], &[adjacency_mask_from_admg(&admg).unwrap(), cyclic_mask(n)]);
     for (mode, inference, tolerance) in modes(&pin) {
         for suite in CHECKED {
-          for seed in SEEDS {
-            let label = format!("{mode} {suite:?} seed={seed}");
-            let result = Study::tabular(data.clone())
-                .graph_posterior(gp.clone())
-                .query(query.clone())
-                .inference(inference.clone())
-                .refute(suite)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap()
-                .run(&ExecutionContext::for_tests(seed))
-                .unwrap();
-            let ate = result.estimate().as_effect().unwrap().ate;
-            assert!((ate - truth).abs() < tolerance, "{label}: ate {ate} vs front-door {truth}");
-            let mixture = result.structural_response.as_ref().expect("ADMG posterior mixture");
-            assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12, "{label}: unidentified mass");
-            assert!(!result.refutations.is_empty(), "{label}: refuters ran");
-          }
+            for seed in SEEDS {
+                let label = format!("{mode} {suite:?} seed={seed}");
+                let result = Study::tabular(data.clone())
+                    .graph_posterior(gp.clone())
+                    .query(query.clone())
+                    .inference(inference.clone())
+                    .refute(suite)
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap()
+                    .run(&ExecutionContext::for_tests(seed))
+                    .unwrap();
+                let ate = result.estimate().as_effect().unwrap().ate;
+                assert!(
+                    (ate - truth).abs() < tolerance,
+                    "{label}: ate {ate} vs front-door {truth}"
+                );
+                let mixture = result.structural_response.as_ref().expect("ADMG posterior mixture");
+                assert!(
+                    (mixture.unidentified_mass - 0.2).abs() < 1e-12,
+                    "{label}: unidentified mass"
+                );
+                assert!(!result.refutations.is_empty(), "{label}: refuters ran");
+            }
         }
     }
 }
@@ -246,34 +257,11 @@ fn admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full
     let gp = admg_posterior(n, &[1.0], &[adjacency_mask_from_admg(&admg).unwrap()]);
     for (mode, inference, tolerance) in modes(&pin) {
         for suite in CHECKED {
-          for seed in SEEDS {
-            let label = format!("graph_posterior {mode} {suite:?} seed={seed}");
-            let result = Study::tabular(data.clone())
-                .graph_posterior(gp.clone())
-                .query(CausalQuery::Response(level_query(1.0)))
-                .inference(inference.clone())
-                .refute(suite)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap()
-                .run(&ExecutionContext::for_tests(seed))
-                .unwrap();
-            let got = response_values(&result)[0];
-            assert!((got - truth).abs() < tolerance, "{label}: {got} vs front-door {truth}");
-            assert!(!result.refutations.is_empty(), "{label}: refuters ran");
-
-            for accepted in [false, true] {
-                let label = format!("accepted={accepted} {mode} {suite:?} seed={seed}");
-                let builder = Study::tabular(data.clone());
-                let builder = if accepted {
-                    builder.graph(AcceptedGraph::from(admg.clone()))
-                } else {
-                    builder.graph(admg.clone())
-                };
-                let result = builder
+            for seed in SEEDS {
+                let label = format!("graph_posterior {mode} {suite:?} seed={seed}");
+                let result = Study::tabular(data.clone())
+                    .graph_posterior(gp.clone())
                     .query(CausalQuery::Response(level_query(1.0)))
-                    .identifier(antecedent::IdentifierId::GeneralId)
-                    .estimator(antecedent::EstimatorId::FunctionalEffect)
                     .inference(inference.clone())
                     .refute(suite)
                     .bootstrap_replicates(0)
@@ -284,8 +272,34 @@ fn admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full
                 let got = response_values(&result)[0];
                 assert!((got - truth).abs() < tolerance, "{label}: {got} vs front-door {truth}");
                 assert!(!result.refutations.is_empty(), "{label}: refuters ran");
+
+                for accepted in [false, true] {
+                    let label = format!("accepted={accepted} {mode} {suite:?} seed={seed}");
+                    let builder = Study::tabular(data.clone());
+                    let builder = if accepted {
+                        builder.graph(AcceptedGraph::from(admg.clone()))
+                    } else {
+                        builder.graph(admg.clone())
+                    };
+                    let result = builder
+                        .query(CausalQuery::Response(level_query(1.0)))
+                        .identifier(antecedent::IdentifierId::GeneralId)
+                        .estimator(antecedent::EstimatorId::FunctionalEffect)
+                        .inference(inference.clone())
+                        .refute(suite)
+                        .bootstrap_replicates(0)
+                        .build()
+                        .unwrap()
+                        .run(&ExecutionContext::for_tests(seed))
+                        .unwrap();
+                    let got = response_values(&result)[0];
+                    assert!(
+                        (got - truth).abs() < tolerance,
+                        "{label}: {got} vs front-door {truth}"
+                    );
+                    assert!(!result.refutations.is_empty(), "{label}: refuters ran");
+                }
             }
-          }
         }
     }
 }

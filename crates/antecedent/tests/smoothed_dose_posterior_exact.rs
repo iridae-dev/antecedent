@@ -12,8 +12,8 @@
 mod dgp;
 
 use antecedent_core::ExecutionContext;
-use antecedent_estimate::posterior_mean::{PosteriorRequest, smoothed_dose_score_posterior};
 use antecedent_estimate::SmoothedDoseOptions;
+use antecedent_estimate::posterior_mean::{PosteriorRequest, smoothed_dose_score_posterior};
 use antecedent_identify::TransportIdentifier;
 use dgp::{Design, Scenario, diagram, draw, query};
 
@@ -37,11 +37,9 @@ fn smoothed_dose_posterior_means_equal_the_hand_update_of_the_route_scores() {
     .unwrap();
     let grids: Vec<Vec<f64>> = estimate.grid.iter().map(|point| point.row_scores.clone()).collect();
     for scale in [0.05, 0.5] {
-        let got = smoothed_dose_score_posterior(
-            &grids,
-            PosteriorRequest::IndependentNormal { scale },
-        )
-        .unwrap();
+        let got =
+            smoothed_dose_score_posterior(&grids, PosteriorRequest::IndependentNormal { scale })
+                .unwrap();
         assert_eq!(got.len(), estimate.grid.len());
         for ((point, posterior), scores) in estimate.grid.iter().zip(&got).zip(&grids) {
             let n = scores.len() as f64;

@@ -343,7 +343,10 @@ fn per_scenario_leaders_and_policies_follow_the_hand_derived_utilities() {
         None,
     )
     .unwrap();
-    assert_eq!(decided.decision.structural.verdict, StructuralVerdict::WorstCaseChoice("hold".into()));
+    assert_eq!(
+        decided.decision.structural.verdict,
+        StructuralVerdict::WorstCaseChoice("hold".into())
+    );
 }
 
 #[test]

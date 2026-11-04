@@ -99,7 +99,6 @@ fn observation(label: &str, measured: &[u32], units: u64) -> DurableStudyCandida
     study(label, StudyKind::Observation, "pop", &[], measured, true, units)
 }
 
-
 fn candidates() -> Vec<DurableStudyCandidate> {
     let mut full = observation("full", &[T, Y, Z1, Z2, W, D], 30);
     full.cost.sample_budget = 100;
@@ -126,9 +125,10 @@ fn id_of(c: &DurableStudyCandidate) -> String {
 
 #[test]
 fn the_replayed_receipt_holds_exactly_the_hand_derived_sufficient_subsets_and_best() {
-    for (objective, best_label) in
-        [(RepairObjective::MinimizeCost, "minimal"), (RepairObjective::MinimizeSampleBudget, "full")]
-    {
+    for (objective, best_label) in [
+        (RepairObjective::MinimizeCost, "minimal"),
+        (RepairObjective::MinimizeSampleBudget, "full"),
+    ] {
         let (artifact, cands) = artifact_for(objective);
         let by = |label: &str| id_of(cands.iter().find(|c| &*c.label == label).unwrap());
         let report = artifact.consume(RepairConsumeLimits::default(), &ctx()).unwrap();

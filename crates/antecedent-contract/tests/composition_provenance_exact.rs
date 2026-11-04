@@ -59,7 +59,13 @@ fn the_lineage_of_the_claim_is_exactly_its_hand_derived_ancestors() {
         chain.lineage("claim").unwrap().iter().map(|l| l.id.as_str()).collect();
     assert_eq!(
         lineage,
-        BTreeSet::from(["claim", "transform:joint", "distribution:d1", "decision:u1", "contract:c"])
+        BTreeSet::from([
+            "claim",
+            "transform:joint",
+            "distribution:d1",
+            "decision:u1",
+            "contract:c"
+        ])
     );
     let stages: BTreeSet<S> = chain.stages_behind("claim").unwrap().into_iter().collect();
     assert_eq!(

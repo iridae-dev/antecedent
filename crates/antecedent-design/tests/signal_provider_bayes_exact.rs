@@ -142,10 +142,7 @@ fn external_posterior_derives_the_generating_likelihood_and_the_independent_post
         predictive: (0..3).map(predictive).collect(),
         posterior: (0..3).map(posterior).collect(),
     };
-    let signal = signal_over(
-        vec![ExternalCapability::Sample, ExternalCapability::Update],
-        law,
-    );
+    let signal = signal_over(vec![ExternalCapability::Sample, ExternalCapability::Update], law);
     check_against_bayes(signal.as_ref());
     // Hand value: P(y = 2) = (1/25 + 1/4 + 16/25)/3 = 0.93/3 = 0.31, and
     // P(theta = 4/5 | y = 2) = (16/25) / (3 * 0.31).
@@ -158,9 +155,7 @@ fn a_supplied_likelihood_table_updates_to_the_independent_posterior() {
     let law = ExternalLaw::Likelihood {
         states: STATES.to_vec(),
         statistics: vec![0.0, 1.0, 2.0],
-        probabilities: (0..3)
-            .map(|y| STATES.iter().map(|t| binomial(y, *t)).collect())
-            .collect(),
+        probabilities: (0..3).map(|y| STATES.iter().map(|t| binomial(y, *t)).collect()).collect(),
     };
     let signal = signal_over(
         vec![ExternalCapability::Sample, ExternalCapability::Factor, ExternalCapability::Update],

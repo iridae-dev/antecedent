@@ -20,7 +20,9 @@ use antecedent_estimate::posterior_mean::{
     LocalQuadraticNamespace, PosteriorRequest, ScalarNamespace, categorical_treatment_posterior,
     known_variance_posterior, local_quadratic_posterior, vector_treatment_posterior,
 };
-use antecedent_estimate::vector_treatment::{TreatmentColumn, VectorCovariance, VectorTreatmentInput};
+use antecedent_estimate::vector_treatment::{
+    TreatmentColumn, VectorCovariance, VectorTreatmentInput,
+};
 
 /// Solve `a x = b` by Gaussian elimination with partial pivoting.
 fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
@@ -111,9 +113,8 @@ fn vector_treatment_posterior_equals_the_ridge_solution_built_from_the_rows() {
     let rows: Vec<Vec<f64>> = (0..6).map(|i| vec![1.0, t1[i], t2[i]]).collect();
     let ones = vec![1.0; 6];
     for scale in [0.5, 1.0, 3.0] {
-        let got =
-            vector_treatment_posterior(&input, PosteriorRequest::IndependentNormal { scale })
-                .unwrap();
+        let got = vector_treatment_posterior(&input, PosteriorRequest::IndependentNormal { scale })
+            .unwrap();
         // The route returns the treatment coefficients; the intercept is unpenalized.
         let want = ridge(&rows, &y, &ones, 1, 3.0, scale);
         assert_eq!(got.len(), 2);

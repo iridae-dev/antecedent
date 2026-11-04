@@ -47,7 +47,6 @@ fn request(effect: f64, benefit: f64, cost: f64) -> RecalcRequest {
     }
 }
 
-
 #[test]
 fn attempts_are_the_hand_enumerated_components_and_the_values_are_the_hand_values() {
     let ctx = ExecutionContext::for_tests(SEED);

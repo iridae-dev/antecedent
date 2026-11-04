@@ -120,16 +120,8 @@ fn three_delayed_looks_analyse_the_hand_derived_nested_sets() {
         InterimAnalysis { units_enrolled: 8, information_fraction: 1.0 },
     ]);
     let availability = declaration.availability.as_mut().unwrap();
-    availability.available_at_look = vec![
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(1),
-        Some(2),
-        Some(1),
-        Some(2),
-        Some(2),
-    ];
+    availability.available_at_look =
+        vec![Some(0), Some(0), Some(0), Some(1), Some(2), Some(1), Some(2), Some(2)];
     availability.delay = DelayMechanism::IgnorableAdministrative;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
     assert_eq!(contract.analysis_units(0).unwrap(), vec![0, 1, 2]);

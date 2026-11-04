@@ -3,9 +3,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::{
-    ExternalTrustState, QuantityRole, ScientificQuantity,
-};
+use antecedent_contract::{ExternalTrustState, QuantityRole, ScientificQuantity};
 use antecedent_core::SupportStatus;
 use antecedent_design::composition_boundary::{
     ActionStatus, CoordinateIssue, DecisionInput, SupportPolicy, SupportedVerdict, TrustEvidence,
@@ -74,7 +72,11 @@ fn contract() -> DecisionContract {
         utility: affine(),
     };
     DecisionContract {
-        actions: vec![action("wait", "do(a=0)"), action("treat", "do(a=1)"), action("extend", "do(a=2)")],
+        actions: vec![
+            action("wait", "do(a=0)"),
+            action("treat", "do(a=1)"),
+            action("extend", "do(a=2)"),
+        ],
         utility_units: "utility".into(),
         criterion: DecisionCriterion::PosteriorExpectedUtility,
         constraints: vec![],
@@ -92,13 +94,18 @@ const STATUSES: [SupportStatus; 3] =
 /// three. Either way the best action is extend, with the hand utility 7.
 #[test]
 fn the_support_policy_decides_which_hand_utilities_are_compared() {
-    let grid = || mean_input("grid", &[("do(a=0)", 1.0), ("do(a=1)", 3.0), ("do(a=2)", 4.0)], &STATUSES);
+    let grid =
+        || mean_input("grid", &[("do(a=0)", 1.0), ("do(a=1)", 3.0), ("do(a=2)", 4.0)], &STATUSES);
 
-    let strict = evaluate_with_support(&contract(), &[grid()], &SupportPolicy::compare_supported()).unwrap();
+    let strict =
+        evaluate_with_support(&contract(), &[grid()], &SupportPolicy::compare_supported()).unwrap();
     assert_eq!(strict.outcomes.len(), 2);
     assert!(near(strict.outcomes[0].expected_utility, 1.0));
     assert!(near(strict.outcomes[1].expected_utility, 7.0));
-    assert_eq!(strict.verdict, SupportedVerdict::Compared(Verdict::UniquelyOptimal("extend".into())));
+    assert_eq!(
+        strict.verdict,
+        SupportedVerdict::Compared(Verdict::UniquelyOptimal("extend".into()))
+    );
     assert!(matches!(strict.dispositions[1].status, ActionStatus::Unsupported { .. }));
 
     let mut policy = SupportPolicy::compare_supported();
@@ -109,7 +116,10 @@ fn the_support_policy_decides_which_hand_utilities_are_compared() {
     for (got, want) in utilities.iter().zip([1.0, 5.0, 7.0]) {
         assert!(near(*got, want), "{got} vs {want}");
     }
-    assert_eq!(lenient.verdict, SupportedVerdict::Compared(Verdict::UniquelyOptimal("extend".into())));
+    assert_eq!(
+        lenient.verdict,
+        SupportedVerdict::Compared(Verdict::UniquelyOptimal("extend".into()))
+    );
 }
 
 /// Two grids answer different actions: the first has wait = 2 (utility 3) and extend = 0.5
@@ -130,7 +140,10 @@ fn actions_answered_by_different_grids_are_compared_by_their_hand_values() {
         &SupportPolicy::compare_supported(),
     )
     .unwrap();
-    assert_eq!(decision.verdict, SupportedVerdict::Compared(Verdict::UniquelyOptimal("wait".into())));
+    assert_eq!(
+        decision.verdict,
+        SupportedVerdict::Compared(Verdict::UniquelyOptimal("wait".into()))
+    );
     let utilities: Vec<f64> = decision.outcomes.iter().map(|o| o.expected_utility).collect();
     for (got, want) in utilities.iter().zip([3.0, 2.0, 0.0]) {
         assert!(near(*got, want), "{got} vs {want}");
@@ -139,7 +152,8 @@ fn actions_answered_by_different_grids_are_compared_by_their_hand_values() {
     assert_eq!(decision.dispositions[1].input_id.as_deref(), Some("second"));
     assert_eq!(decision.dispositions[2].input_id.as_deref(), Some("first"));
 
-    let alone = evaluate_with_support(&contract(), &[first], &SupportPolicy::compare_supported()).unwrap();
+    let alone =
+        evaluate_with_support(&contract(), &[first], &SupportPolicy::compare_supported()).unwrap();
     assert_eq!(alone.outcomes.len(), 2);
     assert_eq!(
         alone.dispositions[1].status,

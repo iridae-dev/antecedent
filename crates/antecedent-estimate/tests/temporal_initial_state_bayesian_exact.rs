@@ -65,7 +65,6 @@ fn panel() -> TemporalUnitPanel {
     TemporalUnitPanel::new("initial-state-panel", Some(units)).unwrap()
 }
 
-
 #[test]
 fn dirichlet_updated_initial_state_law_gives_the_hand_marginalized_effect() {
     let weights = [0.3, 0.7];

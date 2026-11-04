@@ -20,7 +20,9 @@
 
 use std::sync::Arc;
 
-use antecedent::{BayesianConfig, CausalQuery, InferenceMode, MediationContrast, RefuteSuite, Study};
+use antecedent::{
+    BayesianConfig, CausalQuery, InferenceMode, MediationContrast, RefuteSuite, Study,
+};
 use antecedent_core::{
     ExecutionContext, Intervention, MediationQuery, ResponseFunctional, ResponseQuery,
     ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
@@ -287,8 +289,7 @@ fn temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_che
                     1,
                 );
                 let ate = result.estimate().as_effect().unwrap().ate;
-                let pag_tolerance =
-                    if mode == "bayesian" { pag_bayes_tolerance } else { 1e-6 };
+                let pag_tolerance = if mode == "bayesian" { pag_bayes_tolerance } else { 1e-6 };
                 assert!(
                     (ate - pag_truth).abs() < pag_tolerance,
                     "TemporalPag {label}: {ate} vs structural slope {pag_truth}"

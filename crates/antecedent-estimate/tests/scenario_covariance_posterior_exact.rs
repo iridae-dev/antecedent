@@ -52,7 +52,11 @@ fn scenario_covariance_posterior_equals_the_hand_values_of_the_two_row_enumerati
         )
         .unwrap();
         for (got, entry) in posterior.iter().zip(&want_cov) {
-            assert!((got - weight * entry).abs() < 1e-12, "scale {scale}: {got} vs {}", weight * entry);
+            assert!(
+                (got - weight * entry).abs() < 1e-12,
+                "scale {scale}: {got} vs {}",
+                weight * entry
+            );
         }
         assert!(posterior[0] < 0.125 - 1e-3, "the prior must shrink the entries");
     }

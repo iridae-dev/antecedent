@@ -42,7 +42,11 @@ fn scalar(result: &antecedent::StudyResult) -> f64 {
 
 fn with_graph(data: &TabularData, graph: &Dag, accepted: bool) -> antecedent::StudyBuilder {
     let builder = Study::tabular(data.clone());
-    if accepted { builder.graph(AcceptedGraph::dag(graph.clone())) } else { builder.graph(graph.clone()) }
+    if accepted {
+        builder.graph(AcceptedGraph::dag(graph.clone()))
+    } else {
+        builder.graph(graph.clone())
+    }
 }
 
 /// `response.intervention_gcomp` on the fixture's exact design.

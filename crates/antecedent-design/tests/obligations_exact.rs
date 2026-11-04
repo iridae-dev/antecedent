@@ -6,14 +6,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::EvidenceObligationKind;
-use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, CausalQuery, VariableId,
-};
+use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_design::obligation_adapters::identification_failure_obligations;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
-use antecedent_identify::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
-};
+use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
 fn v(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
@@ -41,10 +37,7 @@ fn failed(treatment: u32, outcome: u32) -> IdentificationResult {
 /// descendant of the treatment, which must never be adjusted for.
 #[test]
 fn the_backdoor_obligation_names_the_minimal_adjustment_set_and_not_the_irrelevant_nodes() {
-    let g = graph(
-        6,
-        &[(0, 1), (2, 0), (2, 1), (3, 0), (3, 1), (4, 2), (0, 5)],
-    );
+    let g = graph(6, &[(0, 1), (2, 0), (2, 1), (3, 0), (3, 1), (4, 2), (0, 5)]);
     let obligations =
         identification_failure_obligations(&failed(0, 1), &g, &[v(0), v(1)], "pop", None).unwrap();
     let backdoor: Vec<_> =

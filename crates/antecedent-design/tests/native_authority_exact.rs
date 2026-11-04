@@ -139,8 +139,13 @@ fn requiring_native_leaves_only_the_executed_source_and_its_hand_values_decide()
 
 #[test]
 fn unrestricted_the_first_listed_source_governs_and_trust_does_not_reorder() {
-    let n = build("N", &source_n(), &record("native-prov", "snapN", "exec-1"), TrustRequirement::Unrestricted)
-        .unwrap();
+    let n = build(
+        "N",
+        &source_n(),
+        &record("native-prov", "snapN", "exec-1"),
+        TrustRequirement::Unrestricted,
+    )
+    .unwrap();
     let e = build("E", &source_e(), &TrustEvidence::None, TrustRequirement::Unrestricted).unwrap();
     let (values, verdict) = utilities(&[e.clone(), n.clone()]);
     assert_eq!(values, vec![("go".to_owned(), 10.0), ("stay".to_owned(), 4.0)]);
@@ -152,8 +157,13 @@ fn unrestricted_the_first_listed_source_governs_and_trust_does_not_reorder() {
 
 #[test]
 fn only_a_matching_nonblank_record_grants_native_standing_and_keeps_the_exact_claim() {
-    let n = build("N", &source_n(), &record("native-prov", "snapN", "exec-1"), TrustRequirement::Unrestricted)
-        .unwrap();
+    let n = build(
+        "N",
+        &source_n(),
+        &record("native-prov", "snapN", "exec-1"),
+        TrustRequirement::Unrestricted,
+    )
+    .unwrap();
     let p = n.provenance();
     assert_eq!(p.provider_kind, ProviderKind::Native);
     assert_eq!(p.trust, DistributionTrust::NativeSupported);
@@ -179,8 +189,5 @@ fn only_a_matching_nonblank_record_grants_native_standing_and_keeps_the_exact_cl
         );
     }
     // Every coordinate of an unmasked law is supported regardless of trust.
-    assert_eq!(
-        n.support().status_of(&quantity("p", "do(a=1)")),
-        Some(SupportStatus::Supported)
-    );
+    assert_eq!(n.support().status_of(&quantity("p", "do(a=1)")), Some(SupportStatus::Supported));
 }

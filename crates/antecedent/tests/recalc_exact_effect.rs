@@ -10,12 +10,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::recalc_receipt::{
-    RecalcOutcome, RecalcRequest, RecalcSession, TargetWeights, UtilitySpec, execute_with_receipt,
-};
 use antecedent::analysis::recalc_cell::{
     ScoreQuantity, ScoreResumeRequest, ScoreResumeSession, execute_resumed_retarget,
     freeze_crossfit_scores,
+};
+use antecedent::analysis::recalc_receipt::{
+    RecalcOutcome, RecalcRequest, RecalcSession, TargetWeights, UtilitySpec, execute_with_receipt,
 };
 use antecedent_core::recalc::RetargetSupport;
 use antecedent_core::{ExecutionContext, StreamDomain, VariableId};

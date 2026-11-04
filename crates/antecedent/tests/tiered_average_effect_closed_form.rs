@@ -341,11 +341,8 @@ fn codetermined_joint_cell_aipw_matches_the_closed_form_additive_level() {
             Intervention::set(VariableId::from_raw(2), Value::f64(1.0)),
         ]),
     });
-    let tiers = background(
-        &data,
-        &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
-        WithinTier::CoDetermined,
-    );
+    let tiers =
+        background(&data, &[vec!["z"], vec!["t1", "t2"], vec!["y"]], WithinTier::CoDetermined);
     let result = Study::tabular(data)
         .tiered_background(tiers)
         .unwrap()

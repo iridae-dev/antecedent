@@ -132,7 +132,8 @@ fn candidate(id: &str, f: impl Fn(f64) -> f64, cost: f64) -> EvsiCandidate {
         observation_quantity: request.observation_quantity.clone(),
         law: posterior_law(f),
     };
-    let provider: Arc<dyn SignalProvider> = Arc::new(ExternalSignal::new(object, trust, body).unwrap());
+    let provider: Arc<dyn SignalProvider> =
+        Arc::new(ExternalSignal::new(object, trust, body).unwrap());
     EvsiCandidate {
         semantic_id: id.into(),
         design: CandidateDesign::IncreaseSamplingRate(SamplingPlan {
@@ -148,7 +149,13 @@ fn candidate(id: &str, f: impl Fn(f64) -> f64, cost: f64) -> EvsiCandidate {
 }
 
 fn step(t: f64) -> f64 {
-    if t < 0.4 { 0.1 } else if t > 0.6 { 0.9 } else { 0.5 }
+    if t < 0.4 {
+        0.1
+    } else if t > 0.6 {
+        0.9
+    } else {
+        0.5
+    }
 }
 
 fn candidates() -> Vec<EvsiCandidate> {
@@ -185,8 +192,13 @@ fn evaluate(candidates: Vec<EvsiCandidate>) -> EvsiReport {
     };
     let utility = AffineUtility::new(vec![1.0, 0.0], vec![-1.0, 1.0]).unwrap();
     let problem = DecisionProblem::new(vec![0, 1], Arc::new(utility), vec![]);
-    evaluate_evsi(&problem, &DecisionPrior::Draws(STATES.to_vec()), &request, &CancellationToken::new())
-        .unwrap()
+    evaluate_evsi(
+        &problem,
+        &DecisionPrior::Draws(STATES.to_vec()),
+        &request,
+        &CancellationToken::new(),
+    )
+    .unwrap()
 }
 
 #[test]

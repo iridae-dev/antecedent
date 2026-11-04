@@ -136,11 +136,7 @@ fn options() -> DiscrepancyOptions {
 }
 
 /// Source posterior mean through the discrepancy route, for each prior scale.
-fn route_posterior(
-    source: &PopulationSample,
-    target: &PopulationSample,
-    scale: f64,
-) -> Vec<f64> {
+fn route_posterior(source: &PopulationSample, target: &PopulationSample, scale: f64) -> Vec<f64> {
     let result = test_mechanism_discrepancy(source, target, &options()).unwrap();
     mechanism_coefficient_posterior(
         &result.source_summary,

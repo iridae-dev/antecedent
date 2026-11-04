@@ -37,7 +37,8 @@ fn fixed_known_q_g_formula_value_standard_error_and_interval_match_the_hand_comp
         0.01,
     )
     .unwrap();
-    let scores: Vec<f64> = (0..subjects).map(|s| predictions[2 * s] + predictions[2 * s + 1]).collect();
+    let scores: Vec<f64> =
+        (0..subjects).map(|s| predictions[2 * s] + predictions[2 * s + 1]).collect();
     let n = subjects as f64;
     let value = scores.iter().sum::<f64>() / n;
     assert!((value - 5.0).abs() < 1e-12, "mirrored rewards give the exact regime value");

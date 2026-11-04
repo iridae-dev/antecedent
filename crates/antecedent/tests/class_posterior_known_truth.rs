@@ -294,7 +294,10 @@ fn curve_query(grid: &[f64]) -> ResponseQuery {
     })
 }
 
-fn inferences(bayesian_tolerance: f64, frequentist_tolerance: f64) -> Vec<(&'static str, InferenceMode, f64)> {
+fn inferences(
+    bayesian_tolerance: f64,
+    frequentist_tolerance: f64,
+) -> Vec<(&'static str, InferenceMode, f64)> {
     vec![
         ("frequentist", InferenceMode::Frequentist, frequentist_tolerance),
         ("bayesian", bayes(256, 1_000_000.0), bayesian_tolerance),
@@ -344,8 +347,14 @@ fn class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell()
             assert_validation_ran(&label, &result, suite);
 
             let label = format!("Pag {mode} {suite:?}");
-            let result =
-                run(&balanced, pag_atoms(&pag_weights), query.clone(), inference.clone(), suite, 11);
+            let result = run(
+                &balanced,
+                pag_atoms(&pag_weights),
+                query.clone(),
+                inference.clone(),
+                suite,
+                11,
+            );
             let atoms = identified_atoms(&result);
             assert_eq!(atoms.len(), 1, "{label}: one identified atom");
             assert_matches_some_atom(&label, &atoms, &[adjusted], tolerance);
@@ -383,8 +392,12 @@ fn heterogeneous_data(confounded: bool, z1_scale: usize) -> (TabularData, f64) {
     }
     let share = z.iter().sum::<f64>() / z.len() as f64;
     (
-        TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())])
-            .unwrap(),
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap(),
         share,
     )
 }
@@ -494,7 +507,11 @@ fn class_graph_posterior_responses_match_the_closed_form_curves() {
     let draws = usize::try_from(resp["bayesian_n_draws"].as_u64().unwrap()).unwrap();
     let prior_scale = resp["bayesian_prior_scale"].as_f64().unwrap();
     let modes = [
-        ("frequentist", InferenceMode::Frequentist, resp["frequentist_abs_tolerance"].as_f64().unwrap()),
+        (
+            "frequentist",
+            InferenceMode::Frequentist,
+            resp["frequentist_abs_tolerance"].as_f64().unwrap(),
+        ),
         ("bayesian", bayes(draws, prior_scale), resp["bayesian_abs_tolerance"].as_f64().unwrap()),
     ];
     for (mode, inference, tolerance) in modes {
@@ -505,7 +522,8 @@ fn class_graph_posterior_responses_match_the_closed_form_curves() {
             let pick = |curve: &[f64]| -> Vec<f64> {
                 take.map_or_else(|| curve.to_vec(), |i| vec![curve[i]])
             };
-            let suites: &[RefuteSuite] = if take.is_some() { &SUITES } else { &[RefuteSuite::None] };
+            let suites: &[RefuteSuite] =
+                if take.is_some() { &SUITES } else { &[RefuteSuite::None] };
             for &suite in suites {
                 let label = format!("Cpdag {query_label} {mode} {suite:?}");
                 let result = run(
@@ -571,7 +589,11 @@ fn dag_graph_posterior_intervention_response_matches_the_closed_form_levels_unde
         assert_eq!(atoms.len(), 2, "{label}");
         assert_matches_some_atom(&label, &atoms, &[direct[index]], tolerance);
         assert_matches_some_atom(&label, &atoms, &[adjusted[index]], tolerance);
-        assert_unidentified_mass(&label, &result, resp["expected_unidentified_mass"].as_f64().unwrap());
+        assert_unidentified_mass(
+            &label,
+            &result,
+            resp["expected_unidentified_mass"].as_f64().unwrap(),
+        );
         assert!(!result.refutations.is_empty(), "{label}: refuters must execute");
     }
 }

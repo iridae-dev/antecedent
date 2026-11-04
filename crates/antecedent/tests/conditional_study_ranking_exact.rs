@@ -13,7 +13,6 @@
 use antecedent::analysis::conditional_study_ranking::{
     ConditionalBranch, ConditionalCandidate, ConditionalStudyPolicy, ConditionalStudyRanking,
 };
-use antecedent_core::SupportStatus;
 use antecedent::analysis::recalc_composite::*;
 use antecedent::analysis::recalc_external::{CallbackPolicy, ExternalMeanProvider};
 use antecedent::analysis::recalc_receipt::UtilitySpec;
@@ -21,6 +20,7 @@ use antecedent::analysis::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
 };
 use antecedent_contract::{ExternalProgramClaim, ProgramBinding};
+use antecedent_core::SupportStatus;
 use antecedent_core::recalc::Branch;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_design::composition_boundary::SupportPolicy;
@@ -141,7 +141,6 @@ fn decision_contract(binding: &ProgramBinding) -> DecisionContract {
         structural_policy: StructuralPolicy::RequireInvariantBestAction,
     }
 }
-
 
 fn run(
     session: &mut CompositeSession,
