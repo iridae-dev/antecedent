@@ -651,3 +651,157 @@ where
         unlock: unlocks.variables,
     })
 }
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Identification flags of a graph posterior, derived rather than declared.
+pub use antecedent_design::StructureIdentificationError;
+/// Candidate transport-evidence additions and their portable design records.
+pub use antecedent_design::TransportEvidenceCandidate;
+/// `antecedent-design` items at the crate root.
+pub use antecedent_design::repair;
+/// The theorem routes of a failed identification, as repair families.
+pub use antecedent_design::{FailureRoutes, failure_routes};
+/// Failure snapshots and evidence-arrival checks for bounded z-transport.
+pub use antecedent_design::{
+    ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
+    ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal, ZTransportProposalWire,
+    plan_z_transport_evidence, snapshot_z_transport_failure,
+};
+/// The composition boundary: what a decision input carries and what may be combined with what.
+pub mod composition_boundary {
+    pub use antecedent_design::composition_boundary::{
+        ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError,
+        CalibrationStatus, CompositionOperation, CompositionReceipt, CoordinateIssue,
+        DecisionInput, DependenceRoute, EvidenceRelation, InputProvenance, InputSource,
+        NativeExecutionRecord, PairRelation, ProviderKind, ReceiptRef, RouteKind, ScalarClaim,
+        SupportPolicy, SupportedDecision, SupportedVerdict, TrustEvidence, TrustRequirement,
+        UnsupportedActionPolicy, check_atom_combination, check_composition, check_paired_draws,
+        evaluate_functional_on_input, evaluate_with_support,
+    };
+}
+/// Adapters from claim types to decision inputs under a declared policy.
+pub mod decision_adapters {
+    pub use antecedent_design::decision_adapters::{
+        AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
+        IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
+        adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets,
+        utility_interval,
+    };
+}
+/// Portable decision contract and decision result artifacts.
+pub mod decision_artifact {
+    pub use antecedent_design::decision_artifact::{
+        DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
+        contract_from_json, contract_from_json_refusal, contract_to_json, mean_result_to_json,
+        result_to_json, source_digest,
+    };
+}
+/// Durable decision contract and the source each functional needs.
+pub mod decision_contract {
+    pub use antecedent_design::decision_contract::{
+        AdmissibleDecisionContract, ProgramObjective, ProgramSearchContract, ProgramSearchSpace,
+        SourceRepresentation, SourceRequirement, UtilityExpr,
+    };
+}
+/// Evaluate a `DecisionContract` on an aligned joint distribution artifact.
+pub mod decision_eval {
+    pub use antecedent_design::decision_eval::{
+        ActionOutcome, DecisionEvalError, DecisionResult, MeanEstimate, Verdict, evaluate_contract,
+        evaluate_contract_on_means,
+    };
+}
+/// Reliability of sampled and adaptively selected decisions.
+pub mod decision_reliability {
+    pub use antecedent_design::decision_reliability::{
+        RankingRequest, ReliabilityError, rank, support_route,
+    };
+}
+/// Durable admissible decision contract and robust decision result artifacts.
+pub mod decision_robust_artifact {
+    pub use antecedent_design::decision_robust_artifact::{
+        AdmissibleContractArtifact, ExternalCallbackReceipt, ExternalTrustLimit,
+        RobustResultArtifact, admissible_contract_from_json, admissible_contract_from_json_refusal,
+        admissible_contract_to_json, atom_digests_of,
+    };
+}
+/// Robustness of a decision across structures, support and claims.
+pub mod decision_robustness {
+    pub use antecedent_design::decision_robustness::{AtomSupport, InputSupport, RobustVerdict};
+}
+/// Decisions under structural uncertainty.
+pub mod decision_structural {
+    pub use antecedent_design::decision_structural::{
+        AtomStatus, AtomSummary, StructuralDecisionResult, StructuralVerdict,
+    };
+}
+/// Durable design-ranking artifact (`design_ranking_v1`) and its independent consumer.
+pub mod design_ranking_artifact {
+    pub use antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES;
+}
+/// Per-candidate expected value of sample information with declared integration.
+pub mod evsi {
+    pub use antecedent_design::evsi::{CostToUtilityMap, EvsiError};
+}
+/// Original finite-law functional replay with complete source rows and scientific identity.
+pub mod functional_source {
+    pub use antecedent_design::functional_source::LawFunctionalArtifact;
+}
+/// Checked adapter from `PriorCatalog` posterior sources to a future candidate-signal.
+pub mod prior_signal {
+    pub use antecedent_design::prior_signal::{
+        CandidateSignalPrior, CandidateSignalSource, NativeSignalFamily, PriorSignalRequest,
+        PriorSourceInput, SourceToTarget, TransportPolicyDecl, adapt_prior_to_signal,
+    };
+}
+/// Exhaustive bounded program search over checked response quantities.
+pub mod program_search {
+    pub use antecedent_design::program_search::{
+        FiniteProgramDomain, ProgramControl, ProgramFeasibility, ProgramRestriction,
+        ProgramSearchError,
+    };
+    /// Global bounds derived from expressions, with outward-rounded arithmetic.
+    pub mod certified {
+        pub use antecedent_design::program_search::certified::{
+            CertificateOptions, CertificateStop,
+        };
+    }
+    /// Bounded derivative-free search over actual compiled programs.
+    pub mod continuous {
+        pub use antecedent_design::program_search::continuous::ContinuousSearchOptions;
+    }
+}
+/// Per-proposal receipt linking identification repair and design ranking.
+pub mod proposal_receipt {
+    pub use antecedent_design::proposal_receipt::{
+        Arrival, ArrivalVerdict, ArrivedEvidence, BaseFailureBinding, ChangedPremise, CostBinding,
+        DecisionReceipt, HypotheticalBinding, LineageBinding, ObservedLaw, ProposalBundle,
+        ProposalReceipt, ProposalReceiptError, ValuationBinding, on_arrival, verify,
+    };
+}
+/// Finite source-law to terminal-decision and study-ranking binding.
+pub mod rollout_artifact {
+    pub use antecedent_design::rollout_artifact::{
+        MAX_ROLLOUT_BYTES, RolloutArtifact, RolloutExpectation, consume,
+    };
+}
+/// Checked scientific standing carried from a compiled response into a decision.
+pub mod scientific_source {
+    pub use antecedent_design::scientific_source::{
+        ScientificConsumptionScope, ScientificSourcePayload,
+    };
+}
+/// `SequentialEvaluationArtifact` (`sequential_evaluation_v1`).
+pub mod sequential_evaluation_artifact {
+    pub use antecedent_design::sequential_evaluation_artifact::StepWire;
+}
+/// Source-backed projections for a portable composed workflow.
+pub mod source_projection_artifact {
+    pub use antecedent_design::source_projection_artifact::{
+        MAX_SOURCE_PROJECTION_BYTES, ProjectionSource, SourceProjection, SourceProjectionArtifact,
+    };
+}
+/// Identification flags of a graph posterior, derived rather than declared.
+pub mod structure_identification {
+    pub use antecedent_design::structure_identification::{GraphIdentFlag, identifies};
+}

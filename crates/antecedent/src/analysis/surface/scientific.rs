@@ -20,3 +20,16 @@ pub use antecedent_core::measurement_model::{
     MeasurementVariable, ParameterEvidence, PosteriorReference, RepresentationMapping,
     RepresentationVersion,
 };
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Contrasts of intervention worlds and the dose × time surface.
+pub use antecedent_core::InterventionContrast;
+/// Worlds, bindings, decision time, and assumptions of a scientific target.
+pub use antecedent_core::{
+    Conditioning, GraphFamily, InferenceSelection, InitialLaw, InterventionWorld, ModelAssumptions,
+    ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificWorldId, TimeFrame, WorldAction,
+    WorldBinding, WorldCollection,
+};
+/// The target form, the packaged `ScientificTarget`, and its semantic identity.
+pub use antecedent_core::{ScientificTarget, TargetForm};

@@ -26,6 +26,7 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
+use antecedent_discovery::DiscoveryConstraints;
 pub use antecedent_discovery::{
     BackgroundKnowledge, CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult,
     DagDiscoveryResult, DbnPosterior, DirectLingam, DiscoveryPerformanceRecord,
@@ -38,7 +39,6 @@ pub use antecedent_discovery::{
     StructureStability, TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
     two_regime_half_split,
 };
-use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
 pub use antecedent_prob::InferenceDiagnostics;
 use antecedent_state::GraphScoreFamily;
@@ -775,4 +775,42 @@ pub fn pag_definite_directed_edge_count(pag: &TemporalPag) -> u64 {
         }
     }
     directed
+}
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Discovery errors.
+pub use antecedent_discovery::DiscoveryError;
+/// Shared PCMCI engine: PC-style parents + MCI.
+pub use antecedent_discovery::DiscoveryWorkspace;
+/// Discovery result types.
+pub use antecedent_discovery::LaggedLink;
+/// Public lagged PCMCI algorithm.
+pub use antecedent_discovery::Pcmci;
+/// PCMCI+ returning a temporal CPDAG.
+pub use antecedent_discovery::PcmciPlus;
+/// Graph prior / posterior types and Bayesian discovery engine trait.
+pub use antecedent_discovery::n_directed_edges;
+/// Packed directed-edge set of one graph-posterior atom.
+pub use antecedent_discovery::{AdjacencyMask, LagMask};
+/// Packed directed-edge set of one graph-posterior atom.
+pub mod adjacency_mask {
+    pub use antecedent_discovery::adjacency_mask::{
+        adjacency_mask_from_admg, has_edge, mask_is_dag,
+    };
+}
+/// Discovery constraints with compiled masks (§13.4 / §13.8).
+pub mod constraints {
+    pub use antecedent_discovery::constraints::{CiMaskType, DiscoveryConstraints};
+}
+/// Selective discovery: reuse of conditional-independence statistics across discovery requests.
+pub mod selective {
+    pub use antecedent_discovery::selective::{
+        Mark, StructureEdge, StructureNode, request_downstream_interval, request_recovery_claim,
+        request_score_search_reuse,
+    };
+}
+/// Lagged temporal-ADMG posterior atoms.
+pub mod temporal_admg_atoms {
+    pub use antecedent_discovery::temporal_admg_atoms::with_lagged_edge;
 }

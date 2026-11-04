@@ -33,9 +33,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
-use antecedent_model::{
-    InterventionOverlay, ModelView, NoiseFix, NoiseReplayer, NoiseSource, ValueBatch,
-};
+use antecedent_model::{InterventionOverlay, ModelView, NoiseFix, NoiseReplayer, NoiseSource};
 
 use crate::error::CausalError;
 
@@ -1934,6 +1932,59 @@ pub fn rank_root_causes(
     ctx: &ExecutionContext,
 ) -> Result<Vec<RootCauseRank>, CausalError> {
     root_cause_rank(attribution, None, None, ctx).map_err(CausalError::from)
+}
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Attribution result types.
+pub use antecedent_attribution::{CacheStats, ComponentContribution, ComputeBudget};
+/// Compiled topological execution plans.
+pub use antecedent_model::standard_normal_log_density;
+/// Columnar value / noise batches and mechanism workspaces.
+pub use antecedent_model::{ParentBatch, ValueBatch};
+/// Composition of independently fitted causal mechanisms.
+pub mod compose {
+    pub use antecedent_model::compose::{
+        ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
+        MeanContrast, MechanismContext, MechanismOrigin, MechanismProvenance, MechanismUncertainty,
+        ParameterId, ParameterTerm, SelectionDiagramDeclaration, SelectionNodeDeclaration,
+        TabularRow, UncertaintyMeaning,
+    };
+}
+/// Items of `antecedent-model::continuous_cyclic`.
+pub mod continuous_cyclic {
+    pub use antecedent_model::continuous_cyclic::{OdePolicy, TimedClamp};
+}
+/// Items of `antecedent-model::cyclic_world`.
+pub mod cyclic_world {
+    pub use antecedent_model::cyclic_world::{CyclicInterventionRefusal, CyclicRefusalKind};
+}
+/// Portable form of a discretized composition and its fresh-consumer re-derivation.
+pub mod discretized_scm_artifact {
+    pub use antecedent_model::discretized_scm_artifact::export_discretized_scm;
+}
+/// Items of `antecedent-model::external_mechanism`.
+pub mod external_mechanism {
+    pub use antecedent_model::external_mechanism::{
+        ExternalFeedbackSystem, ExternalFitParameter, ExternalMechanismImplementation,
+        ExternalMechanismSpec, ExternalOdeSystem, TrustedMechanismResolver,
+    };
+}
+/// Items of `antecedent-model::local_cyclic`.
+pub mod local_cyclic {
+    pub use antecedent_model::local_cyclic::{
+        LocalCyclicMechanism, LocalCyclicModel, LocalCyclicPolicy,
+    };
+}
+/// Items of `antecedent-model::mechanism_expr`.
+pub mod mechanism_expr {
+    pub use antecedent_model::mechanism_expr::MechanismExpression;
+}
+/// Items of `antecedent-model::nonlinear_equilibrium`.
+pub mod nonlinear_equilibrium {
+    pub use antecedent_model::nonlinear_equilibrium::{
+        Clamp, EquilibriumError, EquilibriumOutcome, EquilibriumResult, RegimeRow,
+    };
 }
 
 #[cfg(test)]

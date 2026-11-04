@@ -33,5 +33,16 @@ pub(crate) use lowered::{
 pub use plan::{LogicalAnalysisPlan, PhysicalExecutionPlan, reject_dag_only_on_pag};
 pub use plan_view::{PlanRoute, PlanStage, PlanView, RouteFamily};
 
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Inspection of a plan from values the caller already holds.
+pub mod inspect {
+    pub use antecedent_core::inspect::{
+        EstimatedResources, EvidenceTransformation, EvidenceTransformations, InspectionInputs,
+        InspectionRefusal, MaterializationSnapshot, PlanInspection, ReuseSnapshot,
+        UncertaintyDemand, inspect,
+    };
+}
+
 #[cfg(test)]
 mod tests;

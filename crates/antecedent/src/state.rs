@@ -110,6 +110,13 @@ pub fn publish_recomputed_results(
     state.publish_results_at(expected, &updates).map_err(CausalError::from)
 }
 
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Retention policies for state components, and explicit result-retention modes.
+pub mod retention {
+    pub use antecedent_state::retention::{RetainedOperation, RetentionMode, RetentionRefusal};
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_core::ContractIdentities;

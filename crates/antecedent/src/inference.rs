@@ -19,10 +19,7 @@ use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWi
 use antecedent_io::{
     CausalPosteriorWire, decode_posterior_artifact, extract_prior_source_meta, read_and_migrate,
 };
-use antecedent_prob::{
-    BayesLikelihood, ComposedPrior, ConflictSummary, ExternalPriorSource, PosteriorQuantityKind,
-    PriorSet,
-};
+use antecedent_prob::PosteriorQuantityKind;
 use antecedent_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
 use crate::error::CausalError;
@@ -1060,4 +1057,83 @@ pub fn mapped_posterior_transfer_with(
     let coefficients = build_coefficient_map(&source, spec)?;
     check_residual_variance(&source, spec, coefficients.len(), sigma2)?;
     hydrate_mapped_prior(&source, spec, coefficients, sigma2)
+}
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Inference backend interface and reusable workspaces.
+pub use antecedent_prob::BayesLikelihood;
+/// Inference diagnostics for Laplace / conjugate / MCMC backends.
+pub use antecedent_prob::ConflictSummary;
+/// Probability / inference errors.
+pub use antecedent_prob::ProbError;
+/// Conjugate moment-matching converters: Gaussian summary → Beta / Gamma.
+pub use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
+/// External prior bank: power-prior / mixture composition.
+pub use antecedent_prob::{
+    ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
+    compose_external_priors_with_alphas,
+};
+/// Prior specifications.
+pub use antecedent_prob::{GaussianCoefficientPrior, PriorSet, PriorSpec};
+/// Weighted graph samples for effect envelopes.
+pub use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
+/// Transport policy for cross-population prior transfer.
+pub use antecedent_prob::{
+    TransportAdjustment, TransportContext, TransportPolicy, apply_transport, compose_with_transport,
+};
+/// `antecedent-stats` items at the crate root.
+pub use antecedent_stats::ConditionalIndependence;
+/// Joint-law propagation arithmetic.
+pub use antecedent_stats::DecisionVerdict;
+/// Randomization-based kernels for known network assignment designs.
+pub use antecedent_stats::ExposureProbabilityMethod;
+/// Partial-correlation conditional independence test.
+pub use antecedent_stats::PartialCorrelation;
+/// CI request / result types and workspace.
+pub use antecedent_stats::{
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    PreparedCiTest, SignificanceMethod,
+};
+/// Multiple-testing / false-discovery-rate helpers.
+pub use antecedent_stats::{FdrAdjustment, MultipleTestingMethod};
+/// GLM fitting: logistic, probit, multinomial logit, Gaussian, Poisson, and NB2 IRLS.
+pub use antecedent_stats::{GlmFamily, GlmOptions};
+/// Stats-layer errors.
+pub use antecedent_stats::{GlmRefusalKind, StatsError};
+/// Numerics for inference from adaptively collected data.
+pub mod adaptive_inference {
+    pub use antecedent_stats::adaptive_inference::{
+        AnalysisEstimator, AnytimeSettings, ArmPrior, AssignmentRule, Attribution, BetaPrior,
+        BorrowingPlan, ComparisonReading, CorrelationPrior, DecisionRules, Estimand,
+        EstimandStatement, EstimatorLaw, ExposureModel, FinalAnalysis, FinalSelection,
+        FutilityRule, GaussianMixtureLaw, HistoricalPrior, InversionGrid, LookDecision,
+        LookReading, MAX_ADAPTIVE_UNITS, ObservedTerminal, OutcomeModelPrior, OutcomeObservation,
+        OutcomeStructure, ParticipantDeclaration, ParticipantHistory, ParticipantSimulationRequest,
+        ProcedureDeclaration, RepeatedMeasuresDeclaration, RepeatedMeasuresRequest,
+        ResolvedArmPrior, ResourceReceipt, SimulationRequest, StoppingRule, UncertaintyParadigm,
+        UnitAssignment, UnitSummary, WeightScheme, WithinUnitCorrelation,
+    };
+    /// Group-sequential boundaries by alpha spending.
+    pub mod group_sequential {
+        pub use antecedent_stats::adaptive_inference::group_sequential::{
+            Sidedness, StagewiseLook,
+        };
+    }
+}
+/// Randomization-based kernels for known network assignment designs.
+pub mod interference {
+    pub use antecedent_stats::interference::admit_exposure_probability_work_for_shape;
+}
+/// Pure corrections for uncertain measurements.
+pub mod measurement_error {
+    pub use antecedent_stats::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
+}
+/// Items of `antecedent-prob::metropolis`.
+pub mod metropolis {
+    pub use antecedent_prob::metropolis::MetropolisOptions;
+}
+/// Summary-data synthesis: covariance-preserving pooling.
+pub mod synthesis {
+    pub use antecedent_stats::synthesis::{BetweenStudyMethod, MeanPrior, TauPrior};
 }
