@@ -42,7 +42,7 @@
             "fn nested_fisher_information_scales_with_actual_sample_size",
             "fn nested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellation"
           ],
-          "sha256": "a633f87192fa556a158aec97d42d69fec0030be14ce499e9b68846716f460f33"
+          "sha256": "78a1db808a5d132a9d37a77e6128744b94067b8a415b4072160b375aa9b65f7b"
         }
       ],
       "fixture_payload_sha256": "a4e3a4a3ef8b7cd95c2547a36c0256d9ced83826701dc21bec6fa2e9ac087a30"
