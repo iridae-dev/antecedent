@@ -13,7 +13,6 @@
 #[doc(hidden)] pub fn antecedent_io::counterfactual_transport_artifact::counterfactual_transport_result_wire(point: &antecedent_estimate::counterfactual_transport::CounterfactualTransportPoint) -> antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportResultWire
 #[doc(hidden)] pub fn antecedent_io::mz_transport_artifact::mz_identification_error(error: antecedent_identify::error::IdentificationError) -> antecedent_io_core::error::IoError
 #[doc(hidden)] pub fn antecedent_io::mz_transport_artifact::mz_point_contrasts(distributions: &[antecedent_expr::exact_plan::ExactDistribution]) -> core::result::Result<alloc::vec::Vec<antecedent_io::mz_transport_artifact::MzContrastWire>, antecedent_io_core::error::IoError>
-#[doc(hidden)] pub fn antecedent_io::mz_transport_artifact::refuse_unsupported_interval(uncertainty: &antecedent_io::mz_transport_artifact::MzUncertaintyWire) -> core::result::Result<(), antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_io::recovery_artifact::recovery_io_error(error: &antecedent_identify::recovery::RecoveryError) -> antecedent_io_core::error::IoError
 #[doc(hidden)] pub fn antecedent_io::temporal_transport_artifact::temporal_decision_error(error: antecedent_identify::sid::temporal_sequence::TemporalSequenceError) -> antecedent_io_core::error::IoError
 #[doc(hidden)] pub fn antecedent_io::temporal_transport_artifact::temporal_refusal(refusal: antecedent_identify::sid::temporal_sequence::TemporalRefusal) -> antecedent_io_core::error::IoError
@@ -373,6 +372,7 @@ impl core::clone::Clone for antecedent_io::nested_markov_bayesian_artifact::Limi
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::MediationDataWire
+impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire
@@ -443,6 +443,7 @@ impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_arti
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -665,6 +666,7 @@ impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact:
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -961,6 +963,7 @@ impl core::cmp::PartialEq for antecedent_io::nested_markov_bayesian_artifact::Ba
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::MediationDataWire
+impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire
@@ -1025,6 +1028,7 @@ impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_ar
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -1540,6 +1544,7 @@ impl core::fmt::Debug for antecedent_io::nested_markov_bayesian_artifact::Limits
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::MediationDataWire
+impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire
@@ -1611,6 +1616,7 @@ impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifa
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -2152,6 +2158,7 @@ impl core::marker::Freeze for antecedent_io::nested_markov_bayesian_artifact::Li
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire [auto]
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire [auto]
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::MediationDataWire [auto]
+impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire [auto]
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire [auto]
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs [auto]
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire [auto]
@@ -2224,6 +2231,7 @@ impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_ar
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire [auto]
+impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire [auto]
@@ -2657,6 +2665,7 @@ impl core::marker::Send for antecedent_io::nested_markov_bayesian_artifact::Limi
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire [auto]
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire [auto]
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::MediationDataWire [auto]
+impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire [auto]
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire [auto]
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs [auto]
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire [auto]
@@ -2729,6 +2738,7 @@ impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_arti
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire [auto]
+impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire [auto]
@@ -3104,6 +3114,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::nested_markov_bayesian
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::MediationDataWire
+impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire
@@ -3168,6 +3179,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -3579,6 +3591,7 @@ impl core::marker::Sync for antecedent_io::nested_markov_bayesian_artifact::Limi
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire [auto]
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire [auto]
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::MediationDataWire [auto]
+impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire [auto]
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire [auto]
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs [auto]
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire [auto]
@@ -3651,6 +3664,7 @@ impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_arti
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire [auto]
+impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire [auto]
@@ -4084,6 +4098,7 @@ impl core::marker::Unpin for antecedent_io::nested_markov_bayesian_artifact::Lim
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire [auto]
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire [auto]
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::MediationDataWire [auto]
+impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire [auto]
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire [auto]
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs [auto]
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire [auto]
@@ -4156,6 +4171,7 @@ impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_art
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire [auto]
+impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire [auto]
@@ -4583,6 +4599,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nested_markov_ba
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationDataWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire [auto]
@@ -4655,6 +4672,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterf
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire [auto]
@@ -5082,6 +5100,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nested_markov_bayes
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationDataWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire [auto]
@@ -5154,6 +5173,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfact
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire [auto]
@@ -5501,6 +5521,7 @@ impl serde_core::ser::Serialize for antecedent_io::nested_markov_bayesian_artifa
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::MediationDataWire
+impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire
@@ -5545,6 +5566,7 @@ impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transp
 impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 impl serde_core::ser::Serialize for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -5999,6 +6021,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nested_markov_baye
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::MediationDataWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire
@@ -6043,6 +6066,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfac
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -6255,12 +6279,11 @@ pub const antecedent_io::msm_sensitivity_adapter::MSM_COORDINATE_ID: &str
 pub const antecedent_io::msm_sensitivity_adapter::MSM_COORDINATE_SCALE: &str
 pub const antecedent_io::msm_sensitivity_adapter::MSM_SOURCE_KIND: &str
 pub const antecedent_io::mz_transport_artifact::MZ_INTERVAL_NOT_SUPPORTED: &str
-pub const antecedent_io::mz_transport_artifact::MZ_INTERVAL_NOT_SUPPORTED_DETAIL: &str
 pub const antecedent_io::mz_transport_artifact::MZ_NOMINAL_INTERVAL: &str
+pub const antecedent_io::mz_transport_artifact::MZ_NO_INTERVAL_METHOD: &str
 pub const antecedent_io::mz_transport_artifact::MZ_POINT_ONLY: &str
 pub const antecedent_io::mz_transport_artifact::MZ_TRANSPORT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::mz_transport_artifact::MZ_TRANSPORT_ARTIFACT_VERSION: u32
-pub const antecedent_io::mz_transport_artifact::MZ_WITHHELD: &str
 pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_ARTIFACT_FEATURE: &str
 pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_ARTIFACT_VERSION: u32
 pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_CALIBRATION: &str
@@ -6575,21 +6598,21 @@ pub field antecedent_io::ScoreTableWire::propensity_clip: core::option::Option<f
 pub field antecedent_io::ScoreTableWire::row_index: alloc::vec::Vec<u64>
 pub field antecedent_io::ScoreTableWire::scores: alloc::vec::Vec<f64>
 pub field antecedent_io::ScoreTableWire::treatment: u32
-pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResult::closed_guarantee: &'static str
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResult::method: &'static str
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResult::paradigm: antecedent_contract::adaptive_design::matrix::InferenceParadigm
+pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResult::unsupported_claim: core::option::Option<&'static str>
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResult::values: alloc::vec::Vec<f64>
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError::code: &'static str
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError::detail: alloc::string::String
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError::message: alloc::string::String
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::calibration: alloc::string::String
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::claim: alloc::string::String
-pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::closed_guarantee: alloc::string::String
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::contract: antecedent_io_core::adaptive_monitoring_contract_artifact::MonitoringContractMeta
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::feature: alloc::string::String
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::identity: alloc::string::String
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::method: alloc::string::String
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::spec: antecedent_io::adaptive_inference_result_artifact::SpecWire
+pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::unsupported_claim: core::option::Option<alloc::string::String>
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::value_bits: alloc::vec::Vec<u64>
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta::version: u16
 pub field antecedent_io::adaptive_inference_result_artifact::SpecWire::first_arm: core::option::Option<u32>
@@ -6721,6 +6744,7 @@ pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWi
 pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits::max_points: usize
 pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits::max_rows: usize
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::assumptions: &'static str
+pub field antecedent_io::bridge_interval::BridgedClaimInterval::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::calibration_sha: alloc::string::String
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::construction: &'static str
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::coverage_record: alloc::string::String
@@ -6888,22 +6912,22 @@ pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
 pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::sources: alloc::vec::Vec<antecedent_io::choice_inference_result_artifact::SourceWire>
 pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::stopping: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::stopping_rule: core::option::Option<antecedent_io_core::adaptive_monitoring_contract_artifact::RuleWire>
-pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::closed_guarantee: &'static str
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::method: &'static str
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::paradigm: antecedent_contract::adaptive_design::matrix::InferenceParadigm
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::unsupported_claim: core::option::Option<&'static str>
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::values: alloc::vec::Vec<f64>
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultError::code: &'static str
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultError::detail: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultError::message: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::calibration: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::claim: alloc::string::String
-pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::closed_guarantee: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::contract_identity: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::declaration: antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::feature: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::identity: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::method: alloc::string::String
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::spec: antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::unsupported_claim: core::option::Option<alloc::string::String>
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::value_bits: alloc::vec::Vec<u64>
 pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::version: u16
 pub field antecedent_io::choice_inference_result_artifact::ChoiceSpecWire::kind: alloc::string::String
@@ -7694,6 +7718,7 @@ pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::effec
 pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::receipt_identity: [u8; 32]
 pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::result_identity: [u8; 32]
 pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::structure_identity: [u8; 32]
+pub field antecedent_io::measured_inference::split_effect::SplitEffectRun::variables: usize
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::discovery_seed: u64
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::names: alloc::vec::Vec<alloc::string::String>
@@ -8053,6 +8078,10 @@ pub field antecedent_io::nonlinear_mediation_artifact::MediationDataWire::covari
 pub field antecedent_io::nonlinear_mediation_artifact::MediationDataWire::mediator: alloc::vec::Vec<f64>
 pub field antecedent_io::nonlinear_mediation_artifact::MediationDataWire::outcome: alloc::vec::Vec<f64>
 pub field antecedent_io::nonlinear_mediation_artifact::MediationDataWire::treatment: alloc::vec::Vec<f64>
+pub field antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
+pub field antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire::effect: alloc::string::String
+pub field antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire::lower: f64
+pub field antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire::upper: f64
 pub field antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire::residual_excess_kurtosis: f64
 pub field antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire::residual_skewness: f64
@@ -8082,6 +8111,9 @@ pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::coar
 pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::fine_nodes: u32
 pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::identity_residual: f64
 pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::integration_error: f64
+pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::interval_level: f64
+pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::interval_unavailable_reason: core::option::Option<alloc::string::String>
+pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::intervals: alloc::vec::Vec<antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire>
 pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::mediator: antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::n_rows: u64
 pub field antecedent_io::nonlinear_mediation_artifact::MediationResultWire::natural_direct: f64
@@ -8394,9 +8426,7 @@ pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstim
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::envelope: core::option::Option<antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire>
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::evidence_identity: alloc::string::String
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::exact_finite_law_evaluation: alloc::string::String
-pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::interval_code: alloc::string::String
-pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::interval_detail: alloc::string::String
-pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::interval_reason: alloc::string::String
+pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::interval_absence: core::option::Option<antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire>
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::point: core::option::Option<antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire>
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::point_estimate: alloc::string::String
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::point_withheld_reason: core::option::Option<alloc::string::String>
@@ -8407,6 +8437,9 @@ pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstim
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::structural_identification: alloc::string::String
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::tables: alloc::vec::Vec<antecedent_io::sampled_counterfactual_transport_artifact::SampledTableReportWire>
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire::uncertainty_method: alloc::string::String
+pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire::code: alloc::string::String
+pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire::detail: alloc::string::String
+pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire::reason: alloc::string::String
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire::depth: usize
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire::max_envelope_evaluations: u32
 pub field antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire::max_unseen_fraction: u64
@@ -9422,6 +9455,7 @@ pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn expec
 pub fn <antecedent_io::mz_transport_artifact::MzTransportArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mz_transport_artifact::MzTransportConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
 pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn available(&self) -> bool
+pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn from_bootstrap(run: &core::result::Result<antecedent_estimate::statistical_transport::MzTransportIntervals, &'static str>, replicates: u32, coverage_level: f64, seed: u64) -> Self
 pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn not_supported(dependence_reason: core::option::Option<&str>) -> Self
 pub fn <antecedent_io::mz_transport_artifact::MzUncertaintyWire>::fn point_only() -> Self
 pub fn <antecedent_io::nested_markov_artifact::NestedFisherArtifact>::fn build(input: &antecedent_estimate::nested_markov_binary::NestedMarkovInput, options: &antecedent_estimate::nested_markov_binary::FitOptions, nominal_level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -10153,6 +10187,7 @@ pub struct antecedent_io::nested_markov_bayesian_artifact::Limits
 pub struct antecedent_io::nonlinear_mediation_artifact::MediationBootstrapWire
 pub struct antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 pub struct antecedent_io::nonlinear_mediation_artifact::MediationDataWire
+pub struct antecedent_io::nonlinear_mediation_artifact::MediationIntervalWire
 pub struct antecedent_io::nonlinear_mediation_artifact::MediationMediatorWire
 pub struct antecedent_io::nonlinear_mediation_artifact::MediationModelSpecs
 pub struct antecedent_io::nonlinear_mediation_artifact::MediationOverlapWire
@@ -10215,6 +10250,7 @@ pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledCoun
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledEnvelopeWire
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire
+pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledIntervalAbsenceWire
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledPointWire
@@ -10930,6 +10966,8 @@ pub use antecedent_io::sensitivity_artifact::JointFactor = antecedent_validate::
 pub use antecedent_io::sensitivity_artifact::JointFactorBound = antecedent_validate::JointFactorBound
 pub use antecedent_io::sensitivity_artifact::JointFactorView = antecedent_io_core::sensitivity_artifact::JointFactorView
 pub use antecedent_io::sensitivity_artifact::JointMechanismSensitivityResult = antecedent_validate::JointMechanismSensitivityResult
+pub use antecedent_io::sensitivity_artifact::JointSamplingView = antecedent_io_core::sensitivity_artifact::JointSamplingView
+pub use antecedent_io::sensitivity_artifact::JointSensitivityInterval = antecedent_validate::JointSensitivityInterval
 pub use antecedent_io::sensitivity_artifact::JointSensitivityLimits = antecedent_validate::JointSensitivityLimits
 pub use antecedent_io::sensitivity_artifact::JointSensitivityRange = antecedent_validate::JointSensitivityRange
 pub use antecedent_io::sensitivity_artifact::JointSensitivityReceipt = antecedent_validate::JointSensitivityReceipt
@@ -11417,10 +11455,10 @@ pub variant antecedent_io::release_migration::IntentionalBreak::RouteWithoutCurr
 pub variant antecedent_io::release_migration::IntentionalBreak::ScientificTargetDigest
 pub variant antecedent_io::release_migration::IntentionalBreak::ScoreRowIdWidth
 pub variant antecedent_io::release_migration::IntentionalBreak::SupportNotCarried
-pub variant antecedent_io::release_migration::ManifestRouteStatus::Closed
 pub variant antecedent_io::release_migration::ManifestRouteStatus::ExecutionOnly
 pub variant antecedent_io::release_migration::ManifestRouteStatus::FittingGap
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Graphless
+pub variant antecedent_io::release_migration::ManifestRouteStatus::NotSupported
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Supported
 pub variant antecedent_io::release_migration::MigrationError::CarriedTargetDigestNotTranslated
 pub variant antecedent_io::release_migration::MigrationError::ScoreRowDigestNotTranslated

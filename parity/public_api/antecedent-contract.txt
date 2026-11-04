@@ -5380,6 +5380,7 @@ pub const antecedent_contract::joint_alignment::DECLARE_SHARED_AXES: antecedent_
 pub const antecedent_contract::joint_alignment::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 4]
 pub const antecedent_contract::joint_alignment::REPAIR_DECLARATION: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::joint_alignment::RETAIN_DROPPED_MASS: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::joint_law_rule::COMPOSED_DEFAULT_LEVEL: f64
 pub const antecedent_contract::measurement::MEASUREMENT_CONSTRUCT_PORT: &str
 pub const antecedent_contract::measurement::MEASUREMENT_INDICATOR_PORT: &str
 pub const antecedent_contract::mechanism_composition::MECHANISM_PLAN_IDENTITY_VERSION: u64
@@ -5611,7 +5612,7 @@ pub field antecedent_contract::ComposedIntervalPlan::coordinate: antecedent_cont
 pub field antecedent_contract::ComposedIntervalPlan::label: &'static str
 pub field antecedent_contract::ComposedIntervalPlan::nominal_level: f64
 pub field antecedent_contract::ComposedIntervalPlan::propagation: antecedent_contract::PropagationPlan
-pub field antecedent_contract::ComposedIntervalPlan::record_id: alloc::string::String
+pub field antecedent_contract::ComposedIntervalPlan::record_id: core::option::Option<alloc::string::String>
 pub field antecedent_contract::CompositionLink::declared_parent_digests: core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub field antecedent_contract::CompositionLink::id: alloc::string::String
 pub field antecedent_contract::CompositionLink::parents: alloc::vec::Vec<alloc::string::String>
@@ -8573,8 +8574,8 @@ pub variant antecedent_contract::adaptive_design::AssignmentFamily::ThompsonBeta
 pub variant antecedent_contract::adaptive_design::AssignmentFamily::UpperConfidenceBound
 pub variant antecedent_contract::adaptive_design::BoundarySidedness::OneSidedUpper
 pub variant antecedent_contract::adaptive_design::BoundarySidedness::TwoSidedSymmetric
-pub variant antecedent_contract::adaptive_design::CellStatus::NotDelivered { owner: &'static str, reason: &'static str }
 pub variant antecedent_contract::adaptive_design::CellStatus::Incoherent { reason: &'static str }
+pub variant antecedent_contract::adaptive_design::CellStatus::NotDelivered { owner: &'static str, reason: &'static str }
 pub variant antecedent_contract::adaptive_design::CellStatus::PairingNotSupported { reason: &'static str }
 pub variant antecedent_contract::adaptive_design::CellStatus::Supported { paradigms: &'static [antecedent_contract::adaptive_design::InferenceParadigm] }
 pub variant antecedent_contract::adaptive_design::DelayMechanism::IgnorableAdministrative

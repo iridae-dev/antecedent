@@ -836,6 +836,7 @@ impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::Assumption
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::DecisionSwitch
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::IdentifiedBound
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::JointFactorView
+impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::JointSamplingView
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::JointSensitivityView
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::NoRobustReason
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::PointInput
@@ -2099,6 +2100,7 @@ impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::Assumpti
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::DecisionSwitch
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::IdentifiedBound
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::JointFactorView
+impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::JointSamplingView
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::JointSensitivityView
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::NoRobustReason
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::PointInput
@@ -3107,6 +3109,7 @@ impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::AssumptionRa
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::DecisionSwitch
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::IdentifiedBound
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::JointFactorView
+impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::JointSamplingView
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::JointSensitivityView
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::NoRobustReason
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::PointInput
@@ -4139,6 +4142,7 @@ impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::Assumpti
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::DecisionSwitch [auto]
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::IdentifiedBound [auto]
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::JointFactorView [auto]
+impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::JointSamplingView [auto]
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::JointSensitivityView [auto]
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::NoRobustReason [auto]
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::PointInput [auto]
@@ -4988,6 +4992,7 @@ impl core::marker::Send for antecedent_io_core::sensitivity_artifact::Assumption
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::DecisionSwitch [auto]
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::IdentifiedBound [auto]
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::JointFactorView [auto]
+impl core::marker::Send for antecedent_io_core::sensitivity_artifact::JointSamplingView [auto]
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::JointSensitivityView [auto]
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::NoRobustReason [auto]
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::PointInput [auto]
@@ -5788,6 +5793,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artif
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::DecisionSwitch
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::IdentifiedBound
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::JointFactorView
+impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::JointSamplingView
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::JointSensitivityView
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::NoRobustReason
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::PointInput
@@ -6629,6 +6635,7 @@ impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::Assumption
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::DecisionSwitch [auto]
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::IdentifiedBound [auto]
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::JointFactorView [auto]
+impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::JointSamplingView [auto]
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::JointSensitivityView [auto]
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::NoRobustReason [auto]
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::PointInput [auto]
@@ -7479,6 +7486,7 @@ impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::Assumptio
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::DecisionSwitch [auto]
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::IdentifiedBound [auto]
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::JointFactorView [auto]
+impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::JointSamplingView [auto]
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::JointSensitivityView [auto]
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::NoRobustReason [auto]
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::PointInput [auto]
@@ -8329,6 +8337,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::DecisionSwitch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::IdentifiedBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::JointFactorView [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::JointSamplingView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::JointSensitivityView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::NoRobustReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::PointInput [auto]
@@ -9178,6 +9187,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_ar
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::DecisionSwitch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::IdentifiedBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::JointFactorView [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::JointSamplingView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::JointSensitivityView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::NoRobustReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::PointInput [auto]
@@ -14320,6 +14330,12 @@ pub field antecedent_io_core::sensitivity_artifact::IdentifiedBound::source: all
 pub field antecedent_io_core::sensitivity_artifact::IdentifiedBound::upper: f64
 pub field antecedent_io_core::sensitivity_artifact::JointFactorView::factor: alloc::string::String
 pub field antecedent_io_core::sensitivity_artifact::JointFactorView::max_fraction: f64
+pub field antecedent_io_core::sensitivity_artifact::JointSamplingView::baselines: alloc::vec::Vec<f64>
+pub field antecedent_io_core::sensitivity_artifact::JointSamplingView::calibration: core::option::Option<antecedent_io_core::CalibrationSlotWire>
+pub field antecedent_io_core::sensitivity_artifact::JointSamplingView::level: f64
+pub field antecedent_io_core::sensitivity_artifact::JointSamplingView::maxima: alloc::vec::Vec<f64>
+pub field antecedent_io_core::sensitivity_artifact::JointSamplingView::method: alloc::string::String
+pub field antecedent_io_core::sensitivity_artifact::JointSamplingView::minima: alloc::vec::Vec<f64>
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::axis_tipping: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::SourceTipping>
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::baseline: f64
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::decision_threshold: core::option::Option<f64>
@@ -14331,11 +14347,13 @@ pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::method
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::minimum: f64
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::provider_snapshot: alloc::string::String
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::query_binding: alloc::string::String
+pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::sampling: core::option::Option<antecedent_io_core::sensitivity_artifact::JointSamplingView>
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::source_regime: u32
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::withheld_detail: alloc::string::String
 pub field antecedent_io_core::sensitivity_artifact::JointSensitivityView::withheld_reason_code: alloc::string::String
 pub field antecedent_io_core::sensitivity_artifact::PointLeaders::coordinate: f64
 pub field antecedent_io_core::sensitivity_artifact::PointLeaders::input: antecedent_io_core::sensitivity_artifact::PointInput
+pub field antecedent_io_core::sensitivity_artifact::SamplingInterval::calibration: core::option::Option<antecedent_io_core::CalibrationSlotWire>
 pub field antecedent_io_core::sensitivity_artifact::SamplingInterval::composed: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::sensitivity_artifact::SamplingInterval::level: f64
 pub field antecedent_io_core::sensitivity_artifact::SamplingInterval::lower: alloc::vec::Vec<f64>
@@ -14874,6 +14892,10 @@ pub field antecedent_io_core::transported_counterfactual_artifact::UnitContrastW
 pub field antecedent_io_core::wire::GraphCpdagWire::directed: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::wire::GraphCpdagWire::node_count: u32
 pub field antecedent_io_core::wire::GraphCpdagWire::undirected: alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_io_core::ArtifactManifest>::fn development_entries(&self) -> alloc::vec::Vec<&str>
+pub fn <antecedent_io_core::ArtifactManifest>::fn is_development_build(&self) -> bool
+pub fn <antecedent_io_core::ArtifactManifest>::fn refuse_development(&self) -> core::result::Result<(), antecedent_io_core::IoError>
+pub fn <antecedent_io_core::ArtifactManifest>::fn stamp_development(&mut self, entries: &[antecedent_core::support_gate::WouldRefuse])
 pub fn <antecedent_io_core::ArtifactReader<R>>::fn index(&self) -> &[antecedent_io_core::SectionIndexEntry]
 pub fn <antecedent_io_core::ArtifactReader<R>>::fn into_encoded_artifact(self) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::ArtifactReader<R>>::fn load_section(&mut self, id: &str) -> core::result::Result<antecedent_io_core::SectionAccess, antecedent_io_core::IoError>
@@ -16771,6 +16793,7 @@ pub struct antecedent_io_core::sensitivity_artifact::AssumptionRangeStatement
 pub struct antecedent_io_core::sensitivity_artifact::DecisionSwitch
 pub struct antecedent_io_core::sensitivity_artifact::IdentifiedBound
 pub struct antecedent_io_core::sensitivity_artifact::JointFactorView
+pub struct antecedent_io_core::sensitivity_artifact::JointSamplingView
 pub struct antecedent_io_core::sensitivity_artifact::JointSensitivityView
 pub struct antecedent_io_core::sensitivity_artifact::PointLeaders
 pub struct antecedent_io_core::sensitivity_artifact::SamplingInterval
@@ -18773,7 +18796,7 @@ pub variant antecedent_io_core::sensitivity_artifact::PointInput::Unevaluated
 pub variant antecedent_io_core::sensitivity_artifact::PointSupport::Supported
 pub variant antecedent_io_core::sensitivity_artifact::PointSupport::Unevaluated
 pub variant antecedent_io_core::sensitivity_artifact::PointSupport::Unsupported
-pub variant antecedent_io_core::sensitivity_artifact::SamplingStatus::Reported(antecedent_io_core::sensitivity_artifact::SamplingInterval)
+pub variant antecedent_io_core::sensitivity_artifact::SamplingStatus::Reported(alloc::boxed::Box<antecedent_io_core::sensitivity_artifact::SamplingInterval>)
 pub variant antecedent_io_core::sensitivity_artifact::SamplingStatus::Withheld { reason_code: alloc::string::String, detail: alloc::string::String }
 pub variant antecedent_io_core::sensitivity_artifact::SensitivityOutcome::AssumptionDependent { switch: antecedent_io_core::sensitivity_artifact::DecisionSwitch }
 pub variant antecedent_io_core::sensitivity_artifact::SensitivityOutcome::InvariantAction { action: alloc::string::String }
@@ -18814,9 +18837,9 @@ pub variant antecedent_io_core::temporal_recalc_artifact::TemporalFunctionalWire
 pub variant antecedent_io_core::transport_certificate::CertificateOutcome::Identified(antecedent_io_core::transport_proof::TransportProofWire)
 pub variant antecedent_io_core::transport_certificate::CertificateOutcome::NotCertified { reason: alloc::string::String }
 pub variant antecedent_io_core::transport_certificate::CertificateOutcome::ProvenNonTransportable(antecedent_identify::sid::SHedgeRecord)
+pub variant antecedent_io_core::transport_errors::AdmgConditionalArtifactError::CountedLawsUnsupported
 pub variant antecedent_io_core::transport_errors::AdmgConditionalArtifactError::DataIdentityMismatch
 pub variant antecedent_io_core::transport_errors::AdmgConditionalArtifactError::EvidenceMismatch
-pub variant antecedent_io_core::transport_errors::AdmgConditionalArtifactError::IntervalWithheld
 pub variant antecedent_io_core::transport_errors::AdmgConditionalArtifactError::LawInvalid(alloc::string::String)
 pub variant antecedent_io_core::transport_errors::AdmgConditionalArtifactError::LimitsExceeded(&'static str)
 pub variant antecedent_io_core::transport_errors::AdmgConditionalArtifactError::NamesMismatch

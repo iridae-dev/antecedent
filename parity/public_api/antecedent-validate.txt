@@ -2431,11 +2431,11 @@ pub const antecedent_validate::mnar_sensitivity::MNAR_MIN_BOOTSTRAP: u32
 pub const antecedent_validate::mnar_sensitivity::MNAR_MIN_TOLERANCE: f64
 pub const antecedent_validate::mnar_sensitivity::MNAR_SAMPLING_BASIS: &str
 pub const antecedent_validate::mnar_sensitivity::MNAR_SAMPLING_DETAIL: &str
+pub const antecedent_validate::mnar_sensitivity::MNAR_SAMPLING_STATUS: &str
 pub const antecedent_validate::mnar_sensitivity::MNAR_TARGET: &str
 pub const antecedent_validate::msm_sensitivity::MSM_ASSUMPTION_RANGE_CLAIM: &str
 pub const antecedent_validate::msm_sensitivity::MSM_FAMILY: &str
 pub const antecedent_validate::msm_sensitivity::MSM_INTERPRETATION: &str
-pub const antecedent_validate::msm_sensitivity::MSM_INTERVAL_WITHHELD: &str
 pub const antecedent_validate::msm_sensitivity::MSM_MAX_GRID_POINTS: usize
 pub const antecedent_validate::msm_sensitivity::MSM_MAX_LAMBDA: f64
 pub const antecedent_validate::msm_sensitivity::MSM_MAX_LAW_CELLS: usize
@@ -2446,6 +2446,7 @@ pub const antecedent_validate::msm_sensitivity::MSM_MAX_WORK: u64
 pub const antecedent_validate::msm_sensitivity::MSM_METHOD: &str
 pub const antecedent_validate::msm_sensitivity::MSM_MIN_TOLERANCE: f64
 pub const antecedent_validate::msm_sensitivity::MSM_NORMALIZATION: &str
+pub const antecedent_validate::msm_sensitivity::MSM_NO_INTERVAL_METHOD: &str
 pub const antecedent_validate::msm_sensitivity::MSM_PERTURBATION_SCALE: &str
 pub const antecedent_validate::msm_sensitivity::MSM_SAMPLING_STATEMENT: &str
 pub const antecedent_validate::msm_sensitivity::MSM_TARGET: &str
@@ -2476,6 +2477,7 @@ pub const antecedent_validate::predictive_assessment::detail::DIAGNOSTIC_NOT_DEF
 pub const antecedent_validate::predictive_assessment::detail::HORIZON_MISMATCH: &str
 pub const antecedent_validate::predictive_assessment::detail::IID_NOT_SUPPORTED: &str
 pub const antecedent_validate::predictive_assessment::detail::INTERVAL_DEPENDENCE_UNDECLARED: &str
+pub const antecedent_validate::predictive_assessment::detail::INTERVAL_LAW_FAMILY_MIXED: &str
 pub const antecedent_validate::predictive_assessment::detail::INTERVAL_NOT_SUPPORTED: &str
 pub const antecedent_validate::predictive_assessment::detail::INTERVAL_REQUEST_INVALID: &str
 pub const antecedent_validate::predictive_assessment::detail::INVALID_LAW: &str
@@ -2708,14 +2710,19 @@ pub field antecedent_validate::JointMechanismSensitivityResult::provider_snapsho
 pub field antecedent_validate::JointMechanismSensitivityResult::query_binding: alloc::string::String
 pub field antecedent_validate::JointMechanismSensitivityResult::range: antecedent_validate::JointSensitivityRange
 pub field antecedent_validate::JointMechanismSensitivityResult::receipt: antecedent_validate::JointSensitivityReceipt
+pub field antecedent_validate::JointMechanismSensitivityResult::sampling: core::option::Option<antecedent_validate::JointSensitivityInterval>
 pub field antecedent_validate::JointMechanismSensitivityResult::source_regime: antecedent_core::ids::RegimeId
 pub field antecedent_validate::JointMechanismSensitivityResult::uncertainty: antecedent_validate::JointSensitivityUncertainty
 pub field antecedent_validate::JointMechanismSensitivityResult::unresolved_detail: core::option::Option<&'static str>
+pub field antecedent_validate::JointSensitivityInterval::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
 pub field antecedent_validate::JointSensitivityInterval::coverage_target: &'static str
 pub field antecedent_validate::JointSensitivityInterval::level: f64
 pub field antecedent_validate::JointSensitivityInterval::lower: f64
 pub field antecedent_validate::JointSensitivityInterval::method: &'static str
 pub field antecedent_validate::JointSensitivityInterval::pointwise_at_zero: (f64, f64)
+pub field antecedent_validate::JointSensitivityInterval::replicate_baselines: alloc::vec::Vec<f64>
+pub field antecedent_validate::JointSensitivityInterval::replicate_maxima: alloc::vec::Vec<f64>
+pub field antecedent_validate::JointSensitivityInterval::replicate_minima: alloc::vec::Vec<f64>
 pub field antecedent_validate::JointSensitivityInterval::replicates_failed: u32
 pub field antecedent_validate::JointSensitivityInterval::replicates_ok: u32
 pub field antecedent_validate::JointSensitivityInterval::replicates_requested: u32
@@ -3200,6 +3207,7 @@ pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::model: a
 pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::observed_case_effect: f64
 pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::rows: usize
 pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::sampling_basis: &'static str
+pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::sampling_calibration: antecedent_io_core::contract_section::CalibrationSlotWire
 pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::sampling_detail: &'static str
 pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::sampling_status: &'static str
 pub field antecedent_validate::mnar_sensitivity::MnarSensitivityResult::target: &'static str
@@ -3343,6 +3351,7 @@ pub field antecedent_validate::predictive_assessment::ScoreDifference::score: an
 pub field antecedent_validate::predictive_assessment::ScoreDifference::shared_observations: usize
 pub field antecedent_validate::predictive_assessment::ScoreDifference::standard_error: core::option::Option<f64>
 pub field antecedent_validate::predictive_assessment::ScoreInterval::assumptions: &'static str
+pub field antecedent_validate::predictive_assessment::ScoreInterval::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
 pub field antecedent_validate::predictive_assessment::ScoreInterval::calibration_sha: alloc::string::String
 pub field antecedent_validate::predictive_assessment::ScoreInterval::cases: usize
 pub field antecedent_validate::predictive_assessment::ScoreInterval::construction: &'static str
@@ -3444,6 +3453,7 @@ pub fn <antecedent_validate::JointDeviationSpec>::fn new(factors: alloc::vec::Ve
 pub fn <antecedent_validate::JointDeviationSpec>::fn with_threshold(self, threshold: f64) -> Self
 pub fn <antecedent_validate::JointFactor>::const fn name(self) -> &'static str
 pub fn <antecedent_validate::JointFactor>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_validate::JointMechanismSensitivityResult>::fn with_sampling_interval(self, interval: antecedent_validate::JointSensitivityInterval) -> Self
 pub fn <antecedent_validate::JointSensitivityError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_validate::JointSensitivityError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_validate::JointSensitivityUncertainty>::const fn withheld() -> Self

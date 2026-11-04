@@ -419,7 +419,6 @@ impl core::clone::Clone for antecedent_design::decision_reliability::CandidateSc
 impl core::clone::Clone for antecedent_design::decision_reliability::CandidateSearchRecord
 impl core::clone::Clone for antecedent_design::decision_reliability::ClaimKind
 impl core::clone::Clone for antecedent_design::decision_reliability::ClaimLabel
-impl core::clone::Clone for antecedent_design::decision_reliability::ClosedRoute
 impl core::clone::Clone for antecedent_design::decision_reliability::CohortUtilityDraws
 impl core::clone::Clone for antecedent_design::decision_reliability::ConfidenceSetBasis
 impl core::clone::Clone for antecedent_design::decision_reliability::CoverageCell
@@ -786,6 +785,7 @@ impl core::clone::Clone for antecedent_design::sequential_evaluation::NodeKind
 impl core::clone::Clone for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::clone::Clone for antecedent_design::sequential_evaluation::ObservationReceipt
 impl core::clone::Clone for antecedent_design::sequential_evaluation::OffPolicyEstimate
+impl core::clone::Clone for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::clone::Clone for antecedent_design::sequential_evaluation::PolicyEvaluation
 impl core::clone::Clone for antecedent_design::sequential_evaluation::PolicySpec
 impl core::clone::Clone for antecedent_design::sequential_evaluation::RolloutConfig
@@ -806,6 +806,7 @@ impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::E
 impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::ExactWire
 impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation
 impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::IntervalWire
 impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::ModelWire
 impl core::clone::Clone for antecedent_design::sequential_evaluation_artifact::OffPolicyInput
@@ -1151,6 +1152,7 @@ impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::Evalua
 impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::ExactWire
 impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation
 impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::IntervalWire
 impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::ModelWire
 impl core::cmp::Eq for antecedent_design::sequential_evaluation_artifact::OffPolicyWire
@@ -1461,7 +1463,6 @@ impl core::cmp::PartialEq for antecedent_design::decision_reliability::Candidate
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::CandidateSearchRecord
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::ClaimKind
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::ClaimLabel
-impl core::cmp::PartialEq for antecedent_design::decision_reliability::ClosedRoute
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::CohortUtilityDraws
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::ConfidenceSetBasis
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::CoverageCell
@@ -1790,6 +1791,7 @@ impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::NodeKind
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::ObservationReceipt
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::OffPolicyEstimate
+impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::PolicyEvaluation
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::PolicySpec
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::RolloutConfig
@@ -1810,6 +1812,7 @@ impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact:
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact::ExactWire
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact::IntervalWire
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact::ModelWire
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation_artifact::OffPolicyInput
@@ -2321,7 +2324,6 @@ impl core::fmt::Debug for antecedent_design::decision_reliability::CandidateScop
 impl core::fmt::Debug for antecedent_design::decision_reliability::CandidateSearchRecord
 impl core::fmt::Debug for antecedent_design::decision_reliability::ClaimKind
 impl core::fmt::Debug for antecedent_design::decision_reliability::ClaimLabel
-impl core::fmt::Debug for antecedent_design::decision_reliability::ClosedRoute
 impl core::fmt::Debug for antecedent_design::decision_reliability::CohortUtilityDraws
 impl core::fmt::Debug for antecedent_design::decision_reliability::ConfidenceSetBasis
 impl core::fmt::Debug for antecedent_design::decision_reliability::CoverageCell
@@ -2688,6 +2690,7 @@ impl core::fmt::Debug for antecedent_design::sequential_evaluation::NodeKind
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::ObservationReceipt
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::OffPolicyEstimate
+impl core::fmt::Debug for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::PolicyEvaluation
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::PolicySpec
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::RolloutConfig
@@ -2708,6 +2711,7 @@ impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::Eva
 impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::ExactWire
 impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation
 impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::IntervalWire
 impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::ModelWire
 impl core::fmt::Debug for antecedent_design::sequential_evaluation_artifact::OffPolicyInput
@@ -3388,7 +3392,6 @@ impl core::marker::Freeze for antecedent_design::decision_reliability::Candidate
 impl core::marker::Freeze for antecedent_design::decision_reliability::CandidateSearchRecord [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::ClaimKind [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::ClaimLabel [auto]
-impl core::marker::Freeze for antecedent_design::decision_reliability::ClosedRoute [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::CohortUtilityDraws [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::ConfidenceSetBasis [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::CoverageCell [auto]
@@ -3759,6 +3762,7 @@ impl core::marker::Freeze for antecedent_design::sequential_evaluation::NodeKind
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
+impl core::marker::Freeze for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::PolicySpec [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::RolloutConfig [auto]
@@ -3779,6 +3783,7 @@ impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact:
 impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact::ExactWire [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire [auto]
+impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact::IntervalWire [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact::LoggedStepWire [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact::ModelWire [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation_artifact::OffPolicyInput [auto]
@@ -4162,7 +4167,6 @@ impl core::marker::Send for antecedent_design::decision_reliability::CandidateSc
 impl core::marker::Send for antecedent_design::decision_reliability::CandidateSearchRecord [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::ClaimKind [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::ClaimLabel [auto]
-impl core::marker::Send for antecedent_design::decision_reliability::ClosedRoute [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::CohortUtilityDraws [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::ConfidenceSetBasis [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::CoverageCell [auto]
@@ -4533,6 +4537,7 @@ impl core::marker::Send for antecedent_design::sequential_evaluation::NodeKind [
 impl core::marker::Send for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
+impl core::marker::Send for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::PolicySpec [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::RolloutConfig [auto]
@@ -4553,6 +4558,7 @@ impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::E
 impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::ExactWire [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire [auto]
+impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::IntervalWire [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::LoggedStepWire [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::ModelWire [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation_artifact::OffPolicyInput [auto]
@@ -4883,7 +4889,6 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_reliabili
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::CandidateSearchRecord
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::ClaimKind
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::ClaimLabel
-impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::ClosedRoute
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::CohortUtilityDraws
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::ConfidenceSetBasis
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::CoverageCell
@@ -5212,6 +5217,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluat
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::ObservationReceipt
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::OffPolicyEstimate
+impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::PolicyEvaluation
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::PolicySpec
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::RolloutConfig
@@ -5232,6 +5238,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluat
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation_artifact::ExactWire
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation_artifact::IntervalWire
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation_artifact::ModelWire
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation_artifact::OffPolicyInput
@@ -5609,7 +5616,6 @@ impl core::marker::Sync for antecedent_design::decision_reliability::CandidateSc
 impl core::marker::Sync for antecedent_design::decision_reliability::CandidateSearchRecord [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::ClaimKind [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::ClaimLabel [auto]
-impl core::marker::Sync for antecedent_design::decision_reliability::ClosedRoute [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::CohortUtilityDraws [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::ConfidenceSetBasis [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::CoverageCell [auto]
@@ -5980,6 +5986,7 @@ impl core::marker::Sync for antecedent_design::sequential_evaluation::NodeKind [
 impl core::marker::Sync for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
+impl core::marker::Sync for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::PolicySpec [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::RolloutConfig [auto]
@@ -6000,6 +6007,7 @@ impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::E
 impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::ExactWire [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire [auto]
+impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::IntervalWire [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::LoggedStepWire [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::ModelWire [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation_artifact::OffPolicyInput [auto]
@@ -6384,7 +6392,6 @@ impl core::marker::Unpin for antecedent_design::decision_reliability::CandidateS
 impl core::marker::Unpin for antecedent_design::decision_reliability::CandidateSearchRecord [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::ClaimKind [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::ClaimLabel [auto]
-impl core::marker::Unpin for antecedent_design::decision_reliability::ClosedRoute [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::CohortUtilityDraws [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::ConfidenceSetBasis [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::CoverageCell [auto]
@@ -6755,6 +6762,7 @@ impl core::marker::Unpin for antecedent_design::sequential_evaluation::NodeKind 
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
+impl core::marker::Unpin for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::PolicySpec [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::RolloutConfig [auto]
@@ -6775,6 +6783,7 @@ impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::
 impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::ExactWire [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire [auto]
+impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::IntervalWire [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::LoggedStepWire [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::ModelWire [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation_artifact::OffPolicyInput [auto]
@@ -7158,7 +7167,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_rel
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::CandidateSearchRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::ClaimKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::ClaimLabel [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::ClosedRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::CohortUtilityDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::ConfidenceSetBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::CoverageCell [auto]
@@ -7521,6 +7529,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::PolicySpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::RolloutConfig [auto]
@@ -7541,6 +7550,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation_artifact::ExactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation_artifact::IntervalWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation_artifact::LoggedStepWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation_artifact::ModelWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation_artifact::OffPolicyInput [auto]
@@ -7922,7 +7932,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliab
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::CandidateSearchRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::ClaimKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::ClaimLabel [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::ClosedRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::CohortUtilityDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::ConfidenceSetBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::CoverageCell [auto]
@@ -8285,6 +8294,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_eval
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::PolicySpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::RolloutConfig [auto]
@@ -8305,6 +8315,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_eval
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation_artifact::ExactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation_artifact::IntervalWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation_artifact::LoggedStepWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation_artifact::ModelWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation_artifact::OffPolicyInput [auto]
@@ -8397,7 +8408,6 @@ impl serde_core::ser::Serialize for antecedent_design::decision_reliability::Can
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::CandidateSearchRecord
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::ClaimKind
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::ClaimLabel
-impl serde_core::ser::Serialize for antecedent_design::decision_reliability::ClosedRoute
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::ConfidenceSetBasis
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::CoverageCell
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::DecisionChoice
@@ -8552,6 +8562,7 @@ impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_art
 impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_artifact::EvaluationIdentities
 impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_artifact::ExactWire
 impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_artifact::IntervalWire
 impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_artifact::ModelWire
 impl serde_core::ser::Serialize for antecedent_design::sequential_evaluation_artifact::OffPolicyWire
@@ -8722,7 +8733,6 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_relia
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::CandidateSearchRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::ClaimKind
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::ClaimLabel
-impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::ClosedRoute
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::ConfidenceSetBasis
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::DecisionChoice
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::DecisionDraws
@@ -8876,6 +8886,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_eva
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_evaluation_artifact::EvaluationIdentities
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_evaluation_artifact::ExactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_evaluation_artifact::IntervalWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_evaluation_artifact::ModelWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::sequential_evaluation_artifact::OffPolicyWire
@@ -9097,6 +9108,7 @@ pub const antecedent_design::sequential_evaluation::MAX_MODEL_WORK: u128
 pub const antecedent_design::sequential_evaluation::MAX_POLICY_ENTRIES: usize
 pub const antecedent_design::sequential_evaluation::MAX_ROLLOUTS: u64
 pub const antecedent_design::sequential_evaluation::MAX_STATES: usize
+pub const antecedent_design::sequential_evaluation::OFF_POLICY_INTERVAL_LEVEL: f64
 pub const antecedent_design::sequential_evaluation::SEQUENTIAL_EVALUATION_IDENTITY_VERSION: u64
 pub const antecedent_design::sequential_evaluation::SEQUENTIAL_EVALUATION_INFERENCE: &str
 pub const antecedent_design::sequential_evaluation::STREAM_SCHEME: &str
@@ -10244,10 +10256,6 @@ pub field antecedent_design::decision_reliability::CandidateSearchRecord::n_eval
 pub field antecedent_design::decision_reliability::CandidateSearchRecord::selection_rule: antecedent_design::decision_reliability::SelectionRule
 pub field antecedent_design::decision_reliability::ClaimLabel::calibration: antecedent_design::decision_reliability::CalibrationStatus
 pub field antecedent_design::decision_reliability::ClaimLabel::kind: antecedent_design::decision_reliability::ClaimKind
-pub field antecedent_design::decision_reliability::ClosedRoute::code: alloc::string::String
-pub field antecedent_design::decision_reliability::ClosedRoute::coordinate: alloc::string::String
-pub field antecedent_design::decision_reliability::ClosedRoute::remedy: alloc::string::String
-pub field antecedent_design::decision_reliability::ClosedRoute::route: antecedent_design::decision_reliability::PublishedRoute
 pub field antecedent_design::decision_reliability::CohortUtilityDraws::actions: alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<f64>)>
 pub field antecedent_design::decision_reliability::CohortUtilityDraws::joint_law: antecedent_design::decision_reliability::JointLawDeclaration
 pub field antecedent_design::decision_reliability::CohortUtilityDraws::label: alloc::string::String
@@ -10395,7 +10403,6 @@ pub field antecedent_design::decision_reliability::RankingRequest::baseline: cor
 pub field antecedent_design::decision_reliability::RankingRequest::batch_plan: antecedent_design::decision_reliability::BatchPlan
 pub field antecedent_design::decision_reliability::RankingRequest::top_k: alloc::vec::Vec<u32>
 pub field antecedent_design::decision_reliability::ReliabilityReport::candidate_set_digest: alloc::string::String
-pub field antecedent_design::decision_reliability::ReliabilityReport::closed_routes: alloc::vec::Vec<antecedent_design::decision_reliability::ClosedRoute>
 pub field antecedent_design::decision_reliability::ReliabilityReport::coordinate: antecedent_design::decision_reliability::CalibrationCoordinate
 pub field antecedent_design::decision_reliability::ReliabilityReport::coupling: antecedent_design::decision_reliability::CandidateCoupling
 pub field antecedent_design::decision_reliability::ReliabilityReport::decided_id: alloc::string::String
@@ -11554,6 +11561,7 @@ pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::behaviour
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::behaviour_version: alloc::string::String
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::effective_sample_size: f64
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::inference: &'static str
+pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::interval: core::option::Option<antecedent_design::sequential_evaluation::OffPolicyInterval>
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::ledger_state: alloc::string::String
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::max_weight: f64
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::model_identity: alloc::string::String
@@ -11566,6 +11574,10 @@ pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::reused_re
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::self_normalized: f64
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::trajectories: u64
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::uncalibrated_standard_error: core::option::Option<f64>
+pub field antecedent_design::sequential_evaluation::OffPolicyInterval::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
+pub field antecedent_design::sequential_evaluation::OffPolicyInterval::level: f64
+pub field antecedent_design::sequential_evaluation::OffPolicyInterval::lower: f64
+pub field antecedent_design::sequential_evaluation::OffPolicyInterval::upper: f64
 pub field antecedent_design::sequential_evaluation::PolicyEvaluation::accounting_residual: f64
 pub field antecedent_design::sequential_evaluation::PolicyEvaluation::assumptions: antecedent_design::sequential_evaluation::SequentialAssumptions
 pub field antecedent_design::sequential_evaluation::PolicyEvaluation::decisions: alloc::vec::Vec<antecedent_design::sequential_evaluation::DecisionReceipt>
@@ -11659,6 +11671,9 @@ pub field antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire:
 pub field antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire::reach_bits: u64
 pub field antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire::realized_bits: u64
 pub field antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire::time: u64
+pub field antecedent_design::sequential_evaluation_artifact::IntervalWire::level_bits: u64
+pub field antecedent_design::sequential_evaluation_artifact::IntervalWire::lower_bits: u64
+pub field antecedent_design::sequential_evaluation_artifact::IntervalWire::upper_bits: u64
 pub field antecedent_design::sequential_evaluation_artifact::LoggedStepWire::action: u64
 pub field antecedent_design::sequential_evaluation_artifact::LoggedStepWire::observation: core::option::Option<u64>
 pub field antecedent_design::sequential_evaluation_artifact::LoggedStepWire::probability_bits: u64
@@ -11681,6 +11696,7 @@ pub field antecedent_design::sequential_evaluation_artifact::OffPolicyInput::beh
 pub field antecedent_design::sequential_evaluation_artifact::OffPolicyInput::trajectories: alloc::vec::Vec<antecedent_design::sequential_evaluation::LoggedTrajectory>
 pub field antecedent_design::sequential_evaluation_artifact::OffPolicyWire::behaviour: antecedent_design::sequential_evaluation_artifact::PolicyWire
 pub field antecedent_design::sequential_evaluation_artifact::OffPolicyWire::effective_sample_size_bits: u64
+pub field antecedent_design::sequential_evaluation_artifact::OffPolicyWire::interval: core::option::Option<antecedent_design::sequential_evaluation_artifact::IntervalWire>
 pub field antecedent_design::sequential_evaluation_artifact::OffPolicyWire::ledger_state: alloc::string::String
 pub field antecedent_design::sequential_evaluation_artifact::OffPolicyWire::max_weight_bits: u64
 pub field antecedent_design::sequential_evaluation_artifact::OffPolicyWire::ordinary_bits: u64
@@ -12190,7 +12206,7 @@ pub fn <antecedent_design::decision_reliability::DecisionReliabilityArtifact>::f
 pub fn <antecedent_design::decision_reliability::DecisionReliabilityArtifact>::fn to_bytes(&self, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_reliability::DecisionReliabilityArtifact>::fn verify(&self, expected: &antecedent_design::decision_reliability::DecisionReliabilityExpectation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_reliability::DerivedUncertainty>::fn combined_uncertainty(&self) -> core::result::Result<f64, antecedent_design::decision_reliability::ReliabilityError>
-pub fn <antecedent_design::decision_reliability::DerivedUncertainty>::fn publish(&self, route: antecedent_design::decision_reliability::PublishedRoute) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
+pub fn <antecedent_design::decision_reliability::DerivedUncertainty>::fn publish(&self, route: antecedent_design::decision_reliability::PublishedRoute) -> core::result::Result<antecedent_io_core::contract_section::CalibrationSlotWire, antecedent_design::decision_reliability::ReliabilityError>
 pub fn <antecedent_design::decision_reliability::DerivedUncertainty>::fn verify(&self, draws: &antecedent_design::decision_reliability::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::DecisionDraws>, request: &antecedent_design::decision_reliability::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
 pub fn <antecedent_design::decision_reliability::DrawSegment>::fn describe(&self) -> alloc::string::String
 pub fn <antecedent_design::decision_reliability::DrawSegment>::fn digest_hex(&self) -> alloc::string::String
@@ -12505,6 +12521,8 @@ pub fn <antecedent_design::sequential_evaluation::HistoryKey>::fn is_empty(&self
 pub fn <antecedent_design::sequential_evaluation::HistoryKey>::fn len(&self) -> usize
 pub fn <antecedent_design::sequential_evaluation::HistoryKey>::fn steps(&self) -> &[antecedent_design::sequential_evaluation::HistoryStep]
 pub fn <antecedent_design::sequential_evaluation::NodeKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::sequential_evaluation::OffPolicyInterval>::fn calibration_slot() -> antecedent_io_core::contract_section::CalibrationSlotWire
+pub fn <antecedent_design::sequential_evaluation::OffPolicyInterval>::fn wald(estimate: f64, standard_error: f64, level: f64) -> Self
 pub fn <antecedent_design::sequential_evaluation::PolicySpec>::fn into_contingent(self) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::ContingentPolicy>
 pub fn <antecedent_design::sequential_evaluation::SequentialEvaluationError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::sequential_evaluation::SequentialRequest>::fn check(&self, model: &antecedent_design::sequential_evaluation::FiniteSequentialModel) -> antecedent_design::sequential_evaluation::SequentialResult<()>
@@ -12650,12 +12668,12 @@ pub fn antecedent_design::decision_reliability::assess(draws: &antecedent_design
 pub fn antecedent_design::decision_reliability::banded_record_functional(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::option::Option<alloc::string::String>
 pub fn antecedent_design::decision_reliability::calibration::calibration_basis(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::option::Option<antecedent_io_core::calibration::CalibrationBasisWire>
 pub fn antecedent_design::decision_reliability::calibration::candidate_count_band(count: u64) -> core::option::Option<(u64, u64)>
-pub fn antecedent_design::decision_reliability::calibration::closed_routes(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> alloc::vec::Vec<antecedent_design::decision_reliability::ClosedRoute>
 pub fn antecedent_design::decision_reliability::calibration::record_functional(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> alloc::string::String
+pub fn antecedent_design::decision_reliability::calibration::route_calibration(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> antecedent_io_core::contract_section::CalibrationSlotWire
 pub fn antecedent_design::decision_reliability::calibration::simulate_replicate(design: &antecedent_design::decision_reliability::KnownOptimumDesign, run_seed: u64, replicate: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::ReplicateOutcome, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::calibration::simulate_selection_draws(design: &antecedent_design::decision_reliability::KnownOptimumDesign, stream: &antecedent_design::decision_reliability::StreamId) -> core::result::Result<antecedent_design::decision_reliability::DecisionDraws, antecedent_design::decision_reliability::ReliabilityError>
-pub fn antecedent_design::decision_reliability::calibration::support_route(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
-pub fn antecedent_design::decision_reliability::calibration::support_route_at(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
+pub fn antecedent_design::decision_reliability::calibration::support_route(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::result::Result<antecedent_io_core::contract_section::CalibrationSlotWire, antecedent_design::decision_reliability::ReliabilityError>
+pub fn antecedent_design::decision_reliability::calibration::support_route_at(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::result::Result<antecedent_io_core::contract_section::CalibrationSlotWire, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::coverage_design() -> alloc::vec::Vec<antecedent_design::decision_reliability::CoverageCell>
 pub fn antecedent_design::decision_reliability::derive_uncertainty(draws: &antecedent_design::decision_reliability::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::DecisionDraws>, request: &antecedent_design::decision_reliability::ReliabilityRequest, interval: &antecedent_design::decision_reliability::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::DerivedUncertainty, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::estimate(values: &[f64], weights: core::option::Option<&[f64]>, dependence: antecedent_design::decision_reliability::WithinStreamDependence, plan: antecedent_design::decision_reliability::BatchPlan, functional: &antecedent_design::decision_reliability::Functional) -> core::result::Result<antecedent_design::decision_reliability::FunctionalEstimate, antecedent_design::decision_reliability::ReliabilityError>
@@ -13105,7 +13123,6 @@ pub struct antecedent_design::decision_reliability::CandidateEstimate
 pub struct antecedent_design::decision_reliability::CandidateRankStatement
 pub struct antecedent_design::decision_reliability::CandidateSearchRecord
 pub struct antecedent_design::decision_reliability::ClaimLabel
-pub struct antecedent_design::decision_reliability::ClosedRoute
 pub struct antecedent_design::decision_reliability::CohortUtilityDraws
 pub struct antecedent_design::decision_reliability::CoverageCell
 pub struct antecedent_design::decision_reliability::DecisionDraws
@@ -13394,6 +13411,7 @@ pub struct antecedent_design::sequential_evaluation::LoggedTrajectory
 pub struct antecedent_design::sequential_evaluation::ObservationChannel
 pub struct antecedent_design::sequential_evaluation::ObservationReceipt
 pub struct antecedent_design::sequential_evaluation::OffPolicyEstimate
+pub struct antecedent_design::sequential_evaluation::OffPolicyInterval
 pub struct antecedent_design::sequential_evaluation::PolicyEvaluation
 pub struct antecedent_design::sequential_evaluation::RolloutConfig
 pub struct antecedent_design::sequential_evaluation::RolloutEstimate
@@ -13412,6 +13430,7 @@ pub struct antecedent_design::sequential_evaluation_artifact::EvaluationIdentiti
 pub struct antecedent_design::sequential_evaluation_artifact::ExactWire
 pub struct antecedent_design::sequential_evaluation_artifact::ExpectedEvaluation
 pub struct antecedent_design::sequential_evaluation_artifact::HistoryReceiptWire
+pub struct antecedent_design::sequential_evaluation_artifact::IntervalWire
 pub struct antecedent_design::sequential_evaluation_artifact::LoggedStepWire
 pub struct antecedent_design::sequential_evaluation_artifact::ModelWire
 pub struct antecedent_design::sequential_evaluation_artifact::OffPolicyInput
@@ -13585,7 +13604,6 @@ pub use antecedent_design::decision_reliability::artifact::DecisionReliabilityEx
 pub use antecedent_design::decision_reliability::artifact::MAX_DECISION_RELIABILITY_BYTES = antecedent_design::decision_reliability::MAX_DECISION_RELIABILITY_BYTES
 pub use antecedent_design::decision_reliability::calibration::CANDIDATE_COUNT_BANDS = antecedent_design::decision_reliability::CANDIDATE_COUNT_BANDS
 pub use antecedent_design::decision_reliability::calibration::CalibrationCoordinate = antecedent_design::decision_reliability::CalibrationCoordinate
-pub use antecedent_design::decision_reliability::calibration::ClosedRoute = antecedent_design::decision_reliability::ClosedRoute
 pub use antecedent_design::decision_reliability::calibration::DEFAULT_SUPPORT_LEVEL = antecedent_design::decision_reliability::DEFAULT_SUPPORT_LEVEL
 pub use antecedent_design::decision_reliability::calibration::KnownOptimumDesign = antecedent_design::decision_reliability::KnownOptimumDesign
 pub use antecedent_design::decision_reliability::calibration::NoiseCoupling = antecedent_design::decision_reliability::NoiseCoupling
@@ -13595,7 +13613,6 @@ pub use antecedent_design::decision_reliability::calibration::ReplicateOutcome =
 pub use antecedent_design::decision_reliability::calibration::banded_record_functional = antecedent_design::decision_reliability::banded_record_functional
 pub use antecedent_design::decision_reliability::calibration_basis = antecedent_design::decision_reliability::calibration::calibration_basis
 pub use antecedent_design::decision_reliability::candidate_count_band = antecedent_design::decision_reliability::calibration::candidate_count_band
-pub use antecedent_design::decision_reliability::closed_routes = antecedent_design::decision_reliability::calibration::closed_routes
 pub use antecedent_design::decision_reliability::consume = antecedent_design::decision_reliability::artifact::consume
 pub use antecedent_design::decision_reliability::coverage_design::CoverageCell = antecedent_design::decision_reliability::CoverageCell
 pub use antecedent_design::decision_reliability::coverage_design::TruthKind = antecedent_design::decision_reliability::TruthKind
@@ -14329,7 +14346,6 @@ pub variant antecedent_design::decision_reliability::ReliabilityError::Dependenc
 pub variant antecedent_design::decision_reliability::ReliabilityError::EffectiveSampleSizeTooSmall { what: &'static str, effective_sample_size: f64, minimum: f64 }
 pub variant antecedent_design::decision_reliability::ReliabilityError::InvalidInput { slot: &'static str, message: alloc::string::String }
 pub variant antecedent_design::decision_reliability::ReliabilityError::JointLawRequired { reason: &'static str }
-pub variant antecedent_design::decision_reliability::ReliabilityError::NotSupported { route: &'static str, coordinate: alloc::string::String }
 pub variant antecedent_design::decision_reliability::ReliabilityError::Numerical { message: alloc::string::String }
 pub variant antecedent_design::decision_reliability::ReliabilityError::ProducerMeanDisagrees { id: alloc::string::String, reported: f64, draws_mean: f64, standard_error: f64 }
 pub variant antecedent_design::decision_reliability::ReliabilityError::ProducerPointOnly { producer: antecedent_design::decision_reliability::ProducerKind, held: &'static str }
