@@ -47,7 +47,8 @@ pub(super) const POINT_BLOCK_DIAGNOSTIC: &str = "estimate.temporal.point.circula
 /// Diagnostic code of a published temporal point-route posterior.
 pub(super) const POINT_POSTERIOR_DIAGNOSTIC: &str = "estimate.temporal.point.posterior";
 /// Diagnostic code of a withheld temporal point-route interval.
-pub(super) const POINT_UNCERTAINTY_WITHHELD: &str = "estimate.temporal.point.no_uncertainty_method";
+pub(super) const POINT_NO_UNCERTAINTY_METHOD: &str =
+    "estimate.temporal.point.no_uncertainty_method";
 /// Backend label of the tempered slope posterior.
 const POSTERIOR_BACKEND: &str = "temporal.slope.tempered_gaussian";
 
@@ -740,7 +741,7 @@ pub(super) fn block_diagnostics(
 ) -> Vec<Diagnostic> {
     let Some(replicates) = replicates else {
         return vec![Diagnostic::new(
-            POINT_UNCERTAINTY_WITHHELD,
+            POINT_NO_UNCERTAINTY_METHOD,
             DiagnosticKind::Execution,
             DiagnosticSeverity::Info,
             if requested == 0 {
@@ -773,7 +774,7 @@ pub(super) fn block_diagnostics(
     )];
     if replicates.se(0).is_none() {
         out.push(Diagnostic::new(
-            POINT_UNCERTAINTY_WITHHELD,
+            POINT_NO_UNCERTAINTY_METHOD,
             DiagnosticKind::Execution,
             DiagnosticSeverity::Warning,
             "the shared block bootstrap was cancelled or too few replicates survived, so no \
@@ -859,7 +860,7 @@ pub(super) fn attach_block_response_band(
     let ses: Option<Vec<f64>> = (0..center.len()).map(|k| replicates.se(k)).collect();
     let Some(ses) = ses else {
         response.support.warnings.push(Diagnostic::new(
-            POINT_UNCERTAINTY_WITHHELD,
+            POINT_NO_UNCERTAINTY_METHOD,
             DiagnosticKind::Execution,
             DiagnosticSeverity::Warning,
             "the shared block bootstrap was cancelled or too few replicates survived, so no band is published",

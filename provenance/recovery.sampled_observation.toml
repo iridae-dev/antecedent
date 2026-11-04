@@ -22,8 +22,8 @@ implementation_deviations = [
   "The empirical recovered law is a finite-sample table whose masses need not sum to one; it is never renormalized, its mass defect is reported and bounded by an explicit tolerance (default 0.1), and effect probabilities are normalized by the evaluated total.",
   "A zero complete-case cell, a zero denominator or too many failed replicates (default above 5 percent) refuse; failed replicates are retained in the receipt, never silently dropped.",
   "The digests of the receipt and artifact are FNV-based fingerprints, not cryptographic. BCa uses distinct version3 sampled_observation_recovery_bca_v3 bytes binding all B2000 draws, grouped delete-one-row patterns, acceleration, z0 and adjusted probabilities; an independent consumer reruns every step. The failed percentile estimator and version2 runtime are retired; original failure evidence remains at its immutable measurement commit, and version2 bytes are not accepted as BCa.",
-  "Corrected BCa whole-method calibration completed at5c76724f; current main-source replay independently validates the nonnumerical scientific-identity projection and attestation. The normal producer supports only the recovered_effect95 scalar under the exact unweighted independent-row B2000 protocol. Original source candidate intervals remain unmeasured; retired failed percentile evidence remains historical.",
-  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; current main-source replay and attestation pass, and scoped installed normal-wheel producer/independent consumer acceptance passes. No general-model or simultaneous interval guarantee is inherited.",
+  "Corrected BCa whole-method calibration completed at5c76724f; current main-source replay independently validates the nonnumerical scientific-identity projection and attestation. The normal producer supports only the recovered_effect95 scalar under the exact unweighted independent-row B2000 protocol. Original source candidate intervals remain not measured; retired failed percentile evidence remains historical.",
+  "Normal measured envelope is distinct from the original not-measured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; current main-source replay and attestation pass, and scoped installed normal-wheel producer/independent consumer acceptance passes. No general-model or simultaneous interval guarantee is inherited.",
 ]
 upstream_implementations_observed = []
 
@@ -36,8 +36,8 @@ test_sources = [
   "crates/antecedent-estimate/tests/recovery_sampled.rs",
   # crates/antecedent-io/tests/sampled_recovery_artifact.rs (whole-method replay, resealed mutations, consumer limits)
   "crates/antecedent-io/tests/sampled_recovery_artifact.rs",
-  # python/tests/test_closed_pilots.py (closed route refusals)
-  "python/tests/test_closed_pilots.py",
+  # python/tests/test_advanced_producers.py (scope refusals)
+  "python/tests/test_advanced_producers.py",
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
   "python/tests/test_measured_recovery.py",
@@ -52,7 +52,7 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "One structural model (five binary variables, every probability a multiple of 1/4, 18 observation patterns) with one exact-count table of 4096 rows and one sampled table of 1500 rows. Only the recovery formula for that graph is derived in the reference; other m-graphs go through the exact recovery row and its own record. The bootstrap effects are a frozen input: the reference does not reproduce the resampling stream, so it checks the BCa arithmetic and the delete-one effects but not that each replicate is the recovery of a with-replacement resample, which the golden selection digests and the receipt replay cover. The cases do not reach the BCa refusals on boundary ranks, ties or poles beyond what the in-crate unit test pins, and no small-sample or near-zero-cell table is compared. The coverage of the interval is not part of this review; the retired percentile failures and the later whole-method measurements recorded above are separate evidence. The cited publications were not retrieved. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file."
 sources = ["https://doi.org/10.1080/01621459.1987.10478410", "https://mpmath.org/doc/1.3.0/", "https://docs.python.org/3/library/fractions.html"]
 findings_resolved = ["The table of 4096 rows whose pattern counts are exactly 4096 times the enumerated pattern probabilities recovers the exact backdoor effect 1/4 and the exact recovered joint, so the tabulation and the recovery formula return the finite-SCM truth when the sample is the population.", "On a 1500-row sampled table the point effect and each of the 18 delete-one-row effects equal the 50-digit values from the independently derived recovery formula, and the BCa bias correction, acceleration, both adjusted tail probabilities and the interval endpoints equal the 50-digit transformation of the product's 2000 bootstrap effects and those delete-one effects, including the midrank rule for ties and the type-7 interpolation.", "No product defect was found in this record."]
-record_sha256 = "47dbb8acd6ed4d346c2a6dd9bd7fd0da212c0f8a80b8e48d9a349ed547fc3661"
+record_sha256 = "ffb81f5b61e907af9ba6fb50f14878a5534d2821761fcef4feeda199f8c7bffa"
 
 [[method_review.artifacts]]
 role = "implementation"

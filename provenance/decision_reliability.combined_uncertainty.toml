@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# No primary paper: a closed variant: no method is implemented, so there is nothing to cite.
+# No primary paper: an unsupported variant: no method is implemented, so there is nothing to cite.
 papers = [
 ]
 implementation_deviations = [
@@ -19,8 +19,8 @@ test_sources = [
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
-rationale = "Closed variant: source spread, Monte Carlo error and selection-induced uncertainty are never summed into one number."
+kind = "unsupported_variant"
+rationale = "Unsupported variant: source spread, Monte Carlo error and selection-induced uncertainty are never summed into one number."
 no_independent_algorithm = "combined_uncertainty() always returns ReliabilityError::CombinedUncertainty. interval.rs also hosts the separate source-spread interval arithmetic (one square root), which belongs to other decision_reliability records and is not mapped here; only combined_uncertainty() was read as this record's method."
 record_sha256 = "768a89c3ba68611de53c9f5f238c21033b67b4b464da9d07131bbf5d6ffdd0b5"
 
@@ -34,4 +34,4 @@ sha256 = "db04a698f8059ab03b09991ca08b5080ecdd78b4b509d68cdcb09e103ef0c093"
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability.rs"
 items = ["fn a_clear_optimum_is_selected_and_its_in_sample_value_is_nearly_unbiased", "fn a_validation_stream_already_used_is_not_a_clean_hold_out", "fn adaptive_carrier", "fn adaptively_generated_candidates_need_a_search_record", "fn an_inconsistent_search_record_is_refused", "fn ar1", "fn batch_means_recovers_the_autocorrelation_time_of_an_ar1_stream", "fn cancellation_is_a_typed_refusal_not_a_partial_result", "fn carrier", "fn ctx", "fn cvar_of_a_known_normal_has_the_influence_function_standard_error", "fn cvar_standard_error_matches_the_across_seed_spread", "fn cvar_theory_se", "fn enumerated_cvar_quantile_and_threshold_probability_are_exact", "fn enumerated_four_state_law_gives_exact_best_top_k_and_baseline_probabilities", "fn every_published_ranking_or_interval_route_is_reported_uncalibrated_outside_its_range", "fn gaussian_pair", "fn importance_weights_use_kish_ess_and_the_self_normalized_delta_method", "fn in_sample_maximum_is_biased_up_and_held_out_value_is_unbiased", "fn in_sample_selection_breaks_ties_by_semantic_id_and_ignores_listing_order", "fn maritz_jarrett_quantile_error_matches_the_normal_theory_value", "fn measured_routes_respect_current_attestation_in_their_calibration_status", "fn pre_specified_decisions_have_no_selection_effect_and_adaptive_ones_cannot_claim_it", "fn rank_statements_on_independently_drawn_candidates_are_refused_by_the_propagation_rule", "fn record", "fn sample_splitting_selects_on_one_segment_and_validates_on_a_disjoint_one", "fn sealed_artifact", "fn semantic_mutations_of_the_artifact_are_refused", "fn shared_stream_difference_variance_is_smaller_and_matches_one_minus_rho", "fn standard_normal_draws", "fn stream", "fn stream_identities_are_semantic_coordinates", "fn the_artifact_round_trips_and_is_recomputed_from_the_draws", "fn the_three_components_are_separate_fields_and_a_combined_number_is_refused", "fn two_gaussian_candidates_match_the_exact_probability_within_the_ess_band", "fn unknown_or_contradicted_dependence_is_refused_with_registered_codes", "fn validation_must_be_independent_of_the_selection_draws", "fn winners_curse_bound_uses_the_search_record_count_and_the_dependence"]
-sha256 = "4d7e5532f0d89030c7f70271efa600fe1a0f5941f57bc0915d421e7846ec6cec"
+sha256 = "9263238fe2101cd95852392398bdbc5a1c66bc8faee17245de5b21f6d3dbde01"

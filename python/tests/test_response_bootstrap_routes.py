@@ -18,7 +18,7 @@ from antecedent.graph import TemporalCpdag, TieredBackground, WithinTier
 from antecedent.intervention import Set
 from antecedent.outcomes import require_success
 
-_BAND_WITHHELD = "no pointwise or simultaneous band"
+_NO_BAND_METHOD = "no pointwise or simultaneous band"
 
 
 def _static_data(n: int = 300, seed: int = 5) -> dict[str, np.ndarray]:
@@ -191,7 +191,7 @@ def test_temporal_dag_bootstrap_takes_effect(query) -> None:
         )
     )
     assert withheld.uncertainty.kind == "none"
-    assert any(_BAND_WITHHELD in warning for warning in withheld.support.warnings)
+    assert any(_NO_BAND_METHOD in warning for warning in withheld.support.warnings)
     assert banded.uncertainty.kind == "pointwise"
     assert banded.simultaneous_band is not None
     assert banded.simultaneous_band.replicates == 60
@@ -229,8 +229,8 @@ def test_temporal_class_bootstrap_takes_effect() -> None:
         )
     )
     assert withheld.uncertainty.kind == banded.uncertainty.kind == "identified_set"
-    assert any(_BAND_WITHHELD in warning for warning in withheld.support.warnings)
-    assert not any(_BAND_WITHHELD in warning for warning in banded.support.warnings)
+    assert any(_NO_BAND_METHOD in warning for warning in withheld.support.warnings)
+    assert not any(_NO_BAND_METHOD in warning for warning in banded.support.warnings)
 
 
 def test_temporal_bootstrap_rejects_invalid_counts() -> None:

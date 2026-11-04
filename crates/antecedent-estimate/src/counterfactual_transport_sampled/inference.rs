@@ -32,9 +32,9 @@ use super::{
 use crate::error::EstimationError;
 
 /// Why the standard error is not reported.
-pub(crate) const SE_WITHHELD_PERTURBED_UNDEFINED: &str = "perturbed_evaluation_undefined";
+pub(crate) const SE_PERTURBED_EVALUATION_UNDEFINED: &str = "perturbed_evaluation_undefined";
 /// The variance is not a finite non-negative number.
-pub(crate) const SE_WITHHELD_NONFINITE: &str = "variance_not_finite";
+pub(crate) const SE_VARIANCE_NOT_FINITE: &str = "variance_not_finite";
 
 /// What the delta method produced.
 pub(crate) enum DeltaOutcome {
@@ -143,7 +143,7 @@ pub(crate) fn delta_standard_error(
                         if code != antecedent_core::reason_code!("transport_budget_cancel") =>
                     {
                         return Ok(DeltaOutcome::Withheld {
-                            reason: SE_WITHHELD_PERTURBED_UNDEFINED,
+                            reason: SE_PERTURBED_EVALUATION_UNDEFINED,
                         });
                     }
                     Err(other) => return Err(other),
@@ -172,7 +172,7 @@ pub(crate) fn delta_standard_error(
         variance += dataset / total;
     }
     if !variance.is_finite() || variance < -1e-12 {
-        return Ok(DeltaOutcome::Withheld { reason: SE_WITHHELD_NONFINITE });
+        return Ok(DeltaOutcome::Withheld { reason: SE_VARIANCE_NOT_FINITE });
     }
     Ok(DeltaOutcome::Computed { standard_error: variance.max(0.0).sqrt(), evaluations })
 }

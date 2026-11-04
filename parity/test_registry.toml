@@ -7866,10 +7866,10 @@ path = "python/tests/test_class_aware_response_numeric_pins.py"
 gates = ["inventory"]
 
 [[test]]
-id = "closed-pilots-python"
+id = "advanced-producers-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_closed_pilots.py"
+path = "python/tests/test_advanced_producers.py"
 gates = ["inventory"]
 
 [[test]]
@@ -8849,7 +8849,7 @@ gates = ["inventory"]
 id = "learned-joint-closed-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_learned_joint_closed.py"
+path = "python/tests/test_learned_joint_scope.py"
 gates = ["inventory"]
 
 [[test]]
@@ -12005,10 +12005,10 @@ path = "crates/antecedent/src/analysis/checked_temporal_response.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "audit-crates-antecedent-src-analysis-closed-pilots-rs"
+id = "audit-crates-antecedent-src-analysis-scope-refusals-rs"
 crate = "antecedent"
 cargo_target = "lib"
-path = "crates/antecedent/src/analysis/closed_pilots.rs"
+path = "crates/antecedent/src/analysis/scope_refusals.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -12302,7 +12302,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-src-analysis-learned-joint-closed-rs"
 crate = "antecedent"
 cargo_target = "lib"
-path = "crates/antecedent/src/analysis/learned_joint_closed.rs"
+path = "crates/antecedent/src/analysis/learned_joint_scope.rs"
 gates = ["inventory", "named"]
 
 [[test]]

@@ -127,7 +127,7 @@ that the gate reads (`scripts/provenance_links.py::non_algorithm_review_problems
 ```toml
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "wrapper"                      # wrapper | contract | derivation | closed_variant
+kind = "wrapper"                      # wrapper | contract | derivation | unsupported_variant
 rationale = "what the module does"
 no_independent_algorithm = "why nothing numerical of its own remains"
 covered_by = ["record.stem"]          # records that carry the numerics (required for wrapper)
@@ -141,7 +141,7 @@ path = "crates/.../module.rs"
 items = ["fn route", "impl Declaration"]   # the items the review read; the digest hashes only these
 sha256 = "..."
 [[non_algorithm_review.artifacts]]
-role = "assertion"                    # required for derivation and closed_variant
+role = "assertion"                    # required for derivation and unsupported_variant
 path = "crates/.../tests/module.rs"
 items = ["fn refuses_unknown_arm"]
 sha256 = "..."
@@ -157,7 +157,7 @@ rule holds for `[[method_review.artifacts]]` and `oracle.reference_review.artifa
 
 - `wrapper` delegates every numerical step to the `covered_by` records. `contract` is a declaration,
   binding, lineage or refusal check over supplied identities and numbers. `derivation` is closed-form
-  or enumerative arithmetic on a textbook identity that the table states. `closed_variant` implements
+  or enumerative arithmetic on a textbook identity that the table states. `unsupported_variant` implements
   nothing and refuses; its assertion must execute the refusal.
 - The gate fails a mapping with an unknown kind, a missing rationale, a `covered_by` that names a
   missing record or the record itself, a missing mapped module, a stale module or record digest, a

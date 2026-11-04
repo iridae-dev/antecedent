@@ -13,7 +13,7 @@ papers = [
 implementation_deviations = [
  "Only the Dirichlet-multinomial likelihood of repeated categorical choices with prior shapes at least one; other priors and likelihoods, and hierarchical or random-coefficient choice models, are closed.",
  "The probability that each option has the largest share and the expected loss are evaluated by composite Gauss-Legendre panels over the independent-gamma representation theta_k = G_k / S (G_k independent Gamma(alpha_k, 1), S independent of theta), with the window widened until each tail holds 1e-18 of the mass and the end panels graded toward zero; accuracy about 1e-9 against an independent reference. Larger shapes than the reference grid (250) were not compared.",
- "The posterior is exact under the declared prior; it is not a frequentist statement and no coverage under optional stopping is claimed. Calibration of the reported probabilities is unmeasured.",
+ "The posterior is exact under the declared prior; it is not a frequentist statement and no coverage under optional stopping is claimed. Calibration of the reported probabilities is not measured.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -30,7 +30,7 @@ redistribution = "The reference script and frozen output are repository-authored
 limitations = "Lukacs's paper was not retrieved (nothing downloaded, no local copy); the check is of the code against the definitions. The comparison covers nine best-option sets (two to eight options; flat, near-flat, skewed, non-integer shapes, concentrations to 260), their expected losses, and four marginal likelihoods (including sparse prior shapes of 0.5, accepted by the likelihood alone) at 1e-9 absolute for probabilities and losses and 1e-10 relative for log marginal likelihoods. It does not examine concentrations above 260 against an independent reference, the 64-option bound, or the total-count bound."
 sources = ["https://doi.org/10.1214/aoms/1177728549", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["Scope finding (not a defect): the first reference grid included prior shapes of 0.5 for the best-option and expected-loss functionals; the product refuses shapes below one because the quadrature needs bounded densities. The restriction is stated in the record and in the refusal text, and the grid was changed to shapes of at least one; the marginal likelihood, which does not use quadrature, keeps its sparse-shape cases."]
-record_sha256 = "282b6f66aaccf6376d1b12baff8e25070e41849137d64d9e5bdbe5e8bd6c1e99"
+record_sha256 = "2a998f2772443df9a36049069b11e1f2b1cf41672cdcca3a587fd129b4f5c528"
 
 [[method_review.artifacts]]
 role = "implementation"

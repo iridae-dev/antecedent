@@ -308,7 +308,8 @@ pub fn construct_bridged_claim_interval(
                 validation_units = *units;
                 let j = shared.sensitivity + shared.specificity - 1.0;
                 let (var_se, var_sp) = (shared.sensitivity_variance, shared.specificity_variance);
-                if !(j > 0.0) || !var_se.is_finite() || !var_sp.is_finite() {
+                let positive = matches!(j.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater));
+                if !positive || !var_se.is_finite() || !var_sp.is_finite() {
                     return Err(bridge_interval_scope_refusal(format!(
                         "Youden index {j} is not positive or a declared rate variance is not \
                          finite: the correction is not invertible"

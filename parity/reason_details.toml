@@ -9438,10 +9438,10 @@ codes = ["transport_numerical_failure"]
 meaning = "The fitted likelihood is not a normalized positive law."
 
 [[detail]]
-id = "nested_markov.outside_binary_pilot"
+id = "nested_markov.outside_binary_scope"
 family = "nested_markov"
 codes = ["route_not_supported"]
-meaning = "The graph, regime or variable domain is outside the one selected binary pilot (more than 6 observed variables, another ADMG, not exactly the observational regime, non-binary domain, or a table that is not 2x2x2x2). Never a nonidentification claim."
+meaning = "The graph, regime or variable domain is outside the supported binary class (more than 6 observed variables, another ADMG, not exactly the observational regime, non-binary domain, or a table that is not 2x2x2x2). Never a nonidentification claim."
 
 [[detail]]
 id = "nested_markov.positivity"

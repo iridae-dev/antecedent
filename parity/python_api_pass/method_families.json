@@ -9122,17 +9122,17 @@
       "required_review": "Follow exact native owner or its alias into the typed Python consumer; map constructor/configuration, pure inspection, explicit execution, immutable branch, refusal and artifact methods only to assertion paths that exercise each behavior. Type-name references alone do not establish binding or runtime coverage."
     },
     {
-      "owner": "<antecedent::analysis::closed_pilots::ClosedPilotRefusal>",
+      "owner": "<antecedent::analysis::scope_refusals::ScopeRefusal>",
       "method_count": 1,
       "methods": [
         {
-          "rust": "<antecedent::analysis::closed_pilots::ClosedPilotRefusal>::text",
-          "declaration": "pub fn <antecedent::analysis::closed_pilots::ClosedPilotRefusal>::fn text(&self) -> alloc::string::String"
+          "rust": "<antecedent::analysis::scope_refusals::ScopeRefusal>::text",
+          "declaration": "pub fn <antecedent::analysis::scope_refusals::ScopeRefusal>::fn text(&self) -> alloc::string::String"
         }
       ],
       "native_type_references": [
         {
-          "path": "python/src/closed_pilot_api.rs",
+          "path": "python/src/scope_refusal_api.rs",
           "lines": [
             9,
             19
@@ -11349,12 +11349,12 @@
       "required_review": "Follow exact native owner or its alias into the typed Python consumer; map constructor/configuration, pure inspection, explicit execution, immutable branch, refusal and artifact methods only to assertion paths that exercise each behavior. Type-name references alone do not establish binding or runtime coverage."
     },
     {
-      "owner": "<antecedent::analysis::learned_joint_closed::LearnedJointRefusal>",
+      "owner": "<antecedent::analysis::learned_joint_scope::LearnedJointRefusal>",
       "method_count": 1,
       "methods": [
         {
-          "rust": "<antecedent::analysis::learned_joint_closed::LearnedJointRefusal>::text",
-          "declaration": "pub fn <antecedent::analysis::learned_joint_closed::LearnedJointRefusal>::fn text(&self) -> alloc::string::String"
+          "rust": "<antecedent::analysis::learned_joint_scope::LearnedJointRefusal>::text",
+          "declaration": "pub fn <antecedent::analysis::learned_joint_scope::LearnedJointRefusal>::fn text(&self) -> alloc::string::String"
         }
       ],
       "native_type_references": [

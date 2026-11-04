@@ -622,13 +622,13 @@ fn validate_result_refuses_malformed_mediation_grid() {
     slice.identification_status = crate::IdentificationStatusWire::GraphDependent;
     slice.identified_set = Some([0.2, 0.7]);
     let artifact = encode_analysis_result_artifact(&bounded, names.clone(), "grid-bounds").unwrap();
-    assert_eq!(artifact.manifest.format_version, WITHHELD_MEDIATION_FORMAT);
-    assert_eq!(artifact.manifest.minimum_reader_version, WITHHELD_MEDIATION_FORMAT);
+    assert_eq!(artifact.manifest.format_version, ABSENT_MEDIATION_POINT_FORMAT);
+    assert_eq!(artifact.manifest.minimum_reader_version, ABSENT_MEDIATION_POINT_FORMAT);
     let mut bytes = Vec::new();
     artifact.write_to(&mut bytes).unwrap();
     let read = crate::read_and_migrate(bytes.as_slice()).unwrap();
-    assert_eq!(read.manifest.format_version, WITHHELD_MEDIATION_FORMAT);
-    assert_eq!(read.manifest.minimum_reader_version, WITHHELD_MEDIATION_FORMAT);
+    assert_eq!(read.manifest.format_version, ABSENT_MEDIATION_POINT_FORMAT);
+    assert_eq!(read.manifest.minimum_reader_version, ABSENT_MEDIATION_POINT_FORMAT);
     let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(decoded.mediation_grid, bounded.mediation_grid);
     assert_eq!(to_cbor(&Some(0.5)).unwrap(), to_cbor(&0.5_f64).unwrap());

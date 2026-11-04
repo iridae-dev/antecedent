@@ -6,8 +6,8 @@
 //! utility, stream coordinate, declaration or claimed value is refused. A consumer that
 //! retained the draws digest, the candidate-set digest or the selecting and validating
 //! stream identities independently also refuses a consistently resealed forgery.
-//! The carried closed-route snapshot may remain more conservative after a new support
-//! is earned; publication always checks the current support independently.
+//! Calibration annotates a published route and never gates it, so the report carries no
+//! route list; publication always checks the current calibration independently.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

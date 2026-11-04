@@ -5153,7 +5153,7 @@ fn withhold_class_observation_band(
     cancelled: bool,
 ) {
     response.support.warnings.retain(|warning| {
-        warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD
+        warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_NO_BAND_METHOD
     });
     diagnostics.push(Diagnostic::new(
         "estimate.temporal_class.no_observation_class_band_method",
@@ -5384,7 +5384,7 @@ fn apply_tuple_bootstrap_band(
     // A tuple bootstrap ran, so the estimator's zero-replicate withholding note (the
     // inner fit runs without replicates on these paths) no longer describes the band.
     response.support.warnings.retain(|warning| {
-        warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD
+        warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_NO_BAND_METHOD
     });
     if bootstrap.lower.is_empty() {
         antecedent_estimate::publish_simultaneous_band(

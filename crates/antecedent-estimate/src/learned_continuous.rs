@@ -83,7 +83,7 @@ pub(crate) const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
 /// Point-only status: no interval was requested.
 pub(crate) const CONTINUOUS_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub(crate) const CONTINUOUS_WITHHELD: &str = "too_few_replicates";
+pub(crate) const CONTINUOUS_TOO_FEW_REPLICATES: &str = "too_few_replicates";
 /// A bootstrap interval was requested; `learned_continuous_interval_internal` forms it and
 /// its calibration annotation carries the status.
 pub(crate) const CONTINUOUS_BOOTSTRAP_INTERVAL: &str = "bootstrap_interval_requested";
@@ -145,7 +145,7 @@ impl LearnedContinuousOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LearnedContinuousUncertainty {
-    /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_BOOTSTRAP_INTERVAL`], [`CONTINUOUS_WITHHELD`]
+    /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_BOOTSTRAP_INTERVAL`], [`CONTINUOUS_TOO_FEW_REPLICATES`]
     /// (too few replicates) or [`CONTINUOUS_AVAILABLE`].
     pub status: String,
     /// [`CONTINUOUS_NO_INTERVAL_REQUESTED`], `joint_outer_bootstrap` or
@@ -175,7 +175,7 @@ impl LearnedContinuousUncertainty {
             (CONTINUOUS_POINT_ONLY, CONTINUOUS_NO_INTERVAL_REQUESTED, None)
         } else if bootstrap < LEARNED_CONTINUOUS_MIN_BOOTSTRAP {
             (
-                CONTINUOUS_WITHHELD,
+                CONTINUOUS_TOO_FEW_REPLICATES,
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
                 Some(antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR),
             )

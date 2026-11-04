@@ -19,7 +19,7 @@ test_sources = [
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
+kind = "unsupported_variant"
 rationale = "A closed variant: no interval, posterior or coverage statement is produced for a revalidated or composed claim, a calibration record is not inherited by a claim about another target, and a calibration the claim can no longer rely on is carried as a withdrawal that annotates the interval instead of refusing the claim."
 no_independent_algorithm = "revalidate.rs classifies claims against an earlier snapshot; support, provider-trust, retired-input and unexecutable-stage withdrawals and numerical recomputation yield typed refusals, while a calibration withdrawal yields no refusal and is carried on the claim (class withdrawn, calibration state lost, point value untouched); it computes no interval."
 record_sha256 = "38c97c23ee1ff4ab6da1814ddc58acf330253925960aedca48e156bf254c21d4"

@@ -12,7 +12,7 @@ papers = [
 
 implementation_deviations = [
  "The augmented inverse-odds estimator treats outcome and participation nuisances as known or fixed in the paper; here every nuisance is cross-fitted (each fold fitted on the other folds) with learners from the learner registry, so the paper's Section 5.4 inference for estimated nuisances is not implemented and the estimator is claimed only to be model doubly robust (outcome regression or participation model correct) with known randomization probabilities. No efficiency claim.",
- "The target is a conditional-mean functional over certified standardizers and the interval is not requested by default; the legacy bootstrap interval refuses. Coverage is unmeasured.",
+ "The target is a conditional-mean functional over certified standardizers and the interval is not requested by default; the legacy bootstrap interval refuses. Coverage is not measured.",
 ]
 
 upstream_implementations_observed = []

@@ -1559,7 +1559,7 @@ evidence = "embedded_catalog_laws_requests_points_and_contrasts"
 functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
 guarantee = "independently_re_decided_re_bound_and_bit_exact_recomputed"
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
-limits = "Re-decides under the search limits the proof stores (refused when above the consumer's maxima), compares the stored search receipt (limits, memory cap, operations consumed, depth reached, stages explored) exactly, re-binds every source, recomputes every point and contrast bit for bit. The premises digest binds graph, query, proof with its search receipt, expression, search and evaluation limits, requests and variable names; the data-identity digest binds the whole catalog (sampling, weights, dependence, snapshot and dataset ids) and law snapshots. An artifact that carries an interval is refused by io, facade and Python with not_supported (mz_transport.interval_withheld)."
+limits = "Re-decides under the search limits the proof stores (refused when above the consumer's maxima), compares the stored search receipt (limits, memory cap, operations consumed, depth reached, stages explored) exactly, re-binds every source, recomputes every point and contrast bit for bit. The premises digest binds graph, query, proof with its search receipt, expression, search and evaluation limits, requests and variable names; the data-identity digest binds the whole catalog (sampling, weights, dependence, snapshot and dataset ids) and law snapshots. An artifact that carries an interval is refused by io, facade and Python with not_supported."
 evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs"
 evidence_assertion = "a_mutated_artifact_fails_independent_consumption"
 
@@ -1592,7 +1592,7 @@ evidence = "embedded_catalog_laws_requests_points_and_contrasts"
 functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
 guarantee = "independently_re_decided_re_bound_and_bit_exact_recomputed"
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
-limits = "The io-layer consumer behind antecedent.consume_mz_transport_artifact: decodes, re-decides under the stored search limits (refused above the given maxima), re-binds every source, recomputes points and contrasts bit for bit, and refuses an interval-bearing artifact with not_supported (mz_transport.interval_withheld)."
+limits = "The io-layer consumer behind antecedent.consume_mz_transport_artifact: decodes, re-decides under the stored search limits (refused above the given maxima), re-binds every source, recomputes points and contrasts bit for bit, and refuses an interval-bearing artifact with not_supported."
 evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs"
 evidence_assertion = "exported_point_is_recomputed_by_an_independent_consumer"
 
@@ -3182,7 +3182,7 @@ notes = "An interval over a learner-supplied joint-cell family is refused at the
 
 # ---- estimate.batch_retarget_covariance -------------------------------------------
 # Points, joint plug-in score covariance and named contrasts of retargeted claims over one
-# row snapshot (parity/capability_records.toml). The 95% iid complete-family max-t band has a measured coverage record.
+# row snapshot (parity/capability_records.toml). The 95% iid complete-family max-t band is covered by a coverage record.
 
 [[routes]]
 route = "antecedent.PreparedBatch.retarget"
@@ -7095,7 +7095,7 @@ functional = "equal_tailed_posterior_interval_of_the_fitted_conditional_probabil
 guarantee = "declared_model_has_no_sampling_interval_count_fitted_posterior_interval_measured"
 evidence_test = "python/tests/test_observation_query.py"
 evidence_assertion = "test_count_fitted_interval_is_reported_with_its_calibration_status"
-notes = "Python surface of the count-fitted posterior interval; reported with its calibration status, not_measured without a currently attesting record."
+notes = "Python surface of the count-fitted posterior interval; reported with its calibration status, not_measured when no current coverage record covers it."
 
 [[routes]]
 route = "antecedent.sequential_evaluation.evaluate"
@@ -8714,11 +8714,11 @@ evidence_assertion = "test_the_effect_adjusts_for_the_treatments_parents_and_cov
 
 [[routes]]
 route = "antecedent.sample_split_effect.SplitEffect.measure"
-notes = "The interval is reported for any analysis row count and carries a calibration status resolved from the coverage records of structure discovered_sample_split: calibrated inside a current attesting record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
+notes = "The interval is reported for any analysis row count and carries a calibration status resolved from the coverage records of structure discovered_sample_split: calibrated inside the measured scope of a current coverage record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
 
 [[routes]]
 route = "antecedent.python.selective_discovery.SplitEffect.measure"
-notes = "The interval is reported for any analysis row count and carries a calibration status resolved from the coverage records of structure discovered_sample_split: calibrated inside a current attesting record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
+notes = "The interval is reported for any analysis row count and carries a calibration status resolved from the coverage records of structure discovered_sample_split: calibrated inside the measured scope of a current coverage record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
 
 
 [[routes]]
@@ -8742,11 +8742,11 @@ evidence_assertion = "test_a_linear_study_reports_the_total_effect_and_the_unres
 
 [[routes]]
 route = "antecedent.sample_split_parent_set_effect.ParentSetEffect.measure"
-notes = "The interval is reported for any variable count and carries a calibration status resolved from the coverage records of structure discovered_sample_split.treatment_parent_set: calibrated inside a current attesting record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
+notes = "The interval is reported for any variable count and carries a calibration status resolved from the coverage records of structure discovered_sample_split.treatment_parent_set: calibrated inside the measured scope of a current coverage record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
 
 [[routes]]
 route = "antecedent.python.selective_discovery.ParentSetEffect.measure"
-notes = "The interval is reported for any variable count and carries a calibration status resolved from the coverage records of structure discovered_sample_split.treatment_parent_set: calibrated inside a current attesting record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
+notes = "The interval is reported for any variable count and carries a calibration status resolved from the coverage records of structure discovered_sample_split.treatment_parent_set: calibrated inside the measured scope of a current coverage record, otherwise outside_measured_scope, measured_below_nominal or not_measured."
 
 [[routes]]
 route = "antecedent_contract.provider_transport.ProviderTransportSource.admit"
@@ -10040,7 +10040,7 @@ functional = "active_minus_control_contrast_of_a_multi_level_treatment_over_the_
 guarantee = "multi_level_treatment_contrast_with_stated_target_population_interval_at_exact_measured_full_population_scope"
 evidence_test = "crates/antecedent-estimate/tests/treatment_levels.rs"
 evidence_assertion = "the_full_population_and_pairwise_targets_recover_their_own_truths"
-notes = "Full-population three-level five-fold contrasts have their own measured 95% normal interval record over 1500 to 6000 rows. Publication requires a currently attesting record covering the exact construction and scope; other configurations, pairwise contrasts and separate level-mean intervals remain withheld."
+notes = "Full-population three-level five-fold contrasts have a coverage record for the 95% normal interval over 1500 to 6000 rows. The interval is calibrated only where a current coverage record covers the exact construction and scope; other configurations, pairwise contrasts and separate level-mean intervals are not supported."
 
 [[routes]]
 route = "antecedent.missing.declared_policy"

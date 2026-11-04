@@ -18,7 +18,7 @@ use antecedent_identify::{
 use antecedent_io::IoError;
 use antecedent_io::contract_section::CalibrationStatus;
 use antecedent_io::mz_transport_artifact::{
-    MZ_NOMINAL_INTERVAL, MZ_POINT_ONLY, MZ_WITHHELD, MzTransportArtifactError,
+    MZ_NO_INTERVAL_METHOD, MZ_NOMINAL_INTERVAL, MZ_POINT_ONLY, MzTransportArtifactError,
     MzTransportArtifactWire, MzTransportConsumeLimits, MzUncertaintyWire,
 };
 use common::mz_fixture::{
@@ -419,7 +419,7 @@ fn counted_laws_report_the_interval_with_its_calibration_annotation() {
     assert_eq!(exact_result.calibration().status, CalibrationStatus::NotMeasured);
     // Undeclared dependence withholds the interval for a stated data reason.
     let undeclared = prepare(&catalog, empirical(&exact, 40_000.0), true).estimate(&ctx).unwrap();
-    assert_eq!(undeclared.uncertainty().status, MZ_WITHHELD);
+    assert_eq!(undeclared.uncertainty().status, MZ_NO_INTERVAL_METHOD);
     assert_eq!(undeclared.uncertainty().reason, "sampling_dependence_unknown");
     assert_eq!(undeclared.calibration().status, CalibrationStatus::NotMeasured);
 }
@@ -445,7 +445,7 @@ fn shared_dataset_regimes_always_return_the_point() {
         match dependence {
             None => assert!(result.uncertainty().available()),
             Some(reason) => {
-                assert_eq!(result.uncertainty().status, MZ_WITHHELD);
+                assert_eq!(result.uncertainty().status, MZ_NO_INTERVAL_METHOD);
                 assert_eq!(result.uncertainty().reason, reason);
             }
         }

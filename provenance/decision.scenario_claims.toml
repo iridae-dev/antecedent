@@ -22,7 +22,7 @@ implementation_deviations = [
   "Completion counts are never probabilities: a CPDAG report yields unweighted graph-dependent atoms only, and a Bayes policy over a report with no declared weights, or over completion counts, refuses. Declared weights are used only when the report is a weighted report.",
   "An identified set covers identified scenarios only; unidentified or unevaluated scenarios, a truncated enumeration and a weighted report whose outcome domain is unbounded with unaccounted mass refuse to give an interval, and each interval is plain interval arithmetic over the action's inputs, with no probabilistic reading. Scenario support and every utility input must be bound by the caller; an action input bound to no outcome the scenarios evaluate refuses.",
   "The conversion records the source identity it read (scenario ids, a content digest of each scenario's status, weight and law, and the premises and data digests the caller retained) and a conversion given an expected source refuses when any of them changed. The policy must be the contract's declared one. The conversion does not verify that the source report itself is correct.",
-  "Python delegates the conversion, identity and every refusal to the Rust core; the adapters introduce no calibrated, interval-coverage or probability claim. All standard errors and diagnostics, where a downstream report carries them, remain unmeasured.",
+  "Python delegates the conversion, identity and every refusal to the Rust core; the adapters introduce no calibrated, interval-coverage or probability claim. All standard errors and diagnostics, where a downstream report carries them, remain not measured.",
   "Supplied uncertainty endpoint propagation requires the same scientific quantity across all actions: separate marginal intervals have no joint coverage contract and refuse. Duplicate interval coordinates also refuse. Estimated identified bounds remain descriptive interval arithmetic over multiple inputs; independent affine-endpoint fixtures verify both readings without collecting coverage.",
 ]
 
@@ -38,7 +38,7 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Adapters from real scenario results into decision atoms and identified-set utilities: each scenario one atom keeping status, declared weight and support; an identified set one interval per action."
 no_independent_algorithm = "decision_claims.rs digests scenarios, checks that weights are used as declared and never renormalized, and hands interval endpoints to the existing identified-set utility evaluation; it performs no arithmetic on the numbers beyond passing them on."
-record_sha256 = "cffc73cc8ddb2fec48c33e0100fab73bdbdcfb6cef76bd92c10f48546b506c1f"
+record_sha256 = "d061d8376d7dfbbcd58cd14255daf071ea79553fb60cb878a0e44d505052913d"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

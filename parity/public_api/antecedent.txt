@@ -654,9 +654,9 @@ impl core::clone::Clone for antecedent::analysis::categorical_posterior_candidat
 impl core::clone::Clone for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::clone::Clone for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise
 impl core::clone::Clone for antecedent::analysis::categorical_treatment::CategoricalTreatment
-impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedPilotRefusal
-impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedRegimeCounts
-impl core::clone::Clone for antecedent::analysis::closed_pilots::NestedMarkovRequest
+impl core::clone::Clone for antecedent::analysis::scope_refusals::ScopeRefusal
+impl core::clone::Clone for antecedent::analysis::scope_refusals::ClosedRegimeCounts
+impl core::clone::Clone for antecedent::analysis::scope_refusals::NestedMarkovRequest
 impl core::clone::Clone for antecedent::analysis::cohort_decision::FittedEffectModel
 impl core::clone::Clone for antecedent::analysis::compiled_linear::CompiledLinearProgram
 impl core::clone::Clone for antecedent::analysis::composition::BundleBuilder
@@ -867,7 +867,7 @@ impl core::clone::Clone for antecedent::analysis::joint_panel::selection::instru
 impl core::clone::Clone for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectedAction
 impl core::clone::Clone for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest
 impl core::clone::Clone for antecedent::analysis::latent_class_effects::LatentClassEffects
-impl core::clone::Clone for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::clone::Clone for antecedent::analysis::learned_joint_scope::LearnedJointRefusal
 impl core::clone::Clone for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::clone::Clone for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::clone::Clone for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
@@ -1231,7 +1231,7 @@ impl core::cmp::Eq for antecedent::analysis::JointLawPropagationRefusal
 impl core::cmp::Eq for antecedent::analysis::MissingCarrier
 impl core::cmp::Eq for antecedent::analysis::ResolvedLatencyBudget
 impl core::cmp::Eq for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
-impl core::cmp::Eq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
+impl core::cmp::Eq for antecedent::analysis::scope_refusals::ScopeRefusal
 impl core::cmp::Eq for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl core::cmp::Eq for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
 impl core::cmp::Eq for antecedent::analysis::conditional_study_ranking::ConditionalRankingEntry
@@ -1275,7 +1275,7 @@ impl core::cmp::Eq for antecedent::analysis::joint_panel::PanelMissingPolicy
 impl core::cmp::Eq for antecedent::analysis::joint_panel::PanelUnitDrop
 impl core::cmp::Eq for antecedent::analysis::joint_panel::ReferenceArtifactLimits
 impl core::cmp::Eq for antecedent::analysis::joint_panel::ReferenceObligation
-impl core::cmp::Eq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::cmp::Eq for antecedent::analysis::learned_joint_scope::LearnedJointRefusal
 impl core::cmp::Eq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::cmp::Eq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::cmp::Eq for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
@@ -1616,9 +1616,9 @@ impl core::cmp::PartialEq for antecedent::analysis::association::PredictionScore
 impl core::cmp::PartialEq for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::cmp::PartialEq for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::cmp::PartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
-impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
-impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
-impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::NestedMarkovRequest
+impl core::cmp::PartialEq for antecedent::analysis::scope_refusals::ScopeRefusal
+impl core::cmp::PartialEq for antecedent::analysis::scope_refusals::ClosedRegimeCounts
+impl core::cmp::PartialEq for antecedent::analysis::scope_refusals::NestedMarkovRequest
 impl core::cmp::PartialEq for antecedent::analysis::cohort_decision::FittedEffectModel
 impl core::cmp::PartialEq for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl core::cmp::PartialEq for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
@@ -1723,7 +1723,7 @@ impl core::cmp::PartialEq for antecedent::analysis::joint_panel::designs::JointD
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::designs::JointDesignSourceBinding
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::designs::NativeJointIdentification
 impl core::cmp::PartialEq for antecedent::analysis::latent_class_effects::LatentClassEffects
-impl core::cmp::PartialEq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::cmp::PartialEq for antecedent::analysis::learned_joint_scope::LearnedJointRefusal
 impl core::cmp::PartialEq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::cmp::PartialEq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::cmp::PartialEq for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
@@ -2553,9 +2553,9 @@ impl core::fmt::Debug for antecedent::analysis::categorical_posterior_candidate:
 impl core::fmt::Debug for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::fmt::Debug for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise
 impl core::fmt::Debug for antecedent::analysis::categorical_treatment::CategoricalTreatment
-impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedPilotRefusal
-impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedRegimeCounts
-impl core::fmt::Debug for antecedent::analysis::closed_pilots::NestedMarkovRequest
+impl core::fmt::Debug for antecedent::analysis::scope_refusals::ScopeRefusal
+impl core::fmt::Debug for antecedent::analysis::scope_refusals::ClosedRegimeCounts
+impl core::fmt::Debug for antecedent::analysis::scope_refusals::NestedMarkovRequest
 impl core::fmt::Debug for antecedent::analysis::cohort_decision::FittedEffectModel
 impl core::fmt::Debug for antecedent::analysis::compiled_linear::CompiledLinearProgram
 impl core::fmt::Debug for antecedent::analysis::composition::BundleBuilder
@@ -2777,7 +2777,7 @@ impl core::fmt::Debug for antecedent::analysis::joint_panel::selection::instrume
 impl core::fmt::Debug for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest
 impl core::fmt::Debug for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult
 impl core::fmt::Debug for antecedent::analysis::latent_class_effects::LatentClassEffects
-impl core::fmt::Debug for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::fmt::Debug for antecedent::analysis::learned_joint_scope::LearnedJointRefusal
 impl core::fmt::Debug for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::fmt::Debug for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::fmt::Debug for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
@@ -3754,9 +3754,9 @@ impl core::marker::Freeze for antecedent::analysis::categorical_posterior_candid
 impl core::marker::Freeze for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt [auto]
 impl core::marker::Freeze for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
 impl core::marker::Freeze for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
-impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
-impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
-impl core::marker::Freeze for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::scope_refusals::ScopeRefusal [auto]
+impl core::marker::Freeze for antecedent::analysis::scope_refusals::ClosedRegimeCounts [auto]
+impl core::marker::Freeze for antecedent::analysis::scope_refusals::NestedMarkovRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
 impl core::marker::Freeze for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::BundleBuilder [auto]
@@ -3975,7 +3975,7 @@ impl core::marker::Freeze for antecedent::analysis::joint_panel::selection::inst
 impl core::marker::Freeze for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult [auto]
 impl core::marker::Freeze for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
-impl core::marker::Freeze for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Freeze for antecedent::analysis::learned_joint_scope::LearnedJointRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Freeze for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
@@ -4696,9 +4696,9 @@ impl core::marker::Send for antecedent::analysis::categorical_posterior_candidat
 impl core::marker::Send for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
 impl core::marker::Send for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::marker::Send for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
-impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
-impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
-impl core::marker::Send for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
+impl core::marker::Send for antecedent::analysis::scope_refusals::ScopeRefusal [auto]
+impl core::marker::Send for antecedent::analysis::scope_refusals::ClosedRegimeCounts [auto]
+impl core::marker::Send for antecedent::analysis::scope_refusals::NestedMarkovRequest [auto]
 impl core::marker::Send for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
 impl core::marker::Send for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Send for antecedent::analysis::composition::BundleBuilder [auto]
@@ -4922,7 +4922,7 @@ impl core::marker::Send for antecedent::analysis::joint_panel::selection::instru
 impl core::marker::Send for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult [auto]
 impl core::marker::Send for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
-impl core::marker::Send for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Send for antecedent::analysis::learned_joint_scope::LearnedJointRefusal [auto]
 impl core::marker::Send for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Send for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Send for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
@@ -5482,9 +5482,9 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::association::As
 impl core::marker::StructuralPartialEq for antecedent::analysis::association::PredictionScores
 impl core::marker::StructuralPartialEq for antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt
 impl core::marker::StructuralPartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
-impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
-impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
-impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::NestedMarkovRequest
+impl core::marker::StructuralPartialEq for antecedent::analysis::scope_refusals::ScopeRefusal
+impl core::marker::StructuralPartialEq for antecedent::analysis::scope_refusals::ClosedRegimeCounts
+impl core::marker::StructuralPartialEq for antecedent::analysis::scope_refusals::NestedMarkovRequest
 impl core::marker::StructuralPartialEq for antecedent::analysis::cohort_decision::FittedEffectModel
 impl core::marker::StructuralPartialEq for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl core::marker::StructuralPartialEq for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
@@ -5589,7 +5589,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::de
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::designs::JointDesignSourceBinding
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::designs::NativeJointIdentification
 impl core::marker::StructuralPartialEq for antecedent::analysis::latent_class_effects::LatentClassEffects
-impl core::marker::StructuralPartialEq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::marker::StructuralPartialEq for antecedent::analysis::learned_joint_scope::LearnedJointRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::marker::StructuralPartialEq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
@@ -6192,9 +6192,9 @@ impl core::marker::Sync for antecedent::analysis::categorical_posterior_candidat
 impl core::marker::Sync for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
 impl core::marker::Sync for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::marker::Sync for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
-impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
-impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
-impl core::marker::Sync for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
+impl core::marker::Sync for antecedent::analysis::scope_refusals::ScopeRefusal [auto]
+impl core::marker::Sync for antecedent::analysis::scope_refusals::ClosedRegimeCounts [auto]
+impl core::marker::Sync for antecedent::analysis::scope_refusals::NestedMarkovRequest [auto]
 impl core::marker::Sync for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
 impl core::marker::Sync for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Sync for antecedent::analysis::composition::BundleBuilder [auto]
@@ -6418,7 +6418,7 @@ impl core::marker::Sync for antecedent::analysis::joint_panel::selection::instru
 impl core::marker::Sync for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult [auto]
 impl core::marker::Sync for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
-impl core::marker::Sync for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Sync for antecedent::analysis::learned_joint_scope::LearnedJointRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Sync for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
@@ -7141,9 +7141,9 @@ impl core::marker::Unpin for antecedent::analysis::categorical_posterior_candida
 impl core::marker::Unpin for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
 impl core::marker::Unpin for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::marker::Unpin for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
-impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
-impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
-impl core::marker::Unpin for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::scope_refusals::ScopeRefusal [auto]
+impl core::marker::Unpin for antecedent::analysis::scope_refusals::ClosedRegimeCounts [auto]
+impl core::marker::Unpin for antecedent::analysis::scope_refusals::NestedMarkovRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
 impl core::marker::Unpin for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::BundleBuilder [auto]
@@ -7367,7 +7367,7 @@ impl core::marker::Unpin for antecedent::analysis::joint_panel::selection::instr
 impl core::marker::Unpin for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult [auto]
 impl core::marker::Unpin for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
-impl core::marker::Unpin for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Unpin for antecedent::analysis::learned_joint_scope::LearnedJointRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Unpin for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
@@ -8085,9 +8085,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categoric
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::scope_refusals::ScopeRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::scope_refusals::ClosedRegimeCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::scope_refusals::NestedMarkovRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::BundleBuilder [auto]
@@ -8289,7 +8289,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_pan
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_scope::LearnedJointRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
@@ -8982,9 +8982,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::scope_refusals::ScopeRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::scope_refusals::ClosedRegimeCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::scope_refusals::NestedMarkovRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::BundleBuilder [auto]
@@ -9186,7 +9186,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel:
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_scope::LearnedJointRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift [auto]
@@ -9611,10 +9611,10 @@ impl<'a> core::clone::Clone for antecedent::PreflightInput<'a>
 impl<'a> core::clone::Clone for antecedent::PreparedClaimParent<'a>
 impl<'a> core::clone::Clone for antecedent::ScreenUnits<'a>
 impl<'a> core::clone::Clone for antecedent::SequenceEndpoints<'a>
-impl<'a> core::clone::Clone for antecedent::analysis::closed_pilots::JointBayesianRequest<'a>
-impl<'a> core::clone::Clone for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a>
+impl<'a> core::clone::Clone for antecedent::analysis::scope_refusals::JointBayesianRequest<'a>
+impl<'a> core::clone::Clone for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
-impl<'a> core::clone::Clone for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
+impl<'a> core::clone::Clone for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::target_validation::PreparedTargetData<'a>
 impl<'a> core::clone::Clone for antecedent::estimator_spec::BuildDefaults<'a>
@@ -9628,10 +9628,10 @@ impl<'a> core::fmt::Debug for antecedent::GraphRef<'a>
 impl<'a> core::fmt::Debug for antecedent::PreflightInput<'a>
 impl<'a> core::fmt::Debug for antecedent::PreparedClaimParent<'a>
 impl<'a> core::fmt::Debug for antecedent::ScreenUnits<'a>
-impl<'a> core::fmt::Debug for antecedent::analysis::closed_pilots::JointBayesianRequest<'a>
-impl<'a> core::fmt::Debug for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a>
+impl<'a> core::fmt::Debug for antecedent::analysis::scope_refusals::JointBayesianRequest<'a>
+impl<'a> core::fmt::Debug for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
-impl<'a> core::fmt::Debug for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
+impl<'a> core::fmt::Debug for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::target_validation::PreparedTargetData<'a>
 impl<'a> core::fmt::Debug for antecedent::inference::MappedTransferSpec<'a>
@@ -9641,10 +9641,10 @@ impl<'a> core::marker::Copy for antecedent::GraphRef<'a>
 impl<'a> core::marker::Copy for antecedent::PreparedClaimParent<'a>
 impl<'a> core::marker::Copy for antecedent::ScreenUnits<'a>
 impl<'a> core::marker::Copy for antecedent::SequenceEndpoints<'a>
-impl<'a> core::marker::Copy for antecedent::analysis::closed_pilots::JointBayesianRequest<'a>
-impl<'a> core::marker::Copy for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a>
+impl<'a> core::marker::Copy for antecedent::analysis::scope_refusals::JointBayesianRequest<'a>
+impl<'a> core::marker::Copy for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a>
 impl<'a> core::marker::Copy for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
-impl<'a> core::marker::Copy for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
+impl<'a> core::marker::Copy for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a>
 impl<'a> core::marker::Copy for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
 impl<'a> core::marker::Copy for antecedent::analysis::target_validation::PreparedTargetData<'a>
 impl<'a> core::marker::Copy for antecedent::estimator_spec::BuildDefaults<'a>
@@ -9659,10 +9659,10 @@ impl<'a> core::marker::Freeze for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::RetainedOperation<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent::analysis::scope_refusals::JointBayesianRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
@@ -9678,10 +9678,10 @@ impl<'a> core::marker::Send for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Send for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::RetainedOperation<'a> [auto]
-impl<'a> core::marker::Send for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
-impl<'a> core::marker::Send for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent::analysis::scope_refusals::JointBayesianRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
-impl<'a> core::marker::Send for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
@@ -9698,10 +9698,10 @@ impl<'a> core::marker::Sync for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::RetainedOperation<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent::analysis::scope_refusals::JointBayesianRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
-impl<'a> core::marker::Sync for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
@@ -9717,10 +9717,10 @@ impl<'a> core::marker::Unpin for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::RetainedOperation<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent::analysis::scope_refusals::JointBayesianRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
@@ -9733,9 +9733,9 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphRef<'a> [a
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::RetainedOperation<'a> [auto]
-impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
-impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
-impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::scope_refusals::JointBayesianRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::estimator_spec::BuildDefaults<'a> [auto]
@@ -9746,9 +9746,9 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::GraphRef<'a> [auto
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::RetainedOperation<'a> [auto]
-impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::JointBayesianRequest<'a> [auto]
-impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a> [auto]
-impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::scope_refusals::JointBayesianRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::estimator_spec::BuildDefaults<'a> [auto]
@@ -11563,29 +11563,29 @@ pub field antecedent::analysis::categorical_posterior_candidate::CategoricalPost
 pub field antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest::sampling: antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise
 pub field antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise::design: antecedent_core::sampling_design::SamplingDesign
 pub field antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise::subject_ids: alloc::vec::Vec<alloc::string::String>
-pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::code: &'static str
-pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::detail: alloc::string::String
-pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::message: alloc::string::String
-pub field antecedent::analysis::closed_pilots::ClosedRegimeCounts::cells: alloc::vec::Vec<f64>
-pub field antecedent::analysis::closed_pilots::ClosedRegimeCounts::fixed: core::option::Option<alloc::vec::Vec<usize>>
-pub field antecedent::analysis::closed_pilots::ClosedRegimeCounts::levels: alloc::vec::Vec<usize>
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::dependence: &'a str
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::draws: usize
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::features: usize
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::graph_class: &'a str
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::has_target: bool
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::sharing: &'a str
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::sources: usize
-pub field antecedent::analysis::closed_pilots::JointBayesianRequest::varying: &'a str
-pub field antecedent::analysis::closed_pilots::NestedMarkovRequest::bidirected: alloc::vec::Vec<(usize, usize)>
-pub field antecedent::analysis::closed_pilots::NestedMarkovRequest::directed: alloc::vec::Vec<(usize, usize)>
-pub field antecedent::analysis::closed_pilots::NestedMarkovRequest::regimes: alloc::vec::Vec<antecedent::analysis::closed_pilots::ClosedRegimeCounts>
-pub field antecedent::analysis::closed_pilots::NestedMarkovRequest::variables: alloc::vec::Vec<alloc::string::String>
-pub field antecedent::analysis::closed_pilots::SampledRecoveryRequest::fully_observed: usize
-pub field antecedent::analysis::closed_pilots::SampledRecoveryRequest::graph_recoverable: bool
-pub field antecedent::analysis::closed_pilots::SampledRecoveryRequest::partially_observed: usize
-pub field antecedent::analysis::closed_pilots::SampledRecoveryRequest::replicates: usize
-pub field antecedent::analysis::closed_pilots::SampledRecoveryRequest::rows: &'a [(u64, u8, u8, u8)]
+pub field antecedent::analysis::scope_refusals::ScopeRefusal::code: &'static str
+pub field antecedent::analysis::scope_refusals::ScopeRefusal::detail: alloc::string::String
+pub field antecedent::analysis::scope_refusals::ScopeRefusal::message: alloc::string::String
+pub field antecedent::analysis::scope_refusals::ClosedRegimeCounts::cells: alloc::vec::Vec<f64>
+pub field antecedent::analysis::scope_refusals::ClosedRegimeCounts::fixed: core::option::Option<alloc::vec::Vec<usize>>
+pub field antecedent::analysis::scope_refusals::ClosedRegimeCounts::levels: alloc::vec::Vec<usize>
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::dependence: &'a str
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::draws: usize
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::features: usize
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::graph_class: &'a str
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::has_target: bool
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::sharing: &'a str
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::sources: usize
+pub field antecedent::analysis::scope_refusals::JointBayesianRequest::varying: &'a str
+pub field antecedent::analysis::scope_refusals::NestedMarkovRequest::bidirected: alloc::vec::Vec<(usize, usize)>
+pub field antecedent::analysis::scope_refusals::NestedMarkovRequest::directed: alloc::vec::Vec<(usize, usize)>
+pub field antecedent::analysis::scope_refusals::NestedMarkovRequest::regimes: alloc::vec::Vec<antecedent::analysis::scope_refusals::ClosedRegimeCounts>
+pub field antecedent::analysis::scope_refusals::NestedMarkovRequest::variables: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::scope_refusals::SampledRecoveryRequest::fully_observed: usize
+pub field antecedent::analysis::scope_refusals::SampledRecoveryRequest::graph_recoverable: bool
+pub field antecedent::analysis::scope_refusals::SampledRecoveryRequest::partially_observed: usize
+pub field antecedent::analysis::scope_refusals::SampledRecoveryRequest::replicates: usize
+pub field antecedent::analysis::scope_refusals::SampledRecoveryRequest::rows: &'a [(u64, u8, u8, u8)]
 pub field antecedent::analysis::conditional_study_ranking::ConditionalBranch::action: alloc::string::String
 pub field antecedent::analysis::conditional_study_ranking::ConditionalBranch::candidates: alloc::vec::Vec<antecedent::analysis::conditional_study_ranking::ConditionalCandidate>
 pub field antecedent::analysis::conditional_study_ranking::ConditionalCandidate::cost_units: u64
@@ -12249,18 +12249,18 @@ pub field antecedent::analysis::joint_panel::selection::instrumented::Instrument
 pub field antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest::validation: alloc::vec::Vec<antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit>
 pub field antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult::identity: antecedent_core::identity::SemanticDigest
 pub field antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult::procedure: antecedent_design::program_search::selection::procedure::WholeProcedureSelection<antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectedAction>
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRefusal::code: &'static str
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRefusal::detail: &'static str
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRefusal::message: alloc::string::String
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::basis_degree: usize
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::dependence: &'a str
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::draws: usize
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::features: usize
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::graph_class: &'a str
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::has_target: bool
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::sharing: &'a str
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::sources: usize
-pub field antecedent::analysis::learned_joint_closed::LearnedJointRequest::varying: &'a str
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRefusal::code: &'static str
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRefusal::detail: &'static str
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRefusal::message: alloc::string::String
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::basis_degree: usize
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::dependence: &'a str
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::draws: usize
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::features: usize
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::graph_class: &'a str
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::has_target: bool
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::sharing: &'a str
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::sources: usize
+pub field antecedent::analysis::learned_joint_scope::LearnedJointRequest::varying: &'a str
 pub field antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal::code: &'static str
 pub field antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal::detail: alloc::string::String
 pub field antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal::message: alloc::string::String
@@ -14661,7 +14661,7 @@ pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn r
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn verify_data(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn verify_data_declared(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, rows: &antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn with_posterior(self, declaration: &antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
-pub fn <antecedent::analysis::closed_pilots::ClosedPilotRefusal>::fn text(&self) -> alloc::string::String
+pub fn <antecedent::analysis::scope_refusals::ScopeRefusal>::fn text(&self) -> alloc::string::String
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn decision_source(&self, cohort: &antecedent_io_core::cohort_decision::CohortBinding, outcome_units: &str, options: &antecedent_io_core::cohort_decision::CohortOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::cohort_decision::CohortDecisionSource, antecedent_io_core::cohort_decision::CohortRefusal>
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn features(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn from_compact_export(export: &antecedent_io_core::compact_export::CompactExport) -> core::result::Result<Self, antecedent_io_core::cohort_decision::CohortRefusal>
@@ -15086,7 +15086,7 @@ pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn fit_
 pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn identity(&self) -> &antecedent_io::latent_class_artifact::LatentClassIdentity
 pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn report(&self) -> antecedent_io::latent_class_artifact::LatentClassReportWire
 pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn result(&self) -> &antecedent_estimate::latent_class_effects::LatentClassResult
-pub fn <antecedent::analysis::learned_joint_closed::LearnedJointRefusal>::fn text(&self) -> alloc::string::String
+pub fn <antecedent::analysis::learned_joint_scope::LearnedJointRefusal>::fn text(&self) -> alloc::string::String
 pub fn <antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal>::fn from_artifact_error(error: &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError) -> Self
 pub fn <antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal>::fn from_estimation(error: &antecedent_estimate::error::EstimationError) -> Self
 pub fn <antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
@@ -15982,9 +15982,9 @@ pub fn antecedent::analysis::check_interface_composition_with_cyclic(components:
 pub fn antecedent::analysis::check_interface_composition_with_ledger(components: &[antecedent_contract::interface_contract::declaration::InterfaceContract], connections: &[antecedent_contract::interface_contract::composition::ComponentConnection], ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent_contract::interface_contract::composition::ComposedInterfaces, alloc::vec::Vec<antecedent::analysis::InterfaceContractRefusal>>
 pub fn antecedent::analysis::check_interface_connection(producer: &antecedent_contract::interface_contract::declaration::InterfaceContract, produced_port: &str, consumer: &antecedent_contract::interface_contract::declaration::InterfaceContract, consumed_port: &str) -> core::result::Result<antecedent_contract::interface_contract::connection::Connection, alloc::vec::Vec<antecedent::analysis::InterfaceContractRefusal>>
 pub fn antecedent::analysis::claim_from_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationClaim, antecedent::analysis::JointLawPropagationRefusal>
-pub fn antecedent::analysis::closed_pilots::joint_bayesian_transport_refusal(request: &antecedent::analysis::closed_pilots::JointBayesianRequest<'_>) -> antecedent::analysis::closed_pilots::ClosedPilotRefusal
-pub fn antecedent::analysis::closed_pilots::nested_markov_refusal(request: &antecedent::analysis::closed_pilots::NestedMarkovRequest) -> antecedent::analysis::closed_pilots::ClosedPilotRefusal
-pub fn antecedent::analysis::closed_pilots::sampled_recovery_refusal(request: &antecedent::analysis::closed_pilots::SampledRecoveryRequest<'_>) -> antecedent::analysis::closed_pilots::ClosedPilotRefusal
+pub fn antecedent::analysis::scope_refusals::joint_bayesian_transport_refusal(request: &antecedent::analysis::scope_refusals::JointBayesianRequest<'_>) -> antecedent::analysis::scope_refusals::ScopeRefusal
+pub fn antecedent::analysis::scope_refusals::nested_markov_refusal(request: &antecedent::analysis::scope_refusals::NestedMarkovRequest) -> antecedent::analysis::scope_refusals::ScopeRefusal
+pub fn antecedent::analysis::scope_refusals::sampled_recovery_refusal(request: &antecedent::analysis::scope_refusals::SampledRecoveryRequest<'_>) -> antecedent::analysis::scope_refusals::ScopeRefusal
 pub fn antecedent::analysis::cohort_decision::consume_cohort_decision_source(bytes: &[u8], expectation: &antecedent_io_core::cohort_decision::CohortExpectation) -> core::result::Result<antecedent_io_core::cohort_decision::CohortDecisionSource, antecedent_io_core::cohort_decision::CohortRefusal>
 pub fn antecedent::analysis::cohort_decision::evaluate_cohort_decision(contract: &antecedent_design::decision_contract::DecisionContract, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, policy: &antecedent_design::composition_boundary::SupportPolicy) -> core::result::Result<antecedent_design::composition_boundary::SupportedDecision, antecedent_design::composition_boundary::BoundaryError>
 pub fn antecedent::analysis::cohort_decision::fit_cohort_effect(outcome: &[f64], treatment: &[f64], features: &[&[f64]], response: &antecedent_io_core::quantity_wire::ScientificQuantityWire, feature_quantities: &[antecedent_io_core::quantity_wire::ScientificQuantityWire]) -> core::result::Result<antecedent_estimate::cohort_linear_effect::NativeCohortFit, antecedent_estimate::error::EstimationError>
@@ -16126,7 +16126,7 @@ pub fn antecedent::analysis::joint_panel::replay_reference_decomposition(bytes: 
 pub fn antecedent::analysis::joint_panel::replay_reference_decomposition_with_limits(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::ReferenceArtifactLimits) -> core::result::Result<antecedent::analysis::joint_panel::HistoricalReferenceDecomposition, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::analysis::joint_panel::selection::instrumented::replay_instrumented_selection(bytes: &[u8], expected: core::option::Option<&antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult, antecedent_design::program_search::ProgramSearchError>
 pub fn antecedent::analysis::joint_panel::selection::replay_randomized_selection(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::selection::RandomizedSelectionResult, antecedent_design::program_search::ProgramSearchError>
-pub fn antecedent::analysis::learned_joint_closed::learned_joint_transport_refusal(request: &antecedent::analysis::learned_joint_closed::LearnedJointRequest<'_>) -> antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+pub fn antecedent::analysis::learned_joint_scope::learned_joint_transport_refusal(request: &antecedent::analysis::learned_joint_scope::LearnedJointRequest<'_>) -> antecedent::analysis::learned_joint_scope::LearnedJointRefusal
 pub fn antecedent::analysis::matching_posterior_refusal::matching_posterior_refusal(setting: antecedent::analysis::matching_posterior_refusal::MatchingSetting) -> antecedent::CausalError
 pub fn antecedent::analysis::mechanism_discrepancy::consume_mechanism_discrepancy(bytes: &[u8], expected: core::option::Option<&antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity>) -> core::result::Result<antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
 pub fn antecedent::analysis::mechanism_discrepancy::run_mechanism_discrepancy(request: &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyRequestWire, source_ids: &[alloc::string::String], target_ids: &[alloc::string::String]) -> core::result::Result<antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
@@ -16394,7 +16394,7 @@ pub mod antecedent::analysis::categorical_treatment
 pub mod antecedent::analysis::checked_claim_composition
 pub mod antecedent::analysis::choice_inference
 pub mod antecedent::analysis::choice_ranking
-pub mod antecedent::analysis::closed_pilots
+pub mod antecedent::analysis::scope_refusals
 pub mod antecedent::analysis::cohort_decision
 pub mod antecedent::analysis::compact_export
 pub mod antecedent::analysis::compiled_linear
@@ -16434,7 +16434,7 @@ pub mod antecedent::analysis::joint_panel::designs
 pub mod antecedent::analysis::joint_panel::selection
 pub mod antecedent::analysis::joint_panel::selection::instrumented
 pub mod antecedent::analysis::latent_class_effects
-pub mod antecedent::analysis::learned_joint_closed
+pub mod antecedent::analysis::learned_joint_scope
 pub mod antecedent::analysis::matching_posterior_refusal
 pub mod antecedent::analysis::measurement_model
 pub mod antecedent::analysis::mechanism_composition
@@ -16965,11 +16965,11 @@ pub struct antecedent::analysis::categorical_posterior_candidate::PreparedCatego
 pub struct antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate has private fields
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment has private fields
-pub struct antecedent::analysis::closed_pilots::ClosedPilotRefusal
-pub struct antecedent::analysis::closed_pilots::ClosedRegimeCounts
-pub struct antecedent::analysis::closed_pilots::JointBayesianRequest<'a>
-pub struct antecedent::analysis::closed_pilots::NestedMarkovRequest
-pub struct antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a>
+pub struct antecedent::analysis::scope_refusals::ScopeRefusal
+pub struct antecedent::analysis::scope_refusals::ClosedRegimeCounts
+pub struct antecedent::analysis::scope_refusals::JointBayesianRequest<'a>
+pub struct antecedent::analysis::scope_refusals::NestedMarkovRequest
+pub struct antecedent::analysis::scope_refusals::SampledRecoveryRequest<'a>
 pub struct antecedent::analysis::cohort_decision::FittedEffectModel
 pub struct antecedent::analysis::cohort_decision::FittedEffectModel has private fields
 pub struct antecedent::analysis::compiled_linear::CompiledLinearProgram
@@ -17211,8 +17211,8 @@ pub struct antecedent::analysis::joint_panel::selection::instrumented::Instrumen
 pub struct antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult has private fields
 pub struct antecedent::analysis::latent_class_effects::LatentClassEffects
 pub struct antecedent::analysis::latent_class_effects::LatentClassEffects has private fields
-pub struct antecedent::analysis::learned_joint_closed::LearnedJointRefusal
-pub struct antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
+pub struct antecedent::analysis::learned_joint_scope::LearnedJointRefusal
+pub struct antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a>
 pub struct antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 pub struct antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
 pub struct antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift

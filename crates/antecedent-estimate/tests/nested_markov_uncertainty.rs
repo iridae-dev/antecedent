@@ -134,7 +134,7 @@ fn nested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellatio
         nested_markov_fisher_internal(&graph, &FitOptions::default(), 0.95, &ctx)
             .unwrap_err()
             .to_string()
-            .contains("outside_binary_pilot")
+            .contains("outside_binary_scope")
     );
     ctx.cancellation.cancel();
     assert!(

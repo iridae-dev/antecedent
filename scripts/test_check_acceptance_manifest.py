@@ -178,7 +178,7 @@ class ClosureTest(unittest.TestCase):
             '#[test]\n#[ignore = "calibration"]\nfn design() {\n    run_design();\n}\n',
         )
         self.assertTrue(any("#[ignore]d" in p for p in self.problems(ignored, "big")))
-        self.assertEqual(self.problems(ignored, "design", kind="calibrated_interval"), [])
+        self.assertEqual(self.problems(ignored, "design", kind="replicated_interval"), [])
         self.put(manifest.SCALE_GATE, "#!/usr/bin/env bash\n")
         self.put("scripts/gate_release_candidate.sh", f"bash {manifest.SCALE_GATE}\n")
         self.assertEqual(self.problems(ignored, "big"), [])
@@ -224,7 +224,7 @@ class ClosureTest(unittest.TestCase):
 
 class StatisticalCalibrationKindTest(unittest.TestCase):
     def test_statistical_test_requires_explicit_type_i_and_inapplicable_width(self) -> None:
-        target = case(kind="calibrated_statistical_test")
+        target = case(kind="replicated_statistical_test")
         target["configuration"]["calibration_target"] = "conditional_null_rejection_rate"
         target["targets"].update(
             nominal_coverage=0.95,
@@ -248,7 +248,7 @@ class StatisticalCalibrationKindTest(unittest.TestCase):
             any("explicit conditional Type-I" in p for p in manifest.case_problems(target))
         )
         target["targets"]["type_i_alpha"] = 0.05
-        target["expected"]["kind"] = "calibrated_interval"
+        target["expected"]["kind"] = "replicated_interval"
         self.assertTrue(any("precision target" in p for p in manifest.case_problems(target)))
 
 

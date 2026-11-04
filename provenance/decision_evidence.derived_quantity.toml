@@ -10,7 +10,7 @@ papers = [
 ]
 
 implementation_deviations = [
- "The delta method is applied to a contrast of functions of the joint arm-mean vector. Its variance uses the retained full covariance, including cross-arm covariance when present; independent-arm designs are a special case. The paper states the asymptotic result for an estimator vector; no finite-sample coverage of the resulting interval is claimed and calibration is reported as unmeasured.",
+ "The delta method is applied to a contrast of functions of the joint arm-mean vector. Its variance uses the retained full covariance, including cross-arm covariance when present; independent-arm designs are a special case. The paper states the asymptotic result for an estimator vector; no finite-sample coverage of the resulting interval is claimed and calibration is reported as not measured.",
  "The assumption range of a multilinear expression is its extreme over the vertices of the declared box (exact); for an expression that reads an input more than once the range is an interval-arithmetic outer enclosure, labeled inexact. Neither is a probability law, and no sampling interval is composed into it.",
  "Nonlinear spillover sensitivity requires separate declared bounds on the bias of each arm mean. A bound on a component contrast alone is insufficient for a nonlinear function of arm means.",
  "Centered fixed-coefficient pretreatment adjustment preserves each arm mean on the original scale; the covariate and coefficient must be fixed before assignment/outcomes as appropriate.",

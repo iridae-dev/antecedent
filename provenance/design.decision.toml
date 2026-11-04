@@ -19,7 +19,7 @@ papers = [
 ]
 
 implementation_deviations = [
- "The typed Python DecisionRegret declaration exposes the existing native utility callback and preposterior model through rank_designs; costs are not converted/subtracted and callable utilities have no portable artifact. Original callback failures retain their original exception cause. Native model precision remains conditional and unmeasured.",
+ "The typed Python DecisionRegret declaration exposes the existing native utility callback and preposterior model through rank_designs; costs are not converted/subtracted and callable utilities have no portable artifact. Original callback failures retain their original exception cause. Native model precision remains conditional and not measured.",
 ]
 
 upstream_implementations_observed = []
@@ -49,7 +49,7 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "One hundred and twenty random problems of 1 to 7 dyadic draws and 2 to 4 affine actions (utility offsets up to 1e6, exact ties between actions, 40 with a draw-by-draw chance constraint including satisfaction exactly at the threshold, 8 with no admissible action, 40 weighted with weights from 1 to 2^-20) are compared at 1e-9 absolute plus 1e-12 relative on the Bayes action, its expected utility, the regret, EVPI and the binomial EVSI at 1, 2, 5, 12 and 60 trials. Chance constraints are not combined with weights (the product refuses that combination). The Monte Carlo EVSI for continuous signals, trial counts above 60, thousands of draws and non-affine utilities are not compared with a reference; the existing value_of_information tests cover a quadrature check of the Gaussian-signal sampler. The constraint tolerance of 1e-12 is the product's choice. The cited works were not retrieved."
 sources = ["https://doi.org/10.1177/0272989X04263162"]
 findings_resolved = ["No defect found in the routes exercised: the Bayes action (lowest index on ties), expected utility, regret, EVPI and binomial EVSI agree with the exact-rational reference on all 120 problems, the regret and EVSI are unchanged by a common utility offset up to 1e6, an empty admissible set is a typed refusal on both entry points, and constraint satisfaction exactly at the threshold admits the action."]
-record_sha256 = "9950b993e08dde7880df26262c91d11944ace1c93cc589762844531da41bbbd2"
+record_sha256 = "2882304cbd2d8b71fe32c766165e979931859decde754e4d25396a19a9f855bc"
 
 [[method_review.artifacts]]
 role = "implementation"

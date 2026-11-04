@@ -15,7 +15,7 @@ papers = [
 implementation_deviations = [
  "Within-variance uncertainty is a distribution-free ratio-of-means linearization, not the normal-theory chi-square interval.",
  "Between-variance may be negative and is reported raw; ICC is NaN when between+within is not positive.",
- "No interval; coverage is unmeasured.",
+ "No interval; coverage is not measured.",
 ]
 
 upstream_implementations_observed = []
@@ -35,7 +35,7 @@ redistribution = "The reference script, its frozen output and the test are repos
 limitations = "The book chapters were not re-read in this review (nothing downloaded, no local copy), so the regression-calibration and variance-component statements rest on the record and the code comments. The reference is one study of 150 rows with mixed replicate counts of one to three, one covariate and a coarse replicate study of 20 units with sizes one to five; the classical additive error model with a linear outcome, a single error-prone regressor and error-free covariates is the only case, and non-Gaussian errors, heteroscedastic errors and non-linear outcome models are not exercised. The estimate-variance part of the covariance is compared at 1e-7 because the reference differentiates the corrected solve numerically. Coverage of the resulting intervals is not measured here and no interval is claimed. Calibration remains deferred."
 sources = ["https://doi.org/10.1002/9780470316856", "https://doi.org/10.1201/9781420010138", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["Within and between variance, n0, the intraclass correlation, the grand mean, the degrees of freedom, the variance of the within variance and the per-unit influence of a 20-unit unbalanced study (group sizes one to five, a single-replicate unit included) agree with the 60-digit reference to 1e-10 or better. No defect was found and no product code changed."]
-record_sha256 = "19efe5ae6da3866e99304973f63b3363c88ae2a96c414d9685943f4dff08c173"
+record_sha256 = "f3a50fd5d647c6758c978afbaf527424eb05c44557d2fce4f58064c7f5782cec"
 
 [[method_review.artifacts]]
 role = "implementation"

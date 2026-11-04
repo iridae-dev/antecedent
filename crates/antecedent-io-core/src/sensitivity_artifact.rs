@@ -498,7 +498,7 @@ pub enum SamplingStatus {
         detail: String,
     },
     /// A sampling interval is reported next to, never inside, the assumption range.
-    Reported(SamplingInterval),
+    Reported(Box<SamplingInterval>),
 }
 
 /// The three uncertainty kinds, kept distinct.
@@ -1347,7 +1347,7 @@ impl JointSamplingView {
         let at = |zero: f64, end: f64| -> f64 {
             if scale == 0.0 {
                 zero
-            } else if scale == 1.0 {
+            } else if scale.to_bits() == 1.0_f64.to_bits() {
                 end
             } else {
                 zero + scale * (end - zero)
@@ -1502,7 +1502,7 @@ impl SensitivityArtifact {
                     sampling_lower.push(low);
                     sampling_upper.push(high);
                 }
-                SamplingStatus::Reported(SamplingInterval {
+                SamplingStatus::Reported(Box::new(SamplingInterval {
                     quantity: effect_wire.variable_id.clone(),
                     level: view.level,
                     method: view.method.clone(),
@@ -1510,7 +1510,7 @@ impl SensitivityArtifact {
                     calibration: view.calibration.clone(),
                     lower: sampling_lower,
                     upper: sampling_upper,
-                })
+                }))
             }
             None => SamplingStatus::Withheld {
                 reason_code: result.withheld_reason_code.clone(),

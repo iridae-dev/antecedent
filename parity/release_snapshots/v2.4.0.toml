@@ -865,7 +865,7 @@ bounds = {}
 routes = [{ name = "antecedent_estimate.adaptive_inference.group_sequential_decision.stagewise_adjusted_inference", stage = "uncertainty", status = "closed", reason_code = "not_supported" }, { name = "antecedent.adaptive_inference.group_sequential.repeated_interval", stage = "uncertainty", status = "supported" }]
 
 [[record]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 status = "supported"
 consumer_question = "Can an interval, credible interval, error rate or coverage statement be reported for an adaptive procedure's result?"
 graph_class = "As the adaptive_inference records."
@@ -1118,7 +1118,7 @@ bounds = { max_portable_receipts = 250000, max_structure_items = 65536 }
 routes = []
 
 [[record]]
-id = "discovery.selective_reuse_guarantees_closed"
+id = "discovery.selective_reuse_unsupported_guarantees"
 status = "not_supported"
 consumer_question = "Can a per-dataset recovery or error-control statement, an interval for an estimate computed on the rows discovery used, score-search reuse, multi-population discovery or transport of a discovered structure be offered from selective discovery?"
 graph_class = "As discovery.selective_reuse."

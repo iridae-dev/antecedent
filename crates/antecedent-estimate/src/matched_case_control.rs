@@ -157,9 +157,7 @@ impl ConditionalOddsRatio {
     /// `(0, 1)` or a non-positive information.
     #[must_use]
     pub fn log_odds_ratio_interval(&self, level: f64) -> Option<(f64, f64)> {
-        if !(level > 0.0 && level < 1.0)
-            || !(self.information.is_finite() && self.information > 0.0)
-        {
+        if !(level > 0.0 && level < 1.0 && self.information.is_finite() && self.information > 0.0) {
             return None;
         }
         let half =

@@ -1,8 +1,8 @@
 //! The Dirichlet pseudo-count update behind the decision, inverse and marginal-structural
 //! posterior-mean routes, against closed forms derived in this file.
 //!
-//! Conjugacy: a Dirichlet(c, ..., c) prior over `k` atoms updated by weights `w` is
-//! Dirichlet(w_1 + c, ..., w_k + c), whose mean is `(w_i + c) / (sum w + k c)`. The expected
+//! Conjugacy: a `Dirichlet(c, ..., c)` prior over `k` atoms updated by weights `w` is
+//! `Dirichlet(w_1 + c, ..., w_k + c)`, whose mean is `(w_i + c) / (sum w + k c)`. The expected
 //! values below are built from that formula by hand for the two-atom law `{0: w_0, 2: w_1}`
 //! (functionals of the law written out per atom) and for the two-stratum marginal structural
 //! model (stratum masses and arm laws each updated as their own Dirichlet), at prior
@@ -150,12 +150,18 @@ fn decision_functionals_of_the_dirichlet_posterior_mean_match_the_conjugate_upda
         close(functional(&mean, DecisionFunctional::Expectation), expectation, &label);
         close(functional(&mean, DecisionFunctional::Variance), variance, &label);
         close(
-            functional(&mean, DecisionFunctional::Probability { threshold: 1.0, tail: Tail::Upper }),
+            functional(
+                &mean,
+                DecisionFunctional::Probability { threshold: 1.0, tail: Tail::Upper },
+            ),
             m2,
             &label,
         );
         close(
-            functional(&mean, DecisionFunctional::Probability { threshold: 0.0, tail: Tail::Lower }),
+            functional(
+                &mean,
+                DecisionFunctional::Probability { threshold: 0.0, tail: Tail::Lower },
+            ),
             m0,
             &label,
         );
@@ -207,39 +213,19 @@ fn inverse_boundary_tracks_the_posterior_mean(namespace: DirichletNamespace, cou
         let plug_in = 2.0 * counts[1] / total;
         // The prior must move the mean for the check to bite.
         assert!((expected - plug_in).abs() > 0.03);
-        let (below, status_below, _) = inverse_report(
-            namespace,
-            &counts,
-            concentration,
-            expected - 1e-6,
-            Comparison::AtLeast,
-        );
+        let (below, status_below, _) =
+            inverse_report(namespace, &counts, concentration, expected - 1e-6, Comparison::AtLeast);
         close(below, expected, "forward value of the posterior mean law");
         assert_eq!(status_below, FeasibilityStatus::Feasible, "target just under the mean");
-        let (_, status_above, _) = inverse_report(
-            namespace,
-            &counts,
-            concentration,
-            expected + 1e-6,
-            Comparison::AtLeast,
-        );
+        let (_, status_above, _) =
+            inverse_report(namespace, &counts, concentration, expected + 1e-6, Comparison::AtLeast);
         assert_eq!(status_above, FeasibilityStatus::Infeasible, "target just over the mean");
         // The mirror inequality flips with it.
-        let (_, at_most_below, _) = inverse_report(
-            namespace,
-            &counts,
-            concentration,
-            expected - 1e-6,
-            Comparison::AtMost,
-        );
+        let (_, at_most_below, _) =
+            inverse_report(namespace, &counts, concentration, expected - 1e-6, Comparison::AtMost);
         assert_eq!(at_most_below, FeasibilityStatus::Infeasible);
-        let (_, at_most_above, _) = inverse_report(
-            namespace,
-            &counts,
-            concentration,
-            expected + 1e-6,
-            Comparison::AtMost,
-        );
+        let (_, at_most_above, _) =
+            inverse_report(namespace, &counts, concentration, expected + 1e-6, Comparison::AtMost);
         assert_eq!(at_most_above, FeasibilityStatus::Feasible);
     }
 }
@@ -315,7 +301,12 @@ fn binary(rate: f64) -> MsmOutcomeLaw {
     MsmOutcomeLaw { values: vec![0.0, 1.0], probabilities: vec![1.0 - rate, rate] }
 }
 
-fn stratum(mass: f64, propensity: f64, treated: MsmOutcomeLaw, control: MsmOutcomeLaw) -> MsmStratum {
+fn stratum(
+    mass: f64,
+    propensity: f64,
+    treated: MsmOutcomeLaw,
+    control: MsmOutcomeLaw,
+) -> MsmStratum {
     MsmStratum { mass, propensity, treated, control }
 }
 
@@ -340,22 +331,15 @@ fn msm_posterior_is_the_identified_ate_of_the_conjugate_updated_laws() {
     // matter: masses (0.2, 0.8) become (0.2 + c, 0.8 + c) / (1 + 2 c); a binary arm with rate r
     // becomes rate (r + c) / (1 + 2 c); the {0, 1, 2} treated law (1/5, 0, 4/5) keeps its zero
     // and has two free cells.
-    let three_atom = |probabilities: Vec<f64>| MsmOutcomeLaw {
-        values: vec![0.0, 1.0, 2.0],
-        probabilities,
-    };
+    let three_atom =
+        |probabilities: Vec<f64>| MsmOutcomeLaw { values: vec![0.0, 1.0, 2.0], probabilities };
     let strata = vec![
         stratum(0.2, 0.5, binary(0.8), binary(0.4)),
         stratum(0.8, 0.25, binary(0.5), binary(0.3)),
     ];
     let with_zero = vec![
         stratum(0.2, 0.5, binary(0.8), binary(0.4)),
-        stratum(
-            0.8,
-            0.25,
-            three_atom(vec![0.2, 0.0, 0.8]),
-            three_atom(vec![0.25, 0.5, 0.25]),
-        ),
+        stratum(0.8, 0.25, three_atom(vec![0.2, 0.0, 0.8]), three_atom(vec![0.25, 0.5, 0.25])),
     ];
     for concentration in [0.5, 1.0, 3.0] {
         let request = PosteriorRequest::IndependentNormal { scale: concentration };
@@ -373,8 +357,10 @@ fn msm_posterior_is_the_identified_ate_of_the_conjugate_updated_laws() {
             let produced = msm_dirichlet_posterior(case, request).unwrap();
             close(produced, ate, &format!("c = {concentration}"));
             // The plug-in identified ATE is different: the update must have moved it.
-            let plug_in: f64 =
-                case.iter().map(|s| s.mass * (expected_value(&s.treated) - expected_value(&s.control))).sum();
+            let plug_in: f64 = case
+                .iter()
+                .map(|s| s.mass * (expected_value(&s.treated) - expected_value(&s.control)))
+                .sum();
             assert!((produced - plug_in).abs() > 1e-3, "c = {concentration}: {produced} {plug_in}");
         }
     }

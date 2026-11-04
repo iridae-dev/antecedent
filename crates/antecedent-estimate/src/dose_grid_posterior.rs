@@ -824,11 +824,9 @@ impl CompiledDoseGridPosterior {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<DoseGridPosterior, EstimationError> {
         use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
+        use antecedent_core::reason_details::dose_grid;
         if ctx.cancellation.is_cancelled() {
-            return Err(execution_refusal(
-                antecedent_core::reason_details::dose_grid::CANCELLED,
-                "execution cancelled",
-            ));
+            return Err(execution_refusal(dose_grid::CANCELLED, "execution cancelled"));
         }
         self.source_retention.observe_current();
         self.grid_retention.observe_current();
@@ -847,32 +845,24 @@ impl CompiledDoseGridPosterior {
             .and_then(|n| n.checked_mul(8))
             .and_then(|n| n.checked_add(self.output_bytes(points.len()).ok()?))
             .ok_or_else(|| {
-                execution_refusal(
-                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
-                    "execution byte estimate overflow",
-                )
+                execution_refusal(dose_grid::RESOURCE_REFUSED, "execution byte estimate overflow")
             })?;
         if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
             return Err(execution_refusal(
-                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                dose_grid::RESOURCE_REFUSED,
                 "execution exceeds memory limit",
             ));
         }
-        let reservation = std::sync::Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| {
-            execution_refusal(
-                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
-                &e.to_string(),
-            )
-        })?);
+        let reservation = std::sync::Arc::new(
+            ctx.acquire_admission(0, bytes)
+                .map_err(|e| execution_refusal(dose_grid::RESOURCE_REFUSED, &e.to_string()))?,
+        );
         antecedent_core::numerical_admission::with_context(ctx, || {
             antecedent_core::numerical_admission::with_reservation(
                 std::sync::Arc::clone(&reservation),
                 || {
                     let mut frozen = self.basis.lock().map_err(|_| {
-                        execution_refusal(
-                            antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
-                            "frozen basis lock poisoned",
-                        )
+                        execution_refusal(dose_grid::RESOURCE_REFUSED, "frozen basis lock poisoned")
                     })?;
                     let posterior = if let Some((_, fit)) =
                         frozen.as_ref().filter(|(kernel, _)| *kernel == ctx.kernel_policy)
@@ -892,15 +882,12 @@ impl CompiledDoseGridPosterior {
                             .checked_mul(8)
                             .ok_or_else(|| {
                                 execution_refusal(
-                                    antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+                                    dose_grid::RESOURCE_REFUSED,
                                     "fit retention overflow",
                                 )
                             })?;
                         let retention = reservation.acquire_child(0, bytes).map_err(|e| {
-                            execution_refusal(
-                                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
-                                &e.to_string(),
-                            )
+                            execution_refusal(dose_grid::RESOURCE_REFUSED, &e.to_string())
                         })?;
                         record_physical(PhysicalEvent::RetainedBytes, bytes);
                         let posterior =
@@ -912,10 +899,7 @@ impl CompiledDoseGridPosterior {
                     let output_bytes = self.output_bytes(points.len())?;
                     let output_retention =
                         reservation.acquire_child(0, output_bytes).map_err(|e| {
-                            execution_refusal(
-                                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
-                                &e.to_string(),
-                            )
+                            execution_refusal(dose_grid::RESOURCE_REFUSED, &e.to_string())
                         })?;
                     let mut result = evaluate_frozen_basis(&request, points, &posterior.posterior)?;
                     result.retention =
@@ -923,10 +907,7 @@ impl CompiledDoseGridPosterior {
                     record_physical(PhysicalEvent::RetainedBytes, output_bytes);
                     record_physical(PhysicalEvent::RetainedFull, 1);
                     if ctx.cancellation.is_cancelled() {
-                        return Err(execution_refusal(
-                            antecedent_core::reason_details::dose_grid::CANCELLED,
-                            "execution cancelled",
-                        ));
+                        return Err(execution_refusal(dose_grid::CANCELLED, "execution cancelled"));
                     }
                     Ok(result)
                 },

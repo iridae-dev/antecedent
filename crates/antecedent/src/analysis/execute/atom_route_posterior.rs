@@ -68,7 +68,7 @@ use crate::result::{PrimaryEstimate, ResultPayload, StructuralAggregationPolicy}
 pub(crate) const ATOM_ROUTE_POSTERIOR_CODE: &str = "estimate.graph_posterior.atom_route";
 
 /// Stable code of the disclosure that states why a mixture publishes no aggregate interval.
-const UNCERTAINTY_WITHHELD_CODE: &str = "estimate.graph_posterior.no_uncertainty_method";
+const NO_UNCERTAINTY_METHOD_CODE: &str = "estimate.graph_posterior.no_uncertainty_method";
 
 /// Method tag every posterior atom's estimand carries: the atoms answer one target by
 /// structure-specific identifications, so the estimand identity is the target's.
@@ -966,7 +966,7 @@ impl super::Study {
             } else {
                 diagnostics.push(graph_posterior_withheld_diagnostic());
                 diagnostics.push(Diagnostic::new(
-                    UNCERTAINTY_WITHHELD_CODE,
+                    NO_UNCERTAINTY_METHOD_CODE,
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Warning,
                     "no aggregate posterior: the atoms' draws differ in count or publish no \
@@ -987,7 +987,7 @@ impl super::Study {
                 if replicates.se.is_some() {
                     ATOM_ROUTE_POSTERIOR_CODE
                 } else {
-                    UNCERTAINTY_WITHHELD_CODE
+                    NO_UNCERTAINTY_METHOD_CODE
                 },
                 DiagnosticKind::Scientific,
                 if replicates.se.is_some() {
@@ -1113,7 +1113,7 @@ impl super::Study {
                                     ));
                                 } else {
                                     diagnostics.push(Diagnostic::new(
-                                        UNCERTAINTY_WITHHELD_CODE,
+                                        NO_UNCERTAINTY_METHOD_CODE,
                                         DiagnosticKind::Scientific,
                                         DiagnosticSeverity::Warning,
                                         "no aggregate credible interval: the atoms' response \
@@ -1218,7 +1218,7 @@ impl super::Study {
         );
         if matches!(policy, StructuralAggregationPolicy::GraphDependentAtoms) {
             diagnostics.push(Diagnostic::new(
-                UNCERTAINTY_WITHHELD_CODE,
+                NO_UNCERTAINTY_METHOD_CODE,
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 "the atoms did not agree on what they identify, so no aggregate value is \

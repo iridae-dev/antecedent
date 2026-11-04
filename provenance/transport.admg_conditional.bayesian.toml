@@ -10,7 +10,7 @@ papers = []
 implementation_deviations = [
   "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not TemporalAdmg support. No interval.",
   "Scope, not a withheld interval: the conditional question is answered on supplied exact laws, so the point has no sampling uncertainty to report. Counted laws on the conditional route are refused (not_supported, admg_transport.counted_laws_unsupported) because no conditional-formula sampling construction (delta or bootstrap of the checked conditional formula over counted tables) is implemented; an interval there would need that construction and its own independent check, so the route reports exact-law points only.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -26,7 +26,7 @@ rationale = "Dirichlet posterior mean of the supplied finite law (AdmgConditiona
 no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
 covered_by = ["estimate.posterior_mean_kernel"]
 derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "98adfbb5a67ae4196db9b21f9d5868be4fde9655ad3e31ba3bad615c580bce23"
+record_sha256 = "2fe1ef52c2db79b8474d54177e4fbc7daf59734809d203529fe7aa7d6450b704"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

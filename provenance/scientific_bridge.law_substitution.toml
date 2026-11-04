@@ -27,7 +27,7 @@ test_sources = [
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
+kind = "unsupported_variant"
 rationale = "A closed semantic boundary: a mean, a predictive law, a posterior, an identified set and a joint outcome law answer different questions and the bridge refuses to interconvert them."
 no_independent_algorithm = "kind.rs enumerates the value kinds and claim.rs refuses a held kind that differs from the requested one (bridge_substitution_refused) or is not carried; nothing is converted and no estimator is implemented."
 record_sha256 = "19f3a40029594e48118333f0a7fd137a0079984abeda314ff105b81d3a011d1d"

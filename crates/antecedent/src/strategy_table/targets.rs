@@ -740,6 +740,10 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
 /// - Mediation estimators other than the temporal ones refuse a temporal DAG.
 /// - Everything else (structural models, transport, interference, graphless designs,
 ///   `functional.distribution`) is not graph-class scoped.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one match arm per estimator family; the scoping table reads as one declaration"
+)]
 pub(super) const fn estimator_target(id: EstimatorId) -> EstimatorTarget {
     let mut target = declared(id);
     match id {
@@ -939,16 +943,19 @@ impl From<ScientificRefusal> for CausalError {
 /// distinct messages is bounded by the estimator, query-kind and design-shape combinations.
 fn intern(text: String) -> &'static str {
     static INTERNED: OnceLock<Mutex<BTreeSet<&'static str>>> = OnceLock::new();
-    let mut set = INTERNED.get_or_init(Mutex::default).lock().unwrap_or_else(|p| p.into_inner());
+    let mut set = INTERNED
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(found) = set.get(text.as_str()) {
-        return *found;
+        return found;
     }
     let leaked: &'static str = Box::leak(text.into_boxed_str());
     set.insert(leaked);
     leaked
 }
 
-fn mismatch(estimator: EstimatorId, detail: String) -> ScientificRefusal {
+fn mismatch(estimator: EstimatorId, detail: &str) -> ScientificRefusal {
     ScientificRefusal {
         code: "strategy_incompatible",
         detail: format!("estimator {} {detail}", estimator.as_str()),
@@ -1083,7 +1090,7 @@ fn design_mismatch(
 ) -> ScientificRefusal {
     mismatch(
         estimator,
-        format!(
+        &format!(
             "does not estimate this design: the query is read as {read}; it answers {allowed:?}"
         ),
     )
@@ -1231,7 +1238,7 @@ fn check_graph(
     if !scope.allows(class) {
         return Err(mismatch(
             estimator,
-            format!(
+            &format!(
                 "does not run on a {} graph for a {kind:?} query (it runs on: {scope:?})",
                 class.as_str()
             ),
@@ -1245,7 +1252,7 @@ fn check_graph(
     {
         return Err(mismatch(
             estimator,
-            format!(
+            &format!(
                 "does not run on a graph posterior over {} graphs for a {kind:?} query: the \
                  posterior is evaluated per atom by another estimator, or the estimator needs \
                  one fixed graph",
@@ -1256,7 +1263,7 @@ fn check_graph(
     if site.tier && target.tier_not.contains(&kind) {
         return Err(mismatch(
             estimator,
-            format!("does not run a {kind:?} query on a tier background"),
+            &format!("does not run a {kind:?} query on a tier background"),
         ));
     }
     if !site.posterior
@@ -1267,7 +1274,7 @@ fn check_graph(
     {
         return Err(mismatch(
             estimator,
-            format!(
+            &format!(
                 "runs a {kind:?} query on a {} graph only over a graph posterior (a fixed \
                  structure is taken by another estimator)",
                 class.as_str()
@@ -1286,7 +1293,7 @@ fn check_graph(
     if adjustment_route && !runs_on_route(estimator, site) {
         return Err(mismatch(
             estimator,
-            format!(
+            &format!(
                 "cannot consume the estimand identification returns on a {} graph \
                  (identification route {:?})",
                 class.as_str(),
@@ -1311,7 +1318,7 @@ fn check(
     if !target.query_kinds.contains(&kind) {
         return Err(mismatch(
             estimator,
-            format!(
+            &format!(
                 "does not estimate this query: it is a {kind:?} query and the estimator \
                  estimates {:?}",
                 target.query_kinds
@@ -1327,7 +1334,7 @@ fn check(
             {
                 return Err(mismatch(
                     estimator,
-                    format!(
+                    &format!(
                         "does not take effect modifiers on a {} graph{}: it adjusts for a \
                          named modifier on a fixed temporal DAG only",
                         site.class.as_str(),
@@ -1349,8 +1356,7 @@ fn check(
                 return Err(mismatch(
                     estimator,
                     "does not run a level or joint response over a graph posterior of ADMG \
-                     atoms: each atom is evaluated by functional.effect"
-                        .to_owned(),
+                     atoms: each atom is evaluated by functional.effect",
                 ));
             }
         }
@@ -1539,7 +1545,7 @@ pub fn estimator_validation(
     {
         return Err(mismatch(
             estimator,
-            format!(
+            &format!(
                 "does not implement the {suite:?} validation suite: its route reads no refuter \
                  or predictive check, so the suite is not implemented for this estimator; run \
                  it with the `none` suite"

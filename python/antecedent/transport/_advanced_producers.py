@@ -1,9 +1,9 @@
 """Advanced measured scalar producers and explicit internal candidate lifecycles.
 
-A standard producer reports measured inference only when its original native source
-and every actual scalar basis resolve to current attesting evidence inside the
-finite validation protocol. Internal candidate artifacts retain their unmeasured
-standing. Other pilot routes retain their own refusal boundaries.
+A standard producer reports a measured interval whose calibration status is resolved from
+the coverage records of its original native source and every actual scalar basis. Internal
+candidate artifacts keep the calibration status not_measured. Other routes retain their own
+refusal boundaries.
 """
 
 from __future__ import annotations
@@ -17,10 +17,10 @@ from antecedent import _reason_details
 
 from .. import _native
 from .._measured_inference import MeasuredInference
-from .._native import binary_nested_markov_closed as _binary_nested_markov_closed
-from .._native import joint_bayesian_transport_closed as _joint_bayesian_transport_closed
+from .._native import binary_nested_markov_scope as _binary_nested_markov_scope
+from .._native import joint_bayesian_transport_scope as _joint_bayesian_transport_scope
 from .._native import (
-    sampled_observation_recovery_closed as _sampled_observation_recovery_closed,
+    sampled_observation_recovery_scope as _sampled_observation_recovery_scope,
 )
 from .._validate import names
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -167,7 +167,7 @@ def joint_bayesian_transport(
             max_unsupported_mass=max_unsupported_mass,
             conflict_z_threshold=conflict_z_threshold,
         )
-    _joint_bayesian_transport_closed(
+    _joint_bayesian_transport_scope(
         declared,
         dependence,
         varying,
@@ -193,7 +193,7 @@ def _regime_table(
         raise CausalTypeError("a regime needs counts, a sequence of cell counts")
     if len(counts) != 16:
         raise CausalUnsupportedError(
-            "nested_markov.outside_binary_pilot: the table is not the 2x2x2x2 binary cell table",
+            "nested_markov.outside_binary_scope: the table is not the 2x2x2x2 binary cell table",
             reason_code="route_not_supported",
         )
     cells: list[float] = []
@@ -218,7 +218,7 @@ def _regime_table(
         )
     if levels is not None and len(levels) != 4:
         raise CausalUnsupportedError(
-            "nested_markov.outside_binary_pilot: a variable domain is not binary",
+            "nested_markov.outside_binary_scope: a variable domain is not binary",
             reason_code="route_not_supported",
         )
     level_list = [2] * len(names) if levels is None else [_non_negative("level", v) for v in levels]
@@ -263,13 +263,13 @@ def _nested_arguments(
         )
     if len(regimes) != 1:
         raise CausalUnsupportedError(
-            "nested_markov.outside_binary_pilot: the pilot needs exactly the observational regime",
+            "nested_markov.outside_binary_scope: the route needs exactly the observational regime",
             reason_code="route_not_supported",
         )
     names = list(graph.nodes())
     if len(names) > 6:
         raise CausalUnsupportedError(
-            "nested_markov.outside_binary_pilot: more than 6 observed variables",
+            "nested_markov.outside_binary_scope: more than 6 observed variables",
             reason_code="route_not_supported",
         )
     index = {name: position for position, name in enumerate(names)}
@@ -296,7 +296,7 @@ def binary_nested_markov(
     prior: NestedMarkovPrior | None = None,
     execution: Execution | None = None,
 ) -> MeasuredInference:
-    """Measured mean0, mean1 and contrast95 under the fixed full-11D posterior pilot.
+    """Measured mean0, mean1 and contrast95 under the fixed full-11D posterior route.
 
     Native execution checks the frozen prior/sampler/model/count protocol and resolves
     each scalar's original measured basis. Evidence concerns the finite declared
@@ -378,7 +378,7 @@ def _nested_posterior_entry(
             if measured
             else NestedMarkovPosteriorCandidate._from_native(native)
         )
-    _binary_nested_markov_closed(*arguments)
+    _binary_nested_markov_scope(*arguments)
     raise _unavailable(
         "antecedent.transport.binary_nested_markov", _reason_details.nested_markov.PRODUCER_MISSING
     )
@@ -484,7 +484,7 @@ def _nested_fisher_entry(
             if measured
             else NestedFisherCandidate._from_native(native)
         )
-    _binary_nested_markov_closed(*arguments)
+    _binary_nested_markov_scope(*arguments)
     raise _unavailable(
         "antecedent.transport.binary_nested_markov_fisher_interval",
         _reason_details.nested_markov.PRODUCER_MISSING,
@@ -571,7 +571,7 @@ def _sampled_recovery_entry(
     if seed > 2**64 - 1 or replicates > 2**64 - 1:
         raise CausalValueError("seed and replicates must fit unsigned 64-bit integers")
     checked = [_row(row) for row in rows]
-    _sampled_observation_recovery_closed(
+    _sampled_observation_recovery_scope(
         outcome == "recovered",
         len(query.partially_observed),
         len(query.fully_observed),

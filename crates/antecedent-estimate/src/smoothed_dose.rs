@@ -212,7 +212,7 @@ pub const SMOOTHED_DOSE_BOUNDS: SmoothedDoseBounds = SmoothedDoseBounds {
 /// Point-only status: no interval was requested.
 pub(crate) const DOSE_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub(crate) const DOSE_WITHHELD: &str = "too_few_replicates";
+pub(crate) const DOSE_TOO_FEW_REPLICATES: &str = "too_few_replicates";
 /// A bootstrap interval was requested; `smoothed_dose_interval_internal` forms it and its
 /// calibration slot carries the status.
 pub(crate) const DOSE_BOOTSTRAP_INTERVAL: &str = "bootstrap_interval_requested";
@@ -412,7 +412,7 @@ impl SmoothedDoseInput {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SmoothedDoseUncertainty {
-    /// [`DOSE_POINT_ONLY`], [`DOSE_BOOTSTRAP_INTERVAL`] or [`DOSE_WITHHELD`] (too few
+    /// [`DOSE_POINT_ONLY`], [`DOSE_BOOTSTRAP_INTERVAL`] or [`DOSE_TOO_FEW_REPLICATES`] (too few
     /// replicates to form an interval).
     pub status: String,
     /// `no_interval_requested`, `joint_outer_bootstrap` or `estimator_inference_mismatch`.
@@ -431,7 +431,7 @@ impl SmoothedDoseUncertainty {
             (DOSE_POINT_ONLY, "no_interval_requested", None)
         } else if bootstrap < SMOOTHED_DOSE_MIN_BOOTSTRAP {
             (
-                DOSE_WITHHELD,
+                DOSE_TOO_FEW_REPLICATES,
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
                 Some(antecedent_core::reason_details::dose_response::BOOTSTRAP_BELOW_FLOOR),
             )

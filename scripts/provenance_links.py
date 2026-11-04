@@ -93,7 +93,7 @@ NON_ALGORITHM_KINDS = {
     "derivation": ("derivation", "assertion"),
     # The record states that no method is implemented and the claim is refused or left open;
     # an executing refusal assertion is bound.
-    "closed_variant": ("assertion",),
+    "unsupported_variant": ("assertion",),
 }
 
 

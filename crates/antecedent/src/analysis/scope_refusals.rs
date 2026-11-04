@@ -5,7 +5,7 @@
 //! specific scope refusal for an invalid model, sampling or support declaration, and `None`
 //! when the request is inside the route's scope: the interval then comes from the route's
 //! own producer (`antecedent_estimate::joint_bayesian_transport`, the nested-Markov
-//! measured adapter, the sampled-recovery BCa), reported with its calibration slot.
+//! measured adapter, the sampled-recovery `BCa`), reported with its calibration slot.
 //! Calibration annotates those intervals; it never makes this preflight refuse.
 //!
 //! These functions return the refusal as plain data; a binding raises it. They read the
@@ -21,9 +21,9 @@ use antecedent_estimate::{
 };
 use std::collections::BTreeSet;
 
-/// A closed-route refusal as plain data: registered reason code and namespaced detail.
+/// A scope refusal as plain data: registered reason code and namespaced detail.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClosedPilotRefusal {
+pub struct ScopeRefusal {
     /// Registered reason code.
     pub code: &'static str,
     /// Namespaced detail (`bayesian_transport.*`, `nested_markov.*`, `sampled_recovery.*`).
@@ -32,7 +32,7 @@ pub struct ClosedPilotRefusal {
     pub message: String,
 }
 
-impl ClosedPilotRefusal {
+impl ScopeRefusal {
     fn new(code: &'static str, detail: impl Into<String>, message: impl Into<String>) -> Self {
         Self { code, detail: detail.into(), message: message.into() }
     }
@@ -44,11 +44,11 @@ impl ClosedPilotRefusal {
     }
 }
 
-fn from_joint(refusal: &joint::JointTransportRefusal) -> ClosedPilotRefusal {
-    ClosedPilotRefusal::new(refusal.code, refusal.detail, refusal.message.clone())
+fn from_joint(refusal: &joint::JointTransportRefusal) -> ScopeRefusal {
+    ScopeRefusal::new(refusal.code, refusal.detail, refusal.message.clone())
 }
 
-/// A request to the closed joint Bayesian transport route.
+/// A request to the joint Bayesian transport route.
 #[derive(Clone, Copy, Debug)]
 pub struct JointBayesianRequest<'a> {
     /// `fixed_dag`, `admg` or `graph_posterior`.
@@ -69,8 +69,8 @@ pub struct JointBayesianRequest<'a> {
     pub draws: usize,
 }
 
-fn invalid_joint(message: impl Into<String>) -> ClosedPilotRefusal {
-    ClosedPilotRefusal::new(
+fn invalid_joint(message: impl Into<String>) -> ScopeRefusal {
+    ScopeRefusal::new(
         antecedent_core::reason_code!("invalid_argument"),
         joint::DETAIL_INVALID_INPUT,
         message,
@@ -93,7 +93,7 @@ fn joint_parameters(request: &JointBayesianRequest<'_>) -> Option<usize> {
     Some(q.saturating_add(blocks.saturating_mul(r)))
 }
 
-fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ClosedPilotRefusal> {
+fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ScopeRefusal> {
     match request.graph_class {
         "fixed_dag" => {}
         "admg" | "graph_posterior" => return Some(from_joint(&joint::unsupported_graph_refusal())),
@@ -102,7 +102,7 @@ fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ClosedPilot
         }
     }
     if request.draws == 0 || request.draws > joint::JOINT_TRANSPORT_MAX_DRAWS {
-        return Some(ClosedPilotRefusal::new(
+        return Some(ScopeRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
             joint::DETAIL_TOO_MANY_DRAWS,
             format!("draw count must be in 1..={}", joint::JOINT_TRANSPORT_MAX_DRAWS),
@@ -114,21 +114,21 @@ fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ClosedPilot
         ));
     }
     if request.dependence != "independent_samples" {
-        return Some(ClosedPilotRefusal::new(
+        return Some(ScopeRefusal::new(
             antecedent_core::reason_code!("sampling_dependence_unknown"),
             joint::DETAIL_SOURCE_DEPENDENCE,
             "only independent source samples with disjoint units are supported",
         ));
     }
     if request.sources == 0 {
-        return Some(ClosedPilotRefusal::new(
+        return Some(ScopeRefusal::new(
             antecedent_core::reason_code!("transport_missing_evidence"),
             joint::DETAIL_MISSING_SOURCE,
             "at least one source trial is required",
         ));
     }
     if !request.has_target {
-        return Some(ClosedPilotRefusal::new(
+        return Some(ScopeRefusal::new(
             antecedent_core::reason_code!("joint_law_required"),
             joint::DETAIL_MISSING_LAW,
             "the target covariate law (a nonempty target sample) is required",
@@ -140,7 +140,7 @@ fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ClosedPilot
         ));
     };
     if parameters > joint::JOINT_TRANSPORT_MAX_PARAMETERS {
-        return Some(ClosedPilotRefusal::new(
+        return Some(ScopeRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
             joint::DETAIL_TOO_MANY_PARAMETERS,
             format!(
@@ -157,13 +157,13 @@ fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ClosedPilot
 #[must_use]
 pub fn joint_bayesian_transport_scope_refusal(
     request: &JointBayesianRequest<'_>,
-) -> Option<ClosedPilotRefusal> {
+) -> Option<ScopeRefusal> {
     joint_scope_refusal(request)
 }
 
 /// One regime-specific count table of a nested-Markov request.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ClosedRegimeCounts {
+pub struct RegimeCounts {
     /// Variables an interventional regime fixes; `None` for the observational regime.
     pub fixed: Option<Vec<usize>>,
     /// Declared levels per variable.
@@ -172,7 +172,7 @@ pub struct ClosedRegimeCounts {
     pub cells: Vec<f64>,
 }
 
-/// A request to the closed binary nested-Markov route.
+/// A request to the binary nested-Markov route.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NestedMarkovRequest {
     /// Variable names in coordinate order.
@@ -182,20 +182,20 @@ pub struct NestedMarkovRequest {
     /// Bidirected edges.
     pub bidirected: Vec<(usize, usize)>,
     /// Regime-specific counts.
-    pub regimes: Vec<ClosedRegimeCounts>,
+    pub regimes: Vec<RegimeCounts>,
 }
 
-fn from_estimation(error: &EstimationError) -> ClosedPilotRefusal {
+fn from_estimation(error: &EstimationError) -> ScopeRefusal {
     match error {
         EstimationError::Refused { code, message }
-        | EstimationError::RefusedWithFields { code, message, .. } => ClosedPilotRefusal::new(
+        | EstimationError::RefusedWithFields { code, message, .. } => ScopeRefusal::new(
             code,
             message
                 .detail()
                 .unwrap_or(antecedent_core::reason_details::nested_markov::INVALID_INPUT),
             message.explanation(),
         ),
-        other => ClosedPilotRefusal::new(
+        other => ScopeRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
             antecedent_core::reason_details::nested_markov::INVALID_INPUT,
             other.to_string(),
@@ -204,11 +204,11 @@ fn from_estimation(error: &EstimationError) -> ClosedPilotRefusal {
 }
 
 /// The scope refusal of a request to the binary nested-Markov route
-/// (`route_not_supported` / `nested_markov.outside_binary_pilot`, or a count refusal) when the
-/// graph, regime or domain is outside the one selected pilot, or `None` when the request is
+/// (`route_not_supported` / `nested_markov.outside_binary_scope`, or a count refusal) when the
+/// graph, regime or domain is outside the supported binary class, or `None` when the request is
 /// inside it. Never a nonidentification claim.
 #[must_use]
-pub fn nested_markov_scope_refusal(request: &NestedMarkovRequest) -> Option<ClosedPilotRefusal> {
+pub fn nested_markov_scope_refusal(request: &NestedMarkovRequest) -> Option<ScopeRefusal> {
     let input = nested::NestedMarkovInput {
         graph: nested::AdmgDeclaration {
             variables: request.variables.clone(),
@@ -231,7 +231,7 @@ pub fn nested_markov_scope_refusal(request: &NestedMarkovRequest) -> Option<Clos
     nested::binary_cells(&input).err().map(|error| from_estimation(&error))
 }
 
-/// A request to the closed sampled observation-recovery route.
+/// A request to the sampled observation-recovery route.
 #[derive(Clone, Copy, Debug)]
 pub struct SampledRecoveryRequest<'a> {
     /// Whether the m-graph's checked derivation recovered (`false`: a verified
@@ -247,15 +247,15 @@ pub struct SampledRecoveryRequest<'a> {
     pub rows: &'a [(u64, u8, u8, u8)],
 }
 
-fn sampled(detail: SampledRecoveryDetail, message: impl Into<String>) -> ClosedPilotRefusal {
-    ClosedPilotRefusal::new(detail.reason_code(), detail.detail(), message)
+fn sampled(detail: SampledRecoveryDetail, message: impl Into<String>) -> ScopeRefusal {
+    ScopeRefusal::new(detail.reason_code(), detail.detail(), message)
 }
 
 fn low_bits(n: usize) -> u8 {
     (0..n.min(8)).fold(0_u8, |acc, i| acc | (1_u8 << i))
 }
 
-fn sampled_row_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedPilotRefusal> {
+fn sampled_row_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ScopeRefusal> {
     let k = request.partially_observed;
     let m = request.fully_observed;
     let invalid = |message: &str| Some(sampled(SampledRecoveryDetail::InvalidInput, message));
@@ -312,7 +312,7 @@ fn sampled_row_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedPil
     ))
 }
 
-fn sampled_scope_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedPilotRefusal> {
+fn sampled_scope_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ScopeRefusal> {
     if !request.graph_recoverable {
         return Some(sampled(
             SampledRecoveryDetail::UnrecoverablePattern,
@@ -341,11 +341,11 @@ fn sampled_scope_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedP
 /// The scope refusal of a sampled-recovery request (`route_not_supported` /
 /// `sampled_recovery.unrecoverable_pattern` or `bounds_exceeded`, or an invalid-input detail)
 /// when the m-graph, bounds or observation patterns violate the exact recovery formula, or
-/// `None` when the BCa interval may be built.
+/// `None` when the `BCa` interval may be built.
 #[must_use]
 pub fn sampled_recovery_scope_refusal(
     request: &SampledRecoveryRequest<'_>,
-) -> Option<ClosedPilotRefusal> {
+) -> Option<ScopeRefusal> {
     sampled_scope_refusal(request)
 }
 

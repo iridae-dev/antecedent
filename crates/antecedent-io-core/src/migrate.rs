@@ -44,7 +44,7 @@ pub fn migrate_artifact(mut artifact: EncodedArtifact) -> Result<EncodedArtifact
     let from = artifact.manifest.format_version;
     // Format 0.6 is an analysis-result-only extension and must retain its
     // minimum-reader requirement; it cannot be relabeled as the stable 0.5 format.
-    if from == crate::analysis_result_artifact::WITHHELD_MEDIATION_FORMAT
+    if from == crate::analysis_result_artifact::ABSENT_MEDIATION_POINT_FORMAT
         && artifact.manifest.minimum_reader_version == from
         && artifact.manifest.artifact_kind
             == crate::ArtifactKind::Other(crate::artifact_kinds::ANALYSIS_RESULT.into())

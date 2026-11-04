@@ -73,8 +73,8 @@ fn exact_posterior() -> (f64, f64) {
             rows.push((row, y[i]));
         }
     }
-    for a in 0..4 {
-        gram[a][a] += 1.0 / (PRIOR_SD * PRIOR_SD);
+    for (a, gram_row) in gram.iter_mut().enumerate().take(4) {
+        gram_row[a] += 1.0 / (PRIOR_SD * PRIOR_SD);
     }
     let beta = solve(gram, moment);
     let rss: f64 = rows

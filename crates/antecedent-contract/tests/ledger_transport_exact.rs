@@ -225,7 +225,7 @@ fn citing_an_overlapping_pool_reports_its_hand_counted_union_each_time() {
 }
 
 /// A repeated-use declaration over overlapping stages rows 0..30 and 20..50 counts 60 slots over
-/// 50 distinct rows (10 repeated) and is flagged data_reuse.
+/// 50 distinct rows (10 repeated) and is flagged `data_reuse`.
 #[test]
 fn repeated_use_over_overlapping_stages_counts_the_union_once() {
     let mut ledger = EvidenceLedger::new();

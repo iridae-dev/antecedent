@@ -18,7 +18,7 @@ implementation_deviations = [
   "The decision is relative to the declarations: a declared dependency set, state identity, stream identity or trust level is a statement the provider owns, and the protocol does not verify it.",
   "Output validation checks that an answer is a well-formed object of the declared quantity (shape, finiteness, support, monotone distribution and quantile functions); it does not check the provider's numerical truth.",
   "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
-  "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or unmeasured.",
+  "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or not measured.",
 ]
 
 upstream_implementations_observed = []
@@ -34,7 +34,7 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Callback adapter protocol: declaration, negotiation, request identity, reuse planning and acceptance of a returned output as a law of the declared quantity. This record's slice: replay policy."
 no_independent_algorithm = "A declaration runs nothing; planning takes no provider; output validation checks shape against the query. No estimator of its own."
-record_sha256 = "09e5ff4b7ed967415a04c2b4ccda9433a0fe1c09cc8435aa53c33169f387e46a"
+record_sha256 = "06a4e3c4c15fa7469a808c3267961f5fdfebd89d779921933fb6e77a5813efe5"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

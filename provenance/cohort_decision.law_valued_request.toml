@@ -18,7 +18,7 @@ test_sources = [
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
+kind = "unsupported_variant"
 rationale = "A closed variant: a mean supplies no law, so probability, quantile, nonlinear-utility and joint-law requests on a cohort contrast stay refused until a producer of aligned outcome draws exists."
 no_independent_algorithm = "cohort_decision_input.rs adapts the cohort mean to the affine decision input and leaves the existing evaluators to refuse the law-valued criteria; nothing is computed for them."
 record_sha256 = "38ae4a5063f27d52614459631529bb3088cd0125d70ecaae23fe743a27a5b59a"

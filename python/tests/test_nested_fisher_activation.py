@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalValueError
 from antecedent.graph import Admg
-from antecedent.transport._closed_pilots import (
+from antecedent.transport._advanced_producers import (
     _nested_fisher_candidate as binary_nested_markov_fisher_interval,
 )
 from antecedent.transport.advanced import (

@@ -17,9 +17,7 @@
 
 use std::sync::Arc;
 
-use antecedent::{
-    AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyBuilder,
-};
+use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyBuilder};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
     GridSpec, Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery,
@@ -189,7 +187,9 @@ fn points(value: &ResponseValue) -> Vec<f64> {
 
 fn assert_validation_ran(label: &str, result: &antecedent::StudyResult, suite: RefuteSuite) {
     match suite {
-        RefuteSuite::None => assert!(result.refutations.is_empty(), "{label}: none emits no refuters"),
+        RefuteSuite::None => {
+            assert!(result.refutations.is_empty(), "{label}: none emits no refuters")
+        }
         _ => assert!(!result.refutations.is_empty(), "{label}: refuters must execute"),
     }
 }
@@ -224,8 +224,14 @@ fn class_average_effect_matches_the_closed_forms_explicit_and_accepted() {
             ] {
                 for suite in SUITES {
                     let label = format!("{name} accepted={accepted} {mode} {suite:?}");
-                    let result =
-                        execute(study(data, &class, accepted, query.clone(), inference.clone(), suite));
+                    let result = execute(study(
+                        data,
+                        &class,
+                        accepted,
+                        query.clone(),
+                        inference.clone(),
+                        suite,
+                    ));
                     let ate = result.estimate().as_effect().unwrap().ate;
                     assert!((ate - truth).abs() < tolerance, "{label}: ate {ate} vs {truth}");
                     assert_validation_ran(&label, &result, suite);
@@ -241,6 +247,11 @@ fn class_average_effect_matches_the_closed_forms_explicit_and_accepted() {
 /// `T`; the `z = 1` cells are repeated `z1_scale` times, which moves `P(z = 1)`. The
 /// modifier-averaged conditional effect is `tau(0) + P(z = 1) = 2 + P(z = 1)`, so two mixes
 /// recover `tau(0)` and `tau(1)` and a modifier-free ATE (crude or adjusted) cannot match both.
+/// Exact equality of two indicator values (the design only holds literal 0/1 levels).
+fn same(a: f64, b: f64) -> bool {
+    a.to_bits() == b.to_bits()
+}
+
 fn heterogeneous_data(confounded: bool, z1_scale: usize) -> (TabularData, f64) {
     let counts: [(f64, f64, usize); 4] = if confounded {
         [(0.0, 0.0, 6), (0.0, 1.0, 2), (1.0, 0.0, 2), (1.0, 1.0, 6)]
@@ -250,7 +261,7 @@ fn heterogeneous_data(confounded: bool, z1_scale: usize) -> (TabularData, f64) {
     let (mut t, mut y, mut z) = (Vec::new(), Vec::new(), Vec::new());
     for _ in 0..20 {
         for (zi, ti, count) in counts {
-            let copies = if zi == 1.0 { z1_scale } else { 1 };
+            let copies = if same(zi, 1.0) { z1_scale } else { 1 };
             for row in 0..(count * copies) {
                 let epsilon = if row % 2 == 0 { -0.2 } else { 0.2 };
                 t.push(ti);
@@ -261,8 +272,12 @@ fn heterogeneous_data(confounded: bool, z1_scale: usize) -> (TabularData, f64) {
     }
     let share = z.iter().sum::<f64>() / z.len() as f64;
     (
-        TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())])
-            .unwrap(),
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap(),
         share,
     )
 }

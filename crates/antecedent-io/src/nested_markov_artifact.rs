@@ -17,7 +17,7 @@
 //! and the target contrast against the empirical plug-in of the same identifying formula)
 //! and accepts only a receipt identical bit for bit. A changed graph, regime or count
 //! therefore refuses: outside the pilot class with the engine's own
-//! `nested_markov.outside_binary_pilot` refusal, or as a receipt that does not replay.
+//! `nested_markov.outside_binary_scope` refusal, or as a receipt that does not replay.
 //! The digests are separate: the premises digest (graph, parameterization, options, regime
 //! structure) and the data-identity digest (every count bit for bit). A consumer holding
 //! an expected identity passes a [`NestedMarkovExpectation`].

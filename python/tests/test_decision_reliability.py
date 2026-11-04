@@ -324,7 +324,6 @@ def test_every_published_route_is_published_with_its_calibration_slot() -> None:
     result = require_success(dr.assess(_draws(_gaussian([0.0, 1.0], 100, seed=1))))
     assert result.report.coordinate["candidate_set_size"] == 2
     assert result.report.coordinate["mc_budget"] == 100
-    assert result.report.closed_routes == []
     statuses = ("calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured")
     for route in (
         "ranking_probability",
@@ -345,7 +344,6 @@ def test_a_route_inside_a_measured_coverage_record_is_calibrated() -> None:
     # inside the measured records (500 to 2000 draws per candidate).
     result = require_success(dr.assess(_draws(_gaussian([0.5, 0.0], 1000, seed=5, rho=0.5))))
     assert result.report.coordinate["mc_budget"] == 1000
-    assert result.report.closed_routes == []
     for route in (
         "ranking_probability",
         "optimality_confidence_set",

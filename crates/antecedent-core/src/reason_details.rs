@@ -1578,7 +1578,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "nested_markov.measured_scope",
     "nested_markov.native_hook_unavailable",
     "nested_markov.not_normalized",
-    "nested_markov.outside_binary_pilot",
+    "nested_markov.outside_binary_scope",
     "nested_markov.positivity",
     "nested_markov.producer_missing",
     "nonlinear_mediation.cancelled",
@@ -4286,7 +4286,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("nested_markov.measured_scope", &["route_not_supported"]),
     ("nested_markov.native_hook_unavailable", &["not_supported"]),
     ("nested_markov.not_normalized", &["transport_numerical_failure"]),
-    ("nested_markov.outside_binary_pilot", &["route_not_supported"]),
+    ("nested_markov.outside_binary_scope", &["route_not_supported"]),
     ("nested_markov.positivity", &["transport_support_failure"]),
     ("nested_markov.producer_missing", &["not_supported"]),
     ("nonlinear_mediation.cancelled", &["cancelled_no_claim"]),
@@ -9023,8 +9023,8 @@ pub mod nested_markov {
     pub const NATIVE_HOOK_UNAVAILABLE: &str = "nested_markov.native_hook_unavailable";
     /// Detail `nested_markov.not_normalized`.
     pub const NOT_NORMALIZED: &str = "nested_markov.not_normalized";
-    /// Detail `nested_markov.outside_binary_pilot`.
-    pub const OUTSIDE_BINARY_PILOT: &str = "nested_markov.outside_binary_pilot";
+    /// Detail `nested_markov.outside_binary_scope`.
+    pub const OUTSIDE_BINARY_SCOPE: &str = "nested_markov.outside_binary_scope";
     /// Detail `nested_markov.positivity`.
     pub const POSITIVITY: &str = "nested_markov.positivity";
     /// Detail `nested_markov.producer_missing`.

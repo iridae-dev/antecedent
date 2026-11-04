@@ -21,11 +21,11 @@ use antecedent::analysis::provider_callbacks::{
     export_callback_result, forecast_law_from_sample, inspect_callback_result,
     predictive_law_source,
 };
+use antecedent_contract::evidence_ledger::SourceId;
 use antecedent_contract::interface_contract::{
     CalibrationStatus, ContractOperation, EvidenceBasis, InterfaceContract, ProducedPort,
     SupportDomain,
 };
-use antecedent_contract::evidence_ledger::SourceId;
 use antecedent_contract::{
     DistributionMeaning, ProviderObjectIdentity, QuantityRole, ScientificQuantity,
 };
@@ -337,8 +337,11 @@ fn a_callback_law_is_offered_exactly_when_replayable_complete_and_attested_or_co
         for (replay_name, replay) in &replays {
             for (trust_name, trust) in &trusts {
                 for confirmed in [false, true] {
-                    let dependencies =
-                        if complete_dependencies { complete() } else { DependencyDeclaration::Opaque };
+                    let dependencies = if complete_dependencies {
+                        complete()
+                    } else {
+                        DependencyDeclaration::Opaque
+                    };
                     let law = declaration(
                         replay.clone(),
                         &[CallbackOperation::Mean],
@@ -412,8 +415,11 @@ fn claim(
     let mut port = ProducedPort::new("effect", quantity, semantic, SupportDomain::Real, operations)
         .with_calibration(CalibrationStatus::PointOnly);
     if let Some(count) = evidence {
-        let sources = (0..count)
-            .map(|k| SourceId::from_digest(SemanticDigest::from_bytes([k as u8 + 1; 32])));
+        let sources = (0..count).map(|k| {
+            SourceId::from_digest(SemanticDigest::from_bytes(
+                [u8::try_from(k).expect("evidence count fits u8") + 1; 32],
+            ))
+        });
         port = port.with_evidence(sources);
     }
     InterfaceContract { component: "claim".into(), produces: vec![port], consumes: vec![] }
@@ -458,10 +464,13 @@ fn a_claim_reaches_a_callback_input_only_as_the_quantity_it_declares_with_eviden
         ("empty evidence", claim(|_, _, _| {}, Some(0)), vec!["dependence_unknown"]),
         (
             "two defects",
-            claim(|q, _, _| {
-                q.population_id = "trial".into();
-                q.units = "kPa".into();
-            }, Some(1)),
+            claim(
+                |q, _, _| {
+                    q.population_id = "trial".into();
+                    q.units = "kPa".into();
+                },
+                Some(1),
+            ),
             vec!["units_mismatch", "population_mismatch"],
         ),
     ];
@@ -471,9 +480,7 @@ fn a_claim_reaches_a_callback_input_only_as_the_quantity_it_declares_with_eviden
         assert_eq!(claim_details(&producer), Err(expected), "{label}");
     }
     // More than needed is not a defect: extra operations, and two evidence sources.
-    let richer = claim(
-        |_, _, o| *o = vec![ContractOperation::Mean, ContractOperation::Point],
-        Some(2),
-    );
+    let richer =
+        claim(|_, _, o| *o = vec![ContractOperation::Mean, ContractOperation::Point], Some(2));
     assert_eq!(claim_details(&richer), Ok(()));
 }

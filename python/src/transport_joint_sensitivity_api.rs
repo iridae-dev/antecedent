@@ -297,7 +297,7 @@ fn z_transport_joint_sensitivity_interval(
     })?;
     // The calibration slot annotates the interval; it never withholds it.
     let calibration = serde_json::to_string(&interval.calibration)
-        .map_err(|error| crate::value_err(&error.to_string()))?;
+        .map_err(|error| crate::value_err(error.to_string()))?;
     Ok((
         interval.lower,
         interval.upper,

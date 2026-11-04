@@ -247,8 +247,8 @@ fn shared_latent_covariance_is_exact_and_a_dropped_latent_is_refused() {
     );
 }
 
-#[test]
-fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
+/// Parent-set, conditioning-set, units and transform mismatches are each refused alone.
+fn parents_conditioning_units_and_transform_mismatches_are_refused() {
     // Parent sets: Y was fitted on {X} only, the declared graph has {X, M}.
     let mut mechanisms = chain();
     mechanisms[2] = lg("Y", -1.0, 0.5, &[("X", 0.5)]);
@@ -295,7 +295,10 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
         details(&err),
         vec![antecedent_core::reason_details::mechanism_composition::TRANSFORM_MISMATCH]
     );
+}
 
+/// A support gap is refused; declaring the producer's bounded support repairs it.
+fn support_gaps_are_refused_and_declared_producer_support_repairs_them() {
     // Support gap: Y was fitted on X in [0, 10]; X is declared on the whole line.
     let mut mechanisms = chain();
     mechanisms[2].parents[0].domain = Domain::Interval { lo: 0.0, hi: 10.0 };
@@ -319,7 +322,10 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
         details(&err),
         vec![antecedent_core::reason_details::mechanism_composition::SUPPORT_DISJOINT]
     );
+}
 
+/// Population transport: undeclared, selection-diagram and invariance cases.
+fn population_transport_is_admitted_only_when_the_diagram_does_not_point_into_the_mechanism() {
     // Population: M was fitted elsewhere with no declaration.
     let mut mechanisms = chain();
     mechanisms[1].context.population = "source".into();
@@ -371,6 +377,13 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
     // The same declaration admits it where the diagram is silent about M.
     spec.selection_diagrams[0].selection_nodes[0].points_into = vec!["X".into()];
     assert!(ComposedLinearGaussian::compile(&spec).is_ok());
+}
+
+#[test]
+fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
+    parents_conditioning_units_and_transform_mismatches_are_refused();
+    support_gaps_are_refused_and_declared_producer_support_repairs_them();
+    population_transport_is_admitted_only_when_the_diagram_does_not_point_into_the_mechanism();
 
     // Regime: fitted under do(Z=1), composed in the observational regime.
     let mut mechanisms = chain();

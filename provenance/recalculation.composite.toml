@@ -20,7 +20,7 @@ record_sha256 = "8ac59f7c496846985f009bad2aca46bd5d3813d478e2b8812be4b8783b68537
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_composite.rs"
 items = ["const MAX_UTILITY_DEPTH", "enum CompositeError", "fn add_receipt", "fn checked_native", "fn decision", "fn decision_bounded", "fn decision_inputs", "fn execute", "fn from_native", "fn inputs", "fn native", "fn plan", "fn publication", "fn terminal_fields", "struct CompositeOutcome", "struct CompositePublication", "struct CompositeRequest", "struct CompositeSession"]
-sha256 = "6ea2498128513164edde005a85f70f8142b5bcacf8d2366c99ecb9c7fa9af7da"
+sha256 = "47f748f4ad3f1440f55600c5c3ae04310005f91bf13c4208ace15e2c41487da3"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

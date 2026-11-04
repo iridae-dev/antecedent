@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.graph import Admg
-from antecedent.transport._closed_pilots import _nested_posterior_candidate as binary_nested_markov
+from antecedent.transport._advanced_producers import _nested_posterior_candidate as binary_nested_markov
 from antecedent.transport.advanced import (
     NestedMarkovPosteriorCandidate,
     NestedMarkovPrior,
@@ -180,5 +180,5 @@ def test_nested_pilot_declines_oversized_sequences_before_materializing():
         with pytest.raises(CausalUnsupportedError) as caught:
             binary_nested_markov(graph=graph(), regimes=regimes)
         assert caught.value.reason_code == "route_not_supported"
-        assert "outside_binary_pilot" in str(caught.value)
+        assert "outside_binary_scope" in str(caught.value)
     assert reads == []

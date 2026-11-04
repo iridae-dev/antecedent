@@ -51,16 +51,16 @@ fn local_ess(report: &SupportReport) -> Vec<f64> {
 }
 
 fn labels(points: &[f64], floor: f64) -> Vec<SupportStatus> {
-    dose_support_report(&dose(), points, BANDWIDTH, floor)
-        .unwrap()
-        .point_status
-        .unwrap()
-        .to_vec()
+    dose_support_report(&dose(), points, BANDWIDTH, floor).unwrap().point_status.unwrap().to_vec()
 }
 
 #[test]
 fn local_ess_is_the_closed_form_kish_size_of_the_gaussian_weights() {
-    let pinned = [(0.0, 14.647_646_929_243_267), (1.0, 15.385_863_459_672_898), (5.0, 8.279_976_655_743_262)];
+    let pinned = [
+        (0.0, 14.647_646_929_243_267),
+        (1.0, 15.385_863_459_672_898),
+        (5.0, 8.279_976_655_743_262),
+    ];
     for (at, reference) in pinned {
         assert!((kish_closed_form(at) - reference).abs() < TOLERANCE, "closed form at {at}");
     }
@@ -68,7 +68,8 @@ fn local_ess_is_the_closed_form_kish_size_of_the_gaussian_weights() {
     let report = dose_support_report(&dose(), &points, BANDWIDTH, 10.0).unwrap();
     let ess = local_ess(&report);
     assert_eq!(ess.len(), 3);
-    for ((got, at), (_, reference)) in ess.iter().zip(points).zip([pinned[0], pinned[2], pinned[1]]) {
+    for ((got, at), (_, reference)) in ess.iter().zip(points).zip([pinned[0], pinned[2], pinned[1]])
+    {
         assert!((got - reference).abs() < TOLERANCE, "ess at {at}: {got} vs {reference}");
         assert!((got - kish_closed_form(at)).abs() < TOLERANCE, "ess at {at}");
     }
@@ -90,7 +91,10 @@ fn labels_follow_the_threshold_applied_to_the_kish_size_in_dose_order() {
             .iter()
             .map(|v| (v * 1e6).round())
             .collect::<Vec<_>>(),
-        [15.385_863, 8.279_977, 14.647_647].iter().map(|v| (v * 1e6_f64).round()).collect::<Vec<_>>()
+        [15.385_863, 8.279_977, 14.647_647]
+            .iter()
+            .map(|v| (v * 1e6_f64).round())
+            .collect::<Vec<_>>()
     );
     // A floor of 15 puts the first dose under it too; a floor of 8 leaves every dose supported.
     assert_eq!(
@@ -113,7 +117,7 @@ fn a_floor_at_the_exact_kish_size_flips_exactly_that_dose() {
 fn a_dose_outside_the_observed_range_is_outside_whatever_its_weights() {
     // At 5.5 the weights of the eight rows at 5 give a large Kish size, yet the dose is past the
     // observed maximum 5, so its label is the empirical-support failure, not a size label.
-    assert_eq!(kish_closed_form(5.5) > 3.0, true);
+    assert!(kish_closed_form(5.5) > 3.0);
     assert_eq!(labels(&[5.5], 3.0), [SupportStatus::OutsideEmpiricalSupport]);
     assert_eq!(labels(&[-0.25], 3.0), [SupportStatus::OutsideEmpiricalSupport]);
 }

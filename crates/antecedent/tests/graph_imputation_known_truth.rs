@@ -40,7 +40,7 @@ fn rows() -> (Vec<f64>, Vec<f64>) {
         let treated = f64::from(row % 2 == 1);
         // Row pairs (2k, 2k + 1) share a noise slot rotated per arm, which keeps each arm's
         // noise a full period of the zero-sum pattern.
-        let slot = (row / 2 + usize::from(treated == 1.0) * 3) % NOISE.len();
+        let slot = (row / 2 + usize::from(row % 2 == 1) * 3) % NOISE.len();
         treatment.push(treated);
         outcome.push(1.0 + 2.0 * treated + NOISE[slot]);
     }

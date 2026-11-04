@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# No primary paper: a closed variant; no method is implemented, so there is nothing to cite.
+# No primary paper: an unsupported variant; no method is implemented, so there is nothing to cite.
 papers = [
 ]
 implementation_deviations = [
@@ -16,8 +16,8 @@ test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", 
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
-rationale = "Closed variant: a law that exists only as a callback is refused by name."
+kind = "unsupported_variant"
+rationale = "Unsupported variant: a law that exists only as a callback is refused by name."
 no_independent_algorithm = "law.rs defines the Callback variant as not built, always refused; a provider law is accepted only as materialized finite, sample or evaluated values."
 record_sha256 = "e9bfcfbe2fe7d6f5e105b2032534f5d939f94f842c9ebe2e89fffef3907fda21"
 

@@ -22,7 +22,7 @@ implementation_deviations = [
   "The repeated-measurement (panel) alternative owes obligations but has no theorem checker: it is listed as an unscored route, never as an option, and the time invariance it relies on is an assumption no study establishes.",
   "A study that only names a variable, or only adds rows, is never credited with an unlock: the unlock list names the variables of the studies a repair search verified sufficient on their own.",
   "The evidence_plan_v1 artifact embeds the sealed repair_search_receipt_v1 container of every route and the design_ranking_v1 container of the value evaluation and replays both; its digests are content fingerprints, not cryptographic guarantees against a producer that states another contract and re-seals honestly.",
-  "The ordering is a point ordering conditional on the declared decision, prior, signals and cost map; its calibration is unmeasured and no rank confidence or realized-study guarantee is claimed. A budget stop is reported as a budget, never as an impossibility.",
+  "The ordering is a point ordering conditional on the declared decision, prior, signals and cost map; its calibration is not measured and no rank confidence or realized-study guarantee is claimed. A budget stop is reported as a budget, never as an impossibility.",
   "No causal, interval or calibration claim is made.",
 ]
 
@@ -43,7 +43,7 @@ kind = "wrapper"
 rationale = "Restating the evidence a failed identification owes as study candidates, ordering the repair options by the identification gate and then by declared value, and valuing one study with the existing preposterior expected value of sample information."
 no_independent_algorithm = "evidence_plan.rs, candidate_generation.rs, structure_identification.rs and confounder_value.rs order options, list obligations and build the decision problem on the grid coordinates; the value is computed by the covered EVSI and the identification verdicts by the covered repair search."
 covered_by = ["design.evsi", "design.identification_repair"]
-record_sha256 = "cd4358799a4002dc08aaffeb1afd18ce333449182482a0000a2b13867ac4d372"
+record_sha256 = "69d750df8408177ae9dd9cc20cf7278bb65c5e771c23e9c64dfcbf9c3c20ec2d"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

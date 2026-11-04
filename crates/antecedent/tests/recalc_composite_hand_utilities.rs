@@ -16,14 +16,13 @@ use antecedent::analysis::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
 };
 use antecedent_contract::{ExternalProgramClaim, ProgramBinding};
-use antecedent_core::recalc::{Branch, Stage, StageStatus};
+use antecedent_core::recalc::Branch;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_design::composition_boundary::{SupportPolicy, SupportedVerdict};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_learn::fit_counts::observe_resolved_fits;
 use std::collections::BTreeMap;
 #[path = "common/external_callback_fixture.rs"]
 mod reference;
@@ -138,7 +137,6 @@ fn decision_contract(binding: &ProgramBinding) -> DecisionContract {
     }
 }
 
-
 use antecedent_design::decision_eval::Verdict;
 
 fn run(
@@ -170,8 +168,7 @@ fn composite_decision_equals_the_hand_utilities_of_the_analytic_front_door_respo
     request.decision_contract.actions[1].utility =
         UtilityExpr::difference(UtilityExpr::Input(0), UtilityExpr::Const(2.0));
     let second = run(&mut session, &request, &mut p1, &mut p2);
-    let utilities: Vec<f64> =
-        second.decision.outcomes.iter().map(|o| o.expected_utility).collect();
+    let utilities: Vec<f64> = second.decision.outcomes.iter().map(|o| o.expected_utility).collect();
     for (got, want) in utilities.iter().zip([2.8, 2.0, 2.2]) {
         assert!((got - want).abs() < 1e-9, "{utilities:?}");
     }

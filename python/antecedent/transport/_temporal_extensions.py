@@ -52,7 +52,7 @@ from .._native import (
     consume_temporal_refresh_artifact as _consume_refresh,
 )
 from .._native import (
-    temporal_dependent_interval_closed as _dependent_interval_closed,
+    temporal_dependent_interval_scope as _dependent_interval_scope,
 )
 from .._native import (
     temporal_initial_state_prepare as _initial_state_prepare,
@@ -753,7 +753,7 @@ def _temporal_interval_entry(
             if measured
             else TemporalIntervalCandidate._from_native(native)
         )
-    refusal = _dependent_interval_closed(*arguments)
+    refusal = _dependent_interval_scope(*arguments)
     if refusal is not None:
         raise TemporalExtensionRefusal(json.loads(refusal))
     raise CausalTypeError("the dependent interval native entries are unavailable")

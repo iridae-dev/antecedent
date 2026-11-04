@@ -5776,7 +5776,7 @@ def target_posterior_predictive(
     family: str = "world_valued",
     temporal: bool = False,
 ) -> str: ...
-def temporal_dependent_interval_closed(
+def temporal_dependent_interval_scope(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
     sequence: tuple[int, int],
@@ -6312,7 +6312,7 @@ def candidate_screen_from_units(
     first: list[int] | None = None,
     second: list[int] | None = None,
 ) -> tuple[str, list[int], list[int], int, str, int, int, int, str]: ...
-def joint_bayesian_transport_closed(
+def joint_bayesian_transport_scope(
     graph_class: str,
     dependence: str,
     varying: str,
@@ -6322,20 +6322,20 @@ def joint_bayesian_transport_closed(
     has_target: bool,
     draws: int,
 ) -> None: ...
-def binary_nested_markov_closed(
+def binary_nested_markov_scope(
     variables: list[str],
     directed: list[tuple[int, int]],
     bidirected: list[tuple[int, int]],
     regimes: list[tuple[list[int] | None, list[int], list[float]]],
 ) -> None: ...
-def sampled_observation_recovery_closed(
+def sampled_observation_recovery_scope(
     graph_recoverable: bool,
     partially_observed: int,
     fully_observed: int,
     replicates: int,
     rows: list[tuple[int, int, int, int]],
 ) -> None: ...
-def learned_joint_transport_closed(
+def learned_joint_transport_scope(
     graph_class: str,
     dependence: str,
     varying: str,

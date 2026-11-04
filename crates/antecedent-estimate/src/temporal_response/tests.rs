@@ -887,7 +887,7 @@ fn zero_replicates_withhold_the_band_and_the_bootstrap_publishes_it() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == TEMPORAL_RESPONSE_BAND_WITHHELD),
+            .any(|w| w.code.as_ref() == TEMPORAL_RESPONSE_NO_BAND_METHOD),
         "a withheld band must be diagnosed"
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean: mu_a, .. }) =
@@ -966,7 +966,7 @@ fn bootstrap_surface_publishes_simultaneous_band_alongside_pointwise() {
             .support
             .warnings
             .iter()
-            .any(|warning| warning.code.as_ref() == SIMULTANEOUS_BAND_WITHHELD)
+            .any(|warning| warning.code.as_ref() == NO_SIMULTANEOUS_BAND_METHOD)
     );
 }
 

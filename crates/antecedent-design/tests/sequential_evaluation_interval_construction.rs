@@ -118,8 +118,8 @@ fn the_interval_is_the_wald_interval_of_the_weighted_returns() {
     assert!((estimate.ordinary - mean).abs() < TOLERANCE);
     assert!((estimate.uncalibrated_standard_error.unwrap() - standard_error).abs() < TOLERANCE);
     let interval = estimate.interval.expect("an interval above one trajectory");
-    assert_eq!(interval.level, 0.95);
-    assert_eq!(OFF_POLICY_INTERVAL_LEVEL, 0.95);
+    assert!((interval.level - 0.95).abs() < TOLERANCE);
+    assert!((OFF_POLICY_INTERVAL_LEVEL - 0.95).abs() < TOLERANCE);
     assert!((interval.lower - lower).abs() < TOLERANCE, "{} vs {lower}", interval.lower);
     assert!((interval.upper - upper).abs() < TOLERANCE, "{} vs {upper}", interval.upper);
     // No coverage record measures this construction: the interval says so.

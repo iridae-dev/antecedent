@@ -8,11 +8,11 @@
 //!
 //! | probe kind      | quantity                   | truth | tolerance |
 //! |-----------------|----------------------------|-------|-----------|
-//! | KnownTruth      | mean `E[x]`                | 2.0   | 0.125     |
+//! | `KnownTruth`    | mean `E[x]`                | 2.0   | 0.125     |
 //! | Shape           | `P(x <= 1)`                | 0.3   | 0.0625    |
 //! | Support         | largest atom with mass     | 3     | 0.0       |
 //! | Moments         | variance `E[x^2] - E[x]^2` | 1.0   | 0.25      |
-//! | SeededBehavior  | top-atom mass `P(x = 3)`   | 0.4   | 0.05      |
+//! | `SeededBehavior`| top-atom mass `P(x = 3)`   | 0.4   | 0.05      |
 //!
 //! Hand derivations (`E[x^2] = p1 + 4 p2 + 9 p3`):
 //!
@@ -168,13 +168,11 @@ fn the_enumerated_probe_quantities_equal_the_hand_derivations() {
     }
     for candidate in candidates() {
         let computed = quantities(&candidate.pmf);
-        for k in 0..5 {
+        for (k, (got, by_hand)) in computed.iter().zip(&candidate.by_hand).enumerate() {
             assert!(
-                (computed[k] - candidate.by_hand[k]).abs() < 1e-12,
-                "{}: probe {k} enumerates to {} but was derived by hand as {}",
+                (got - by_hand).abs() < 1e-12,
+                "{}: probe {k} enumerates to {got} but was derived by hand as {by_hand}",
                 candidate.name,
-                computed[k],
-                candidate.by_hand[k]
             );
         }
     }

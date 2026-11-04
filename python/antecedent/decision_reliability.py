@@ -617,11 +617,6 @@ class ReliabilityReport(ScientificResult):
         return CalibrationCoordinate.from_wire(self.raw["coordinate"])
 
     @property
-    def closed_routes(self) -> list[dict[str, Any]]:
-        """Published routes closed at the coordinate (none: calibration annotates, never closes)."""
-        return [dict(route) for route in self.raw["closed_routes"]]
-
-    @property
     def label(self) -> dict[str, Any]:
         """Standing of every number: a point diagnostic, uncalibrated."""
         return dict(self.raw["label"])

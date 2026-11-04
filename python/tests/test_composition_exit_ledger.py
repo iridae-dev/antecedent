@@ -18,7 +18,7 @@ For every capability record it asserts:
 
 The closure checks are status-driven: a route that the registry has opened is not called, and
 its record must then be supported. Composes the committed refusal tests
-``test_closed_pilots.py``, ``test_temporal_extensions.py`` and ``test_temporal_counterfactual.py``
+``test_advanced_producers.py``, ``test_temporal_extensions.py`` and ``test_temporal_counterfactual.py``
 by copying their request builders.
 
 Calibration is unmeasured for the calibrated A claims at this commit; this file asserts the
@@ -201,7 +201,7 @@ def test_ledger_not_delivered_routes_are_refused_with_a_registered_code(
 
 
 # ------------------------------------------------------------------ real closed producers
-# Request builders copied from test_closed_pilots.py, test_temporal_extensions.py and
+# Request builders copied from test_advanced_producers.py, test_temporal_extensions.py and
 # test_temporal_counterfactual.py.
 
 NODES = ["X1", "X2", "X3", "X4"]

@@ -18,9 +18,9 @@ use crate::{
 const ARTIFACT_KIND: &str = crate::artifact_kinds::ANALYSIS_RESULT;
 const HEADER_SECTION: &str = "analysis_result.header";
 const BODY_SECTION: &str = "analysis_result.body";
-// Only composite analysis results with a withheld mediation point use this
+// Only composite analysis results with an unreported mediation point use this
 // extension. Other artifacts retain the stable 0.5 container format.
-pub(crate) const WITHHELD_MEDIATION_FORMAT: crate::FormatVersion =
+pub(crate) const ABSENT_MEDIATION_POINT_FORMAT: crate::FormatVersion =
     crate::FormatVersion { major: 0, minor: 6 };
 
 /// One posterior interval summary in a temporal mediation slice.
@@ -1521,24 +1521,16 @@ pub fn encode_analysis_result_artifact_with_contract_and_source(
     )
 }
 
-/// Encode a composite result exactly as [`encode_analysis_result_artifact_with_contract_and_source`],
-/// with the [`crate::METHOD_PROVENANCE_SECTION`] the producer resolved for the executed route.
-///
-/// A producer that resolved an identifier or estimator the contract leaves undeclared passes the
-/// provenance of the resolved route; a component the contract declares must be the one named.
-///
-/// # Errors
-///
-/// The errors of [`encode_analysis_result_artifact_with_contract_and_source`], provenance without
-/// a contract, or provenance naming another identifier or estimator than the contract declares.
-pub fn encode_analysis_result_artifact_with_provenance(
+/// Check every input of a composite-result encoding before anything is packed: the provenance
+/// binds to the contract, the source witness matches the variables, and the body and contract
+/// verify.
+fn check_encoding_inputs(
     result: &AnalysisResultWire,
-    variable_names: Vec<String>,
-    artifact_id: &str,
+    variable_names: &[String],
     contract: Option<&crate::AnalysisResultContractWire>,
     source: Option<&crate::SourceWitnessWire>,
     provenance: Option<&crate::MethodProvenanceWire>,
-) -> Result<EncodedArtifact, IoError> {
+) -> Result<(), IoError> {
     if let Some(provenance) = provenance {
         let contract = contract.ok_or_else(|| {
             IoError::Convert("method provenance requires a contract section".into())
@@ -1558,10 +1550,10 @@ pub fn encode_analysis_result_artifact_with_provenance(
             .into());
         }
     }
-    validate::validate_result(result, &variable_names, false)?;
+    validate::validate_result(result, variable_names, false)?;
     if let Some(contract) = contract {
         crate::validate_contract_section(contract)?;
-        let header = AnalysisResultHeader { variable_names: variable_names.clone() };
+        let header = AnalysisResultHeader { variable_names: variable_names.to_vec() };
         let unresolved = crate::contract_section::verify_contract_for_encoding_with_source(
             &header, result, contract, source,
         );
@@ -1572,6 +1564,28 @@ pub fn encode_analysis_result_artifact_with_provenance(
             )));
         }
     }
+    Ok(())
+}
+
+/// Encode a composite result exactly as [`encode_analysis_result_artifact_with_contract_and_source`],
+/// with the [`crate::METHOD_PROVENANCE_SECTION`] the producer resolved for the executed route.
+///
+/// A producer that resolved an identifier or estimator the contract leaves undeclared passes the
+/// provenance of the resolved route; a component the contract declares must be the one named.
+///
+/// # Errors
+///
+/// The errors of [`encode_analysis_result_artifact_with_contract_and_source`], provenance without
+/// a contract, or provenance naming another identifier or estimator than the contract declares.
+pub fn encode_analysis_result_artifact_with_provenance(
+    result: &AnalysisResultWire,
+    variable_names: Vec<String>,
+    artifact_id: &str,
+    contract: Option<&crate::AnalysisResultContractWire>,
+    source: Option<&crate::SourceWitnessWire>,
+    provenance: Option<&crate::MethodProvenanceWire>,
+) -> Result<EncodedArtifact, IoError> {
+    check_encoding_inputs(result, &variable_names, contract, source, provenance)?;
     let header = to_cbor(&AnalysisResultHeader { variable_names })?;
     let body = to_cbor(result)?;
     let (header_descriptor, header_section) = pack_section_shared(
@@ -1627,7 +1641,7 @@ pub fn encode_analysis_result_artifact_with_provenance(
         .as_ref()
         .is_some_and(|grid| grid.slices.iter().any(|slice| slice.effect.is_none()))
     {
-        WITHHELD_MEDIATION_FORMAT
+        ABSENT_MEDIATION_POINT_FORMAT
     } else {
         STABLE_FORMAT
     };
@@ -1673,7 +1687,7 @@ pub fn decode_analysis_result_artifact(
         .mediation_grid
         .as_ref()
         .is_some_and(|grid| grid.slices.iter().any(|slice| slice.effect.is_none()))
-        && artifact.manifest.format_version != WITHHELD_MEDIATION_FORMAT
+        && artifact.manifest.format_version != ABSENT_MEDIATION_POINT_FORMAT
     {
         return Err(IoError::Convert(
             "withheld mediation points require analysis result format 0.6".into(),

@@ -1672,19 +1672,15 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                     } else {
                         crate::support::supported_route_estimator(cell).or(carry.declared.estimator)
                     };
-                    match estimator {
-                        Some(est) => {
-                            let status = crate::support::classify_estimator(cell, est);
-                            if status == CellStatus::NotSupported {
-                                missing_evidence
-                                    .push(format!("estimator_evidence:{}", est.as_str()));
-                            }
-                            Some(status)
+                    if let Some(est) = estimator {
+                        let status = crate::support::classify_estimator(cell, est);
+                        if status == CellStatus::NotSupported {
+                            missing_evidence.push(format!("estimator_evidence:{}", est.as_str()));
                         }
-                        None => {
-                            missing_evidence.push("estimator_evidence:none_selected".to_owned());
-                            Some(CellStatus::NotSupported)
-                        }
+                        Some(status)
+                    } else {
+                        missing_evidence.push("estimator_evidence:none_selected".to_owned());
+                        Some(CellStatus::NotSupported)
                     }
                 }
             }

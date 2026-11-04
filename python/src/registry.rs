@@ -25,19 +25,18 @@ use super::{
     adaptive_participant_api, adaptive_policy_api, adaptive_procedure_api, artifact_api,
     association_api, ate_api, attribution_api, bayesian, bounds_api, candidate_screen_api,
     categorical_posterior_candidate_api, categorical_treatment_api, checked_claim_api,
-    closed_pilot_api, cohort_decision_api, compact_export_api, composition_api,
-    composition_bundle_api, composition_verification_api, counterfactual_id_api,
-    cpdag_scenario_api, cross_world_api, cross_world_execution_api, decision_api,
-    decision_reliability_api, default_user_threads, derived_treatment_api, descriptive_api,
-    design_api, design_ranking_api, discovered_transport_api, discovery_api,
-    discretized_composition_api, distribution_api, dose_grid_api, effect_constancy_api,
-    effect_constancy_review_api, evidence_ledger_api, evidence_plan_api, execution_attempt_api,
-    experiment_api, external_api, factorial_api, fallback_report_api, fallback_stage_api,
-    forward_source_api, gcm_api, graph_falsification_api, graph_io, graph_selection_api, graphs,
-    horizon_composition_api, interface_contract_api, interference_saturation_api,
-    inverse_outcome_api, inverse_query_api, joint_law_propagation_api, joint_response_api,
-    joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
-    learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
+    cohort_decision_api, compact_export_api, composition_api, composition_bundle_api,
+    composition_verification_api, counterfactual_id_api, cpdag_scenario_api, cross_world_api,
+    cross_world_execution_api, decision_api, decision_reliability_api, default_user_threads,
+    derived_treatment_api, descriptive_api, design_api, design_ranking_api,
+    discovered_transport_api, discovery_api, discretized_composition_api, distribution_api,
+    dose_grid_api, effect_constancy_api, effect_constancy_review_api, evidence_ledger_api,
+    evidence_plan_api, execution_attempt_api, experiment_api, external_api, factorial_api,
+    fallback_report_api, fallback_stage_api, forward_source_api, gcm_api, graph_falsification_api,
+    graph_io, graph_selection_api, graphs, horizon_composition_api, interface_contract_api,
+    interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
+    joint_response_api, joint_transport_api, latent_class_api, learned_continuous_api,
+    learned_joint_api, learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
     load_float64_panel_columns, matched_case_control_api, measured_inference_api,
     measurement_model_api, mechanism_composition_api, mechanism_discrepancy_api,
     mnar_fixed_shift_api, mnar_sensitivity_api, msm_sensitivity_api, multi_level_treatment_api,
@@ -50,7 +49,7 @@ use super::{
     recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api, recalc_external_api,
     recalc_standing_api, recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api,
     regimes_api, repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
-    selective_discovery_api, sensitivity_decision_api, sensitivity_source_api,
+    scope_refusal_api, selective_discovery_api, sensitivity_decision_api, sensitivity_source_api,
     set_not_identified_error_class, set_review_error_class, set_unsupported_error_class,
     set_value_error_class, smoothed_dose_api, source_evidence_api, source_projection_api,
     stability, state_api, study_planning_api, survival_api, temporal_api,
@@ -102,7 +101,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     repair_api::register(m)?;
     evidence_plan_api::register(m)?;
     recovery_api::register(m)?;
-    closed_pilot_api::register(m)?;
+    scope_refusal_api::register(m)?;
     nested_fisher_api::register(m)?;
     nested_bayesian_api::register(m)?;
     learned_joint_api::register(m)?;

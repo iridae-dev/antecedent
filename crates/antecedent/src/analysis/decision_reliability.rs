@@ -144,8 +144,6 @@ pub struct DecisionReliabilityInspection {
     pub monte_carlo_error: String,
     /// Selection-induced uncertainty, summarized.
     pub selection_uncertainty: String,
-    /// Routes that are closed at this coordinate, by name.
-    pub closed_routes: Vec<&'static str>,
     /// The coordinate a calibration would have to measure.
     pub coordinate: String,
 }
@@ -251,7 +249,6 @@ impl PreparedDecisionReliability {
                 mc.value, mc.standard_error, mc.effective_sample_size, mc.method
             ),
             selection_uncertainty: selection,
-            closed_routes: report.closed_routes.iter().map(|r| r.route.as_str()).collect(),
             coordinate: report.coordinate.describe(),
         }
     }

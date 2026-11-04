@@ -901,9 +901,10 @@ pub fn estimate_sampled_counterfactual_transport(
         }
     };
 
-    let interval = match (&point, &standard_error) {
-        (Some(_), Some(_)) => SampledIntervalOutcome::Reported,
-        _ => {
+    let interval = if point.is_some() && standard_error.is_some() {
+        SampledIntervalOutcome::Reported
+    } else {
+        {
             let (code, reason) = if envelope.is_some() {
                 (
                     antecedent_core::reason_code!("effect_not_identified"),

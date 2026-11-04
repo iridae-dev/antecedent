@@ -140,7 +140,7 @@ pub struct ClaimSectionWire {
 /// Calibration status of a reported interval.
 ///
 /// An annotation on every reported interval, never a gate: the interval is
-/// reported whatever the status. Wire text is the snake_case variant name.
+/// reported whatever the status. Wire text is the `snake_case` variant name.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CalibrationStatus {

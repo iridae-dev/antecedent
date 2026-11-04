@@ -58,11 +58,11 @@ mod tests;
 
 pub use assumptions::TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC;
 #[cfg(test)]
-pub(crate) use band::SIMULTANEOUS_BAND_WITHHELD;
+pub(crate) use band::NO_SIMULTANEOUS_BAND_METHOD;
 pub(crate) use band::max_deviation_band_columns;
 pub use band::{
     MaxDeviationBand, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
-    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, TEMPORAL_RESPONSE_BAND_WITHHELD,
+    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, TEMPORAL_RESPONSE_NO_BAND_METHOD,
     clear_simultaneous_band, max_deviation_band, publish_simultaneous_band,
 };
 #[cfg(test)]

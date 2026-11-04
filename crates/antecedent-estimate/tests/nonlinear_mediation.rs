@@ -475,13 +475,23 @@ fn mediation_bootstrap_is_deterministic_and_has_no_intervals() {
     assert_ne!(a.natural_direct_se, c.natural_direct_se);
     // The percentile intervals are the type-7 (linear interpolation) quantiles of the same
     // independently recomputed replicate effects, at the declared level.
-    assert_eq!(a.interval_level, 0.95);
+    assert!((a.interval_level - 0.95).abs() < 1e-15);
     assert!(a.interval_unavailable_reason.is_none());
     let type7 = |v: &[f64], p: f64| {
         let mut sorted = v.to_vec();
         sorted.sort_by(f64::total_cmp);
         let h = (sorted.len() - 1) as f64 * p;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the index is floor of a non-negative position below the replicate count"
+        )]
         let lo = h.floor() as usize;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the index is floor of a non-negative position below the replicate count"
+        )]
         let hi = h.ceil() as usize;
         sorted[lo] + (h - lo as f64) * (sorted[hi] - sorted[lo])
     };

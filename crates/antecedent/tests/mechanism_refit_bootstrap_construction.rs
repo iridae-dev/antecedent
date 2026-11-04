@@ -142,6 +142,11 @@ fn reference_replicates(
             );
             let mut counts = vec![0.0_f64; n];
             for _ in 0..n {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the floor of a uniform draw scaled by the row count is a valid row index"
+                )]
                 let row = ((rng.next_f64() * n as f64) as usize).min(n - 1);
                 counts[row] += 1.0;
             }

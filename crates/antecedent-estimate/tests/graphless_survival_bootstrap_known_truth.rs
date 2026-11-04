@@ -38,7 +38,7 @@ const DRAWS: u32 = 40_000;
 /// `Binomial(n, q)` probabilities for `k = 0..=n`.
 fn binomial(n: usize, q: f64) -> Vec<f64> {
     let mut pmf = vec![0.0; n + 1];
-    pmf[0] = (1.0 - q).powi(n as i32);
+    pmf[0] = (1.0 - q).powi(i32::try_from(n).expect("trial count fits i32"));
     for k in 0..n {
         pmf[k + 1] = pmf[k] * (n - k) as f64 / (k + 1) as f64 * q / (1.0 - q);
     }
@@ -241,10 +241,15 @@ fn late_entry_scenario(weighted: bool) {
     let composition = [[12_usize, 16, 12], [8, 20, 12]];
     let (mut duration, mut event, mut treated, mut entry, mut g) =
         (vec![], vec![], vec![], vec![], vec![]);
-    for arm in 0..2 {
-        let [events, early, late] = composition[arm];
+    for (arm, &[events, early, _]) in composition.iter().enumerate() {
         for i in 0..n {
-            let kind = if i < events { 0 } else if i < events + early { 1 } else { 2 };
+            let kind = if i < events {
+                0
+            } else if i < events + early {
+                1
+            } else {
+                2
+            };
             duration.push(if kind == 0 { 1.0 } else { TAU });
             event.push(i64::from(kind == 0));
             treated.push(arm == 1);
@@ -295,8 +300,8 @@ fn late_entry_scenario(weighted: bool) {
     .unwrap();
     assert!(f64::from(interval.replicates_ok) >= 0.99 * f64::from(DRAWS));
     let q = |arm: usize| composition[arm].map(|c| c as f64 / n as f64);
-    let a0 = arm_atoms(n, q(0), &survival);
-    let a1 = arm_atoms(n, q(1), &survival);
+    let a0 = arm_atoms(n, q(0), survival);
+    let a1 = arm_atoms(n, q(1), survival);
     let survival_law = difference_law(&a0, &a1, 1.0);
     let rmst_law = difference_law(&a0, &a1, 2.0);
     let rmst = interval.rmst_difference.expect("survival endpoint reports RMST");
@@ -328,7 +333,7 @@ fn delayed_entry_fixed_known_censoring_scalar_intervals_match_the_exact_weighted
 
 fn band_radius_check(
     endpoint: SurvivalEndpoint,
-    event: Vec<i64>,
+    event: &[i64],
     n: [usize; 2],
     q: [f64; 2],
     sign: f64,
@@ -344,7 +349,7 @@ fn band_radius_check(
     }
     let band = randomized_survival_bootstrap_difference_band(
         &duration,
-        &event,
+        event,
         &treated,
         TAU,
         endpoint,
@@ -380,7 +385,7 @@ fn simultaneous_survival_difference_band_radius_is_the_exact_supremum_quantile()
     let mut event = vec![0_i64; 200];
     event[..30].fill(1);
     event[100..120].fill(1);
-    band_radius_check(SurvivalEndpoint::Survival, event, [100, 100], [0.3, 0.2], -1.0, 0.1);
+    band_radius_check(SurvivalEndpoint::Survival, &event, [100, 100], [0.3, 0.2], -1.0, 0.1);
 }
 
 #[test]
@@ -395,7 +400,7 @@ fn simultaneous_competing_incidence_band_radius_is_the_exact_supremum_quantile()
     event[120..130].fill(2);
     band_radius_check(
         SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
-        event,
+        &event,
         [100, 100],
         [0.3, 0.2],
         1.0,

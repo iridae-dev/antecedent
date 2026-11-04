@@ -1,4 +1,4 @@
-"""Measured pilot scope boundaries and typed refusal precedence.
+"""Scope boundaries and typed refusal precedence.
 
 Success lifecycles and independent numerical oracles live in the measured-family
 suites. These adjacent requests cannot borrow evidence from those exact protocols.
@@ -188,7 +188,7 @@ def test_nested_markov_outside_class_requests_refuse_without_a_nonidentification
     for case in cases:
         error = refusal_of(lambda case=case: transport.binary_nested_markov(**case))
         assert_refused(
-            error, "route_not_supported", reason_details.nested_markov.OUTSIDE_BINARY_PILOT
+            error, "route_not_supported", reason_details.nested_markov.OUTSIDE_BINARY_SCOPE
         )
         assert "nonidentif" not in str(error)
 
@@ -339,7 +339,7 @@ def test_sampled_recovery_validates_its_arguments_as_typed_errors():
         transport.sampled_observation_recovery(**sampled_kwargs(execution=Execution(seed=-1)))
 
 
-def test_scoped_pilot_routes_are_exported_from_the_advanced_namespace():
+def test_scoped_routes_are_exported_from_the_advanced_namespace():
     for name in (
         "joint_bayesian_transport",
         "binary_nested_markov",

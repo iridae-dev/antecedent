@@ -104,8 +104,8 @@ fn cap_y(bound: f64, min_probability: f64) -> HardConstraint {
 }
 
 /// Rows (x, y, k) with weights .1 .2 .3 .4: (1,4,6) (2,3,2) (3,2,4) (4,1,5).
-/// U_A = x*y = 4, 6, 6, 4 so E[U_A] = .4 + 1.2 + 1.8 + 1.6 = 5.0.
-/// U_B = k so E[U_B] = .6 + .4 + 1.2 + 2.0 = 4.2.
+/// `U_A` = x*y = 4, 6, 6, 4 so `E[U_A]` = .4 + 1.2 + 1.8 + 1.6 = 5.0.
+/// `U_B` = k so `E[U_B]` = .6 + .4 + 1.2 + 2.0 = 4.2.
 /// The row-wise best is 6, 6, 6, 5 so E[max] = .6 + 1.2 + 1.8 + 2.0 = 5.6 and EVPI = 0.6.
 /// Regret of A: .1*2 + .2*0 + .3*0 + .4*1 = 0.6; regret of B: .1*0 + .2*4 + .3*2 + .4*0 = 1.4.
 fn source() -> DistributionArtifact {
@@ -131,19 +131,15 @@ fn weighted_nonlinear_expected_utilities_regrets_and_evpi_match_the_hand_values(
 /// its own expected utility 5.0.
 #[test]
 fn a_probability_constraint_excludes_an_action_exactly_when_its_hand_probability_falls_short() {
-    let kept = evaluate_contract(
-        &base(StructuralPolicy::ReportOnly, vec![cap_y(2.0, 0.6)]),
-        &source(),
-    )
-    .unwrap();
+    let kept =
+        evaluate_contract(&base(StructuralPolicy::ReportOnly, vec![cap_y(2.0, 0.6)]), &source())
+            .unwrap();
     assert!(kept.actions[0].admissible);
     assert_eq!(kept.verdict, Verdict::UniquelyOptimal("A".into()));
 
-    let dropped = evaluate_contract(
-        &base(StructuralPolicy::ReportOnly, vec![cap_y(2.0, 0.75)]),
-        &source(),
-    )
-    .unwrap();
+    let dropped =
+        evaluate_contract(&base(StructuralPolicy::ReportOnly, vec![cap_y(2.0, 0.75)]), &source())
+            .unwrap();
     assert!(!dropped.actions[0].admissible);
     assert_eq!(dropped.actions[0].exclusions.len(), 1);
     assert!(near(dropped.actions[0].exclusions[0].probability, 0.7));
@@ -161,22 +157,22 @@ fn structure(id: &str, weights: Vec<f64>, rows: &[[f64; 3]]) -> StructuralAtom {
     }
 }
 
-fn robust(atoms: &[StructuralAtom]) -> antecedent_design::decision_robustness::RobustDecisionResult {
+fn robust(
+    atoms: &[StructuralAtom],
+) -> antecedent_design::decision_robustness::RobustDecisionResult {
     let contract = AdmissibleDecisionContract {
         contract: base(StructuralPolicy::RequireInvariantBestAction, vec![]),
         rules: AdmissibilityRules::default(),
     };
-    let claims = ClaimProfile {
-        uncertainty: UncertaintyKind::StructuralEnvelope,
-        support: Default::default(),
-    };
+    let claims =
+        ClaimProfile { uncertainty: UncertaintyKind::StructuralEnvelope, support: Vec::default() };
     evaluate_robust(&contract, atoms, &claims).unwrap().1
 }
 
 /// Structure s1: rows (1,2,3) (3,2,1) (2,4,2) with weights .25 .25 .5 gives
-/// E[U_A] = .25*2 + .25*6 + .5*8 = 6.0 and E[U_B] = .75 + .25 + 1.0 = 2.0.
-/// Structure s2: rows (1,1,2) (3,3,3) with weights .5 .5 gives E[U_A] = .5 + 4.5 = 5.0 and
-/// E[U_B] = 1.0 + 1.5 = 2.5. A leads in both, with ranges [5, 6] and [2, 2.5].
+/// `E[U_A]` = .25*2 + .25*6 + .5*8 = 6.0 and `E[U_B]` = .75 + .25 + 1.0 = 2.0.
+/// Structure s2: rows (1,1,2) (3,3,3) with weights .5 .5 gives `E[U_A]` = .5 + 4.5 = 5.0 and
+/// `E[U_B]` = 1.0 + 1.5 = 2.5. A leads in both, with ranges [5, 6] and [2, 2.5].
 fn s1() -> StructuralAtom {
     structure("s1", vec![0.25, 0.25, 0.5], &[[1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [2.0, 4.0, 2.0]])
 }
@@ -194,7 +190,7 @@ fn a_leader_in_every_structure_is_robust_with_ranges_computed_from_the_laws() {
     assert!(near(b_lo, 2.0) && near(b_hi, 2.5));
 }
 
-/// Structure s3: rows (1,1,10) (1,1,8) with weights .5 .5 gives E[U_A] = 1 and E[U_B] = 9, so B
+/// Structure s3: rows (1,1,10) (1,1,8) with weights .5 .5 gives `E[U_A]` = 1 and `E[U_B]` = 9, so B
 /// leads there and the choice depends on the structure; no action is selected.
 #[test]
 fn a_structure_where_another_action_leads_makes_the_choice_graph_dependent() {

@@ -9,7 +9,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
 use antecedent::analysis::proposal_arrival::{
-    ArrivalArtifact, ArrivalLimits, ArrivalPoint, ArrivalRequest, execute_with_limits,
+    ArrivalLimits, ArrivalPoint, ArrivalRequest, execute_with_limits,
 };
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
@@ -21,7 +21,6 @@ use antecedent_design::{
     RepairObjective, RepairReportArtifact, StudyCostDeclaration, StudyKind, TransportRepairFamily,
     UnitRules, repair,
 };
-use antecedent_expr::execution_counts::count_static_work;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{ClassicalTransportQuery, SidLimits};
@@ -114,9 +113,6 @@ fn law(rid: antecedent_core::RegimeId, active: bool) -> ExactLawWire {
         .unwrap(),
     )
 }
-fn fixture() -> ArrivalRequest {
-    fixture_family(false)
-}
 fn fixture_family(z: bool) -> ArrivalRequest {
     let coord =
         |i| VariableCoordinate { variable: v(i), domain: VariableDomain::Binary, unit: None };
@@ -208,12 +204,6 @@ fn fixture_family(z: bool) -> ArrivalRequest {
         operations: 100_000,
         depth: 128,
         support_rows: 1024,
-    }
-}
-fn detail(e: IoError) -> String {
-    match e {
-        IoError::Refused { message, .. } => message,
-        _ => panic!("not a typed refusal: {e}"),
     }
 }
 #[test]

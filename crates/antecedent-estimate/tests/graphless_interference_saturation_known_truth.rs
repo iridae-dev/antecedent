@@ -92,16 +92,16 @@ fn fixture(outcome_of: impl Fn(usize, f64, f64) -> f64) -> Fixture {
     // Alternate high and low clusters; 24 each.
     let high: Vec<bool> = (0..CLUSTERS).map(|c| c % 2 == 0).collect();
     let mut assignment = vec![false; CLUSTERS * SIZE];
-    for c in 0..CLUSTERS {
+    for (c, &is_high) in high.iter().enumerate() {
         let slot = c / 2;
         for w in 0..SIZE {
             let i = c * SIZE + w;
-            assignment[i] = if high[c] {
+            assignment[i] = if is_high {
                 // Half of the high clusters are fully treated; the rest are mixed.
                 slot % 2 == 0 || spread(i as u64) < 0.8
             } else {
                 // Half of the low clusters are fully untreated; the rest are mixed.
-                !(slot % 2 == 0) && spread(500 + i as u64) < 0.2
+                slot % 2 != 0 && spread(500 + i as u64) < 0.2
             };
         }
     }

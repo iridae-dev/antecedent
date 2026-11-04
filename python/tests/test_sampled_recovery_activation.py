@@ -23,7 +23,7 @@ from antecedent.errors import (
 )
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.transport import advanced as transport
-from antecedent.transport._closed_pilots import _sampled_observation_recovery_candidate
+from antecedent.transport._advanced_producers import _sampled_observation_recovery_candidate
 
 from test_observation_recovery import catalog, graph, query
 

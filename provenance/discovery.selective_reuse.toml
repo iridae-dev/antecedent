@@ -27,7 +27,7 @@ test_sources = [
 status = "justified_non_algorithm"
 kind = "wrapper"
 rationale = "Discovery followed by analysis on disjoint row sets: row assignment, verification against the source and retained adapter state."
-no_independent_algorithm = "Row assignment, bookkeeping and plan/resume of the retained run; discovery itself is run by the existing algorithms and the downstream estimator is another record. The claim-closing counterpart is discovery.selective_reuse_guarantees_closed."
+no_independent_algorithm = "Row assignment, bookkeeping and plan/resume of the retained run; discovery itself is run by the existing algorithms and the downstream estimator is another record. The claim-closing counterpart is discovery.selective_reuse_unsupported_guarantees."
 covered_by = ["discovery.pc", "discovery.fci"]
 record_sha256 = "5c421bb3547b4525e09b37fc5a15de29db9a6df722fac9cf3e5e026ccf1e3fff"
 

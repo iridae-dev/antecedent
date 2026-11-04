@@ -863,6 +863,7 @@ fn signed_zero_query_drift_is_refused_before_static_family_work() {
 #[test]
 fn a_declared_general_id_does_not_inherit_the_default_routes_support() {
     use crate::support::CellStatus;
+    use crate::support::{SupportCell, classify, classify_estimator};
     let build = |declared: Option<IdentifierId>| {
         let mut builder = base(binary_data())
             .graph(confounded_dag())
@@ -884,7 +885,6 @@ fn a_declared_general_id_does_not_inherit_the_default_routes_support() {
     // evidence list lacks that estimator, the same classification the builder applies is
     // `NotSupported`, and the missing entry the gate reports names it. The nested counterfactual
     // cell lists only `mediation.linear`.
-    use crate::support::{SupportCell, classify, classify_estimator};
     let cell = SupportCell::from_labels(
         "NestedCounterfactualEffect",
         "Dag",

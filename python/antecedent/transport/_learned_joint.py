@@ -15,12 +15,12 @@ from antecedent import _reason_details
 
 from .. import _native
 from .._measured_inference import MeasuredInference
-from .._native import learned_joint_transport_closed as _learned_joint_transport_closed
+from .._native import learned_joint_transport_scope as _learned_joint_transport_scope
 from .._validate import names
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..execution import Execution
 from ..graph import Admg
-from ._closed_pilots import _has_bidirected_edge
+from ._advanced_producers import _has_bidirected_edge
 from ._controls import resolve
 from ._impl import TransportIdentification, _non_negative
 from ._joint_posterior import (
@@ -156,7 +156,7 @@ def learned_joint_transport(
             max_unsupported_mass=max_unsupported_mass,
             conflict_z_threshold=conflict_z_threshold,
         )
-    _learned_joint_transport_closed(
+    _learned_joint_transport_scope(
         declared,
         dependence,
         varying,

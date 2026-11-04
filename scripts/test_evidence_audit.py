@@ -321,7 +321,7 @@ class Classification(unittest.TestCase):
             self.assertTrue(problems(build(no_independent_algorithm="")))
             # A derivation without its statement, or without an executing assertion.
             self.assertTrue(problems(build("derivation", derivation="")))
-            record = build("closed_variant")
+            record = build("unsupported_variant")
             record["non_algorithm_review"]["artifacts"].pop()
             record["non_algorithm_review"]["record_sha256"] = provenance_links.non_algorithm_digest(record)
             self.assertTrue(problems(record))

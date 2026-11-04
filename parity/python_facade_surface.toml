@@ -297,22 +297,22 @@ status = "bound"
 python = "native:python/src/interface_contract_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::closed_pilots::joint_bayesian_transport_refusal"
+rust = "antecedent::analysis::scope_refusals::joint_bayesian_transport_refusal"
 kind = "fn"
 status = "bound"
-python = "native:python/src/closed_pilot_api.rs"
+python = "native:python/src/scope_refusal_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::closed_pilots::nested_markov_refusal"
+rust = "antecedent::analysis::scope_refusals::nested_markov_refusal"
 kind = "fn"
 status = "bound"
-python = "native:python/src/closed_pilot_api.rs"
+python = "native:python/src/scope_refusal_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::closed_pilots::sampled_recovery_refusal"
+rust = "antecedent::analysis::scope_refusals::sampled_recovery_refusal"
 kind = "fn"
 status = "bound"
-python = "native:python/src/closed_pilot_api.rs"
+python = "native:python/src/scope_refusal_api.rs"
 
 [[entry]]
 rust = "antecedent::analysis::cohort_decision::consume_cohort_decision_source"
@@ -974,7 +974,7 @@ status = "bound"
 python = "native:python/src/joint_law_propagation_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::learned_joint_closed::learned_joint_transport_refusal"
+rust = "antecedent::analysis::learned_joint_scope::learned_joint_transport_refusal"
 kind = "fn"
 status = "bound"
 python = "native:python/src/learned_joint_api.rs"

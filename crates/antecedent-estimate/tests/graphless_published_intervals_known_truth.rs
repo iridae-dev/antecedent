@@ -177,14 +177,15 @@ fn observational_known_propensity_cluster_t_interval_matches_the_hand_computatio
                 assignment[2 * c] = true;
                 assignment[2 * c + 1] = true; // both treated: exposure (own 1, neighbours 1)
             }
-            3..=5 => {} // both untreated: exposure (0, 0)
+            3..=5 => {}                    // both untreated: exposure (0, 0)
             _ => assignment[2 * c] = true, // mixed: neither requested level
         }
     }
     let cluster_of: Vec<u32> = (0..n).map(|i| (i / 2) as u32).collect();
     let outcomes: Vec<f64> = (0..n)
         .map(|i| {
-            1.0 + 0.7 * f64::from(assignment[i]) + (spread(77 + (i / 2) as u64) - 0.5)
+            1.0 + 0.7 * f64::from(assignment[i])
+                + (spread(77 + (i / 2) as u64) - 0.5)
                 + 0.4 * (spread(3_000 + i as u64) - 0.5)
         })
         .collect();
@@ -257,7 +258,8 @@ fn switchback_student_interval_matches_the_hand_computation() {
     let outcomes: Vec<f64> = (0..n)
         .map(|i| {
             let s = i / periods;
-            1.0 + 1.2 * f64::from(assignment[i]) + (spread(60 + s as u64) - 0.5)
+            1.0 + 1.2 * f64::from(assignment[i])
+                + (spread(60 + s as u64) - 0.5)
                 + 0.5 * (spread(8_000 + i as u64) - 0.5)
         })
         .collect();
@@ -269,7 +271,11 @@ fn switchback_student_interval_matches_the_hand_computation() {
         .map(|s| {
             (s * periods..(s + 1) * periods)
                 .map(|i| {
-                    if assignment[i] { outcomes[i] / probability } else { -outcomes[i] / (1.0 - probability) }
+                    if assignment[i] {
+                        outcomes[i] / probability
+                    } else {
+                        -outcomes[i] / (1.0 - probability)
+                    }
                 })
                 .sum()
         })
@@ -277,8 +283,8 @@ fn switchback_student_interval_matches_the_hand_computation() {
     let mean_total = totals.iter().sum::<f64>() / sequences as f64;
     let effect = mean_total * sequences as f64 / n as f64;
     let s = sequences as f64;
-    let variance =
-        s / (s - 1.0) * totals.iter().map(|t| (t - mean_total).powi(2)).sum::<f64>() / (n * n) as f64;
+    let variance = s / (s - 1.0) * totals.iter().map(|t| (t - mean_total).powi(2)).sum::<f64>()
+        / (n * n) as f64;
     close(got.effect, effect, 1e-11, "switchback effect");
     close(got.variance, variance, 1e-11, "sequence sandwich variance");
     assert_eq!(got.sequences, sequences);
@@ -317,13 +323,13 @@ fn fixed_coefficient_cuped_is_unbiased_over_every_assignment_and_publishes_the_h
             scores.push(if treated { y / p1[i] } else { -y / (1.0 - p1[i]) });
         }
         let effect = scores.iter().sum::<f64>() / nf;
-        let variance =
-            scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (nf * (nf - 1.0));
+        let variance = scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (nf * (nf - 1.0));
         mean += weight * effect;
         mean_sq += weight * effect * effect;
         mean_v += weight * variance;
         let table: Vec<Vec<f64>> = p1.iter().map(|&p| vec![1.0 - p, p]).collect();
-        let Some(got) = independent_action_contrast(&adjusted, &assignments, table.as_slice(), 0, 1)
+        let Some(got) =
+            independent_action_contrast(&adjusted, &assignments, table.as_slice(), 0, 1)
         else {
             assert!(mask == 0 || mask == (1 << n) - 1, "only an empty arm is refused");
             continue;
@@ -345,13 +351,16 @@ fn fixed_coefficient_cuped_is_unbiased_over_every_assignment_and_publishes_the_h
 
     // Published interval: 80 rows, probability 0.5, exactly 40 per arm.
     let m = 80_usize;
-    let assignment: Vec<usize> = (0..m).map(|i| usize::from(spread(300 + i as u64) < 0.5)).collect();
+    let assignment: Vec<usize> =
+        (0..m).map(|i| usize::from(spread(300 + i as u64) < 0.5)).collect();
     let treated_n = assignment.iter().filter(|a| **a == 1).count();
     assert!(treated_n >= 30 && m - treated_n >= 30);
     let covariate: Vec<f64> = (0..m).map(|i| (0.19 * i as f64).sin()).collect();
     let adjusted: Vec<f64> = (0..m)
         .map(|i| {
-            let raw = 2.0 + c * covariate[i] + 0.4 * (spread(700 + i as u64) - 0.5)
+            let raw = 2.0
+                + c * covariate[i]
+                + 0.4 * (spread(700 + i as u64) - 0.5)
                 + 1.8 * assignment[i] as f64;
             raw - c * covariate[i]
         })
@@ -389,11 +398,12 @@ fn wald_ratio_with_control_arm_receipt_matches_the_delta_method_over_every_assig
         for i in 0..n {
             let z = (mask >> i) & 1 == 1;
             weight *= if z { p[i] } else { 1.0 - p[i] };
-            let d = if z { d1[i] } else { d0[i] };
+            let d: f64 = if z { d1[i] } else { d0[i] };
             outcomes.push(base[i] + gain[i] * d); // exclusion: assignment acts through receipt
             assignment.push(z);
-            received.push(d == 1.0);
-            control_receipts += usize::from(!z && d == 1.0);
+            let received_now = d.to_bits() == 1.0_f64.to_bits();
+            received.push(received_now);
+            control_receipts += usize::from(!z && received_now);
         }
         let ys: Vec<f64> = (0..n)
             .map(|i| if assignment[i] { outcomes[i] / p[i] } else { -outcomes[i] / (1.0 - p[i]) })
@@ -444,7 +454,9 @@ struct PolicyFixture {
 fn policy_fixture() -> PolicyFixture {
     let n = 600;
     PolicyFixture {
-        outcome: (0..n).map(|i| 1.0 + (i % 300) as f64 / 300.0 + 0.8 * (spread(40 + i as u64) - 0.5)).collect(),
+        outcome: (0..n)
+            .map(|i| 1.0 + (i % 300) as f64 / 300.0 + 0.8 * (spread(40 + i as u64) - 0.5))
+            .collect(),
         assignment: (0..n).map(|i| i % 2 == 0).collect(),
         actions: (0..n).map(|i| i % 3 != 0).collect(),
         reference: vec![false; n],
@@ -461,7 +473,8 @@ fn hand_uplift_bins(f: &PolicyFixture, p: f64) -> Vec<(f64, f64, [f64; 2])> {
                 .collect();
             let m = scores.len() as f64;
             let effect = scores.iter().sum::<f64>() / m;
-            let se = (scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (m * (m - 1.0))).sqrt();
+            let se =
+                (scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (m * (m - 1.0))).sqrt();
             (effect, se, [effect - Z975 * se, effect + Z975 * se])
         })
         .collect()
@@ -479,7 +492,12 @@ fn check_uplift_bins(f: &PolicyFixture) {
     }
 }
 
-fn hand_policy_scores(f: &PolicyFixture, p: f64, nuisance: Option<(&[f64], &[f64])>, cost: f64) -> [Vec<f64>; 3] {
+fn hand_policy_scores(
+    f: &PolicyFixture,
+    p: f64,
+    nuisance: Option<(&[f64], &[f64])>,
+    cost: f64,
+) -> [Vec<f64>; 3] {
     let n = f.outcome.len();
     let score = |i: usize, a: bool| {
         let expected = nuisance.map_or(0.0, |(m0, m1)| if a { m1[i] } else { m0[i] });
@@ -490,7 +508,8 @@ fn hand_policy_scores(f: &PolicyFixture, p: f64, nuisance: Option<(&[f64], &[f64
                 0.0
             }
     };
-    let policy: Vec<f64> = (0..n).map(|i| score(i, f.actions[i]) - cost * f64::from(f.actions[i])).collect();
+    let policy: Vec<f64> =
+        (0..n).map(|i| score(i, f.actions[i]) - cost * f64::from(f.actions[i])).collect();
     let reference: Vec<f64> = (0..n).map(|i| score(i, f.reference[i])).collect();
     let incremental = policy.iter().zip(&reference).map(|(a, b)| a - b).collect();
     [policy, reference, incremental]
@@ -526,8 +545,18 @@ fn check_policy_intervals(f: &PolicyFixture, nuisance: Option<(&[f64], &[f64])>)
         .expect("600 rows and matched rows publish the policy intervals");
     close(got.policy[0], mean(&policy) - Z975 * se(&policy), 1e-11, "policy lower");
     close(got.policy[1], mean(&policy) + Z975 * se(&policy), 1e-11, "policy upper");
-    close(got.incremental[0], mean(&incremental) - Z975 * se(&incremental), 1e-11, "incremental lower");
-    close(got.incremental[1], mean(&incremental) + Z975 * se(&incremental), 1e-11, "incremental upper");
+    close(
+        got.incremental[0],
+        mean(&incremental) - Z975 * se(&incremental),
+        1e-11,
+        "incremental lower",
+    );
+    close(
+        got.incremental[1],
+        mean(&incremental) + Z975 * se(&incremental),
+        1e-11,
+        "incremental upper",
+    );
 }
 
 #[test]
@@ -543,7 +572,9 @@ fn aipw_uplift_bins_and_policy_intervals_match_the_hand_computation() {
     // the doubly robust scores with frozen held-out nuisance predictions.
     let f = policy_fixture();
     let n = f.outcome.len();
-    let mu0: Vec<f64> = (0..n).map(|i| 1.0 + 0.5 * (i % 300) as f64 / 300.0 + 0.1 * spread(90 + i as u64)).collect();
+    let mu0: Vec<f64> = (0..n)
+        .map(|i| 1.0 + 0.5 * (i % 300) as f64 / 300.0 + 0.1 * spread(90 + i as u64))
+        .collect();
     let mu1: Vec<f64> = (0..n).map(|i| mu0[i] + 0.3 + 0.2 * spread(95 + i as u64)).collect();
     check_uplift_bins(&f);
     check_policy_intervals(&f, Some((&mu0, &mu1)));
@@ -555,9 +586,19 @@ fn multi_action_cate_group_intervals_match_the_hand_computation() {
     let n = g1 + g2;
     let k = 3;
     let labels: Vec<Arc<str>> = vec![Arc::from("control"), Arc::from("a"), Arc::from("b")];
-    let assignment: Vec<usize> = (0..n).map(|i| match i % 10 { 0..=3 => 0, 4..=6 => 1, _ => 2 }).collect();
+    let assignment: Vec<usize> = (0..n)
+        .map(|i| match i % 10 {
+            0..=3 => 0,
+            4..=6 => 1,
+            _ => 2,
+        })
+        .collect();
     let outcome: Vec<f64> = (0..n)
-        .map(|i| 1.0 + 0.6 * assignment[i] as f64 + (if i < g1 { 0.0 } else { 0.5 }) + (spread(500 + i as u64) - 0.5))
+        .map(|i| {
+            1.0 + 0.6 * assignment[i] as f64
+                + (if i < g1 { 0.0 } else { 0.5 })
+                + (spread(500 + i as u64) - 0.5)
+        })
         .collect();
     let group = |i: usize| if i < g1 { "g1" } else { "g2" };
     let propensities: Vec<f64> = (0..n).flat_map(|_| [0.4, 0.3, 0.3]).collect();
@@ -597,7 +638,8 @@ fn multi_action_cate_group_intervals_match_the_hand_computation() {
                 .collect();
             let m = rows.len() as f64;
             let effect = scores.iter().sum::<f64>() / m;
-            let se = (scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (m * (m - 1.0))).sqrt();
+            let se =
+                (scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (m * (m - 1.0))).sqrt();
             let point = &got[index];
             index += 1;
             assert_eq!(point.group, name);

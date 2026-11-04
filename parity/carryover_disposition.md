@@ -26,7 +26,7 @@ The joint-sensitivity route is now registered as supported and is no longer a ca
 
 ## Multi-source mz transport
 
-Decision: retain `not_supported` / `mz_transport.interval_withheld` for the joint percentile-bootstrap interval. The estimator is compiled only with `calibration-internal`; the released artifact producer records a withheld interval and its consumer rejects an interval-bearing artifact. The capability gate therefore lacks a released public producer and independent public consumer for either dependence design. Unknown or incompatible dependence additionally withholds the interval through `transport.unsupported_dependence`.
+Decision: refuse with `not_supported` for the joint percentile-bootstrap interval. The estimator is compiled only with `calibration-internal`; the released artifact producer records a withheld interval and its consumer rejects an interval-bearing artifact. The capability gate therefore lacks a released public producer and independent public consumer for either dependence design. Unknown or incompatible dependence additionally withholds the interval through `transport.unsupported_dependence`.
 
 | Sampling design | n | Observed 95% coverage | Replicates |
 | --- | ---: | ---: | ---: |

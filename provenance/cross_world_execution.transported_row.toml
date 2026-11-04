@@ -28,7 +28,7 @@ test_sources = [
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
+kind = "unsupported_variant"
 rationale = "The closed transported row of the cross-world capability matrix: every transported request outside the static additive linear theorem route is refused with the closed row's code, detail, remedy and named unmet prerequisites, before any work."
 no_independent_algorithm = "matrix.rs decide() and the executor's static check only look rows up and build a refusal; there is no estimator, no abduction in a target population and no numerical step. The one opened transported cell is the theorem-scoped static additive route covered by counterfactual.transported_additive."
 covered_by = ["counterfactual.transported_additive"]

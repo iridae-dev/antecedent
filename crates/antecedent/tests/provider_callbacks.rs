@@ -896,6 +896,33 @@ fn an_imported_attempt_count_cannot_overflow_during_recomputation() {
     assert_eq!(session.invocations(), 1);
 }
 
+/// Verification may replay a pure callback, but never a stateful one.
+fn verification_replays_pure_callbacks_but_never_stateful_ones(
+    session: &mut CallbackSession,
+    request: &CallbackRequest,
+) {
+    // Verification may replay a pure callback, but never a stateful one.
+    let verify = CallbackExecutionPolicy {
+        phase: CallbackPhase::Verification,
+        ..CallbackExecutionPolicy::default()
+    };
+    let verifying = Rc::new(Cell::new(0_u64));
+    let mut pure_provider = gaussian_provider("1.0", MU, Rc::clone(&verifying));
+    session
+        .execute(&mut pure_provider, &pure(), request, &no_inputs(), &verify, &ctx())
+        .expect("a pure callback can be replayed in verification");
+    assert_eq!(verifying.get(), 1);
+    let stateful = mean_only(ReplayContract::Stateful { exposes_state_identity: true });
+    let refusal = session
+        .execute(&mut pure_provider, &stateful, request, &no_inputs(), &verify, &ctx())
+        .expect_err("stateful in verification");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::INVOCATION_OUTSIDE_EXECUTION
+    );
+    assert_eq!(verifying.get(), 1);
+}
+
 #[test]
 fn a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outside_its_policy() {
     let calls = Rc::new(Cell::new(0_u64));
@@ -987,26 +1014,7 @@ fn a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outsi
         .expect("a stored result under an idempotent key is reused");
     assert!(third.reused);
     assert_eq!(calls.get(), 2);
-    // Verification may replay a pure callback, but never a stateful one.
-    let verify = CallbackExecutionPolicy {
-        phase: CallbackPhase::Verification,
-        ..CallbackExecutionPolicy::default()
-    };
-    let verifying = Rc::new(Cell::new(0_u64));
-    let mut pure_provider = gaussian_provider("1.0", MU, Rc::clone(&verifying));
-    session
-        .execute(&mut pure_provider, &pure(), &request, &no_inputs(), &verify, &ctx())
-        .expect("a pure callback can be replayed in verification");
-    assert_eq!(verifying.get(), 1);
-    let stateful = mean_only(ReplayContract::Stateful { exposes_state_identity: true });
-    let refusal = session
-        .execute(&mut pure_provider, &stateful, &request, &no_inputs(), &verify, &ctx())
-        .expect_err("stateful in verification");
-    assert_eq!(
-        refusal.refusal.detail,
-        antecedent_core::reason_details::callback_protocol::INVOCATION_OUTSIDE_EXECUTION
-    );
-    assert_eq!(verifying.get(), 1);
+    verification_replays_pure_callbacks_but_never_stateful_ones(&mut session, &request);
 }
 
 #[test]

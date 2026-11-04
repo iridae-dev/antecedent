@@ -22,6 +22,11 @@ fn hand_quantile(values: &[f64], p: f64) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
     let h = (sorted.len() as f64 - 1.0) * p;
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the index is floor of a non-negative position below the replicate count"
+    )]
     let k = h.floor() as usize;
     if k + 1 >= sorted.len() {
         return sorted[sorted.len() - 1];

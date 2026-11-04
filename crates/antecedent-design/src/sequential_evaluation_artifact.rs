@@ -913,15 +913,13 @@ impl SequentialEvaluationArtifact {
         expected: Option<&ExpectedEvaluation>,
         ctx: &ExecutionContext,
     ) -> Result<(), IoError> {
+        use antecedent_core::reason_details::sequential_evaluation;
         let body = &self.body;
         if body.version != u32::from(SEQUENTIAL_EVALUATION_ARTIFACT_VERSION) {
             return Err(IoError::UnsupportedVersion { version: body.version });
         }
         if body.inference != SEQUENTIAL_EVALUATION_INFERENCE {
-            return Err(refused(
-                antecedent_core::reason_details::sequential_evaluation::VERSION,
-                "unsupported inference claim",
-            ));
+            return Err(refused(sequential_evaluation::VERSION, "unsupported inference claim"));
         }
         if body.digest != self.recomputed_digest()? {
             return Err(identity_refused("body digest"));
@@ -964,52 +962,28 @@ impl SequentialEvaluationArtifact {
             Err(refused(detail, format!("the stored {what} does not replay")))
         };
         if fresh.model != body.model {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::MODEL_MISMATCH,
-                "model",
-            );
+            return differs(sequential_evaluation::MODEL_MISMATCH, "model");
         }
         if fresh.policy != body.policy {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::POLICY_MISMATCH,
-                "policy",
-            );
+            return differs(sequential_evaluation::POLICY_MISMATCH, "policy");
         }
         if fresh.exact.value_bits != body.exact.value_bits {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::VALUE_MISMATCH,
-                "policy value",
-            );
+            return differs(sequential_evaluation::VALUE_MISMATCH, "policy value");
         }
         if fresh.exact.histories != body.exact.histories {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::HISTORY_RECEIPT_MISMATCH,
-                "history receipts",
-            );
+            return differs(sequential_evaluation::HISTORY_RECEIPT_MISMATCH, "history receipts");
         }
         if fresh.exact.decisions != body.exact.decisions {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::DECISION_RECEIPT_MISMATCH,
-                "decision receipts",
-            );
+            return differs(sequential_evaluation::DECISION_RECEIPT_MISMATCH, "decision receipts");
         }
         if fresh.exact != body.exact {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::EXACT_MISMATCH,
-                "enumeration",
-            );
+            return differs(sequential_evaluation::EXACT_MISMATCH, "enumeration");
         }
         if fresh.off_policy != body.off_policy {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::OFF_POLICY_MISMATCH,
-                "off-policy estimate",
-            );
+            return differs(sequential_evaluation::OFF_POLICY_MISMATCH, "off-policy estimate");
         }
         if fresh.rollout != body.rollout {
-            return differs(
-                antecedent_core::reason_details::sequential_evaluation::ROLLOUT_MISMATCH,
-                "rollout diagnostic",
-            );
+            return differs(sequential_evaluation::ROLLOUT_MISMATCH, "rollout diagnostic");
         }
         if fresh.identities != body.identities {
             return Err(identity_refused("identities"));

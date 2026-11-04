@@ -10,7 +10,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
- "Exact under a hypothesized truth for the declared finite procedure; calibration is derived and unmeasured and nothing is claimed about an unknown truth.",
+ "Exact under a hypothesized truth for the declared finite procedure; calibration is derived and not measured and nothing is claimed about an unknown truth.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -24,7 +24,7 @@ rationale = "Exact stopping-time law, expected enrolment, decision law, wrong-de
 no_independent_algorithm = "Probability-weighted enumeration of the finite decision tree of the declared procedure; the weights are products of the Bernoulli outcome probabilities along each path."
 covered_by = ["adaptive_inference.procedure_law"]
 derivation = "For a finite tree of looks, the probability of a path is the product of its outcome probabilities under the hypothesized arm means. The stopping-look law, expected units, decision law, P(wrong decision) and expected regret are sums of path probabilities times the path's stopping look, units, decision indicator or regret."
-record_sha256 = "e1dc1e9a42a8c5adda5a8cd1891ff0a4f881470daec9510d81d12421985e786d"
+record_sha256 = "861c64b689dd877e0c78605bf35498235950125873c20385cf4d8f8bb8162ed5"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

@@ -312,7 +312,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
     let build = |interval_lower: f64| {
         let mut p = frozen_parts();
         p.quantities[0] = surface("ua", &[2.5, 1.5, 0.5], &[3.5, 2.5, 1.5]);
-        p.uncertainty.sampling = SamplingStatus::Reported(SamplingInterval {
+        p.uncertainty.sampling = SamplingStatus::Reported(Box::new(SamplingInterval {
             quantity: "ua".into(),
             level: 0.9,
             method: "percentile_bootstrap".into(),
@@ -320,7 +320,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
             calibration: None,
             lower: vec![interval_lower; 3],
             upper: vec![9.0; 3],
-        });
+        }));
         SensitivityArtifact::new(p).unwrap()
     };
     let (first, second) = (build(-3.0), build(-2.0));
@@ -342,7 +342,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
 
     // Composition with the assumption range is refused: no method is supported.
     let mut composed = frozen_parts();
-    composed.uncertainty.sampling = SamplingStatus::Reported(SamplingInterval {
+    composed.uncertainty.sampling = SamplingStatus::Reported(Box::new(SamplingInterval {
         quantity: "ua".into(),
         level: 0.9,
         method: "percentile_bootstrap".into(),
@@ -350,7 +350,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
         calibration: None,
         lower: vec![0.0; 3],
         upper: vec![9.0; 3],
-    });
+    }));
     let error = SensitivityArtifact::new(composed).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
@@ -724,5 +724,5 @@ fn a_joint_result_with_endpoint_replicates_reports_its_sampling_interval_by_hand
     assert_eq!(reported.calibration.as_ref().unwrap().status, "not_measured");
     // The assumption range itself is unchanged and stays separate.
     assert_eq!(artifact.uncertainty().assumption_range.kind, "assumption_range");
-    assert_eq!(artifact.quantities()[0].upper[4], 1.1);
+    assert_eq!(artifact.quantities()[0].upper[4].to_bits(), 1.1_f64.to_bits());
 }

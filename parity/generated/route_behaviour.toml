@@ -833,7 +833,7 @@ refusals = [
   { code = "invalid_argument", detail = "nested_markov.fisher_sampling_design" },
   { code = "invalid_argument", detail = "nested_markov.fisher_singular_information" },
   { code = "invalid_argument", detail = "nested_markov.fisher_invalid_covariance" },
-  { code = "route_not_supported", detail = "nested_markov.outside_binary_pilot" },
+  { code = "route_not_supported", detail = "nested_markov.outside_binary_scope" },
   { code = "invalid_argument", detail = "nested_markov.invalid_counts" },
   { code = "invalid_argument", detail = "nested_markov.iteration_bound" },
   { code = "invalid_argument", detail = "nested_markov.invalid_options" },
@@ -2862,7 +2862,7 @@ routes = [
 id = "identify.binary_nested_markov_fisher"
 status = "supported"
 refusals = [
-  { code = "route_not_supported", detail = "nested_markov.outside_binary_pilot" },
+  { code = "route_not_supported", detail = "nested_markov.outside_binary_scope" },
   { code = "invalid_argument", detail = "nested_markov.invalid_counts" },
   { code = "invalid_argument", detail = "nested_markov.iteration_bound" },
   { code = "invalid_argument", detail = "nested_markov.invalid_options" },
@@ -5615,7 +5615,7 @@ routes = [
 ]
 
 [[record]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 status = "supported"
 refusals = [
   { code = "quantity_semantics_mismatch", detail = "adaptive_inference.interval_names_no_quantity" },
@@ -6195,7 +6195,7 @@ routes = [
 ]
 
 [[record]]
-id = "discovery.selective_reuse_guarantees_closed"
+id = "discovery.selective_reuse_unsupported_guarantees"
 status = "not_supported"
 routes = [
   { route = "antecedent.discovery.selective.recovery_claim", stage = "uncertainty", status = "closed", reason_code = "discovered_structure_unresolved", claim = "none" },

@@ -12,7 +12,7 @@ implementation_deviations = [
  "Historical borrowing follows the power-prior idea (Ibrahim and Chen, Statistical Science 2000, doi 10.1214/ss/1009212673) and is applied to Dirichlet-multinomial counts: each retained source contributes discount times its counts to the prior shapes, with a fixed discount in [0, 1]; the paper treats regression models and an optionally random discount.",
  "A source with different meaning or population is refused; a free-text rationale does not establish source-to-target transport. A same-frame native pooled posterior can be reused through its replayed artifact and independently retained identity, with the same base prior and bounded, replayed nested ancestry.",
  "Pooled sources require integer counts and one normalized identity per independent respondent; overlap between respondents and sources, and between sources, is judged by the evidence ledger.",
- "The per-source conflict diagnostic is a prior-predictive log evidence ratio against a vague prior versus the remaining discounted evidence and the current look, screened at ln 10; for fractional power-prior counts it is a generalized score, not a calibrated Bayes factor; calibration of the screen is unmeasured and a conflicting source is reported in the posterior and refused for stopping decisions or study ranking, never silently re-weighted.",
+ "The per-source conflict diagnostic is a prior-predictive log evidence ratio against a vague prior versus the remaining discounted evidence and the current look, screened at ln 10; for fractional power-prior counts it is a generalized score, not a calibrated Bayes factor; calibration of the screen is not measured and a conflicting source is reported in the posterior and refused for stopping decisions or study ranking, never silently re-weighted.",
  "Every route is point-only with calibration unmeasured except the pooled-share interval (capability `choice_inference.interval_candidates`): the equal-tail credible interval from the explicit Beta marginal quantiles of the Dirichlet posterior, reported with its calibration status and never refused for the lack of a coverage record. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
  "Stated choices do not identify behavioural or causal outcomes.",
 ]
@@ -32,7 +32,7 @@ rationale = "The contract, qualification and routing layers of choice inference:
 no_independent_algorithm = "Scope comparison, ledger overlap refusal, matrix lookup, threshold comparison, artifact sealing and replay, and enumeration of a closed-form predictive distribution for the study value; the posterior, hierarchical posterior and procedure law are separate method records."
 covered_by = ["adaptive_inference.dirichlet_choice", "adaptive_inference.hierarchical_choice", "adaptive_inference.choice_procedure_law", "adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix", "design.evsi"]
 inline_tests = true
-record_sha256 = "ce5979f6e0096132b3a79d9a7c5ce6522b2dc9352e3167c91f25b0f416129971"
+record_sha256 = "323d678955b97ff986f26d8a442f6648f8ca694b8035b0dd80a84c8fa2bd0870"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

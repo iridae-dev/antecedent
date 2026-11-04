@@ -358,36 +358,9 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
     assert!(matches!(error, DesignRankingArtifactError::ExpectedIdentityMismatch), "{error:?}");
 }
 
-#[test]
-fn altered_signal_or_update_is_refused_even_when_resealed() {
+/// An altered request or attested law is refused even when the artifact is resealed.
+fn altered_request_or_law_is_refused_when_resealed(wire: &DesignRankingArtifactWire) {
     type CandidateMutation = Box<dyn Fn(&mut EvsiCandidateWire)>;
-    let wire = seal_guess(frozen_candidates());
-
-    // Update mode relabelled to the other mode the law could claim.
-    let mut edited = wire.clone();
-    candidate_mut(&mut edited, "cand-1").update_mode = "native_update".into();
-    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
-    assert!(
-        matches!(
-            &error,
-            DesignRankingArtifactError::SignalInconsistent { slot: "update_mode", .. }
-        ),
-        "{error:?}"
-    );
-    assert_eq!(
-        refusal_detail(&error),
-        antecedent_core::reason_details::design_ranking::SIGNAL_INCONSISTENT
-    );
-
-    // An external law relabelled native trust.
-    let mut edited = wire.clone();
-    candidate_mut(&mut edited, "cand-1").trust = "native_supported".into();
-    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
-    assert!(
-        matches!(&error, DesignRankingArtifactError::SignalInconsistent { slot: "trust", .. }),
-        "{error:?}"
-    );
-
     // The exact request changed (RNG seed, sample size): its fingerprint no longer matches.
     let mutations: Vec<CandidateMutation> = vec![
         Box::new(|c| c.request.rng_seed = 99),
@@ -424,6 +397,38 @@ fn altered_signal_or_update_is_refused_even_when_resealed() {
         refusal_detail(&error),
         antecedent_core::reason_details::design_ranking::REPLAY_MISMATCH
     );
+}
+
+#[test]
+fn altered_signal_or_update_is_refused_even_when_resealed() {
+    let wire = seal_guess(frozen_candidates());
+
+    // Update mode relabelled to the other mode the law could claim.
+    let mut edited = wire.clone();
+    candidate_mut(&mut edited, "cand-1").update_mode = "native_update".into();
+    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
+    assert!(
+        matches!(
+            &error,
+            DesignRankingArtifactError::SignalInconsistent { slot: "update_mode", .. }
+        ),
+        "{error:?}"
+    );
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::SIGNAL_INCONSISTENT
+    );
+
+    // An external law relabelled native trust.
+    let mut edited = wire.clone();
+    candidate_mut(&mut edited, "cand-1").trust = "native_supported".into();
+    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
+    assert!(
+        matches!(&error, DesignRankingArtifactError::SignalInconsistent { slot: "trust", .. }),
+        "{error:?}"
+    );
+
+    altered_request_or_law_is_refused_when_resealed(&wire);
 
     // A stored number edited and resealed.
     let mut edited = wire.clone();

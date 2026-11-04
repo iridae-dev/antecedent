@@ -14,7 +14,7 @@ papers = [
 implementation_deviations = [
  "K-category matrix inversion is the standard generalization; the Jacobian of the outcome-mean map is a central finite difference (step 1e-6 relative), not an analytic derivative.",
  "Corrected proportions are not projected onto the simplex.",
- "No interval; coverage is unmeasured.",
+ "No interval; coverage is not measured.",
 ]
 
 upstream_implementations_observed = []
@@ -35,7 +35,7 @@ redistribution = "The reference script and frozen output are repository-authored
 limitations = "The Rogan and Gladen paper was not retrieved (nothing downloaded, no local copy); the K-category inversion and delta method are checked against a hand derivation, with the Jacobian of (pi, mu) taken by central differences at 60 digits with a step of 1e-20 (truncation about 1e-40), against the product's step of 1e-6 relative. The comparison covers five designs with two to four categories, a rare class (20 of 400), a nearly flat outcome contrast (class means 100 and 100.5, condition number 49) and an unbalanced four-category matrix, at 1e-11 for proportions and means and 1e-8 for covariances. It does not examine near-singular confusion matrices beyond condition 49, empty latent categories, or coverage; the covariance is a first-order approximation."
 sources = ["https://doi.org/10.1093/oxfordjournals.aje.a112510", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No defect found: the corrected proportions, outcome means, both covariance matrices and the condition number agree with the 60-digit analytic Jacobian; the finite-difference step of the product costs at most the stated tolerance on these designs.", "The two-category case reproduces the binary Rogan-Gladen correction and its variance exactly, so the multinomial confusion-column covariance reduces to the binomial sensitivity and specificity variances."]
-record_sha256 = "f69110eddaa54a38af2920d74c850870fa1433a760b75fcaa4a663b427a98e1d"
+record_sha256 = "d5abc4d3d4acb2eef99214010f423998a2cedd2059b32fc114ed655bb21e3f8b"
 
 [[method_review.artifacts]]
 role = "implementation"

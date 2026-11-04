@@ -5384,47 +5384,47 @@ provider_trust = "native_numerics_over_retained_history; no external provider"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 route = "antecedent.adaptive_inference.interval"
-algorithm_provenance = ["provenance/adaptive_inference.guarantees_closed.toml"]
+algorithm_provenance = ["provenance/adaptive_inference.unsupported_guarantees.toml"]
 parity_registry = "parity/capability_records.toml"
-positive_fixture = "adaptive_inference.guarantees_closed.point_values_ship_uncalibrated.positive"
+positive_fixture = "adaptive_inference.unsupported_guarantees.point_values_ship_uncalibrated.positive"
 oracle_kind = "semantic_contract"
 oracle_inputs = "The point values and uncalibrated variance are what an adaptive result reports, and the variance tracks the empirical variance in simulation."
 expected_values = "Values asserted in crates/antecedent-stats/tests/adaptive_inference_oracle.rs::simulated_epsilon_greedy_trials_recover_the_contrast_with_calibrated_variance against independent closed forms, enumerations, published values or hand calculation."
 tolerance = "absolute 1e-9 to 1e-12 for closed forms; stated Monte Carlo standard-error multiples for fixed-seed simulations; exact for counts, identities and refusals"
 calibration = "route antecedent.adaptive_inference.interval; interval coverage is measured and attested for this record, route refused as not_supported; measured and attested coverage coordinates: cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95 cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95 cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95"
-artifact_consumer_fixture = "adaptive_inference.guarantees_closed.fresh_reader_consumes.artifact"
+artifact_consumer_fixture = "adaptive_inference.unsupported_guarantees.fresh_reader_consumes.artifact"
 provider_trust = "native_numerics_over_retained_history; no external provider"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 route = "antecedent.adaptive_inference.measured_interval"
-algorithm_provenance = ["provenance/adaptive_inference.guarantees_closed.toml"]
+algorithm_provenance = ["provenance/adaptive_inference.unsupported_guarantees.toml"]
 parity_registry = "parity/capability_records.toml"
-positive_fixture = "adaptive_inference.guarantees_closed.measured_interval.positive"
+positive_fixture = "adaptive_inference.unsupported_guarantees.measured_interval.positive"
 oracle_kind = "semantic_contract"
 oracle_inputs = "Thompson posterior quantile, epsilon-greedy weighted contrast and anytime-valid confidence-sequence intervals from seeded adaptive trials."
 expected_values = "Whole-procedure coverage measured at the 95 percent level for each interval procedure and attested in the coverage records; the interval is supported only under that record."
 tolerance = "absolute 1e-9 to 1e-12 for closed forms; stated Monte Carlo standard-error multiples for fixed-seed simulations; exact for counts, identities and refusals"
 calibration = "measured_interval supported; cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95 cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95 cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95"
-artifact_consumer_fixture = "adaptive_inference.guarantees_closed.fresh_reader_consumes.artifact"
+artifact_consumer_fixture = "adaptive_inference.unsupported_guarantees.fresh_reader_consumes.artifact"
 provider_trust = "native_numerics_over_retained_history; no external provider"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 route = "antecedent.adaptive_inference.fixed_sample"
-algorithm_provenance = ["provenance/adaptive_inference.guarantees_closed.toml"]
+algorithm_provenance = ["provenance/adaptive_inference.unsupported_guarantees.toml"]
 parity_registry = "parity/capability_records.toml"
-positive_fixture = "adaptive_inference.guarantees_closed.point_values_ship_uncalibrated.positive"
+positive_fixture = "adaptive_inference.unsupported_guarantees.point_values_ship_uncalibrated.positive"
 oracle_kind = "semantic_contract"
 oracle_inputs = "The point values and uncalibrated variance are what an adaptive result reports, and the variance tracks the empirical variance in simulation."
 expected_values = "Values asserted in crates/antecedent-stats/tests/adaptive_inference_oracle.rs::simulated_epsilon_greedy_trials_recover_the_contrast_with_calibrated_variance against independent closed forms, enumerations, published values or hand calculation."
 tolerance = "absolute 1e-9 to 1e-12 for closed forms; stated Monte Carlo standard-error multiples for fixed-seed simulations; exact for counts, identities and refusals"
 calibration = "route antecedent.adaptive_inference.fixed_sample; interval coverage is measured and attested for this record, route refused as adaptive_design_ignored; measured and attested coverage coordinates: cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95 cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95 cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95 cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95"
-artifact_consumer_fixture = "adaptive_inference.guarantees_closed.fresh_reader_consumes.artifact"
+artifact_consumer_fixture = "adaptive_inference.unsupported_guarantees.fresh_reader_consumes.artifact"
 provider_trust = "native_numerics_over_retained_history; no external provider"
 exact_request_verification = "not_applicable_no_external_provider"
 

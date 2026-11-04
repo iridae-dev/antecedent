@@ -151,33 +151,16 @@ fn law_with(capabilities: Vec<C>) -> Object {
     law(capabilities)
 }
 
-/// Why each kind has the operations it has, from its documented responsibility rather than from
-/// the checker:
-///
-/// * a law answers questions about an outcome distribution: sampling, CDF, quantile, log
-///   probability, mean, covariance, conditioning, interventions and posterior-predictive; it
-///   cannot update a posterior, supply a proof factor or evaluate a utility;
-/// * a posterior object supplies draws and moments of parameters or functionals (sample, mean,
-///   covariance, conditioning, predictive integration) and, per the record theorem, never a
-///   CDF, quantile, log probability or intervention, which would let it pose as an outcome law;
-/// * a signal is an observation law plus a coherent update, so besides its update and factor it
-///   may sample or give CDF, quantile and log probability of the possible observation, but it
-///   has no mean, covariance, conditioning, intervention, predictive or utility operation;
-/// * an evidence provider supplies exactly one thing, the proof factor;
-/// * a utility provider evaluates a utility, and only a stochastic one can also be sampled.
-///
-/// For every provider kind and every extra operation added to the kind's minimum declaration,
-/// the declaration is valid exactly when that kind's responsibility includes the operation; in a
-/// valid declaration the accepted set is exactly the declared set.
-#[test]
-fn each_provider_kind_can_declare_only_its_own_operations() {
-    struct Kind {
-        name: &'static str,
-        make: fn(Vec<C>) -> Object,
-        minimum: Vec<C>,
-        allowed: Vec<C>,
-    }
-    let kinds = [
+struct Kind {
+    name: &'static str,
+    make: fn(Vec<C>) -> Object,
+    minimum: Vec<C>,
+    allowed: Vec<C>,
+}
+
+/// Every provider kind with its minimum declaration and the operations it may add.
+fn provider_kinds() -> Vec<Kind> {
+    Vec::from([
         Kind {
             name: "law",
             make: law,
@@ -210,16 +193,14 @@ fn each_provider_kind_can_declare_only_its_own_operations() {
             name: "signal",
             make: signal,
             minimum: vec![C::Factor, C::Update],
-            allowed: vec![
-                C::Sample,
-                C::Cdf,
-                C::Quantile,
-                C::LogProbability,
-                C::Factor,
-                C::Update,
-            ],
+            allowed: vec![C::Sample, C::Cdf, C::Quantile, C::LogProbability, C::Factor, C::Update],
         },
-        Kind { name: "evidence", make: evidence, minimum: vec![C::Factor], allowed: vec![C::Factor] },
+        Kind {
+            name: "evidence",
+            make: evidence,
+            minimum: vec![C::Factor],
+            allowed: vec![C::Factor],
+        },
         Kind {
             name: "deterministic utility",
             make: |capabilities| utility(false, capabilities),
@@ -232,7 +213,30 @@ fn each_provider_kind_can_declare_only_its_own_operations() {
             minimum: vec![C::EvaluateUtility],
             allowed: vec![C::EvaluateUtility, C::Sample],
         },
-    ];
+    ])
+}
+
+/// Why each kind has the operations it has, from its documented responsibility rather than from
+/// the checker:
+///
+/// * a law answers questions about an outcome distribution: sampling, CDF, quantile, log
+///   probability, mean, covariance, conditioning, interventions and posterior-predictive; it
+///   cannot update a posterior, supply a proof factor or evaluate a utility;
+/// * a posterior object supplies draws and moments of parameters or functionals (sample, mean,
+///   covariance, conditioning, predictive integration) and, per the record theorem, never a
+///   CDF, quantile, log probability or intervention, which would let it pose as an outcome law;
+/// * a signal is an observation law plus a coherent update, so besides its update and factor it
+///   may sample or give CDF, quantile and log probability of the possible observation, but it
+///   has no mean, covariance, conditioning, intervention, predictive or utility operation;
+/// * an evidence provider supplies exactly one thing, the proof factor;
+/// * a utility provider evaluates a utility, and only a stochastic one can also be sampled.
+///
+/// For every provider kind and every extra operation added to the kind's minimum declaration,
+/// the declaration is valid exactly when that kind's responsibility includes the operation; in a
+/// valid declaration the accepted set is exactly the declared set.
+#[test]
+fn each_provider_kind_can_declare_only_its_own_operations() {
+    let kinds = provider_kinds();
     for kind in kinds {
         // The minimum declaration negotiates every operation it lists and nothing else.
         let base = (kind.make)(kind.minimum.clone());

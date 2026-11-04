@@ -129,7 +129,7 @@ impl SurfaceIn {
                 SamplingStatus::Withheld { reason_code, detail }
             }
             SamplingIn::Reported { quantity, level, method, composed, lower, upper } => {
-                SamplingStatus::Reported(SamplingInterval {
+                SamplingStatus::Reported(Box::new(SamplingInterval {
                     quantity,
                     level,
                     method,
@@ -137,7 +137,7 @@ impl SurfaceIn {
                     calibration: None,
                     lower,
                     upper,
-                })
+                }))
             }
         };
         SensitivityParts {

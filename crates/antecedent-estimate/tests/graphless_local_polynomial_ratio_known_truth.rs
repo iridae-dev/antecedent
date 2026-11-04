@@ -74,26 +74,31 @@ struct Side {
     cov: f64,
 }
 
-/// Triangular-kernel weighted polynomial fit of `degree` on one side, HC0 sandwich of
-/// coefficient `j`. Scaled distance `d = (x - cutoff) / h`; the window is `|d| < 1` with the
-/// cutoff on the right side.
-fn side_fit(
-    x: &[f64],
-    y: &[f64],
-    t: &[f64],
+/// Which side of the cutoff to fit, at what bandwidth and degree, and which coefficient's
+/// sandwich to report.
+#[derive(Clone, Copy)]
+struct SideSpec {
     cutoff: f64,
     h: f64,
     right: bool,
     degree: usize,
     j: usize,
-) -> Side {
+}
+
+/// Triangular-kernel weighted polynomial fit of `degree` on one side, HC0 sandwich of
+/// coefficient `j`. Scaled distance `d = (x - cutoff) / h`; the window is `|d| < 1` with the
+/// cutoff on the right side.
+fn side_fit(x: &[f64], y: &[f64], t: &[f64], spec: SideSpec) -> Side {
+    let SideSpec { cutoff, h, right, degree, j } = spec;
     let k = degree + 1;
     let rows: Vec<(Vec<f64>, f64, f64, f64)> = (0..x.len())
         .filter_map(|i| {
             let d = (x[i] - cutoff) / h;
             let inside = d.abs() < 1.0 && if right { d >= 0.0 } else { d < 0.0 };
             inside.then(|| {
-                let basis: Vec<f64> = (0..k).map(|p| d.powi(p as i32)).collect();
+                let basis: Vec<f64> = (0..k)
+                    .map(|p| d.powi(i32::try_from(p).expect("polynomial degree fits i32")))
+                    .collect();
                 (basis, 1.0 - d.abs(), y[i], t[i])
             })
         })
@@ -149,8 +154,8 @@ struct Reference {
 fn reference(x: &[f64], y: &[f64], t: &[f64], cutoff: f64, h: f64, kink: bool) -> Reference {
     // Jump: the intercept of the cubic fit. Kink: the slope of the quartic fit, per unit of x.
     let (degree, j, scale) = if kink { (4, 1, 1.0 / h) } else { (3, 0, 1.0) };
-    let left = side_fit(x, y, t, cutoff, h, false, degree, j);
-    let right = side_fit(x, y, t, cutoff, h, true, degree, j);
+    let left = side_fit(x, y, t, SideSpec { cutoff, h, right: false, degree, j });
+    let right = side_fit(x, y, t, SideSpec { cutoff, h, right: true, degree, j });
     let reduced = (right.coef_y[j] - left.coef_y[j]) * scale;
     let first = (right.coef_t[j] - left.coef_t[j]) * scale;
     let (vy, vt, vyt) = (
@@ -169,7 +174,10 @@ fn grid() -> Vec<f64> {
 }
 
 fn exact_poly(x: f64, c: &[f64]) -> f64 {
-    c.iter().enumerate().map(|(p, a)| a * x.powi(p as i32)).sum()
+    c.iter()
+        .enumerate()
+        .map(|(p, a)| a * x.powi(i32::try_from(p).expect("polynomial degree fits i32")))
+        .sum()
 }
 
 #[test]

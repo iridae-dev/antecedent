@@ -256,7 +256,7 @@ _SURFACE_QUERY = antecedent.ResponseCurve(
     policy="pulse",
     treatment_lag=1,
 )
-_BAND_WITHHELD = "estimate.temporal_response.no_band_method"
+_NO_BAND_METHOD = "estimate.temporal_response.no_band_method"
 
 
 def _column(rows: Any) -> np.ndarray:
@@ -270,7 +270,7 @@ def _assert_band_withheld(result: Any) -> None:
     assert result.uncertainty.lower is None and result.uncertainty.upper is None
     assert result.simultaneous_band is None
     assert any("no pointwise or simultaneous band" in w for w in result.support.warnings)
-    assert any(d.startswith(f"{_BAND_WITHHELD}: ") for d in result.diagnostics)
+    assert any(d.startswith(f"{_NO_BAND_METHOD}: ") for d in result.diagnostics)
 
 
 def _assert_block_bands(result: Any, replicates: int) -> None:
@@ -297,7 +297,7 @@ def _assert_block_bands(result: Any, replicates: int) -> None:
     sim_lower = _column(band.lower)
     sim_upper = _column(band.upper)
     assert np.all(sim_lower <= lower) and np.all(upper <= sim_upper)
-    assert not any(d.startswith(f"{_BAND_WITHHELD}: ") for d in result.diagnostics)
+    assert not any(d.startswith(f"{_NO_BAND_METHOD}: ") for d in result.diagnostics)
 
 
 def _diagnostic_values(result: Any, diagnostic_id: str) -> np.ndarray:
@@ -480,7 +480,7 @@ def test_temporal_intervention_path_bootstrap_publishes_block_bands():
         )
     )
     assert withheld.uncertainty.kind == "none"
-    assert any(d.startswith(f"{_BAND_WITHHELD}: ") for d in withheld.diagnostics)
+    assert any(d.startswith(f"{_NO_BAND_METHOD}: ") for d in withheld.diagnostics)
     banded = require_success(
         antecedent.analyze(
             data,

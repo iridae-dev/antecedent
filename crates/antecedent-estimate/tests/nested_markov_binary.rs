@@ -97,7 +97,7 @@ fn assert_outside(error: &EstimationError) {
     let (code, message) = coded(error);
     assert_eq!(code, "route_not_supported");
     assert!(
-        message.contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT),
+        message.contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_SCOPE),
         "{message}"
     );
     assert!(!message.contains("nonidentif") && !message.contains("not_identified"), "{message}");

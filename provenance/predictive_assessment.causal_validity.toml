@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# No primary paper: a closed variant; no method is implemented, so there is nothing to cite.
+# No primary paper: an unsupported variant; no method is implemented, so there is nothing to cite.
 papers = [
 ]
 implementation_deviations = [
@@ -16,8 +16,8 @@ test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", 
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
-rationale = "Closed variant: a score is never read as causal validity."
+kind = "unsupported_variant"
+rationale = "Unsupported variant: a score is never read as causal validity."
 no_independent_algorithm = "ASSESSMENT_CAUSAL_VALIDITY is the constant not_established and request_causal_validity refuses."
 record_sha256 = "b276e7a30d9829b557353294c17aa0090adc7740b7fb1cf9cad70dd7232e1370"
 

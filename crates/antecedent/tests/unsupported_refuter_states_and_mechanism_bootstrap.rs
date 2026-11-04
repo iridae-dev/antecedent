@@ -515,8 +515,8 @@ const SUPPORTED_WITHOUT_DEFAULT_INTERVAL: &[&str] =
 const BAYESIAN_ONLY_BY_THEORY: &[&str] = &["X05.temporal"];
 
 /// Quadrants whose two inference sides differ in support: the supported side has a measured
-/// or asserted interval, the other executes but is not supported. P07.quantile.static: the
-/// randomized-quantile posterior runs as a Bayesian estimator on the AverageEffect Dag cells; no
+/// or asserted interval, the other executes but is not supported. `P07.quantile.static`: the
+/// randomized-quantile posterior runs as a Bayesian estimator on the `AverageEffect` `Dag` cells; no
 /// frequentist static quantile estimator is wired into a route.
 const SUPPORT_ASYMMETRIES: &[&str] =
     &["P04.static", "P07.quantile.static", "P09.interference.static"];

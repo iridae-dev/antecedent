@@ -404,7 +404,7 @@ fn cluster_rerandomization_moments() -> (f64, f64) {
         }
         let mut total = 0.0;
         for (unit, &cluster) in CLUSTER_IDS.iter().enumerate() {
-            if mask >> cluster & 1 == 1 {
+            if (mask >> cluster) & 1 == 1 {
                 total += CLUSTER_Y[unit] / 0.5;
             } else {
                 total -= CLUSTER_Y[unit] / 0.5;

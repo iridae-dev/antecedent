@@ -248,7 +248,7 @@ def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
         transport.binary_nested_markov(
             graph=verma, regimes=[{"counts": [250] * 16, "intervened": ["X2"]}]
         )
-    assert reason_details.nested_markov.OUTSIDE_BINARY_PILOT in str(outside.value)
+    assert reason_details.nested_markov.OUTSIDE_BINARY_SCOPE in str(outside.value)
     assert "nonidentif" not in str(outside.value)
 
 

@@ -2023,7 +2023,7 @@ class nested_markov:  # noqa: N801
     MEASURED_SCOPE: Final = "nested_markov.measured_scope"
     NATIVE_HOOK_UNAVAILABLE: Final = "nested_markov.native_hook_unavailable"
     NOT_NORMALIZED: Final = "nested_markov.not_normalized"
-    OUTSIDE_BINARY_PILOT: Final = "nested_markov.outside_binary_pilot"
+    OUTSIDE_BINARY_SCOPE: Final = "nested_markov.outside_binary_scope"
     POSITIVITY: Final = "nested_markov.positivity"
     PRODUCER_MISSING: Final = "nested_markov.producer_missing"
 
@@ -4975,7 +4975,7 @@ ALL: Final[tuple[str, ...]] = (
     "nested_markov.measured_scope",
     "nested_markov.native_hook_unavailable",
     "nested_markov.not_normalized",
-    "nested_markov.outside_binary_pilot",
+    "nested_markov.outside_binary_scope",
     "nested_markov.positivity",
     "nested_markov.producer_missing",
     "nonlinear_mediation.cancelled",
@@ -7726,7 +7726,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "nested_markov.measured_scope": ("route_not_supported",),
     "nested_markov.native_hook_unavailable": ("not_supported",),
     "nested_markov.not_normalized": ("transport_numerical_failure",),
-    "nested_markov.outside_binary_pilot": ("route_not_supported",),
+    "nested_markov.outside_binary_scope": ("route_not_supported",),
     "nested_markov.positivity": ("transport_support_failure",),
     "nested_markov.producer_missing": ("not_supported",),
     "nonlinear_mediation.cancelled": ("cancelled_no_claim",),

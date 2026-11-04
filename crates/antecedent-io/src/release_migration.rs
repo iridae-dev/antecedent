@@ -1,7 +1,7 @@
 //! Migration from the previous release onto the current contracts.
 //!
 //! A previous-release route record is mapped to the current method records that carry its
-//! route: one-to-one, split across several methods, or retired. A closed route keeps its refusal
+//! route: one-to-one, split across several methods, or retired. A not-supported route keeps its refusal
 //! reason as recorded. An explicit error with a remedy is reserved for a genuine break: a supported
 //! route that no current method carries, or one whose support no current method keeps. A
 //! score-row digest is recomputed from wide row ids, and a digest that does not match is refused.
@@ -71,8 +71,8 @@ pub enum ManifestRouteStatus {
     Supported,
     /// Graphless design support.
     Graphless,
-    /// Closed geometric route.
-    Closed,
+    /// Route that refuses with a registered reason.
+    NotSupported,
     /// Execution without an interval support.
     ExecutionOnly,
     /// Fit or score without a supported inferential guarantee.
@@ -81,8 +81,13 @@ pub enum ManifestRouteStatus {
 
 impl ManifestRouteStatus {
     /// Every status the route manifest records.
-    pub const ALL: [Self; 5] =
-        [Self::Supported, Self::Graphless, Self::Closed, Self::ExecutionOnly, Self::FittingGap];
+    pub const ALL: [Self; 5] = [
+        Self::Supported,
+        Self::Graphless,
+        Self::NotSupported,
+        Self::ExecutionOnly,
+        Self::FittingGap,
+    ];
 }
 
 /// Scientific-target shape whose identity is content-based.
@@ -195,7 +200,7 @@ pub fn adopt_carried_target_digest(
 
 /// The refusal reason a caller already holds.
 ///
-/// No closed-cell reason was renamed, so this returns `reason` unchanged.
+/// No refusal reason was renamed, so this returns `reason` unchanged.
 #[must_use]
 pub const fn keep_refusal_reason(reason: &str) -> &str {
     reason
@@ -208,7 +213,7 @@ impl ManifestRouteStatus {
         match word {
             "supported" => Some(Self::Supported),
             "graphless" => Some(Self::Graphless),
-            "closed" => Some(Self::Closed),
+            "not_supported" => Some(Self::NotSupported),
             "execution_only" => Some(Self::ExecutionOnly),
             "fitting_gap" => Some(Self::FittingGap),
             _ => None,
@@ -321,7 +326,7 @@ pub struct MethodAssignment {
 /// What carrying one route-manifest record onto the current contracts does.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RouteRecordOutcome {
-    /// A closed route keeps its refusal reason as recorded. Nothing is rewritten.
+    /// A not-supported route keeps its refusal reason as recorded. Nothing is rewritten.
     RefusalKept,
     /// One current method carries the route.
     OneToOne {
@@ -380,9 +385,9 @@ pub enum RouteRecordError {
 
 /// Carry one route-manifest record onto the current method records.
 ///
-/// A closed route that no method carries keeps its recorded refusal ([`keep_refusal_reason`]).
+/// A not-supported route that no method carries keeps its recorded refusal ([`keep_refusal_reason`]).
 /// Every other record is mapped to the methods whose `route` is its id: one is a one-to-one
-/// outcome and several are a split. A non-closed route with no method is retired unless it was
+/// outcome and several are a split. A supported-or-other route with no method is retired unless it was
 /// supported, which is a break.
 ///
 /// # Errors
@@ -400,7 +405,7 @@ pub fn migrate_route_record(
         current.iter().filter(|m| m.route != "unlisted" && m.route == record.id).collect();
     if linked.is_empty() {
         return match status {
-            ManifestRouteStatus::Closed => Ok(RouteRecordOutcome::RefusalKept),
+            ManifestRouteStatus::NotSupported => Ok(RouteRecordOutcome::RefusalKept),
             ManifestRouteStatus::Supported | ManifestRouteStatus::Graphless => {
                 Err(RouteRecordError::RouteWithoutCurrentMethod { id })
             }
@@ -468,7 +473,7 @@ pub enum IntentionalBreak {
     RouteWithoutCurrentMethod,
     /// A supported route is carried only by unsupported methods.
     SupportNotCarried,
-    /// A closed route keeps its refusal reason.
+    /// A not-supported route keeps its refusal reason.
     RefusalReason,
 }
 
@@ -541,7 +546,7 @@ pub const fn break_path(change: IntentionalBreak) -> BreakPath {
                            standing",
         },
         IntentionalBreak::RefusalReason => {
-            BreakPath::Unchanged { reason: "no closed-cell reason was renamed" }
+            BreakPath::Unchanged { reason: "no refusal reason was renamed" }
         }
     }
 }
@@ -945,7 +950,10 @@ mod tests {
         assert_eq!(unserved_axes, [RouteAxis::StaticFrequentist]);
 
         assert_eq!(
-            migrate_route_record(&record("c", "closed", "static", "refused:Frequentist"), &current),
+            migrate_route_record(
+                &record("c", "not_supported", "static", "refused:Frequentist"),
+                &current
+            ),
             Ok(RouteRecordOutcome::RefusalKept)
         );
         assert_eq!(
@@ -1012,7 +1020,7 @@ mod tests {
             Err(RouteRecordError::RouteWithoutCurrentMethod { .. })
         ));
         assert!(matches!(
-            migrate_route_record(&record("closed"), &[]),
+            migrate_route_record(&record("not_supported"), &[]),
             Ok(RouteRecordOutcome::RefusalKept)
         ));
         let both = [

@@ -56,8 +56,8 @@ fn series() -> TimeSeriesData {
 /// Columns `t`, `y` only.
 fn series_two() -> TimeSeriesData {
     let full = series();
-    let t = full.float64_values(var(0)).unwrap().to_vec();
-    let y = full.float64_values(var(1)).unwrap().to_vec();
+    let t = full.float64_values(var(0)).unwrap().clone();
+    let y = full.float64_values(var(1)).unwrap().clone();
     TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())], 1).unwrap()
 }
 

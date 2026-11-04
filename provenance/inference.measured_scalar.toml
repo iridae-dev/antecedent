@@ -7,7 +7,7 @@ copied_tests = false
 papers = []
 implementation_deviations = [
   "Semantic factory/replay authority contract, not a new numerical inference theorem. The six prerequisite method records own all interval calibration claims.",
-  "Historical source artifacts remain unchanged and unmeasured. A separate native envelope independently replays the original source and resolves each exact scalar basis against currently attesting records.",
+  "Historical source artifacts remain unchanged and not measured. A separate native envelope independently replays the original source and resolves each exact scalar basis against currently attesting records.",
   "Readable caller basis/report metadata and serialized calibrated flags cannot mint native authority. No implicit joint distribution, simultaneous guarantee or Contract.evaluate source is created.",
   "The categorical and MNAR candidate dispatches invoke their source-replaying adapters; independent scientific-capability gates remain closed and these dispatches grant no new interval support.",
 ]
@@ -19,7 +19,7 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Native measured interval authority: only crate-owned producer and consumer adapters that derive each basis from a real execution can construct a measured scalar."
 no_independent_algorithm = "Authority bookkeeping and replay comparison of intervals computed by other records."
-record_sha256 = "d1891c1c95938c0e9ac7ec5b64353de9d3acd7ae8b2116a8fd59e8a670bb9e7e"
+record_sha256 = "3caab8b25598316a35710475db7e5efc7d9742bc15d8ef67ed21560bcc40dc5b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

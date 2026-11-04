@@ -164,8 +164,8 @@ record = "recovery.sampled_observation"
 key = "max_replicates"
 implementation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_REPLICATES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_REPLICATES" }]
-guard = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{' }
-refusal = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{\s*return Some\(sampled\(\s*SampledRecoveryDetail::BoundsExceeded' }
+guard = { path = "crates/antecedent/src/analysis/scope_refusals.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{' }
+refusal = { path = "crates/antecedent/src/analysis/scope_refusals.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{\s*return Some\(sampled\(\s*SampledRecoveryDetail::BoundsExceeded' }
 scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = '\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\b' }
 
 [[bound]]
@@ -182,8 +182,8 @@ record = "recovery.sampled_observation"
 key = "max_binary_variables"
 implementation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_BINARY_VARIABLES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_BINARY_VARIABLES" }]
-guard = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = '> SAMPLED_RECOVERY_MAX_BINARY_VARIABLES \{' }
-refusal = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = '> SAMPLED_RECOVERY_MAX_BINARY_VARIABLES \{\s*return Some\(sampled\(\s*SampledRecoveryDetail::BoundsExceeded' }
+guard = { path = "crates/antecedent/src/analysis/scope_refusals.rs", pattern = '> SAMPLED_RECOVERY_MAX_BINARY_VARIABLES \{' }
+refusal = { path = "crates/antecedent/src/analysis/scope_refusals.rs", pattern = '> SAMPLED_RECOVERY_MAX_BINARY_VARIABLES \{\s*return Some\(sampled\(\s*SampledRecoveryDetail::BoundsExceeded' }
 scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = '\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\b' }
 
 [[bound]]

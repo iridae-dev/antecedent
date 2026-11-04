@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Independent normal priors at zero on the shared scenario covariance entries. The plug-in variance of each entry is the sampling variance of the covariance estimator: correction squared times the weighted second moment of the centered replicate products, divided by the number of rows. A wide scale stays at the enumerated covariance. A tight scale shrinks each entry toward 0 by the normal-normal weight. A constant matrix uses that sampling variance and is not refused for zero cross-entry spread. The scenario envelope stays a structural envelope. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -25,7 +25,7 @@ rationale = "Normal-normal shrinkage of each shared scenario covariance entry to
 no_independent_algorithm = "covariance_entry_posterior shrinks each entry by tau^2 / (tau^2 + v); v is kappa * correction^2 / n_rows with kappa the weighted variance of the centred replicate products (entry_sampling_variances in scenario_covariance.rs, a plug-in fourth-moment variance of a covariance); the replicate covariance itself is the covered record."
 covered_by = ["estimate.posterior_mean_kernel", "transport.shared_scenario_covariance"]
 derivation = "The sample covariance of centred products c_r has sampling variance Var(c)/n, estimated by kappa/n_rows with kappa = sum_r w_r (c_r - m)^2 and m = sum_r w_r c_r; the entry is then updated by the known-variance normal-normal rule point * tau^2 / (tau^2 + v). The scenario test recomputes kappa/n_rows by hand to 1e-12 and the kernel reference checks the update in exact rationals."
-record_sha256 = "17bae7b982f1ba4714bd3c1d959447e1647b47575dac87bee9204e23a2c63fca"
+record_sha256 = "b57c10847e91053ccf3788bd76041d024646ba4262bff6a937413c045fd0b054"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

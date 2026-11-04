@@ -15,7 +15,6 @@ use antecedent_estimate::latent_class_effects::{
 use antecedent_estimate::posterior_mean::{PosteriorRequest, latent_class_effect_posterior};
 
 const NOISE: [f64; 4] = [0.5, -0.5, 0.25, -0.25];
-const NOISE_VARIANCE: f64 = 0.15625;
 
 struct Data {
     y: Vec<f64>,
@@ -89,7 +88,6 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
     x
 }
 
-
 /// Treatment coefficient of the ridge fit `y ~ 1 + a + x` on the rows of one class.
 fn class_ridge_effect(data: &Data, class: usize, scale: f64) -> f64 {
     let idx: Vec<usize> = (0..data.y.len()).filter(|&i| data.class[i] == class).collect();
@@ -128,11 +126,9 @@ fn latent_class_posterior_means_equal_ridge_solutions_built_from_the_class_rows(
     let result = fit(&data, &config(11)).expect("well-separated fit");
     let designs: Vec<_> = result.classes.iter().map(|class| class.design.clone()).collect();
     for scale in [0.5, 2.0] {
-        let got = latent_class_effect_posterior(
-            &designs,
-            PosteriorRequest::IndependentNormal { scale },
-        )
-        .unwrap();
+        let got =
+            latent_class_effect_posterior(&designs, PosteriorRequest::IndependentNormal { scale })
+                .unwrap();
         // Canonical order is ascending effect: class Q (data class 1) then class P (class 0).
         let want = [class_ridge_effect(&data, 1, scale), class_ridge_effect(&data, 0, scale)];
         assert_eq!(got.len(), 2);

@@ -24,7 +24,7 @@ use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
 
 use super::ReliabilityError;
-use super::calibration::{CalibrationCoordinate, ClosedRoute, closed_routes};
+use super::calibration::CalibrationCoordinate;
 use super::draws::{
     CandidateCoupling, CandidateOrigin, DecisionDraws, SelectionRule, SourceParadigm,
     WithinStreamDependence,
@@ -294,9 +294,6 @@ pub struct ReliabilityReport {
     pub label: ClaimLabel,
     /// Coordinate the report sits at.
     pub coordinate: CalibrationCoordinate,
-    /// Historical refusal snapshot of published routes; empty now, because calibration
-    /// annotates a route and never closes it.
-    pub closed_routes: Vec<ClosedRoute>,
 }
 
 impl ReliabilityReport {
@@ -615,7 +612,6 @@ pub fn assess(
             kind: ClaimKind::PointDiagnostic,
             calibration: CalibrationStatus::Uncalibrated,
         },
-        closed_routes: closed_routes(&coordinate),
         coordinate,
     })
 }

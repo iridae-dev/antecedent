@@ -34,8 +34,8 @@ impl Provider {
         let mut mass_one = 0.0;
         let mut mass_zero = 0.0;
         for outcome in 0..(1_u32 << k) {
-            let coins: Vec<bool> = (0..k).map(|bit| outcome >> bit & 1 == 1).collect();
-            let weight = 0.5_f64.powi(k as i32);
+            let coins: Vec<bool> = (0..k).map(|bit| (outcome >> bit) & 1 == 1).collect();
+            let weight = 0.5_f64.powi(i32::try_from(k).expect("coin count fits i32"));
             if rule(&coins) {
                 mass_one += weight;
             } else {
@@ -89,7 +89,7 @@ impl Provider {
     fn probes(&self) -> Vec<VerificationProbe> {
         let draws = self.seeded_draws(3, 64);
         let agree = f64::from(u8::from(draws == self.seeded_draws(3, 64)));
-        let in_support = f64::from(u8::from(draws.iter().all(|x| *x == 0.0 || *x == 1.0)));
+        let in_support = f64::from(u8::from(draws.iter().all(|x| [0.0, 1.0].contains(x))));
         let make = |kind, observed, expected| VerificationProbe {
             kind,
             observed,
@@ -162,7 +162,7 @@ fn providers_whose_answers_differ_from_the_enumerated_law_are_refused_at_the_pro
     assert_eq!(refused_at(&Provider::from_coins(3, |c| c[0] && c[1] && c[2])), P::Moments);
     // Mean 1/4 but the wrong law: mass 1/2 at 0 and 1/2 at 1/2. Only the CDF sees it.
     let wrong_cdf = Provider { atoms: vec![(0.0, 0.5), (0.5, 0.5)] };
-    assert_eq!(wrong_cdf.mean(), 0.25);
+    assert!((wrong_cdf.mean() - 0.25).abs() < 1e-12);
     assert_eq!(refused_at(&wrong_cdf), P::KnownTruth);
     // Right CDF(0) but total mass 7/8: only Normalization sees it.
     let unnormalized = Provider { atoms: vec![(0.0, 0.75), (1.0, 0.125)] };

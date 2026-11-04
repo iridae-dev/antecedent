@@ -10,30 +10,13 @@
 //! the conjunction written out in `expected`, and an admitted source reports the trust it
 //! actually has.
 
-use std::collections::BTreeSet;
-
-use antecedent_contract::callback_protocol::{
-    CallbackDeclaration, CallbackDependency, CallbackInput, CallbackKind, CallbackOperation,
-    CallbackTrust, DependencyDeclaration, DependencyKind, InputSupplier, ReplayContract,
-};
-use antecedent_contract::evidence_ledger::{
-    CombinationRequest, EvidenceLedger, ObservationId, SourceDeclaration, SourceId, SourceKind,
-    SynthesisOperation, TransportIdentity,
-};
-use antecedent_contract::interface_contract::{
-    CalibrationRequirement, CalibrationStatus, ContractOperation, EvidenceBasis, SupportDomain,
-};
-use antecedent_contract::provider_transport::{
-    ProviderTransportSource, SourceTrustRequirement, TRANSPORT_SOURCE_PORT, TransportedClaimOffer,
-    TransportedHandoff, TransportedInputPolicy, connect_provider_source, hand_to_callback,
-    hand_to_consumer, transport_source_consumer,
-};
+use antecedent_contract::interface_contract::{EvidenceBasis, SupportDomain};
+use antecedent_contract::provider_transport::{ProviderTransportSource, SourceTrustRequirement};
 use antecedent_contract::{
-    DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject,
-    ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust, QuantityRole,
-    ScientificQuantity, VerificationProbe, VerificationProbeKind, verify_external_object,
+    DistributionMeaning, ExternalCapability, ExternalScientificObject, ExternalTrustState,
+    LawProviderContract, ProviderObjectIdentity, ProviderTrust, QuantityRole, ScientificQuantity,
+    VerificationProbe, VerificationProbeKind, verify_external_object,
 };
-use antecedent_core::SemanticDigest;
 
 fn quantity(population: &str, regime: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -88,19 +71,6 @@ fn attested() -> ExternalTrustState {
     ExternalTrustState::ExternallyAttested { attestor: "lab".into() }
 }
 
-fn digest(byte: u8) -> SemanticDigest {
-    SemanticDigest::from_bytes([byte; 32])
-}
-
-fn transport(sources: &[&str], target: &str) -> TransportIdentity {
-    TransportIdentity {
-        source_populations: sources.iter().map(|s| (*s).to_owned()).collect(),
-        target_population: target.to_owned(),
-        selection_diagram: digest(7),
-        assumptions: vec!["recovery mechanism invariant across populations".to_owned()],
-    }
-}
-
 fn source(
     object: ExternalScientificObject,
     trust: ExternalTrustState,
@@ -119,7 +89,6 @@ fn source(
         requirement,
     }
 }
-
 
 #[derive(Clone, Copy, Debug)]
 enum Trust {
@@ -161,11 +130,10 @@ fn expected(
     trust: Trust,
     requirement: SourceTrustRequirement,
 ) -> bool {
-    let trust_meets = match (trust, requirement) {
-        (Trust::VerifiedOwn, _) => true,
-        (Trust::Attested, SourceTrustRequirement::AttestationAccepted) => true,
-        _ => false,
-    };
+    let trust_meets = matches!(
+        (trust, requirement),
+        (Trust::VerifiedOwn, _) | (Trust::Attested, SourceTrustRequirement::AttestationAccepted)
+    );
     population_named && regime_named && assumptions && trust_meets
 }
 
@@ -188,15 +156,9 @@ fn admission_equals_the_specification_conjunction_over_the_full_factorial_table(
                 for (trust, requirement) in pairs {
                     let population = if population_named { "trial_a" } else { "  " };
                     let regime = if regime_named { "do(a=1)" } else { "" };
-                    let result =
-                        build(population, regime, assumptions, trust, requirement).admit();
-                    let want = expected(
-                        population_named,
-                        regime_named,
-                        assumptions,
-                        trust,
-                        requirement,
-                    );
+                    let result = build(population, regime, assumptions, trust, requirement).admit();
+                    let want =
+                        expected(population_named, regime_named, assumptions, trust, requirement);
                     assert_eq!(
                         result.is_ok(),
                         want,

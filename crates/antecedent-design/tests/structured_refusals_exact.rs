@@ -1,7 +1,7 @@
 //! Structured refusals on a composition that mixes valid and invalid parts.
 //!
 //! One mean grid supplies means 1, 3 and 4 at do(a=0), do(a=1) and do(a=2) with supports
-//! Supported, OutsideEmpiricalSupport and Supported. Five actions read it with the affine
+//! Supported, `OutsideEmpiricalSupport` and Supported. Five actions read it with the affine
 //! utility 2x - 1 except `square` (x * x):
 //!
 //! - `wait` reads do(a=0): mean 1, utility 1.

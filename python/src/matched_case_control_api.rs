@@ -15,6 +15,9 @@ fn estimation_err(error: EstimationError) -> PyErr {
 /// The odds-ratio interval with its calibration slot as JSON.
 type MatchedInterval = (f64, f64, String);
 
+/// The matched odds ratio as returned to Python.
+type MatchedOddsRatio = (f64, f64, usize, usize, usize, usize, usize, Option<MatchedInterval>);
+
 /// Conditional odds ratio of matched sets: `(log odds ratio, odds ratio, sets, informative,
 /// exposure-concordant, outcome-degenerate, singleton, interval)`. The declared sampling
 /// design and estimand are checked before any data is read. A `level` adds the Wald interval
@@ -32,7 +35,7 @@ fn matched_case_control_odds_ratio(
     estimand: &str,
     level: Option<f64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(f64, f64, usize, usize, usize, usize, usize, Option<MatchedInterval>)> {
+) -> PyResult<MatchedOddsRatio> {
     parse_matched_sampling(sampling).map_err(estimation_err)?;
     parse_matched_estimand(estimand).map_err(estimation_err)?;
     if level.is_some_and(|level| !(level > 0.0 && level < 1.0)) {

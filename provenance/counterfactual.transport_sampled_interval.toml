@@ -33,7 +33,7 @@ record_sha256 = "7e62412ea9cef057bab345f79282d111662aca8d5c2a7f70dae5b0acdf57835
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/inference.rs"
 items = ["module"]
-sha256 = "39f13021fdd6981a8d70655a221ce2d8a6c614800f6ee1b19756b2ea9ebb4876"
+sha256 = "f6f6452f830d4b7e2df997db50d28298759f2f8a29aa19d031bbbd87d2d3673f"
 
 [[method_review.artifacts]]
 role = "implementation"

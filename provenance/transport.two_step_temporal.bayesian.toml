@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Dirichlet posterior means of the supplied finite laws on the existing two-slice selection diagram, pushed through the temporal sequence identifier. A tiny concentration stays at the target truth. This is not TemporalAdmg support. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -25,7 +25,7 @@ rationale = "Dirichlet posterior mean of the supplied finite law (TwoStepTempora
 no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
 covered_by = ["estimate.posterior_mean_kernel"]
 derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "2523b367ec7c55a4712586878b750185a5187cfa91772c8e3f5c172c32fcc4d4"
+record_sha256 = "537e2b4aa98416f73d4d423f6c9a562bdb11520b8c31e2dc32cd573c7a8b7135"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

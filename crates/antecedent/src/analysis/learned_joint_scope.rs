@@ -19,7 +19,7 @@ use antecedent_estimate::joint_bayesian_transport::{
 use antecedent_estimate::learned_joint_transport as learned;
 use antecedent_learn::PolynomialBasis;
 
-/// A request to the closed learned joint transport route.
+/// A request to the learned joint transport route.
 #[derive(Clone, Copy, Debug)]
 pub struct LearnedJointRequest<'a> {
     /// `fixed_dag`, `admg` or `graph_posterior`.
@@ -42,7 +42,7 @@ pub struct LearnedJointRequest<'a> {
     pub draws: usize,
 }
 
-/// A closed-route refusal as plain data: registered reason code and namespaced detail.
+/// A scope refusal as plain data: registered reason code and namespaced detail.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LearnedJointRefusal {
     /// Registered reason code.

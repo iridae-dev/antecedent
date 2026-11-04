@@ -48,7 +48,7 @@ pub const MZ_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_mz_transport_point_v2";
 /// Uncertainty status: exact laws, no sampling uncertainty.
 pub const MZ_POINT_ONLY: &str = "point_only";
 /// Uncertainty status: no interval, for the stated reason.
-pub const MZ_WITHHELD: &str = "no_interval_method";
+pub const MZ_NO_INTERVAL_METHOD: &str = "no_interval_method";
 /// Uncertainty status: a nominal pointwise percentile-bootstrap interval.
 pub const MZ_NOMINAL_INTERVAL: &str = "nominal_interval";
 /// Reason of bookkeeping that records no estimator run for counted laws.
@@ -168,7 +168,7 @@ pub fn mz_point_contrasts(
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct MzUncertaintyWire {
-    /// [`MZ_POINT_ONLY`], [`MZ_WITHHELD`] or [`MZ_NOMINAL_INTERVAL`].
+    /// [`MZ_POINT_ONLY`], [`MZ_NO_INTERVAL_METHOD`] or [`MZ_NOMINAL_INTERVAL`].
     pub status: String,
     /// `no_interval_reported`, [`MZ_INTERVAL_NOT_SUPPORTED`], the internal
     /// estimator's withheld reason, or `estimator_grid_not_measured` for its
@@ -221,7 +221,7 @@ impl MzUncertaintyWire {
     #[must_use]
     pub fn not_supported(dependence_reason: Option<&str>) -> Self {
         Self {
-            status: MZ_WITHHELD.into(),
+            status: MZ_NO_INTERVAL_METHOD.into(),
             reason: MZ_INTERVAL_NOT_SUPPORTED.into(),
             dependence_reason: dependence_reason.map(Into::into),
             ..Self::point_only()
@@ -269,7 +269,9 @@ impl MzUncertaintyWire {
                     .collect(),
                 ..base
             },
-            Err(reason) => Self { status: MZ_WITHHELD.into(), reason: (*reason).into(), ..base },
+            Err(reason) => {
+                Self { status: MZ_NO_INTERVAL_METHOD.into(), reason: (*reason).into(), ..base }
+            }
         }
     }
 

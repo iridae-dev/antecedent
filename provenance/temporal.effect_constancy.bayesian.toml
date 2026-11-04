@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Normal posterior mean of the constancy contrast, using the contrast variance the frequentist test already forms. A wide scale stays at the contrast. This is not a reuse of recalculation.bayesian. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -25,7 +25,7 @@ rationale = "Normal posterior mean of the effect-constancy contrast using the co
 no_independent_algorithm = "known_variance_posterior returns point * tau^2 / (tau^2 + variance); the contrast and its variance are produced by the covered constancy test. No interval."
 covered_by = ["estimate.posterior_mean_kernel", "temporal.effect_constancy"]
 derivation = "Normal likelihood for the contrast with supplied variance v and an N(0, tau^2) prior give posterior mean point * tau^2 / (tau^2 + v); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "83a2ddb0489bb31044d73ad2af944a6805da2d09c93eb6db2bd6ed4930af6177"
+record_sha256 = "0467492df6c81590f7df3ef38a94da7e4ce39ad9337d292df41336b3e962f07e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

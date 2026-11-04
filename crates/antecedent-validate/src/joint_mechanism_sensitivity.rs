@@ -99,7 +99,7 @@ pub(crate) const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage 
 pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str =
     antecedent_core::reason_details::joint_sensitivity::BUDGET;
 /// Detail of the withheld sampling interval.
-pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str =
+pub(crate) const JOINT_SENSITIVITY_NO_INTERVAL_METHOD: &str =
     antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD;
 
 /// A mechanism factor a caller may ask to perturb.
@@ -382,7 +382,7 @@ impl JointSensitivityUncertainty {
             method: JOINT_SENSITIVITY_SAMPLING_METHOD,
             coverage_target: JOINT_SENSITIVITY_COVERAGE_TARGET,
             reason_code: reason_code!("uncertainty_representation_insufficient"),
-            detail: JOINT_SENSITIVITY_INTERVAL_WITHHELD,
+            detail: JOINT_SENSITIVITY_NO_INTERVAL_METHOD,
         }
     }
 }

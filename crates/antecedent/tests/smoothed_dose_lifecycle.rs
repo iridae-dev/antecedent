@@ -1948,6 +1948,36 @@ fn the_estimator_layer_returns_the_grid_and_refuses_directly() {
     );
 }
 
+/// A graph whose selection acts on the outcome certifies nothing.
+fn selection_on_the_outcome_certifies_no_smoothed_dose_estimate(q: &SmoothedDoseTransportQuery) {
+    let mut graph = antecedent_graph::Admg::with_variables(3);
+    for (from, to) in [(0, 2), (1, 2)] {
+        graph
+            .insert_directed(
+                antecedent_graph::DenseNodeId::from_raw(from),
+                antecedent_graph::DenseNodeId::from_raw(to),
+            )
+            .unwrap();
+    }
+    let blocked = antecedent_graph::SelectionDiagram::try_new(
+        graph,
+        vec![antecedent_core::VariableId::from_raw(2)],
+    )
+    .unwrap();
+    let menu = StudyBuilder::smoothed_dose_menu(&blocked, q, None).unwrap();
+    assert_eq!(
+        menu.entries
+            .iter()
+            .find(|e| e.estimator == "smoothed_dose_transport_aipw")
+            .unwrap()
+            .refusal
+            .clone()
+            .unwrap()
+            .code,
+        "transport_not_certified"
+    );
+}
+
 #[test]
 fn dose_menu_lists_refused_estimators_with_reasons() {
     let (diagram, _) = diagram();
@@ -2019,26 +2049,7 @@ fn dose_menu_lists_refused_estimators_with_reasons() {
         by_name(&refused_menu, "smoothed_dose_transport_aipw").refusal.unwrap().detail.as_deref(),
         Some(antecedent_core::reason_details::dose_response::LEARNER_NOT_PORTABLE)
     );
-    // A graph whose selection acts on the outcome certifies nothing.
-    let mut graph = antecedent_graph::Admg::with_variables(3);
-    for (from, to) in [(0, 2), (1, 2)] {
-        graph
-            .insert_directed(
-                antecedent_graph::DenseNodeId::from_raw(from),
-                antecedent_graph::DenseNodeId::from_raw(to),
-            )
-            .unwrap();
-    }
-    let blocked = antecedent_graph::SelectionDiagram::try_new(
-        graph,
-        vec![antecedent_core::VariableId::from_raw(2)],
-    )
-    .unwrap();
-    let menu = StudyBuilder::smoothed_dose_menu(&blocked, &q, None).unwrap();
-    assert_eq!(
-        by_name(&menu, "smoothed_dose_transport_aipw").refusal.unwrap().code,
-        "transport_not_certified"
-    );
+    selection_on_the_outcome_certifies_no_smoothed_dose_estimate(&q);
     // The binary-contrast menu lists the smoothed estimator as refused.
     let binary_query = antecedent_core::TransportQuery::new(
         antecedent_core::ResponseQuery::new(antecedent_core::ResponseFunctional::MeanCurve {

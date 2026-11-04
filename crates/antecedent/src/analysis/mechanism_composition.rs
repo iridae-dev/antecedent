@@ -610,7 +610,7 @@ impl FirstOrderInterval {
         variance: f64,
         level: f64,
     ) -> Result<Self, MechanismCompositionRefusal> {
-        if !(level > 0.0 && level < 1.0) || !(variance.is_finite() && variance >= 0.0) {
+        if !(level > 0.0 && level < 1.0 && variance.is_finite() && variance >= 0.0) {
             return Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("invalid_argument"),
                 "uncertainty",

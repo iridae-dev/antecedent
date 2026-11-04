@@ -147,7 +147,7 @@ fn a_bound_result_carries_one_value_per_hand_listed_coordinate() {
         ["do(schema:dose=0.5)", "do(schema:dose=1)", "do(schema:dose=1.5)", "do(schema:dose=2.5)"]
     );
     let at = |regime: &str| values[regimes.iter().position(|r| r == regime).unwrap()];
-    assert_eq!(at("do(schema:dose=2.5)"), 2.0);
-    assert_eq!(at("do(schema:dose=0.5)"), 8.0);
+    assert_eq!(at("do(schema:dose=2.5)").to_bits(), 2.0_f64.to_bits());
+    assert_eq!(at("do(schema:dose=0.5)").to_bits(), 8.0_f64.to_bits());
     assert!(!bound.claim().is_native_estimation());
 }

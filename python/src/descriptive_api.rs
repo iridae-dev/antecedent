@@ -81,7 +81,7 @@ type Transformed =
 fn check_level(level: Option<f64>) -> PyResult<()> {
     match level {
         Some(level) if !(level > 0.0 && level < 1.0) => {
-            Err(crate::value_err("level must lie strictly between 0 and 1".to_owned()))
+            Err(crate::value_err("level must lie strictly between 0 and 1"))
         }
         _ => Ok(()),
     }

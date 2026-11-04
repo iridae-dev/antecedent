@@ -1746,7 +1746,7 @@ const UNIT_BAND_ASSUMPTIONS: [&str; 3] = [
 
 /// Support warnings that describe a unit surface's own (withheld) band.
 const UNIT_BAND_WARNINGS: [&str; 2] = [
-    antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD,
+    antecedent_estimate::TEMPORAL_RESPONSE_NO_BAND_METHOD,
     "estimate.temporal_response.bootstrap_degraded",
 ];
 

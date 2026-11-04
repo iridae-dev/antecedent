@@ -1072,47 +1072,55 @@ fn every_missing_element_is_its_own_refusal() {
     }
 }
 
-#[test]
-fn inconsistent_elements_are_refused_with_their_own_details() {
-    let one = |gaps: Vec<ContractGap>| -> &'static str {
-        assert_eq!(gaps.len(), 1, "{gaps:?}");
-        gaps[0].detail()
-    };
+/// The detail of the one gap a contract with a single inconsistency reports.
+fn single_gap_detail(gaps: &[ContractGap]) -> &'static str {
+    assert_eq!(gaps.len(), 1, "{gaps:?}");
+    gaps[0].detail()
+}
+
+/// Inconsistent arms, measurements and correlation declarations.
+fn inconsistent_arms_measurements_and_correlation_are_refused() {
     assert_eq!(
-        one(gaps(|d| {
+        single_gap_detail(&gaps(|d| {
             d.arms = 5;
             d.borrowing = Some(BorrowingPlan::uniform(5, BetaPrior::UNIFORM));
         })),
         antecedent_core::reason_details::adaptive_inference::ARMS_INVALID
     );
     assert_eq!(
-        one(gaps(|d| d.responses = Some(1))),
+        single_gap_detail(&gaps(|d| d.responses = Some(1))),
         antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID
     );
     assert_eq!(
-        one(gaps(|d| d.responses = Some(33))),
+        single_gap_detail(&gaps(|d| d.responses = Some(33))),
         antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID
     );
     for rho in [1.0, -0.1, f64::NAN] {
         assert_eq!(
-            one(gaps(|d| d.correlation = Some(rho))),
+            single_gap_detail(&gaps(|d| d.correlation = Some(rho))),
             antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
         );
     }
     // The correlation is declared or estimated, never both, and a prior needs shapes of at least 1.
     assert_eq!(
-        one(gaps(|d| d.correlation_prior = Some(CorrelationPrior { alpha: 1.0, beta: 1.0 }))),
+        single_gap_detail(&gaps(
+            |d| d.correlation_prior = Some(CorrelationPrior { alpha: 1.0, beta: 1.0 })
+        )),
         antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
     );
     for prior in [(0.5, 1.0), (1.0, f64::NAN), (1.0, 1.0e5)] {
         assert_eq!(
-            one(gaps(|d| {
+            single_gap_detail(&gaps(|d| {
                 d.correlation = None;
                 d.correlation_prior = Some(CorrelationPrior { alpha: prior.0, beta: prior.1 });
             })),
             antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
         );
     }
+}
+
+/// Inconsistent historical borrowing, outcome availability and enrolment declarations.
+fn inconsistent_borrowing_availability_and_enrolment_are_refused() {
     let bad_source = |discount: f64| {
         Some(BorrowingPlan {
             arms: vec![
@@ -1126,33 +1134,39 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
         })
     };
     assert_eq!(
-        one(gaps(|d| d.borrowing = bad_source(1.5))),
+        single_gap_detail(&gaps(|d| d.borrowing = bad_source(1.5))),
         antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID
     );
     assert_eq!(
-        one(gaps(|d| d.borrowing = Some(BorrowingPlan::uniform(2, BetaPrior::UNIFORM)))),
+        single_gap_detail(&gaps(
+            |d| d.borrowing = Some(BorrowingPlan::uniform(2, BetaPrior::UNIFORM))
+        )),
         antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID,
         "one prior per arm"
     );
     assert_eq!(
-        one(gaps(
+        single_gap_detail(&gaps(
             |d| d.borrowing = Some(BorrowingPlan::uniform(3, BetaPrior { alpha: 0.5, beta: 1.0 }))
         )),
         antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID
     );
     assert_eq!(
-        one(gaps(|d| d.lag_looks = 33)),
+        single_gap_detail(&gaps(|d| d.lag_looks = 33)),
         antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID
     );
     for enrolment in [vec![40], vec![0, 40], vec![40, 0, 40]] {
         assert_eq!(
-            one(gaps(|d| d.enrolment = Some(enrolment))),
+            single_gap_detail(&gaps(|d| d.enrolment = Some(enrolment))),
             antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
         );
     }
+}
+
+/// Inconsistent exploration floors, decision rules and anytime settings.
+fn inconsistent_rules_and_anytime_settings_are_refused() {
     for floor in [0.0, 0.4, f64::NAN] {
         assert_eq!(
-            one(gaps(|d| d.min_exploration = Some(floor))),
+            single_gap_detail(&gaps(|d| d.min_exploration = Some(floor))),
             antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
         );
     }
@@ -1168,7 +1182,7 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
         rules(0.01, None, Some(161)),
     ] {
         assert_eq!(
-            one(gaps(|d| d.decisions = decisions)),
+            single_gap_detail(&gaps(|d| d.decisions = decisions)),
             antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
         );
     }
@@ -1178,10 +1192,17 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
         AnytimeSettings { alpha: 0.05, tuning_samples: 0.0 },
     ] {
         assert_eq!(
-            one(gaps(|d| d.anytime = Some(settings))),
+            single_gap_detail(&gaps(|d| d.anytime = Some(settings))),
             antecedent_core::reason_details::adaptive_inference::ANYTIME_SETTINGS_INVALID
         );
     }
+}
+
+#[test]
+fn inconsistent_elements_are_refused_with_their_own_details() {
+    inconsistent_arms_measurements_and_correlation_are_refused();
+    inconsistent_borrowing_availability_and_enrolment_are_refused();
+    inconsistent_rules_and_anytime_settings_are_refused();
 }
 
 #[test]

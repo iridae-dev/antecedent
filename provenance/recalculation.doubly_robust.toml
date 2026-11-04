@@ -12,7 +12,7 @@ implementation_deviations = [
   "The declared DML minimum is its untrimmed binary-treatment AIPW score. Partially linear DML and trimmed-population scores cannot be substituted for this per-arm object and remain explicit refusals in this adapter.",
   "DR-Learner marginal AIPW scores and its final-stage CATE predictor are distinct retained objects. Same-row score reweighting does not derive scores or sampling covariance from CATE predictions.",
   "Complete-case row identities, ordered feature schemas, nuisance learners, folds, overlap and seeded streams bind retained state. Compatible utility and same-row target changes reuse; invalidating requests recheck or refit.",
-  "Execution measures actual nuisance and final-stage learner work and successful score-table builds (two on initial preparation/estimation); bounded physical-input reuse avoids duplicate nuisance fits and includes fold-unit kind/seed. Canonical graph/target/utility identities permit independent score consumption; reported analytic diagnostics and point predictions retain unmeasured calibration, with no interval or coverage claim.",
+  "Execution measures actual nuisance and final-stage learner work and successful score-table builds (two on initial preparation/estimation); bounded physical-input reuse avoids duplicate nuisance fits and includes fold-unit kind/seed. Canonical graph/target/utility identities permit independent score consumption; reported analytic diagnostics and point predictions retain not-measured calibration, with no interval or coverage claim.",
   "Historical receipts contain no executable state. Fresh processes require independently verified scores or predictors for their separately supported operations, or supplied raw data for refitting.",
 ]
 upstream_implementations_observed = []
@@ -33,7 +33,7 @@ kind = "wrapper"
 rationale = "Shared-plan retention over the checked DML-AIPW and DR-Learner estimators: frozen scores, same-row reweighting and point CATE prediction without refitting."
 no_independent_algorithm = "recalc_dr.rs counts resolved fits, retains the estimator's scores and calls the existing retarget and prediction primitives; the only arithmetic of its own is a min/max range check of row ids and the shared decision arithmetic. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
 covered_by = ["estimate.dml", "estimate.dr.learner", "estimate.aipw"]
-record_sha256 = "a082362a92da108ec6c1870dd132dea370f2c7df6d585c288a2b2d2124f21292"
+record_sha256 = "71f7f3145af76a84452b55f059c565fd2a9b416e00cb62edf279adbdbff499c1"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

@@ -132,7 +132,7 @@ fn every_previous_route_gets_an_explicit_outcome_and_none_is_a_break() {
             .unwrap_or_else(|error| panic!("{}: genuine break: {error}", route.id));
         let assigned = match outcome {
             RouteRecordOutcome::RefusalKept => {
-                assert_eq!(route.status, "closed", "{}", route.id);
+                assert_eq!(route.status, "not_supported", "{}", route.id);
                 kept += 1;
                 continue;
             }
@@ -222,8 +222,8 @@ fn a_frozen_previous_release_route_artifact_is_consumed_by_the_current_reader() 
         .map(|m| (m.id.as_str(), m.result.as_ref().expect("no fixture record is a break")))
         .collect();
     assert!(matches!(by_id["supported.AverageEffect.Dag"], RouteRecordOutcome::Split { .. }));
-    // No current method carries this historical closed route, so its refusal remains.
-    assert_eq!(by_id["closed.AnomalyAttribution.Admg"], &RouteRecordOutcome::RefusalKept);
+    // No current method carries this historical refused route, so its refusal remains.
+    assert_eq!(by_id["refused.AnomalyAttribution.Admg"], &RouteRecordOutcome::RefusalKept);
     let RouteRecordOutcome::Split { methods: response, .. } =
         by_id["supported.InterventionResponse.CoDetermined"]
     else {
@@ -286,8 +286,8 @@ fn bytes_that_are_not_a_route_artifact_are_not_decoded() {
         PreviousReleaseError::ArtifactNotDecoded
     );
     let duplicate = br#"{"routes":[
-        {"id":"repeated","status":"closed","design_time_model":"static","inference":"Frequentist"},
-        {"id":"repeated","status":"closed","design_time_model":"static","inference":"Frequentist"}
+        {"id":"repeated","status":"not_supported","design_time_model":"static","inference":"Frequentist"},
+        {"id":"repeated","status":"not_supported","design_time_model":"static","inference":"Frequentist"}
     ]}"#;
     assert_eq!(
         consume_previous_route_records(duplicate, &methods).unwrap_err(),

@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Normal posterior mean of the refreshed period's outcomes, plug-in variance. A wide scale stays at the refreshed response 6. This is not a reuse of recalculation.bayesian. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -25,7 +25,7 @@ rationale = "Normal posterior mean of the refreshed period's outcomes with the p
 no_independent_algorithm = "normal_mean_posterior returns the sample mean times n tau^2 / (n tau^2 + s2); the refreshed outcomes come from the covered refresh. No interval."
 covered_by = ["estimate.posterior_mean_kernel", "temporal.new_period_refresh"]
 derivation = "Normal likelihood for a mean with plug-in precision P = n / s2 and an independent N(0, tau^2) prior give posterior mean P / (P + 1 / tau^2) * mean = mean * n tau^2 / (n tau^2 + s2); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "260b7003c882d142d4029537e2c66c6c9f749e0306715440918b10325f0f8cf7"
+record_sha256 = "2996816ab6568bcab624a314d8379a27605a28d3cd552e8c5e7961ad5e37f91e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

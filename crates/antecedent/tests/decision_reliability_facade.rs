@@ -78,7 +78,6 @@ fn the_facade_reports_the_enumerated_truth_with_separate_components() {
     assert!((best("C") - 1.0 / 12.0).abs() < 1e-12);
     let inspection = prepared.inspect();
     assert_eq!(inspection.standing, "uncalibrated_point_diagnostic");
-    assert!(inspection.closed_routes.is_empty());
 }
 
 #[test]

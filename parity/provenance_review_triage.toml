@@ -69,7 +69,7 @@ shares_primary_source_with = 0
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 class = "wrapper_contract"
 priority = 4
 admitted_specs = 0
@@ -406,7 +406,7 @@ admitted_specs = 4
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "cohort_decision.mean_contrast"
@@ -586,7 +586,7 @@ admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "core.inference_realization"
@@ -666,7 +666,7 @@ admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "counterfactual.whole_path_uncertainty"
@@ -696,7 +696,7 @@ admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: cross_world_execution.finite_markovian_scm) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: cross_world_execution.finite_markovian_scm) is digest-bound to the mapped modules"
 
 [[record]]
 id = "cross_world_execution.temporal_selective"
@@ -716,7 +716,7 @@ admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: counterfactual.transported_additive) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: counterfactual.transported_additive) is digest-bound to the mapped modules"
 
 [[record]]
 id = "cyclic.external_mechanisms"
@@ -896,7 +896,7 @@ admitted_specs = 4
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision_reliability.derived_uncertainty"
@@ -1409,14 +1409,14 @@ shares_primary_source_with = 0
 basis = "non_algorithm_review (wrapper; covered by: discovery.pc, discovery.fci) is digest-bound to the mapped modules"
 
 [[record]]
-id = "discovery.selective_reuse_guarantees_closed"
+id = "discovery.selective_reuse_unsupported_guarantees"
 class = "justified_non_algorithm"
 priority = 0
 admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "discovery.structure_mcmc"
@@ -3846,7 +3846,7 @@ admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "predictive_assessment.distribution_drift"
@@ -3866,7 +3866,7 @@ admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "predictive_assessment.overlap_check"
@@ -4216,7 +4216,7 @@ admitted_specs = 0
 supported_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
+basis = "non_algorithm_review (unsupported_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "scientific_bridge.typed_bridges"

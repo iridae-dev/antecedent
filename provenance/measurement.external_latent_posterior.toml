@@ -15,7 +15,7 @@ papers = [
 implementation_deviations = [
  "Posterior-mean substitution is exact for a linear outcome model only; the provider's hyperparameter uncertainty is not representable and is labelled not_propagated.",
  "Rubin's rules assume proper imputations conditional on the outcome; the model must declare that, and it is not verifiable here.",
- "No interval; coverage is unmeasured.",
+ "No interval; coverage is not measured.",
 ]
 
 upstream_implementations_observed = []
@@ -35,7 +35,7 @@ redistribution = "The reference script, its frozen output and the test are repos
 limitations = "The book chapters were not re-read in this review (nothing downloaded, no local copy), so the regression-calibration and variance-component statements rest on the record and the code comments. The reference is one study of 150 rows with mixed replicate counts of one to three, one covariate and a coarse replicate study of 20 units with sizes one to five; the classical additive error model with a linear outcome, a single error-prone regressor and error-free covariates is the only case, and non-Gaussian errors, heteroscedastic errors and non-linear outcome models are not exercised. The estimate-variance part of the covariance is compared at 1e-7 because the reference differentiates the corrected solve numerically. Coverage of the resulting intervals is not measured here and no interval is claimed. Calibration remains deferred. The proper-imputation condition is declared by the model and cannot be checked from the draws; the reference draws are generated with independent noise around the true regressor, which is neither proper nor Berkson in the sense of the book, and only the arithmetic of the combination is verified."
 sources = ["https://doi.org/10.1002/9780470316696", "https://doi.org/10.1201/9781420010138", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["The pooled coefficients, the within and between covariances and the total covariance of five imputations, and the posterior means, agree with the 60-digit reference (1e-10 for the coefficients, 1e-8 for the covariances); a single imputation is refused. No defect was found and no product code changed."]
-record_sha256 = "23fef7d9f2943cefd46fc60ae6c7f6c687a1f506c0c59a44b43ee2493ca8ba89"
+record_sha256 = "2fb56d512c515d61519a78ea4ad0568bf18eaf548584d9bf427804b4c5b4d130"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -61,11 +61,10 @@ pub use artifact::{
     MAX_DECISION_RELIABILITY_BYTES, consume,
 };
 pub use calibration::{
-    CANDIDATE_COUNT_BANDS, CalibrationCoordinate, ClosedRoute, DEFAULT_SUPPORT_LEVEL,
-    KnownOptimumDesign, NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome,
-    banded_record_functional, calibration_basis, candidate_count_band, closed_routes,
-    record_functional, simulate_replicate, simulate_selection_draws, support_route,
-    support_route_at,
+    CANDIDATE_COUNT_BANDS, CalibrationCoordinate, DEFAULT_SUPPORT_LEVEL, KnownOptimumDesign,
+    NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome, banded_record_functional,
+    calibration_basis, candidate_count_band, record_functional, simulate_replicate,
+    simulate_selection_draws, support_route, support_route_at,
 };
 pub use coverage_design::{CoverageCell, TruthKind, coverage_design};
 pub use draws::{

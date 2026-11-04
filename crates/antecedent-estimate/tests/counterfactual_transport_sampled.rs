@@ -364,6 +364,57 @@ fn with_structural_zero(table: &SampledRegimeCounts, cell: usize) -> SampledRegi
     .unwrap()
 }
 
+/// The unseen-mass envelope is a labelled structural range with no interval, and a sparsity
+/// limit stricter than the table's unseen share refuses.
+fn envelope_is_labelled_and_sparsity_limit_refuses(
+    derivation: &CounterfactualTransportDerivation,
+    tables: Vec<SampledRegimeCounts>,
+) {
+    // Envelope: a labelled structural range over a finite family, no single
+    // standard error, so no interval: a scientific outcome.
+    let enveloped = estimate(
+        derivation,
+        tables.clone(),
+        UnseenCellRule::UnseenMassEnvelope { unseen_mass: 0.01 },
+    )
+    .unwrap();
+    let envelope = enveloped.envelope.as_ref().expect("an envelope");
+    assert_eq!(envelope.label, STRUCTURAL_ENVELOPE_LABEL);
+    assert_eq!(envelope.members, 2);
+    assert_eq!(envelope.defined_members + envelope.undefined_members, envelope.members);
+    assert!(envelope.lower <= envelope.upper);
+    assert!(envelope.upper - envelope.lower >= 0.0 && envelope.upper - envelope.lower < 0.1);
+    assert!(enveloped.inference.standard_error.is_none());
+    assert_eq!(
+        enveloped.inference.standard_error_withheld_reason,
+        Some("partial_identification_has_no_single_standard_error")
+    );
+    assert_eq!(
+        enveloped.inference.interval,
+        SampledIntervalOutcome::NotComputable {
+            code: "effect_not_identified",
+            detail: antecedent_core::reason_details::counterfactual_transport_sampled::INTERVAL_NOT_COMPUTABLE,
+            reason: "partial_identification_has_no_single_standard_error",
+        }
+    );
+    assert_eq!(enveloped.labels.statistical_inference, LABEL_INFERENCE_NOT_COMPUTABLE);
+    assert_ne!(enveloped.labels.point_estimate, LABEL_SMOOTHED_PLUG_IN);
+    let _ = LABEL_ENVELOPE_ONLY;
+
+    // A sparsity limit stricter than the table's unseen share refuses.
+    let mut strict = request(tables, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 });
+    strict.limits.max_unseen_fraction = 0.0;
+    let error = estimate_sampled_counterfactual_transport(
+        derivation,
+        &strict,
+        &ExecutionContext::for_tests(7),
+    )
+    .unwrap_err();
+    assert!(refusal(&error).1.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::SPARSITY_ABOVE_LIMIT
+    ));
+}
+
 #[test]
 fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
     let case = case_named("joint_counterfactual_two_source_regimes");
@@ -457,49 +508,7 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
     );
     assert_eq!(smoothed.inference.interval, SampledIntervalOutcome::Reported);
 
-    // Envelope: a labelled structural range over a finite family, no single
-    // standard error, so no interval: a scientific outcome.
-    let enveloped = estimate(
-        &derivation,
-        tables.clone(),
-        UnseenCellRule::UnseenMassEnvelope { unseen_mass: 0.01 },
-    )
-    .unwrap();
-    let envelope = enveloped.envelope.as_ref().expect("an envelope");
-    assert_eq!(envelope.label, STRUCTURAL_ENVELOPE_LABEL);
-    assert_eq!(envelope.members, 2);
-    assert_eq!(envelope.defined_members + envelope.undefined_members, envelope.members);
-    assert!(envelope.lower <= envelope.upper);
-    assert!(envelope.upper - envelope.lower >= 0.0 && envelope.upper - envelope.lower < 0.1);
-    assert!(enveloped.inference.standard_error.is_none());
-    assert_eq!(
-        enveloped.inference.standard_error_withheld_reason,
-        Some("partial_identification_has_no_single_standard_error")
-    );
-    assert_eq!(
-        enveloped.inference.interval,
-        SampledIntervalOutcome::NotComputable {
-            code: "effect_not_identified",
-            detail: antecedent_core::reason_details::counterfactual_transport_sampled::INTERVAL_NOT_COMPUTABLE,
-            reason: "partial_identification_has_no_single_standard_error",
-        }
-    );
-    assert_eq!(enveloped.labels.statistical_inference, LABEL_INFERENCE_NOT_COMPUTABLE);
-    assert_ne!(enveloped.labels.point_estimate, LABEL_SMOOTHED_PLUG_IN);
-    let _ = LABEL_ENVELOPE_ONLY;
-
-    // A sparsity limit stricter than the table's unseen share refuses.
-    let mut strict = request(tables, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 });
-    strict.limits.max_unseen_fraction = 0.0;
-    let error = estimate_sampled_counterfactual_transport(
-        &derivation,
-        &strict,
-        &ExecutionContext::for_tests(7),
-    )
-    .unwrap_err();
-    assert!(refusal(&error).1.contains(
-        antecedent_core::reason_details::counterfactual_transport_sampled::SPARSITY_ABOVE_LIMIT
-    ));
+    envelope_is_labelled_and_sparsity_limit_refuses(&derivation, tables);
 }
 
 #[test]

@@ -18,7 +18,7 @@ from ._augmented_grid import (
     SelectionOverlap,
     estimate_augmented_response_grid,
 )
-from ._closed_pilots import (
+from ._advanced_producers import (
     NestedFisherCandidate,
     NestedMarkovPosteriorCandidate,
     NestedMarkovPrior,

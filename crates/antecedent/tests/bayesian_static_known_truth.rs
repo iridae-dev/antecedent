@@ -35,7 +35,7 @@ use support::{
 
 /// Mean of at least 2 000 posterior draws of a posterior with sd at most 1e-2, six standard
 /// errors, plus the prior-shrinkage bound.
-const DRAW_MEAN_TOLERANCE: f64 = 6.0 * 1e-2 / 44.72135954999579 + 1e-6;
+const DRAW_MEAN_TOLERANCE: f64 = 6.0 * 1e-2 / 44.721_359_549_995_79 + 1e-6;
 /// Draws requested from the conjugate Bayesian cells.
 const DRAWS: usize = 4_000;
 

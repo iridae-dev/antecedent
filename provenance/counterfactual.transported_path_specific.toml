@@ -26,7 +26,7 @@ test_sources = [
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
+kind = "unsupported_variant"
 rationale = "A closed gate: the route evaluates nothing and reports which prerequisite (transport support, fixed-population cross-world support, stated assumptions) is missing."
 no_independent_algorithm = "transported_gate.rs refuses with transported_counterfactual.route_frozen (not_supported); no estimator exists for the composed quantity."
 record_sha256 = "3105ee6ca76400ece586729b401f6d9e6780b50e3131c6efd8f7ebc286ca229a"

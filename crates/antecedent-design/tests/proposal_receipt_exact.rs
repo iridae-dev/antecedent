@@ -18,9 +18,7 @@ use antecedent_contract::{
     ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
     ScientificQuantity, SignalProviderContract,
 };
-use antecedent_core::{
-    CancellationToken, DistributionAvailability, ExecutionContext, VariableId,
-};
+use antecedent_core::{CancellationToken, DistributionAvailability, ExecutionContext, VariableId};
 use antecedent_design::design_ranking_artifact::{DesignRankingArtifactWire, SealInputs, seal};
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiRequest, StudyCostSpec, evaluate_evsi,
@@ -34,9 +32,9 @@ use antecedent_design::signal::{
 };
 use antecedent_design::{
     AffineUtility, BackdoorRepairFamily, CandidateDesign, DecisionPrior, DecisionProblem,
-    DesignCost, DesignRankConfig, DurableStudyCandidate, ExpectedEvidence, RepairFamily,
-    RepairFamilyRef, RepairLimits, RepairObjective, RepairReportArtifact, SamplingPlan,
-    StudyCostDeclaration, StudyKind, UnitRules, repair,
+    DesignCost, DesignRankConfig, DurableStudyCandidate, ExpectedEvidence, RepairFamilyRef,
+    RepairLimits, RepairObjective, RepairReportArtifact, SamplingPlan, StudyCostDeclaration,
+    StudyKind, UnitRules, repair,
 };
 use antecedent_graph::{Dag, DenseNodeId};
 
@@ -237,8 +235,6 @@ fn seal_ranking(candidates: Vec<EvsiCandidate>) -> DesignRankingArtifactWire {
     .unwrap()
 }
 
-
-
 struct Fx {
     family: BackdoorRepairFamily,
     minimal: DurableStudyCandidate,
@@ -268,7 +264,7 @@ fn fixture() -> Fx {
 }
 
 fn receipt<'a>(bundle: &'a ProposalBundle, s: &DurableStudyCandidate) -> &'a ProposalReceipt {
-    bundle.proposal(&s.semantic_id().to_string()).expect("candidate in bundle")
+    bundle.proposal(s.semantic_id().as_ref()).expect("candidate in bundle")
 }
 
 fn law(measured: &[u32]) -> Arrival {

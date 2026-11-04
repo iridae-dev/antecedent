@@ -111,7 +111,6 @@ fn inspection_json(inspection: &DecisionReliabilityInspection) -> String {
         "source_uncertainty": inspection.source_uncertainty,
         "monte_carlo_error": inspection.monte_carlo_error,
         "selection_uncertainty": inspection.selection_uncertainty,
-        "closed_routes": inspection.closed_routes,
         "coordinate": inspection.coordinate,
     })
     .to_string()

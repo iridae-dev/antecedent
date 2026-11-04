@@ -12,12 +12,12 @@
 //!
 //! Hand derivation:
 //! - jointC states snapshot S2 against its upstream S1, so it fails at `GraphOrSnapshotMismatch`.
-//! - r_strict requires a joint law but meanA supplies mean_only: `UnsupportedLaw`, no label.
-//! - r_mean rests on a mean only: `PointOnlyAttested`. r_mix rests on a mean and a joint law; the
-//!   mean dominates: `PointOnlyAttested`. r_joint rests on joint draws only: `JointDraw`.
-//! - r_bad's only ancestor with a law is the failed jointC, which is ignored: verified, no label.
+//! - `r_strict` requires a joint law but meanA supplies `mean_only`: `UnsupportedLaw`, no label.
+//! - `r_mean` rests on a mean only: `PointOnlyAttested`. `r_mix` rests on a mean and a joint law; the
+//!   mean dominates: `PointOnlyAttested`. `r_joint` rests on joint draws only: `JointDraw`.
+//! - `r_bad`'s only ancestor with a law is the failed jointC, which is ignored: verified, no label.
 //! - Values are readable only from verified nodes: meanA = 3 and jointB = 5, not jointC.
-//! - Changing meanA's bytes changes exactly meanA and its descendants r_mean, r_mix and r_strict.
+//! - Changing meanA's bytes changes exactly meanA and its descendants `r_mean`, `r_mix` and `r_strict`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

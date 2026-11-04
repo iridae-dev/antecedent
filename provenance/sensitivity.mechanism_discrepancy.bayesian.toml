@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The published numbers are the posterior means of the mechanism coefficients, intercept included, under independent normal priors on the parent slopes. This is not a posterior of the Wald statistic. No interval is produced.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -25,7 +25,7 @@ rationale = "Posterior means of one population's mechanism coefficients, interce
 no_independent_algorithm = "mechanism_coefficient_posterior converts the retained X'X, X'y, y'y summary to a design summary (rss = y'y - beta'X'y) and calls full_coefficient_posterior_mean; the discrepancy statistic is the covered record. No interval."
 covered_by = ["estimate.posterior_mean_kernel", "sensitivity.mechanism_discrepancy"]
 derivation = "Normal likelihood with plug-in variance sigma2 = rss / (n - p) and independent N(0, tau^2) priors on the non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2 / tau^2) D)^-1 X'y; checked against the exact penalized normal equations in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "477a297af5ebad253b733f8ccbf415780a91b003daa2e472b2dad20e25e772a3"
+record_sha256 = "261f2be2907588780cf99bd81bbf42170f6bf7989de6e7753c9ce3ccf3b93ab6"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

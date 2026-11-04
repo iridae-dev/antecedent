@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The exact recovery formula applied to the Dirichlet posterior mean of the observed pattern table, with structural zeros held at zero. A tiny concentration stays at the frequentist recovery. A sampled provider that is not this update still refuses. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -25,7 +25,7 @@ rationale = "Dirichlet posterior mean of the supplied finite law (BinaryRecovery
 no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
 covered_by = ["estimate.posterior_mean_kernel", "recovery.chain_observation"]
 derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "b77d744854c3af8f82d9d7be553b3c2f355d1d6b38dd454996c03d675be1f63e"
+record_sha256 = "473e1f67fcedab98243c1874598dd98fc308d8762d035f87d9a2046eeb34fc17"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

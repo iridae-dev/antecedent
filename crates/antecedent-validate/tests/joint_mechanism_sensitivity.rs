@@ -989,10 +989,10 @@ fn a_non_surrogate_formula_or_wrong_provider_refuses() {
     );
 }
 
-#[test]
-fn every_joint_sensitivity_detail_pairs_with_its_recorded_reason_code() {
-    let model = fixed_model();
-    let recorded = [
+/// The reason code each joint-sensitivity detail is recorded with, in the order the refusing
+/// requests are made.
+fn recorded_reason_codes() -> Vec<(&'static str, &'static str)> {
+    vec![
         ("route_not_supported", antecedent_core::reason_details::joint_sensitivity::FACTOR_COUNT),
         (
             "route_not_supported",
@@ -1036,7 +1036,13 @@ fn every_joint_sensitivity_detail_pairs_with_its_recorded_reason_code() {
             antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
         ),
         ("transport_budget_cancel", antecedent_core::reason_details::joint_sensitivity::BUDGET),
-    ];
+    ]
+}
+
+#[test]
+fn every_joint_sensitivity_detail_pairs_with_its_recorded_reason_code() {
+    let model = fixed_model();
+    let recorded = recorded_reason_codes();
     let mut observed = Vec::new();
     let mut push = |result| observed.push(refusal(result));
     let with = |mutate: &dyn Fn(&mut JointDeviationSpec)| {

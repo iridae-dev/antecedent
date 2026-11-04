@@ -188,10 +188,10 @@ def test_the_frozen_previous_route_artifact_gets_an_explicit_outcome_for_every_r
     assert not [m.id for m in migrated if m.is_break], "no fixture record is a break"
     by_id = {m.id: m for m in migrated}
     assert by_id["supported.AverageEffect.Dag"].outcome == "split"
-    # A closed route that stays closed is kept as a refusal and carries no method.
-    closed = by_id["closed.AnomalyAttribution.Admg"]
-    assert closed.outcome == "refusal_kept"
-    assert closed.methods == ()
+    # A refused route that stays refused is kept as a refusal and carries no method.
+    refused = by_id["refused.AnomalyAttribution.Admg"]
+    assert refused.outcome == "refusal_kept"
+    assert refused.methods == ()
 
     response = by_id["supported.InterventionResponse.CoDetermined"]
     assert response.outcome == "split"

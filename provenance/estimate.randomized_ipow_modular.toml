@@ -19,7 +19,7 @@ scope = "The composition of responder_pseudo_outcomes with posterior_arm_contras
 assumptions = [
   "Observation is missing at random given assignment and the declared complete baseline covariates. The armwise linear-logistic observation model with an intercept is correctly specified; positivity and an estimable fit are required.",
   "The Gaussian working likelihood is on data-dependent score-adjusted pseudo-outcomes with a declared proper Normal-Inverse-Gamma prior. Observation-model coefficients are fitted and conditioned upon, not assigned a posterior.",
-  "The published interval is a pointwise 95 percent quantile interval of the discretized contrast law; its frequentist calibration is unmeasured.",
+  "The published interval is a pointwise 95 percent quantile interval of the discretized contrast law; its frequentist calibration is not measured.",
 ]
 historical_exposure = "This review read the repository implementations and wrote definition-level assertions without consulting or copying any upstream implementation, test or publication. It does not claim a page-level review of a primary paper. Historical exposure of earlier authors is not independently established."
 redistribution = "Repository-authored code and tests under MIT OR Apache-2.0. No external source, reference software or paper is redistributed."

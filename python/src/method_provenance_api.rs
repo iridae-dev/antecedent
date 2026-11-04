@@ -6,11 +6,10 @@
 use antecedent_io::method_provenance::{
     MethodProvenanceWire, bibliography, capability_provenance, method_provenance,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 fn to_json<T: serde::Serialize>(value: &T) -> PyResult<String> {
-    serde_json::to_string(value).map_err(|error| PyValueError::new_err(error.to_string()))
+    serde_json::to_string(value).map_err(|error| crate::value_err(error.to_string()))
 }
 
 /// Provenance records behind the route with these identifier and estimator ids, as JSON.
@@ -33,7 +32,7 @@ fn bibliography_json(provenances: Vec<String>) -> PyResult<String> {
         .iter()
         .map(|text| serde_json::from_str::<MethodProvenanceWire>(text))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| PyValueError::new_err(format!("malformed method provenance: {error}")))?;
+        .map_err(|error| crate::value_err(format!("malformed method provenance: {error}")))?;
     let citations = bibliography(&parsed);
     let rendered: Vec<serde_json::Value> = citations
         .iter()

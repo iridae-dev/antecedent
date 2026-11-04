@@ -16,8 +16,8 @@ use antecedent_estimate::posterior_mean::{
 use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail, ChainRecoveryPlan,
-    ChainRecoveryQuery, decide_chain_recovery,
+    ChainPartial, ChainRecoveryDecision, ChainRecoveryPlan, ChainRecoveryQuery,
+    decide_chain_recovery,
 };
 
 const IDS: [u32; 6] = [0, 1, 2, 3, 4, 5];
@@ -132,7 +132,6 @@ fn pattern_from(cells: &[f64]) -> ChainPatternLaw {
     )
     .unwrap()
 }
-
 
 fn preimage(u: &[f64], c: f64) -> Vec<f64> {
     let k = u.len() as f64;

@@ -1,17 +1,17 @@
-# Algorithm provenance for adaptive_inference.guarantees_closed (see docs/adaptive-inference.md).
+# Algorithm provenance for adaptive_inference.unsupported_guarantees (see docs/adaptive-inference.md).
 
-feature_id = "adaptive_inference.guarantees_closed"
+feature_id = "adaptive_inference.unsupported_guarantees"
 implementation_crate = "antecedent-estimate"
 source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
 
-# No primary paper: closed adjacent variant; refuses a guarantee no construction yields.
+# No primary paper: unsupported adjacent variant; refuses a guarantee no construction yields.
 papers = [
 ]
 implementation_deviations = [
- "Whole-procedure calibration designs (data-generating process, nominal level, support range, boundary probes) are frozen in crates/antecedent-estimate/tests/adaptive_inference_calibration.rs and are unmeasured; a reported interval carries that status as an annotation.",
+ "Whole-procedure calibration designs (data-generating process, nominal level, support range, boundary probes) are frozen in crates/antecedent-estimate/tests/adaptive_inference_calibration.rs and are not measured; a reported interval carries that status as an annotation.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -20,10 +20,10 @@ test_sources = [
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
-kind = "closed_variant"
-rationale = "A closed adjacent variant: a guarantee no construction yields (the error rate of a posterior stopping rule, a stagewise adjustment of a group-sequential result) is an unsupported claim that refuses with its own code and detail. Intervals are not such claims: they are reported with a calibration annotation and are covered by the other adaptive_inference records."
+kind = "unsupported_variant"
+rationale = "A unsupported adjacent variant: a guarantee no construction yields (the error rate of a posterior stopping rule, a stagewise adjustment of a group-sequential result) is an unsupported claim that refuses with its own code and detail. Intervals are not such claims: they are reported with a calibration annotation and are covered by the other adaptive_inference records."
 no_independent_algorithm = "adaptive_inference.rs gives the stopping decision and the group-sequential result an UnsupportedClaim whose refusal names the unsupported guarantee (estimator_inference_mismatch for the stopping-rule error rate, route_not_supported otherwise); the estimators' own numerics belong to the other adaptive_inference records and no interval is computed here."
-record_sha256 = "4ede70814aa38a4eaf04e7411e32f92d4d1bf29dc1d0d7c927059b763c6457b5"
+record_sha256 = "a1e21a0eb64c176329f1d03215c36f1fe6d7e8c8b1df12627f5e54ca4b851d7a"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

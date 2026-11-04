@@ -123,9 +123,10 @@ fn full() -> CallbackDeclaration {
 /// matching detail, and the unchanged consumer connects.
 #[test]
 fn each_semantic_field_refuses_alone_and_the_matching_consumer_connects() {
+    type Case = (&'static str, fn(&mut Need), &'static str);
     let producer = full();
     assert_eq!(details(&producer, &need()), Ok(()));
-    let cases: Vec<(&str, fn(&mut Need), &str)> = vec![
+    let cases: Vec<Case> = vec![
         ("variable", |n| n.quantity.variable_id = "schema:diastolic".into(), "variable_mismatch"),
         ("units", |n| n.quantity.units = "kPa".into(), "units_mismatch"),
         ("population", |n| n.quantity.population_id = "children".into(), "population_mismatch"),

@@ -2108,7 +2108,7 @@ admission = "not_supported"
 decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs::an_unmistakable_best_arm_is_selected_with_no_regret; consumer crates/antecedent-io/src/adaptive_inference_result_artifact.rs; uncertainty analytic (declared_and_corroborated)"
 provenance = [
   "adaptive_inference.decision_theoretic_stopping",
-  "adaptive_inference.guarantees_closed",
+  "adaptive_inference.unsupported_guarantees",
   "adaptive_inference.repeated_measures_weighting",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 20 of 25 public items reviewed"

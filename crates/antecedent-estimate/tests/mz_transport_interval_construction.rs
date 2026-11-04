@@ -32,6 +32,11 @@ fn hand_quantile(values: &[f64], p: f64) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
     let h = (sorted.len() as f64 - 1.0) * p;
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the index is floor of a non-negative position below the replicate count"
+    )]
     let k = h.floor() as usize;
     if k + 1 >= sorted.len() {
         return sorted[sorted.len() - 1];
@@ -93,7 +98,10 @@ fn reported_bootstrap_intervals_equal_hand_percentiles_of_the_replicate_point_es
             risks[1].push(row[1]);
         }
     }
-    assert_eq!(risks[0].len() as u32, reported.replicates_ok);
+    assert_eq!(
+        u32::try_from(risks[0].len()).expect("replicate count fits u32"),
+        reported.replicates_ok
+    );
     for (k, values) in risks.iter().enumerate() {
         let (lower, upper) = hand_interval(values, level);
         let &(outcome, got_lower, got_upper) = &reported.requests[k].mean_intervals[0];

@@ -132,20 +132,6 @@ impl PublishedRoute {
     }
 }
 
-/// A route that is closed at a coordinate, with its refusal.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ClosedRoute {
-    /// The route.
-    pub route: PublishedRoute,
-    /// Coordinate it would be calibrated at.
-    pub coordinate: String,
-    /// Registered reason code of the refusal.
-    pub code: String,
-    /// What would open it.
-    pub remedy: String,
-}
-
 /// Query axis name every decision-reliability coverage record carries.
 pub const RECORD_QUERY: &str = "DecisionReliability";
 /// Nominal level [`support_route`] resolves at.
@@ -331,14 +317,6 @@ pub fn route_calibration(
         first.get_or_insert(slot);
     }
     first.unwrap_or_else(|| CalibrationSlotWire::not_measured(BASIS_MISSING))
-}
-
-/// Routes whose calibration is not `calibrated` at `coordinate`, as informational
-/// entries. A route is never refused for that reason, so the list is empty; the type is
-/// kept for artifacts that carry the historical refusal snapshot.
-#[must_use]
-pub fn closed_routes(_coordinate: &CalibrationCoordinate) -> Vec<ClosedRoute> {
-    Vec::new()
 }
 
 /// How the simulated candidates' noise is coupled.

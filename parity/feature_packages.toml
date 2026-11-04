@@ -556,10 +556,10 @@ record = "adaptive_inference.group_sequential"
 record_state = "frozen"
 
 [[feature]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 purpose = "Can an interval, credible interval, error rate or coverage statement be reported for an adaptive procedure's result"
 depends_on = ["adaptive_inference.bayesian_posterior", "adaptive_inference.adaptive_weighting", "adaptive_inference.anytime_valid_sequence", "adaptive_inference.group_sequential"]
-record = "adaptive_inference.guarantees_closed"
+record = "adaptive_inference.unsupported_guarantees"
 record_state = "frozen"
 
 [[feature]]
@@ -717,10 +717,10 @@ record = "discovery.selective_reuse"
 record_state = "frozen"
 
 [[feature]]
-id = "discovery.selective_reuse_guarantees_closed"
+id = "discovery.selective_reuse_unsupported_guarantees"
 purpose = "closed: a recovery or error-control claim, a downstream interval, score-search reuse, multi-population discovery or transport of a discovered structure from selective discovery"
 depends_on = ["discovery.selective_reuse"]
-record = "discovery.selective_reuse_guarantees_closed"
+record = "discovery.selective_reuse_unsupported_guarantees"
 record_state = "frozen"
 
 [[feature]]

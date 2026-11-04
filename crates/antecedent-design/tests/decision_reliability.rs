@@ -793,7 +793,6 @@ fn every_published_ranking_or_interval_route_is_reported_uncalibrated_outside_it
     assert_eq!(coordinate.candidate_set_size, 2);
     assert_eq!(coordinate.mc_budget, 100);
     assert_eq!(coordinate.selection_rule, "maximize_expected_utility");
-    assert!(report.closed_routes.is_empty());
     for route in PublishedRoute::ALL {
         let slot = support_route(route, coordinate).unwrap();
         assert_ne!(slot.status, antecedent_io_core::CalibrationStatus::Calibrated);
@@ -841,7 +840,6 @@ fn measured_routes_respect_current_attestation_in_their_calibration_status() {
             "{} attestation decision",
             route.as_str()
         );
-        assert!(report.closed_routes.is_empty());
     }
     // A different nominal level and serial dependence remain outside the records: the route
     // is still reported, annotated as not calibrated.

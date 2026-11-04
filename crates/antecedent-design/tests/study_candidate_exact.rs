@@ -17,12 +17,10 @@ use antecedent_contract::{
     ObligationRegime, ObligationScope,
 };
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind,
-    InterventionAssignment, RegimeKind, Value, VariableId,
+    DistributionAvailability, EvidenceKind, InterventionAssignment, RegimeKind, Value, VariableId,
 };
 use antecedent_design::{
-    CandidateDesign, DurableStudyCandidate, ExpectedEvidence, StudyCostDeclaration, StudyKind,
-    UnitRules,
+    DurableStudyCandidate, ExpectedEvidence, StudyCostDeclaration, StudyKind, UnitRules,
 };
 
 const A: u32 = 0;

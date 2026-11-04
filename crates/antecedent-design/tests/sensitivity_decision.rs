@@ -275,7 +275,7 @@ fn assumption_range_is_not_a_sampling_interval() {
         SensitivityArtifact::new(p).unwrap()
     };
     let mut with_interval = withheld();
-    with_interval.sampling = SamplingStatus::Reported(SamplingInterval {
+    with_interval.sampling = SamplingStatus::Reported(Box::new(SamplingInterval {
         quantity: "effect".into(),
         level: 0.95,
         method: "percentile_bootstrap".into(),
@@ -283,7 +283,7 @@ fn assumption_range_is_not_a_sampling_interval() {
         calibration: None,
         lower: vec![-2.0; 3],
         upper: vec![3.0; 3],
-    });
+    }));
     let plain = ranged(withheld());
     let reported = ranged(with_interval.clone());
     let (without, with) = (evaluate(&plain), evaluate(&reported));
@@ -327,7 +327,10 @@ fn assumption_range_is_not_a_sampling_interval() {
     p.uncertainty = claimed;
     p.uncertainty.sampling = match p.uncertainty.sampling {
         SamplingStatus::Reported(interval) => {
-            SamplingStatus::Reported(SamplingInterval { quantity: "ua".into(), ..interval })
+            SamplingStatus::Reported(Box::new(SamplingInterval {
+                quantity: "ua".into(),
+                ..*interval
+            }))
         }
         other @ SamplingStatus::Withheld { .. } => other,
     };

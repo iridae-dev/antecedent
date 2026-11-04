@@ -18,9 +18,6 @@ use antecedent_estimate::posterior_mean::{PosteriorRequest, mediation_coefficien
 use antecedent_estimate::vector_treatment::DesignSummary;
 
 const XS: [f64; 5] = [-1.0, 0.0, 1.0, 2.0, 3.0];
-const EX: f64 = 1.0;
-const EX2: f64 = 3.0;
-const EX3: f64 = 7.0;
 
 #[derive(Clone, Copy)]
 struct Scm {
@@ -108,7 +105,6 @@ fn run(
     };
     estimate_nonlinear_mediation(&input, premises, cfg, &ExecutionContext::for_tests(1))
 }
-
 
 fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
     let n = b.len();

@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
  "Derived in-repo (docs/guides/batch-retarget.md): a fixed-weight (Hajek) mean of a cross-fitted score column per claim with the Gram matrix of weighted influence values as the family covariance. No published procedure is reproduced and no external theorem is inherited.",
- "The covariance is a sampling covariance of independent rows on one shared row snapshot; for cluster-DML tables it is the cluster-summed analogue. The cross-fitted scores are produced by the covered estimator and consumed unchanged; coverage of any interval built from it is unmeasured.",
+ "The covariance is a sampling covariance of independent rows on one shared row snapshot; for cluster-DML tables it is the cluster-summed analogue. The cross-fitted scores are produced by the covered estimator and consumed unchanged; coverage of any interval built from it is not measured.",
 ]
 
 upstream_implementations_observed = []

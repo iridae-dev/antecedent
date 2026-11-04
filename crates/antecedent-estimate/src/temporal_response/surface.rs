@@ -16,7 +16,7 @@ use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSqu
 
 use super::{
     assumptions::BLOCK_BOOTSTRAP_CONSTRUCTION, assumptions::SURFACE_REFIT,
-    band::TEMPORAL_RESPONSE_BAND_WITHHELD, band::max_deviation_band,
+    band::TEMPORAL_RESPONSE_NO_BAND_METHOD, band::max_deviation_band,
     band::publish_simultaneous_band, block::ResponseBlockLength, block::block_dispersion_inflation,
     block::disclose_response_block_bootstrap, block::inflate_replicates,
     bootstrap::SurfaceBootstrap, bootstrap::sample_std_cell,
@@ -240,7 +240,7 @@ impl FittedSurface {
         } else {
             if replicates == 0 {
                 support.warnings.push(Diagnostic::new(
-                    TEMPORAL_RESPONSE_BAND_WITHHELD,
+                    TEMPORAL_RESPONSE_NO_BAND_METHOD,
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Warning,
                     "no pointwise or simultaneous band: an analytic OLS band would treat \

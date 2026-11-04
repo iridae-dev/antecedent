@@ -109,11 +109,11 @@ class NestedMarkovPosteriorCandidate(ScientificResult):
     """Full continuous raw-parameter/effect posterior, available in internal builds.
 
     Four aligned chains, 2048 warmup and 4096 retained draws each, 5M proposal
-    bound and fixed 95% credible quantiles are the intended frozen pilot method.
+    bound and fixed 95% credible quantiles are the intended fixed method.
     These quantiles and covariance are Monte Carlo estimates; modern diagnostics
     do not guarantee convergence or endpoint precision. Calibration is unmeasured.
     Scope requires successful original checked-ID/interior point fitting, which is
-    a pilot eligibility restriction, not a condition for posterior existence.
+    a route eligibility restriction, not a condition for posterior existence.
     """
 
     prior: NestedMarkovPrior

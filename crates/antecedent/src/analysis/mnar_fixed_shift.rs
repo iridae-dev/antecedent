@@ -221,7 +221,7 @@ fn declared_point(result: &MnarSensitivityResult, shift: f64) -> Option<&MnarPoi
 // Bind every public field of the point-only result. The consumer recomputes
 // this from actual execution; a digest alone never constructs an authority.
 #[cfg(any(test, feature = "calibration-internal"))]
-fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError> {
+fn result_digest(result: &MnarSensitivityResult) -> [u8; 32] {
     use antecedent_core::CanonicalWriter;
     use antecedent_validate::mnar_sensitivity::{MnarPoint, MnarTipping, MnarTippingSide};
     fn side(w: &mut CanonicalWriter, s: Option<MnarTippingSide>) {
@@ -246,7 +246,7 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
         side(w, t.negative);
         side(w, t.positive);
     }
-    fn point(w: &mut CanonicalWriter, p: &MnarPoint) -> Result<(), CausalError> {
+    fn point(w: &mut CanonicalWriter, p: &MnarPoint) {
         w.real(p.parameter)
             .real(p.treated_mean)
             .real(p.control_mean)
@@ -255,7 +255,6 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
         for act in &p.acts {
             w.word(u64::from(u8::from(*act)));
         }
-        Ok(())
     }
     let mut w = CanonicalWriter::new("antecedent.mnar.fixed_shift.result.v1");
     w.text(result.family)
@@ -264,7 +263,7 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
         .real(result.loading.treated)
         .real(result.loading.control)
         .text(result.estimator.name());
-    point(&mut w, &result.mar)?;
+    point(&mut w, &result.mar);
     w.real(result.observed_case_effect)
         .word(result.rows as u64)
         .word(result.treated_rows as u64)
@@ -272,7 +271,7 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
         .word(result.control_missing as u64)
         .word(result.grid.len() as u64);
     for p in &result.grid {
-        point(&mut w, p)?;
+        point(&mut w, p);
     }
     let range = result.assumption_range;
     w.real(range.parameter_lower)
@@ -304,7 +303,7 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
         .text(result.sampling_basis)
         .text(result.sampling_status)
         .text(result.sampling_detail);
-    Ok(w.finish())
+    w.finish()
 }
 
 /// Independently retained expected source and lowered program identity. This is a
@@ -356,7 +355,7 @@ impl PreparedMnarFixedShift {
         let expected = ExpectedMnarFixedShift {
             source: source.expectation(),
             lowered_program: *self.lowered.identity().as_bytes(),
-            result: result_digest(&result)?,
+            result: result_digest(&result),
         };
         Ok(MnarFixedShiftArtifact { source, expected })
     }
@@ -384,7 +383,7 @@ pub fn consume_source(
         });
     }
     let replayed = prepared.estimate_candidate(ctx)?;
-    if result_digest(&replayed)? != expected.result {
+    if result_digest(&replayed) != expected.result {
         return Err(CausalError::Compile {
             message: "mnar numerical replay differs from the retained expectation".into(),
         });

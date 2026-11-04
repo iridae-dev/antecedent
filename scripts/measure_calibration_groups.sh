@@ -58,7 +58,7 @@ with open("parity/acceptance_manifest.toml", "rb") as handle:
 print(" ".join(sorted({
     case["evidence"]["test"].rsplit("::", 1)[1]
     for case in cases
-    if case["expected"]["kind"] in {"calibrated_interval", "calibrated_statistical_test"} and case["evidence"]["status"] == "bound"
+    if case["expected"]["kind"] in {"replicated_interval", "replicated_statistical_test"} and case["evidence"]["status"] == "bound"
 })))
 PY
 ) " || { echo "Failed to read calibration acceptance bindings" >&2; exit 2; }
@@ -69,7 +69,7 @@ with open("parity/acceptance_manifest.toml", "rb") as handle:
     cases = tomllib.load(handle)["case"]
 sizes = collections.defaultdict(set)
 for case in cases:
-    if case["expected"]["kind"] not in {"calibrated_interval", "calibrated_statistical_test"} or case["evidence"]["status"] != "bound":
+    if case["expected"]["kind"] not in {"replicated_interval", "replicated_statistical_test"} or case["evidence"]["status"] != "bound":
         continue
     participants = case["configuration"].get("participants")
     if isinstance(participants, int):
@@ -93,7 +93,7 @@ for case in cases:
         continue
     if type(point) is not int or point not in (0, 1, 2):
         raise SystemExit("invalid declared calibration_grid_point")
-    if case["expected"]["kind"] in {"calibrated_interval", "calibrated_statistical_test"} and case["evidence"]["status"] == "bound":
+    if case["expected"]["kind"] in {"replicated_interval", "replicated_statistical_test"} and case["evidence"]["status"] == "bound":
         values.add(f"{case['evidence']['test'].rsplit('::', 1)[1]}:{point}")
 print(" ".join(sorted(values)))
 PYPOINT

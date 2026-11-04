@@ -24,15 +24,13 @@ use antecedent_estimate::{
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
 
-/// Raw columns of one clustered data set; `cluster[i]` is the label of row `i` (the first
-/// endpoint of a dyad) and `second[i]` its second endpoint (empty for one-way data).
+/// Raw columns of one clustered data set; `cluster[i]` is the label of row `i`.
 #[derive(Clone)]
 struct Raw {
     t: Vec<f64>,
     y: Vec<f64>,
     z: Vec<Vec<f64>>,
     cluster: Vec<u32>,
-    second: Vec<u32>,
 }
 
 /// `groups` clusters of `size` rows. Each cluster has a shared covariate shift, a shared
@@ -41,13 +39,8 @@ struct Raw {
 fn draw(groups: usize, size: usize, seed: u64) -> Raw {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xE4);
     let n = groups * size;
-    let mut raw = Raw {
-        t: vec![0.0; n],
-        y: vec![0.0; n],
-        z: vec![vec![0.0; n]; 2],
-        cluster: vec![0; n],
-        second: Vec::new(),
-    };
+    let mut raw =
+        Raw { t: vec![0.0; n], y: vec![0.0; n], z: vec![vec![0.0; n]; 2], cluster: vec![0; n] };
     for g in 0..groups {
         let shift = 0.7 * standard_normal(&mut rng);
         let shock = 1.5 * standard_normal(&mut rng);

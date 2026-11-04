@@ -73,7 +73,7 @@ CONTRACT_PREFIXES = (
     "decision.sensitivity_composition",
     "adaptive_inference.analysis_contract",
     "adaptive_inference.procedure_matrix",
-    "adaptive_inference.guarantees_closed",
+    "adaptive_inference.unsupported_guarantees",
     "cohort_decision.law_valued_request",
     "identify.auto",
     "identify.envelope",
@@ -218,7 +218,7 @@ def classify(stem: str, record: dict, text: str) -> tuple[str, str]:
             "lists primary papers; implementation correspondence not yet read",
         )
     if any(marker in low for marker in CLOSED):
-        return "closed_variant", "the record states that no method is implemented and the claim is refused or left open"
+        return "unsupported_variant", "the record states that no method is implemented and the claim is refused or left open"
     if stem in DERIVED:
         return "derived_in_repository", DERIVED[stem]
     if stem in SOURCE_CANDIDATES:

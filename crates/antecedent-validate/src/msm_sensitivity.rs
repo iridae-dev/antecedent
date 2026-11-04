@@ -116,7 +116,7 @@ pub const MSM_ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// The statement of the withheld sampling interval.
 pub const MSM_SAMPLING_STATEMENT: &str = "sampling interval: not reported";
 /// Detail of the withheld sampling interval.
-pub const MSM_INTERVAL_WITHHELD: &str =
+pub const MSM_NO_INTERVAL_METHOD: &str =
     antecedent_core::reason_details::msm_sensitivity::NO_INTERVAL_METHOD;
 
 /// A finite-support outcome law (values and probabilities, any order).
@@ -269,7 +269,7 @@ pub struct MsmSensitivityUncertainty {
     pub sampling_interval: &'static str,
     /// Registered reason code of the withheld interval.
     pub reason_code: &'static str,
-    /// [`MSM_INTERVAL_WITHHELD`].
+    /// [`MSM_NO_INTERVAL_METHOD`].
     pub detail: &'static str,
 }
 
@@ -280,7 +280,7 @@ impl MsmSensitivityUncertainty {
         Self {
             sampling_interval: MSM_SAMPLING_STATEMENT,
             reason_code: reason_code!("uncertainty_representation_insufficient"),
-            detail: MSM_INTERVAL_WITHHELD,
+            detail: MSM_NO_INTERVAL_METHOD,
         }
     }
 }

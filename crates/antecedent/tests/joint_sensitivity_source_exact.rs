@@ -1,12 +1,12 @@
 //! The source-backed sensitivity surface equals the hand-derived assumption range.
 //!
-//! The registered formula is psi = sum_w P_W(w) [m(w,1) - m(w,0)] with m(w,x) = P(y=1|w,x),
-//! and the box-contaminated extrema are U = (1 - e_W) sum_w P_W(w) D+(w) + e_W max_w D+(w),
-//! D+(w) = (1 - e_Y) Delta(w) + e_Y (y_max - y_min), and L symmetric with the minimum.
-//! Here P_W = (0.65, 0.35), m(0,0) = 0.2, m(1,0) = 0.3, m(1,1) = 0.8, m(0,1) = 0.5 + shift,
-//! e_W = 0.3, e_Y = 0.2 and a binary outcome (range 1).
+//! The registered formula is `psi = sum_w P_W(w) [m(w,1) - m(w,0)]` with `m(w,x) = P(y=1|w,x)`,
+//! and the box-contaminated extrema are `U = (1 - e_W) sum_w P_W(w) D+(w) + e_W max_w D+(w)`,
+//! `D+(w) = (1 - e_Y) Delta(w) + e_Y (y_max - y_min)`, and `L` symmetric with the minimum.
+//! Here `P_W = (0.65, 0.35)`, `m(0,0) = 0.2`, `m(1,0) = 0.3`, `m(1,1) = 0.8`, `m(0,1) = 0.5 + shift`,
+//! `e_W = 0.3`, `e_Y = 0.2` and a binary outcome (range 1).
 //!
-//! shift 0:   Delta = (0.3, 0.5), psi = 0.195 + 0.175 = 0.37; D+ = (0.44, 0.60),
+//! shift 0:   `Delta` = (0.3, 0.5), `psi` = 0.195 + 0.175 = 0.37; `D+` = (0.44, 0.60),
 //!            U = 0.7 * 0.496 + 0.3 * 0.60 = 0.5272; D- = (0.04, 0.20),
 //!            L = 0.7 * 0.096 + 0.3 * 0.04 = 0.0792.
 //! shift 0.1: Delta = (0.4, 0.5), psi = 0.26 + 0.175 = 0.435; D+ = (0.52, 0.60),

@@ -1,6 +1,6 @@
 //! Tier diagnostics on exact designs with hand-computed values.
 //!
-//! The CoDetermined design is noise-free (`y = 2 t + z - 0.5 u`) on a cell-count design, so
+//! The `CoDetermined` design is noise-free (`y = 2 t + z - 0.5 u`) on a cell-count design, so
 //! AIPW's per-arm outcome regressions are exact and the reported effect is the closure
 //! functional 2 to machine precision. The expected point E-value is then derived entirely by
 //! hand from that exactly known effect and the outcome SD of the design, with no value taken

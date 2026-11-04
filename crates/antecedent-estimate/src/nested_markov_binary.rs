@@ -14,7 +14,7 @@
 //! exactly this graph, exactly these four binary variables) with directed edges
 //! `X1 -> X2 -> X3 -> X4` and the bidirected edge `X2 <-> X4` (the Verma graph).
 //! Districts: `{X1}`, `{X3}`, `{X2, X4}`. Every other ADMG, regime or non-binary
-//! domain is refused (`route_not_supported`, `nested_markov.outside_binary_pilot`).
+//! domain is refused (`route_not_supported`, `nested_markov.outside_binary_scope`).
 //!
 //! # Parameterization
 //!
@@ -110,10 +110,8 @@ pub(crate) const DEFAULT_TOLERANCE: f64 = 1e-11;
 /// Cell probabilities must sum to one within this.
 pub(crate) const NORMALIZATION_TOLERANCE: f64 = 1e-12;
 /// Detail of the refusal for anything outside the one selected pilot.
-pub(crate) const OUTSIDE_PILOT: &str =
-    antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_PILOT;
-/// Detail of the refusal of the public interval route.
-
+pub(crate) const OUTSIDE_BINARY_SCOPE: &str =
+    antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_SCOPE;
 const FEASIBLE_TOLERANCE: f64 = 1e-12;
 const CONSTRAINT_TOLERANCE: f64 = 1e-9;
 const BISECTION_STEPS: usize = 100;
@@ -121,7 +119,7 @@ const BISECTION_STEPS: usize = 100;
 fn outside(message: &str) -> EstimationError {
     EstimationError::refused_detail(
         antecedent_core::reason_code!("route_not_supported"),
-        OUTSIDE_PILOT,
+        OUTSIDE_BINARY_SCOPE,
         message,
     )
 }
@@ -287,7 +285,7 @@ impl BinaryCells {
 /// Check that a request is exactly the selected pilot and return its counts.
 ///
 /// # Errors
-/// `route_not_supported` / `nested_markov.outside_binary_pilot` for another
+/// `route_not_supported` / `nested_markov.outside_binary_scope` for another
 /// graph, a regime other than the observational
 /// one, a non-binary domain or a table that is not 2x2x2x2; a count error as in
 /// [`BinaryCells::new`]. Never a nonidentification claim.

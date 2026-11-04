@@ -45,7 +45,7 @@ record_sha256 = "e69eb1306142f4e5ee5073313d1b94e6ca10b741ed7a29f4c1e072084765e84
 role = "implementation"
 path = "crates/antecedent-io/src/bridge_interval.rs"
 items = ["const BRIDGE_INTERVAL_ASSUMPTIONS", "const BRIDGE_INTERVAL_DETAIL_OUTSIDE_MEASURED", "const BRIDGE_INTERVAL_DETAIL_SOURCE_UNCERTAINTY", "const BRIDGE_INTERVAL_MAX_RATE_SD", "const BRIDGE_INTERVAL_MIN_YOUDEN", "const BRIDGE_INTERVAL_QUERY", "const BRIDGE_INTERVAL_STAGE", "fn bridge_interval_mapping_label", "fn bridge_interval_refusal", "fn bridge_interval_scope_refusal", "fn bridge_interval_trial_moments", "fn construct_bridged_claim_interval", "struct BridgedClaimInterval", "struct ConstructedBridgeInterval"]
-sha256 = "782aa7d08f206ea5ca6edcdf6f5d5594a2cef7ee18c4b61d9cf6fc93674eb3f4"
+sha256 = "2353195d2518599404dbb11f5ac824e69de2c2447b326cae022923e7dc17860c"
 
 [[method_review.artifacts]]
 role = "assertion"

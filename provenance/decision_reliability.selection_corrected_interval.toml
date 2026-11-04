@@ -11,7 +11,7 @@ papers = [
 ]
 implementation_deviations = [
  "Bonferroni over the considered candidates is conservative; the winner's-curse bound is a derived bound, not a measured one.",
- "Derived and unmeasured.",
+ "Derived and not measured.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -26,7 +26,7 @@ rationale = "Interval for the selected candidate's value after a search over n_c
 no_independent_algorithm = "Textbook Bonferroni adjustment and Wald arithmetic."
 covered_by = ["decision_reliability.derived_uncertainty"]
 derivation = "Selected value u* with standard error se: numerical half-width z_{1-alpha/2} se; selection-corrected half-width z_{1-alpha/(2 n_considered)} se; the difference is the reported selection extra. The held-out interval is the Wald interval of the independent held-out stream."
-record_sha256 = "fb44d46f69bbc232805b8d09f63943c30dba99a147999971eedda70d2fa2c6d4"
+record_sha256 = "60dd82d8533e4c1f85b555b272950e1204d2492d8adaf24716aad078145a0207"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

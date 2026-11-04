@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "The published number is the identified average treatment effect of a Dirichlet posterior mean of the finite stratum laws, evaluated by the existing marginal structural model at Lambda 1. Structural zeros stay zero. No interval is produced.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -25,7 +25,7 @@ rationale = "Dirichlet posterior mean of the finite stratum masses and outcome l
 no_independent_algorithm = "msm_dirichlet_posterior calls dirichlet_supported_mean on the masses and each outcome law and then msm_ate_sensitivity at Lambda = 1 + 1e-8 over two grid points; the sensitivity engine itself (the rest of msm_sensitivity.rs, which has its own bounds arithmetic) belongs to the covered record and was not mapped."
 covered_by = ["estimate.posterior_mean_kernel", "sensitivity.marginal_structural_model"]
 derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
-record_sha256 = "413d88e007854e030c49e463d9566a6f3c994d2fba7d048a2b956cc22b9747c6"
+record_sha256 = "588b306ca059231ab43a1b547ccac705c162453cfcb31520dda6ff527670abac"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -36,8 +36,8 @@ sha256 = "4d92ec840144292fc528750bee65061fc89dca05b4e2cb417d05c4db01db6fa1"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/msm_sensitivity.rs"
-items = ["const MSM_ASSUMPTION_RANGE_CLAIM", "const MSM_FAMILY", "const MSM_INTERPRETATION", "const MSM_INTERVAL_WITHHELD", "const MSM_MAX_BISECTIONS", "const MSM_MAX_GRID_POINTS", "const MSM_MAX_LAMBDA", "const MSM_MAX_LAW_CELLS", "const MSM_MAX_OUTCOME_ATOMS", "const MSM_MAX_STRATA", "const MSM_MAX_TOLERANCE", "const MSM_MAX_WORK", "const MSM_METHOD", "const MSM_MIN_TOLERANCE", "const MSM_NORMALIZATION", "const MSM_PERTURBATION_SCALE", "const MSM_SAMPLING_STATEMENT", "const MSM_TARGET", "const MSM_UNIT_MASS_TOLERANCE", "enum MsmTippingDirection", "fn arm_bounds", "fn ate_bounds", "fn check_lambda", "fn detail", "fn grid_of", "fn invalid_law", "fn mass_sum", "fn msm_ate_bounds_at", "fn msm_ate_sensitivity", "fn msm_dirichlet_posterior", "fn new", "fn prepare", "fn prepare_arm", "fn reason_code", "fn refuse", "fn tipping_of", "fn validate_spec", "fn with_threshold", "fn withheld", "struct Arm", "struct MsmOutcomeLaw", "struct MsmPoint", "struct MsmSensitivityError", "struct MsmSensitivityResult", "struct MsmSensitivitySpec", "struct MsmSensitivityUncertainty", "struct MsmStratum", "struct MsmTipping", "struct Prepared"]
-sha256 = "69dfc9eaa983935ea0af8b16a48658c0027002fc6023603a48c60418cb0e098f"
+items = ["const MSM_ASSUMPTION_RANGE_CLAIM", "const MSM_FAMILY", "const MSM_INTERPRETATION", "const MSM_NO_INTERVAL_METHOD", "const MSM_MAX_BISECTIONS", "const MSM_MAX_GRID_POINTS", "const MSM_MAX_LAMBDA", "const MSM_MAX_LAW_CELLS", "const MSM_MAX_OUTCOME_ATOMS", "const MSM_MAX_STRATA", "const MSM_MAX_TOLERANCE", "const MSM_MAX_WORK", "const MSM_METHOD", "const MSM_MIN_TOLERANCE", "const MSM_NORMALIZATION", "const MSM_PERTURBATION_SCALE", "const MSM_SAMPLING_STATEMENT", "const MSM_TARGET", "const MSM_UNIT_MASS_TOLERANCE", "enum MsmTippingDirection", "fn arm_bounds", "fn ate_bounds", "fn check_lambda", "fn detail", "fn grid_of", "fn invalid_law", "fn mass_sum", "fn msm_ate_bounds_at", "fn msm_ate_sensitivity", "fn msm_dirichlet_posterior", "fn new", "fn prepare", "fn prepare_arm", "fn reason_code", "fn refuse", "fn tipping_of", "fn validate_spec", "fn with_threshold", "fn withheld", "struct Arm", "struct MsmOutcomeLaw", "struct MsmPoint", "struct MsmSensitivityError", "struct MsmSensitivityResult", "struct MsmSensitivitySpec", "struct MsmSensitivityUncertainty", "struct MsmStratum", "struct MsmTipping", "struct Prepared"]
+sha256 = "972d4d017f41338a30ac30492a583f2b6676073e4b4eeba92d34110bacf434b5"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

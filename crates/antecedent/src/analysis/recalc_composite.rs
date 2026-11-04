@@ -159,18 +159,15 @@ impl CompositeSession {
         &self,
         request: &CompositeRequest,
     ) -> Result<(StageIdentities, RecalcCapabilities), CompositeError> {
+        use antecedent_core::reason_details::composite_recalc;
         if !decision_bounded(&request.decision_contract) {
-            return Err(CompositeError::Request(
-                antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED,
-            ));
+            return Err(CompositeError::Request(composite_recalc::REQUEST_UNSUPPORTED));
         }
         request.native_program.validate().map_err(|e| CompositeError::Binding(Box::new(e)))?;
         if request.externals.len() != 2
             || request.externals[0].branch == request.externals[1].branch
         {
-            return Err(CompositeError::Request(
-                antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED,
-            ));
+            return Err(CompositeError::Request(composite_recalc::REQUEST_UNSUPPORTED));
         }
         let expected_inputs: std::collections::BTreeSet<_> = std::iter::once("native".to_owned())
             .chain(request.externals.iter().map(|e| format!("external.{}", e.branch.index())))
@@ -180,9 +177,7 @@ impl CompositeSession {
             || request.input_order.iter().cloned().collect::<std::collections::BTreeSet<_>>()
                 != expected_inputs
         {
-            return Err(CompositeError::Request(
-                antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED,
-            ));
+            return Err(CompositeError::Request(composite_recalc::REQUEST_UNSUPPORTED));
         }
         let identity = request
             .decision_contract
@@ -200,9 +195,10 @@ impl CompositeSession {
                 antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED,
             ));
         }
-        let native_ctx = self.native.producing_context().ok_or(CompositeError::Request(
-            antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH,
-        ))?;
+        let native_ctx = self
+            .native
+            .producing_context()
+            .ok_or(CompositeError::Request(composite_recalc::NATIVE_STATE_MISMATCH))?;
         let native_plan = self.native.plan(&request.native, native_ctx);
         if matches!(native_plan.status(Stage::Identification), Some(StageStatus::Reused { .. })) {
             checked_native(&self.native, &request.native_program)?;

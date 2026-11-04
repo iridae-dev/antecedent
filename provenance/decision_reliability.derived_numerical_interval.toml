@@ -10,7 +10,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
- "Derived and unmeasured: normal Monte Carlo error at the effective sample size; never summed with source-evidence spread.",
+ "Derived and not measured: normal Monte Carlo error at the effective sample size; never summed with source-evidence spread.",
  "Wald intervals are derived only at n_eff >= 30.",
 ]
 upstream_implementations_observed = []
@@ -26,7 +26,7 @@ rationale = "Numerical Monte Carlo interval of a utility estimate: Wald interval
 no_independent_algorithm = "Closed-form textbook arithmetic: estimate +/- z*se, the Wilson score interval for a binomial proportion at n_eff, and the Bonferroni critical value z_{1-alpha/(2m)}."
 covered_by = ["decision_reliability.derived_uncertainty"]
 derivation = "Wald: estimate +/- z_{1-alpha/2} se with n_eff >= 30. Wilson (1927): centre (p + z^2/(2n))/(1 + z^2/n), half-width z sqrt(p(1-p)/n + z^2/(4n^2))/(1 + z^2/n) at n = n_eff. Simultaneity over m intervals replaces alpha by alpha/m (Bonferroni)."
-record_sha256 = "cc7b8dfa8d28bc8fd721b39f1d6c0c735ea2235b21e09365b6a6ad6fdd69afae"
+record_sha256 = "8558bab4b681a8c9a4c2eee06283dddc5eb641f9304758bbb7c775efdc636c48"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

@@ -68,19 +68,28 @@ fn fixture() -> (TabularData, Dag, AverageEffectQuery) {
     (data, graph, AverageEffectQuery::binary_ate(vid(0), vid(1)))
 }
 
+/// Exact equality of two indicator values (the design only holds literal 0/1 levels).
+fn same(a: f64, b: f64) -> bool {
+    a.to_bits() == b.to_bits()
+}
+
 /// The back-door adjustment `sum_z P(z) (E[Y | t=1, z] - E[Y | t=0, z])`, enumerated from the
 /// cell counts.
 fn adjustment_truth() -> f64 {
     let total: f64 = CELLS.iter().map(|c| c.3 as f64).sum();
     let mut effect = 0.0;
     for z_level in [0.0, 1.0] {
-        let p_z = CELLS.iter().filter(|c| c.0 == z_level).map(|c| c.3 as f64).sum::<f64>() / total;
+        let p_z =
+            CELLS.iter().filter(|c| same(c.0, z_level)).map(|c| c.3 as f64).sum::<f64>() / total;
         let mean_y = |t_level: f64| {
-            let n: f64 =
-                CELLS.iter().filter(|c| c.0 == z_level && c.1 == t_level).map(|c| c.3 as f64).sum();
+            let n: f64 = CELLS
+                .iter()
+                .filter(|c| same(c.0, z_level) && same(c.1, t_level))
+                .map(|c| c.3 as f64)
+                .sum();
             let ones: f64 = CELLS
                 .iter()
-                .filter(|c| c.0 == z_level && c.1 == t_level && c.2 == 1.0)
+                .filter(|c| same(c.0, z_level) && same(c.1, t_level) && same(c.2, 1.0))
                 .map(|c| c.3 as f64)
                 .sum();
             ones / n
@@ -93,9 +102,9 @@ fn adjustment_truth() -> f64 {
 /// The unadjusted contrast `E[Y | t=1] - E[Y | t=0]`.
 fn naive_contrast() -> f64 {
     let mean_y = |t_level: f64| {
-        let n: f64 = CELLS.iter().filter(|c| c.1 == t_level).map(|c| c.3 as f64).sum();
+        let n: f64 = CELLS.iter().filter(|c| same(c.1, t_level)).map(|c| c.3 as f64).sum();
         let ones: f64 =
-            CELLS.iter().filter(|c| c.1 == t_level && c.2 == 1.0).map(|c| c.3 as f64).sum();
+            CELLS.iter().filter(|c| same(c.1, t_level) && same(c.2, 1.0)).map(|c| c.3 as f64).sum();
         ones / n
     };
     mean_y(1.0) - mean_y(0.0)

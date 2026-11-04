@@ -54,10 +54,19 @@ pub struct Coordinate {
     pub suite_label: String,
 }
 
+/// Exact equality of two indicator values (the design only holds literal 0/1 levels).
+fn same(a: f64, b: f64) -> bool {
+    a.to_bits() == b.to_bits()
+}
+
 pub fn parse(text: &str) -> Coordinate {
     let parts: Vec<&str> = text.split(':').collect();
-    assert_eq!(parts.len(), 5, "coordinate {text}");
-    let graph = match parts[1] {
+    let Ok([query_text, graph_text, structure_text, inference_text, suite_text]) =
+        <[&str; 5]>::try_from(parts)
+    else {
+        panic!("coordinate {text}");
+    };
+    let graph = match graph_text {
         "Dag" => GraphKind::Dag,
         "Cpdag" => GraphKind::Cpdag,
         "Pag" => GraphKind::Pag,
@@ -67,18 +76,18 @@ pub fn parse(text: &str) -> Coordinate {
         "TemporalAdmg" => GraphKind::TemporalAdmg,
         other => panic!("graph class {other} in {text}"),
     };
-    let structure = match parts[2] {
+    let structure = match structure_text {
         "explicit" => Structure::Explicit,
         "accepted" => Structure::Accepted,
         "graph_posterior" => Structure::GraphPosterior,
         other => panic!("structure {other} in {text}"),
     };
-    let bayesian = match parts[3] {
+    let bayesian = match inference_text {
         "Frequentist" => false,
         "Bayesian" => true,
         other => panic!("inference {other} in {text}"),
     };
-    let suite = match parts[4] {
+    let suite = match suite_text {
         "none" => RefuteSuite::None,
         "cheap" => RefuteSuite::Cheap,
         "full" => RefuteSuite::Full,
@@ -86,12 +95,12 @@ pub fn parse(text: &str) -> Coordinate {
     };
     Coordinate {
         text: text.to_string(),
-        query: parts[0].to_string(),
+        query: query_text.to_string(),
         graph,
         structure,
         bayesian,
         suite,
-        suite_label: parts[4].to_string(),
+        suite_label: suite_text.to_string(),
     }
 }
 
@@ -186,12 +195,12 @@ pub fn stratified_truth_with(outcome: fn(f64, f64) -> f64) -> f64 {
         let arm_mean = |t: f64| {
             let cell: Vec<f64> = rows
                 .iter()
-                .filter(|row| row.z == z && row.t == t)
+                .filter(|row| same(row.z, z) && same(row.t, t))
                 .map(|row| outcome(row.t, row.z))
                 .collect();
             cell.iter().sum::<f64>() / cell.len() as f64
         };
-        let size = rows.iter().filter(|row| row.z == z).count() as f64;
+        let size = rows.iter().filter(|row| same(row.z, z)).count() as f64;
         total += size / n * (arm_mean(1.0) - arm_mean(0.0));
     }
     total
@@ -206,7 +215,7 @@ pub fn naive_contrast() -> f64 {
     let rows = rows();
     let mean = |t: f64| {
         let ys: Vec<f64> =
-            rows.iter().filter(|row| row.t == t).map(|row| law(row.t, row.z)).collect();
+            rows.iter().filter(|row| same(row.t, t)).map(|row| law(row.t, row.z)).collect();
         ys.iter().sum::<f64>() / ys.len() as f64
     };
     mean(1.0) - mean(0.0)

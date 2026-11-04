@@ -21,10 +21,9 @@ use std::path::PathBuf;
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
-    BatchPlan, ClosedRoute, DecisionReliabilityArtifact, DecisionReliabilityExpectation,
-    KnownOptimumDesign, NoiseCoupling, PublishedRoute, RankingRequest, ReliabilityRequest,
-    StreamId, StreamPurpose, ValidationKind, ValidationPlan, assess,
-    consume as consume_reliability, simulate_selection_draws,
+    BatchPlan, DecisionReliabilityArtifact, DecisionReliabilityExpectation, KnownOptimumDesign,
+    NoiseCoupling, RankingRequest, ReliabilityRequest, StreamId, StreamPurpose, ValidationKind,
+    ValidationPlan, consume as consume_reliability, simulate_selection_draws,
 };
 use antecedent_design::sequential_evaluation::{
     ActionRole, ActionSpec, ActionSupport, CensoringRule, ContingentPolicy, EvaluationLimits,
@@ -243,12 +242,7 @@ fn the_decision_reliability_golden_is_recomputed_and_gated() {
 fn the_decision_reliability_report_is_recomputed_and_cannot_be_altered() {
     let bytes = load(RELIABILITY_GOLDEN);
     let original = DecisionReliabilityArtifact::from_bytes(&bytes).unwrap();
-    let current =
-        assess(&original.draws, original.validation.as_ref(), &original.request, &ctx()).unwrap();
     original.verify(&DecisionReliabilityExpectation::default(), &ctx()).unwrap();
-    // No route is not supported: calibration annotates a route and never refuses it.
-    assert!(current.closed_routes.is_empty());
-    assert!(original.report.closed_routes.is_empty());
     let consumed =
         consume_reliability(&bytes, &DecisionReliabilityExpectation::default(), &ctx()).unwrap();
     assert_eq!(consumed.digest, original.digest);
@@ -263,14 +257,6 @@ fn the_decision_reliability_report_is_recomputed_and_cannot_be_altered() {
                 .contains("report_mismatch")
         );
     };
-    let mut changed = original.clone();
-    changed.report.closed_routes.push(ClosedRoute {
-        route: PublishedRoute::RankingProbability,
-        coordinate: "foreign".into(),
-        code: "invalid_argument".into(),
-        remedy: "foreign".into(),
-    });
-    rejected(changed);
     let mut changed = original.clone();
     let se = &mut changed.report.monte_carlo_error.decision.standard_error;
     *se = f64::from_bits(se.to_bits() + 1);

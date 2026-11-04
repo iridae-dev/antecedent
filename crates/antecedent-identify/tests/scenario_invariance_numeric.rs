@@ -21,9 +21,7 @@ use antecedent_core::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::ClassicalTransportQuery;
-use antecedent_identify::sid::scenario_invariance::{
-    InvarianceBody, InvarianceReport, SourceInvariance, TargetFactor, invariance_report,
-};
+use antecedent_identify::sid::scenario_invariance::{InvarianceReport, invariance_report};
 use antecedent_identify::sid::scenarios::{
     ScenarioCoordinate, ScenarioSetDecision, TransportScenario, TransportScenarioSet,
     decide_transport_scenarios,
@@ -125,26 +123,6 @@ fn report(decision: &ScenarioSetDecision, name: &str) -> InvarianceReport {
     invariance_report(&d.scenario, &d.outcome).unwrap()
 }
 
-fn y_given_do_x(conditioned_on: &[u32]) -> SourceInvariance {
-    SourceInvariance {
-        population: Arc::from("source"),
-        variables: vec![v(Y)],
-        conditioned_on: conditioned_on.iter().copied().map(v).collect(),
-        do_set: vec![v(X)],
-        regime: Some(1),
-        invariant_mechanisms: vec![v(Y)],
-        district_selection_targets: vec![],
-        // With nothing conditioned on, the source experiment transports directly; the
-        // standardization rule is the one that conditions on the pre-treatment variable.
-        rule: if conditioned_on.is_empty() {
-            "transport.direct"
-        } else {
-            "transport.pretreatment_standardize"
-        },
-    }
-}
-
-
 /// Binary SCM: `z ~ Bern(pz)`, `u ~ Bern(pu)` independent; `x | z, u ~ Bern(px[z][u])`;
 /// `y | x, z, u ~ Bern(py[x][z][u])`.
 #[derive(Clone, Copy)]
@@ -217,10 +195,8 @@ fn answer_from_report(report: &InvarianceReport, source: &Scm, target: &Scm, x: 
 #[test]
 fn the_listed_factors_rebuild_the_target_interventional_truth_where_they_exist() {
     let placements: [(&str, &[u32]); 3] = [("direct", &[]), ("on_x", &[X]), ("on_z", &[Z])];
-    let decision = decide(
-        placements.iter().map(|(name, selected)| scenario(name, selected)).collect(),
-        true,
-    );
+    let decision =
+        decide(placements.iter().map(|(name, selected)| scenario(name, selected)).collect(), true);
     for (name, selected) in placements {
         let report = report(&decision, name);
         assert_eq!(report.status(), "identified", "{name}");

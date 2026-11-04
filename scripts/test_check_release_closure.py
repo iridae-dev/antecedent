@@ -26,7 +26,7 @@ CI = "cargo nextest run -P ci --workspace"
 
 def case(cid: str, kind: str, test: str, **extra: Any) -> dict[str, Any]:
     targets = {"runtime_seconds": 1, "memory_bytes": 1}
-    if kind == "calibrated_interval":
+    if kind == "replicated_interval":
         targets |= {"nominal_coverage": 0.95, "coverage_floor": 0.93, "min_replicates": 2000}
     return {
         "id": cid,

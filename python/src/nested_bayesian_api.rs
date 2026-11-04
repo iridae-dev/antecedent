@@ -82,7 +82,7 @@ impl Candidate {
         {
             return Err(crate::refusal(
                 reason_code!("route_not_supported"),
-                "nested_markov.bayesian_sampler_scope: artifact is not the frozen Python pilot sampler",
+                "nested_markov.bayesian_sampler_scope: artifact is not the fixed Python sampler",
             ));
         }
         let bytes = artifact.export().map_err(error)?;

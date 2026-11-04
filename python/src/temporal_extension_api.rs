@@ -348,7 +348,7 @@ fn consume_temporal_refresh_artifact(
 #[pyfunction]
 #[pyo3(signature = (snapshot_id, units, sequence, estimand, fixed_state, law, point, replicates, seed, level, method, min_units, max_failed_fraction))]
 #[allow(clippy::too_many_arguments)]
-fn temporal_dependent_interval_closed(
+fn temporal_dependent_interval_scope(
     snapshot_id: &str,
     units: Option<Vec<UnitTuple>>,
     sequence: (u32, u32),
@@ -450,7 +450,7 @@ fn temporal_dependent_interval_candidate(
 ) -> Outcome<NativeTemporalIntervalCandidate> {
     crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     // Preserve the released entry's complete argument validation and refusals.
-    let refusal = temporal_dependent_interval_closed(
+    let refusal = temporal_dependent_interval_scope(
         snapshot_id,
         units.clone(),
         sequence,
@@ -533,7 +533,7 @@ fn temporal_dependent_interval_measured(
         cancel.as_ref(),
     )?;
     // Preserve complete original-domain validation before scoped inference.
-    let refusal = temporal_dependent_interval_closed(
+    let refusal = temporal_dependent_interval_scope(
         snapshot_id,
         units.clone(),
         sequence,
@@ -644,7 +644,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(temporal_initial_state_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(consume_temporal_initial_state_artifact, module)?)?;
     module.add_function(wrap_pyfunction!(consume_temporal_refresh_artifact, module)?)?;
-    module.add_function(wrap_pyfunction!(temporal_dependent_interval_closed, module)?)?;
+    module.add_function(wrap_pyfunction!(temporal_dependent_interval_scope, module)?)?;
     crate::period_refresh_api::register(module)?;
     Ok(())
 }

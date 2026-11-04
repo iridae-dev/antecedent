@@ -54,8 +54,8 @@ class AcceptanceReplicateCounts(unittest.TestCase):
 
     def test_malformed_acceptance_bindings_stop_setup(self) -> None:
         cases = [
-            '[[case]]\n[case.expected]\nkind = "calibrated_interval"\n[case.evidence]\nstatus = "bound"\n',
-            '[[case]]\n[case.expected]\nkind = "calibrated_interval"\n[case.evidence]\nstatus = "bound"\ntest = "x::y"\n[case.configuration]\ncalibration_grid_point = 8\n',
+            '[[case]]\n[case.expected]\nkind = "replicated_interval"\n[case.evidence]\nstatus = "bound"\n',
+            '[[case]]\n[case.expected]\nkind = "replicated_interval"\n[case.evidence]\nstatus = "bound"\ntest = "x::y"\n[case.configuration]\ncalibration_grid_point = 8\n',
         ]
         for case in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
@@ -87,6 +87,9 @@ class AcceptanceReplicateCounts(unittest.TestCase):
                     'if [ "$RECHECK_NSIM" -le'
                 )
             ]
+            setup = setup.replace("calibrated_interval", "replicated_interval").replace(
+                "calibrated_statistical_test", "replicated_statistical_test"
+            )
             with patch.dict(globals(), SETUP=setup):
                 self.assertEqual(self.counts(group), [400, 2000, 400])
 

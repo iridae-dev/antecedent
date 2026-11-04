@@ -10,7 +10,7 @@ copied_tests = false
 papers = [
 ]
 implementation_deviations = [
- "Marginal Bonferroni critical values replace Hsu's exact multiple-comparisons-with-the-best constants; the set is conservative, derived and unmeasured.",
+ "Marginal Bonferroni critical values replace Hsu's exact multiple-comparisons-with-the-best constants; the set is conservative, derived and not measured.",
  "Paired construction is used for at most 64 candidates, the dependence-free marginal construction otherwise.",
 ]
 upstream_implementations_observed = []
@@ -26,7 +26,7 @@ rationale = "Confidence set for the best retained candidate: candidate j is excl
 no_independent_algorithm = "Bonferroni-critical-value comparison of each candidate's estimated utility with the best; no estimator of its own."
 covered_by = ["decision_reliability.derived_uncertainty"]
 derivation = "With K retained candidates, exclude j when max_k u_k - u_j > z_{1-alpha/(2(K-1))} se(u_best - u_j), with the standard error of the paired difference under common random numbers or the independent-stream sum of variances otherwise (Hsu 1996, multiple comparisons with the best, with Bonferroni constants)."
-record_sha256 = "743165d0cf393d2269fed831ebd22976029fc29b27189bff02648252b4502a92"
+record_sha256 = "1a9be0a58782ddda68b8f8bdbfee8056f074622d9eb7756656dfc5894cfaefd0"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

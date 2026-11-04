@@ -88,9 +88,9 @@ AREAS = frozenset(
         "release_conformance",
     ]
 )
-CALIBRATED_KINDS = frozenset({"calibrated_interval", "calibrated_statistical_test"})
-KINDS = frozenset({"value", "refusal", "interval", "receipt"}) | CALIBRATED_KINDS
-INTERVAL_KINDS = frozenset({"interval", "calibrated_interval"})
+REPLICATED_KINDS = frozenset({"replicated_interval", "replicated_statistical_test"})
+KINDS = frozenset({"value", "refusal", "interval", "receipt"}) | REPLICATED_KINDS
+INTERVAL_KINDS = frozenset({"interval", "replicated_interval"})
 STATUSES = frozenset({"planned", "bound"})
 CASE_FIELDS = (
     "id",
@@ -217,7 +217,7 @@ def case_problems(case: dict[str, Any]) -> list[str]:
     config = case["configuration"]
     if isinstance(config, dict) and "calibration_grid_point" in config:
         point = config["calibration_grid_point"]
-        if type(point) is not int or point not in (0, 1, 2) or kind not in CALIBRATED_KINDS:
+        if type(point) is not int or point not in (0, 1, 2) or kind not in REPLICATED_KINDS:
             errors.append(
                 f"{prefix}: calibration_grid_point must bind a calibrated case to integer 0, 1 or 2"
             )
@@ -259,7 +259,7 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 and 0 < targets[key] <= 1
             ):
                 errors.append(f"{prefix}: targets.{key} must be in (0, 1]")
-        if kind in INTERVAL_KINDS or kind == "calibrated_statistical_test":
+        if kind in INTERVAL_KINDS or kind == "replicated_statistical_test":
             nominal = targets.get("nominal_coverage")
             floor = targets.get("coverage_floor")
             if not isinstance(nominal, (int, float)) or not 0.5 < nominal < 1:
@@ -268,22 +268,22 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"{prefix}: interval cases need targets.coverage_floor in (0.5, nominal_coverage]"
                 )
-        if kind in CALIBRATED_KINDS:
+        if kind in REPLICATED_KINDS:
             reps = targets.get("min_replicates")
             if not isinstance(reps, int) or isinstance(reps, bool) or reps < MIN_REPLICATES:
                 errors.append(
-                    f"{prefix}: calibrated cases need targets.min_replicates >= {MIN_REPLICATES}"
+                    f"{prefix}: replicated cases need targets.min_replicates >= {MIN_REPLICATES}"
                 )
             rate = targets.get("min_reporting_rate")
             if not isinstance(rate, (int, float)) or rate < MIN_REPORTING_RATE:
                 errors.append(
-                    f"{prefix}: calibrated cases need targets.min_reporting_rate >= {MIN_REPORTING_RATE}"
+                    f"{prefix}: replicated cases need targets.min_reporting_rate >= {MIN_REPORTING_RATE}"
                 )
-            if kind == "calibrated_interval" and not any(
+            if kind == "replicated_interval" and not any(
                 key.startswith("max_median") for key in targets
             ):
-                errors.append(f"{prefix}: calibrated cases need a precision target (max_median_*)")
-            if kind == "calibrated_statistical_test":
+                errors.append(f"{prefix}: replicated cases need a precision target (max_median_*)")
+            if kind == "replicated_statistical_test":
                 if (
                     case["configuration"].get("calibration_target")
                     != "conditional_null_rejection_rate"
@@ -295,7 +295,7 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                     )
                 ):
                     errors.append(
-                        f"{prefix}: statistical-test calibration needs its explicit conditional Type-I target"
+                        f"{prefix}: statistical-test replication needs its explicit conditional Type-I target"
                     )
                 if (
                     targets.get("precision_target") != "not_applicable"
@@ -463,7 +463,7 @@ def scale_cases(data: dict[str, Any], root: Path = ROOT) -> list[dict[str, Any]]
     cases = []
     for case in data.get("case", []):
         evidence = case.get("evidence", {})
-        if evidence.get("status") != "bound" or case["expected"]["kind"] in CALIBRATED_KINDS:
+        if evidence.get("status") != "bound" or case["expected"]["kind"] in REPLICATED_KINDS:
             continue
         path, name = evidence["test"].split("::", 1)[0], evidence["test"].rsplit("::", 1)[1]
         target = SCALE_TARGET.match(path)
@@ -534,7 +534,7 @@ def closure_problems(
         errors.append(f"{prefix}: {where} is not a test function")
     if (
         "#[ignore" in decoration
-        and kind not in CALIBRATED_KINDS
+        and kind not in REPLICATED_KINDS
         and (SCALE_TARGET.match(path) is None or not scale_gate_wired(root))
     ):
         errors.append(
@@ -545,7 +545,7 @@ def closure_problems(
     if DEFERRED_TEST.search(decoration + "\n" + source):
         errors.append(f"{prefix}: {where} skips or defers its check")
     if (
-        kind != "calibrated_interval"
+        kind != "replicated_interval"
         and not checker
         and not ASSERTS.search(with_helpers(text, suffix, source))
     ):
@@ -671,7 +671,7 @@ def self_test() -> int:
     )
     expect(
         "calibrated needs replicates",
-        mutate(lambda c, d: c["expected"].update(kind="calibrated_interval")),
+        mutate(lambda c, d: c["expected"].update(kind="replicated_interval")),
         "nominal_coverage",
     )
     expect(

@@ -116,6 +116,31 @@ fn refusal(error: &IoError) -> String {
     error.to_string()
 }
 
+/// Unit histories alone do not supply a declared target law.
+fn unit_histories_do_not_supply_the_target_law(with_law: &ScientificTarget) {
+    let panel = TemporalUnitPanel::new(
+        "unit-histories",
+        Some(vec![UnitHistories {
+            unit_id: 1,
+            histories: vec![SequenceHistory::two_step(1, 0, 1, 0, 1, 1.0)],
+        }]),
+    )
+    .unwrap();
+    let histories =
+        ExactTransportData::try_new(vec![fit_binary_history_joint(&panel).unwrap()], 4096).unwrap();
+    let from_histories = prepare(histories, with_law, &sequence(0.0, 1.0)).unwrap_err();
+    let from_histories = refusal(&from_histories);
+    assert!(
+        from_histories
+            .contains(antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISSING),
+        "{from_histories}"
+    );
+    assert!(
+        from_histories.contains("unit histories do not supply the target law"),
+        "{from_histories}"
+    );
+}
+
 #[test]
 fn history_indexed_law_supports_the_two_step_horizon_and_reloads() {
     let spec = spec();
@@ -159,27 +184,7 @@ fn history_indexed_law_supports_the_two_step_horizon_and_reloads() {
         "{from_experiments}"
     );
 
-    let panel = TemporalUnitPanel::new(
-        "unit-histories",
-        Some(vec![UnitHistories {
-            unit_id: 1,
-            histories: vec![SequenceHistory::two_step(1, 0, 1, 0, 1, 1.0)],
-        }]),
-    )
-    .unwrap();
-    let histories =
-        ExactTransportData::try_new(vec![fit_binary_history_joint(&panel).unwrap()], 4096).unwrap();
-    let from_histories = prepare(histories, &with_law, &sequence(0.0, 1.0)).unwrap_err();
-    let from_histories = refusal(&from_histories);
-    assert!(
-        from_histories
-            .contains(antecedent_core::reason_details::temporal_transport::TARGET_LAW_MISSING),
-        "{from_histories}"
-    );
-    assert!(
-        from_histories.contains("unit histories do not supply the target law"),
-        "{from_histories}"
-    );
+    unit_histories_do_not_supply_the_target_law(&with_law);
 
     let wrong = HistoryIndexedTargetLaw::new(
         "not-the-observational-marginal",

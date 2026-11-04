@@ -19,8 +19,8 @@
    "inference": "Frequentist,Bayesian (executing unsupported)"
   },
   {
-   "id": "closed.AnomalyAttribution.Admg",
-   "status": "closed",
+   "id": "refused.AnomalyAttribution.Admg",
+   "status": "not_supported",
    "design_time_model": "static; refused structure=explicit,accepted,graph_posterior",
    "inference": "refused:Frequentist,Bayesian"
   },

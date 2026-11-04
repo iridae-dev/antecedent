@@ -638,6 +638,52 @@ fn an_unknown_required_feature_or_another_version_is_refused() {
     }
 }
 
+/// A wrong version, a wrong feature set, or the other artifact format is refused.
+fn obstruction_version_feature_and_format_refusals(
+    wire: &antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire,
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+) {
+    use antecedent::consume_admg_conditional_obstruction_artifact;
+    use antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire;
+    // Another version or feature: refused by version before the payload, and by
+    // feature marker (the point format's marker included).
+    for version in [0, 2] {
+        let mut w = wire.clone();
+        w.version = version;
+        assert!(matches!(
+            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), ctx),
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion {
+                version: v
+            })) if v == version
+        ));
+    }
+    for features in [vec!["checked_admg_conditional_point_v1".to_owned()], Vec::new()] {
+        let mut w = wire.clone();
+        w.required_features = features;
+        assert!(matches!(
+            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), ctx),
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
+                "required features"
+            )))
+        ));
+    }
+    // Cross-format: a point artifact is never read as an obstruction, nor the
+    // reverse.
+    let point = export(&prepare(&scm(0)));
+    assert!(consume_admg_conditional_obstruction_artifact(&point, ctx).is_err());
+    assert!(AdmgConditionalObstructionWire::decode(&point).is_err());
+    assert!(AdmgConditionalArtifactWire::decode(bytes).is_err());
+    assert!(
+        antecedent::consume_admg_conditional_transport_artifact(
+            bytes,
+            AdmgConditionalConsumeLimits::default(),
+            ctx
+        )
+        .is_err()
+    );
+}
+
 /// A proven obstruction (selection on the confounded outcome `Y`) exports with
 /// its two-model witness and is re-verified by the consumer; an unsealed edit
 /// is a premises mismatch, a re-sealed witness mutation fails the exact
@@ -730,42 +776,7 @@ fn a_proven_obstruction_is_reverified_by_the_artifact_consumer() {
         refusal(&w),
         ("route_not_supported", antecedent_core::reason_details::admg_transport::CONSUMER_LIMITS)
     );
-    // Another version or feature: refused by version before the payload, and by
-    // feature marker (the point format's marker included).
-    for version in [0, 2] {
-        let mut w = wire.clone();
-        w.version = version;
-        assert!(matches!(
-            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx),
-            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion {
-                version: v
-            })) if v == version
-        ));
-    }
-    for features in [vec!["checked_admg_conditional_point_v1".to_owned()], Vec::new()] {
-        let mut w = wire.clone();
-        w.required_features = features;
-        assert!(matches!(
-            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx),
-            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
-                "required features"
-            )))
-        ));
-    }
-    // Cross-format: a point artifact is never read as an obstruction, nor the
-    // reverse.
-    let point = export(&prepare(&scm(0)));
-    assert!(consume_admg_conditional_obstruction_artifact(&point, &ctx).is_err());
-    assert!(AdmgConditionalObstructionWire::decode(&point).is_err());
-    assert!(AdmgConditionalArtifactWire::decode(&bytes).is_err());
-    assert!(
-        antecedent::consume_admg_conditional_transport_artifact(
-            &bytes,
-            AdmgConditionalConsumeLimits::default(),
-            &ctx
-        )
-        .is_err()
-    );
+    obstruction_version_feature_and_format_refusals(&wire, &bytes, &ctx);
 }
 
 #[test]

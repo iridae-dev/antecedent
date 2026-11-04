@@ -178,7 +178,7 @@ fn msm_artifact_refuses_a_sampling_composition() {
     let built = artifact(&result(2.0, 3), treat_vs(0.0));
     let mut parts = built.parts().clone();
     let n = parts.grid.len();
-    parts.uncertainty.sampling = SamplingStatus::Reported(SamplingInterval {
+    parts.uncertainty.sampling = SamplingStatus::Reported(Box::new(SamplingInterval {
         quantity: "ate".into(),
         level: 0.95,
         method: "percentile_bootstrap".into(),
@@ -186,7 +186,7 @@ fn msm_artifact_refuses_a_sampling_composition() {
         calibration: None,
         lower: vec![0.0; n],
         upper: vec![1.0; n],
-    });
+    }));
     let error = SensitivityArtifact::new(parts).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
