@@ -24,8 +24,6 @@ use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wir
 use pyo3::prelude::*;
 use serde::Deserialize;
 
-const REFUSED: &str = "recalc.joint_bayesian_refused";
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SourceWire {
@@ -103,7 +101,12 @@ fn check_identity(identity: &DataIdentityWire, rows: usize) -> PyResult<()> {
 }
 fn request(specification: &str) -> PyResult<JointBayesianRequest> {
     let wire: RequestWire = parse_json(specification, "joint Bayesian request")?;
-    let bad = |text: &str| invalid("recalc.joint_bayesian_invalid_query", text);
+    let bad = |text: &str| {
+        crate::with_reason_code(
+            crate::value_err(format!("recalc.joint_bayesian_invalid_query: {text}")),
+            antecedent_core::reason_code!("invalid_argument"),
+        )
+    };
     if wire.names.len() > 64 {
         return Err(invalid("recalc.limits_exceeded", "joint transport variable count exceeds 64"));
     }
@@ -300,7 +303,9 @@ impl PyJointBayesianSession {
                     }),
                 )
             }
-            Err(error) => Ok((None, None, Some(run_error(&error, REFUSED)))),
+            Err(error) => {
+                Ok((None, None, Some(run_error(&error, "recalc.joint_bayesian_refused"))))
+            }
         }
     }
     #[pyo3(signature=(*,seed=1,threads=None,cancel=None))]
@@ -316,7 +321,7 @@ impl PyJointBayesianSession {
         let _ = (seed, threads, cancel);
         match py.detach(|| self.inner.export_result()) {
             Ok(bytes) => (Some(bytes), None),
-            Err(error) => (None, Some(run_error(&error, REFUSED))),
+            Err(error) => (None, Some(run_error(&error, "recalc.joint_bayesian_refused"))),
         }
     }
 }

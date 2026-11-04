@@ -73,7 +73,7 @@ pub(crate) fn run_error(error: &RecalcRunError, fallback: &'static str) -> Strin
                 "recalc.bayesian_invalid_inference" => {
                     (antecedent_core::reason_code!("invalid_argument"), "learner_folds_rng")
                 }
-                "recalc.bayesian_fit_refused" => {
+                "recalc.bayesian_fit_refused" | "recalc.joint_bayesian_refused" => {
                     (antecedent_core::reason_code!("route_not_supported"), "score_artifact")
                 }
                 "recalc.bayesian_inference_unsupported"

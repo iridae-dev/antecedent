@@ -154,12 +154,16 @@ def test_ledger_supported_record_routes_are_supported_not_closed(record: Record)
 
 
 @pytest.mark.parametrize("record", INFERENTIAL, ids=ids(INFERENTIAL))
-def test_ledger_inferential_claim_is_calibrated_or_not_supported(record: Record) -> None:
+def test_ledger_inferential_claim_has_a_construction_check_or_is_not_supported(
+    record: Record,
+) -> None:
     coverage = record.get("coverage_records", [])
+    # Coverage records only annotate the interval's calibration status; any named must exist.
+    assert set(coverage) <= COVERAGE_IDS, (record["id"], set(coverage) - COVERAGE_IDS)
     if record["status"] == "supported":
-        # Capability of an inferential claim requires its own collected coverage record.
-        assert coverage, f"{record['id']}: supported inferential claim without coverage records"
-        assert set(coverage) <= COVERAGE_IDS, (record["id"], set(coverage) - COVERAGE_IDS)
+        # A supported interval claim is backed by an independent construction check.
+        roles = {fixture.get("role") for fixture in record.get("fixtures", [])}
+        assert "construction" in roles, f"{record['id']}: supported interval without construction"
         return
     assert record["status"] == "not_supported", record["id"]
     for route in record["routes"]:

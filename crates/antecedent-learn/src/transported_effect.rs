@@ -947,6 +947,7 @@ mod tests {
     fn requests_beyond_the_point_are_refused() {
         let c = cohort(vec![0.5], vec![1.0]);
         let value = run(&model(true), &c, Some(&declaration())).unwrap();
+        assert_eq!(value.interval_refusal().code, "route_not_supported");
         assert_eq!(value.interval_refusal().detail, "transported_effect.interval_not_supported");
         assert_eq!(value.law_refusal().code, "decision_contract_unsatisfied");
     }
