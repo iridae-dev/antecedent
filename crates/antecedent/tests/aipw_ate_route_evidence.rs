@@ -461,3 +461,70 @@ fn full_source_export_carries_a_bound_witness_and_leaves_acceptance_unchanged() 
         prepared.encode_contracted_result_with_source(&result, &other, "export", &ctx).unwrap_err();
     assert!(matches!(error, antecedent::CausalError::Conflict { what: "source", .. }), "{error}");
 }
+
+/// A backdoor AIPW result names the provenance records of the route it executed, with their
+/// sources and documented deviations, and its export carries the same section, bound to the
+/// identifier and estimator the contract seals.
+#[test]
+fn aipw_result_and_export_cite_the_executed_route() {
+    use antecedent_io::method_provenance::{
+        CaveatKind, ProvenanceRole, decode_method_provenance_section,
+    };
+    use antecedent_io_core::{decode_analysis_result_artifact, decode_analysis_result_contract};
+
+    let ctx = ExecutionContext::for_tests(74);
+    let (data, dag, query) = confounded_scm(256, 74);
+    let study = Study::tabular(data.clone())
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .graph(dag)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let result = rebind_estimate(&mut prepared, data, &ctx).unwrap();
+
+    let provenance = result.method_provenance();
+    assert!(provenance.unlinked.is_empty(), "{:?}", provenance.unlinked);
+    let ids: Vec<&str> = provenance.records.iter().map(|record| record.id.as_str()).collect();
+    assert_eq!(ids, ["identify.backdoor", "estimate.aipw"]);
+    let aipw = provenance.record("estimate.aipw").unwrap();
+    assert_eq!(aipw.cited_for[0].role, ProvenanceRole::Estimator);
+    assert_eq!(aipw.cited_for[0].key, "aipw");
+    assert_eq!(aipw.review, "method_review");
+    assert!(aipw.deviations.iter().any(|text| text.starts_with("no cross-fitting on the ATT/ATC")));
+    assert!(
+        aipw.deviations.iter().any(|text| text.starts_with("nuisance families are fixed GLM")),
+        "{:?}",
+        aipw.deviations
+    );
+
+    let citations = result.citations();
+    let dml = citations
+        .iter()
+        .find(|citation| citation.source.doi.as_deref() == Some("10.1111/ectj.12097"))
+        .expect("the DML paper is cited");
+    assert!(dml.source.doi_verified);
+    assert_eq!(dml.source.year, Some(2018));
+    assert!(dml.records.iter().any(|(id, digest)| id == "estimate.aipw" && digest == &aipw.digest));
+    assert!(dml.caveats.iter().any(|caveat| caveat.kind == CaveatKind::Deviation
+        && caveat.text.contains("rate conditions are not inherited")));
+    assert_eq!(antecedent::bibliography([&result, &result]), citations);
+
+    let bytes = prepared.encode_contracted_result(&result, "provenance", &ctx).unwrap();
+    let (artifact, _, _) = decode_analysis_result_artifact(&bytes).unwrap();
+    let contract = decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    let carried = decode_method_provenance_section(
+        &artifact,
+        contract.identifier.as_deref(),
+        contract.estimator.as_deref(),
+    )
+    .unwrap()
+    .expect("the export carries method provenance");
+    assert_eq!(carried, provenance);
+    assert_eq!(consume_analysis_result(&bytes).unwrap().method_provenance, Some(provenance));
+    assert_eq!(contract.estimator.as_deref(), Some("aipw"));
+    assert!(decode_method_provenance_section(&artifact, Some("frontdoor"), Some("aipw")).is_err());
+    assert!(decode_method_provenance_section(&artifact, None, Some("iv.wald")).is_err());
+}

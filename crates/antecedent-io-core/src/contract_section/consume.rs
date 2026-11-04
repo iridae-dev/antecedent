@@ -604,6 +604,7 @@ fn consume_with_source_bounds(
                     Some(Arc::from(format!("invalid_contract_section:{err}"))),
                 ),
                 artifact_digest,
+                method_provenance: None,
             });
         }
     };
@@ -616,7 +617,24 @@ fn consume_with_source_bounds(
         .and_then(|_| hold_source_section(&artifact, &bounds.witness));
     let source = held.as_ref().map(|held| held.replay(bounds));
     let acceptance = accept_contract(&header, &body, contract.as_ref(), limits, source.as_ref());
-    Ok(AnalysisResultConsumption { header, body, contract, acceptance, artifact_digest })
+    // Descriptive and outside acceptance: a section not bound to the declared ids is not read.
+    let method_provenance = contract.as_ref().and_then(|contract| {
+        crate::decode_method_provenance_section(
+            &artifact,
+            contract.identifier.as_deref(),
+            contract.estimator.as_deref(),
+        )
+        .ok()
+        .flatten()
+    });
+    Ok(AnalysisResultConsumption {
+        header,
+        body,
+        contract,
+        acceptance,
+        artifact_digest,
+        method_provenance,
+    })
 }
 
 pub(in crate::contract_section) fn accept_contract(

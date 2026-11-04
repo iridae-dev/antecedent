@@ -85,9 +85,41 @@ def fetch(doi: str) -> dict:
             "doi": returned_doi,
             "titles": titles,
             "response_sha256": hashlib.sha256(raw).hexdigest(),
+            **bibliographic(doi, attrs),
         }
     except (OSError, ValueError, KeyError) as error:
         return {"url": url, "error": str(error)}
+
+
+def bibliographic(doi: str, attrs: dict) -> dict:
+    """Authors (display names, registry order) and publication year from a registry record.
+
+    Retained so results can cite a source without a network call; absent fields stay absent.
+    """
+    if doi.lower().startswith("10.48550/"):
+        people = attrs.get("creators") or []
+        authors = [
+            " ".join(p for p in (c.get("givenName"), c.get("familyName")) if p)
+            or c.get("name", "")
+            for c in people
+        ]
+        year = attrs.get("publicationYear")
+    else:
+        people = attrs.get("author") or attrs.get("editor") or []
+        authors = [
+            " ".join(p for p in (c.get("given"), c.get("family")) if p)
+            or c.get("name", "")
+            for c in people
+        ]
+        parts = (attrs.get("issued") or {}).get("date-parts") or [[None]]
+        year = parts[0][0] if parts and parts[0] else None
+    out: dict = {}
+    authors = [a.strip() for a in authors if a and a.strip()]
+    if authors:
+        out["authors"] = authors
+    if isinstance(year, (int, str)) and str(year).isdigit():
+        out["year"] = int(year)
+    return out
 
 
 def verdict(citation: dict, cache: dict) -> str:
@@ -122,6 +154,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--refresh", action="store_true", help="also replace successful cached metadata"
+    )
+    parser.add_argument(
+        "--bibliographic",
+        action="store_true",
+        help="network operation; add authors and year to cached entries that lack them",
     )
     parser.add_argument("--cache", type=Path, default=REPO_ROOT / CACHE)
     parser.add_argument(
@@ -159,6 +196,22 @@ def main() -> int:
                     f"resolved {doi}: {'error' if cache[doi].get('error') else 'metadata'}",
                     flush=True,
                 )
+        args.cache.write_text(
+            json.dumps(cache, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    if args.bibliographic:
+        missing = sorted(
+            doi
+            for doi, item in cache.items()
+            if not item.get("error") and "year" not in item and "authors" not in item
+        )
+        for doi in missing:
+            fetched = fetch(doi)
+            if not fetched.get("error"):
+                cache[doi].update(
+                    {k: fetched[k] for k in ("authors", "year") if k in fetched}
+                )
+            print(f"bibliographic {doi}: {'error' if fetched.get('error') else 'ok'}", flush=True)
         args.cache.write_text(
             json.dumps(cache, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )

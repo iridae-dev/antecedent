@@ -11,6 +11,11 @@ Copy [`_template.toml`](_template.toml) to a descriptive name
 must match the filename stem, and should match the corresponding
 [`parity/`](../parity) capability id where one exists.
 
+Results cite these records: each result names the records behind the route it executed, with
+their sources and `implementation_deviations`, through a table generated from this directory
+(`scripts/generate_method_provenance.py`). After editing a record, regenerate it. See
+[Cite the methods behind a study](../docs/guides/citing-a-study.md).
+
 ## Rules
 
 - Disclose prior exposure to upstream implementations.

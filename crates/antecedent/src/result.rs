@@ -1783,6 +1783,28 @@ impl StudyResult {
         self.support_status
     }
 
+    /// The provenance records behind the route this result executed: the identifier and
+    /// estimator of [`StudyResultView::logical_plan`], each with its published sources, the
+    /// deviations its record documents, what its bounded review leaves out, and its id and
+    /// digest. Ids that name no record are listed as unlinked.
+    ///
+    /// Descriptive only, like the calibration slot: it changes no number or support status.
+    /// [`StudyResultView::provenance`] is the execution's provenance graph, a different thing.
+    #[must_use = "the provenance is computed on each call"]
+    pub fn method_provenance(&self) -> antecedent_io::method_provenance::MethodProvenanceWire {
+        antecedent_io::method_provenance::method_provenance(
+            self.logical_plan.identifier.as_deref(),
+            self.logical_plan.estimator.as_deref(),
+        )
+    }
+
+    /// The sources to cite for this result, de-duplicated, each with the caveats of the
+    /// records citing it (see [`Self::method_provenance`]).
+    #[must_use = "the citations are computed on each call"]
+    pub fn citations(&self) -> Vec<antecedent_io::method_provenance::CitationWire> {
+        self.method_provenance().citations()
+    }
+
     pub(crate) fn stamp_lowered_program(
         &mut self,
         program: &crate::planner::lowered::LoweredProgram,
@@ -1811,6 +1833,19 @@ impl StudyResult {
     pub const fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
         self.lowered_identity
     }
+}
+
+/// The bibliography of a study: the sources of every result, de-duplicated across results.
+///
+/// A source cited by several results appears once, with every record that cites it and every
+/// caveat those records document. See [`StudyResult::method_provenance`].
+#[must_use = "the bibliography is computed on each call"]
+pub fn bibliography<'a, I>(results: I) -> Vec<antecedent_io::method_provenance::CitationWire>
+where
+    I: IntoIterator<Item = &'a StudyResult>,
+{
+    let provenances: Vec<_> = results.into_iter().map(StudyResult::method_provenance).collect();
+    antecedent_io::method_provenance::bibliography(&provenances)
 }
 
 /// Reference and by-value accessors of every single-variant payload on [`ResultPayload`], and

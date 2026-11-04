@@ -134,6 +134,7 @@ pub use query::{
 };
 pub use result::QuasiRolloutEstimate;
 pub use result::TemporalDesignEstimate;
+pub use result::bibliography;
 pub use result::{
     AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract, HistoryMatchEstimate,
     LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, ObservedWindowReport,

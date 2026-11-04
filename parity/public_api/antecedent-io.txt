@@ -10818,6 +10818,7 @@ pub use antecedent_io::mechanism_composition_artifact = antecedent_io_core::mech
 pub use antecedent_io::mechanism_wire = antecedent_io_core::mechanism_wire
 pub use antecedent_io::mechanisms_from_wire = antecedent_io_core::mechanisms_from_wire
 pub use antecedent_io::mechanisms_to_wire = antecedent_io_core::mechanisms_to_wire
+pub use antecedent_io::method_provenance = antecedent_io_core::method_provenance
 pub use antecedent_io::migrate = antecedent_io_core::migrate
 pub use antecedent_io::migrate_artifact = antecedent_io_core::migrate_artifact
 pub use antecedent_io::mixed_source_artifact::MixedSourceArtifactError = antecedent_io_core::transport_errors::MixedSourceArtifactError

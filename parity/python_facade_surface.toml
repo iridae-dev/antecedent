@@ -1727,6 +1727,12 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
+rust = "antecedent::bibliography"
+kind = "fn"
+status = "bound"
+python = "antecedent.citations.bibliography"
+
+[[entry]]
 rust = "antecedent::cell_coordinate"
 kind = "fn"
 status = "internal"

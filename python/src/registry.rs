@@ -181,6 +181,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     observational_survival_api::register(m)?;
     observational_policy_api::register(m)?;
     compact_export_api::register(m)?;
+    crate::method_provenance_api::register(m)?;
     cohort_decision_api::register(m)?;
     nonlinear_mediation_api::register(m)?;
     crate::cyclic_system_api::register(m)?;

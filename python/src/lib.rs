@@ -136,6 +136,7 @@ mod measured_inference_api;
 mod measurement_model_api;
 mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
+mod method_provenance_api;
 mod missing_report;
 mod mixed_decision_api;
 mod mnar_fixed_shift_api;

@@ -37,12 +37,12 @@ use antecedent_io::{
     SupportSlotWire, TargetIdentityWire, TargetWeightsIdentityWire, TargetWeightsSectionWire,
     TemporalIdentificationWire, UncertaintyComponentWire, UncertaintySlotWire, admg_identity,
     causal_query_to_wire_with_registry, claim_digest, cpdag_identity, dag_identity,
-    data_snapshot_digest, digest_wire, encode_analysis_result_artifact_with_contract,
-    execution_digest, execution_identity_from_context, graph_posterior_atom_identities,
-    identification_digest, identification_product_digest_wire, identification_product_wire,
-    identification_to_wire_with_registry, inference_binding_digest, observation_identity_wire,
-    pag_identity, program_digest, schema_to_wire, score_reuse_digest, target_weights_digest,
-    temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
+    data_snapshot_digest, digest_wire, execution_digest, execution_identity_from_context,
+    graph_posterior_atom_identities, identification_digest, identification_product_digest_wire,
+    identification_product_wire, identification_to_wire_with_registry, inference_binding_digest,
+    observation_identity_wire, pag_identity, program_digest, schema_to_wire, score_reuse_digest,
+    target_weights_digest, temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity,
+    temporal_pag_identity,
 };
 
 use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
@@ -1288,15 +1288,15 @@ impl PreparedStudy {
             .map_err(|err| io_err(&antecedent_io::IoError::from(err)))?;
         let names: Vec<String> =
             self.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
-        let artifact =
-            antecedent_io_core::encode_analysis_result_artifact_with_contract_and_source(
-                &body,
-                names,
-                artifact_id,
-                Some(&section),
-                Some(&witness),
-            )
-            .map_err(|err| io_err(&err))?;
+        let artifact = antecedent_io_core::encode_analysis_result_artifact_with_provenance(
+            &body,
+            names,
+            artifact_id,
+            Some(&section),
+            Some(&witness),
+            Some(&result.method_provenance()),
+        )
+        .map_err(|err| io_err(&err))?;
         let mut bytes = Vec::new();
         artifact.write_to(&mut bytes).map_err(|err| io_err(&err))?;
         Ok(bytes)
@@ -1319,11 +1319,13 @@ impl PreparedStudy {
         let (section, body) = self.execution_record_with_quantity_labels(result, ctx, labels)?;
         let names: Vec<String> =
             self.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
-        let artifact = encode_analysis_result_artifact_with_contract(
+        let artifact = antecedent_io_core::encode_analysis_result_artifact_with_provenance(
             &body,
             names,
             artifact_id,
             Some(&section),
+            None,
+            Some(&result.method_provenance()),
         )
         .map_err(|err| io_err(&err))?;
         let mut bytes = Vec::new();

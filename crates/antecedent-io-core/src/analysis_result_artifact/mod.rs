@@ -1487,7 +1487,9 @@ pub fn encode_analysis_result_artifact_with_contract(
 /// full-source witness ([`crate::SOURCE_WITNESS_SECTION`]).
 ///
 /// Both sections are additive and old readers ignore them; this encoder does not
-/// raise `minimum_reader_version`. With no source the output is exactly that of
+/// raise `minimum_reader_version`. A contract also brings the additive
+/// [`crate::METHOD_PROVENANCE_SECTION`], derived from its sealed identifier and
+/// estimator. With no source the output is exactly that of
 /// [`encode_analysis_result_artifact_with_contract`]. A present source is
 /// checked against the default [`crate::SourceWitnessLimits`] and against the
 /// header names, and is packed after the contract section. Binding the witness
@@ -1506,6 +1508,47 @@ pub fn encode_analysis_result_artifact_with_contract_and_source(
     contract: Option<&crate::AnalysisResultContractWire>,
     source: Option<&crate::SourceWitnessWire>,
 ) -> Result<EncodedArtifact, IoError> {
+    let provenance = contract.map(|contract| {
+        crate::method_provenance(contract.identifier.as_deref(), contract.estimator.as_deref())
+    });
+    encode_analysis_result_artifact_with_provenance(
+        result,
+        variable_names,
+        artifact_id,
+        contract,
+        source,
+        provenance.as_ref(),
+    )
+}
+
+/// Encode a composite result exactly as [`encode_analysis_result_artifact_with_contract_and_source`],
+/// with the [`crate::METHOD_PROVENANCE_SECTION`] the producer resolved for the executed route.
+///
+/// A producer that resolved an identifier or estimator the contract leaves undeclared passes the
+/// provenance of the resolved route; a component the contract declares must be the one named.
+///
+/// # Errors
+///
+/// The errors of [`encode_analysis_result_artifact_with_contract_and_source`], provenance without
+/// a contract, or provenance naming another identifier or estimator than the contract declares.
+pub fn encode_analysis_result_artifact_with_provenance(
+    result: &AnalysisResultWire,
+    variable_names: Vec<String>,
+    artifact_id: &str,
+    contract: Option<&crate::AnalysisResultContractWire>,
+    source: Option<&crate::SourceWitnessWire>,
+    provenance: Option<&crate::MethodProvenanceWire>,
+) -> Result<EncodedArtifact, IoError> {
+    if let Some(provenance) = provenance {
+        let contract = contract.ok_or_else(|| {
+            IoError::Convert("method provenance requires a contract section".into())
+        })?;
+        crate::method_provenance::check_bound(
+            provenance,
+            contract.identifier.as_deref(),
+            contract.estimator.as_deref(),
+        )?;
+    }
     if let Some(source) = source {
         source.check_declared(&crate::SourceWitnessLimits::default())?;
         if source.columns.len() != variable_names.len() {
@@ -1547,6 +1590,17 @@ pub fn encode_analysis_result_artifact_with_contract_and_source(
             crate::CONTRACT_SECTION,
             "application/cbor",
             payload.into(),
+            CompressPolicy::Auto,
+        );
+        sections_desc.push(descriptor);
+        sections.push(section);
+    }
+    if let Some(provenance) = provenance {
+        // Descriptive: the provenance records behind the executed identifier and estimator.
+        let (descriptor, section) = pack_section_shared(
+            crate::METHOD_PROVENANCE_SECTION,
+            "application/cbor",
+            to_cbor(provenance)?.into(),
             CompressPolicy::Auto,
         );
         sections_desc.push(descriptor);

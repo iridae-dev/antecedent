@@ -414,6 +414,11 @@ pub struct AnalysisResultConsumption {
     /// BLAKE3 of the received artifact bytes. Receipts for an artifact without
     /// a claim reference these bytes, never a synthesized claim id.
     pub artifact_digest: [u8; 32],
+    /// The provenance records the producer cited for the executed route
+    /// ([`crate::METHOD_PROVENANCE_SECTION`]). Descriptive: it takes no part in
+    /// acceptance. `None` when absent, malformed, or not bound to the contract's
+    /// declared identifier and estimator.
+    pub method_provenance: Option<crate::MethodProvenanceWire>,
 }
 
 /// Decode the optional contract section. Missing is `Ok(None)`.

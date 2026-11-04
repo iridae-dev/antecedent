@@ -431,6 +431,25 @@ class ResultAPI:
         token = {} if cancel is None else {"cancel": cancel}
         return frozen.refute(data, suite=suite, seed=seed, threads=threads, **token)
 
+    @property
+    def method_provenance(self) -> Any:
+        """Provenance records behind the route this result executed.
+
+        A :class:`~antecedent.citations.MethodProvenance`: the identifier and estimator records
+        of the executed plan, each with its sources, documented deviations, review scope limits,
+        id and digest. Descriptive only; distinct from the execution ``provenance`` mapping.
+        """
+        from ..citations import provenance_of
+
+        return provenance_of(self)
+
+    def citations(self) -> tuple[Any, ...]:
+        """This result's sources, de-duplicated, each with the caveats of the records citing it.
+
+        See :func:`antecedent.citations.bibliography` for a study's de-duplicated list.
+        """
+        return self.method_provenance.citations()
+
     def _scalar_effect(self) -> float | None:
         """Historical scalar without the legacy-field warning."""
         getter = getattr(self, "estimate", None)

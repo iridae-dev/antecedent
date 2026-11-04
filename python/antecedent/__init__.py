@@ -55,7 +55,9 @@ Lifecycle -- analyze, bind external evidence, inspect the claim, decide, rank a 
   evidence that would resolve it, never as a causal answer;
 * ``joint_distribution`` holds the aligned distribution artifacts decisions consume, and
   ``composition`` / ``composition_bundle`` define what may be combined and export the whole chain
-  as one portable bundle an independent consumer checks against retained identities.
+  as one portable bundle an independent consumer checks against retained identities;
+* ``citations`` names the provenance records behind a result's route, with their sources and
+  documented deviations, and collects a study's de-duplicated ``bibliography``.
 
 Transport and counterfactual:
 
@@ -417,6 +419,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "adaptive_inference",
     "adaptive_policy",
     "categorical_treatment",
+    "citations",
     "cohort_decision",
     "compact_export",
     "composition",

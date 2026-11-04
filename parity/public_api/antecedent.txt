@@ -13359,6 +13359,7 @@ pub fn <antecedent::CompiledExecution>::fn lowered_identity(&self) -> core::opti
 pub fn <antecedent::CompiledExecution>::fn prepared(&self) -> &antecedent::PreparedStudy
 pub fn <antecedent::CompiledExecution>::fn result(&self) -> &antecedent::StudyResult
 pub fn <antecedent::CompiledExecution>::fn run(study: &antecedent::Study, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::CausalError>
+pub fn <antecedent::CompletedBatch>::fn bibliography(&self) -> alloc::vec::Vec<antecedent_io_core::method_provenance::CitationWire>
 pub fn <antecedent::CompletedBatch>::fn bound_table(&self) -> core::result::Result<&antecedent_data::dataset::TabularData, antecedent::CausalError>
 pub fn <antecedent::CompletedBatch>::fn into_parts(self) -> (antecedent::PreparedBatch, alloc::vec::Vec<alloc::sync::Arc<antecedent::StudyResult>>, antecedent::BatchScores)
 pub fn <antecedent::CompletedBatch>::fn prepared(&self) -> &antecedent::PreparedBatch
@@ -14262,6 +14263,7 @@ pub fn <antecedent::StudyResult>::fn association(&self) -> core::option::Option<
 pub fn <antecedent::StudyResult>::fn attribution(&self) -> core::option::Option<&antecedent::AttributionPayload>
 pub fn <antecedent::StudyResult>::fn calibration_bases(&self, contract: &antecedent::CausalContract) -> core::result::Result<alloc::vec::Vec<antecedent_io_core::calibration::CalibrationBasisWire>, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn change_attribution(&self) -> core::option::Option<&antecedent_attribution::result::ChangeAttributionResult>
+pub fn <antecedent::StudyResult>::fn citations(&self) -> alloc::vec::Vec<antecedent_io_core::method_provenance::CitationWire>
 pub fn <antecedent::StudyResult>::fn claim(&self, contract: &antecedent::CausalContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::claim::ClaimEnvelope, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn continuous_dose_response(&self) -> core::option::Option<&antecedent::ContinuousDoseResponseEstimate>
 pub fn <antecedent::StudyResult>::fn counterfactual(&self) -> core::option::Option<&antecedent::gcm::IteResult>
@@ -14311,6 +14313,7 @@ pub fn <antecedent::StudyResult>::fn longitudinal_regime(&self) -> core::option:
 pub fn <antecedent::StudyResult>::fn mechanism_change(&self) -> core::option::Option<&[antecedent_attribution::result::MechanismChangeDetection]>
 pub fn <antecedent::StudyResult>::fn mediation(&self) -> core::option::Option<&antecedent_estimate::temporal_mediation::TemporalMediationEstimate>
 pub fn <antecedent::StudyResult>::fn mediation_grid(&self) -> core::option::Option<&antecedent_estimate::temporal_mediation::TemporalMediationGrid>
+pub fn <antecedent::StudyResult>::fn method_provenance(&self) -> antecedent_io_core::method_provenance::MethodProvenanceWire
 pub fn <antecedent::StudyResult>::fn panel_did(&self) -> core::option::Option<&antecedent::PanelDidEstimate>
 pub fn <antecedent::StudyResult>::fn physical_plan(&self) -> &antecedent_contract::plan::PhysicalExecutionPlanRecord
 pub fn <antecedent::StudyResult>::fn policy_value(&self) -> core::option::Option<&antecedent::PolicyValueEstimate>
@@ -16256,6 +16259,7 @@ pub fn antecedent::analysis::typed_transported_mechanism::refit_typed_mechanism_
 pub fn antecedent::analysis::typed_transported_mechanism::transport_typed_mechanisms(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition, antecedent::MechanismCompositionRefusal>
 pub fn antecedent::analysis::typed_transported_mechanism::verify_typed_transport(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest, expected_identity_hex: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition, antecedent::MechanismCompositionRefusal>
 pub fn antecedent::analysis::validate_temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn antecedent::bibliography<'a, I>(results: I) -> alloc::vec::Vec<antecedent_io_core::method_provenance::CitationWire> where I: core::iter::traits::collect::IntoIterator<Item = &'a antecedent::StudyResult>
 pub fn antecedent::callback_plan::mark_python_callback_plan(record: antecedent_contract::plan::PhysicalExecutionPlanRecord, region: &str) -> (antecedent_contract::plan::PhysicalExecutionPlanRecord, antecedent_core::diagnostic::Diagnostic)
 pub fn antecedent::cell_coordinate(cell: antecedent::SupportCell) -> alloc::string::String
 pub fn antecedent::classify(cell: antecedent::SupportCell) -> antecedent::CellStatus
@@ -20672,6 +20676,7 @@ pub use antecedent::result::SurvivalEstimate = antecedent::SurvivalEstimate
 pub use antecedent::result::SyntheticControlEstimate = antecedent::SyntheticControlEstimate
 pub use antecedent::result::SyntheticDidEstimate = antecedent::SyntheticDidEstimate
 pub use antecedent::result::TemporalDesignEstimate = antecedent::TemporalDesignEstimate
+pub use antecedent::result::bibliography = antecedent::bibliography
 pub use antecedent::retained_source_from_artifact = antecedent::analysis::api::retained_source_from_artifact
 pub use antecedent::route_missing_support = antecedent::analysis::api::route_missing_support
 pub use antecedent::scientific::ArmBinding = antecedent_core::measurement_model::ArmBinding

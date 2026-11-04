@@ -70,6 +70,7 @@ pub mod joint_law_propagation_artifact;
 pub mod measurement_model_wire;
 pub mod mechanism_composition_artifact;
 pub mod mechanism_wire;
+pub mod method_provenance;
 pub mod migrate;
 /// `Mmap::map` lives here. [`crate::reader::MappedArtifactReader`] has the
 /// mapped constructors (`open_path_mapped`, `from_mmap`) under the same
@@ -136,7 +137,8 @@ pub use analysis_result_artifact::{
     UnitEffectIntervalsWire, UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
     decode_source_witness_section, encode_analysis_result_artifact,
     encode_analysis_result_artifact_with_contract,
-    encode_analysis_result_artifact_with_contract_and_source, identified_set_interval_from_wire,
+    encode_analysis_result_artifact_with_contract_and_source,
+    encode_analysis_result_artifact_with_provenance, identified_set_interval_from_wire,
     identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
@@ -261,6 +263,12 @@ pub use mechanism_composition_artifact::{
 };
 pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,
+};
+pub use method_provenance::{
+    CaveatKind, CaveatWire, CitationWire, CitedForWire, METHOD_PROVENANCE_FORMAT,
+    METHOD_PROVENANCE_SECTION, MethodProvenanceWire, ProvenanceRecordWire, ProvenanceRole,
+    SourceWire, bibliography, capability_provenance, decode_method_provenance_section,
+    method_provenance,
 };
 pub use migrate::{
     STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,

@@ -206,6 +206,7 @@ pub use antecedent_io_core::cohort_decision;
 pub use antecedent_io_core::composition_verification_artifact;
 pub use antecedent_io_core::cross_world_execution_artifact;
 pub use antecedent_io_core::joint_law_propagation_artifact;
+pub use antecedent_io_core::method_provenance;
 pub use antecedent_io_core::observation_query_artifact;
 pub use antecedent_io_core::policy_program_artifact;
 pub use antecedent_io_core::propagation_chain_record;

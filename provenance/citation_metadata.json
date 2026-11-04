@@ -1,1651 +1,2723 @@
 {
   "10.1002/9780470316696": {
+    "authors": [
+      "Donald B. Rubin"
+    ],
     "doi": "10.1002/9780470316696",
     "response_sha256": "2ff5cfac2789e860f4d529404dc25386d9ebe8afbdb437d30ba74c291e9f5b46",
     "titles": [
       "Multiple Imputation for Nonresponse in Surveys"
     ],
-    "url": "https://api.crossref.org/works/10.1002/9780470316696"
+    "url": "https://api.crossref.org/works/10.1002/9780470316696",
+    "year": 1987
   },
   "10.1002/9780470316856": {
+    "authors": [
+      "Shayle R. Searle",
+      "George Casella",
+      "Charles E. McCulloch"
+    ],
     "doi": "10.1002/9780470316856",
     "response_sha256": "4e79f91fda625da017555880669e00ca8985da962f2cf5794a99555e4cbb2e3e",
     "titles": [
       "Variance Components"
     ],
-    "url": "https://api.crossref.org/works/10.1002/9780470316856"
+    "url": "https://api.crossref.org/works/10.1002/9780470316856",
+    "year": 1992
   },
   "10.1002/9780470316870": {
+    "authors": [
+      "Jos\u00e9 M. Bernardo",
+      "Adrian F. M. Smith"
+    ],
     "doi": "10.1002/9780470316870",
     "response_sha256": "912d9904151fc9fd6c27f40fc482451861cf9dbbc198a6da6d45bf83b5c9d2e5",
     "titles": [
       "Bayesian Theory"
     ],
-    "url": "https://api.crossref.org/works/10.1002/9780470316870"
+    "url": "https://api.crossref.org/works/10.1002/9780470316870",
+    "year": 1994
   },
   "10.1002/9780470743386": {
+    "authors": [
+      "Michael Borenstein",
+      "Larry V. Hedges",
+      "Julian P. T. Higgins",
+      "Hannah R. Rothstein"
+    ],
     "doi": "10.1002/9780470743386",
     "response_sha256": "47f69e74bae5c326645fba2cfe366397b78d9899ca29b706d934660eeb3dfd23",
     "titles": [
       "Introduction to Meta\u2010Analysis"
     ],
-    "url": "https://api.crossref.org/works/10.1002/9780470743386"
+    "url": "https://api.crossref.org/works/10.1002/9780470743386",
+    "year": 2009
   },
   "10.1002/9781118619179": {
+    "authors": [
+      "Kenneth A. Bollen"
+    ],
     "doi": "10.1002/9781118619179",
     "response_sha256": "0a75e17321cff0db01af9f27b1a0896c7d516d70ef3570eeb28559844de851d3",
     "titles": [
       "Structural Equations with Latent Variables"
     ],
-    "url": "https://api.crossref.org/works/10.1002/9781118619179"
+    "url": "https://api.crossref.org/works/10.1002/9781118619179",
+    "year": 1989
   },
   "10.1002/net.3230200503": {
+    "authors": [
+      "S. L. Lauritzen",
+      "A. P. Dawid",
+      "B. N. Larsen",
+      "H.\u2010G. Leimer"
+    ],
     "doi": "10.1002/net.3230200503",
     "response_sha256": "e84e83cf4975f13217db6cb037027037fb867f0795ccbf8afed9e713dd473cf1",
     "titles": [
       "Independence properties of directed markov fields"
     ],
-    "url": "https://api.crossref.org/works/10.1002/net.3230200503"
+    "url": "https://api.crossref.org/works/10.1002/net.3230200503",
+    "year": 1990
   },
   "10.1002/qj.2270": {
+    "authors": [
+      "C. A. T. Ferro"
+    ],
     "doi": "10.1002/qj.2270",
     "response_sha256": "e7d0cf058efce97d7ef369eb753e6bb0a17b96b59d36ff49e640cdc36d362cfe",
     "titles": [
       "Fair scores for ensemble forecasts"
     ],
-    "url": "https://api.crossref.org/works/10.1002/qj.2270"
+    "url": "https://api.crossref.org/works/10.1002/qj.2270",
+    "year": 2013
   },
   "10.1002/sim.1186": {
+    "authors": [
+      "Julian P. T. Higgins",
+      "Simon G. Thompson"
+    ],
     "doi": "10.1002/sim.1186",
     "response_sha256": "3ddca2690e50379c58a189241d9c190b09565fbd32708081f615554f75c98849",
     "titles": [
       "Quantifying heterogeneity in a meta\u2010analysis"
     ],
-    "url": "https://api.crossref.org/works/10.1002/sim.1186"
+    "url": "https://api.crossref.org/works/10.1002/sim.1186",
+    "year": 2002
   },
   "10.1002/sim.4780080407": {
+    "authors": [
+      "Ross L. Prentice"
+    ],
     "doi": "10.1002/sim.4780080407",
     "response_sha256": "e0dd3a92fba7f54477fffa288473795994406209c753809b683c8ffacde4eeee",
     "titles": [
       "Surrogate endpoints in clinical trials: Definition and operational criteria"
     ],
-    "url": "https://api.crossref.org/works/10.1002/sim.4780080407"
+    "url": "https://api.crossref.org/works/10.1002/sim.4780080407",
+    "year": 1989
   },
   "10.1002/sim.8426": {
+    "authors": [
+      "Issa J. Dahabreh",
+      "Sarah E. Robertson",
+      "Jon A. Steingrimsson",
+      "Elizabeth A. Stuart",
+      "Miguel A. Hern\u00e1n"
+    ],
     "doi": "10.1002/sim.8426",
     "response_sha256": "d3413ab3530858708f217e21250f63dc86741b71727953b07fe626f7ff9c88b2",
     "titles": [
       "Extending inferences from a randomized trial to a new target population"
     ],
-    "url": "https://api.crossref.org/works/10.1002/sim.8426"
+    "url": "https://api.crossref.org/works/10.1002/sim.8426",
+    "year": 2020
   },
   "10.1007/978-1-4899-3242-6": {
+    "authors": [
+      "P. McCullagh",
+      "J. A. Nelder"
+    ],
     "doi": "10.1007/978-1-4899-3242-6",
     "response_sha256": "6820b78d5ddd90c1181f6f6205bf954c76d70d451510b165c2da7521eec66564",
     "titles": [
       "Generalized Linear Models"
     ],
-    "url": "https://api.crossref.org/works/10.1007/978-1-4899-3242-6"
+    "url": "https://api.crossref.org/works/10.1007/978-1-4899-3242-6",
+    "year": 1989
   },
   "10.1007/978-3-662-12616-5": {
+    "authors": [
+      "Peter E. Kloeden",
+      "Eckhard Platen"
+    ],
     "doi": "10.1007/978-3-662-12616-5",
     "response_sha256": "0b35068ff5f6b9e2d288180fd6c9b7bb98e7631abb31237c7cff3593f18f5c14",
     "titles": [
       "Numerical Solution of Stochastic Differential Equations"
     ],
-    "url": "https://api.crossref.org/works/10.1007/978-3-662-12616-5"
+    "url": "https://api.crossref.org/works/10.1007/978-3-662-12616-5",
+    "year": 1992
   },
   "10.1007/bf02846028": {
+    "authors": [
+      "Gisiro Maruyama"
+    ],
     "doi": "10.1007/bf02846028",
     "response_sha256": "65a121ff19a1dc6036c738364c0a004e9cd5d8b4e98064e88e9e46eaf940fc9a",
     "titles": [
       "Continuous Markov processes and stochastic equations"
     ],
-    "url": "https://api.crossref.org/works/10.1007/bf02846028"
+    "url": "https://api.crossref.org/works/10.1007/bf02846028",
+    "year": 1955
   },
   "10.1016/0167-2789(92)90102-s": {
+    "authors": [
+      "James Theiler",
+      "Stephen Eubank",
+      "Andr\u00e9 Longtin",
+      "Bryan Galdrikian",
+      "J. Doyne Farmer"
+    ],
     "doi": "10.1016/0167-2789(92)90102-s",
     "response_sha256": "d58e118f7107cf30269ce2b4c7ae051f85b3f1902a317fb5d6520d7451b4d1b7",
     "titles": [
       "Testing for nonlinearity in time series: the method of surrogate data"
     ],
-    "url": "https://api.crossref.org/works/10.1016/0167-2789%2892%2990102-s"
+    "url": "https://api.crossref.org/works/10.1016/0167-2789%2892%2990102-s",
+    "year": 1992
   },
   "10.1016/0197-2456(86)90046-2": {
+    "authors": [
+      "Rebecca DerSimonian",
+      "Nan Laird"
+    ],
     "doi": "10.1016/0197-2456(86)90046-2",
     "response_sha256": "de21a035e6ca49b4a77f181c1f0ce7236b4f3ad5f604e771766478fe932e9cf6",
     "titles": [
       "Meta-analysis in clinical trials"
     ],
-    "url": "https://api.crossref.org/works/10.1016/0197-2456%2886%2990046-2"
+    "url": "https://api.crossref.org/works/10.1016/0197-2456%2886%2990046-2",
+    "year": 1986
   },
   "10.1016/0270-0255(86)90088-6": {
+    "authors": [
+      "James Robins"
+    ],
     "doi": "10.1016/0270-0255(86)90088-6",
     "response_sha256": "666837c7ce8161f937bb07fff812342ca98cb14b7d47b1991d548b1d4cdf68ff",
     "titles": [
       "A new approach to causal inference in mortality studies with a sustained exposure period\u2014application to control of the healthy worker survivor effect"
     ],
-    "url": "https://api.crossref.org/works/10.1016/0270-0255%2886%2990088-6"
+    "url": "https://api.crossref.org/works/10.1016/0270-0255%2886%2990088-6",
+    "year": 1986
   },
   "10.1016/0304-4076(85)90158-7": {
+    "authors": [
+      "James G MacKinnon",
+      "Halbert White"
+    ],
     "doi": "10.1016/0304-4076(85)90158-7",
     "response_sha256": "4c25fc4ca5e28f43b61a4615d30b74ea242953836017bc937058eeb67dd7e159",
     "titles": [
       "Some heteroskedasticity-consistent covariance matrix estimators with improved finite sample properties"
     ],
-    "url": "https://api.crossref.org/works/10.1016/0304-4076%2885%2990158-7"
+    "url": "https://api.crossref.org/works/10.1016/0304-4076%2885%2990158-7",
+    "year": 1985
   },
   "10.1016/0370-2693(87)91197-x": {
+    "authors": [
+      "Simon Duane",
+      "A.D. Kennedy",
+      "Brian J. Pendleton",
+      "Duncan Roweth"
+    ],
     "doi": "10.1016/0370-2693(87)91197-x",
     "response_sha256": "3a9de1b6026b860b5ded78b6948bc6dea6646fb985668e25de4b3df32770282a",
     "titles": [
       "Hybrid Monte Carlo"
     ],
-    "url": "https://api.crossref.org/works/10.1016/0370-2693%2887%2991197-x"
+    "url": "https://api.crossref.org/works/10.1016/0370-2693%2887%2991197-x",
+    "year": 1987
   },
   "10.1016/0771-050x(80)90013-3": {
+    "authors": [
+      "J.R. Dormand",
+      "P.J. Prince"
+    ],
     "doi": "10.1016/0771-050x(80)90013-3",
     "response_sha256": "a0b04fd2f7a0eabccaf1a7d2bdd5abca332dfc2f78bb45658236f005cb94ef26",
     "titles": [
       "A family of embedded Runge-Kutta formulae"
     ],
-    "url": "https://api.crossref.org/works/10.1016/0771-050x%2880%2990013-3"
+    "url": "https://api.crossref.org/works/10.1016/0771-050x%2880%2990013-3",
+    "year": 1980
   },
   "10.1016/j.artint.2008.08.001": {
+    "authors": [
+      "Jiji Zhang"
+    ],
     "doi": "10.1016/j.artint.2008.08.001",
     "response_sha256": "bbfdb35a995b6400a6e5f6278ec8cba87cdd6d062070f8b90dafb6f9384d63ed",
     "titles": [
       "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias"
     ],
-    "url": "https://api.crossref.org/works/10.1016/j.artint.2008.08.001"
+    "url": "https://api.crossref.org/works/10.1016/j.artint.2008.08.001",
+    "year": 2008
   },
   "10.1016/j.cor.2008.04.004": {
+    "authors": [
+      "Javier Castro",
+      "Daniel G\u00f3mez",
+      "Juan Tejada"
+    ],
     "doi": "10.1016/j.cor.2008.04.004",
     "response_sha256": "e96fc77ca88f79aac877e92080b14fe3cd6faad2a4f52afb0e15785cdaee9405",
     "titles": [
       "Polynomial calculation of the Shapley value based on sampling"
     ],
-    "url": "https://api.crossref.org/works/10.1016/j.cor.2008.04.004"
+    "url": "https://api.crossref.org/works/10.1016/j.cor.2008.04.004",
+    "year": 2009
   },
   "10.1016/j.jeconom.2007.05.001": {
+    "authors": [
+      "Guido W. Imbens",
+      "Thomas Lemieux"
+    ],
     "doi": "10.1016/j.jeconom.2007.05.001",
     "response_sha256": "229cfc6a9d6ad746afab6951af628827cb4c9a5fdd0f81df23eec5c7839db3ac",
     "titles": [
       "Regression discontinuity designs: A guide to practice"
     ],
-    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2007.05.001"
+    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2007.05.001",
+    "year": 2008
   },
   "10.1016/j.jeconom.2009.09.023": {
+    "authors": [
+      "Matias D. Cattaneo"
+    ],
     "doi": "10.1016/j.jeconom.2009.09.023",
     "response_sha256": "db5cbef0f33528a728f5dc5306e7f9c2cd92f60ac147e418c2e15746479fdc0b",
     "titles": [
       "Efficient semiparametric estimation of multi-valued treatment effects under ignorability"
     ],
-    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2009.09.023"
+    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2009.09.023",
+    "year": 2010
   },
   "10.1016/j.jeconom.2020.06.003": {
+    "authors": [
+      "Pedro H.C. Sant\u2019Anna",
+      "Jun Zhao"
+    ],
     "doi": "10.1016/j.jeconom.2020.06.003",
     "response_sha256": "c594e298eb12137e5ba4e2cdf6dab5cfffbfa0103eb32ced2934486925f09e5b",
     "titles": [
       "Doubly robust difference-in-differences estimators"
     ],
-    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2020.06.003"
+    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2020.06.003",
+    "year": 2020
   },
   "10.1016/j.jeconom.2020.12.001": {
+    "authors": [
+      "Brantly Callaway",
+      "Pedro H.C. Sant\u2019Anna"
+    ],
     "doi": "10.1016/j.jeconom.2020.12.001",
     "response_sha256": "fe14e764d0a8787c2269718f490c7309b00a0451ae46361d5d096730f694611e",
     "titles": [
       "Difference-in-Differences with multiple time periods"
     ],
-    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2020.12.001"
+    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2020.12.001",
+    "year": 2021
   },
   "10.1016/s0004-3702(98)00023-x": {
+    "authors": [
+      "Leslie Pack Kaelbling",
+      "Michael L. Littman",
+      "Anthony R. Cassandra"
+    ],
     "doi": "10.1016/s0004-3702(98)00023-x",
     "response_sha256": "96b4911249a0b7687e06900cf026f35dd6295ac7ce7680cbce4c5230cdbd556a",
     "titles": [
       "Planning and acting in partially observable stochastic domains"
     ],
-    "url": "https://api.crossref.org/works/10.1016/s0004-3702%2898%2900023-x"
+    "url": "https://api.crossref.org/works/10.1016/s0004-3702%2898%2900023-x",
+    "year": 1998
   },
   "10.1017/cbo9780511802256": {
+    "authors": [
+      "A. W. van der Vaart"
+    ],
     "doi": "10.1017/cbo9780511802256",
     "response_sha256": "33b45205e43cf9a4adffd054f7f884dcfac9d46ff54eb6ef80619a6c831dbb38",
     "titles": [
       "Asymptotic Statistics"
     ],
-    "url": "https://api.crossref.org/works/10.1017/cbo9780511802256"
+    "url": "https://api.crossref.org/works/10.1017/cbo9780511802256",
+    "year": 1998
   },
   "10.1017/cbo9780511803161": {
+    "authors": [
+      "Judea Pearl"
+    ],
     "doi": "10.1017/cbo9780511803161",
     "response_sha256": "7ff654ce078f49f18a63af47580703e13ce99177e7c0bd20af18b687ec331871",
     "titles": [
       "Causality"
     ],
-    "url": "https://api.crossref.org/works/10.1017/cbo9780511803161"
+    "url": "https://api.crossref.org/works/10.1017/cbo9780511803161",
+    "year": 2009
   },
   "10.1017/s0305004100019897": {
+    "authors": [
+      "M. S. Bartlett"
+    ],
     "doi": "10.1017/s0305004100019897",
     "response_sha256": "b0d81fd5ee4300ce2c8fd8026fefe17a227120e53d8b02a7ab3435ec8fa57f7e",
     "titles": [
       "Further aspects of the theory of multiple regression"
     ],
-    "url": "https://api.crossref.org/works/10.1017/s0305004100019897"
+    "url": "https://api.crossref.org/works/10.1017/s0305004100019897",
+    "year": 1938
   },
   "10.1017/s0370164600014346": {
+    "authors": [
+      "A. C. Aitken"
+    ],
     "doi": "10.1017/s0370164600014346",
     "response_sha256": "ba91108aac398b15ca88ab946ec5363b923f21054a73f11b8bae5cc52d7d89f2",
     "titles": [
       "IV.\u2014On Least Squares and Linear Combination of Observations"
     ],
-    "url": "https://api.crossref.org/works/10.1017/s0370164600014346"
+    "url": "https://api.crossref.org/works/10.1017/s0370164600014346",
+    "year": 1936
   },
   "10.1023/a:1003162622169": {
+    "authors": [
+      "Jianqing Fan",
+      "Theo Gasser",
+      "Ir\u00e8ne Gijbels",
+      "Michael Brockmann",
+      "Joachim Engel"
+    ],
     "doi": "10.1023/a:1003162622169",
     "response_sha256": "3a0a929870898c2d30ee68b8dd8b59802467be573aa88dfd0a896e996364a270",
     "titles": [
       "Local Polynomial Regression: Optimal Kernels and Asymptotic Minimax Efficiency"
     ],
-    "url": "https://api.crossref.org/works/10.1023/a%3A1003162622169"
+    "url": "https://api.crossref.org/works/10.1023/a%3A1003162622169",
+    "year": 1997
   },
   "10.1023/a:1010933404324": {
+    "authors": [
+      "Leo Breiman"
+    ],
     "doi": "10.1023/a:1010933404324",
     "response_sha256": "034527f2c91b504bd31e57dd1a281778398bf4084962ee53d3373006f28b95ca",
     "titles": [
       "Random Forests"
     ],
-    "url": "https://api.crossref.org/works/10.1023/a%3A1010933404324"
+    "url": "https://api.crossref.org/works/10.1023/a%3A1010933404324",
+    "year": 2001
   },
   "10.1023/a:1020249912095": {
+    "authors": [
+      "Nir Friedman",
+      "Daphne Koller"
+    ],
     "doi": "10.1023/a:1020249912095",
     "response_sha256": "13e94563f1e16d88aab41415cbfae69c7811f193fccd6179caee06a2535eb6b0",
     "titles": [
       "Being Bayesian About Network Structure. A Bayesian Approach to Structure Discovery in Bayesian Networks"
     ],
-    "url": "https://api.crossref.org/works/10.1023/a%3A1020249912095"
+    "url": "https://api.crossref.org/works/10.1023/a%3A1020249912095",
+    "year": 2003
   },
   "10.1037/0022-3514.51.6.1173": {
+    "authors": [
+      "Reuben M. Baron",
+      "David A. Kenny"
+    ],
     "doi": "10.1037/0022-3514.51.6.1173",
     "response_sha256": "1cb3addb4974c43f522b2f7d0793724076a95cfdc258aad13d564cf5695fea2d",
     "titles": [
       "The moderator\u2013mediator variable distinction in social psychological research: Conceptual, strategic, and statistical considerations."
     ],
-    "url": "https://api.crossref.org/works/10.1037/0022-3514.51.6.1173"
+    "url": "https://api.crossref.org/works/10.1037/0022-3514.51.6.1173",
+    "year": 1986
   },
   "10.1049/ip-f-2.1993.0015": {
+    "authors": [
+      "N.J. Gordon",
+      "D.J. Salmond",
+      "A.F.M. Smith"
+    ],
     "doi": "10.1049/ip-f-2.1993.0015",
     "response_sha256": "2d77c084a73fb4d4ca919ccd79e15f19d9c3147fc5077e099f0b911fd32e9c06",
     "titles": [
       "Novel approach to nonlinear/non-Gaussian Bayesian state estimation"
     ],
-    "url": "https://api.crossref.org/works/10.1049/ip-f-2.1993.0015"
+    "url": "https://api.crossref.org/works/10.1049/ip-f-2.1993.0015",
+    "year": 1993
   },
   "10.1063/5.0020538": {
+    "authors": [
+      "Elena Saggioro",
+      "Jana de Wiljes",
+      "Marlene Kretschmer",
+      "Jakob Runge"
+    ],
     "doi": "10.1063/5.0020538",
     "response_sha256": "23be3d7b581728ac6fa09f7d9eeda516eb8ae8875f567812c4ac682b2c85ca04",
     "titles": [
       "Reconstructing regime-dependent causal relationships from observational time series"
     ],
-    "url": "https://api.crossref.org/works/10.1063/5.0020538"
+    "url": "https://api.crossref.org/works/10.1063/5.0020538",
+    "year": 2020
   },
   "10.1073/pnas.2014602118": {
+    "authors": [
+      "Vitor Hadad",
+      "David A. Hirshberg",
+      "Ruohan Zhan",
+      "Stefan Wager",
+      "Susan Athey"
+    ],
     "doi": "10.1073/pnas.2014602118",
     "response_sha256": "4b922dcf3f818ddbac042e948e304944e85d39994af6327caffe2ff8399c94a3",
     "titles": [
       "Confidence intervals for policy evaluation in adaptive experiments"
     ],
-    "url": "https://api.crossref.org/works/10.1073/pnas.2014602118"
+    "url": "https://api.crossref.org/works/10.1073/pnas.2014602118",
+    "year": 2021
   },
   "10.1080/00031305.1992.10475842": {
+    "authors": [
+      "Gary W. Oehlert"
+    ],
     "doi": "10.1080/00031305.1992.10475842",
     "response_sha256": "207f1fc839cbae3012669db8f043546e82a60cc93f8995aa79f885ae72213804",
     "titles": [
       "A Note on the Delta Method"
     ],
-    "url": "https://api.crossref.org/works/10.1080/00031305.1992.10475842"
+    "url": "https://api.crossref.org/works/10.1080/00031305.1992.10475842",
+    "year": 1992
   },
   "10.1080/00401706.1967.10490441": {
+    "authors": [
+      "G. E.P. Box",
+      "W. J. Hill"
+    ],
     "doi": "10.1080/00401706.1967.10490441",
     "response_sha256": "3196c3df6b7b5e58cbb3c0e5f261309e4de65d11d4e85b03108628030d030b2e",
     "titles": [
       "Discrimination Among Mechanistic Models"
     ],
-    "url": "https://api.crossref.org/works/10.1080/00401706.1967.10490441"
+    "url": "https://api.crossref.org/works/10.1080/00401706.1967.10490441",
+    "year": 1967
   },
   "10.1080/00401706.1970.10488634": {
+    "authors": [
+      "Arthur E. Hoerl",
+      "Robert W. Kennard"
+    ],
     "doi": "10.1080/00401706.1970.10488634",
     "response_sha256": "f3679243011985a0ebe60bd06353f0a0a99aea2c1fd3a6ea15f8fd83f9c59433",
     "titles": [
       "Ridge Regression: Biased Estimation for Nonorthogonal Problems"
     ],
-    "url": "https://api.crossref.org/works/10.1080/00401706.1970.10488634"
+    "url": "https://api.crossref.org/works/10.1080/00401706.1970.10488634",
+    "year": 1970
   },
   "10.1080/01621459.1927.10502953": {
+    "authors": [
+      "Edwin B. Wilson"
+    ],
     "doi": "10.1080/01621459.1927.10502953",
     "response_sha256": "c421ed5fa4ed97c9131df5af02c32842a50cbd78fc7165429745ee0465fb215f",
     "titles": [
       "Probable Inference, the Law of Succession, and Statistical Inference"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1927.10502953"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1927.10502953",
+    "year": 1927
   },
   "10.1080/01621459.1949.10483310": {
+    "authors": [
+      "Nicholas Metropolis",
+      "S. Ulam"
+    ],
     "doi": "10.1080/01621459.1949.10483310",
     "response_sha256": "3d417e73e4f67a20847573023127cf7b5a107fcd1b30afa0f6dc004d74a0a9fc",
     "titles": [
       "The Monte Carlo Method"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1949.10483310"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1949.10483310",
+    "year": 1949
   },
   "10.1080/01621459.1952.10483446": {
+    "authors": [
+      "D. G. Horvitz",
+      "D. J. Thompson"
+    ],
     "doi": "10.1080/01621459.1952.10483446",
     "response_sha256": "a4836d95a2dfd1ce7c9907e0dbae26e65261012473fe06567835026fec77adc8",
     "titles": [
       "A Generalization of Sampling Without Replacement from a Finite Universe"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1952.10483446"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1952.10483446",
+    "year": 1952
   },
   "10.1080/01621459.1958.10501452": {
+    "authors": [
+      "E. L. Kaplan",
+      "Paul Meier"
+    ],
     "doi": "10.1080/01621459.1958.10501452",
     "response_sha256": "8675918f8401866c22474675f99e770133fb7112f7469facb5802af3b59cc809",
     "titles": [
       "Nonparametric Estimation from Incomplete Observations"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1958.10501452"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1958.10501452",
+    "year": 1958
   },
   "10.1080/01621459.1978.10480027": {
+    "authors": [
+      "J. S. Maritz",
+      "R. G. Jarrett"
+    ],
     "doi": "10.1080/01621459.1978.10480027",
     "response_sha256": "900a4fc44d0247f56f6bc5c4e8692507273c01fa2bb5b64a426674ff7b04a2a1",
     "titles": [
       "A Note on Estimating the Variance of the Sample Median"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1978.10480027"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1978.10480027",
+    "year": 1978
   },
   "10.1080/01621459.1981.10477633": {
+    "authors": [
+      "J. N. K. Rao",
+      "A. J. Scott"
+    ],
     "doi": "10.1080/01621459.1981.10477633",
     "response_sha256": "b5a23c413b51dbd33bb20f2677d7bd964edcaf21dc0a19c2abea667b011184e6",
     "titles": [
       "The Analysis of Categorical Data from Complex Sample Surveys: Chi-Squared Tests for Goodness of Fit and Independence in Two-Way Tables"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1981.10477633"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1981.10477633",
+    "year": 1981
   },
   "10.1080/01621459.1987.10478410": {
+    "authors": [
+      "Bradley Efron"
+    ],
     "doi": "10.1080/01621459.1987.10478410",
     "response_sha256": "1b850e43754c09dd411a732335c8f20dd6dcf76e9fd05d60b293719f0ddf65f5",
     "titles": [
       "Better Bootstrap Confidence Intervals"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1987.10478410"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1987.10478410",
+    "year": 1987
   },
   "10.1080/01621459.1990.10474947": {
+    "authors": [
+      "Greg C. G. Wei",
+      "Martin A. Tanner"
+    ],
     "doi": "10.1080/01621459.1990.10474947",
     "response_sha256": "c97fa097510f4f5a2a4e467b9640bb686fe23a5475b059210c77a34678d23ce6",
     "titles": [
       "Posterior Computations for Censored Regression Data"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1990.10474947"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1990.10474947",
+    "year": 1990
   },
   "10.1080/01621459.1994.10476469": {
+    "authors": [
+      "Augustine Kong",
+      "Jun S. Liu",
+      "Wing Hung Wong"
+    ],
     "doi": "10.1080/01621459.1994.10476469",
     "response_sha256": "c3bf470086441b74d61a06e4284ad607dbb40947fefa1b7205a62169182f4fd3",
     "titles": [
       "Sequential Imputations and Bayesian Missing Data Problems"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1994.10476469"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1994.10476469",
+    "year": 1994
   },
   "10.1080/01621459.1994.10476818": {
+    "authors": [
+      "James M. Robins",
+      "Andrea Rotnitzky",
+      "Lue Ping Zhao"
+    ],
     "doi": "10.1080/01621459.1994.10476818",
     "response_sha256": "b0ed81ad862f960011545e2886fc6696bffdcc889c3357664f34f1d64e133b3b",
     "titles": [
       "Estimation of Regression Coefficients When Some Regressors are not Always Observed"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1994.10476818"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1994.10476818",
+    "year": 1994
   },
   "10.1080/01621459.1994.10476870": {
+    "authors": [
+      "Dimitris N. Politis",
+      "Joseph P. Romano"
+    ],
     "doi": "10.1080/01621459.1994.10476870",
     "response_sha256": "2bcf163daa693d69bced4616843300dd76336e15fd2b82bd70b2666c8f09282c",
     "titles": [
       "The Stationary Bootstrap"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1994.10476870"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1994.10476870",
+    "year": 1994
   },
   "10.1080/01621459.1995.10476494": {
+    "authors": [
+      "James M. Robins",
+      "Andrea Rotnitzky"
+    ],
     "doi": "10.1080/01621459.1995.10476494",
     "response_sha256": "2fcc8160e1b206318fb7151b7adf0ec50d12c551f30636177c176ee3cf9610ab",
     "titles": [
       "Semiparametric Efficiency in Multivariate Regression Models with Missing Data"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1995.10476494"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1995.10476494",
+    "year": 1995
   },
   "10.1080/01621459.1995.10476572": {
+    "authors": [
+      "Robert E. Kass",
+      "Adrian E. Raftery"
+    ],
     "doi": "10.1080/01621459.1995.10476572",
     "response_sha256": "1fb1fb06765dbbf553eaacb91a86bdf9ebf9e5d55bfb2d49635c08079afe8fc3",
     "titles": [
       "Bayes Factors"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1995.10476572"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1995.10476572",
+    "year": 1995
   },
   "10.1080/01621459.1996.10476902": {
+    "authors": [
+      "Joshua D. Angrist",
+      "Guido W. Imbens",
+      "Donald B. Rubin"
+    ],
     "doi": "10.1080/01621459.1996.10476902",
     "response_sha256": "2c95156487f3bfaad3c32080df652e77ebd514acf433aef46432bbb9d2bd9c19",
     "titles": [
       "Identification of Causal Effects Using Instrumental Variables"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1996.10476902"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1996.10476902",
+    "year": 1996
   },
   "10.1080/01621459.1997.10474074": {
+    "authors": [
+      "Alexander Balke",
+      "Judea Pearl"
+    ],
     "doi": "10.1080/01621459.1997.10474074",
     "response_sha256": "4c0ecb8564fe310e37df92a19ce7830570df9e216756ce669cfa146af1b9cd95",
     "titles": [
       "Bounds on Treatment Effects from Studies with Imperfect Compliance"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.1997.10474074"
+    "url": "https://api.crossref.org/works/10.1080/01621459.1997.10474074",
+    "year": 1997
   },
   "10.1080/01621459.2017.1305274": {
+    "authors": [
+      "Audrey Boruvka",
+      "Daniel Almirall",
+      "Katie Witkiewitz",
+      "Susan A. Murphy"
+    ],
     "doi": "10.1080/01621459.2017.1305274",
     "response_sha256": "6b9bc7aa65fac29cc7ab9c42090b83c7c7e6354f5bb72727718399456cffe8d1",
     "titles": [
       "Assessing Time-Varying Causal Effect Moderation in Mobile Health"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.2017.1305274"
+    "url": "https://api.crossref.org/works/10.1080/01621459.2017.1305274",
+    "year": 2018
   },
   "10.1080/01621459.2017.1319839": {
+    "authors": [
+      "Stefan Wager",
+      "Susan Athey"
+    ],
     "doi": "10.1080/01621459.2017.1319839",
     "response_sha256": "d35dbd0e038d8ce622a167a529db2aa061bf9a13e173cb5bd11ce8e4a4d58094",
     "titles": [
       "Estimation and Inference of Heterogeneous Treatment Effects using Random Forests"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.2017.1319839"
+    "url": "https://api.crossref.org/works/10.1080/01621459.2017.1319839",
+    "year": 2018
   },
   "10.1080/01621459.2021.1955691": {
+    "authors": [
+      "Iv\u00e1n D\u00edaz",
+      "Nicholas Williams",
+      "Katherine L. Hoffman",
+      "Edward J. Schenck"
+    ],
     "doi": "10.1080/01621459.2021.1955691",
     "response_sha256": "5b60a0e39fd0f94129353b101a2ce55dd6531f86b1594d6bbe0591df14408d99",
     "titles": [
       "Nonparametric Causal Effects Based on Longitudinal Modified Treatment Policies"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.2021.1955691"
+    "url": "https://api.crossref.org/works/10.1080/01621459.2021.1955691",
+    "year": 2021
   },
   "10.1080/01621459.2023.2205060": {
+    "authors": [
+      "Ted Westling",
+      "Alex Luedtke",
+      "Peter B. Gilbert",
+      "Marco Carone"
+    ],
     "doi": "10.1080/01621459.2023.2205060",
     "response_sha256": "0dc25cb00f787487aa2a110c1bfc81a1b92b253b97d47a4afb804521dd6a4d01",
     "titles": [
       "Inference for Treatment-Specific Survival Curves Using Machine Learning"
     ],
-    "url": "https://api.crossref.org/works/10.1080/01621459.2023.2205060"
+    "url": "https://api.crossref.org/works/10.1080/01621459.2023.2205060",
+    "year": 2023
   },
   "10.1080/02331888908802205": {
+    "authors": [
+      "Danielle Florens-zmirou"
+    ],
     "doi": "10.1080/02331888908802205",
     "response_sha256": "23ca697b11a3dbc8938de5ee38bf61a6db3006dbf769f2c3b32fc3a97001837d",
     "titles": [
       "Approximate discrete-time schemes for statistics of diffusion processes"
     ],
-    "url": "https://api.crossref.org/works/10.1080/02331888908802205"
+    "url": "https://api.crossref.org/works/10.1080/02331888908802205",
+    "year": 1989
   },
   "10.1080/02664763.2019.1679096": {
+    "authors": [
+      "Chandrakant Lodhi",
+      "Yogesh Mani Tripathi"
+    ],
     "doi": "10.1080/02664763.2019.1679096",
     "response_sha256": "11fdaa329e5146bb96d01ef9f9e4371fdc958b99f611ddf9c192943d94d65060",
     "titles": [
       "Inference on a progressive type I interval-censored truncated normal distribution"
     ],
-    "url": "https://api.crossref.org/works/10.1080/02664763.2019.1679096"
+    "url": "https://api.crossref.org/works/10.1080/02664763.2019.1679096",
+    "year": 2019
   },
   "10.1080/07350015.1995.10524599": {
+    "authors": [
+      "Francis X. Diebold",
+      "Roberto S. Mariano"
+    ],
     "doi": "10.1080/07350015.1995.10524599",
     "response_sha256": "1a1ed5e13217a4c780b6c3b6079591a6c4b393430731a62fd328738541258cf1",
     "titles": [
       "Comparing Predictive Accuracy"
     ],
-    "url": "https://api.crossref.org/works/10.1080/07350015.1995.10524599"
+    "url": "https://api.crossref.org/works/10.1080/07350015.1995.10524599",
+    "year": 1995
   },
   "10.1080/10485259808832748": {
+    "authors": [
+      "Michael H. Neumann",
+      "J\u00f6rg Polzehl"
+    ],
     "doi": "10.1080/10485259808832748",
     "response_sha256": "d0744f17a241d1a5a64853ec804995e945f662e4f0eae24787ceb083b231c1c5",
     "titles": [
       "Simultaneous bootstrap confidence bands in nonparametric regression"
     ],
-    "url": "https://api.crossref.org/works/10.1080/10485259808832748"
+    "url": "https://api.crossref.org/works/10.1080/10485259808832748",
+    "year": 1998
   },
   "10.1090/s0025-5718-1969-0247736-4": {
+    "authors": [
+      "W. J. Cody"
+    ],
     "doi": "10.1090/s0025-5718-1969-0247736-4",
     "response_sha256": "5ca571fb6fe9abb615936bbcbb9ed61222b8623a0a9eca3d10045a40d9d6c1fd",
     "titles": [
       "Rational Chebyshev approximations for the error function"
     ],
-    "url": "https://api.crossref.org/works/10.1090/s0025-5718-1969-0247736-4"
+    "url": "https://api.crossref.org/works/10.1090/s0025-5718-1969-0247736-4",
+    "year": 1969
   },
   "10.1093/aje/kwq439": {
+    "authors": [
+      "Michele Jonsson Funk",
+      "Daniel Westreich",
+      "Chris Wiesen",
+      "Til St\u00fcrmer",
+      "M. Alan Brookhart",
+      "Marie Davidian"
+    ],
     "doi": "10.1093/aje/kwq439",
     "response_sha256": "29044173710ca30bc6e616ef25046dbfc3721aceeb7e5c0f806f617e49475ad2",
     "titles": [
       "Doubly Robust Estimation of Causal Effects"
     ],
-    "url": "https://api.crossref.org/works/10.1093/aje/kwq439"
+    "url": "https://api.crossref.org/works/10.1093/aje/kwq439",
+    "year": 2011
   },
   "10.1093/biomet/24.3-4.471": {
+    "authors": [
+      "S. S. WILKS"
+    ],
     "doi": "10.1093/biomet/24.3-4.471",
     "response_sha256": "81c8e8915e36912c5456bf6a2a3df3c95b8e45bbf6d6c0e6c373c1b29d874b97",
     "titles": [
       "CERTAIN GENERALIZATIONS IN THE ANALYSIS OF VARIANCE"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/24.3-4.471"
+    "url": "https://api.crossref.org/works/10.1093/biomet/24.3-4.471",
+    "year": 1932
   },
   "10.1093/biomet/25.3-4.285": {
+    "authors": [
+      "W. R THOMPSON"
+    ],
     "doi": "10.1093/biomet/25.3-4.285",
     "response_sha256": "547a70ba27b33cecbbac18b7c901c12dc2608e1dbce448d5bcaa20994715c190",
     "titles": [
       "ON THE LIKELIHOOD THAT ONE UNKNOWN PROBABILITY EXCEEDS ANOTHER IN VIEW OF THE EVIDENCE OF TWO SAMPLES"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/25.3-4.285"
+    "url": "https://api.crossref.org/works/10.1093/biomet/25.3-4.285",
+    "year": 1933
   },
   "10.1093/biomet/28.3-4.321": {
+    "authors": [
+      "H. HOTELLING"
+    ],
     "doi": "10.1093/biomet/28.3-4.321",
     "response_sha256": "f0ef715107fa961d8858893224a1be62794a3eadac1ef8130cfcd9253f63d441",
     "titles": [
       "RELATIONS BETWEEN TWO SETS OF VARIATES"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/28.3-4.321"
+    "url": "https://api.crossref.org/works/10.1093/biomet/28.3-4.321",
+    "year": 1936
   },
   "10.1093/biomet/49.1-2.65": {
+    "authors": [
+      "JAMES E. MOSIMANN"
+    ],
     "doi": "10.1093/biomet/49.1-2.65",
     "response_sha256": "ceaac9dbb7d456212cb03fd4351ee6f5df2d37248a85995917cff69cdd7f9630",
     "titles": [
       "On the compound multinomial distribution, the multivariate \u03b2-distribution, and correlations among proportions"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/49.1-2.65"
+    "url": "https://api.crossref.org/works/10.1093/biomet/49.1-2.65",
+    "year": 1962
   },
   "10.1093/biomet/62.2.441": {
+    "authors": [
+      "D. R. COX"
+    ],
     "doi": "10.1093/biomet/62.2.441",
     "response_sha256": "0ceb6f3a925d1cde79ef4c2d0e66928fd6f3f35c6a910fadd5683c68ab3ed0ed",
     "titles": [
       "A note on data-splitting for the evaluation of significance levels"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/62.2.441"
+    "url": "https://api.crossref.org/works/10.1093/biomet/62.2.441",
+    "year": 1975
   },
   "10.1093/biomet/63.3.581": {
+    "authors": [
+      "DONALD B. RUBIN"
+    ],
     "doi": "10.1093/biomet/63.3.581",
     "response_sha256": "2a209d6319079bf62edff0e34cd00a91ea51150b89a6093cc830a64e4febeba8",
     "titles": [
       "Inference and missing data"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/63.3.581"
+    "url": "https://api.crossref.org/works/10.1093/biomet/63.3.581",
+    "year": 1976
   },
   "10.1093/biomet/64.2.191": {
+    "authors": [
+      "S. J. POCOCK"
+    ],
     "doi": "10.1093/biomet/64.2.191",
     "response_sha256": "a8eb8e4c4a45d4e32ffb72a35b000ea42266297fe9233c16a858ee17bf97166b",
     "titles": [
       "Group sequential methods in the design and analysis of clinical trials"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/64.2.191"
+    "url": "https://api.crossref.org/works/10.1093/biomet/64.2.191",
+    "year": 1977
   },
   "10.1093/biomet/65.2.297": {
+    "authors": [
+      "G. M. LJUNG",
+      "G. E. P. BOX"
+    ],
     "doi": "10.1093/biomet/65.2.297",
     "response_sha256": "f05be69c4d50a23676f4eea70699b9d2d2b9623871e9eec00aa18c630f5b38b0",
     "titles": [
       "On a measure of lack of fit in time series models"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/65.2.297"
+    "url": "https://api.crossref.org/works/10.1093/biomet/65.2.297",
+    "year": 1978
   },
   "10.1093/biomet/70.3.659": {
+    "authors": [
+      "K. K. GORDON LAN",
+      "DAVID L. DEMETS"
+    ],
     "doi": "10.1093/biomet/70.3.659",
     "response_sha256": "a6eb9b6ebb01c0283a96d30881a3178d731746d4ef9e779e723fe8263f9ee65e",
     "titles": [
       "Discrete sequential boundaries for clinical trials"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/70.3.659"
+    "url": "https://api.crossref.org/works/10.1093/biomet/70.3.659",
+    "year": 1983
   },
   "10.1093/biomet/74.4.883": {
+    "authors": [
+      "WEI-YANN TSAI",
+      "NICHOLAS P. JEWELL",
+      "MEI-CHENG WANG"
+    ],
     "doi": "10.1093/biomet/74.4.883",
     "response_sha256": "8898c0a242baa750497deaff963aacd489d680ae1aac6e408a4ba5f08e4e3d20",
     "titles": [
       "A note on the product-limit estimator under right censoring and left truncation"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/74.4.883"
+    "url": "https://api.crossref.org/works/10.1093/biomet/74.4.883",
+    "year": 1987
   },
   "10.1093/biomet/82.4.669": {
+    "authors": [
+      "JUDEA PEARL"
+    ],
     "doi": "10.1093/biomet/82.4.669",
     "response_sha256": "6a01ccab675dc2719c4a41f8cfeedc9b73ef16432b5287c7543fd466912a0796",
     "titles": [
       "Causal diagrams for empirical research"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/82.4.669"
+    "url": "https://api.crossref.org/works/10.1093/biomet/82.4.669",
+    "year": 1995
   },
   "10.1093/biomet/87.3.706": {
+    "authors": [
+      "G. Imbens"
+    ],
     "doi": "10.1093/biomet/87.3.706",
     "response_sha256": "bbfca3a2ba77782721479d07b036a2d789891051e4d5f2b8aa56098f25f0175e",
     "titles": [
       "The role of the propensity score in estimating dose-response functions"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/87.3.706"
+    "url": "https://api.crossref.org/works/10.1093/biomet/87.3.706",
+    "year": 2000
   },
   "10.1093/biomet/asag012": {
+    "authors": [
+      "Oliver J Hines",
+      "Karla Diaz-Ordaz",
+      "Stijn Vansteelandt"
+    ],
     "doi": "10.1093/biomet/asag012",
     "response_sha256": "dc0b57b83b53b81fc13a81ee9157b71a047506ca3a0baf5f30761f543aaab757",
     "titles": [
       "Parameterizing the effect of a continuous treatment using average derivative effects"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/asag012"
+    "url": "https://api.crossref.org/works/10.1093/biomet/asag012",
+    "year": 2026
   },
   "10.1093/biomet/asn055": {
+    "authors": [
+      "R. K. Crump",
+      "V. J. Hotz",
+      "G. W. Imbens",
+      "O. A. Mitnik"
+    ],
     "doi": "10.1093/biomet/asn055",
     "response_sha256": "295be5e6ee6c5fcd9477138683f84cda9c7d6aeb8fee6e158392a88cc8c6f495",
     "titles": [
       "Dealing with limited overlap in estimation of average treatment effects"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biomet/asn055"
+    "url": "https://api.crossref.org/works/10.1093/biomet/asn055",
+    "year": 2009
   },
   "10.1093/biostatistics/1.1.49": {
+    "authors": [
+      "M. Buyse",
+      "G. Molenberghs",
+      "T. Burzykowski",
+      "D. Renard",
+      "H. Geys"
+    ],
     "doi": "10.1093/biostatistics/1.1.49",
     "response_sha256": "abee8c684fa06bcf1873ab925703cc1b4da1b814ad832d29254dbdbf6afd51d7",
     "titles": [
       "The validation of surrogate endpoints in meta-analyses of\n  randomized experiments"
     ],
-    "url": "https://api.crossref.org/works/10.1093/biostatistics/1.1.49"
+    "url": "https://api.crossref.org/works/10.1093/biostatistics/1.1.49",
+    "year": 2000
   },
   "10.1093/ije/dyp192": {
+    "authors": [
+      "Sarah L Taubman",
+      "James M Robins",
+      "Murray A Mittleman",
+      "Miguel A Hern\u00e1n"
+    ],
     "doi": "10.1093/ije/dyp192",
     "response_sha256": "7a72db5ce67956dc6c27d919707a0ad9a3f61b4ddb90bf0b32c6abd1ed6a898b",
     "titles": [
       "Intervening on risk factors for coronary heart disease: an application of the parametric g-formula"
     ],
-    "url": "https://api.crossref.org/works/10.1093/ije/dyp192"
+    "url": "https://api.crossref.org/works/10.1093/ije/dyp192",
+    "year": 2009
   },
   "10.1093/jrsssb/qkad009": {
+    "authors": [
+      "Ian Waudby-Smith",
+      "Aaditya Ramdas"
+    ],
     "doi": "10.1093/jrsssb/qkad009",
     "response_sha256": "ea7d8f9eeda46e5d4d2529af088914050918ea703664c2ba29df6b6f37c49c6c",
     "titles": [
       "Estimating means of bounded random variables by betting"
     ],
-    "url": "https://api.crossref.org/works/10.1093/jrsssb/qkad009"
+    "url": "https://api.crossref.org/works/10.1093/jrsssb/qkad009",
+    "year": 2023
   },
   "10.1093/oxfordjournals.aje.a112510": {
+    "authors": [
+      "WALTER J. ROGAN",
+      "BETH GLADEN"
+    ],
     "doi": "10.1093/oxfordjournals.aje.a112510",
     "response_sha256": "f351e8ab476ce2ee781a9bfb82fa5170e00c0ae8e23000b581defab8261fd2a3",
     "titles": [
       "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST"
     ],
-    "url": "https://api.crossref.org/works/10.1093/oxfordjournals.aje.a112510"
+    "url": "https://api.crossref.org/works/10.1093/oxfordjournals.aje.a112510",
+    "year": 1978
   },
   "10.1097/00001648-200009000-00011": {
+    "authors": [
+      "James M. Robins",
+      "Miguel \u00c1ngel Hern\u00e1n",
+      "Babette Brumback"
+    ],
     "doi": "10.1097/00001648-200009000-00011",
     "response_sha256": "0efdb9a68de90eade245f0424f266d13f9c31b85011fecc34b20209f7aefee4d",
     "titles": [
       "Marginal Structural Models and Causal Inference in Epidemiology"
     ],
-    "url": "https://api.crossref.org/works/10.1097/00001648-200009000-00011"
+    "url": "https://api.crossref.org/works/10.1097/00001648-200009000-00011",
+    "year": 2000
   },
   "10.1111/1467-9469.00059": {
+    "authors": [
+      "Mathieu Kessler"
+    ],
     "doi": "10.1111/1467-9469.00059",
     "response_sha256": "93536bb069165d57f9f5989f0206ee713aa4a02ae65ea336d01753ea189da763",
     "titles": [
       "Estimation of an Ergodic Diffusion from Discrete Observations"
     ],
-    "url": "https://api.crossref.org/works/10.1111/1467-9469.00059"
+    "url": "https://api.crossref.org/works/10.1111/1467-9469.00059",
+    "year": 1997
   },
   "10.1111/1467-9469.00323": {
+    "authors": [
+      "THOMAS RICHARDSON"
+    ],
     "doi": "10.1111/1467-9469.00323",
     "response_sha256": "c114a6652032f04fdde6e433db189bae2b6555fcc9799df15e23328f2f9fedba",
     "titles": [
       "Markov Properties for Acyclic Directed Mixed Graphs"
     ],
-    "url": "https://api.crossref.org/works/10.1111/1467-9469.00323"
+    "url": "https://api.crossref.org/works/10.1111/1467-9469.00323",
+    "year": 2003
   },
   "10.1111/1468-0262.00183": {
+    "authors": [
+      "Jinyong Hahn",
+      "Petra Todd",
+      "Wilbert Klaauw"
+    ],
     "doi": "10.1111/1468-0262.00183",
     "response_sha256": "44f16c0aa0aebe2f0e4189bdc8b217b910eb39cabb5eac07575766f144f4e743",
     "titles": [
       "Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design"
     ],
-    "url": "https://api.crossref.org/works/10.1111/1468-0262.00183"
+    "url": "https://api.crossref.org/works/10.1111/1468-0262.00183",
+    "year": 2001
   },
   "10.1111/1468-0262.00442": {
+    "authors": [
+      "Keisuke Hirano",
+      "Guido W. Imbens",
+      "Geert Ridder"
+    ],
     "doi": "10.1111/1468-0262.00442",
     "response_sha256": "6d55ccd566cd35540fe4f25055b25736983c5487ceb38427147c59f5c49b056f",
     "titles": [
       "Efficient Estimation of Average Treatment Effects Using the Estimated Propensity Score"
     ],
-    "url": "https://api.crossref.org/works/10.1111/1468-0262.00442"
+    "url": "https://api.crossref.org/works/10.1111/1468-0262.00442",
+    "year": 2003
   },
   "10.1111/ectj.12097": {
+    "authors": [
+      "Victor Chernozhukov",
+      "Denis Chetverikov",
+      "Mert Demirer",
+      "Esther Duflo",
+      "Christian Hansen",
+      "Whitney Newey",
+      "James Robins"
+    ],
     "doi": "10.1111/ectj.12097",
     "response_sha256": "37205d08a2e12626f3c72d6fbce52e6a7985132779cdb14aef127d60120bf392",
     "titles": [
       "Double/debiased machine learning for treatment and structural parameters"
     ],
-    "url": "https://api.crossref.org/works/10.1111/ectj.12097"
+    "url": "https://api.crossref.org/works/10.1111/ectj.12097",
+    "year": 2018
   },
   "10.1111/j.1467-985x.2010.00673.x": {
+    "authors": [
+      "Elizabeth A. Stuart",
+      "Stephen R. Cole",
+      "Catherine P. Bradshaw",
+      "Philip J. Leaf"
+    ],
     "doi": "10.1111/j.1467-985x.2010.00673.x",
     "response_sha256": "149b71642fda3b8be10a52252a9d4e14b999e2d3e3d1e56427ceded9632a3760",
     "titles": [
       "The Use of Propensity Scores to Assess the Generalizability of Results from Randomized Trials"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1467-985x.2010.00673.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1467-985x.2010.00673.x",
+    "year": 2010
   },
   "10.1111/j.1467-9868.2007.00587.x": {
+    "authors": [
+      "Tilmann Gneiting",
+      "Fadoua Balabdaoui",
+      "Adrian E. Raftery"
+    ],
     "doi": "10.1111/j.1467-9868.2007.00587.x",
     "response_sha256": "f41de8b407df3c7fb10883fd611630956ddc8a6fc1d9c1c2181fc8fee10cbed0",
     "titles": [
       "Probabilistic Forecasts, Calibration and Sharpness"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1467-9868.2007.00587.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1467-9868.2007.00587.x",
+    "year": 2007
   },
   "10.1111/j.1468-0084.1987.mp49004006.x": {
+    "authors": [
+      "M. Arellano"
+    ],
     "doi": "10.1111/j.1468-0084.1987.mp49004006.x",
     "response_sha256": "8e2be05b85b3ca1a3ec6c90907669a4e75b84e672f46e64dc3f1c65d271478e3",
     "titles": [
       "PRACTITIONERS\u2019 CORNER: Computing Robust Standard Errors for Within\u2010groups Estimators\n                    <sup>*</sup>"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1468-0084.1987.mp49004006.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1468-0084.1987.mp49004006.x",
+    "year": 1987
   },
   "10.1111/j.1468-0262.2004.00555.x": {
+    "authors": [
+      "Guido W. Imbens",
+      "Charles F. Manski"
+    ],
     "doi": "10.1111/j.1468-0262.2004.00555.x",
     "response_sha256": "a75c5a9318105eab67c2329a904f4da0630215489e22fe52c3e928e85daf93e5",
     "titles": [
       "Confidence Intervals for Partially Identified Parameters"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1468-0262.2004.00555.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1468-0262.2004.00555.x",
+    "year": 2004
   },
   "10.1111/j.1468-0262.2006.00655.x": {
+    "authors": [
+      "Alberto Abadie",
+      "Guido W. Imbens"
+    ],
     "doi": "10.1111/j.1468-0262.2006.00655.x",
     "response_sha256": "31e7c763988f8143b4b0c6b7e5b8d1b090f204b1d81f27be2b5b7ac58efc5cd7",
     "titles": [
       "Large Sample Properties of Matching Estimators for Average Treatment Effects"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1468-0262.2006.00655.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1468-0262.2006.00655.x",
+    "year": 2006
   },
   "10.1111/j.1468-0262.2007.00738.x": {
+    "authors": [
+      "Sergio Firpo"
+    ],
     "doi": "10.1111/j.1468-0262.2007.00738.x",
     "response_sha256": "140b9308520ac96598119b9845e6fa2ac864bf4cf13c00ab877c3cb80e2b7843",
     "titles": [
       "Efficient Semiparametric Estimation of Quantile Treatment Effects"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1468-0262.2007.00738.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1468-0262.2007.00738.x",
+    "year": 2007
   },
   "10.1111/j.1541-0420.2005.00377.x": {
+    "authors": [
+      "Heejung Bang",
+      "James M. Robins"
+    ],
     "doi": "10.1111/j.1541-0420.2005.00377.x",
     "response_sha256": "e09db6882979f5c6d7486a72480d32bb80cd3bd401b0cff0f5bc5d09a0a03d02",
     "titles": [
       "Doubly Robust Estimation in Missing Data and Causal Inference Models"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2005.00377.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2005.00377.x",
+    "year": 2005
   },
   "10.1111/j.1541-0420.2007.00888.x": {
+    "authors": [
+      "Satoshi Morita",
+      "Peter F. Thall",
+      "Peter M\u00fcller"
+    ],
     "doi": "10.1111/j.1541-0420.2007.00888.x",
     "response_sha256": "cafb9e2388b2d5fc61a3e19440d52407d8f94e1024b1ae62312a64b4974ad0b0",
     "titles": [
       "Determining the Effective Sample Size of a Parametric Prior"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2007.00888.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2007.00888.x",
+    "year": 2008
   },
   "10.1111/j.1541-0420.2009.01191.x": {
+    "authors": [
+      "Claudia Czado",
+      "Tilmann Gneiting",
+      "Leonhard Held"
+    ],
     "doi": "10.1111/j.1541-0420.2009.01191.x",
     "response_sha256": "0d36bd12312908671a59bc6517b4f718f34327faec9eb17ba1c8258c9e14b45a",
     "titles": [
       "Predictive Model Assessment for Count Data"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2009.01191.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2009.01191.x",
+    "year": 2009
   },
   "10.1111/j.1541-0420.2011.01685.x": {
+    "authors": [
+      "Iv\u00e1n D\u00edaz Mu\u00f1oz",
+      "Mark van der Laan"
+    ],
     "doi": "10.1111/j.1541-0420.2011.01685.x",
     "response_sha256": "1a83b47f42a5a7bda27c049c2d1a662ef14e14af4e9484bef2d5320ab5cfb5a1",
     "titles": [
       "Population Intervention Causal Effects Based on Stochastic Interventions"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2011.01685.x"
+    "url": "https://api.crossref.org/works/10.1111/j.1541-0420.2011.01685.x",
+    "year": 2011
   },
   "10.1111/j.2517-6161.1954.tb00159.x": {
+    "authors": [
+      "E. C. Fieller"
+    ],
     "doi": "10.1111/j.2517-6161.1954.tb00159.x",
     "response_sha256": "8cadc7d9891f779347a91c52d5e41bd04342fae85e7c69a7766e5115e285a668",
     "titles": [
       "Some Problems in Interval Estimation"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1954.tb00159.x"
+    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1954.tb00159.x",
+    "year": 1954
   },
   "10.1111/j.2517-6161.1972.tb00899.x": {
+    "authors": [
+      "D. R. Cox"
+    ],
     "doi": "10.1111/j.2517-6161.1972.tb00899.x",
     "response_sha256": "0d06d19dd6fd582e569343cbc7e891feded0a69460a9e136e781a13ea08028bd",
     "titles": [
       "Regression Models and Life-Tables"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1972.tb00899.x"
+    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1972.tb00899.x",
+    "year": 1972
   },
   "10.1111/j.2517-6161.1995.tb02031.x": {
+    "authors": [
+      "Yoav Benjamini",
+      "Yosef Hochberg"
+    ],
     "doi": "10.1111/j.2517-6161.1995.tb02031.x",
     "response_sha256": "fad797e933b030fe2f22b9c0ca03f3a7d9a83f8696b6d1c8d754195a5b481280",
     "titles": [
       "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1995.tb02031.x"
+    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1995.tb02031.x",
+    "year": 1995
   },
   "10.1111/j.2517-6161.1996.tb02080.x": {
+    "authors": [
+      "Robert Tibshirani"
+    ],
     "doi": "10.1111/j.2517-6161.1996.tb02080.x",
     "response_sha256": "d05ee378c06adb698ed9752d951b23807c35701c65e6c99b983473457b7475ae",
     "titles": [
       "Regression Shrinkage and Selection Via the Lasso"
     ],
-    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1996.tb02080.x"
+    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1996.tb02080.x",
+    "year": 1996
   },
   "10.1111/rssb.12212": {
+    "authors": [
+      "Edward H. Kennedy",
+      "Zongming Ma",
+      "Matthew D. McHugh",
+      "Dylan S. Small"
+    ],
     "doi": "10.1111/rssb.12212",
     "response_sha256": "dd945b45f6d274a4b2512dc016cee7b7f818e56f81d325a60153c36c3288b22a",
     "titles": [
       "Non-parametric Methods for Doubly Robust Estimation of Continuous Treatment Effects"
     ],
-    "url": "https://api.crossref.org/works/10.1111/rssb.12212"
+    "url": "https://api.crossref.org/works/10.1111/rssb.12212",
+    "year": 2016
   },
   "10.1111/rssb.12348": {
+    "authors": [
+      "Carlos Cinelli",
+      "Chad Hazlett"
+    ],
     "doi": "10.1111/rssb.12348",
     "response_sha256": "a34cd90936d43bb3c878b9abceb7e010de861f583ef189bd3f002ed8b019c148",
     "titles": [
       "Making Sense of Sensitivity: Extending Omitted Variable Bias"
     ],
-    "url": "https://api.crossref.org/works/10.1111/rssb.12348"
+    "url": "https://api.crossref.org/works/10.1111/rssb.12348",
+    "year": 2019
   },
   "10.1111/rssb.12451": {
+    "authors": [
+      "Leonard Henckel",
+      "Emilija Perkovi\u0107",
+      "Marloes H. Maathuis"
+    ],
     "doi": "10.1111/rssb.12451",
     "response_sha256": "8420b7ee390f13bb8e85e2ea95c0a380270e55902bcfb23e83cf7c5c2e5d9eda",
     "titles": [
       "Graphical Criteria for Efficient Total Effect Estimation Via Adjustment in Causal Linear Models"
     ],
-    "url": "https://api.crossref.org/works/10.1111/rssb.12451"
+    "url": "https://api.crossref.org/works/10.1111/rssb.12451",
+    "year": 2022
   },
   "10.1115/1.3662552": {
+    "authors": [
+      "R. E. Kalman"
+    ],
     "doi": "10.1115/1.3662552",
     "response_sha256": "b888e0615884cd16bb9ef8b2d6de8dc9c90b374b1adb24c63a48737f7f53ebbe",
     "titles": [
       "A New Approach to Linear Filtering and Prediction Problems"
     ],
-    "url": "https://api.crossref.org/works/10.1115/1.3662552"
+    "url": "https://api.crossref.org/works/10.1115/1.3662552",
+    "year": 1960
   },
   "10.1126/sciadv.aau4996": {
+    "authors": [
+      "Jakob Runge",
+      "Peer Nowack",
+      "Marlene Kretschmer",
+      "Seth Flaxman",
+      "Dino Sejdinovic"
+    ],
     "doi": "10.1126/sciadv.aau4996",
     "response_sha256": "3de48573f683be69f601dcc66c384fcaec9e58a8ec66a02a06b3b692c0d7e042",
     "titles": [
       "Detecting and quantifying causal associations in large nonlinear time series datasets"
     ],
-    "url": "https://api.crossref.org/works/10.1126/sciadv.aau4996"
+    "url": "https://api.crossref.org/works/10.1126/sciadv.aau4996",
+    "year": 2019
   },
   "10.1137/1109020": {
+    "authors": [
+      "E. A. Nadaraya"
+    ],
     "doi": "10.1137/1109020",
     "response_sha256": "0eca425a37fe7b884aeef927cdd4ef15d6a5b4caa9880faeeb214ba8395dca8e",
     "titles": [
       "On Estimating Regression"
     ],
-    "url": "https://api.crossref.org/works/10.1137/1109020"
+    "url": "https://api.crossref.org/works/10.1137/1109020",
+    "year": 1964
   },
   "10.1137/1119062": {
+    "authors": [
+      "G. N. Mil\u2019shtejn"
+    ],
     "doi": "10.1137/1119062",
     "response_sha256": "cece1e23e71a20df67fc700f9360e8afd4065714a957b4c958c6384a060ce507",
     "titles": [
       "Approximate Integration of Stochastic Differential Equations"
     ],
-    "url": "https://api.crossref.org/works/10.1137/1119062"
+    "url": "https://api.crossref.org/works/10.1137/1119062",
+    "year": 1975
   },
   "10.1137/1126086": {
+    "authors": [
+      "G. D. Makarov"
+    ],
     "doi": "10.1137/1126086",
     "response_sha256": "e03a3680c1dab4abb4a4e0f375a1e1b46ee8f6c7510cd46c04bb606c8813958a",
     "titles": [
       "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed"
     ],
-    "url": "https://api.crossref.org/works/10.1137/1126086"
+    "url": "https://api.crossref.org/works/10.1137/1126086",
+    "year": 1982
   },
   "10.1145/2433396.2433413": {
+    "authors": [
+      "Alex Deng",
+      "Ya Xu",
+      "Ron Kohavi",
+      "Toby Walker"
+    ],
     "doi": "10.1145/2433396.2433413",
     "response_sha256": "bc84b6ba237320dbcc40c18f00cceda2372c43b11911ba226c647ac6055ca3b4",
     "titles": [
       "Improving the sensitivity of online controlled experiments by utilizing pre-experiment data"
     ],
-    "url": "https://api.crossref.org/works/10.1145/2433396.2433413"
+    "url": "https://api.crossref.org/works/10.1145/2433396.2433413",
+    "year": 2013
   },
   "10.1145/2660193.2660195": {
+    "authors": [
+      "Guy L. Steele",
+      "Doug Lea",
+      "Christine H. Flood"
+    ],
     "doi": "10.1145/2660193.2660195",
     "response_sha256": "72866c88555079bfaf97bdd1d185eaf52e2fab1bd5142c7882bb6b69045a14d5",
     "titles": [
       "Fast splittable pseudorandom number generators"
     ],
-    "url": "https://api.crossref.org/works/10.1145/2660193.2660195"
+    "url": "https://api.crossref.org/works/10.1145/2660193.2660195",
+    "year": 2014
   },
   "10.1145/3501714.3501732": {
+    "authors": [
+      "TS Verma",
+      "Judea Pearl"
+    ],
     "doi": "10.1145/3501714.3501732",
     "response_sha256": "33d26a2525e9231c5c7ad4d58730ba1688a3ab8b80a8322273a34dd9e67802d8",
     "titles": [
       "Equivalence and Synthesis of Causal Models"
     ],
-    "url": "https://api.crossref.org/works/10.1145/3501714.3501732"
+    "url": "https://api.crossref.org/works/10.1145/3501714.3501732",
+    "year": 2022
   },
   "10.1145/364520.364540": {
+    "authors": [
+      "Richard Durstenfeld"
+    ],
     "doi": "10.1145/364520.364540",
     "response_sha256": "80a0a5bc2c690c9770574823743a838e0fbf5a2ff74fe8a8a647f0f24d2a96bf",
     "titles": [
       "Algorithm 235: Random permutation"
     ],
-    "url": "https://api.crossref.org/works/10.1145/364520.364540"
+    "url": "https://api.crossref.org/works/10.1145/364520.364540",
+    "year": 1964
   },
   "10.1145/368996.369025": {
+    "authors": [
+      "A. B. Kahn"
+    ],
     "doi": "10.1145/368996.369025",
     "response_sha256": "c4c482e848db5826c16ae81dc77b9a5bd38d38850df16538a554ad74b7cdad40",
     "titles": [
       "Topological sorting of large networks"
     ],
-    "url": "https://api.crossref.org/works/10.1145/368996.369025"
+    "url": "https://api.crossref.org/works/10.1145/368996.369025",
+    "year": 1962
   },
   "10.1162/rest_a_00552": {
+    "authors": [
+      "Guido W. Imbens",
+      "Michal Koles\u00e1r"
+    ],
     "doi": "10.1162/rest_a_00552",
     "response_sha256": "9f59128b8ffd58ddb2ed15e9564b27df07782b64ab517d7c4b82c5e9a029bd67",
     "titles": [
       "Robust Standard Errors in Small Samples: Some Practical Advice"
     ],
-    "url": "https://api.crossref.org/works/10.1162/rest_a_00552"
+    "url": "https://api.crossref.org/works/10.1162/rest_a_00552",
+    "year": 2016
   },
   "10.1175/1520-0493(1950)078<0001:vofeit>2.0.co;2": {
+    "authors": [
+      "GLENN W. BRIER"
+    ],
     "doi": "10.1175/1520-0493(1950)078<0001:vofeit>2.0.co;2",
     "response_sha256": "7244d4a25dec761305db981a8eabcf7a648b02723532fce813c49d46ac906932",
     "titles": [
       "VERIFICATION OF FORECASTS EXPRESSED IN TERMS OF PROBABILITY"
     ],
-    "url": "https://api.crossref.org/works/10.1175/1520-0493%281950%29078%3C0001%3Avofeit%3E2.0.co%3B2"
+    "url": "https://api.crossref.org/works/10.1175/1520-0493%281950%29078%3C0001%3Avofeit%3E2.0.co%3B2",
+    "year": 1950
   },
   "10.1177/0272989x04263162": {
+    "authors": [
+      "A. E. Ades",
+      "G. Lu",
+      "K. Claxton"
+    ],
     "doi": "10.1177/0272989x04263162",
     "response_sha256": "91ec38755b0b18f69a16e26afc3ba0ab478cd97bc65be61675fd6eec6901ead9",
     "titles": [
       "Expected Value of Sample Information Calculations in Medical Decision Modeling"
     ],
-    "url": "https://api.crossref.org/works/10.1177/0272989x04263162"
+    "url": "https://api.crossref.org/works/10.1177/0272989x04263162",
+    "year": 2004
   },
   "10.1177/089443939100900106": {
+    "authors": [
+      "Peter Spirtes",
+      "Clark Glymour"
+    ],
     "doi": "10.1177/089443939100900106",
     "response_sha256": "a2685a3bb4036c0e4a3bac3708936a40e3fe3f933da4ab412f7b45240cd53a39",
     "titles": [
       "An Algorithm for Fast Recovery of Sparse Causal Graphs"
     ],
-    "url": "https://api.crossref.org/works/10.1177/089443939100900106"
+    "url": "https://api.crossref.org/works/10.1177/089443939100900106",
+    "year": 1991
   },
   "10.1177/0962280210395740": {
+    "authors": [
+      "Shaun R Seaman",
+      "Ian R White"
+    ],
     "doi": "10.1177/0962280210395740",
     "response_sha256": "9b59f260dc734ca3f96a688316dab79c362072bf1004920f3e739f636125dd82",
     "titles": [
       "Review of inverse probability weighting for dealing with missing data"
     ],
-    "url": "https://api.crossref.org/works/10.1177/0962280210395740"
+    "url": "https://api.crossref.org/works/10.1177/0962280210395740",
+    "year": 2011
   },
   "10.1186/s12874-020-01032-9": {
+    "authors": [
+      "Justin R. Williams",
+      "Hyung-Woo Kim",
+      "Catherine M. Crespi"
+    ],
     "doi": "10.1186/s12874-020-01032-9",
     "response_sha256": "68b8d2657c844b49597108508f44240bde7f1be58d33401ab15740e807078422",
     "titles": [
       "Modeling observations with a detection limit using a truncated normal distribution with censoring"
     ],
-    "url": "https://api.crossref.org/works/10.1186/s12874-020-01032-9"
+    "url": "https://api.crossref.org/works/10.1186/s12874-020-01032-9",
+    "year": 2020
   },
   "10.1198/000313001317098185": {
+    "authors": [
+      "Glen A Satten",
+      "Somnath Datta"
+    ],
     "doi": "10.1198/000313001317098185",
     "response_sha256": "95aef3cd5d3f02edab4c8be418fc9e0d134c7443b3d640c820475205c513a034",
     "titles": [
       "The Kaplan\u2013Meier Estimator as an Inverse-Probability-of-Censoring Weighted Average"
     ],
-    "url": "https://api.crossref.org/works/10.1198/000313001317098185"
+    "url": "https://api.crossref.org/works/10.1198/000313001317098185",
+    "year": 2001
   },
   "10.1198/016214501753382327": {
+    "authors": [
+      "S A Murphy",
+      "M J van der Laan",
+      "J M Robins",
+      "Conduct Problems Prevention Research Group"
+    ],
     "doi": "10.1198/016214501753382327",
     "response_sha256": "443ca03a052435d502ecced1ac7f8a52af2c6e90fcef0909cf6f787fe2fc792b",
     "titles": [
       "Marginal Mean Models for Dynamic Regimes"
     ],
-    "url": "https://api.crossref.org/works/10.1198/016214501753382327"
+    "url": "https://api.crossref.org/works/10.1198/016214501753382327",
+    "year": 2001
   },
   "10.1198/016214506000000492": {
+    "authors": [
+      "Galin L Jones",
+      "Murali Haran",
+      "Brian S Caffo",
+      "Ronald Neath"
+    ],
     "doi": "10.1198/016214506000000492",
     "response_sha256": "06b3ed8ac02819b2566e0537979d30b4d101d213ebad4d1d05633b03b89d3b7d",
     "titles": [
       "Fixed-Width Output Analysis for Markov Chain Monte Carlo"
     ],
-    "url": "https://api.crossref.org/works/10.1198/016214506000000492"
+    "url": "https://api.crossref.org/works/10.1198/016214506000000492",
+    "year": 2006
   },
   "10.1198/016214506000001437": {
+    "authors": [
+      "Tilmann Gneiting",
+      "Adrian E Raftery"
+    ],
     "doi": "10.1198/016214506000001437",
     "response_sha256": "9531fc4ae65c2fef9fb301ecf64ea5761230917c71d8cb76793ff22b134234a0",
     "titles": [
       "Strictly Proper Scoring Rules, Prediction, and Estimation"
     ],
-    "url": "https://api.crossref.org/works/10.1198/016214506000001437"
+    "url": "https://api.crossref.org/works/10.1198/016214506000001437",
+    "year": 2007
   },
   "10.1198/016214508000000292": {
+    "authors": [
+      "Michael G Hudgens",
+      "M. Elizabeth Halloran"
+    ],
     "doi": "10.1198/016214508000000292",
     "response_sha256": "6dc9c8f7ce5ea99de224335fba5babd0b74389edde320e3c29500778894f120e",
     "titles": [
       "Toward Causal Inference With Interference"
     ],
-    "url": "https://api.crossref.org/works/10.1198/016214508000000292"
+    "url": "https://api.crossref.org/works/10.1198/016214508000000292",
+    "year": 2008
   },
   "10.1198/jasa.2009.ap08746": {
+    "authors": [
+      "Alberto Abadie",
+      "Alexis Diamond",
+      "Jens Hainmueller"
+    ],
     "doi": "10.1198/jasa.2009.ap08746",
     "response_sha256": "0ceb165ad8fc53afc79b694cce54101e3e3a6149b8b1e0cc5538b9ab129b8b0f",
     "titles": [
       "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California\u2019s Tobacco Control Program"
     ],
-    "url": "https://api.crossref.org/works/10.1198/jasa.2009.ap08746"
+    "url": "https://api.crossref.org/works/10.1198/jasa.2009.ap08746",
+    "year": 2010
   },
   "10.1198/jbes.2009.08046": {
+    "authors": [
+      "Rustam Ibragimov",
+      "Ulrich K. M\u00fcller"
+    ],
     "doi": "10.1198/jbes.2009.08046",
     "response_sha256": "4ea2fcce2702d1a3128c4a44e5aad0d2a8e7401034efe00ee33c6fb8a499e271",
     "titles": [
       "<i>t</i>\n                    -Statistic Based Correlation and Heterogeneity Robust Inference"
     ],
-    "url": "https://api.crossref.org/works/10.1198/jbes.2009.08046"
+    "url": "https://api.crossref.org/works/10.1198/jbes.2009.08046",
+    "year": 2010
   },
   "10.1198/jbes.2010.07136": {
+    "authors": [
+      "A. Colin Cameron",
+      "Jonah B. Gelbach",
+      "Douglas L. Miller"
+    ],
     "doi": "10.1198/jbes.2010.07136",
     "response_sha256": "2d0621803a4183cdf03c7f12e1b9e8f226b1f5c5ff9596bb758783fba181b291",
     "titles": [
       "Robust Inference With Multiway Clustering"
     ],
-    "url": "https://api.crossref.org/works/10.1198/jbes.2010.07136"
+    "url": "https://api.crossref.org/works/10.1198/jbes.2010.07136",
+    "year": 2011
   },
   "10.1201/9780203753736": {
+    "authors": [
+      "P. McCullagh",
+      "J.A. Nelder"
+    ],
     "doi": "10.1201/9780203753736",
     "response_sha256": "009c76817efe97d0dca9ad45a8a858475c10563eaead7555af73099e2671e46a",
     "titles": [
       "Generalized Linear Models"
     ],
-    "url": "https://api.crossref.org/works/10.1201/9780203753736"
+    "url": "https://api.crossref.org/works/10.1201/9780203753736",
+    "year": 2019
   },
   "10.1201/9781315140919": {
+    "authors": [
+      "B.W. Silverman"
+    ],
     "doi": "10.1201/9781315140919",
     "response_sha256": "55cbfae592353e3b57f480ca1d2c63f312580fad505eb25f734505c9223f4115",
     "titles": [
       "Density Estimation for Statistics and Data Analysis"
     ],
-    "url": "https://api.crossref.org/works/10.1201/9781315140919"
+    "url": "https://api.crossref.org/works/10.1201/9781315140919",
+    "year": 2018
   },
   "10.1201/9781420010138": {
+    "authors": [
+      "Raymond J. Carroll",
+      "David Ruppert",
+      "Leonard A. Stefanski",
+      "Ciprian M. Crainiceanu"
+    ],
     "doi": "10.1201/9781420010138",
     "response_sha256": "3d77ff54098d28dff1dfe1d5c2686dad55947d41ead3e0bc58bcc0107a14509d",
     "titles": [
       "Measurement Error in Nonlinear Models"
     ],
-    "url": "https://api.crossref.org/works/10.1201/9781420010138"
+    "url": "https://api.crossref.org/works/10.1201/9781420010138",
+    "year": 2006
   },
   "10.1201/b10905-6": {
+    "authors": [
+      "Radford M. Neal"
+    ],
     "doi": "10.1201/b10905-6",
     "response_sha256": "35acd22806fd4753b3ee3c3ca254c9ee22d5252e82892f4a380664a88cc4b73f",
     "titles": [
       "MCMC Using Hamiltonian Dynamics"
     ],
-    "url": "https://api.crossref.org/works/10.1201/b10905-6"
+    "url": "https://api.crossref.org/works/10.1201/b10905-6",
+    "year": 2011
   },
   "10.1201/b15074": {
+    "authors": [
+      "Jason Hsu"
+    ],
     "doi": "10.1201/b15074",
     "response_sha256": "35c3362c1bd9152d8eba318ada7a341fc7310413d9cdf7c7f560a2bef1feb516",
     "titles": [
       "Multiple Comparisons"
     ],
-    "url": "https://api.crossref.org/works/10.1201/b15074"
+    "url": "https://api.crossref.org/works/10.1201/b15074",
+    "year": 1996
   },
   "10.1201/b16018": {
+    "authors": [
+      "Andrew Gelman",
+      "John B. Carlin",
+      "Hal S. Stern",
+      "David B. Dunson",
+      "Aki Vehtari",
+      "Donald B. Rubin"
+    ],
     "doi": "10.1201/b16018",
     "response_sha256": "51cc2ef2974aaa4d527a75519fb52258ab7809928c9102d510ceb1d9aed635e8",
     "titles": [
       "Bayesian Data Analysis"
     ],
-    "url": "https://api.crossref.org/works/10.1201/b16018"
+    "url": "https://api.crossref.org/works/10.1201/b16018",
+    "year": 2013
   },
   "10.1214/009053607000000505": {
+    "authors": [
+      "G\u00e1bor J. Sz\u00e9kely",
+      "Maria L. Rizzo",
+      "Nail K. Bakirov"
+    ],
     "doi": "10.1214/009053607000000505",
     "response_sha256": "f8d7df21072a4bd982e38fd2ef351623794e4a5fcc882ef94ff60e13e4449831",
     "titles": [
       "Measuring and testing dependence by correlation of distances"
     ],
-    "url": "https://api.crossref.org/works/10.1214/009053607000000505"
+    "url": "https://api.crossref.org/works/10.1214/009053607000000505",
+    "year": 2007
   },
   "10.1214/06-ba117a": {
+    "authors": [
+      "Andrew Gelman"
+    ],
     "doi": "10.1214/06-ba117a",
     "response_sha256": "7c554cb2a0fb887aca282e0b45e154d88362d5ffc5a821f6e7258778bc2941b2",
     "titles": [
       "Prior distributions for variance parameters in hierarchical models (comment on article by Browne and Draper)"
     ],
-    "url": "https://api.crossref.org/works/10.1214/06-ba117a"
+    "url": "https://api.crossref.org/works/10.1214/06-ba117a",
+    "year": 2006
   },
   "10.1214/06-ba129": {
+    "authors": [
+      "Michael Evans",
+      "Hadas Moshonov"
+    ],
     "doi": "10.1214/06-ba129",
     "response_sha256": "9d204e4981e17ada85a2e8be3b5d3c6bd307ace8267e1e97b9622ffb6e6e8438",
     "titles": [
       "Checking for prior-data conflict"
     ],
-    "url": "https://api.crossref.org/works/10.1214/06-ba129"
+    "url": "https://api.crossref.org/works/10.1214/06-ba129",
+    "year": 2006
   },
   "10.1214/08-aos626": {
+    "authors": [
+      "R. Ayesha Ali",
+      "Thomas S. Richardson",
+      "Peter Spirtes"
+    ],
     "doi": "10.1214/08-aos626",
     "response_sha256": "ca33a4a8f1d18531f71592cd28522fc0712013f5b124d12d2ed9c62dcde67587",
     "titles": [
       "Markov equivalence for ancestral graphs"
     ],
-    "url": "https://api.crossref.org/works/10.1214/08-aos626"
+    "url": "https://api.crossref.org/works/10.1214/08-aos626",
+    "year": 2009
   },
   "10.1214/09-aos685": {
+    "authors": [
+      "Marloes H. Maathuis",
+      "Markus Kalisch",
+      "Peter B\u00fchlmann"
+    ],
     "doi": "10.1214/09-aos685",
     "response_sha256": "9e9203fd83dd9fddd3be92a7661f7b039a334d83811bdea1d7a55f5925fdd714",
     "titles": [
       "Estimating high-dimensional intervention effects from observational data"
     ],
-    "url": "https://api.crossref.org/works/10.1214/09-aos685"
+    "url": "https://api.crossref.org/works/10.1214/09-aos685",
+    "year": 2009
   },
   "10.1214/11-aos940": {
+    "authors": [
+      "Diego Colombo",
+      "Marloes H. Maathuis",
+      "Markus Kalisch",
+      "Thomas S. Richardson"
+    ],
     "doi": "10.1214/11-aos940",
     "response_sha256": "6c1927dc642b00fa5227c29088994d07a3df3db033e054f7c0b1d782cd9f0e7f",
     "titles": [
       "Learning high-dimensional directed acyclic graphs with latent and selection variables"
     ],
-    "url": "https://api.crossref.org/works/10.1214/11-aos940"
+    "url": "https://api.crossref.org/works/10.1214/11-aos940",
+    "year": 2012
   },
   "10.1214/12-aoas583": {
+    "authors": [
+      "Winston Lin"
+    ],
     "doi": "10.1214/12-aoas583",
     "response_sha256": "bf09d519a86a6e6c54e2712574d922420ef7656b054ae5cce4f507bd9be5bb1f",
     "titles": [
       "Agnostic notes on regression adjustments to experimental data: Reexamining Freedman\u2019s critique"
     ],
-    "url": "https://api.crossref.org/works/10.1214/12-aoas583"
+    "url": "https://api.crossref.org/works/10.1214/12-aoas583",
+    "year": 2013
   },
   "10.1214/13-aos1145": {
+    "authors": [
+      "Dominik Janzing",
+      "David Balduzzi",
+      "Moritz Grosse-Wentrup",
+      "Bernhard Sch\u00f6lkopf"
+    ],
     "doi": "10.1214/13-aos1145",
     "response_sha256": "43ca2c460a57f95867884e2412d91bc71366070849c149205266c606e12d8082",
     "titles": [
       "Quantifying causal influences"
     ],
-    "url": "https://api.crossref.org/works/10.1214/13-aos1145"
+    "url": "https://api.crossref.org/works/10.1214/13-aos1145",
+    "year": 2013
   },
   "10.1214/14-sts486": {
+    "authors": [
+      "Judea Pearl",
+      "Elias Bareinboim"
+    ],
     "doi": "10.1214/14-sts486",
     "response_sha256": "54964a36bae9121445b0b265a7db88a10487523b1bf7a9fcefc449f7634b5ab8",
     "titles": [
       "External Validity: From Do-Calculus to Transportability Across Populations"
     ],
-    "url": "https://api.crossref.org/works/10.1214/14-sts486"
+    "url": "https://api.crossref.org/works/10.1214/14-sts486",
+    "year": 2014
   },
   "10.1214/14-sts500": {
+    "authors": [
+      "Miroslav Dud\u00edk",
+      "Dumitru Erhan",
+      "John Langford",
+      "Lihong Li"
+    ],
     "doi": "10.1214/14-sts500",
     "response_sha256": "751e229451dc2466704c0fd48a1a827f8221d0a329807db5c2b2acd94b5e2351",
     "titles": [
       "Doubly Robust Policy Evaluation and Optimization"
     ],
-    "url": "https://api.crossref.org/works/10.1214/14-sts500"
+    "url": "https://api.crossref.org/works/10.1214/14-sts500",
+    "year": 2014
   },
   "10.1214/16-aoas1005": {
+    "authors": [
+      "Peter M. Aronow",
+      "Cyrus Samii"
+    ],
     "doi": "10.1214/16-aoas1005",
     "response_sha256": "4239a054ee84544e952ef1cee4fa8fd97148ccfbb4c60b6acb3526b8aee12271",
     "titles": [
       "Estimating average causal effects under general interference, with application to a social network experiment"
     ],
-    "url": "https://api.crossref.org/works/10.1214/16-aoas1005"
+    "url": "https://api.crossref.org/works/10.1214/16-aoas1005",
+    "year": 2017
   },
   "10.1214/16-sts605": {
+    "authors": [
+      "Thomas Lumley",
+      "Alastair Scott"
+    ],
     "doi": "10.1214/16-sts605",
     "response_sha256": "b588b9c3920953a2bf842b2550a3d84962e79ea76c8da364f9b09eb3bf3735bf",
     "titles": [
       "Fitting Regression Models to Survey Data"
     ],
-    "url": "https://api.crossref.org/works/10.1214/16-sts605"
+    "url": "https://api.crossref.org/works/10.1214/16-sts605",
+    "year": 2017
   },
   "10.1214/20-aos1991": {
+    "authors": [
+      "Steven R. Howard",
+      "Aaditya Ramdas",
+      "Jon McAuliffe",
+      "Jasjeet Sekhon"
+    ],
     "doi": "10.1214/20-aos1991",
     "response_sha256": "520bf231970f7a29ac67299614770c5eaf0e9bbc50239b248618620185b6a519",
     "titles": [
       "Time-uniform, nonparametric, nonasymptotic confidence sequences"
     ],
-    "url": "https://api.crossref.org/works/10.1214/20-aos1991"
+    "url": "https://api.crossref.org/works/10.1214/20-aos1991",
+    "year": 2021
   },
   "10.1214/20-ba1221": {
+    "authors": [
+      "Aki Vehtari",
+      "Andrew Gelman",
+      "Daniel Simpson",
+      "Bob Carpenter",
+      "Paul-Christian B\u00fcrkner"
+    ],
     "doi": "10.1214/20-ba1221",
     "response_sha256": "ddc3a4d013b7f6b163f5a65191473b091d04ced294a0a48f178a95edfcd7d271",
     "titles": [
       "Rank-Normalization, Folding, and Localization: An Improved R\u02c6 for Assessing Convergence of MCMC (with Discussion)"
     ],
-    "url": "https://api.crossref.org/works/10.1214/20-ba1221"
+    "url": "https://api.crossref.org/works/10.1214/20-ba1221",
+    "year": 2021
   },
   "10.1214/aoms/1177696786": {
+    "authors": [
+      "Herbert Robbins"
+    ],
     "doi": "10.1214/aoms/1177696786",
     "response_sha256": "e6b1ac9c8ec3741a11c3066292ae0e14b8671ecafadb4b993da3c09888068f4d",
     "titles": [
       "Statistical Methods Related to the Law of the Iterated Logarithm"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177696786"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177696786",
+    "year": 1970
   },
   "10.1214/aoms/1177703732": {
+    "authors": [
+      "Peter J. Huber"
+    ],
     "doi": "10.1214/aoms/1177703732",
     "response_sha256": "38b3062af5af4c7e9c726661e9517df75786c4fe1f6e1cf195c17611341d0e09",
     "titles": [
       "Robust Estimation of a Location Parameter"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177703732"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177703732",
+    "year": 1964
   },
   "10.1214/aoms/1177706645": {
+    "authors": [
+      "G. E. P. Box",
+      "Mervin E. Muller"
+    ],
     "doi": "10.1214/aoms/1177706645",
     "response_sha256": "380e6e72ee7221e590ce4821d3f35b06d0e8335b11f8c3e0b4506cebeb8f0af3",
     "titles": [
       "A Note on the Generation of Random Normal Deviates"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177706645"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177706645",
+    "year": 1958
   },
   "10.1214/aoms/1177728069": {
+    "authors": [
+      "D. V. Lindley"
+    ],
     "doi": "10.1214/aoms/1177728069",
     "response_sha256": "1acacf589e0ab8f65ced6b1aafcdcb7a7d319fcf23ba115b18fae305346bb909",
     "titles": [
       "On a Measure of the Information Provided by an Experiment"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177728069"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177728069",
+    "year": 1956
   },
   "10.1214/aoms/1177728549": {
+    "authors": [
+      "Eugene Lukacs"
+    ],
     "doi": "10.1214/aoms/1177728549",
     "response_sha256": "d8a33233ddda3e921cf712df5e73a986e367bf476ffccf617f70fa2f62df118d",
     "titles": [
       "A Characterization of the Gamma Distribution"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177728549"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177728549",
+    "year": 1955
   },
   "10.1214/aoms/1177730491": {
+    "authors": [
+      "H. B. Mann",
+      "D. R. Whitney"
+    ],
     "doi": "10.1214/aoms/1177730491",
     "response_sha256": "5f76fe3e95ede87d74e2d09ab93a581981ea9dee1bed93b56b7f621e29531f14",
     "titles": [
       "On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177730491"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177730491",
+    "year": 1947
   },
   "10.1214/aoms/1177732360": {
+    "authors": [
+      "S. S. Wilks"
+    ],
     "doi": "10.1214/aoms/1177732360",
     "response_sha256": "75e31973abe1f67a8bca372ac049f74e03d01a02f252c733f0d68ee176b0611e",
     "titles": [
       "The Large-Sample Distribution of the Likelihood Ratio for Testing Composite Hypotheses"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177732360"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177732360",
+    "year": 1938
   },
   "10.1214/aoms/1177732676": {
+    "authors": [
+      "Sewall Wright"
+    ],
     "doi": "10.1214/aoms/1177732676",
     "response_sha256": "9094c331e5ac4d807dc9f54cb89ad9c3b5f15f85579d28392da76432d06e9480",
     "titles": [
       "The Method of Path Coefficients"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aoms/1177732676"
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177732676",
+    "year": 1934
   },
   "10.1214/aos/1013203451": {
+    "authors": [
+      "Jerome H. Friedman"
+    ],
     "doi": "10.1214/aos/1013203451",
     "response_sha256": "81f442318cd7d320ff1da2d3bb26d814bc8e96503073624b9eec3ab0f45d15b9",
     "titles": [
       "Greedy function approximation: A gradient boosting machine."
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1013203451"
+    "url": "https://api.crossref.org/works/10.1214/aos/1013203451",
+    "year": 2001
   },
   "10.1214/aos/1013699998": {
+    "authors": [
+      "Yoav Benjamini",
+      "Daniel Yekutieli"
+    ],
     "doi": "10.1214/aos/1013699998",
     "response_sha256": "5dd924b310f41e6797d2876f1a4fc7a2593eb65551f67e90f74cce555d451c74",
     "titles": [
       "The control of the false discovery rate in multiple testing under dependency"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1013699998"
+    "url": "https://api.crossref.org/works/10.1214/aos/1013699998",
+    "year": 2001
   },
   "10.1214/aos/1031689015": {
+    "authors": [
+      "Thomas Richardson",
+      "Peter Spirtes"
+    ],
     "doi": "10.1214/aos/1031689015",
     "response_sha256": "2113494036ed1d9f76105fc51759fdc6a72075ef29474155018dfbadac477761",
     "titles": [
       "Ancestral graph Markov models"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1031689015"
+    "url": "https://api.crossref.org/works/10.1214/aos/1031689015",
+    "year": 2002
   },
   "10.1214/aos/1031833662": {
+    "authors": [
+      "Steen A. Andersson",
+      "David Madigan",
+      "Michael D. Perlman"
+    ],
     "doi": "10.1214/aos/1031833662",
     "response_sha256": "77638ec97c0b8ca9a1f7a3bdbad5ab1898cbf44b2a791c5f99110763eb07e303",
     "titles": [
       "A characterization of Markov equivalence classes for acyclic digraphs"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1031833662"
+    "url": "https://api.crossref.org/works/10.1214/aos/1031833662",
+    "year": 1997
   },
   "10.1214/aos/1176344136": {
+    "authors": [
+      "Gideon Schwarz"
+    ],
     "doi": "10.1214/aos/1176344136",
     "response_sha256": "50c3c9675681ea510093a31993b1fe156894187861ec93fff6cb8ddf4a171add",
     "titles": [
       "Estimating the Dimension of a Model"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1176344136"
+    "url": "https://api.crossref.org/works/10.1214/aos/1176344136",
+    "year": 1978
   },
   "10.1214/aos/1176344552": {
+    "authors": [
+      "B. Efron"
+    ],
     "doi": "10.1214/aos/1176344552",
     "response_sha256": "a1c60760d93ba8a635cada31615bf93fd8a8df7b5548c303551c725d2b45eebf",
     "titles": [
       "Bootstrap Methods: Another Look at the Jackknife"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1176344552"
+    "url": "https://api.crossref.org/works/10.1214/aos/1176344552",
+    "year": 1979
   },
   "10.1214/aos/1176345338": {
+    "authors": [
+      "Donald B. Rubin"
+    ],
     "doi": "10.1214/aos/1176345338",
     "response_sha256": "f73f91c54500adac4009033bc4343e84ecf0b8f43ec4ed3dc318b41f926b2b75",
     "titles": [
       "The Bayesian Bootstrap"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1176345338"
+    "url": "https://api.crossref.org/works/10.1214/aos/1176345338",
+    "year": 1981
   },
   "10.1214/aos/1176347265": {
+    "authors": [
+      "Hans R. Kunsch"
+    ],
     "doi": "10.1214/aos/1176347265",
     "response_sha256": "5fce9b023c5033647bf9287372e7b4d0f5fb89d411686ef20ace1f698d043144",
     "titles": [
       "The Jackknife and the Bootstrap for General Stationary Observations"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1176347265"
+    "url": "https://api.crossref.org/works/10.1214/aos/1176347265",
+    "year": 1989
   },
   "10.1214/aos/1176350933": {
+    "authors": [
+      "Peter Hall"
+    ],
     "doi": "10.1214/aos/1176350933",
     "response_sha256": "2ea3cb2337b01e3025d150548271a3917a47605e2949ca9f8495577013723376",
     "titles": [
       "Theoretical Comparison of Bootstrap Confidence Intervals"
     ],
-    "url": "https://api.crossref.org/works/10.1214/aos/1176350933"
+    "url": "https://api.crossref.org/works/10.1214/aos/1176350933",
+    "year": 1988
   },
   "10.1214/ejp.v20-3496": {
+    "authors": [
+      "Xiequan Fan",
+      "Ion Grama",
+      "Quansheng Liu"
+    ],
     "doi": "10.1214/ejp.v20-3496",
     "response_sha256": "a1abca3a042f53d8fac7473aaab31c13f5db2774a1cd94c9b2806fa458cd296f",
     "titles": [
       "Exponential inequalities for martingales with applications"
     ],
-    "url": "https://api.crossref.org/works/10.1214/ejp.v20-3496"
+    "url": "https://api.crossref.org/works/10.1214/ejp.v20-3496",
+    "year": 2015
   },
   "10.1214/ss/1009212519": {
+    "authors": [
+      "Jennifer A. Hoeting",
+      "David Madigan",
+      "Adrian E. Raftery",
+      "Chris T. Volinsky"
+    ],
     "doi": "10.1214/ss/1009212519",
     "response_sha256": "cc2224bab1237ab3ff9e8e175cbdf60ac583838166c1fcc8f53f6301c56a5a61",
     "titles": [
       "Bayesian model averaging: a tutorial (with comments by M. Clyde, David Draper and E. I. George, and a rejoinder by the authors"
     ],
-    "url": "https://api.crossref.org/works/10.1214/ss/1009212519"
+    "url": "https://api.crossref.org/works/10.1214/ss/1009212519",
+    "year": 1999
   },
   "10.1214/ss/1009212673": {
+    "authors": [
+      "Ming-Hui Chen",
+      "Joseph G. Ibrahim"
+    ],
     "doi": "10.1214/ss/1009212673",
     "response_sha256": "3ae9222c1593bb36dd1641d1b1a1d32552e57a30e5457f6ee63bbe4b4dfefd19",
     "titles": [
       "Power prior distributions for regression models"
     ],
-    "url": "https://api.crossref.org/works/10.1214/ss/1009212673"
+    "url": "https://api.crossref.org/works/10.1214/ss/1009212673",
+    "year": 2000
   },
   "10.1214/ss/1038425655": {
+    "authors": [
+      "Paul H. C. Eilers",
+      "Brian D. Marx"
+    ],
     "doi": "10.1214/ss/1038425655",
     "response_sha256": "0bd65a4befaa0ba087730fc179c8497d88cdd96cba9d7f5bfa32c5c861ddfaf2",
     "titles": [
       "Flexible smoothing with B-splines and penalties"
     ],
-    "url": "https://api.crossref.org/works/10.1214/ss/1038425655"
+    "url": "https://api.crossref.org/works/10.1214/ss/1038425655",
+    "year": 1996
   },
   "10.1214/ss/1177011137": {
+    "authors": [
+      "Charles J. Geyer"
+    ],
     "doi": "10.1214/ss/1177011137",
     "response_sha256": "1c80e9b9a2cb0dc635e860c4b47c7678addce722256f6b775fca896841b75041",
     "titles": [
       "Practical Markov Chain Monte Carlo"
     ],
-    "url": "https://api.crossref.org/works/10.1214/ss/1177011137"
+    "url": "https://api.crossref.org/works/10.1214/ss/1177011137",
+    "year": 1992
   },
   "10.1214/ss/1177012031": {
+    "authors": [
+      "Jerzy Splawa-Neyman",
+      "D. M. Dabrowska",
+      "T. P. Speed"
+    ],
     "doi": "10.1214/ss/1177012031",
     "response_sha256": "594375832c7b4071a57874cfb0f7539f31ae55b8ea8e8b1b77325f706f09aa8a",
     "titles": [
       "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9"
     ],
-    "url": "https://api.crossref.org/works/10.1214/ss/1177012031"
+    "url": "https://api.crossref.org/works/10.1214/ss/1177012031",
+    "year": 1990
   },
   "10.1214/ss/1177013604": {
+    "authors": [
+      "Trevor Hastie",
+      "Robert Tibshirani"
+    ],
     "doi": "10.1214/ss/1177013604",
     "response_sha256": "cccf617ce9e389d99999c6453e9341d88f99f2806296ca0df445ee60d8894b3a",
     "titles": [
       "Generalized Additive Models"
     ],
-    "url": "https://api.crossref.org/works/10.1214/ss/1177013604"
+    "url": "https://api.crossref.org/works/10.1214/ss/1177013604",
+    "year": 1986
   },
   "10.1257/000282803321946921": {
+    "authors": [
+      "Guido W Imbens"
+    ],
     "doi": "10.1257/000282803321946921",
     "response_sha256": "882f2a0d5a21eda3e233f1536569154565db84286afe03891678ffbbb0033c02",
     "titles": [
       "Sensitivity to Exogeneity Assumptions in Program Evaluation"
     ],
-    "url": "https://api.crossref.org/works/10.1257/000282803321946921"
+    "url": "https://api.crossref.org/works/10.1257/000282803321946921",
+    "year": 2003
   },
   "10.1287/mnsc.1050.0451": {
+    "authors": [
+      "James E. Smith",
+      "Robert L. Winkler"
+    ],
     "doi": "10.1287/mnsc.1050.0451",
     "response_sha256": "9ec489fc0de01b05cdea74bc926be65877b6908b05539bc7b710eb22ab0ecdb8",
     "titles": [
       "The Optimizer\u2019s Curse: Skepticism and Postdecision Surprise in Decision Analysis"
     ],
-    "url": "https://api.crossref.org/works/10.1287/mnsc.1050.0451"
+    "url": "https://api.crossref.org/works/10.1287/mnsc.1050.0451",
+    "year": 2006
   },
   "10.1287/mnsc.22.10.1087": {
+    "authors": [
+      "James E. Matheson",
+      "Robert L. Winkler"
+    ],
     "doi": "10.1287/mnsc.22.10.1087",
     "response_sha256": "a32a45010bf63a8d656e9db0473f5c116604e791f1c9f2d6b1be2313de1706f2",
     "titles": [
       "Scoring Rules for Continuous Probability Distributions"
     ],
-    "url": "https://api.crossref.org/works/10.1287/mnsc.22.10.1087"
+    "url": "https://api.crossref.org/works/10.1287/mnsc.22.10.1087",
+    "year": 1976
   },
   "10.1287/mnsc.38.6.884": {
+    "authors": [
+      "Paul Glasserman",
+      "David D. Yao"
+    ],
     "doi": "10.1287/mnsc.38.6.884",
     "response_sha256": "845864799c4a953c0f393d0a4d7d85cab8bb9295513abc7d47605016b07ba812",
     "titles": [
       "Some Guidelines and Guarantees for Common Random Numbers"
     ],
-    "url": "https://api.crossref.org/works/10.1287/mnsc.38.6.884"
+    "url": "https://api.crossref.org/works/10.1287/mnsc.38.6.884",
+    "year": 1992
   },
   "10.1515/9781400829156-012": {
+    "authors": [
+      "L. Shapley"
+    ],
     "doi": "10.1515/9781400829156-012",
     "response_sha256": "e998acd5781d6a27d6b1bed9819000219f3f7b4b12c12e90b4e7e82901deedd3",
     "titles": [
       "7. A Value for n-Person Games. Contributions to the Theory of Games II (1953) 307-317."
     ],
-    "url": "https://api.crossref.org/works/10.1515/9781400829156-012"
+    "url": "https://api.crossref.org/works/10.1515/9781400829156-012",
+    "year": 1997
   },
   "10.1515/9781400829828": {
+    "authors": [
+      "Joshua D. Angrist",
+      "J\u00f6rn-Steffen Pischke"
+    ],
     "doi": "10.1515/9781400829828",
     "response_sha256": "a341c4973a742c53baaf8318309c956033d092366a8dbb678035c02fd6a10f5f",
     "titles": [
       "Mostly Harmless Econometrics"
     ],
-    "url": "https://api.crossref.org/works/10.1515/9781400829828"
+    "url": "https://api.crossref.org/works/10.1515/9781400829828",
+    "year": 2009
   },
   "10.1515/jci-2012-0004": {
+    "authors": [
+      "Elias Bareinboim",
+      "Judea Pearl"
+    ],
     "doi": "10.1515/jci-2012-0004",
     "response_sha256": "1e32596862e9cb1258e74b9a32d79d9413c2f391c99d0926cfd958004bc5d3d1",
     "titles": [
       "A General Algorithm for Deciding Transportability of Experimental Results"
     ],
-    "url": "https://api.crossref.org/works/10.1515/jci-2012-0004"
+    "url": "https://api.crossref.org/works/10.1515/jci-2012-0004",
+    "year": 2013
   },
   "10.1515/jci-2014-0039": {
+    "authors": [
+      "Greg Ridgeway",
+      "Stephanie Ann Kovalchik",
+      "Beth Ann Griffin",
+      "Mohammed U. Kabeto"
+    ],
     "doi": "10.1515/jci-2014-0039",
     "response_sha256": "5a01315155ddf6b05de4218ba000d0e77f96baab61b73910bd5e642f4231f6a8",
     "titles": [
       "Propensity Score Analysis with Survey Weighted Data"
     ],
-    "url": "https://api.crossref.org/works/10.1515/jci-2014-0039"
+    "url": "https://api.crossref.org/works/10.1515/jci-2014-0039",
+    "year": 2015
   },
   "10.17487/rfc8949": {
+    "authors": [
+      "C. Bormann",
+      "P. Hoffman"
+    ],
     "doi": "10.17487/rfc8949",
     "response_sha256": "550a7ceee4a747898691e0f97c09e0772d69c93fd6728710085486a43874ea87",
     "titles": [
       "Concise Binary Object Representation (CBOR)"
     ],
-    "url": "https://api.crossref.org/works/10.17487/rfc8949"
+    "url": "https://api.crossref.org/works/10.17487/rfc8949",
+    "year": 2020
   },
   "10.21314/jor.2000.038": {
+    "authors": [
+      "R. Tyrrell Rockafellar",
+      "Stanislav Uryasev"
+    ],
     "doi": "10.21314/jor.2000.038",
     "response_sha256": "d62d75a33b2d87f54ca734b9728c747a6fee67b8fda53c267f0467a559172e8e",
     "titles": [
       "Optimization of conditional value-at-risk"
     ],
-    "url": "https://api.crossref.org/works/10.21314/jor.2000.038"
+    "url": "https://api.crossref.org/works/10.21314/jor.2000.038",
+    "year": 2000
   },
   "10.2307/1402588": {
+    "authors": [
+      "David A. Binder"
+    ],
     "doi": "10.2307/1402588",
     "response_sha256": "29521f63b07f3951187f52a13af13b1917459624431a316bf187120b0e67ad26",
     "titles": [
       "On the Variances of Asymptotically Normal Estimators from Complex Surveys"
     ],
-    "url": "https://api.crossref.org/works/10.2307/1402588"
+    "url": "https://api.crossref.org/works/10.2307/1402588",
+    "year": 1983
   },
   "10.2307/1403615": {
+    "authors": [
+      "David Madigan",
+      "Jeremy York",
+      "Denis Allard"
+    ],
     "doi": "10.2307/1403615",
     "response_sha256": "18b5fc4513d6d7e937c479c00e528d33f6fbacf10208e9ca81eaa50c26fa9bd7",
     "titles": [
       "Bayesian Graphical Models for Discrete Data"
     ],
-    "url": "https://api.crossref.org/works/10.2307/1403615"
+    "url": "https://api.crossref.org/works/10.2307/1403615",
+    "year": 1995
   },
   "10.2307/1426677": {
+    "authors": [
+      "Ludger R\u00fcschendorf"
+    ],
     "doi": "10.2307/1426677",
     "response_sha256": "3e7349aba407ff54aec1a8f882c653f3e564e08fed356ee2cccdb49c55f30886",
     "titles": [
       "Random variables with maximum sums"
     ],
-    "url": "https://api.crossref.org/works/10.2307/1426677"
+    "url": "https://api.crossref.org/works/10.2307/1426677",
+    "year": 1982
   },
   "10.2307/1907382": {
+    "authors": [
+      "James Tobin"
+    ],
     "doi": "10.2307/1907382",
     "response_sha256": "ea37d5a5519d8c088cd34208495fb0b0145b38c516ddf62fc103230deb3db582",
     "titles": [
       "Estimation of Relationships for Limited Dependent Variables"
     ],
-    "url": "https://api.crossref.org/works/10.2307/1907382"
+    "url": "https://api.crossref.org/works/10.2307/1907382",
+    "year": 1958
   },
   "10.2307/1907743": {
+    "authors": [
+      "R. L. Basmann"
+    ],
     "doi": "10.2307/1907743",
     "response_sha256": "a4aced4686fe4eb38ea98373be50cfb49282669a0e0b92ad9054243585b8d4ab",
     "titles": [
       "A Generalized Classical Method of Linear Estimation of Coefficients in a Structural Equation"
     ],
-    "url": "https://api.crossref.org/works/10.2307/1907743"
+    "url": "https://api.crossref.org/works/10.2307/1907743",
+    "year": 1957
   },
   "10.2307/1912934": {
+    "authors": [
+      "Halbert White"
+    ],
     "doi": "10.2307/1912934",
     "response_sha256": "8b245e5295e40ae4e59fec515509c455a49fc1e74936722d872ad74cb2fba043",
     "titles": [
       "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity"
     ],
-    "url": "https://api.crossref.org/works/10.2307/1912934"
+    "url": "https://api.crossref.org/works/10.2307/1912934",
+    "year": 1980
   },
   "10.2307/1913610": {
+    "authors": [
+      "Whitney K. Newey",
+      "Kenneth D. West"
+    ],
     "doi": "10.2307/1913610",
     "response_sha256": "81d623a80cedf9344f0a717c881106af191473afb59d313e416176c6f7881ebc",
     "titles": [
       "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix"
     ],
-    "url": "https://api.crossref.org/works/10.2307/1913610"
+    "url": "https://api.crossref.org/works/10.2307/1913610",
+    "year": 1987
   },
   "10.2307/2343787": {
+    "authors": [
+      "P. Armitage",
+      "C. K. McPherson",
+      "B. C. Rowe"
+    ],
     "doi": "10.2307/2343787",
     "response_sha256": "11dbe2032dd6e83cb99276f7b3a940fb477e25798fe786617a158e6c23145759",
     "titles": [
       "Repeated Significance Tests on Accumulating Data"
     ],
-    "url": "https://api.crossref.org/works/10.2307/2343787"
+    "url": "https://api.crossref.org/works/10.2307/2343787",
+    "year": 1969
   },
   "10.2307/2344614": {
+    "authors": [
+      "J. A. Nelder",
+      "R. W. M. Wedderburn"
+    ],
     "doi": "10.2307/2344614",
     "response_sha256": "afcfb3690dd7cdb46e1f6c2de7e7d805faefcf5804e3cdc737726f4f9c0655cb",
     "titles": [
       "Generalized Linear Models"
     ],
-    "url": "https://api.crossref.org/works/10.2307/2344614"
+    "url": "https://api.crossref.org/works/10.2307/2344614",
+    "year": 1972
   },
   "10.2307/2530245": {
+    "authors": [
+      "Peter C. O'Brien",
+      "Thomas R. Fleming"
+    ],
     "doi": "10.2307/2530245",
     "response_sha256": "fc5c8a363abb971a83cdbc5b6bb3ef531e657b9c3ee855244d2b8229b1a52128",
     "titles": [
       "A Multiple Testing Procedure for Clinical Trials"
     ],
-    "url": "https://api.crossref.org/works/10.2307/2530245"
+    "url": "https://api.crossref.org/works/10.2307/2530245",
+    "year": 1979
   },
   "10.2307/2530924": {
+    "authors": [
+      "Anastasios A. Tsiatis",
+      "Gary L. Rosner",
+      "Cyrus R. Mehta"
+    ],
     "doi": "10.2307/2530924",
     "response_sha256": "ee5abd09049e313d554d7cc29ca3c6c545bc94084f0af2641eb8bbcefdc73795",
     "titles": [
       "Exact Confidence Intervals Following a Group Sequential Test"
     ],
-    "url": "https://api.crossref.org/works/10.2307/2530924"
+    "url": "https://api.crossref.org/works/10.2307/2530924",
+    "year": 1984
   },
   "10.2307/2951620": {
+    "authors": [
+      "Guido W. Imbens",
+      "Joshua D. Angrist"
+    ],
     "doi": "10.2307/2951620",
     "response_sha256": "9535b4c19169fd97b4b1fd7947ede2f3b0918522a42170b49b3f8327140620f5",
     "titles": [
       "Identification and Estimation of Local Average Treatment Effects"
     ],
-    "url": "https://api.crossref.org/works/10.2307/2951620"
+    "url": "https://api.crossref.org/works/10.2307/2951620",
+    "year": 1994
   },
   "10.2307/2981683": {
+    "authors": [
+      "A. P. Dawid"
+    ],
     "doi": "10.2307/2981683",
     "response_sha256": "f60fdf5cc3ef2e14e53a4398d98af1b17d642a1ee28dacf0a3be56759050028d",
     "titles": [
       "Present Position and Potential Developments: Some Personal Views: Statistical Theory: The Prequential Approach"
     ],
-    "url": "https://api.crossref.org/works/10.2307/2981683"
+    "url": "https://api.crossref.org/works/10.2307/2981683",
+    "year": 1984
   },
   "10.2307/2982063": {
+    "authors": [
+      "George E. P. Box"
+    ],
     "doi": "10.2307/2982063",
     "response_sha256": "8003ebe3076e72038187fa1accd8546b6a13f9d053e5c3344a5a882f700fcc68",
     "titles": [
       "Sampling and Bayes' Inference in Scientific Modelling and Robustness"
     ],
-    "url": "https://api.crossref.org/works/10.2307/2982063"
+    "url": "https://api.crossref.org/works/10.2307/2982063",
+    "year": 1980
   },
   "10.2514/3.3166": {
+    "authors": [
+      "H. E. RAUCH",
+      "F. TUNG",
+      "C. T. STRIEBEL"
+    ],
     "doi": "10.2514/3.3166",
     "response_sha256": "23592eef6c070b1e17b533f2c2a3a5c44c555b27f0c53d59bf65948d73a03301",
     "titles": [
       "Maximum likelihood estimates of linear dynamic systems"
     ],
-    "url": "https://api.crossref.org/works/10.2514/3.3166"
+    "url": "https://api.crossref.org/works/10.2514/3.3166",
+    "year": 1965
   },
   "10.3102/10769986006004377": {
+    "authors": [
+      "Donald B. Rubin"
+    ],
     "doi": "10.3102/10769986006004377",
     "response_sha256": "fe51afdc60ee3ecb77c0da8c781017705bdc65df8297502de69c0317990b132c",
     "titles": [
       "Estimation in Parallel Randomized Experiments"
     ],
-    "url": "https://api.crossref.org/works/10.3102/10769986006004377"
+    "url": "https://api.crossref.org/works/10.3102/10769986006004377",
+    "year": 1981
   },
   "10.3102/10769986030003261": {
+    "authors": [
+      "Wolfgang Viechtbauer"
+    ],
     "doi": "10.3102/10769986030003261",
     "response_sha256": "dd727969d2e54d2f3a1404d94de312930b87b657810051c8cb8a10d4e31329ab",
     "titles": [
       "Bias and Efficiency of Meta-Analytic Variance Estimators in the Random-Effects Model"
     ],
-    "url": "https://api.crossref.org/works/10.3102/10769986030003261"
+    "url": "https://api.crossref.org/works/10.3102/10769986030003261",
+    "year": 2005
   },
   "10.3150/21-bej1445": {
+    "authors": [
+      "Sebastian Calonico",
+      "Matias D. Cattaneo",
+      "Max H. Farrell"
+    ],
     "doi": "10.3150/21-bej1445",
     "response_sha256": "c734a7a3dbcbdca36999d0eb376e1f346d5883528daf6529439bfa024fb9b0f6",
     "titles": [
       "Coverage error optimal confidence intervals for local polynomial regression"
     ],
-    "url": "https://api.crossref.org/works/10.3150/21-bej1445"
+    "url": "https://api.crossref.org/works/10.3150/21-bej1445",
+    "year": 2022
   },
   "10.3368/jhr.50.2.301": {
+    "authors": [
+      "Gary Solon",
+      "Steven J. Haider",
+      "Jeffrey M. Wooldridge"
+    ],
     "doi": "10.3368/jhr.50.2.301",
     "response_sha256": "dc5964ab66463e2a86baee8b909abf10ff7fc17e68ccea80995280b9a40e73e0",
     "titles": [
       "What Are We Weighting For?"
     ],
-    "url": "https://api.crossref.org/works/10.3368/jhr.50.2.301"
+    "url": "https://api.crossref.org/works/10.3368/jhr.50.2.301",
+    "year": 2015
   },
   "10.3982/ecta11224": {
+    "authors": [
+      "David Card",
+      "David S. Lee",
+      "Zhuan Pei",
+      "Andrea Weber"
+    ],
     "doi": "10.3982/ecta11224",
     "response_sha256": "76e5bcff1007ea56849e033567549ce4c76a2712c3a2c8953690970e88fb8d94",
     "titles": [
       "Inference on Causal Effects in a Generalized Regression Kink Design"
     ],
-    "url": "https://api.crossref.org/works/10.3982/ecta11224"
+    "url": "https://api.crossref.org/works/10.3982/ecta11224",
+    "year": 2015
   },
   "10.3982/ecta15732": {
+    "authors": [
+      "Susan Athey",
+      "Stefan Wager"
+    ],
     "doi": "10.3982/ecta15732",
     "response_sha256": "23c071bd5c1dac843d60ecf1877e2989553025c446fb51dc480b7d46f5a44470",
     "titles": [
       "Policy Learning With Observational Data"
     ],
-    "url": "https://api.crossref.org/works/10.3982/ecta15732"
+    "url": "https://api.crossref.org/works/10.3982/ecta15732",
+    "year": 2021
   },
   "10.3982/ecta18515": {
+    "authors": [
+      "Victor Chernozhukov",
+      "Whitney K. Newey",
+      "Rahul Singh"
+    ],
     "doi": "10.3982/ecta18515",
     "response_sha256": "cfd2af13324855c0b32ed6ad1061bd01245eb8e4c30e4221b52ce55534a467c1",
     "titles": [
       "Automatic Debiased Machine Learning of Causal and Structural Effects"
     ],
-    "url": "https://api.crossref.org/works/10.3982/ecta18515"
+    "url": "https://api.crossref.org/works/10.3982/ecta18515",
+    "year": 2022
   },
   "10.3982/ecta6474": {
     "doi": "10.3982/ecta6474",
@@ -1653,7 +2725,8 @@
     "titles": [
       "On the Failure of the Bootstrap for Matching Estimators"
     ],
-    "url": "https://api.crossref.org/works/10.3982/ecta6474"
+    "url": "https://api.crossref.org/works/10.3982/ecta6474",
+    "year": 2008
   },
   "10.3982/ecta7502": {
     "doi": "10.3982/ecta7502",
@@ -1661,226 +2734,392 @@
     "titles": [
       "Inference for Parameters Defined by Moment Inequalities Using Generalized Moment Selection"
     ],
-    "url": "https://api.crossref.org/works/10.3982/ecta7502"
+    "url": "https://api.crossref.org/works/10.3982/ecta7502",
+    "year": 2010
   },
   "10.3982/qe1199": {
+    "authors": [
+      "Timothy B. Armstrong",
+      "Michal Koles\u00e1r"
+    ],
     "doi": "10.3982/qe1199",
     "response_sha256": "88b3bb7f648e7ce4abeec959f9ad8c29ce9dbf0679fd03fd28f92a27c5d81c7c",
     "titles": [
       "Simple and honest confidence intervals in nonparametric regression"
     ],
-    "url": "https://api.crossref.org/works/10.3982/qe1199"
+    "url": "https://api.crossref.org/works/10.3982/qe1199",
+    "year": 2020
   },
   "10.3982/qe399": {
+    "authors": [
+      "Brendan Kline",
+      "Elie Tamer"
+    ],
     "doi": "10.3982/qe399",
     "response_sha256": "1f5e66a3cf3b968aa9df6fc11283ab3952c005f929ada52602ee21cd41d8832c",
     "titles": [
       "Bayesian inference in a class of partially identified models"
     ],
-    "url": "https://api.crossref.org/works/10.3982/qe399"
+    "url": "https://api.crossref.org/works/10.3982/qe399",
+    "year": 2016
   },
   "10.48550/arxiv.0805.2368": {
+    "authors": [
+      "Arthur Gretton",
+      "Karsten Borgwardt",
+      "Malte J. Rasch",
+      "Bernhard Scholkopf",
+      "Alexander J. Smola"
+    ],
     "doi": "10.48550/arxiv.0805.2368",
     "response_sha256": "0f6152ff32b7961f6b9d7ca427b52afc602c04447a7ecb71059c016721255fe0",
     "titles": [
       "A Kernel Method for the Two-Sample Problem"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.0805.2368"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.0805.2368",
+    "year": 2008
   },
   "10.48550/arxiv.1101.2489": {
+    "authors": [
+      "Shohei Shimizu",
+      "Takanori Inazumi",
+      "Yasuhiro Sogawa",
+      "Aapo Hyvarinen",
+      "Yoshinobu Kawahara",
+      "Takashi Washio",
+      "Patrik O. Hoyer",
+      "Kenneth Bollen"
+    ],
     "doi": "10.48550/arxiv.1101.2489",
     "response_sha256": "3c429c482fb88e99d4932ec96319985c9320df48d4ba648112168119839c778b",
     "titles": [
       "DirectLiNGAM: A direct method for learning a linear non-Gaussian structural equation model"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1101.2489"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1101.2489",
+    "year": 2011
   },
   "10.48550/arxiv.1111.4246": {
+    "authors": [
+      "Matthew D. Hoffman",
+      "Andrew Gelman"
+    ],
     "doi": "10.48550/arxiv.1111.4246",
     "response_sha256": "c764126d4cb14e31cbef33bda274287e90d51baddd0515041a9070a4f04f4606",
     "titles": [
       "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1111.4246"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1111.4246",
+    "year": 2011
   },
   "10.48550/arxiv.1206.6876": {
+    "authors": [
+      "Ilya Shpitser",
+      "Judea Pearl"
+    ],
     "doi": "10.48550/arxiv.1206.6876",
     "response_sha256": "7b0cf0bbfac4d68c2f06959a178d35bbaf6c161c1ab7cce6da50f7f0bd5251cf",
     "titles": [
       "Identification of Conditional Interventional Distributions"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1206.6876"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1206.6876",
+    "year": 2012
   },
   "10.48550/arxiv.1301.7374": {
+    "authors": [
+      "Nir Friedman",
+      "Kevin Murphy",
+      "Stuart Russell"
+    ],
     "doi": "10.48550/arxiv.1301.7374",
     "response_sha256": "473674d5d0ba5db3a45a5232cab6a3e155799247b39029befb7e6ca5172fec28",
     "titles": [
       "Learning the Structure of Dynamic Probabilistic Networks"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1301.7374"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1301.7374",
+    "year": 2013
   },
   "10.48550/arxiv.1302.4972": {
+    "authors": [
+      "Christopher Meek"
+    ],
     "doi": "10.48550/arxiv.1302.4972",
     "response_sha256": "3d543e7728e7b675de735ad64b09c4675dc44379a8d787810b51bf2e0572c793",
     "titles": [
       "Causal Inference and Causal Explanation with Background Knowledge"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1302.4972"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1302.4972",
+    "year": 2013
   },
   "10.48550/arxiv.1302.4983": {
+    "authors": [
+      "Peter L. Spirtes",
+      "Christopher Meek",
+      "Thomas S. Richardson"
+    ],
     "doi": "10.48550/arxiv.1302.4983",
     "response_sha256": "4a5cff501925352418f43a2bbefdf76e3508e0ab3bba82769e9ca19bb4fd45de",
     "titles": [
       "Causal Inference in the Presence of Latent Variables and Selection Bias"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1302.4983"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1302.4983",
+    "year": 2013
   },
   "10.48550/arxiv.1306.6430": {
+    "authors": [
+      "Pier Giovanni Bissiri",
+      "Chris Holmes",
+      "Stephen Walker"
+    ],
     "doi": "10.48550/arxiv.1306.6430",
     "response_sha256": "7219062f858dd4b15d22df242517f8b919bd3a9420e00f6eca94acd914281367",
     "titles": [
       "A General Framework for Updating Belief Distributions"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1306.6430"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1306.6430",
+    "year": 2013
   },
   "10.48550/arxiv.1507.01524": {
+    "authors": [
+      "Emilija Perkovi\u0107",
+      "Johannes Textor",
+      "Markus Kalisch",
+      "Marloes H. Maathuis"
+    ],
     "doi": "10.48550/arxiv.1507.01524",
     "response_sha256": "198f2740180122b725a4c7c33489f8e91341acb8b4ee5a908f0b2e59533a5efb",
     "titles": [
       "A Complete Generalized Adjustment Criterion"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1507.01524"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1507.01524",
+    "year": 2015
   },
   "10.48550/arxiv.1611.06221": {
+    "authors": [
+      "Stephan Bongers",
+      "Patrick Forr\u00e9",
+      "Jonas Peters",
+      "Joris M. Mooij"
+    ],
     "doi": "10.48550/arxiv.1611.06221",
     "response_sha256": "6f03a9e930711912252d883f2d866bc0a7599eac5e7cf075e0535fe54b89bd44",
     "titles": [
       "Foundations of Structural Causal Models with Cycles and Latent Variables"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1611.06221"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1611.06221",
+    "year": 2016
   },
   "10.48550/arxiv.1710.08775": {
+    "authors": [
+      "Patrick Forr\u00e9",
+      "Joris M. Mooij"
+    ],
     "doi": "10.48550/arxiv.1710.08775",
     "response_sha256": "ea8c5d7f13564199964944a9f824239006e19f2b2b29f31c4939ff5f7e606046",
     "titles": [
       "Markov Properties for Graphical Models with Cycles and Latent Variables"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1710.08775"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1710.08775",
+    "year": 2017
   },
   "10.48550/arxiv.1803.01422": {
+    "authors": [
+      "Xun Zheng",
+      "Bryon Aragam",
+      "Pradeep Ravikumar",
+      "Eric P. Xing"
+    ],
     "doi": "10.48550/arxiv.1803.01422",
     "response_sha256": "000e94c8e2cb316b02692035e4206deb9a13ca0625e73d5e08b26aa723d66847",
     "titles": [
       "DAGs with NO TEARS: Continuous Optimization for Structure Learning"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1803.01422"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1803.01422",
+    "year": 2018
   },
   "10.48550/arxiv.1910.13413": {
+    "authors": [
+      "Dominik Janzing",
+      "Lenon Minorics",
+      "Patrick Bl\u00f6baum"
+    ],
     "doi": "10.48550/arxiv.1910.13413",
     "response_sha256": "b84f981f082d1b6e7f0f64b00f5d204b0bf3460037bed4e1804e06a7868a6466",
     "titles": [
       "Feature relevance quantification in explainable AI: A causal problem"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1910.13413"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1910.13413",
+    "year": 2019
   },
   "10.48550/arxiv.1912.02724": {
+    "authors": [
+      "Dominik Janzing",
+      "Kailash Budhathoki",
+      "Lenon Minorics",
+      "Patrick Bl\u00f6baum"
+    ],
     "doi": "10.48550/arxiv.1912.02724",
     "response_sha256": "3510378a50ae60ca6d843fd6efd40973743f465421d2d2b74aed094357f4bb47",
     "titles": [
       "Causal structure based root cause analysis of outliers"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.1912.02724"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.1912.02724",
+    "year": 2019
   },
   "10.48550/arxiv.2003.03685": {
+    "authors": [
+      "Jakob Runge"
+    ],
     "doi": "10.48550/arxiv.2003.03685",
     "response_sha256": "e5daf3a731bd27e3adc4ec95e826876bf8ef71bb220377757385bf5f0982a4f8",
     "titles": [
       "Discovering contemporaneous and lagged causal relations in autocorrelated nonlinear time series datasets"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2003.03685"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2003.03685",
+    "year": 2020
   },
   "10.48550/arxiv.2004.14497": {
+    "authors": [
+      "Edward H. Kennedy"
+    ],
     "doi": "10.48550/arxiv.2004.14497",
     "response_sha256": "7a23c77e4a282839e1206e0af78ac91e118e76a2b685054373cc3d69f0f6a5c4",
     "titles": [
       "Towards optimal doubly robust estimation of heterogeneous causal effects"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2004.14497"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2004.14497",
+    "year": 2020
   },
   "10.48550/arxiv.2007.00714": {
+    "authors": [
+      "Dominik Janzing",
+      "Patrick Bl\u00f6baum",
+      "Atalanti A. Mastakouri",
+      "Philipp M. Faller",
+      "Lenon Minorics",
+      "Kailash Budhathoki"
+    ],
     "doi": "10.48550/arxiv.2007.00714",
     "response_sha256": "05c91c9d6fcdb3511d97d327ab1d3a0684fa26b4b12eac17cd6fe55a0298ae1d",
     "titles": [
       "Quantifying intrinsic causal contributions via structure preserving interventions"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2007.00714"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2007.00714",
+    "year": 2020
   },
   "10.48550/arxiv.2007.01884": {
+    "authors": [
+      "Andreas Gerhardus",
+      "Jakob Runge"
+    ],
     "doi": "10.48550/arxiv.2007.01884",
     "response_sha256": "25b529e1b0140567fb4ef7b3b00b1cead08eaa48230aefb49b110b3ef67ed79d",
     "titles": [
       "High-recall causal discovery for autocorrelated time series with latent confounders"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2007.01884"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2007.01884",
+    "year": 2020
   },
   "10.48550/arxiv.2102.13384": {
+    "authors": [
+      "Kailash Budhathoki",
+      "Dominik Janzing",
+      "Patrick Bloebaum",
+      "Hoiyi Ng"
+    ],
     "doi": "10.48550/arxiv.2102.13384",
     "response_sha256": "8ed294164a176783b30a39f03733afeaa3bae53de9017f02b08bccab94ddeabd",
     "titles": [
       "Why did the distribution change?"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2102.13384"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2102.13384",
+    "year": 2021
   },
   "10.48550/arxiv.2206.12986": {
+    "authors": [
+      "Kailash Budhathoki",
+      "George Michailidis",
+      "Dominik Janzing"
+    ],
     "doi": "10.48550/arxiv.2206.12986",
     "response_sha256": "2d81af04a3f31a86e14756109418a845c12c776b494370eea6c6d58445e0e693",
     "titles": [
       "Explaining the root causes of unit-level changes"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2206.12986"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2206.12986",
+    "year": 2022
   },
   "10.48550/arxiv.2305.09565": {
+    "authors": [
+      "Elias Eulig",
+      "Atalanti A. Mastakouri",
+      "Patrick Bl\u00f6baum",
+      "Michaela Hardt",
+      "Dominik Janzing"
+    ],
     "doi": "10.48550/arxiv.2305.09565",
     "response_sha256": "1c3549d010fc032b075a6e3a3450a5e16efca97080616d883ab42b981934f910",
     "titles": [
       "Toward Falsifying Causal Graphs Using a Permutation-Based Test"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2305.09565"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2305.09565",
+    "year": 2023
   },
   "10.48550/arxiv.2306.12896": {
+    "authors": [
+      "Wiebke G\u00fcnther",
+      "Urmi Ninad",
+      "Jakob Runge"
+    ],
     "doi": "10.48550/arxiv.2306.12896",
     "response_sha256": "911d55952e908c1af472fc406d7ac7c55383258f016fc69c4cf3d5b0405308e5",
     "titles": [
       "Causal discovery for time series from multiple datasets with latent contexts"
     ],
-    "url": "https://api.datacite.org/dois/10.48550/arxiv.2306.12896"
+    "url": "https://api.datacite.org/dois/10.48550/arxiv.2306.12896",
+    "year": 2023
   },
   "10.5555/1390681.1442785": {
     "error": "HTTP Error 404: Not Found",
     "url": "https://api.crossref.org/works/10.5555/1390681.1442785"
   },
   "10.7326/m16-2607": {
+    "authors": [
+      "Tyler J. VanderWeele",
+      "Peng Ding"
+    ],
     "doi": "10.7326/m16-2607",
     "response_sha256": "7cb1d59cbf8fcc5d17c2d4de32f3eebddd3361d6a28f6495cbbe123e6bceb25c",
     "titles": [
       "Sensitivity Analysis in Observational Research: Introducing the E-Value"
     ],
-    "url": "https://api.crossref.org/works/10.7326/m16-2607"
+    "url": "https://api.crossref.org/works/10.7326/m16-2607",
+    "year": 2017
   },
   "10.7551/mitpress/1754.001.0001": {
+    "authors": [
+      "Peter Spirtes",
+      "Clark Glymour",
+      "Richard Scheines"
+    ],
     "doi": "10.7551/mitpress/1754.001.0001",
     "response_sha256": "1e611ff4eed252ece89de453d73a3164b2c6bf7492895986ac6b2ca31affce4c",
     "titles": [
       "Causation, Prediction, and Search"
     ],
-    "url": "https://api.crossref.org/works/10.7551/mitpress/1754.001.0001"
+    "url": "https://api.crossref.org/works/10.7551/mitpress/1754.001.0001",
+    "year": 2001
   },
   "10.7551/mitpress/3206.001.0001": {
+    "authors": [
+      "Carl Edward Rasmussen",
+      "Christopher K. I. Williams"
+    ],
     "doi": "10.7551/mitpress/3206.001.0001",
     "response_sha256": "03249e92a064482b5c394a9acfb8cf0ea132c6e7986a63aa9d9227723ea9d2d9",
     "titles": [
       "Gaussian Processes for Machine Learning"
     ],
-    "url": "https://api.crossref.org/works/10.7551/mitpress/3206.001.0001"
+    "url": "https://api.crossref.org/works/10.7551/mitpress/3206.001.0001",
+    "year": 2005
   }
 }

@@ -384,6 +384,25 @@ class Outcome(Generic[T]):
         return freeze({})
 
     @property
+    def method_provenance(self) -> Any:
+        """Provenance records behind the route this outcome executed.
+
+        A :class:`~antecedent.citations.MethodProvenance` with the sources, documented
+        deviations, review scope limits, id and digest of each record; empty for a refusal.
+        Descriptive only; distinct from :attr:`provenance`.
+        """
+        from .citations import provenance_of
+
+        return provenance_of(self)
+
+    def citations(self) -> tuple[Any, ...]:
+        """This outcome's sources, de-duplicated, each with its records' caveats.
+
+        :func:`antecedent.citations.bibliography` de-duplicates across a study's outcomes.
+        """
+        return self.method_provenance.citations()
+
+    @property
     def identities(self) -> Mapping[str, Any]:
         report = self.inspect()
         names = (

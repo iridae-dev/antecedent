@@ -1063,6 +1063,13 @@ impl CompletedBatch {
         &self.results
     }
 
+    /// The study's bibliography: the sources of every result, de-duplicated across results,
+    /// each with the caveats of the records citing it (see [`crate::bibliography`]).
+    #[must_use = "the bibliography is computed on each call"]
+    pub fn bibliography(&self) -> Vec<antecedent_io::method_provenance::CitationWire> {
+        crate::bibliography(self.results.iter().map(AsRef::as_ref))
+    }
+
     /// Estimated score tables, including empty slots where retention was unavailable.
     #[must_use]
     pub fn scores(&self) -> &BatchScores {
