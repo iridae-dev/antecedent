@@ -24,13 +24,17 @@
 //! 4. forms `g +/- z se` with `z = 1.959963984540054`, the standard normal 97.5% quantile
 //!    (tabulated, not computed by the product's quantile routine).
 //!
+//! The design has 24 rows (the estimator requires at least 20) and seven coefficients, so the mean
+//! leverage is 7/24 and the HC2 inflation of a typical residual is about 1/sqrt(1 - 7/24) = 1.19;
+//! the half-width ratio is asserted above 1.05, well under that, and far above the 10^-5 tolerance.
+//!
 //! The published point is also compared, which ties the reference coefficients to the product's
 //! fit. Tolerance: the product solves the same penalized least-squares problem by a conditioned
 //! direct solve or a backfit to a relative 1e-10; the Gram matrix here has condition well below
 //! 10^4, so coefficients agree to about 10^-8 and the point to 10^-6 relative. The half-width is a
 //! smooth function of the residuals and leverages and is compared to 10^-5 relative. The
 //! construction is discriminated well above that: the same design with uncorrected (HC0)
-//! residuals moves the half-width by more than a factor of 1.1, which the test asserts, so a
+//! residuals moves the half-width by more than a factor of 1.05, which the test asserts, so a
 //! different leverage correction cannot pass.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -49,7 +53,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_estimate::response::ContinuousResponseEstimator;
 
-const N: usize = 14;
+const N: usize = 24;
 const LAMBDA: f64 = 0.5;
 /// Standard normal 97.5% quantile.
 const Z_975: f64 = 1.959_963_984_540_054;
@@ -110,8 +114,8 @@ struct Fixture {
 }
 
 fn fixture() -> Fixture {
-    let a: Vec<f64> = (0..N).map(|i| ((i * 5) % N) as f64 / 7.0).collect();
-    let x: Vec<f64> = (0..N).map(|i| ((i * 3 + 2) % N) as f64 / 5.0 - 1.0).collect();
+    let a: Vec<f64> = (0..N).map(|i| ((i * 5) % N) as f64 / 12.0).collect();
+    let x: Vec<f64> = (0..N).map(|i| ((i * 7 + 2) % N) as f64 / 12.0 - 1.0).collect();
     let y: Vec<f64> = (0..N)
         .map(|i| {
             let t = a[i];
@@ -253,7 +257,7 @@ fn the_identity_jacobian_band_equals_the_hand_computed_hc2_sandwich() {
         assert!(((upper[0] + lower[0]) / 2.0 - point).abs() <= 1e-9 * (1.0 + point.abs()));
         // The tolerance discriminates the leverage correction.
         assert!(
-            want.half_width > 1.1 * want.half_width_uncorrected,
+            want.half_width > 1.05 * want.half_width_uncorrected,
             "at {at}: HC2 {} vs HC0 {}",
             want.half_width,
             want.half_width_uncorrected
