@@ -142,6 +142,6 @@ more: it is not an interval and not a calibration.
 | Procedure element missing | `adaptive_contract_incomplete` (for example `adaptive_inference.stopping_rule_missing`) | Declare it |
 | Posterior from value-dependent loss | `adaptive_assumption_violated` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
 | Fixed-sample or group-sequential on an adaptive design | `adaptive_assumption_violated` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
-| Rule that does not match the paradigm | `adaptive_assumption_violated` (`adaptive_inference.rule_mismatch`) | Declare the matching stopping rule |
+| Rule that does not match the paradigm | `adaptive_assumption_violated` (`adaptive_inference.paradigm_rule_mismatch`) | Declare the matching stopping rule |
 | Anytime-valid with several contexts | `not_supported` (an `adaptive_inference.*` premise failure) | Run per context |
 | Any interval or coverage claim | not supported | Treat as derived and unmeasured |

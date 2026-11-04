@@ -735,6 +735,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.arms_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.contexts_invalid` | `invalid_argument` | Declare 1 to 4 contexts with known probabilities summing to one. |
 | `adaptive_inference.rule_mismatch` | `invalid_argument` | Correct the declared element. |
+| `adaptive_inference.paradigm_rule_mismatch` | `adaptive_assumption_violated` | Declare the stopping rule the paradigm presumes: boundaries over the looks for group-sequential inference, a posterior expected-loss or futility rule for decision-theoretic stopping. |
 | `adaptive_inference.looks_not_ordered` | `invalid_argument` | Declare a schedule whose first look enrols at least one unit. |
 | `adaptive_inference.declared_units_exceeded` | `invalid_argument` | Declare at most 65,535 units; split a larger study into separately declared stages. |
 | `adaptive_inference.declared_looks_exceeded` | `invalid_argument` | Declare fewer looks (24 single-outcome, 64 participant-level) or enrol larger batches between looks. |

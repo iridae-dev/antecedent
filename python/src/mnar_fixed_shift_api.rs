@@ -65,7 +65,9 @@ fn mnar_fixed_shift_prepare(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<(Option<NativePreparedMnarFixedShift>, Option<String>)> {
-    use antecedent_core::mnar_fixed_shift::{FixedShiftSource, SamplingPremise, SourceRow};
+    use antecedent_core::mnar_fixed_shift::{
+        FixedShiftSource, SamplingPremise, SourceError, SourceRow,
+    };
     if subject_ids.len() != treatment.len() || treatment.len() != outcome.len() {
         return Ok((
             None,
@@ -104,13 +106,19 @@ fn mnar_fixed_shift_prepare(
     ) {
         Ok(source) => source,
         Err(error) => {
+            let detail = match error {
+                SourceError::InvalidDeclaration => "mnar_fixed_shift.invalid_declaration",
+                SourceError::DuplicateSubject => "mnar_fixed_shift.duplicate_subject",
+                SourceError::InvalidOutcome => "mnar_fixed_shift.invalid_outcome",
+                SourceError::InsufficientObservations => {
+                    "mnar_fixed_shift.insufficient_observations"
+                }
+                SourceError::ConstantOutcome => "mnar_fixed_shift.constant_outcome",
+                SourceError::InvalidShift => "mnar_fixed_shift.invalid_shift",
+            };
             return Ok((
                 None,
-                Some(refusal_json(
-                    reason_code!("invalid_argument"),
-                    &format!("mnar_fixed_shift.{}", error.detail()),
-                    &error.to_string(),
-                )),
+                Some(refusal_json(reason_code!("invalid_argument"), detail, &error.to_string())),
             ));
         }
     };
@@ -120,14 +128,27 @@ fn mnar_fixed_shift_prepare(
     Ok(match prepared {
         Ok(inner) => (Some(NativePreparedMnarFixedShift { inner }), None),
         Err(error) => {
-            let code = match &error {
-                antecedent::CausalError::Cancelled { .. } => reason_code!("execution_cancelled"),
-                antecedent::CausalError::Resource { .. } => {
-                    reason_code!("execution_resource_limit")
-                }
-                _ => error.reason_code().unwrap_or("invalid_argument"),
-            };
-            (None, Some(refusal_json(code, "mnar_fixed_shift.preparation", &error.to_string())))
+            let message = error.to_string();
+            (
+                None,
+                Some(match &error {
+                    antecedent::CausalError::Cancelled { .. } => refusal_json(
+                        reason_code!("execution_cancelled"),
+                        "mnar_fixed_shift.preparation_cancelled",
+                        &message,
+                    ),
+                    antecedent::CausalError::Resource { .. } => refusal_json(
+                        reason_code!("execution_resource_limit"),
+                        "mnar_fixed_shift.preparation_resource_limit",
+                        &message,
+                    ),
+                    _ => refusal_json(
+                        error.reason_code().unwrap_or("invalid_argument"),
+                        "mnar_fixed_shift.preparation",
+                        &message,
+                    ),
+                }),
+            )
         }
     })
 }

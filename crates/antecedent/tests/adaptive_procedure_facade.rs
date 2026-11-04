@@ -324,7 +324,7 @@ fn every_paradigm_whose_premise_fails_is_refused_as_an_assumption_violation() {
             &adaptive_stopped,
             &ProcedureReportRequest::DecisionTheoretic { truth: vec![0.3, 0.6] },
         ),
-        "adaptive_inference.rule_mismatch",
+        "adaptive_inference.paradigm_rule_mismatch",
     );
 
     let fixed_stopped = declare(

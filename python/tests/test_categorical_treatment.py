@@ -357,6 +357,22 @@ def _posterior_reference(levels, outcome, order, reference, weights):
     return w @ m, math.sqrt(b_n / a_n * (w @ np.linalg.inv(ln) @ w)), 2 * a_n
 
 
+def _student_t_mass(location: float, scale: float, df: float, lower: float, upper: float) -> float:
+    """Mass of ``location + scale * T(df)`` on ``[lower, upper]`` by Simpson's rule on the density."""
+    log_norm = math.lgamma((df + 1.0) / 2.0) - math.lgamma(df / 2.0) - 0.5 * math.log(df * math.pi)
+
+    def density(x: float) -> float:
+        z = (x - location) / scale
+        return math.exp(log_norm - (df + 1.0) / 2.0 * math.log1p(z * z / df)) / scale
+
+    steps = 20_000
+    h = (upper - lower) / steps
+    total = density(lower) + density(upper)
+    total += 4.0 * sum(density(lower + (2 * i - 1) * h) for i in range(1, steps // 2 + 1))
+    total += 2.0 * sum(density(lower + 2 * i * h) for i in range(1, steps // 2))
+    return total * h / 3.0
+
+
 def test_the_posterior_section_matches_the_normal_equations_reference() -> None:
     result = abc(pairs=[("b", "c")], posterior=PRIOR)
     posterior = result.posterior
@@ -368,9 +384,7 @@ def test_the_posterior_section_matches_the_normal_equations_reference() -> None:
         assert got.scale == pytest.approx(scale, abs=1e-9)
         assert got.degrees_of_freedom == pytest.approx(df)
         assert got.mean == pytest.approx(location, abs=1e-9)
-        with pytest.raises(CausalUnsupportedError) as refused:
-            _ = got.interval
-        assert refused.value.reason_code == "not_supported"
+        assert _student_t_mass(location, scale, df, *got.interval) == pytest.approx(0.95, abs=1e-9)
     location, scale, _ = _posterior_reference(LEVELS, OUTCOME, ["a", "b", "c"], "a", [0, -1, 1])
     pair = posterior.pair("b", "c")
     assert pair.location == pytest.approx(location, abs=1e-9)
@@ -387,15 +401,20 @@ def test_the_posterior_states_its_estimand_prior_and_standing() -> None:
     assert abc().posterior is None
 
 
-def test_categorical_posterior_interval_is_withheld_until_calibrated() -> None:
+def test_the_posterior_interval_is_reported_with_its_calibration_status() -> None:
     result = abc(posterior=PRIOR)
     posterior = result.posterior
     assert posterior is not None
-    with pytest.raises(CausalUnsupportedError) as refused:
-        _ = posterior.effect("b").interval
-    assert refused.value.reason_code == "not_supported"
-    assert "categorical_treatment.posterior_interval_not_supported" in str(refused.value)
-    assert all("interval" not in effect for effect in result.to_dict()["posterior"]["effects"])
+    assert posterior.calibration == "unmeasured"
+    for level in ("b", "c"):
+        effect = posterior.effect(level)
+        lower, upper = effect.interval
+        # The equal-tailed interval of a Student-t law is symmetric about its location.
+        assert 0.5 * (lower + upper) == pytest.approx(effect.location, abs=1e-9)
+        assert lower < effect.location < upper
+    assert [e["interval"] for e in result.to_dict()["posterior"]["effects"]] == [
+        list(posterior.effect(level).interval) for level in ("b", "c")
+    ]
 
 
 def test_the_ordered_posterior_reports_monotonicity_bounds_and_round_trips() -> None:

@@ -291,7 +291,7 @@ def _source_item_hash(path: Path, kind: str, name: str) -> str | None:
 
 
 def _adaptive_premise_proven(path: Path) -> bool:
-    """Prove Error::PremiseFailed survives the facade with not_supported."""
+    """Prove Error::PremiseFailed survives the facade with adaptive_assumption_violated."""
     base = REPO_ROOT / "crates/antecedent-stats/src/adaptive_inference"
     producers = {
         (base / "repeated_measures_posterior.rs").resolve(): ("premise_failure", "ee58cf70efbfd761a85d19d29808869bc0a9b7fae688d46821fff0c3c2811479"),
@@ -308,9 +308,9 @@ def _adaptive_premise_proven(path: Path) -> bool:
         return False
     dependencies = [
         (path, "fn", producer[0], producer[1]),
-        (base / "procedure_uncertainty.rs", "fn", "premise_reason_code", "2f12eecf84eb2f37b6cc8039160b94e72497ecd02ba5197b0392feda1f0c86e3"),
+        (base / "procedure_uncertainty.rs", "fn", "premise_reason_code", "e7c1e8626a528b0980e4908f547d51413e9a17bb582361af9593b275653d18d5"),
         (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "refusal_of", "cc7d439d6ef611d653d461b664ca078fc0da34963fc271daef2da48f6d302142"),
-        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "premise_remedy", "1abc9c49543a905f0e7e393e417fb1c67d66f2d01f601f8ff2bfcb6fc3083f94"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "premise_remedy", "18989b05bf34791ce49bf78378c92925ec0bbec318f64a2db044a9da3655e269"),
         (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "const", "ASSUMPTION_DETAILS", "96cc07be8e8d97a6edbf81e75420dc2c649792377f90019d2db0f434bf5bcb01"),
     ]
     if path.name == "repeated_measures_posterior.rs":
@@ -384,7 +384,7 @@ def _decision_builder_proven(path: Path) -> bool:
         return False
     dependencies = [
         (expected, "fn", "builder", "eccc9fbabd0196489c8cb02b7164dbf40290bef9244cb623eae4c40b59182657"),
-        (expected, "fn", "to_refusal", "4c6dba4e591a5835ba081c288039f869e4b95474f14e96a46235c79adf530147"),
+        (expected, "fn", "to_refusal", "0e0cc52466effef62a099ae7876522d155972222749edfc661fa599082437dff"),
         (REPO_ROOT / "crates/antecedent-design/src/signal.rs", "impl", "RefusalBuilder", "948280df6891ab404eefc1886763c6f4e99950209e04485b6214b936c55fcfbc"),
         (REPO_ROOT / "crates/antecedent-contract/src/external_refusal.rs", "impl", "ExternalRefusal", "f34fc42e5d96be3c45bcbba2133c59856e967f51e90e4b5b2cef9d7c1355c6d5"),
     ]
@@ -485,12 +485,12 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
         const = next((c.name for c in consts if c.body[0] <= at < c.body[1]), None)
         reason = None
         premise_details = {"adaptive_inference.selection_not_ignorable", "adaptive_inference.arm_not_observed",
-                           "adaptive_inference.structure_incomplete", "adaptive_inference.rule_mismatch"}
+                           "adaptive_inference.structure_incomplete", "adaptive_inference.paradigm_rule_mismatch"}
         if (premise_proven and value in premise_details
                 and (re.search(r"(?<![\w.:])(?:premise_failure|premise)\s*\(\s*$", skel[:at])
                      or (path.name == "adaptive_procedure_report.rs" and re.search(
                          r"\brefusal_of\s*\(\s*&AdaptiveInferenceError::PremiseFailed\s*\{\s*detail\s*:\s*$", skel[:at])))):
-            reason = "not_supported"
+            reason = "adaptive_assumption_violated"
         if decision_builder and value in {"decision_reliability.search_record_required",
                                           "decision_reliability.validation_not_independent",
                                           "decision_reliability.dependence_unknown"}:

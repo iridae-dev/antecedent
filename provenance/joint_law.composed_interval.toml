@@ -13,6 +13,7 @@ implementation_deviations = [
   "Derived in-repo from the delta method, the law of total variance and expectation under an aligned joint law; not taken from a single source.",
   "The extremes of E[g(X,Y)] for a supermodular or submodular g are attained at the comonotone and countermonotone couplings; here they are evaluated exactly on finite atoms (draws or weighted atoms), not for continuous marginals, and the sign structure is verified on the atom lattice before any bound is reported.",
   "Makarov and Rueschendorf bounds are evaluated exactly on finite atoms at each atom's value, left limit and right limit; the stated sharpness for general marginals is checked here against permutation enumeration for equal-mass marginals and against closed forms for Bernoulli and uniform marginals.",
+  "The composed-interval check (capability `joint_law.composed_interval_check`, PropagationClaim::check_composed_interval) re-derives the interval support from the sealed claim and reports the interval from the two constructions below at its own coordinate with the calibration status of the record it is offered; it does not refuse for the lack of a measured record.",
   "A declared correlation range is applied to quantities linear in the correlation (endpoints exact) and the pooled estimate reuses the equicorrelated envelope of the evidence ledger; it is an assumption range.",
 ]
 
@@ -35,7 +36,7 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "This review checks the arithmetic of the two constructions against mpmath (normal quantile, five levels) and exact enumeration (mixture quantiles, three mixtures), not their coverage, which is unmeasured and owned by calibration work. The shared equal-tail quantile rules (exchangeable rank, interpolated) used by draw_interval_candidate are in another module and were not reviewed here."
 sources = ["https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No numerical defect was found: the normal interval half-width z*sd agrees with mpmath to 1e-9 (relative to the standard deviation) including zero variance, and the mixture equal-tail quantiles equal the exact generalized inverse of the enumerated mixture law at three levels; both carry the 'unmeasured' status."]
-record_sha256 = "e9f104f33fcfeb783807633d22719ef050f5c315203f4a5842ee713f6197d86f"
+record_sha256 = "d826b579b05c3d910803b4214595ffc213663eb31de8b2a92d5e99c88f4fdbbe"
 
 [[method_review.artifacts]]
 role = "implementation"

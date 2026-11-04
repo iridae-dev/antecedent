@@ -26,9 +26,17 @@ fn invalid(message: &str) -> IoError {
 }
 
 fn source_refusal(error: SourceError) -> IoError {
+    let detail = match error {
+        SourceError::InvalidDeclaration => "mnar_fixed_shift.invalid_declaration",
+        SourceError::DuplicateSubject => "mnar_fixed_shift.duplicate_subject",
+        SourceError::InvalidOutcome => "mnar_fixed_shift.invalid_outcome",
+        SourceError::InsufficientObservations => "mnar_fixed_shift.insufficient_observations",
+        SourceError::ConstantOutcome => "mnar_fixed_shift.constant_outcome",
+        SourceError::InvalidShift => "mnar_fixed_shift.invalid_shift",
+    };
     IoError::Refused {
         code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("mnar_fixed_shift.{}: {error}", error.detail()),
+        message: format!("{detail}: {error}"),
     }
 }
 
@@ -46,13 +54,16 @@ fn read_word(bytes: &[u8], pos: &mut usize) -> Result<u32, IoError> {
 }
 
 fn admission_error(ctx: &ExecutionContext, message: impl std::fmt::Display) -> IoError {
-    IoError::Refused {
-        code: if ctx.cancellation.is_cancelled() {
-            antecedent_core::reason_code!("execution_cancelled")
-        } else {
-            antecedent_core::reason_code!("execution_resource_limit")
-        },
-        message: format!("mnar_fixed_shift.source_admission: {message}"),
+    if ctx.cancellation.is_cancelled() {
+        IoError::Refused {
+            code: antecedent_core::reason_code!("execution_cancelled"),
+            message: format!("mnar_fixed_shift.source_admission_cancelled: {message}"),
+        }
+    } else {
+        IoError::Refused {
+            code: antecedent_core::reason_code!("execution_resource_limit"),
+            message: format!("mnar_fixed_shift.source_admission_resource_limit: {message}"),
+        }
     }
 }
 

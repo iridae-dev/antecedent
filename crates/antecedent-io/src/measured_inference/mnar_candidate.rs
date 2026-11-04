@@ -8,8 +8,11 @@ use antecedent_core::{CalibrationBasis, ExecutionContext, IdentityDomain, Semant
 
 const Z: f64 = 1.959_963_984_540_054_f64;
 
-fn refused(code: &'static str, detail: &str, message: impl std::fmt::Display) -> IoError {
-    IoError::Refused { code, message: format!("mnar_fixed_shift.{detail}: {message}") }
+// A refusal whose detail is a literal at the call site: `<detail>: <message>`.
+macro_rules! refused {
+    ($code:expr, $detail:literal, $message:expr) => {
+        IoError::Refused { code: $code, message: format!(concat!($detail, ": {}"), $message) }
+    };
 }
 
 struct Reading {
@@ -28,10 +31,10 @@ struct Reading {
 // The interval about a point, refused when its standard error cannot support one.
 fn interval(point: f64, standard_error: f64) -> Result<(f64, f64), IoError> {
     if !point.is_finite() || !standard_error.is_finite() || standard_error <= 0.0 {
-        return Err(refused(
+        return Err(refused!(
             antecedent_core::reason_code!("invalid_argument"),
-            "degenerate_interval",
-            format!("point {point} with standard error {standard_error} supports no interval"),
+            "mnar_fixed_shift.degenerate_interval",
+            format!("point {point} with standard error {standard_error} supports no interval")
         ));
     }
     Ok((point - Z * standard_error, point + Z * standard_error))
@@ -43,7 +46,11 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoErr
     let source = crate::mnar_candidate_source::decode_source(bytes, ctx)?;
     let data = source.source();
     let identity = data.lowered_identity().map_err(|e| {
-        refused(antecedent_core::reason_code!("invalid_argument"), "invalid_source", e)
+        refused!(
+            antecedent_core::reason_code!("invalid_argument"),
+            "mnar_fixed_shift.invalid_source",
+            e
+        )
     })?;
     let scoped = ctx.enter_lowered_dispatch(identity);
     let arm = |treated: bool, shift: f64| -> Result<(f64, f64), IoError> {
@@ -60,10 +67,10 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoErr
         let variance = (mean - missing_mean).powi(2) * pi * (1.0 - pi) / n
             + combined().map(|v| (v - combined_mean).powi(2)).sum::<f64>() / (n_obs - 1.0) / n_obs;
         if scoped.cancellation.is_cancelled() {
-            return Err(refused(
+            return Err(refused!(
                 antecedent_core::reason_code!("execution_cancelled"),
-                "cancelled",
-                "candidate execution cancelled",
+                "mnar_fixed_shift.cancelled",
+                "candidate execution cancelled"
             ));
         }
         Ok((point, variance))
@@ -111,7 +118,11 @@ pub fn measure_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
     let reading = execute_source(bytes, ctx)?;
     let source = reading.source.source();
     let program = source.lowered_identity().map_err(|e| {
-        refused(antecedent_core::reason_code!("invalid_argument"), "invalid_source", e)
+        refused!(
+            antecedent_core::reason_code!("invalid_argument"),
+            "mnar_fixed_shift.invalid_source",
+            e
+        )
     })?;
     let premises = crate::digest_hex(
         IdentityDomain::Claim,

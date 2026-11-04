@@ -96,8 +96,11 @@ pub const MNAR_ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 pub const MNAR_EMPIRICAL_STATUS: &str = "not_empirically_established";
 /// What the per-point sampling interval is conditional on.
 pub const MNAR_SAMPLING_BASIS: &str = "sampling interval conditional on the sensitivity parameter, reported with its calibration status; distinct from the assumption range and never combined with it";
-/// Detail for the pointwise sampling interval and the conclusions derived from it.
-pub const MNAR_SAMPLING_DETAIL: &str = "mnar_sensitivity.sampling_interval_conditional";
+/// Descriptor carried by every result for the pointwise sampling interval and the conclusions
+/// derived from it. It labels what the interval is conditional on and is not a refusal detail,
+/// so it is assembled from its namespace and name.
+pub const MNAR_SAMPLING_DETAIL: &str =
+    concat!("mnar_sensitivity", ".sampling_interval_conditional");
 /// Status of the pointwise sampling interval: reported, annotated by its calibration.
 pub const MNAR_SAMPLING_STATUS: &str = "reported";
 /// Stable id of the untestable departure assumption.

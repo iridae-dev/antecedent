@@ -151,7 +151,7 @@ def test_every_paradigm_whose_premise_fails_is_refused():
     )
     refused(
         lambda: adaptive.report(ai.DecisionProcedureReport(truth=truth)),
-        "adaptive_inference.rule_mismatch",
+        "adaptive_inference.paradigm_rule_mismatch",
     )
     lossy = declare(
         THOMPSON,

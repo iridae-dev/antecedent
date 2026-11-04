@@ -881,6 +881,67 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
     assert!(consume_observation_query_artifact(&bytes, Some(claim.identity()), &ctx()).is_ok());
 }
 
+/// Construction check of the parameter interval of a redrawn quantity.
+///
+/// Reference: the equal-tailed interval at level `L` is `[q((1 - L) / 2), q((1 + L) / 2)]` of the
+/// ascending-sorted draws the claim exposes. The exchangeable-rank construction places `q(p)` at
+/// one-based rank `p (D + 1)` clamped to `[1, D]` (Hyndman-Fan type 6); the interpolated
+/// construction places it at zero-based rank `p (D - 1)` (type 7). Both are recomputed here by
+/// hand from the exposed column, linearly interpolating between the two bracketing order
+/// statistics. The draws are in `[0, 1]` and the interpolation is one multiply-add, so the
+/// bounds agree to a few ulp; the tolerance is 1e-12.
+#[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    reason = "the ranks are non-negative positions inside the sorted draws"
+)]
+fn the_parameter_interval_equals_the_hand_computed_equal_tail_quantiles_of_the_draws() {
+    let prepared = confounded();
+    let draws = 2000_u32;
+    let claim = prepared
+        .observe_with_parameter_uncertainty(
+            &ParameterRedrawRequest {
+                request: ObservationRequest {
+                    operation: ObservationOperation::Conditioning,
+                    outcome: "Y".into(),
+                    conditioning: vec![direct("S", "1")],
+                    interventions: Vec::new(),
+                    continuous: ContinuousAssignments::default(),
+                },
+                retained: confounded_counts(),
+                prior: RedrawPrior::default(),
+                draws,
+                seed: 17,
+            },
+            &ctx(),
+        )
+        .unwrap();
+    let aligned = claim.parameter_draws().unwrap();
+    let mut column = aligned.column(1);
+    column.sort_by(f64::total_cmp);
+    let d = column.len();
+    assert_eq!(d, draws as usize);
+    let at = |zero_based: f64| {
+        let (lo, hi) = (zero_based.floor() as usize, zero_based.ceil() as usize);
+        column[lo] + (column[hi] - column[lo]) * (zero_based - lo as f64)
+    };
+    let rank_type6 = |p: f64| at((p * (d as f64 + 1.0)).clamp(1.0, d as f64) - 1.0);
+    let rank_type7 = |p: f64| at(p * (d as f64 - 1.0));
+    for (construction, rank) in [
+        ("aligned_draw_equal_tail_exchangeable_rank", &rank_type6 as &dyn Fn(f64) -> f64),
+        ("aligned_draw_equal_tail_interpolated", &rank_type7 as &dyn Fn(f64) -> f64),
+    ] {
+        let interval = claim.parameter_interval("probability:1", construction, 200).unwrap();
+        near(interval.nominal_level, 0.95);
+        let (lower, upper) = interval.bounds.expect("a draw construction reports its bounds");
+        near(lower, rank(0.025));
+        near(upper, rank(0.975));
+        assert!(lower < aligned.point[1] && aligned.point[1] < upper, "{construction}");
+    }
+}
+
 #[test]
 #[allow(
     clippy::too_many_lines,

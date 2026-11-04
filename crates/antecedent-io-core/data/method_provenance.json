@@ -2237,10 +2237,10 @@
     "A source with different meaning or population is refused; a free-text rationale does not establish source-to-target transport. A same-frame native pooled posterior can be reused through its replayed artifact and independently retained identity, with the same base prior and bounded, replayed nested ancestry.",
     "Pooled sources require integer counts and one normalized identity per independent respondent; overlap between respondents and sources, and between sources, is judged by the evidence ledger.",
     "The per-source conflict diagnostic is a prior-predictive log evidence ratio against a vague prior versus the remaining discounted evidence and the current look, screened at ln 10; for fractional power-prior counts it is a generalized score, not a calibrated Bayes factor; calibration of the screen is unmeasured and a conflicting source is reported in the posterior and refused for stopping decisions or study ranking, never silently re-weighted.",
-    "Every route is point-only with calibration unmeasured; the interval route refuses with not_supported until a coverage record attests the choice cell. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
+    "Every route is point-only with calibration unmeasured except the pooled-share interval (capability `choice_inference.interval_candidates`): the equal-tail credible interval from the explicit Beta marginal quantiles of the Dirichlet posterior, reported with its calibration status and never refused for the lack of a coverage record. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
     "Stated choices do not identify behavioural or causal outcomes."
    ],
-   "digest": "1b30819c9fdceb92cd89f9e1f3e9a691edc02d04d62e7799d96293acf928a0a8",
+   "digest": "f480973b9f58700d118bb9322d155e57da9ea5b931ed91aa515772ebf4107d40",
    "id": "choice_inference.contract",
    "review": "none",
    "scope_limits": [],
@@ -9730,9 +9730,10 @@
     "Derived in-repo from the delta method, the law of total variance and expectation under an aligned joint law; not taken from a single source.",
     "The extremes of E[g(X,Y)] for a supermodular or submodular g are attained at the comonotone and countermonotone couplings; here they are evaluated exactly on finite atoms (draws or weighted atoms), not for continuous marginals, and the sign structure is verified on the atom lattice before any bound is reported.",
     "Makarov and Rueschendorf bounds are evaluated exactly on finite atoms at each atom's value, left limit and right limit; the stated sharpness for general marginals is checked here against permutation enumeration for equal-mass marginals and against closed forms for Bernoulli and uniform marginals.",
+    "The composed-interval check (capability `joint_law.composed_interval_check`, PropagationClaim::check_composed_interval) re-derives the interval support from the sealed claim and reports the interval from the two constructions below at its own coordinate with the calibration status of the record it is offered; it does not refuse for the lack of a measured record.",
     "A declared correlation range is applied to quantities linear in the correlation (endpoints exact) and the pooled estimate reuses the equicorrelated envelope of the evidence ledger; it is an assumption range."
    ],
-   "digest": "e9f104f33fcfeb783807633d22719ef050f5c315203f4a5842ee713f6197d86f",
+   "digest": "d826b579b05c3d910803b4214595ffc213663eb31de8b2a92d5e99c88f4fdbbe",
    "id": "joint_law.composed_interval",
    "review": "method_review",
    "scope_limits": [

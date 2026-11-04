@@ -7,7 +7,7 @@ default = "closed"
 route = "antecedent.treatment.categorical_effects.posterior_interval"
 stage = "uncertainty"
 status = "supported"
-notes = "A bounded prior-predictive candidate is registered; posterior intervals remain withheld until supported."
+notes = "The Python posterior effect object reports the native equal-tailed contrast interval at the declared credible level, with the posterior's calibration status (crates/antecedent-estimate/tests/categorical_treatment_posterior.rs::reported_contrast_intervals_equal_the_independent_student_t_quantiles)."
 
 [[routes]]
 route = "antecedent.missing.GraphSelectionImputationResult.interval"
@@ -4612,11 +4612,23 @@ status = "supported"
 graph = "binary_treatment_continuous_mediator_sequential_ignorability_cross_world_independence_declared"
 evidence = "exact_crossed_grid_scm_alpha_gamma_half_sigma2_0_64_with_polynomial_outcome"
 functional = "natural_direct_indirect_and_total_effects_by_gauss_hermite_mediation_formula_with_n_versus_2n_error_check"
-guarantee = "nonlinear_mediation_natural_effects_point_only_bootstrap_se_unmeasured_diagnostic_interval_closed"
-limits = "Point natural effects only (NDE 0.95, NIE 0.75, TE 1.70 on the anchor SCM); the bootstrap SE is a diagnostic with calibration unmeasured and interval status closed. Assumptions are declared, never verified; confounding, treatment-induced confounders, undeclared cross-world independence, weak overlap and quadrature disagreement above tolerance refuse. Gaussian mediator and polynomial outcome misspecification is reported, not diagnosed."
+guarantee = "nonlinear_mediation_natural_effects_point_with_percentile_bootstrap_interval"
+limits = "Point natural effects only (NDE 0.95, NIE 0.75, TE 1.70 on the anchor SCM); the bootstrap SE and percentile bootstrap interval carry a per-interval calibration annotation. Assumptions are declared, never verified; confounding, treatment-induced confounders, undeclared cross-world independence, weak overlap and quadrature disagreement above tolerance refuse. Gaussian mediator and polynomial outcome misspecification is reported, not diagnosed."
 evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation.rs"
 evidence_assertion = "mediation_exact_scm_recovers_closed_form_effects"
-notes = "Nonlinear mediation natural effects; point-only, interval closed."
+notes = "Nonlinear mediation natural effects with a percentile bootstrap interval annotated by calibration."
+
+[[routes]]
+route = "antecedent.mediation.mediation_interval"
+stage = "uncertainty"
+status = "supported"
+graph = "binary_treatment_continuous_mediator_sequential_ignorability_cross_world_independence_declared"
+evidence = "exact_crossed_grid_scm_alpha_gamma_half_sigma2_0_64_with_polynomial_outcome"
+functional = "percentile_bootstrap_interval_of_natural_direct_indirect_and_total_effects"
+guarantee = "percentile_bootstrap_interval_equal_to_the_hand_percentile_of_the_retained_replicates_annotated_by_calibration"
+evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation_reference.rs"
+evidence_assertion = "bootstrap_intervals_equal_hand_percentiles_of_the_retained_replicate_effects"
+notes = "Seeded percentile bootstrap interval of each natural effect with a per-interval calibration slot; the slot annotates and never withholds the interval."
 
 [[routes]]
 route = "antecedent.mediation.interventional_effects"
@@ -10073,9 +10085,8 @@ notes = "Release-boundary fixture over existing routes; the Python surface is py
 [[routes]]
 route = "antecedent.composition_release_fixture.composed_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
-notes = "Closed adjacent route of the release-boundary fixture: no interval, posterior decision or ranking guarantee is produced; no whole-method coverage has been measured at the composed coordinate."
+status = "supported"
+notes = "The pooled interval of the release-boundary scenario is reported with its calibration status (not_measured at its study count); no posterior decision or ranking guarantee is produced."
 
 # Library-level transport, composition and uncertainty routes of the transported-evidence work.
 # A supported row is a non-uncertainty point_only or none route of an in_progress record with executed

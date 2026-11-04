@@ -252,6 +252,9 @@ fn premise_remedy(detail: &str) -> &'static str {
         "adaptive_inference.repeated_measures_paradigm_not_derived" => {
             "request the fixed-sample paradigm for a fixed assignment or the adaptive-weighting paradigm for an adaptive one; other paradigms are separate cells that are not derived for repeated measures"
         }
+        "adaptive_inference.paradigm_rule_mismatch" => {
+            "declare the stopping rule the paradigm presumes: boundaries over the looks for group-sequential inference, a posterior expected-loss or futility rule for decision-theoretic stopping"
+        }
         "adaptive_inference.analysis_route_mismatch" => {
             "declare the final analysis whose route is the requested paradigm's"
         }
@@ -467,7 +470,7 @@ impl AdaptiveProcedure {
                 admit(spec, UncertaintyParadigm::FrequentistGroupSequential).map_err(fail)?;
                 let StoppingRule::WaldBoundaries { critical, sidedness } = spec.stopping() else {
                     return Err(refusal_of(&AdaptiveInferenceError::PremiseFailed {
-                        detail: "adaptive_inference.rule_mismatch",
+                        detail: "adaptive_inference.paradigm_rule_mismatch",
                         message: "group-sequential inference needs declared boundaries over the looks",
                     }));
                 };

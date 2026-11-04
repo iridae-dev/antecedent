@@ -389,11 +389,11 @@ class CrossFileHelperTests(unittest.TestCase):
         details = {"adaptive_inference.arm_not_observed", "adaptive_inference.selection_not_ignorable",
                    "adaptive_inference.structure_incomplete"}
         self.assertEqual({lit.value for lit in rust_literals(path) if lit.value in details and
-                          lit.reason_code == "not_supported"}, details)
+                          lit.reason_code == "adaptive_assumption_violated"}, details)
         original = nontest_pair
         for filename, before, after in [
             ("adaptive_procedure_report.rs", "adaptive_inference.borrowing_frozen", "adaptive_inference.arm_not_observed"),
-            ("procedure_uncertainty.rs", 'reason_code!("not_supported")', 'reason_code!("invalid_argument")'),
+            ("procedure_uncertainty.rs", 'reason_code!("adaptive_assumption_violated")', 'reason_code!("invalid_argument")'),
             ("repeated_measures_posterior_report.rs", "refusal_of(&error)", "invalid(&error)"),
         ]:
             def changed(path_arg, filename=filename, before=before, after=after, **kwargs):
@@ -402,7 +402,7 @@ class CrossFileHelperTests(unittest.TestCase):
                     code = code.replace(before, after, 1)
                 return code, skel
             with self.subTest(filename=filename), patch("capability_source.nontest_pair", side_effect=changed):
-                self.assertFalse(any(lit.value in details and lit.reason_code == "not_supported"
+                self.assertFalse(any(lit.value in details and lit.reason_code == "adaptive_assumption_violated"
                                      for lit in rust_literals(path)))
 
     def test_adaptive_verified_remedy_patterns_are_not_emitters(self):
@@ -412,7 +412,7 @@ class CrossFileHelperTests(unittest.TestCase):
                    "adaptive_inference.structure_incomplete"}
         self.assertFalse(any(x.value in details for x in rust_literals(report)))
         self.assertEqual({x.value for x in rust_literals(producer)
-                          if x.value in details and x.reason_code == "not_supported"}, details)
+                          if x.value in details and x.reason_code == "adaptive_assumption_violated"}, details)
         original = nontest_pair
         def changed(path_arg, **kwargs):
             code, skel = original(path_arg, **kwargs)
@@ -422,15 +422,18 @@ class CrossFileHelperTests(unittest.TestCase):
             return code, skel
         with patch("capability_source.nontest_pair", side_effect=changed):
             self.assertTrue(details <= {x.value for x in rust_literals(report)})
-            self.assertFalse(any(x.value in details and x.reason_code == "not_supported"
+            self.assertFalse(any(x.value in details and x.reason_code == "adaptive_assumption_violated"
                                  for x in rust_literals(producer)))
 
-    def test_adaptive_rule_preserves_two_codes_and_fails_on_mapping_mutation(self):
+    def test_adaptive_rule_detail_has_one_code_per_path_and_fails_on_mapping_mutation(self):
         gap = REPO_ROOT / "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs"
         premise = REPO_ROOT / "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
         detail = "adaptive_inference.rule_mismatch"
         self.assertTrue(any(x.value == detail and x.reason_code == "invalid_argument" for x in rust_literals(gap)))
-        self.assertTrue(any(x.value == detail and x.reason_code == "not_supported" for x in rust_literals(premise)))
+        premise_detail = "adaptive_inference.paradigm_rule_mismatch"
+        self.assertFalse(any(x.value == detail for x in rust_literals(premise)))
+        self.assertTrue(any(x.value == premise_detail and x.reason_code == "adaptive_assumption_violated"
+                            for x in rust_literals(premise)))
         original = nontest_pair
         def changed(path_arg, **kwargs):
             code, skel = original(path_arg, **kwargs)

@@ -103,7 +103,10 @@ pub struct PreparedCategoricalPosteriorCandidate {
 }
 
 fn invalid(message: &str) -> CausalError {
-    CausalError::Compile { message: format!("compiled_categorical_posterior.candidate: {message}") }
+    crate::compile_reason!(
+        "invalid_argument",
+        "compiled_categorical_posterior.candidate: {message}"
+    )
 }
 
 /// Compile the bounded normal-inverse-gamma candidate without fitting it.

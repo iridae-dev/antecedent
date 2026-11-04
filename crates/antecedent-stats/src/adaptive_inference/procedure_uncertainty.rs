@@ -137,7 +137,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
                 StoppingRule::PosteriorExpectedLoss { .. } | StoppingRule::PosteriorFutility { .. }
             ) {
                 return Err(premise(
-                    "adaptive_inference.rule_mismatch",
+                    "adaptive_inference.paradigm_rule_mismatch",
                     "decision-theoretic stopping needs a posterior expected-loss or futility rule",
                 ));
             }
@@ -171,7 +171,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
             }
             if !matches!(spec.stopping(), StoppingRule::WaldBoundaries { .. }) {
                 return Err(premise(
-                    "adaptive_inference.rule_mismatch",
+                    "adaptive_inference.paradigm_rule_mismatch",
                     "group-sequential inference needs declared boundaries over the looks",
                 ));
             }

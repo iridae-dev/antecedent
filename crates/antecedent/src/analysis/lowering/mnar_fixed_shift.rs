@@ -17,7 +17,7 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{Realization, StatisticalProgram};
 
 fn error(message: impl std::fmt::Display) -> CausalError {
-    CausalError::Compile { message: format!("mnar_fixed_shift.lowering: {message}") }
+    crate::compile_reason!("invalid_argument", "mnar_fixed_shift.lowering: {message}")
 }
 
 /// Reconstruct the bounded source and lower its native operator graph. The declared
