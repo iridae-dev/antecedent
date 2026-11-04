@@ -17425,3 +17425,472 @@ test = "python/tests/test_sampling_weights.py::test_invalid_weights_are_refused_
 assertion_scopes = ["test_invalid_weights_are_refused_naming_the_first_offender"]
 dimensions = ["refusal"]
 assertion_contract = "Negative or NaN weights refuse naming the first offending source row with sampling_weights.invalid, and all-zero weights refuse."
+
+[[capability]]
+id = "journey.continuous_dose_policy"
+status = "covered"
+owner = "Python API integration: fixed group-dose policy value"
+behavior = "Estimates the value of a fixed per-group dose policy, its reference value and the increment, with intervals only for a known dose density, through analyze and prepare."
+python = "antecedent.policy.ConditionalDoseResponse"
+supports = ["design:continuous_dose_policy"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_continuous_dose_policy.py::test_fixed_dose_policy_uses_retained_analyze_and_prepare"
+assertion_scopes = ["test_fixed_dose_policy_uses_retained_analyze_and_prepare"]
+dimensions = ["success", "inspection", "artifact", "lifecycle"]
+assertion_contract = "Policy value 2.825, reference value 2.125 and increment 0.7 recover the structural values of the two-group linear dose response within 0.03; the increment interval brackets 0.7; the answer detail names the fixed-group kernel; the exported artifact reloads to an equal answer and prepare then estimate reproduces the response."
+[[capability.evidence]]
+test = "python/tests/test_continuous_dose_policy.py::test_fixed_dose_policy_refuses_malformed_rules_and_withholds_external_density_interval"
+assertion_scopes = ["test_fixed_dose_policy_refuses_malformed_rules_and_withholds_external_density_interval"]
+dimensions = ["refusal", "branch", "artifact"]
+assertion_contract = "A policy without a reference, a rule that omits an observed group and an externally estimated density each refuse or withhold: no interval is published for an external density, the support status is unsupported_point_utility and the artifact still round-trips."
+[[capability.evidence]]
+test = "python/tests/test_bayesian_survival_dose_posterior.py::test_dose_policy_posterior_matches_the_per_group_conjugate_reference"
+assertion_scopes = ["test_dose_policy_posterior_matches_the_per_group_conjugate_reference"]
+dimensions = ["success", "branch"]
+assertion_contract = "The Bayesian fixed-policy posterior equals the per-group conjugate reference computed in the test."
+
+[[capability]]
+id = "journey.complier_effect"
+status = "covered"
+owner = "Python API integration: complier average causal effect"
+behavior = "Estimates the complier effect of a randomized encouragement as the Wald ratio of the intention-to-treat effect and the receipt first stage, with its influence variance and an interval on the supported route."
+python = "antecedent.experiment.ComplierEffect"
+supports = ["design:complier_effect"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_experiment_noncompliance.py::test_retained_complier_route_supports_interval_matching_direct_utility"
+assertion_scopes = ["test_retained_complier_route_supports_interval_matching_direct_utility"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The complier effect equals the independently computed Wald ratio of the assignment contrast of outcome over the assignment contrast of receipt to 1e-9 relative, the 95 percent interval brackets it and the route reports supported."
+[[capability.evidence]]
+test = "python/tests/test_experiment_noncompliance.py::test_randomized_noncompliance_recovers_known_complier_effect_and_itt"
+assertion_scopes = ["test_randomized_noncompliance_recovers_known_complier_effect_and_itt"]
+dimensions = ["success", "controls"]
+assertion_contract = "On a construction with four always-takers, eight never-takers and four compliers the intention-to-treat effect is 1, the first stage 0.25 and the complier effect 4; a small sample withholds the interval and names the exclusion restriction."
+[[capability.evidence]]
+test = "python/tests/test_experiment_noncompliance.py::test_randomized_noncompliance_refuses_zero_first_stage"
+assertion_scopes = ["test_randomized_noncompliance_refuses_zero_first_stage"]
+dimensions = ["refusal"]
+assertion_contract = "A zero receipt first stage refuses as unsupported naming the positive first stage requirement."
+
+[[capability]]
+id = "journey.dml_score_covariance"
+status = "covered"
+owner = "Python API integration: cross-fitted score tables of DML, DR-Learner and CausalForest"
+behavior = "Reweights the row-identified cross-fitted scores behind a DML, DR-Learner or CausalForest average effect and reports the retargeted points with their joint plug-in score covariance."
+python = "antecedent._batch.BatchResult.retarget"
+supports = ["capability:estimate.dml_score_covariance"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_dml_score_retarget.py::test_each_score_table_route_reweights_its_own_cross_fitted_scores"
+assertion_scopes = ["test_each_score_table_route_reweights_its_own_cross_fitted_scores"]
+dimensions = ["success", "inspection"]
+assertion_contract = "For each of the three estimators a uniform-weight retarget returns the route's own point and analytic standard error to 1e-9 relative with the plug-in score covariance label; two tilted claims have a symmetric covariance, recover the structural effect within four standard errors, and their contrast equals the difference of values with variance S_aa + S_bb - 2 S_ab."
+[[capability.evidence]]
+test = "python/tests/test_dml_score_retarget.py::test_a_partially_linear_score_keeps_no_table_and_refuses_the_retarget"
+assertion_scopes = ["test_a_partially_linear_score_keeps_no_table_and_refuses_the_retarget"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "A DML fit with the partially linear score keeps no per-arm score table: the retargeted member reports score_table_unavailable and no value instead of reweighting another construction."
+
+[[capability]]
+id = "journey.distribution_joint_alignment"
+status = "covered"
+owner = "Python API integration: joint-alignment standing of supplied draws"
+behavior = "Tells whether supplied draws are one aligned joint realization and which causal quantity each axis means; joint operations are refused on independent marginals."
+python = "antecedent.joint_distribution.JointDistributionArtifact.covariance"
+supports = ["capability:distribution.joint_alignment"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_joint_distribution_artifact.py::test_typed_numpy_copy_and_round_trip"
+assertion_scopes = ["test_typed_numpy_copy_and_round_trip"]
+dimensions = ["success", "inspection", "artifact"]
+assertion_contract = "A two-axis joint artifact reports its meaning, axes, shape and one quantity per axis; the covariance of the axes is 0.5 and the joint product expectation 1.0 from the draws, equal to numpy's biased covariance; the artifact reloads under its identity."
+[[capability.evidence]]
+test = "python/tests/test_joint_distribution_artifact.py::test_independent_marginals_refuse_python_joint_operations"
+assertion_scopes = ["test_independent_marginals_refuse_python_joint_operations"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "A draw set declared independent marginals refuses covariance and joint product expectation with joint_law_required."
+
+[[capability]]
+id = "journey.counterfactual_transport_sampled_interval"
+status = "covered"
+owner = "Python API integration: interval of a sampled counterfactual transport estimate"
+behavior = "Reports the 95 percent delta-method Wald interval of a sampled counterfactual transport estimate, clamped to the unit interval, with its calibration annotation."
+python = "antecedent.transport._counterfactual.SampledCounterfactualTransportEstimate.measure_interval"
+supports = ["capability:counterfactual.transport_sampled_interval"]
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_sampled_transport_interval.py::test_the_measured_interval_is_the_clamped_wald_interval_of_the_estimates_own_pair"
+assertion_scopes = ["test_the_measured_interval_is_the_clamped_wald_interval_of_the_estimates_own_pair"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The interval equals the estimate's probability minus and plus 1.959964 standard errors, clamped to [0, 1], to 1e-12; the level is 0.95; the calibration annotation is one of the four documented labels; the original estimate keeps its uncalibrated standard error and the interval is reproducible from the same counts."
+[[capability.evidence]]
+test = "python/tests/test_sampled_transport_interval.py::test_a_smoothed_table_is_reported_with_its_rule_in_the_scope_never_refused_or_hidden"
+assertion_scopes = ["test_a_smoothed_table_is_reported_with_its_rule_in_the_scope_never_refused_or_hidden"]
+dimensions = ["branch", "controls"]
+assertion_contract = "A smoothed table still yields the interval of its own estimate and standard error, with the additive_smoothing rule named in the validated scope."
+
+[[capability]]
+id = "journey.adaptive_decision_theoretic_stopping"
+status = "covered"
+owner = "Python API integration: posterior expected-loss stopping of a Thompson trial"
+behavior = "At an interim look of a Thompson-sampling trial, reads whether the declared posterior expected-loss rule says stop and which arm would be chosen, labelled point-only with no error-rate claim."
+python = "antecedent.adaptive_inference.PosteriorStopping"
+supports = ["capability:adaptive_inference.decision_theoretic_stopping"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_adaptive_decision_stopping.py::test_the_expected_loss_rule_stops_exactly_when_the_best_arms_loss_is_below_the_threshold"
+assertion_scopes = ["test_the_expected_loss_rule_stops_exactly_when_the_best_arms_loss_is_below_the_threshold"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The best arm, its probability of being best and its expected loss equal the pure-Python Beta references (Evan Miller sum and Simpson integration) to 1e-7; a threshold at twice the loss stops and one at half does not; the result is point-only and states the unsupported error-rate claim."
+[[capability.evidence]]
+test = "python/tests/test_adaptive_decision_stopping.py::test_the_first_look_reads_only_the_units_available_by_then"
+assertion_scopes = ["test_the_first_look_reads_only_the_units_available_by_then"]
+dimensions = ["success", "controls"]
+assertion_contract = "The first look reads only the first 30 units and equals the references computed from those counts."
+[[capability.evidence]]
+test = "python/tests/test_adaptive_decision_stopping.py::test_a_cell_without_the_decision_theoretic_paradigm_refuses_the_request"
+assertion_scopes = ["test_a_cell_without_the_decision_theoretic_paradigm_refuses_the_request"]
+dimensions = ["refusal"]
+assertion_contract = "The efficacy cell of the same design refuses the request as route_not_supported because a guarantee never transfers across paradigms."
+
+[[capability]]
+id = "journey.cross_world_temporal_selective"
+status = "covered"
+owner = "Python API integration: selective execution of the fixed-population temporal counterfactual"
+behavior = "Reuses the abduction of the fixed-population temporal counterfactual when only the named action histories change, and rebuilds it when the evidence, fit or snapshot changes."
+python = "antecedent.temporal_counterfactual.TemporalCounterfactualSession.evaluate"
+supports = ["capability:cross_world_execution.temporal_selective"]
+required_dimensions = ["success", "refusal", "lifecycle"]
+[[capability.evidence]]
+test = "python/tests/test_temporal_selective_execution.py::test_a_changed_action_history_reuses_the_abduction_and_changes_only_the_worlds"
+assertion_scopes = ["test_a_changed_action_history_reuses_the_abduction_and_changes_only_the_worlds"]
+dimensions = ["success", "lifecycle", "inspection"]
+assertion_contract = "The first request abduces 4 units; a request that changes only the named action histories abduces 0, reuses 4 and predicts 8 worlds, with the exogenous digest unchanged and the outcomes equal to the closed-form SCM within 1e-9."
+[[capability.evidence]]
+test = "python/tests/test_temporal_selective_execution.py::test_the_selective_answer_is_bit_identical_to_the_one_shot_call"
+assertion_scopes = ["test_the_selective_answer_is_bit_identical_to_the_one_shot_call"]
+dimensions = ["success", "controls"]
+assertion_contract = "Fresh and reused answers equal the one-shot temporal_fixed_population units, means, receipt and identity exactly, with contrast 4.9."
+[[capability.evidence]]
+test = "python/tests/test_temporal_selective_execution.py::test_changed_evidence_fit_or_snapshot_is_a_different_abduction"
+assertion_scopes = ["test_changed_evidence_fit_or_snapshot_is_a_different_abduction"]
+dimensions = ["branch", "lifecycle"]
+assertion_contract = "Changed factual evidence, mechanism fit or snapshot each abduces all units again and the original abduction is still retained."
+[[capability.evidence]]
+test = "python/tests/test_temporal_selective_execution.py::test_a_refused_request_leaves_the_retained_state_unchanged"
+assertion_scopes = ["test_a_refused_request_leaves_the_retained_state_unchanged"]
+dimensions = ["refusal", "lifecycle"]
+assertion_contract = "A refused request (latent confounding) leaves the retained count and cumulative work unchanged."
+
+[[capability]]
+id = "journey.transport_synthesis_pooling"
+status = "covered"
+owner = "Python API integration: fixed-effect pooling of native and transported claims"
+behavior = "Pools a native claim and claims transported into the same target population, counting the transport error once per transport, as a transported response."
+python = "antecedent.transported_constructors.from_synthesis"
+supports = ["capability:transport.synthesis_pooling"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_transported_constructors.py::test_a_transported_synthesis_takes_its_populations_from_the_ledger_identities"
+assertion_scopes = ["test_a_transported_synthesis_takes_its_populations_from_the_ledger_identities"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Native y=1,v=1 and transported y=2,v=1 with transport variance 0.5 pool to 1.4 with variance 0.6 and transport variance added 0.1 (hand arithmetic, 1e-12); the receipt names the ledger populations and the ledger is unchanged."
+[[capability.evidence]]
+test = "python/tests/test_transported_constructors.py::test_synthesis_refusals_are_the_routes_and_carry_no_interval"
+assertion_scopes = ["test_synthesis_refusals_are_the_routes_and_carry_no_interval"]
+dimensions = ["refusal"]
+assertion_contract = "A coordinate outside the target, a missing transported claim, a transport with no declared variance and a native population that is not the target each refuse with the route's own detail."
+
+[[capability]]
+id = "journey.transport_synthesis_borrowing"
+status = "covered"
+owner = "Python API integration: hierarchical borrowing across transported claims"
+behavior = "Borrows transported claims under a declared between-claim heterogeneity prior, inflating each transported variance by its transport error."
+python = "antecedent.transported_constructors.from_synthesis"
+supports = ["capability:transport.synthesis_borrowing"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_transported_synthesis_routes.py::test_borrowing_inflates_each_transported_variance_and_pools_to_the_closed_form"
+assertion_scopes = ["test_borrowing_inflates_each_transported_variance_and_pools_to_the_closed_form"]
+dimensions = ["success", "inspection"]
+assertion_contract = "With a point-mass tau of zero and a flat mean prior the posterior mean is 13/7 and variance 3/7 (inverse-variance pooling of the inflated variances 1, 1.5, 1.5) to 1e-12; a positive tau only enlarges the variance; the ledger is unchanged."
+[[capability.evidence]]
+test = "python/tests/test_transported_synthesis_routes.py::test_two_claims_through_one_transport_cannot_be_borrowed_twice"
+assertion_scopes = ["test_two_claims_through_one_transport_cannot_be_borrowed_twice"]
+dimensions = ["refusal"]
+assertion_contract = "Two claims through one transport on the borrowing route refuse with joint_law_required."
+
+[[capability]]
+id = "journey.transport_synthesis_transported_prior"
+status = "covered"
+owner = "Python API integration: a transported claim as the prior of a native likelihood"
+behavior = "Updates a native likelihood with one transported claim as the prior, carrying its transport error once."
+python = "antecedent.transported_constructors.from_synthesis"
+supports = ["capability:transport.synthesis_transported_prior"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_transported_synthesis_routes.py::test_a_transported_claim_is_the_prior_of_the_native_likelihood"
+assertion_scopes = ["test_a_transported_claim_is_the_prior_of_the_native_likelihood"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The posterior of a native N(1,1) likelihood with a transported N(2, 1+0.5) prior has mean 1.4 and variance 0.6 to 1e-12 and is point-only with the transport receipt."
+[[capability.evidence]]
+test = "python/tests/test_transported_synthesis_routes.py::test_the_prior_route_refuses_a_native_prior_and_a_prior_built_from_the_likelihood_rows"
+assertion_scopes = ["test_the_prior_route_refuses_a_native_prior_and_a_prior_built_from_the_likelihood_rows"]
+dimensions = ["refusal"]
+assertion_contract = "A prior that is not a transported claim and a prior built from the likelihood's own rows refuse, the latter as evidence_double_counted."
+
+[[capability]]
+id = "journey.transport_surrogate_bridge_premise"
+status = "covered"
+owner = "Python API integration: surrogate bridge carried to another population"
+behavior = "Carries a surrogate effect validated in one population into a terminal-effect claim about another, with the selection-diagram premise stated."
+python = "antecedent.transported_constructors.from_surrogate_bridge"
+supports = ["capability:transport.surrogate_bridge_premise"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_transported_constructors.py::test_a_bridged_terminal_value_is_a_transported_point_in_the_claims_population"
+assertion_scopes = ["test_a_bridged_terminal_value_is_a_transported_point_in_the_claims_population"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The line 0.06 + 0.92 x at x = 0.8 gives 0.796 (1e-12) as a transported point in the claim's population whose receipt names the validation population, the extrapolative support and the premise; another diagram gives another transport identity."
+[[capability.evidence]]
+test = "python/tests/test_transported_constructors.py::test_bridge_refusals_are_the_bridges_and_a_native_bridge_is_not_transported"
+assertion_scopes = ["test_bridge_refusals_are_the_bridges_and_a_native_bridge_is_not_transported"]
+dimensions = ["refusal"]
+assertion_contract = "A selection node into the terminal contradicts the premise and a bridge within its own population is not transported, each with the bridge's own detail."
+
+[[capability]]
+id = "journey.transport_provider_source_admission"
+status = "covered"
+owner = "Python API integration: provider output admitted as transport source evidence"
+behavior = "Decides from declarations whether a provider's output may be source evidence for a transported claim, with the standing it holds and the interface contract it supplies."
+python = "antecedent.transport_handoff.admit_provider_source"
+supports = ["capability:transport.provider_source_admission"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_provider_source_admission.py::test_an_attested_provider_output_is_admitted_as_external_source_evidence"
+assertion_scopes = ["test_an_attested_provider_output_is_admitted_as_external_source_evidence"]
+dimensions = ["success", "inspection", "artifact"]
+assertion_contract = "An attested provider source is admitted as externally attested, never native target data, with the population and regime of its coordinate, a not-measured produced port that supplies the external_provider stage and an identity that changes with the request, assumptions and trust."
+[[capability.evidence]]
+test = "python/tests/test_provider_source_admission.py::test_each_missing_or_altered_declaration_refuses_with_its_own_detail"
+assertion_scopes = ["test_each_missing_or_altered_declaration_refuses_with_its_own_detail"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Missing assumptions, an undeclared coordinate, a native trust claim, a missing attestor, an attestation where verification is required and a label without a receipt each refuse with the specific provider_transport detail."
+[[capability.evidence]]
+test = "python/tests/test_provider_source_admission.py::test_a_receipt_for_the_exact_provider_object_admits_it_as_verified"
+assertion_scopes = ["test_a_receipt_for_the_exact_provider_object_admits_it_as_verified"]
+dimensions = ["success", "branch"]
+assertion_contract = "A library-issued receipt for the exact provider object admits the source as verified_extension; a receipt for another object does not cover it."
+[[capability.evidence]]
+test = "python/tests/test_provider_source_admission.py::test_an_admitted_source_connects_only_to_a_transport_it_belongs_to"
+assertion_scopes = ["test_an_admitted_source_connects_only_to_a_transport_it_belongs_to"]
+dimensions = ["success", "refusal", "branch"]
+assertion_contract = "An admitted source connects to a consumer keeping the producer's not-measured label only when its population is a source population of the transport and every assumption is carried; otherwise the specific detail refuses."
+
+[[capability]]
+id = "journey.transport_handoff_artifact"
+status = "covered"
+owner = "Python API integration: sealed handoff of a transported claim"
+behavior = "Hands a transported claim to a callback input with its transport identity retained and its standing stated as transported, sealed and re-derived by a fresh consumer."
+python = "antecedent.transport_handoff.hand_to_callback"
+supports = ["capability:transport.handoff_artifact"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_transport_handoff.py::test_a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it"
+assertion_scopes = ["test_a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it"]
+dimensions = ["success", "artifact", "inspection"]
+assertion_contract = "A sealed handoff is a transported claim, never native target data, point-only, with the two source populations and diagram; a consumer re-derives the identity and transport, and another callback declaration refuses with a provider_transport detail."
+[[capability.evidence]]
+test = "python/tests/test_transport_handoff.py::test_a_handoff_that_the_library_refuses_does_not_seal"
+assertion_scopes = ["test_a_handoff_that_the_library_refuses_does_not_seal"]
+dimensions = ["refusal"]
+assertion_contract = "A consumer that needs native target data and a claim outside the target population of its own transport each refuse to seal."
+[[capability.evidence]]
+test = "python/tests/test_transport_handoff.py::test_an_edited_handoff_is_refused"
+assertion_scopes = ["test_an_edited_handoff_is_refused"]
+dimensions = ["refusal", "artifact"]
+assertion_contract = "A flipped byte and a retained identity of another handoff each refuse on consumption."
+
+[[capability]]
+id = "journey.decision_transported_decision_artifact"
+status = "covered"
+owner = "Python API integration: exported transported decision"
+behavior = "Exports a transported point decision and has a fresh consumer re-evaluate it from the carried contract, point, receipt and support policy rather than trust stored numbers."
+python = "antecedent.transported_response.consume_transported_decision"
+supports = ["capability:decision.transported_decision_artifact"]
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_transported_decision_artifact.py::test_a_consumer_re_evaluates_the_carried_decision_and_matches_the_hand_values"
+assertion_scopes = ["test_a_consumer_re_evaluates_the_carried_decision_and_matches_the_hand_values"]
+dimensions = ["success", "artifact", "inspection"]
+assertion_contract = "The consumer's decision equals the hand values 6.5, 0 and -3 and selects treat, carries the transported point and its receipt, is point-only and never native target data, and reproduces the decision identity."
+[[capability.evidence]]
+test = "python/tests/test_transported_decision_artifact.py::test_another_decision_has_another_identity_and_the_consumer_refuses_the_swap"
+assertion_scopes = ["test_another_decision_has_another_identity_and_the_consumer_refuses_the_swap"]
+dimensions = ["refusal", "artifact"]
+assertion_contract = "An artifact of another transport has another decision identity and a consumer that retained the first refuses it with identity_expected; a different carried value re-evaluates to its own hand numbers."
+[[capability.evidence]]
+test = "python/tests/test_transported_decision_artifact.py::test_a_damaged_container_or_the_wrong_type_is_refused"
+assertion_scopes = ["test_a_damaged_container_or_the_wrong_type_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "A flipped byte, a truncated container and a non-bytes artifact each refuse."
+
+[[capability]]
+id = "journey.inverse_cohort_forward_source"
+status = "covered"
+owner = "Python API integration: weighted cohort contrast as the forward claim of an inverse query"
+behavior = "Uses the weighted cohort-mean contrast of a retained fitted effect model as the forward claim of a finite-action inverse query."
+python = "antecedent.inverse_sources.cohort_forward_source"
+supports = ["capability:inverse.cohort_forward_source"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_inverse_sources.py::test_a_cohort_contrast_is_a_point_source_with_its_own_law_refusal"
+assertion_scopes = ["test_a_cohort_contrast_is_a_point_source_with_its_own_law_refusal"]
+dimensions = ["success", "refusal"]
+assertion_contract = "The weighted cohort mean is 2.225 and the treat utility 7.4 (hand arithmetic, 1e-12); the source is a point-only cohort contrast and a quantile request refuses with point_only_law_requested."
+[[capability.evidence]]
+test = "python/tests/test_inverse_sources.py::test_a_shifted_cohort_is_a_transported_source_only_when_accepted"
+assertion_scopes = ["test_a_shifted_cohort_is_a_transported_source_only_when_accepted"]
+dimensions = ["branch", "refusal"]
+assertion_contract = "A shifted cohort is a transported source only when the consumer accepts transported claims; a cohort in the model's own population is not transported."
+
+[[capability]]
+id = "journey.inverse_observational_scenarios"
+status = "covered"
+owner = "Python API integration: associational scenarios of an observational joint law"
+behavior = "Describes how likely each covariate scenario is given an outcome event and the converse as an associational description that ranks no action."
+python = "antecedent.inverse_sources.observational_scenarios"
+supports = ["capability:inverse.observational_scenarios"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_inverse_sources.py::test_observational_scenarios_are_associational_and_re_derive"
+assertion_scopes = ["test_observational_scenarios_are_associational_and_re_derive"]
+dimensions = ["success", "refusal", "artifact"]
+assertion_contract = "On the enumerated law the event mass is 0.5 and each conditional is 0.75 (1e-12); the result is associational, ranks no action and is no intervention effect; an interventional law answers distribution_meaning_mismatch and another law's result does not replay."
+[[capability.evidence]]
+test = "python/tests/test_inverse_sources.py::test_an_observational_result_is_not_an_inverse_source"
+assertion_scopes = ["test_an_observational_result_is_not_an_inverse_source"]
+dimensions = ["refusal"]
+assertion_contract = "An observational result cannot be used as a transported inverse source."
+
+[[capability]]
+id = "journey.model_discretized_scm_artifact"
+status = "covered"
+owner = "Python API integration: exported discretization of a composition"
+behavior = "Exports a discretized composition and has a fresh consumer re-derive it from the carried premises rather than trust stored numbers."
+python = "antecedent.discretized_composition.consume_discretized_composition"
+supports = ["capability:model.discretized_scm_artifact"]
+required_dimensions = ["success", "artifact", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_discretized_composition.py::test_an_export_is_re_derived_by_a_consumer_from_the_carried_premises"
+assertion_scopes = ["test_an_export_is_re_derived_by_a_consumer_from_the_carried_premises"]
+dimensions = ["success", "artifact", "refusal", "lifecycle"]
+assertion_contract = "A consumer rebuilds the discretization from the carried premises with the same identity and level values, contrasts and refreshes like the prepared one; another composition's artifact is refused under the retained identity and damaged or non-bytes input refuses."
+
+[[capability]]
+id = "journey.interface_contract_component_adapters"
+status = "covered"
+owner = "Python API integration: component adapters of the interface-contract check"
+behavior = "Lets a declared mechanism, a scientific bridge or a measurement model take part in the one interface-contract composition check with the port facts its declaration does not state."
+python = "antecedent.interface_contract.mechanism_contract"
+supports = ["capability:interface_contract.component_adapters"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_interface_component_adapters.py::test_a_mechanism_is_one_produced_port_and_one_consumed_port_per_parent"
+assertion_scopes = ["test_a_mechanism_is_one_produced_port_and_one_consumed_port_per_parent"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A mechanism with parents X and M projects to one output port and two parent ports named by the parent variables, with provenance following its origin and calibration not_measured only for an offering that carries uncertainty."
+[[capability.evidence]]
+test = "python/tests/test_interface_component_adapters.py::test_mechanisms_connect_through_the_one_check_and_a_mismatch_is_refused"
+assertion_scopes = ["test_mechanisms_connect_through_the_one_check_and_a_mismatch_is_refused"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Two mechanisms connect through the shared check in feed-forward order; a parent in other units is refused with an interface_contract detail."
+[[capability.evidence]]
+test = "python/tests/test_interface_component_adapters.py::test_disjoint_parent_evidence_is_decided_by_the_ledger_rows"
+assertion_scopes = ["test_disjoint_parent_evidence_is_decided_by_the_ledger_rows"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Parents whose ledger rows overlap refuse a disjoint-evidence requirement with interface_contract.shared_evidence."
+[[capability.evidence]]
+test = "python/tests/test_interface_component_adapters.py::test_a_bridge_consumes_its_source_and_produces_its_target"
+assertion_scopes = ["test_a_bridge_consumes_its_source_and_produces_its_target"]
+dimensions = ["success", "refusal", "branch"]
+assertion_contract = "A bridge consumes its source and produces its target quantity and operations; a producer in another population is refused and the target feeds a consumer."
+[[capability.evidence]]
+test = "python/tests/test_interface_component_adapters.py::test_a_measurement_model_is_produced_under_its_identity_and_a_consumer_states_it"
+assertion_scopes = ["test_a_measurement_model_is_produced_under_its_identity_and_a_consumer_states_it"]
+dimensions = ["success", "refusal"]
+assertion_contract = "The corrected construct port carries the model identity; a consumer that states it connects and one that requires another model is refused as a measurement assumption mismatch."
+[[capability.evidence]]
+test = "python/tests/test_interface_component_adapters.py::test_a_measurement_model_that_does_not_bind_the_quantities_is_refused"
+assertion_scopes = ["test_a_measurement_model_that_does_not_bind_the_quantities_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "A model that does not bind the indicator, construct or population is refused with the measurement_model detail."
+
+[[capability]]
+id = "journey.interface_contract_ledger_overlap"
+status = "covered"
+owner = "Python API integration: disjoint-evidence requirement decided from ledger rows"
+behavior = "Decides a DisjointEvidence requirement between composed components from the evidence ledger's observation rows rather than from source identities."
+python = "antecedent.interface_contract.check_composition_with_ledger"
+supports = ["capability:interface_contract.ledger_overlap"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_interface_contract.py::test_a_ledger_decides_disjoint_evidence_at_row_level"
+assertion_scopes = ["test_a_ledger_decides_disjoint_evidence_at_row_level"]
+dimensions = ["success", "refusal", "branch"]
+assertion_contract = "Rows 0..50 and 50..100 share nothing and compose with producers first; 0..50 and 25..75 share 25 observations and refuse with interface_contract.shared_evidence; a source with no computable rows is unknown and refuses with dependence_unknown."
+
+[[capability]]
+id = "journey.mechanism_composition_ledger_independence"
+status = "covered"
+owner = "Python API integration: declared independence of mechanism estimates decided from ledger rows"
+behavior = "Decides a declared independence between mechanisms' parameter estimates from the evidence ledger's rows rather than from evidence strings."
+python = "antecedent.mechanism_composition.compose_mechanisms"
+supports = ["capability:mechanism_composition.ledger_independence"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_mechanism_ledger_independence.py::test_disjoint_rows_are_independent_and_the_composition_prepares"
+assertion_scopes = ["test_disjoint_rows_are_independent_and_the_composition_prepares"]
+dimensions = ["success"]
+assertion_contract = "Mechanisms estimated from disjoint ledger rows compose under a declared independence and the plan equals the unchecked plan."
+[[capability.evidence]]
+test = "python/tests/test_mechanism_ledger_independence.py::test_overlapping_rows_refute_the_independence_though_every_identity_differs"
+assertion_scopes = ["test_overlapping_rows_refute_the_independence_though_every_identity_differs"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Overlapping rows refute the independence although every identity string differs: both overlapping pairs refuse with the shared-evidence detail."
+[[capability.evidence]]
+test = "python/tests/test_mechanism_ledger_independence.py::test_a_source_whose_rows_are_not_computable_is_unknown_never_independent"
+assertion_scopes = ["test_a_source_whose_rows_are_not_computable_is_unknown_never_independent"]
+dimensions = ["refusal"]
+assertion_contract = "A source with no computable rows has unknown overlap and refuses with evidence_overlap_unknown."
+
+[[capability]]
+id = "journey.joint_law_ledger_overlap_and_row_pairing"
+status = "covered"
+owner = "Python API integration: ledger overlap and alignment identities in the propagation rule"
+behavior = "Decides whether two propagation inputs are independent or pairable by row from the ledger and their alignment identities rather than from strings or draw counts."
+python = "antecedent.joint_law_propagation.check_propagation"
+supports = ["capability:joint_law.ledger_overlap_and_row_pairing"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_joint_law_ledger_checks.py::test_a_declared_independence_is_decided_from_the_rows_not_the_spellings"
+assertion_scopes = ["test_a_declared_independence_is_decided_from_the_rows_not_the_spellings"]
+dimensions = ["success", "refusal", "branch"]
+assertion_contract = "Disjoint ledger rows accept a declared independence; 25 shared rows refuse as evidence_double_counted although the spellings differ; an uncomputable overlap refuses as evidence_overlap_unknown; a declared covariance names the shared evidence."
+[[capability.evidence]]
+test = "python/tests/test_joint_law_ledger_checks.py::test_the_same_source_twice_is_one_source_counted_twice"
+assertion_scopes = ["test_the_same_source_twice_is_one_source_counted_twice"]
+dimensions = ["refusal"]
+assertion_contract = "The same ledger source twice refuses as evidence_double_counted."
+[[capability.evidence]]
+test = "python/tests/test_joint_law_ledger_checks.py::test_rows_pair_only_under_one_alignment_identity"
+assertion_scopes = ["test_rows_pair_only_under_one_alignment_identity"]
+dimensions = ["success", "refusal", "branch"]
+assertion_contract = "Columns of one artifact share an alignment identity and pair; columns of different artifacts refuse with alignment_mismatch; independent marginals and summaries refuse with index_pairing_refused."
+[[capability.evidence]]
+test = "python/tests/test_joint_law_ledger_checks.py::test_inputs_and_options_are_typed"
+assertion_scopes = ["test_inputs_and_options_are_typed"]
+dimensions = ["controls", "refusal"]
+assertion_contract = "A non-ledger, a foreign input, an unknown dependence, a covariance without identity and an unknown operation are refused as typed input errors."
