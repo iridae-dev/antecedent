@@ -5,7 +5,7 @@ Established: 2026-09-07 (the first measurement date the note below states)
 Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
 Commit: d4494901 (the commit that added this file; the measured commit was not written down)
 
-Criterion benches (run with `--test` in `gate_context.sh`):
+Criterion benches (run with `--test` in the `benches` section of `gate_release.sh`):
 
 - `antecedent-discovery` bench `rpcmci`: `rpcmci_sparse_120`, `rpcmci_stress_240`
 - `antecedent-estimate` bench `temporal_mediation`: `mediation_sparse_200`,
@@ -41,6 +41,6 @@ Measured locally on macOS 26.5.2 arm64, 2026-09-07, optimized Criterion build,
 | bayesian_mediation_n800_draws512 | 178.4 µs (172.7–184.8 µs) | ≤ **5 ms** |
 
 The short local measurement is a regression reference, not a portable latency
-guarantee. `gate_context.sh` executes this case and its output assertion.
+guarantee. the `benches` section of `gate_release.sh` executes this case and its output assertion.
 `GATE_CRITERION_MEANS=1 bash scripts/gate_hot_path_baselines.sh` additionally
 checks locally available Criterion means against the declared gate.

@@ -24,7 +24,7 @@ machine-checkable.
 
 The public support is `parity/support_axes.toml` +
 `parity/support_n_a.toml` + `parity/support_cells.toml`, gated by
-`scripts/gate_support_matrix.sh`. Docs are generated from those files.
+`scripts/gate_support.py`. Docs are generated from those files.
 
 A cell is exactly one of:
 
@@ -118,7 +118,7 @@ A cell is now exactly one of:
   and why it is not supported instead — no staged handle, re-identifies per
   click, or no cell-shaped known-truth fixture) and a `parent` (the
   supported or keep-running family it rides). An allowed rule must not match
-  any supported, n/a, or closed cell; `scripts/gate_support_matrix.sh`
+  any supported, n/a, or closed cell; `scripts/gate_support.py`
   enforces that partition.
 
 Any `refused` cell not matched by the allowlist now fails closed with a
@@ -151,7 +151,7 @@ The distinction is part of the result, not only of dispatch.
 The 0.9 audit disposed of every `allowed_unlicensed` entry: supported
 families were supported, typed impossibilities became n/a, and the rest now
 refuse with a reason in the legacy-named `parity/support_refusal_reasons.toml`.
-`scripts/gate_support_matrix.sh` therefore rejects any `[[allowed]]` rule,
+`scripts/gate_support.py` therefore rejects any `[[allowed]]` rule,
 so the 2026-08-19 partition clause above is enforced by emptiness rather
 than by disjointness.
 
