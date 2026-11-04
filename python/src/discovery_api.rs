@@ -278,7 +278,7 @@ impl PcmciDiscoveryResult {
         self
     }
 
-    fn with_row_accounting(mut self, accounting: &antecedent_data::RowAccounting) -> Self {
+    fn with_row_accounting(mut self, accounting: &antecedent::data::RowAccounting) -> Self {
         self.row_accounting_json =
             Some(crate::missing_report::accounting_json(accounting).to_string());
         self
@@ -427,7 +427,7 @@ pub(crate) fn check_unit_lengths(rows: usize, unit_lengths: &[usize]) -> PyResul
             != Some(rows)
     {
         return Err(crate::refusal(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!(
                 "unit_lengths must be positive and add up to the {rows} rows of the pooled \
                  columns; got {unit_lengths:?}"
@@ -463,7 +463,7 @@ pub(crate) fn panel_units_from_unit_batches(
 /// A panel (`unit_lengths`) applies to the temporal searches only.
 pub(crate) fn tabular_from_ingested(
     ingested: crate::IngestedColumns,
-) -> PyResult<(antecedent_data::TabularData, Vec<VariableId>)> {
+) -> PyResult<(antecedent::prelude::TabularData, Vec<VariableId>)> {
     match ingested {
         crate::IngestedColumns::Series(batch) => tabular_from_batch(&batch),
         crate::IngestedColumns::Panel(_) => {
@@ -486,7 +486,7 @@ pub(crate) fn knowledge_arg(text: Option<&str>) -> PyResult<BackgroundKnowledge>
 
 /// The hex identity recorded on a result for the knowledge a run was given.
 fn knowledge_identity(knowledge: &BackgroundKnowledge) -> Option<String> {
-    (!knowledge.is_empty()).then(|| antecedent_core::to_hex(&knowledge.identity()))
+    (!knowledge.is_empty()).then(|| antecedent::schema::to_hex(&knowledge.identity()))
 }
 
 /// A facade discovery failure as a Python exception. Background knowledge the search cannot
@@ -494,7 +494,7 @@ fn knowledge_identity(knowledge: &BackgroundKnowledge) -> Option<String> {
 /// enforce) is a typed refusal with its registered reason code, never a generic failure.
 fn discovery_err(error: antecedent::CausalError) -> PyErr {
     match error {
-        antecedent::CausalError::Discovery(antecedent_discovery::DiscoveryError::Knowledge(
+        antecedent::CausalError::Discovery(antecedent::discovery::DiscoveryError::Knowledge(
             fault,
         )) => crate::refusal(fault.reason_code(), fault.message()),
         other => py_err(other),
@@ -507,7 +507,7 @@ pub(crate) fn compiled_search<T>(
     spec: DiscoverySpec,
     input: DiscoverInput,
     variables: &[VariableId],
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
     pick: impl FnOnce(DiscoveredStructure) -> Option<T>,
 ) -> PyResult<(T, RouteRecord)> {
     let (structure, route) = crate::compiled_route_api::run_discovery(spec, input, variables, ctx)
@@ -527,7 +527,7 @@ fn series_input(units: &[TimeSeriesData], panel: bool) -> DiscoverInput {
     }
 }
 
-type SharedCi = std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>;
+type SharedCi = std::sync::Arc<dyn antecedent::inference::ConditionalIndependence + Send + Sync>;
 
 /// Shared NumPy→series discovery preamble (CI resolve + GIL release).
 ///
@@ -552,7 +552,7 @@ where
             &[VariableId],
             SharedCi,
             String,
-            &antecedent_core::ExecutionContext,
+            &antecedent::prelude::ExecutionContext,
             &[String],
         ) -> PyResult<PcmciDiscoveryResult>
         + Send,
@@ -561,7 +561,7 @@ where
         // Observation weights are aligned to the end of one series; pooled units have no such
         // alignment, so a weighted test over a panel would weight the wrong rows.
         return Err(crate::refusal(
-            antecedent_core::reason_code!("option_not_applicable"),
+            antecedent::reason::reason_code!("option_not_applicable"),
             "observation weights are defined per row of one series and cannot be combined with a \
              panel (unit_lengths)",
         ));
@@ -589,7 +589,7 @@ where
 
 pub(crate) fn tabular_from_batch(
     batch: &crate::ColumnBatch,
-) -> PyResult<(antecedent_data::TabularData, Vec<VariableId>)> {
+) -> PyResult<(antecedent::prelude::TabularData, Vec<VariableId>)> {
     let loaded = batch.loaded()?;
     let tabular = loaded.data;
     let variables: Vec<VariableId> = tabular.schema().variables().iter().map(|v| v.id).collect();

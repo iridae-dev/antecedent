@@ -1,12 +1,12 @@
 //! Typed stationary templates packed through the existing discovery codecs.
 
 use super::{AtomInputs, PyGraphPosterior, require_graph_names};
-use antecedent_discovery::adjacency_mask::{
+use antecedent::discovery::adjacency_mask::{
     adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
 };
-use antecedent_discovery::temporal_admg_atoms::with_lagged_edge;
-use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
-use antecedent_graph::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
+use antecedent::discovery::temporal_admg_atoms::with_lagged_edge;
+use antecedent::discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
+use antecedent::graph::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use pyo3::prelude::*;
 
 struct Template {
@@ -152,12 +152,12 @@ fn pack_posterior(
 
 fn pack_template(template: &Template) -> PyResult<Packed> {
     let n = template.names.len();
-    let mut cpdag = antecedent_graph::Cpdag::empty();
-    let mut pag = antecedent_graph::Pag::empty();
-    let mut admg = antecedent_graph::Admg::empty();
+    let mut cpdag = antecedent::graph::Cpdag::empty();
+    let mut pag = antecedent::graph::Pag::empty();
+    let mut admg = antecedent::graph::Admg::empty();
     for index in 0..n {
         let variable =
-            antecedent_core::VariableId::from_raw(u32::try_from(index).map_err(crate::py_msg)?);
+            antecedent::prelude::VariableId::from_raw(u32::try_from(index).map_err(crate::py_msg)?);
         let node = NodeRef::Static(variable);
         cpdag.add_node(node).map_err(crate::py_err)?;
         pag.add_node(node).map_err(crate::py_err)?;
@@ -218,7 +218,7 @@ fn pack_lagged(
 ) -> PyResult<()> {
     let (past, now, past_mark, now_mark) =
         if a.1 > b.1 { (a, b, edge.at_a, edge.at_b) } else { (b, a, edge.at_b, edge.at_a) };
-    if now.1 != 0 || past.1 == 0 || edge.middle != antecedent_graph::MiddleMark::Empty {
+    if now.1 != 0 || past.1 == 0 || edge.middle != antecedent::graph::MiddleMark::Empty {
         return Err(crate::value_err(
             "posterior templates require lagged edges into lag zero without middle marks",
         ));

@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use antecedent::PreparedStudy;
-use antecedent_core::{CausalQuery, ExecutionContext};
-use antecedent_data::TabularData;
+use antecedent::prelude::{ExecutionContext, TabularData};
+use antecedent::query::CausalQuery;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -195,14 +195,14 @@ impl PyPreparedAnalysis {
             let ctx = controls.ctx(seed, threads);
             let study = controls.study(&source)?;
             let cache = ctx.cache_policy.enabled.then(|| {
-                antecedent_estimate::CrossfitNuisanceCache::bounded(
+                antecedent::estimate::CrossfitNuisanceCache::bounded(
                     Some(&ctx),
                     usize::MAX,
                     ctx.cache_policy.max_bytes.unwrap_or(u64::MAX),
                 )
             });
             let (study, result) =
-                antecedent_estimate::CrossfitNuisanceCache::run_in(cache.as_ref(), || {
+                antecedent::estimate::CrossfitNuisanceCache::run_in(cache.as_ref(), || {
                     let study = study.materialize(&ctx).map_err(py_err)?;
                     let result = crate::interrupt::bind_study_validators(&study)?
                         .estimate_retained(&ctx)
@@ -234,7 +234,7 @@ impl PyPreparedAnalysis {
             _ => return Ok(()),
         };
         Err(crate::refusal(
-            antecedent_core::reason_code!("population_not_estimable"),
+            antecedent::reason::reason_code!("population_not_estimable"),
             format!(
                 "{route} estimates the population its design defines; a row-weight retarget has \
                  no score table to reweight and would redeclare the design's own target"

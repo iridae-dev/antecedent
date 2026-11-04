@@ -46,8 +46,8 @@ impl PyPreparedIdentificationView {
 /// Explicit materialization owner. No live preparation or rows are retained.
 #[pyclass(name = "_IdentificationMaterialization", frozen)]
 pub(super) struct PyIdentificationMaterialization {
-    inner: antecedent_io_core::admitted_json::AdmittedJson,
-    cancellation: antecedent_core::CancellationToken,
+    inner: antecedent::io::admitted_json::AdmittedJson,
+    cancellation: antecedent::execution::CancellationToken,
 }
 
 impl PyIdentificationMaterialization {

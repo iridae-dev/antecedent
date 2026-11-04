@@ -1,10 +1,11 @@
 //! Bounded Python bridge for the aligned distribution artifact.
 
 use crate::bridge::{check_declared_len, check_declared_size};
-use antecedent_contract::ProviderTrust;
-use antecedent_io::distribution_artifact::{
-    DistributionArtifact, DistributionIdentity, DistributionMetadata,
-    MAX_DISTRIBUTION_ARTIFACT_BYTES, MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
+use antecedent::analysis::inverse_query::DistributionArtifact;
+use antecedent::contract::ProviderTrust;
+use antecedent::io::distribution_artifact::{
+    DistributionIdentity, DistributionMetadata, MAX_DISTRIBUTION_ARTIFACT_BYTES,
+    MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
 };
 use numpy::ndarray::Array2;
 use numpy::{PyArray2, PyReadonlyArray2, PyUntypedArrayMethods};
@@ -28,7 +29,7 @@ fn normalize_distribution_metadata(metadata_json: &str) -> PyResult<String> {
     match parsed {
         ProviderTrust::NativeSupported => {
             return Err(crate::recalc_api::invalid(
-                antecedent_core::reason_details::native_distribution::AUTHORITY_REQUIRED,
+                antecedent::reason::reason_details::native_distribution::AUTHORITY_REQUIRED,
                 "native trust requires retained producer-issued execution state",
             ));
         }

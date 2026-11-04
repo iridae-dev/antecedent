@@ -32,13 +32,13 @@ fn evaluate_multi_level_treatment(
     let spec: MultiLevelSpecWire = serde_json::from_str(declaration_json).map_err(|e| {
         with_reason_code(
             value_err(format!("treatment_levels.invalid_request: {e}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         )
     })?;
     if adjustment_names.len() != adjustment_columns.len() {
         return Err(with_reason_code(
             value_err("treatment_levels.invalid_request: a column is missing for a name"),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     let request = MultiLevelTreatmentRequest {

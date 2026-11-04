@@ -31,7 +31,7 @@ fn support_cell_report(coordinate: &str) -> PyResult<String> {
     crate::catch_ffi(|| {
         let cell = support_cell_from_coordinate(coordinate).ok_or_else(|| {
         value_err_code(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!(
                 "support cell {coordinate:?} is not a query:graph:structure:inference:validation \
                  coordinate over the matrix axes"

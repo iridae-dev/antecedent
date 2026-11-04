@@ -4,12 +4,13 @@
 //! this boundary only hands its numbers (as published) and the caller's action
 //! grid to the Rust classifier and returns the report as a dictionary.
 
+use antecedent::query::{IntervalInterpretation, SupportStatus};
+use antecedent::reason::reason_code;
 use antecedent::{
     ActionConstraint, ActionSpec, ForwardEvaluation, ForwardInterval, IntervalScope,
     InverseOutcomeError, InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection,
     classify_inverse_outcome,
 };
-use antecedent_core::{IntervalInterpretation, SupportStatus, reason_code};
 use pyo3::prelude::*;
 
 use crate::transport_z_api::to_py_json;

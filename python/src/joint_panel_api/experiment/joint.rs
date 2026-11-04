@@ -49,7 +49,7 @@ fn parse(
         .into_iter()
         .map(|c| {
             let dependency =
-                antecedent_contract::evidence_ledger::parse_digest_hex(&c.mapping_dependency)
+                antecedent::contract::evidence_ledger::parse_digest_hex(&c.mapping_dependency)
                     .ok_or_else(|| crate::value_err("invalid mapping dependency digest"))?;
             Ok(JointEvidenceComponent {
                 component: c.component,
@@ -138,7 +138,7 @@ impl PyJointExperiment {
                 "dependency_identity": result.dependency_identity().to_hex(),
                 "posterior_weights": weights,
                 "quantities": result.informed_quantities().iter()
-                    .map(antecedent_io::quantity_wire::ScientificQuantityWire::from)
+                    .map(antecedent::io::quantity_wire::ScientificQuantityWire::from)
                     .collect::<Vec<_>>(),
                 "calibration": "unmeasured",
             })

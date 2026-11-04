@@ -8,9 +8,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recipe_glm::{logistic_provider, logistic_standardized_effect};
-use antecedent_core::{ProviderCapability, ProviderDeclaration};
-use antecedent_data::TableView;
-use antecedent_data::TabularData;
+use antecedent::data::TableView;
+use antecedent::execution::{ProviderCapability, ProviderDeclaration};
+use antecedent::prelude::TabularData;
 use pyo3::prelude::*;
 
 use crate::transport_common::execution_context;

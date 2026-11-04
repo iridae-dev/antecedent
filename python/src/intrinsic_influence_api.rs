@@ -8,17 +8,18 @@
 
 use std::sync::Arc;
 
+use antecedent::data::TableView;
 use antecedent::gcm::{
     ComponentStatus, IntrinsicInfluenceResult, ShapleyMethod, UncertaintyComponent,
 };
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    AttributeTarget, InfluenceAllocation, IntrinsicInfluenceTarget, NoiseDeclaration,
+};
+use antecedent::schema::ComponentId;
 use antecedent::{
     AttributionOutcome, BayesianConfig, CausalPosterior, InferenceMode, MechanismProgram,
 };
-use antecedent_core::{
-    AttributeTarget, ComponentId, InfluenceAllocation, IntrinsicInfluenceTarget, NoiseDeclaration,
-    VariableId,
-};
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 
 use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};

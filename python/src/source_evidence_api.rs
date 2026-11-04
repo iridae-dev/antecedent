@@ -1,13 +1,13 @@
 //! Original native source evidence; independent imports grant no execution authority.
 use antecedent::analysis::source_evidence::{SourceEvidence, SourceEvidenceError};
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 fn invalid(detail: &str, message: impl AsRef<str>) -> PyErr {
     crate::with_reason_code(
         crate::value_err(format!("{detail}: {}", message.as_ref())),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 fn error(cause: SourceEvidenceError) -> PyErr {
@@ -30,7 +30,7 @@ impl PySourceEvidence {
     ) -> PyResult<Self> {
         let bytes = claim.artifact.to_bytes("external-source-evidence").map_err(|cause| {
             invalid(
-                antecedent_core::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
+                antecedent::reason::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
                 cause.to_string(),
             )
         })?;
@@ -45,11 +45,11 @@ impl PySourceEvidence {
         let coordinates = claim.claim.coordinates();
         let first = coordinates.first().ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::source_evidence::COORDINATES_UNAVAILABLE,
+                antecedent::reason::reason_details::source_evidence::COORDINATES_UNAVAILABLE,
                 "original response has no semantic coordinates",
             )
         })?;
-        let labels = antecedent_contract::ResponseCoordinateLabels {
+        let labels = antecedent::contract::ResponseCoordinateLabels {
             outcome_units: &first.units,
             population_id: &first.population_id,
             transform_id: &first.transform_id,
@@ -65,7 +65,7 @@ impl PySourceEvidence {
             )
             .map_err(|cause| {
                 invalid(
-                    antecedent_core::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
+                    antecedent::reason::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
                     cause.to_string(),
                 )
             })?;
@@ -89,7 +89,7 @@ impl PySourceEvidence {
         crate::catch_ffi(|| {
             if !self.inner.is_native_source() {
                 return Err(invalid(
-                    antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
+                    antecedent::reason::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
                     "external evidence cannot be resolved by native authority",
                 ));
             }
@@ -97,7 +97,7 @@ impl PySourceEvidence {
                 dependency.as_ref() != "dependencies.checked_response_grid_operation"
             }) {
                 return Err(invalid(
-                    antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
+                    antecedent::reason::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
                     "original unresolved dependency requires its own native operation resolver",
                 ));
             }
@@ -105,16 +105,16 @@ impl PySourceEvidence {
             self.inner.require_same_source(&fresh.inner).map_err(error)?;
             let executed = actual.authority.result.executed_contract().ok_or_else(|| {
                 invalid(
-                    antecedent_core::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
+                    antecedent::reason::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
                     "issued execution has no executed contract",
                 )
             })?;
-            let execution = antecedent_io::execution_digest(
-                &antecedent_io::execution_identity_from_context(&actual.authority.context),
+            let execution = antecedent::io::execution_digest(
+                &antecedent::io::execution_identity_from_context(&actual.authority.context),
             )
             .map_err(|cause| {
                 invalid(
-                    antecedent_core::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
+                    antecedent::reason::reason_details::source_evidence::SOURCE_ENCODING_FAILED,
                     cause.to_string(),
                 )
             })?;
@@ -130,21 +130,21 @@ impl PySourceEvidence {
         crate::catch_ffi(|| {
             if quantity_json.len() > 65536 {
                 return Err(invalid(
-                    antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED,
+                    antecedent::reason::reason_details::source_evidence::LIMITS_EXCEEDED,
                     "coordinate declaration exceeds its bounded schema",
                 ));
             }
             let wire: ScientificQuantityWire =
                 serde_json::from_str(quantity_json).map_err(|_| {
                     invalid(
-                        antecedent_core::reason_details::source_evidence::INVALID_COORDINATES,
+                        antecedent::reason::reason_details::source_evidence::INVALID_COORDINATES,
                         "invalid semantic coordinate declaration",
                     )
                 })?;
             let quantity =
-                antecedent_contract::ScientificQuantity::try_from(wire).map_err(|_| {
+                antecedent::scientific::ScientificQuantity::try_from(wire).map_err(|_| {
                     invalid(
-                        antecedent_core::reason_details::source_evidence::INVALID_COORDINATES,
+                        antecedent::reason::reason_details::source_evidence::INVALID_COORDINATES,
                         "invalid semantic coordinate declaration",
                     )
                 })?;
@@ -173,7 +173,7 @@ impl PySourceEvidence {
 /// Mean-only native forward payload with its actual retained original issuer.
 #[pyclass(name = "SourceBackedMeanClaim", skip_from_py_object)]
 pub(crate) struct PySourceBackedMeanClaim {
-    pub(crate) means: antecedent_design::decision_eval::MeanSource,
+    pub(crate) means: antecedent::analysis::inverse_query::MeanSource,
     pub(crate) original: crate::program_claims_api::PyNativeResponseClaim,
 }
 #[derive(serde::Deserialize)]
@@ -194,16 +194,16 @@ fn source_backed_native_mean(
 ) -> PyResult<PySourceBackedMeanClaim> {
     crate::catch_ffi(|| {
         use antecedent::analysis::native_claims::NativeDecisionSource;
-        use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
+        use antecedent::design::decision_contract::{SourceRepresentation, SourceRequirement};
         if declaration.len() > 1024 * 1024 {
             return Err(invalid(
-                antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::source_evidence::LIMITS_EXCEEDED,
                 "mean declaration exceeds bound",
             ));
         }
         let wire: NativeMeanWire = serde_json::from_str(declaration).map_err(|cause| {
             invalid(
-                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                antecedent::reason::reason_details::source_evidence::POINT_BINDING_MISMATCH,
                 cause.to_string(),
             )
         })?;
@@ -215,24 +215,24 @@ fn source_backed_native_mean(
             })
             .map_err(|cause| {
                 invalid(
-                    antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                    antecedent::reason::reason_details::source_evidence::POINT_BINDING_MISMATCH,
                     cause.detail,
                 )
             })?;
         let NativeDecisionSource::Mean(actual) = checked.source else {
             return Err(invalid(
-                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                antecedent::reason::reason_details::source_evidence::POINT_BINDING_MISMATCH,
                 "original mean unavailable",
             ));
         };
         let coordinates = wire
             .coordinates
             .into_iter()
-            .map(antecedent_contract::ScientificQuantity::try_from)
+            .map(antecedent::scientific::ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|cause| {
                 invalid(
-                    antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                    antecedent::reason::reason_details::source_evidence::POINT_BINDING_MISMATCH,
                     cause,
                 )
             })?;
@@ -250,19 +250,19 @@ fn source_backed_native_mean(
             })
         {
             return Err(invalid(
-                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                antecedent::reason::reason_details::source_evidence::POINT_BINDING_MISMATCH,
                 "mean declaration differs from actual original native source",
             ));
         }
         Ok(PySourceBackedMeanClaim {
-            means: antecedent_design::decision_eval::MeanSource {
+            means: antecedent::analysis::inverse_query::MeanSource {
                 coordinates,
                 means: wire.means,
                 provider_id: wire.provider_id,
                 snapshot_id: wire.snapshot_id,
                 causal_contract_id: wire.causal_contract_id,
                 rng_id: wire.rng_id,
-                estimate: antecedent_design::decision_eval::MeanEstimate::Frequentist,
+                estimate: antecedent::design::decision_eval::MeanEstimate::Frequentist,
             },
             original: original.clone(),
         })

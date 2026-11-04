@@ -8,12 +8,12 @@
 
 use std::sync::Arc;
 
+use antecedent::data::TableView;
 use antecedent::gcm::{
     GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
     GraphUninformativeReason, evaluate_graph as facade_evaluate_graph,
 };
-use antecedent_core::VariableId;
-use antecedent_data::TableView;
+use antecedent::prelude::VariableId;
 use pyo3::prelude::*;
 
 use crate::{dag_from_named_edges, detach_catch, py_err, py_execution_context};
@@ -78,7 +78,7 @@ fn graph_falsification_json(report: &GraphFalsificationReport, names: &[String])
         "cache_hits": report.cache_hits,
         "tests_skipped": report.tests_skipped,
         "max_ci_tests": report.max_ci_tests,
-        "stop": report.stop.map(antecedent_core::SearchStop::code),
+        "stop": report.stop.map(antecedent::execution::SearchStop::code),
         "search_receipt": receipt,
         "limitations": report.limitations.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
     })

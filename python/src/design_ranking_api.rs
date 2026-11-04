@@ -17,8 +17,8 @@ use antecedent::analysis::design_ranking::{
     StructuralCandidateDeclWire, compile_for_study, consume, evaluate, evaluate_for_study,
     rank_structural,
 };
+use antecedent::data::TableView;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -57,7 +57,7 @@ impl From<ExpectationWire> for ConsumeExpectation {
             Some(None)
         } else {
             wire.cost_mapping.map(|m| {
-                Some(antecedent_design::evsi::CostToUtilityMap {
+                Some(antecedent::design::evsi::CostToUtilityMap {
                     cost_unit: m.cost_unit,
                     utility_unit: m.utility_unit,
                     utility_per_cost: m.utility_per_cost,
@@ -81,18 +81,18 @@ fn check_size(text: &str) -> PyResult<()> {
 fn invalid_declaration(error: &serde_json::Error) -> PyErr {
     with_reason_code(
         value_err(format!("design_ranking.invalid_request: {error}")),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 
 /// A refusal becomes structured JSON; anything else is a serialization failure.
 fn payload_error(error: &DesignRankingError) -> Result<String, PyErr> {
     match error {
-        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Cancelled) => {
+        DesignRankingError::Evsi(antecedent::design::evsi::EvsiError::Cancelled) => {
             return Err(crate::CausalCancelledError::new_err(error.to_string()));
         }
-        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Design(
-            antecedent_design::DesignError::Resource(_),
+        DesignRankingError::Evsi(antecedent::design::evsi::EvsiError::Design(
+            antecedent::design::DesignError::Resource(_),
         )) => return Err(crate::CausalResourceError::new_err(error.to_string())),
         _ => {}
     }
@@ -278,13 +278,13 @@ pub(crate) fn evsi_study(
         .zip(columns)
         .map(|(name, column)| (name.as_str(), column.as_slice()))
         .collect();
-    let data = antecedent_data::TabularData::from_f64_columns(pairs).map_err(crate::py_err)?;
+    let data = antecedent::prelude::TabularData::from_f64_columns(pairs).map_err(crate::py_err)?;
     let t_id = data.schema().id_of(treatment).map_err(crate::py_err)?;
     let y_id = data.schema().id_of(outcome).map_err(crate::py_err)?;
     let graph = crate::dag_from_named_edges(data.schema(), edges)?;
     let mut builder = Study::tabular(data)
         .graph(graph)
-        .query(antecedent_core::AverageEffectQuery::binary_ate(t_id, y_id));
+        .query(antecedent::query::AverageEffectQuery::binary_ate(t_id, y_id));
     if posterior {
         builder = builder.inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale),
@@ -297,11 +297,11 @@ pub(crate) fn evsi_study(
 /// admission pool cannot hold) keeps its own error class.
 fn study_refusal(error: DesignRankingError) -> PyResult<String> {
     match &error {
-        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Cancelled) => {
+        DesignRankingError::Evsi(antecedent::design::evsi::EvsiError::Cancelled) => {
             return Err(crate::CausalCancelledError::new_err(error.to_string()));
         }
-        DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Design(
-            antecedent_design::DesignError::Resource(_),
+        DesignRankingError::Evsi(antecedent::design::evsi::EvsiError::Design(
+            antecedent::design::DesignError::Resource(_),
         )) => return Err(crate::CausalResourceError::new_err(error.to_string())),
         _ => {}
     }

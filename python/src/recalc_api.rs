@@ -16,17 +16,17 @@ use antecedent::analysis::recalc_receipt::{
     RecalcOutcome, RecalcRequest, RecalcRequestCode, RecalcRunError, RecalcSession, TargetWeights,
     UtilitySpec, execute_with_receipt,
 };
-use antecedent_core::recalc::{
+use antecedent::estimate::AipwAte;
+use antecedent::execution::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RefusalReason, ResumeContext, RetargetSupport, Stage,
     StageIdentity,
 };
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_estimate::AipwAte;
-use antecedent_io::recalc_receipt_artifact::{
+use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, CountsWire, DeclaredStageWire, RecalcReceiptArtifact,
     RecalcReceiptArtifactError, ResumeWire, identities_from_wire, identities_to_wire,
     plan_from_wire, plan_to_wire,
 };
+use antecedent::prelude::{ExecutionContext, VariableId};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
@@ -40,19 +40,19 @@ type ConsumePayload = (Option<String>, Option<String>);
 pub(crate) fn invalid(detail: &str, text: impl AsRef<str>) -> PyErr {
     with_reason_code(
         value_err(format!("{detail}: {}", text.as_ref())),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 
 pub(crate) fn artifact_invalid(error: &RecalcReceiptArtifactError) -> PyErr {
-    invalid(antecedent_core::reason_details::recalc::INVALID_DECLARATION, error.to_string())
+    invalid(antecedent::reason::reason_details::recalc::INVALID_DECLARATION, error.to_string())
 }
 
 pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
     check_declared_size(text, MAX_JSON_BYTES, &format!("recalc {what}"))?;
     serde_json::from_str(text).map_err(|e| {
         invalid(
-            antecedent_core::reason_details::recalc::INVALID_DECLARATION,
+            antecedent::reason::reason_details::recalc::INVALID_DECLARATION,
             format!("{what}: {e}"),
         )
     })
@@ -109,9 +109,9 @@ pub(crate) fn plan_refusal_json(plan: &RecalcPlan) -> String {
 pub(crate) fn plan_refusal_json_with(plan: &RecalcPlan, data_remedy: &str) -> String {
     let Some((stage, reason)) = plan.first_refusal() else {
         return refusal_json(
-            antecedent_core::reason_code!("not_executed"),
+            antecedent::reason::reason_code!("not_executed"),
             "",
-            antecedent_core::reason_details::recalc::REFUSED,
+            antecedent::reason::reason_details::recalc::REFUSED,
             None,
             None,
             "recalculation refused",
@@ -128,11 +128,11 @@ pub(crate) fn plan_refusal_json_with(plan: &RecalcPlan, data_remedy: &str) -> St
             Some(format!("use the separately supported route `{route}`"))
         }
         RefusalReason::Unavailable { missing } => Some(match missing {
-            antecedent_core::recalc::MissingDependency::Fit => {
+            antecedent::execution::recalc::MissingDependency::Fit => {
                 "supply a portable fit or scores, or the data snapshot to refit".to_owned()
             }
-            antecedent_core::recalc::MissingDependency::Data => data_remedy.to_owned(),
-            antecedent_core::recalc::MissingDependency::Provider => {
+            antecedent::execution::recalc::MissingDependency::Data => data_remedy.to_owned(),
+            antecedent::execution::recalc::MissingDependency::Provider => {
                 "supply a compatible provider callback".to_owned()
             }
         }),
@@ -208,7 +208,7 @@ fn consume_recalc_receipt(
                 Some(json) => Ok((None, Some(json))),
                 None => Err(match error {
                     RecalcReceiptArtifactError::LimitsExceeded(what) => {
-                        invalid(antecedent_core::reason_details::recalc::LIMITS_EXCEEDED, what)
+                        invalid(antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED, what)
                     }
                     other => crate::serialization_err(other.to_string()),
                 }),
@@ -243,7 +243,7 @@ fn retarget_of(name: &str) -> PyResult<RetargetSupport> {
 fn request_support_of(
     request: &str,
     supported_route: Option<&str>,
-) -> PyResult<antecedent_core::recalc::RequestSupport> {
+) -> PyResult<antecedent::execution::recalc::RequestSupport> {
     capabilities_wire("supported", request, supported_route)
         .to_capabilities()
         .map(|c| c.request)
@@ -270,25 +270,25 @@ fn build_request(
     crate::recalc_bounds::check_columns(columns, ctx)?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_DATA,
+            antecedent::reason::reason_details::recalc::INVALID_DATA,
             "one named numeric column per name is required",
         ));
     }
     let position = |name: &str| -> PyResult<u32> {
         let at = names.iter().position(|n| n == name).ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::recalc::UNKNOWN_VARIABLE,
+                antecedent::reason::reason_details::recalc::UNKNOWN_VARIABLE,
                 format!("no column named `{name}`"),
             )
         })?;
         u32::try_from(at).map_err(|_| {
-            invalid(antecedent_core::reason_details::recalc::INVALID_DATA, "too many columns")
+            invalid(antecedent::reason::reason_details::recalc::INVALID_DATA, "too many columns")
         })
     };
     for (i, name) in names.iter().enumerate() {
         if name.trim().is_empty() || names[..i].contains(name) {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::INVALID_DATA,
+                antecedent::reason::reason_details::recalc::INVALID_DATA,
                 "column names must be unique and non-empty",
             ));
         }
@@ -299,7 +299,7 @@ fn build_request(
     if rows == 0 || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_DATA,
+            antecedent::reason::reason_details::recalc::INVALID_DATA,
             "columns must be finite and equally long",
         ));
     }
@@ -307,7 +307,7 @@ fn build_request(
     let outcome = position(outcome)?;
     if treatment == outcome {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "treatment and outcome must differ",
         ));
     }
@@ -319,7 +319,7 @@ fn build_request(
         None => {
             if !target_depends_on.is_empty() {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -329,7 +329,7 @@ fn build_request(
             let weights = column_vec(weights);
             if weights.len() != rows || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target weights must be finite, non-negative and one per row",
                 ));
             }
@@ -342,7 +342,7 @@ fn build_request(
     };
     if !benefit_per_unit.is_finite() || !cost.is_finite() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "utility must be finite",
         ));
     }
@@ -363,7 +363,7 @@ pub(crate) fn context(seed: u64, threads: Option<u32>) -> ExecutionContext {
     crate::apply_cancel(&mut ctx, None);
     crate::execution_api::apply(&mut ctx);
     // The route proves reuse by counted fits; no persistent cache may stand in for a fit.
-    ctx.cache_policy = antecedent_core::CachePolicy::disabled();
+    ctx.cache_policy = antecedent::execution::CachePolicy::disabled();
     ctx
 }
 
@@ -416,7 +416,7 @@ enum Ran {
 pub struct PyRecalcSession {
     inner: RecalcSession,
     retarget: RetargetSupport,
-    request: antecedent_core::recalc::RequestSupport,
+    request: antecedent::execution::recalc::RequestSupport,
     resume: Option<ResumeContext>,
 }
 
@@ -447,7 +447,7 @@ impl PyRecalcSession {
         Ok(Self {
             inner,
             retarget,
-            request: antecedent_core::recalc::RequestSupport::OnGrid,
+            request: antecedent::execution::recalc::RequestSupport::OnGrid,
             resume: None,
         })
     }
@@ -473,7 +473,7 @@ impl PyRecalcSession {
         Ok(Self {
             inner,
             retarget,
-            request: antecedent_core::recalc::RequestSupport::OnGrid,
+            request: antecedent::execution::recalc::RequestSupport::OnGrid,
             resume: Some(resume),
         })
     }
@@ -631,9 +631,9 @@ impl PyRecalcSession {
                 None,
                 None,
                 Some(refusal_json(
-                    antecedent_core::reason_code!("score_table_unavailable"),
+                    antecedent::reason::reason_code!("score_table_unavailable"),
                     &stage.label(),
-                    antecedent_core::reason_details::recalc::NO_LIVE_STATE,
+                    antecedent::reason::reason_details::recalc::NO_LIVE_STATE,
                     Some(&stage.label()),
                     Some(
                         "run the stage in this process, or resume with supplied data so it is \
@@ -648,9 +648,9 @@ impl PyRecalcSession {
                 None,
                 None,
                 Some(refusal_json(
-                    antecedent_core::reason_code!("cancelled_no_claim"),
+                    antecedent::reason::reason_code!("cancelled_no_claim"),
                     "score_artifact",
-                    antecedent_core::reason_details::recalc::CANCELLED,
+                    antecedent::reason::reason_details::recalc::CANCELLED,
                     None,
                     Some(
                         "run again without cancelling; the session kept its previous state"
@@ -669,7 +669,7 @@ impl PyRecalcSession {
     fn finish(
         &self,
         outcome: &RecalcOutcome,
-        previous: &antecedent_core::recalc::StageIdentities,
+        previous: &antecedent::execution::recalc::StageIdentities,
         capabilities: &RecalcCapabilities,
     ) -> PyResult<RunPayload> {
         let counts: BTreeMap<Stage, CountsWire> = outcome

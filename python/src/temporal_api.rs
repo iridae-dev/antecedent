@@ -76,7 +76,7 @@ fn predict_conditional_summary(
         let pred = TemporalLinearPredictor::fit(
             &series,
             y,
-            [antecedent_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
+            [antecedent::data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
             &policy,
         )
         .map_err(py_err)?;
@@ -290,9 +290,9 @@ pub(crate) struct AnalysisResult {
 /// temporal ADMG whose pulse, sustained and conditional contrasts are identified on its unrolled
 /// window.
 pub(crate) enum TemporalClassGraph {
-    Cpdag(antecedent_graph::TemporalCpdag),
-    Pag(antecedent_graph::TemporalPag),
-    Admg(antecedent_graph::TemporalAdmg),
+    Cpdag(antecedent::graph::TemporalCpdag),
+    Pag(antecedent::graph::TemporalPag),
+    Admg(antecedent::graph::TemporalAdmg),
 }
 
 pub(crate) fn temporal_query_from_policy(
@@ -448,9 +448,9 @@ pub(crate) fn apply_temporal_inference_transfer(
     n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
-    prior_mapping: Option<antecedent_io::PriorMapping>,
+    prior_mapping: Option<antecedent::io::PriorMapping>,
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
-    likelihood: antecedent_prob::BayesLikelihood,
+    likelihood: antecedent::inference::BayesLikelihood,
 ) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);

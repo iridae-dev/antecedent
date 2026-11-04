@@ -16,11 +16,11 @@ use antecedent::analysis::transport_sensitivity::{
     transport_range, transport_sensitivity_artifact,
 };
 use antecedent::analysis::{BoundDecisionContract, SupportPolicy, TransportedDemand};
-use antecedent_contract::ScientificQuantity;
-use antecedent_core::SupportStatus;
-use antecedent_design::composition_boundary::UnsupportedActionPolicy;
-use antecedent_design::decision_robust_artifact::admissible_contract_from_json_refusal;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::design::composition_boundary::UnsupportedActionPolicy;
+use antecedent::design::decision_robust_artifact::admissible_contract_from_json_refusal;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::query::SupportStatus;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};

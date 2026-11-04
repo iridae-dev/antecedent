@@ -2,11 +2,14 @@
 //! This envelope adds no numerical evaluator or supported inference claim.
 use super::{PyTemporalSession, error};
 use crate::recalc_api::{invalid, parse_json};
-use antecedent::analysis::recalc_temporal::consume_temporal_recalc_artifact;
-use antecedent_core::{ExecutionContext, IdentityDomain};
-use antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig;
-use antecedent_io::temporal_interval_artifact::{IntervalConfigWire, IntervalResultWire};
-use antecedent_io::temporal_recalc_artifact::{TemporalFunctionalWire, TemporalRecalcArtifactWire};
+use antecedent::analysis::recalc_temporal::{
+    TemporalFunctional as TemporalFunctionalWire, TemporalRecalcArtifactWire,
+    consume_temporal_recalc_artifact,
+};
+use antecedent::estimate::temporal_dependent_interval::DependentIntervalConfig;
+use antecedent::io::temporal_interval_artifact::{IntervalConfigWire, IntervalResultWire};
+use antecedent::prelude::ExecutionContext;
+use antecedent::schema::IdentityDomain;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
@@ -45,7 +48,7 @@ struct CandidateWire {
 }
 impl CandidateWire {
     fn seal(&self) -> PyResult<String> {
-        antecedent_io::identity::digest_wire(
+        antecedent::io::identity::digest_wire(
             IdentityDomain::Claim,
             &(
                 self.version,
@@ -61,10 +64,10 @@ impl CandidateWire {
         .map_err(crate::py_msg)
     }
     fn export_bytes(&self) -> PyResult<Vec<u8>> {
-        let bytes = antecedent_io::to_cbor(self).map_err(crate::py_msg)?;
+        let bytes = antecedent::io::to_cbor(self).map_err(crate::py_msg)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "checked temporal interval artifact exceeds 24 MiB",
             ));
         }
@@ -109,14 +112,14 @@ fn before_copy(
             crate::CausalCancelledError::new_err(
                 "recalc.cancelled: checked temporal interval cancelled before decode",
             ),
-            antecedent_core::reason_code!("cancelled_no_claim"),
+            antecedent::reason::reason_code!("cancelled_no_claim"),
         ));
     }
     if memory
         .is_some_and(|limit| limit < (bytes as u64).saturating_mul(8).saturating_add(1024 * 1024))
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
+            antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
             "planned artifact decoding/copies exceed memory limit",
         ));
     }
@@ -147,7 +150,7 @@ fn bounds(
         || !(0.0..1.0).contains(&config.max_failed_fraction)
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_DECLARATION,
+            antecedent::reason::reason_details::recalc::INVALID_DECLARATION,
             "invalid checked interval configuration",
         ));
     }
@@ -156,7 +159,7 @@ fn bounds(
             crate::CausalCancelledError::new_err(
                 "recalc.cancelled: checked temporal interval cancelled before work",
             ),
-            antecedent_core::reason_code!("cancelled_no_claim"),
+            antecedent::reason::reason_code!("cancelled_no_claim"),
         ));
     }
     let rows = source
@@ -165,7 +168,10 @@ fn bounds(
         .iter()
         .try_fold(0usize, |count, unit| count.checked_add(unit.histories.len()));
     let rows = rows.ok_or_else(|| {
-        invalid(antecedent_core::reason_details::recalc::LIMITS_EXCEEDED, "history count overflow")
+        invalid(
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
+            "history count overflow",
+        )
     })?;
     if max_units > 4096
         || max_histories > 100_000
@@ -177,7 +183,7 @@ fn bounds(
         || rows.checked_mul(config.replicates).is_none_or(|work| work > MAX_HISTORY_REFITS)
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "checked temporal interval source or refit work exceeds bounds",
         ));
     }
@@ -194,7 +200,7 @@ fn bounds(
             crate::value_err(
                 "recalc.memory_budget_exceeded: planned checked temporal interval working set exceeds limit",
             ),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     Ok(())
@@ -236,7 +242,7 @@ pub(super) fn produce(
         };
         if bytes.len() > MAX_SOURCE_BYTES {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "checked temporal source exceeds 16 MiB",
             ));
         }
@@ -284,14 +290,14 @@ fn consume_checked_temporal_interval_candidate(
 ) -> Outcome {
     if artifact.len() > MAX_ARTIFACT_BYTES {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "checked temporal interval artifact exceeds 24 MiB",
         ));
     }
     before_copy(artifact.len(), memory_limit_bytes, cancel.as_ref())?;
     if max_units > 4096 || max_histories > 100_000 || max_replicates > 2000 {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "consumer limits exceed checked handoff caps",
         ));
     }
@@ -299,7 +305,7 @@ fn consume_checked_temporal_interval_candidate(
     let expected_identity: ExpectedIdentity =
         parse_json(expected_identity_json, "expected checked temporal interval identity")?;
     crate::detach_catch(py, move || {
-        let wire: CandidateWire = antecedent_io::from_cbor(&bytes)
+        let wire: CandidateWire = antecedent::io::from_cbor(&bytes)
             .map_err(|cause| crate::serialization_err(cause.to_string()))?;
         if wire.version != 1
             || wire.required_features != [FEATURE]
@@ -309,13 +315,13 @@ fn consume_checked_temporal_interval_candidate(
             || wire.identity.seal != wire.seal()?
         {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
+                antecedent::reason::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "checked temporal interval identity or envelope differs",
             ));
         }
         if wire.source.len() > MAX_SOURCE_BYTES {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "checked temporal source exceeds 16 MiB",
             ));
         }
@@ -329,7 +335,7 @@ fn consume_checked_temporal_interval_candidate(
             )
         {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
+                antecedent::reason::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "source identity differs from retained expected identity",
             ));
         }
@@ -354,18 +360,18 @@ fn consume_checked_temporal_interval_candidate(
             Err(cause) => return Ok((None, Some(error(&cause)))),
         };
         // Canonical CBOR compares all receipt fields, preserving IEEE-754 bits.
-        if antecedent_io::to_cbor(&wire.result).map_err(crate::py_msg)?
-            != antecedent_io::to_cbor(&IntervalResultWire::from_interval(&interval))
+        if antecedent::io::to_cbor(&wire.result).map_err(crate::py_msg)?
+            != antecedent::io::to_cbor(&IntervalResultWire::from_interval(&interval))
                 .map_err(crate::py_msg)?
         {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
+                antecedent::reason::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "checked temporal interval full independent replay differs",
             ));
         }
         if wire.export_bytes()? != bytes {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
+                antecedent::reason::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 "checked interval envelope is not its canonical encoding",
             ));
         }
@@ -387,10 +393,10 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent::analysis::recalc_temporal::{TemporalSession, execute_temporal_with_receipt};
-    use antecedent_io::temporal_recalc_artifact::{
-        TemporalHistoryWire, TemporalRecalcRequestWire, TemporalUnitWire,
+    use antecedent::analysis::recalc_temporal::{
+        TemporalHistoryWire, TemporalRequest as TemporalRecalcRequestWire, TemporalUnitWire,
     };
+    use antecedent::analysis::recalc_temporal::{TemporalSession, execute_temporal_with_receipt};
 
     fn fixture() -> PyTemporalSession {
         let units = (0..24u64)
@@ -442,7 +448,7 @@ mod tests {
         let config = IntervalConfigWire::from_config(&DependentIntervalConfig {
             replicates: 20,
             seed: 901,
-            method: antecedent_estimate::temporal_dependent_interval::IntervalMethod::Studentized,
+            method: antecedent::estimate::temporal_dependent_interval::IntervalMethod::Studentized,
             ..DependentIntervalConfig::default()
         });
         produce(&fixture(), py, &serde_json::to_string(&config).unwrap(), None, None)
@@ -470,14 +476,14 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let native = candidate(py);
-            let original: CandidateWire = antecedent_io::from_cbor(&native.bytes).unwrap();
+            let original: CandidateWire = antecedent::io::from_cbor(&native.bytes).unwrap();
             let mut changed = original.clone();
             changed.result.studentization.as_mut().unwrap().pivots[0] = Some(123.0);
             reject_resealed(py, changed);
             let mut changed = original.clone();
             let mut source = TemporalRecalcArtifactWire::decode(&changed.source).unwrap();
             source.reports[0].mean += 0.01;
-            changed.source = antecedent_io::to_cbor(&source).unwrap();
+            changed.source = antecedent::io::to_cbor(&source).unwrap();
             reject_resealed(py, changed);
             let mut changed = original.clone();
             changed.config.seed += 1;
@@ -490,7 +496,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let native = candidate(py);
-            let wire: CandidateWire = antecedent_io::from_cbor(&native.bytes).unwrap();
+            let wire: CandidateWire = antecedent::io::from_cbor(&native.bytes).unwrap();
             let expected = serde_json::to_string(&wire.identity).unwrap();
             let outcome = consume_checked_temporal_interval_candidate(
                 py,

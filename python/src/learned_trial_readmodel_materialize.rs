@@ -1,10 +1,10 @@
 //! Borrowed historical transport wire encoding with one exactly admitted JSON output.
 //! No proof/certificate arrays or strings are cloned for serialization.
-use antecedent_core::execution::{AdmissionError, AdmissionLease};
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_identify::{
+use antecedent::execution::{AdmissionError, AdmissionLease};
+use antecedent::identify::{
     PopulationFactor, TransportCertificate, TransportFormula, TransportIdentification,
 };
+use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 use serde_json::Value;
@@ -46,7 +46,7 @@ impl<'a> From<&'a PopulationFactor> for Factor<'a> {
     fn from(value: &'a PopulationFactor) -> Self {
         Self {
             population: &value.population,
-            regime: value.regime.map(antecedent_core::RegimeId::raw),
+            regime: value.regime.map(antecedent::schema::RegimeId::raw),
             variables: Ids(&value.variables),
             conditioned_on: Ids(&value.conditioned_on),
             interventions: Ids(&value.interventions),
@@ -224,12 +224,12 @@ pub(super) fn admitted(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::execution::AdmissionPool;
+    use antecedent::execution::AdmissionPool;
     #[test]
     fn borrowed_encoding_matches_every_native_transport_wire_variant() {
         let factor = PopulationFactor {
             population: Arc::from("target\"unicode-λ"),
-            regime: Some(antecedent_core::RegimeId::from_raw(7)),
+            regime: Some(antecedent::schema::RegimeId::from_raw(7)),
             variables: Arc::from([VariableId::from_raw(1)]),
             conditioned_on: Arc::from([VariableId::from_raw(2)]),
             interventions: Arc::from([VariableId::from_raw(0)]),
@@ -255,13 +255,13 @@ mod tests {
                 },
                 certificate,
             },
-            TransportIdentification::NotCertified(antecedent_identify::NotCertifiedCertificate {
+            TransportIdentification::NotCertified(antecedent::identify::NotCertifiedCertificate {
                 reason: Arc::from("no_rule"),
                 witness: Arc::from([VariableId::from_raw(2)]),
                 message: Arc::from("not a completeness claim"),
             }),
             TransportIdentification::MissingEvidence(
-                antecedent_identify::MissingEvidenceCertificate {
+                antecedent::identify::MissingEvidenceCertificate {
                     reason: Arc::from("missing"),
                     missing: Arc::from([VariableId::from_raw(2)]),
                     message: Arc::from("declare source evidence"),
@@ -271,7 +271,7 @@ mod tests {
         for proof in proofs {
             assert_eq!(
                 serde_json::to_value(Proof::from(&proof)).unwrap(),
-                serde_json::to_value(antecedent_io::transport_identification_to_wire(&proof))
+                serde_json::to_value(antecedent::io::transport_identification_to_wire(&proof))
                     .unwrap()
             );
         }
@@ -282,7 +282,7 @@ mod tests {
         use std::sync::atomic::{AtomicUsize, Ordering};
         struct CancelSecond {
             calls: AtomicUsize,
-            token: antecedent_core::CancellationToken,
+            token: antecedent::execution::CancellationToken,
         }
         impl Serialize for CancelSecond {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -319,7 +319,7 @@ mod tests {
         };
         assert_eq!(
             serde_json::to_value(Proof::from(&proof)).unwrap(),
-            serde_json::to_value(antecedent_io::transport_identification_to_wire(&proof)).unwrap()
+            serde_json::to_value(antecedent::io::transport_identification_to_wire(&proof)).unwrap()
         );
         let source = Proof::from(&proof);
         let length = serde_json::to_vec(&source).unwrap().len() as u64;

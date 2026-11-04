@@ -12,18 +12,18 @@ use crate::bridge::check_declared_size;
 use antecedent::analysis::native_claims::{
     NativeDecisionInput, NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
-use antecedent_contract::{
-    ExternalProgramClaim, ExternalRefusal, ProgramBinding, ScientificQuantity,
-    check_external_against_program,
+use antecedent::contract::{
+    ExternalProgramClaim, ExternalRefusal, ProgramBinding, check_external_against_program,
 };
-use antecedent_core::ResponseUncertainty;
-use antecedent_design::decision_artifact::contract_from_json_refusal;
-use antecedent_design::decision_contract::SourceRepresentation;
-use antecedent_io::distribution_artifact::DistributionCalibration;
-use antecedent_io::external_binding_wire::{
+use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::design::decision_contract::SourceRepresentation;
+use antecedent::io::distribution_artifact::DistributionCalibration;
+use antecedent::io::external_binding_wire::{
     ContractWire, MAX_BINDING_WIRE_BYTES, RefusalWire, ResponseWire, bind_response_to_program,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::query::ResponseUncertainty;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -52,7 +52,7 @@ fn declared_refusal(
     remedy: &'static str,
 ) -> ExternalRefusal {
     ExternalRefusal {
-        code: antecedent_core::reason_code!("invalid_argument"),
+        code: antecedent::reason::reason_code!("invalid_argument"),
         stage,
         detail: detail.to_owned(),
         offending,
@@ -127,7 +127,7 @@ pub(crate) fn claim_from(wire: ClaimWire) -> Result<ExternalProgramClaim, Extern
             ScientificQuantity::try_from(quantity).map_err(|why| {
                 declared_refusal(
                     "bind",
-                    antecedent_core::reason_details::program_binding::MALFORMED_QUANTITY,
+                    antecedent::reason::reason_details::program_binding::MALFORMED_QUANTITY,
                     Some("quantities".to_owned()),
                     None,
                     Some(why.to_owned()),
@@ -228,7 +228,7 @@ fn calibration_from(name: &str) -> Result<DistributionCalibration, ExternalRefus
         "point_only" => Ok(DistributionCalibration::PointOnly),
         other => Err(declared_refusal(
             "bind",
-            antecedent_core::reason_details::native_claims::CALIBRATION_NOT_SUPPORTED,
+            antecedent::reason::reason_details::native_claims::CALIBRATION_NOT_SUPPORTED,
             None,
             Some("unmeasured,point_only".to_owned()),
             Some(other.to_owned()),
@@ -386,7 +386,7 @@ impl PyNativeResponseClaim {
                         None,
                         Some(refusal_json(declared_refusal(
                             "evaluate",
-                            antecedent_core::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
+                            antecedent::reason::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
                             None,
                             None,
                             None,
@@ -426,7 +426,7 @@ impl PyNativeResponseClaim {
                 Ok(None) => {
                     let refusal = declared_refusal(
                         "evaluate",
-                        antecedent_core::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
+                        antecedent::reason::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
                         None,
                         None,
                         None,
@@ -445,7 +445,7 @@ impl PyNativeResponseClaim {
 }
 
 fn native_contract_id(graph: &str, status: &str, premises: Option<&str>) -> PyResult<String> {
-    antecedent_io::external_binding_wire::native_contract_identity(graph, status, premises)
+    antecedent::io::external_binding_wire::native_contract_identity(graph, status, premises)
         .map_err(|error| malformed(format!("{error:?}")))
 }
 
@@ -480,7 +480,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                    antecedent::reason::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
                 ))?),
             ));
         };
@@ -488,7 +488,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                    antecedent::reason::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
                 ))?),
             ));
         };
@@ -496,7 +496,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::PROJECTION_MISMATCH,
+                    antecedent::reason::reason_details::native_claims::PROJECTION_MISMATCH,
                 ))?),
             ));
         }
@@ -504,7 +504,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                    antecedent::reason::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
                 ))?),
             ));
         };
@@ -517,7 +517,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::PROVENANCE_MISMATCH,
+                    antecedent::reason::reason_details::native_claims::PROVENANCE_MISMATCH,
                 ))?),
             ));
         }
@@ -525,7 +525,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::PROGRAM_MISMATCH,
+                    antecedent::reason::reason_details::native_claims::PROGRAM_MISMATCH,
                 ))?),
             ));
         }
@@ -539,7 +539,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::CONTRACT_MISMATCH,
+                    antecedent::reason::reason_details::native_claims::CONTRACT_MISMATCH,
                 ))?),
             ));
         }
@@ -553,7 +553,7 @@ fn native_response_claim(
             return Ok((
                 None,
                 Some(refusal_json(refusal(
-                    antecedent_core::reason_details::native_claims::CALIBRATION_NOT_SUPPORTED,
+                    antecedent::reason::reason_details::native_claims::CALIBRATION_NOT_SUPPORTED,
                 ))?),
             ));
         }

@@ -259,8 +259,8 @@ pub struct DesignEffectSection {
     pub comparison: usize,
 }
 
-impl From<&antecedent_estimate::rollout_resampling::DesignEffect> for DesignEffectSection {
-    fn from(value: &antecedent_estimate::rollout_resampling::DesignEffect) -> Self {
+impl From<&antecedent::estimate::rollout_resampling::DesignEffect> for DesignEffectSection {
+    fn from(value: &antecedent::estimate::rollout_resampling::DesignEffect) -> Self {
         Self {
             kind: value.kind.as_str().to_string(),
             group: value.group,
@@ -365,7 +365,7 @@ fn group_time_att(
 ) -> PyResult<Vec<GroupTimeAtt>> {
     let outcome: Vec<f64> = outcome.as_array().iter().copied().collect();
     let effects = detach_catch(py, move || {
-        antecedent_estimate::staggered_event_study::group_time_att(
+        antecedent::estimate::staggered_event_study::group_time_att(
             &outcome, &subjects, &periods, &cohorts, &clusters,
         )
         .map_err(crate::value_err)

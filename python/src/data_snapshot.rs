@@ -3,15 +3,15 @@
 
 use std::sync::Arc;
 
-use antecedent_core::VariableId;
-use antecedent_data::{F64Buffer, OwnedColumn, OwnedColumnarStorage, TableView, TabularData};
+use antecedent::data::{F64Buffer, OwnedColumn, OwnedColumnarStorage, TableView};
+use antecedent::prelude::{TabularData, VariableId};
 use pyo3::prelude::*;
 
 /// Owned nanosecond indices, shared with event preparation without another input copy.
 #[pyclass(name = "_IndexSnapshot", frozen)]
 pub(crate) struct IndexSnapshot {
     pub(crate) values: Arc<[i64]>,
-    pub(crate) retention: Arc<antecedent_core::execution::AdmissionLease>,
+    pub(crate) retention: Arc<antecedent::execution::AdmissionLease>,
 }
 
 #[pymethods]
@@ -24,12 +24,12 @@ impl IndexSnapshot {
                 .ok()
                 .and_then(|len| len.checked_mul(8))
                 .ok_or_else(|| crate::value_err("event index size overflow"))?;
-            let mut ctx = antecedent_core::ExecutionContext::production_default(1);
+            let mut ctx = antecedent::prelude::ExecutionContext::production_default(1);
             crate::execution_api::apply(&mut ctx);
             let retention = Arc::new(
                 ctx.acquire_admission_bounded(0, bytes, std::time::Duration::ZERO).map_err(
                     |error| match error {
-                        antecedent_core::execution::AdmissionError::Cancelled => {
+                        antecedent::execution::AdmissionError::Cancelled => {
                             crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
                         }
                         error => crate::CausalResourceError::new_err(error.to_string()),
@@ -166,12 +166,12 @@ impl TableSnapshot {
                 .and_then(|count| count.checked_mul(8))
                 .and_then(|bytes| u64::try_from(bytes).ok())
                 .ok_or_else(|| crate::value_err("snapshot size overflow"))?;
-            let mut ctx = antecedent_core::ExecutionContext::production_default(1);
+            let mut ctx = antecedent::prelude::ExecutionContext::production_default(1);
             crate::execution_api::apply(&mut ctx);
             let retention = Arc::new(
                 ctx.acquire_admission_bounded(0, bytes_to_retain, std::time::Duration::ZERO)
                     .map_err(|error| match error {
-                        antecedent_core::execution::AdmissionError::Cancelled => {
+                        antecedent::execution::AdmissionError::Cancelled => {
                             crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
                         }
                         error => crate::CausalResourceError::new_err(error.to_string()),

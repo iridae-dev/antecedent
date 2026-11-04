@@ -13,7 +13,7 @@ use antecedent::result::IntervalBinding;
 fn binding_json(binding: &IntervalBinding) -> serde_json::Value {
     serde_json::json!({
         "method": binding.method.as_str(),
-        "se_kind": binding.se_kind.map(antecedent_estimate::AnalyticSeKind::as_str),
+        "se_kind": binding.se_kind.map(antecedent::estimate::AnalyticSeKind::as_str),
         "level": binding.level.is_finite().then_some(binding.level),
         "dependence": binding.dependence,
         "replicates_ok": binding.replicates_ok,

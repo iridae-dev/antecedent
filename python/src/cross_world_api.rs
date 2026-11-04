@@ -10,9 +10,9 @@ use antecedent::cross_world::{
     CrossWorldEffect, CrossWorldOptions, consume_cross_world_artifact,
     consume_cross_world_artifact_for_data, evaluate_cross_world_effect,
 };
+use antecedent::data::TableView;
 use antecedent::gcm::NestedOutcomeMechanism;
-use antecedent_core::CrossWorldQuery;
-use antecedent_data::TableView;
+use antecedent::query::CrossWorldQuery;
 use pyo3::prelude::*;
 
 use crate::{
@@ -24,7 +24,7 @@ use crate::{
 /// and `variable <id>` is spelled with the variable's name.
 fn refused(error: antecedent::CausalError, names: &[String]) -> PyErr {
     let text = error.to_string();
-    let Some((code, rest)) = antecedent_core::reason_code::split_prefix(&text) else {
+    let Some((code, rest)) = antecedent::reason::reason_code::split_prefix(&text) else {
         return py_err(error);
     };
     let mut words: Vec<String> = rest.split(' ').map(str::to_string).collect();
@@ -36,7 +36,7 @@ fn refused(error: antecedent::CausalError, names: &[String]) -> PyErr {
         }
     }
     let message = words.join(" ");
-    if !antecedent_core::reason_code::is_runtime_refusal(code) {
+    if !antecedent::reason::reason_code::is_runtime_refusal(code) {
         return py_err(error);
     }
     if code == "invalid_argument" {

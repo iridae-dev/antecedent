@@ -33,7 +33,7 @@ pub(crate) fn check_declared_len(len: usize, limit: usize, what: &str) -> PyResu
     if len > limit {
         return Err(crate::with_reason_code(
             crate::value_err(format!("{what} is too large")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     Ok(())
@@ -67,7 +67,7 @@ pub(crate) fn check_count(what: &str, value: u64, limit: u64) -> PyResult<()> {
     if value > limit {
         return Err(crate::with_reason_code(
             crate::value_err(format!("{what} is {value}; at most {limit} is accepted")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     Ok(())
@@ -220,7 +220,7 @@ impl RefusalField for Option<&str> {
     }
 }
 
-impl RefusalField for Option<antecedent_io::recalc_receipt_artifact::PlanWire> {
+impl RefusalField for Option<antecedent::io::recalc_receipt_artifact::PlanWire> {
     fn into_refusal_value(self) -> serde_json::Value {
         match self {
             None => serde_json::Value::Null,
@@ -229,7 +229,7 @@ impl RefusalField for Option<antecedent_io::recalc_receipt_artifact::PlanWire> {
     }
 }
 
-fn plan_wire_value(plan: &antecedent_io::recalc_receipt_artifact::PlanWire) -> serde_json::Value {
+fn plan_wire_value(plan: &antecedent::io::recalc_receipt_artifact::PlanWire) -> serde_json::Value {
     let entries = plan
         .entries
         .iter()
@@ -256,8 +256,8 @@ fn plan_wire_value(plan: &antecedent_io::recalc_receipt_artifact::PlanWire) -> s
 /// through the same `RefusalWire` the external-binding bridge uses, so the
 /// missing operation of a capability refusal (`capability`) reaches Python.
 /// Key order matches `serde_json::to_string` on that wire.
-pub(crate) fn external_refusal_json(value: &antecedent_contract::ExternalRefusal) -> String {
-    wire_json(&antecedent_io::external_binding_wire::RefusalWire::from(value.clone()))
+pub(crate) fn external_refusal_json(value: &antecedent::contract::ExternalRefusal) -> String {
+    wire_json(&antecedent::io::external_binding_wire::RefusalWire::from(value.clone()))
 }
 
 fn json_string(text: &str) -> String {
@@ -271,7 +271,7 @@ fn json_opt(text: Option<&String>) -> String {
     }
 }
 
-fn wire_json(wire: &antecedent_io::external_binding_wire::RefusalWire) -> String {
+fn wire_json(wire: &antecedent::io::external_binding_wire::RefusalWire) -> String {
     format!(
         "{{\"code\":{},\"stage\":{},\"detail\":{},\"offending\":{},\"expected\":{},\"supplied\":{},\"capability\":{},\"remedy\":{}}}",
         json_string(&wire.code),
@@ -290,14 +290,14 @@ mod tests {
     use super::{
         MAX_RESAMPLES, check_count, check_mcmc_schedule, check_paths, external_refusal_json,
     };
-    use antecedent_contract::{ExternalCapability, ExternalRefusal};
+    use antecedent::contract::{ExternalCapability, ExternalRefusal};
 
     fn refusal(capability: Option<ExternalCapability>) -> ExternalRefusal {
         ExternalRefusal {
-            code: antecedent_core::reason_code!("external_capability_missing"),
+            code: antecedent::reason::reason_code!("external_capability_missing"),
             stage: "negotiate",
             detail:
-                antecedent_core::reason_details::provider_capability_negotiation::CAPABILITY_MISSING
+                antecedent::reason::reason_details::provider_capability_negotiation::CAPABILITY_MISSING
                     .to_owned(),
             offending: None,
             expected: None,
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn external_refusal_json_matches_the_wire_serializer() {
-        use antecedent_io::external_binding_wire::RefusalWire;
+        use antecedent::io::external_binding_wire::RefusalWire;
         for capability in [Some(ExternalCapability::Cdf), None] {
             let value = refusal(capability);
             let json = external_refusal_json(&value);
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn a_plan_field_matches_serde_of_the_wire() {
         use super::RefusalJson;
-        use antecedent_io::recalc_receipt_artifact::{PlanEntryWire, PlanWire};
+        use antecedent::io::recalc_receipt_artifact::{PlanEntryWire, PlanWire};
         let plan = PlanWire {
             entries: vec![PlanEntryWire {
                 stage: "estimate".to_owned(),

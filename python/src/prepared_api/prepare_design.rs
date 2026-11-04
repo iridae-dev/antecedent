@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use antecedent::Study;
-use antecedent_core::CausalQuery;
-use antecedent_data::TableView;
+use antecedent::data::TableView;
+use antecedent::query::CausalQuery;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -44,7 +44,7 @@ impl PyPreparedAnalysis {
                 let cluster_arc: Vec<Arc<str>> =
                     clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
                 let query = if repeated_cross_section {
-                    antecedent_core::PanelDidQuery::repeated_cross_section(
+                    antecedent::query::PanelDidQuery::repeated_cross_section(
                         outcome_id,
                         treated,
                         post,
@@ -52,7 +52,7 @@ impl PyPreparedAnalysis {
                         cluster_arc,
                     )
                 } else {
-                    antecedent_core::PanelDidQuery::new(
+                    antecedent::query::PanelDidQuery::new(
                         outcome_id,
                         treated,
                         post,
@@ -101,7 +101,7 @@ impl PyPreparedAnalysis {
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let variable = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-                let query = antecedent_core::PanelDidQuery::augmented_panel(
+                let query = antecedent::query::PanelDidQuery::augmented_panel(
                     variable(&outcome_post)?,
                     variable(&outcome_pre)?,
                     variable(&propensity)?,
@@ -154,7 +154,7 @@ impl PyPreparedAnalysis {
                     subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
                 let cluster_arc: Vec<Arc<str>> =
                     clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
-                let query = antecedent_core::PanelDidQuery::staggered_group_time(
+                let query = antecedent::query::PanelDidQuery::staggered_group_time(
                     outcome_id,
                     subject_arc,
                     cluster_arc,
@@ -200,7 +200,7 @@ impl PyPreparedAnalysis {
                     subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
                 let cluster_arc: Vec<Arc<str>> =
                     clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
-                let query = antecedent_core::PanelDidQuery::staggered_event_study(
+                let query = antecedent::query::PanelDidQuery::staggered_event_study(
                     outcome_id,
                     subject_arc,
                     cluster_arc,
@@ -272,7 +272,7 @@ impl PyPreparedAnalysis {
                     subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
                 let cluster_arc: Vec<Arc<str>> =
                     clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
-                let robust = antecedent_core::HeterogeneityRobustDid {
+                let robust = antecedent::query::HeterogeneityRobustDid {
                     estimator,
                     comparison,
                     nuisance,
@@ -282,7 +282,7 @@ impl PyPreparedAnalysis {
                     covariates: Arc::from(covariate_ids),
                     observation,
                 };
-                let query = antecedent_core::PanelDidQuery::heterogeneity_robust(
+                let query = antecedent::query::PanelDidQuery::heterogeneity_robust(
                     outcome_id,
                     subject_arc,
                     cluster_arc,
@@ -345,7 +345,7 @@ impl PyPreparedAnalysis {
                     subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
                 let cluster_arc: Vec<Arc<str>> =
                     clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
-                let query = antecedent_core::PanelDidQuery::covariate_adjusted_two_period(
+                let query = antecedent::query::PanelDidQuery::covariate_adjusted_two_period(
                     outcome_id,
                     treated,
                     post,
@@ -414,7 +414,7 @@ impl PyPreparedAnalysis {
                 let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
                 let unit_arc: Vec<Arc<str>> =
                     units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect();
-                let query = antecedent_core::SyntheticControlQuery::new(
+                let query = antecedent::query::SyntheticControlQuery::new(
                     outcome_id,
                     unit_arc,
                     periods,
@@ -500,7 +500,7 @@ impl PyPreparedAnalysis {
                 let fixed_policy = match (policy_doses, reference_doses) {
                     (None, None) => None,
                     (Some(policy), Some(reference)) => {
-                        Some(antecedent_core::FixedGroupDosePolicy {
+                        Some(antecedent::query::FixedGroupDosePolicy {
                             policy_doses: policy
                                 .into_iter()
                                 .map(|(group, dose)| (Arc::from(group), dose))
@@ -521,7 +521,7 @@ impl PyPreparedAnalysis {
                         }));
                     }
                 };
-                let query = antecedent_core::ContinuousDoseResponseQuery {
+                let query = antecedent::query::ContinuousDoseResponseQuery {
                     outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
                     dose: crate::graph_build::schema_var_id(data.schema(), &dose)?,
                     dose_density: crate::graph_build::schema_var_id(data.schema(), &dose_density)?,
@@ -580,7 +580,7 @@ impl PyPreparedAnalysis {
             req.off_gil(py, move |req| {
                 // No declared option keeps the plain fixed-window query and its canonical bytes.
                 let ratio_options = if bandwidth_rule
-                    == antecedent_core::LocalBandwidthRule::Declared
+                    == antecedent::query::LocalBandwidthRule::Declared
                     && temporal_replicates.is_none()
                     && !density_test
                     && balance_covariates.is_empty()
@@ -591,14 +591,14 @@ impl PyPreparedAnalysis {
                         .iter()
                         .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
                         .collect::<Result<Vec<_>, _>>()?;
-                    Some(antecedent_core::LocalRatioOptions {
+                    Some(antecedent::query::LocalRatioOptions {
                         bandwidth_rule,
                         temporal_replicates,
                         density_test,
                         balance_covariates: Arc::from(balance_ids),
                     })
                 };
-                let query = antecedent_core::LocalPolynomialRatioQuery {
+                let query = antecedent::query::LocalPolynomialRatioQuery {
                     outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
                     treatment: crate::graph_build::schema_var_id(data.schema(), &treatment)?,
                     running: crate::graph_build::schema_var_id(data.schema(), &running)?,
@@ -662,13 +662,13 @@ impl PyPreparedAnalysis {
             req.off_gil(py, move |req| {
                 let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
                 let method = match method {
-                    "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
-                    "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+                    "ipw" => antecedent::query::LongitudinalRegimeMethod::Ipw,
+                    "g_formula" => antecedent::query::LongitudinalRegimeMethod::GFormula,
                     "sequential_dr" => {
-                        antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
+                        antecedent::query::LongitudinalRegimeMethod::SequentialDoublyRobust
                     }
                     "marginal_structural_model" => {
-                        antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
+                        antecedent::query::LongitudinalRegimeMethod::MarginalStructuralModel
                     }
                     _ => {
                         return Err(py_err(antecedent::CausalError::Compile {
@@ -676,7 +676,7 @@ impl PyPreparedAnalysis {
                         }));
                     }
                 };
-                let query = antecedent_core::LongitudinalRegimeQuery {
+                let query = antecedent::query::LongitudinalRegimeQuery {
                     outcome: outcome_id,
                     method,
                     period_outcome_predictions: if period_outcome_predictions.is_empty() {
@@ -774,26 +774,26 @@ impl PyPreparedAnalysis {
                     censoring_columns.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
                 let conditioning_ids =
                     independent_given.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
-                let query = antecedent_core::SurvivalQuery {
+                let query = antecedent::query::SurvivalQuery {
                     duration: id(&duration)?,
                     event: id(&event)?,
                     treatment: id(&treatment)?,
                     tau,
                     delayed_entry: delayed_entry.as_deref().map(id).transpose()?,
                     known_censoring: censoring_probability_floor.map(|minimum_probability| {
-                        antecedent_core::KnownCensoringSurvival {
+                        antecedent::query::KnownCensoringSurvival {
                             times: Arc::from(censoring_times),
                             columns: Arc::from(censoring_ids),
                             minimum_probability,
                         }
                     }),
                     observation_assumption:
-                        antecedent_core::ObservationAssumption::IndependentGiven(Arc::from(
+                        antecedent::query::ObservationAssumption::IndependentGiven(Arc::from(
                             conditioning_ids,
                         )),
                     functional: target_cause.map_or(
-                        antecedent_core::SurvivalFunctional::SurvivalAndRmst,
-                        |target_cause| antecedent_core::SurvivalFunctional::CumulativeIncidence {
+                        antecedent::query::SurvivalFunctional::SurvivalAndRmst,
+                        |target_cause| antecedent::query::SurvivalFunctional::CumulativeIncidence {
                             target_cause,
                         },
                     ),
@@ -856,7 +856,7 @@ impl PyPreparedAnalysis {
                     message: "finite-class regret candidates, selected index, and training subjects must be supplied together".into(),
                 }));
             }
-            let query = antecedent_core::PolicyValueQuery {
+            let query = antecedent::query::PolicyValueQuery {
                 outcome: outcome_id,
                 assignment: assignment.into(),
                 propensity: propensity.into(),
@@ -883,7 +883,7 @@ impl PyPreparedAnalysis {
                     .collect::<Vec<_>>()
                     .into(),
                 regret: regret_selected_index.map(|selected_index| {
-                    antecedent_core::FixedCandidateRegretInputs {
+                    antecedent::query::FixedCandidateRegretInputs {
                         candidates: regret_candidates
                             .into_iter()
                             .map(Arc::<[bool]>::from)
@@ -946,7 +946,7 @@ impl PyPreparedAnalysis {
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
-                let multi_action = antecedent_core::MultiActionPolicyInputs {
+                let multi_action = antecedent::query::MultiActionPolicyInputs {
                     action_labels: action_labels
                         .into_iter()
                         .map(Arc::<str>::from)
@@ -969,7 +969,7 @@ impl PyPreparedAnalysis {
                         .collect::<Vec<_>>()
                         .into(),
                 };
-                let query = antecedent_core::PolicyValueQuery {
+                let query = antecedent::query::PolicyValueQuery {
                     outcome: outcome_id,
                     assignment: Vec::new().into(),
                     propensity: Vec::new().into(),
@@ -1006,8 +1006,8 @@ fn unknown_name(what: &str, got: &str, expected: &str) -> PyErr {
     crate::value_err(format!("unknown {what} {got:?}; expected one of {expected}"))
 }
 
-fn rollout_estimator(name: &str) -> PyResult<antecedent_core::RolloutDidEstimator> {
-    use antecedent_core::RolloutDidEstimator as Estimator;
+fn rollout_estimator(name: &str) -> PyResult<antecedent::query::RolloutDidEstimator> {
+    use antecedent::query::RolloutDidEstimator as Estimator;
     match name {
         "callaway_santanna" => Ok(Estimator::CallawaySantAnna),
         "sun_abraham" => Ok(Estimator::SunAbraham),
@@ -1023,12 +1023,12 @@ fn rollout_estimator(name: &str) -> PyResult<antecedent_core::RolloutDidEstimato
 fn observation_process(
     name: &str,
     shift_bound: Option<f64>,
-) -> PyResult<antecedent_core::PanelObservationProcess> {
-    use antecedent_core::PanelObservationProcess as Process;
+) -> PyResult<antecedent::query::PanelObservationProcess> {
+    use antecedent::query::PanelObservationProcess as Process;
     match (name, shift_bound) {
         ("ignorable_given_cohort", None) => Ok(Process::IgnorableGivenCohort),
         ("informative", None) => Ok(Process::Informative),
-        ("informative", Some(bound)) => antecedent_core::AttritionShiftBound::new(bound)
+        ("informative", Some(bound)) => antecedent::query::AttritionShiftBound::new(bound)
             .map(Process::InformativeBounded)
             .ok_or_else(|| {
                 crate::value_err("attrition_shift_bound must be finite and non-negative")
@@ -1043,8 +1043,8 @@ fn observation_process(
     }
 }
 
-fn did_comparison_group(name: &str) -> PyResult<antecedent_core::DidComparisonGroup> {
-    use antecedent_core::DidComparisonGroup as Comparison;
+fn did_comparison_group(name: &str) -> PyResult<antecedent::query::DidComparisonGroup> {
+    use antecedent::query::DidComparisonGroup as Comparison;
     match name {
         "never_treated" => Ok(Comparison::NeverTreated),
         "not_yet_treated" => Ok(Comparison::NotYetTreated),
@@ -1052,8 +1052,8 @@ fn did_comparison_group(name: &str) -> PyResult<antecedent_core::DidComparisonGr
     }
 }
 
-fn did_nuisance_method(name: &str) -> PyResult<antecedent_core::DidNuisanceMethod> {
-    use antecedent_core::DidNuisanceMethod as Nuisance;
+fn did_nuisance_method(name: &str) -> PyResult<antecedent::query::DidNuisanceMethod> {
+    use antecedent::query::DidNuisanceMethod as Nuisance;
     match name {
         "outcome_regression" => Ok(Nuisance::OutcomeRegression),
         "inverse_probability_weighting" => Ok(Nuisance::InverseProbabilityWeighting),
@@ -1066,8 +1066,8 @@ fn did_nuisance_method(name: &str) -> PyResult<antecedent_core::DidNuisanceMetho
     }
 }
 
-fn did_base_period(name: &str) -> PyResult<antecedent_core::DidBasePeriod> {
-    use antecedent_core::DidBasePeriod as Base;
+fn did_base_period(name: &str) -> PyResult<antecedent::query::DidBasePeriod> {
+    use antecedent::query::DidBasePeriod as Base;
     match name {
         "varying" => Ok(Base::Varying),
         "universal" => Ok(Base::Universal),
@@ -1075,8 +1075,8 @@ fn did_base_period(name: &str) -> PyResult<antecedent_core::DidBasePeriod> {
     }
 }
 
-fn did_aggregation(name: &str) -> PyResult<antecedent_core::DidAggregation> {
-    use antecedent_core::DidAggregation as Aggregation;
+fn did_aggregation(name: &str) -> PyResult<antecedent::query::DidAggregation> {
+    use antecedent::query::DidAggregation as Aggregation;
     match name {
         "simple" => Ok(Aggregation::Simple),
         "dynamic" => Ok(Aggregation::Dynamic),
@@ -1093,7 +1093,7 @@ fn did_aggregation(name: &str) -> PyResult<antecedent_core::DidAggregation> {
     reason = "the binding shares the parsed option by reference"
 )]
 fn require_resampling_for_replicates(
-    resampling: &Option<antecedent_core::DidResamplingScheme>,
+    resampling: &Option<antecedent::query::DidResamplingScheme>,
     replicates: Option<u32>,
 ) -> PyResult<()> {
     if resampling.is_none() && replicates.is_some() {
@@ -1116,8 +1116,8 @@ fn refuse_unused_accepted(accepted: bool) -> PyResult<()> {
 
 fn did_resampling_scheme(
     name: Option<&str>,
-) -> PyResult<Option<antecedent_core::DidResamplingScheme>> {
-    use antecedent_core::DidResamplingScheme as Scheme;
+) -> PyResult<Option<antecedent::query::DidResamplingScheme>> {
+    use antecedent::query::DidResamplingScheme as Scheme;
     match name {
         None => Ok(None),
         Some("cluster_bootstrap") => Ok(Some(Scheme::ClusterBootstrap)),
@@ -1128,8 +1128,8 @@ fn did_resampling_scheme(
     }
 }
 
-fn local_bandwidth_rule(name: &str) -> PyResult<antecedent_core::LocalBandwidthRule> {
-    use antecedent_core::LocalBandwidthRule as Rule;
+fn local_bandwidth_rule(name: &str) -> PyResult<antecedent::query::LocalBandwidthRule> {
+    use antecedent::query::LocalBandwidthRule as Rule;
     match name {
         "declared" => Ok(Rule::Declared),
         "mse_optimal" => Ok(Rule::MseOptimal),

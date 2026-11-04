@@ -1,9 +1,9 @@
 //! The declared unrolled point graph of a panel program, as a Python declaration.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use antecedent_core::ExecutionContext;
-use antecedent_core::execution::{AdmissionError, AdmissionLease};
-use antecedent_identify::IdentificationError;
-use antecedent_identify::panel_unrolled::{PanelNode, UnrolledPanelGraph, UnrolledPanelSpec};
+use antecedent::execution::{AdmissionError, AdmissionLease};
+use antecedent::identify::IdentificationError;
+use antecedent::identify::panel_unrolled::{PanelNode, UnrolledPanelGraph, UnrolledPanelSpec};
+use antecedent::prelude::ExecutionContext;
 use pyo3::PyResult;
 use serde::Deserialize;
 

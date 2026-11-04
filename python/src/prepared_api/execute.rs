@@ -7,10 +7,10 @@ use crate::NumericColumn;
 use std::sync::Arc;
 
 use antecedent::Study;
-use antecedent_core::{
+use antecedent::data::TableView;
+use antecedent::query::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, PopulationSelector,
 };
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -60,7 +60,7 @@ impl PyPreparedAnalysis {
             let mut query = AnomalyAttributionQuery::new(target_ids, max_units);
             if let Some((center, scale)) = reference {
                 query =
-                    query.with_reference(antecedent_core::AnomalyReference::fixed(center, scale));
+                    query.with_reference(antecedent::query::AnomalyReference::fixed(center, scale));
             }
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder =
@@ -148,7 +148,7 @@ impl PyPreparedAnalysis {
                     out_names
                         .iter()
                         .position(|n| n == name)
-                        .map(|i| antecedent_core::VariableId::from_raw(i as u32))
+                        .map(|i| antecedent::prelude::VariableId::from_raw(i as u32))
                         .ok_or_else(|| crate::value_err(format!("unknown depends_on {name}")))
                 })
                 .collect::<PyResult<Vec<_>>>()?;
@@ -190,7 +190,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             crate::measured_inference_api::check_cancelled(&ctx)?;
-            let consumed = antecedent_io::consume_analysis_result(artifact).map_err(py_err)?;
+            let consumed = antecedent::io::consume_analysis_result(artifact).map_err(py_err)?;
             crate::measured_inference_api::check_cancelled(&ctx)?;
             let section =
                 consumed.contract.and_then(|contract| contract.target_weights).ok_or_else(
@@ -261,14 +261,14 @@ impl PyPreparedAnalysis {
             .ok_or_else(|| crate::value_err("estimate before exporting an artifact"))?;
         let bytes = crate::detach_catch(py, || -> PyResult<Vec<u8>> {
             Ok(if payload == "query" {
-                let query = antecedent_io::CausalPayloadWire::Query(Box::new(
-                    antecedent_io::causal_query_to_wire_with_registry(
+                let query = antecedent::io::CausalPayloadWire::Query(Box::new(
+                    antecedent::io::causal_query_to_wire_with_registry(
                         self.inner.query(),
                         self.inner.population_registry(),
                     )
                     .map_err(py_err)?,
                 ));
-                let artifact = antecedent_io::encode_causal_payload_artifact(
+                let artifact = antecedent::io::encode_causal_payload_artifact(
                     &query,
                     self.names.clone(),
                     artifact_id,
@@ -290,7 +290,7 @@ impl PyPreparedAnalysis {
                         self.inner.temporal_identification().as_deref(),
                     )
                     .map_err(py_err)?;
-                let artifact = antecedent_io::encode_analysis_result_artifact(
+                let artifact = antecedent::io::encode_analysis_result_artifact(
                     &wire,
                     self.names.clone(),
                     artifact_id,
@@ -300,12 +300,12 @@ impl PyPreparedAnalysis {
                 artifact.write_to(&mut bytes).map_err(py_err)?;
                 bytes
             } else if let Some(post) = &result.posterior {
-                antecedent_io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
+                antecedent::io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
             } else if let Some(response) = result.response() {
-                let payload = antecedent_io::CausalPayloadWire::ResponseResult(Box::new(
-                    antecedent_io::causal_response_to_wire(response).map_err(py_err)?,
+                let payload = antecedent::io::CausalPayloadWire::ResponseResult(Box::new(
+                    antecedent::io::causal_response_to_wire(response).map_err(py_err)?,
                 ));
-                let artifact = antecedent_io::encode_causal_payload_artifact(
+                let artifact = antecedent::io::encode_causal_payload_artifact(
                     &payload,
                     self.names.clone(),
                     artifact_id,
@@ -328,8 +328,8 @@ impl PyPreparedAnalysis {
                         }
                         other => py_err(other),
                     })?;
-                let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire));
-                let artifact = antecedent_io::encode_causal_payload_artifact(
+                let payload = antecedent::io::CausalPayloadWire::StaticResult(Box::new(wire));
+                let artifact = antecedent::io::encode_causal_payload_artifact(
                     &payload,
                     self.names.clone(),
                     artifact_id,
@@ -366,15 +366,15 @@ impl PyPreparedAnalysis {
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
-        let quantities: Option<Vec<antecedent_contract::ScientificQuantity>> = quantities_json
+        let quantities: Option<Vec<antecedent::scientific::ScientificQuantity>> = quantities_json
             .map(|json| {
-                let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
+                let wires: Vec<antecedent::io::quantity_wire::ScientificQuantityWire> =
                     serde_json::from_str(json)
                         .map_err(|error| crate::value_err(error.to_string()))?;
                 wires
                     .into_iter()
                     .map(|wire| {
-                        antecedent_contract::ScientificQuantity::try_from(wire)
+                        antecedent::scientific::ScientificQuantity::try_from(wire)
                             .map_err(crate::value_err)
                     })
                     .collect::<PyResult<Vec<_>>>()
@@ -386,7 +386,7 @@ impl PyPreparedAnalysis {
                 let first = quantities
                     .first()
                     .ok_or_else(|| crate::value_err("scientific coordinates cannot be empty"))?;
-                Ok::<_, PyErr>(antecedent_contract::ResponseCoordinateLabels {
+                Ok::<_, PyErr>(antecedent::contract::ResponseCoordinateLabels {
                     outcome_units: &first.units,
                     population_id: &first.population_id,
                     transform_id: &first.transform_id,
@@ -397,7 +397,7 @@ impl PyPreparedAnalysis {
             let response = result
                 .response()
                 .ok_or_else(|| crate::value_err("scientific coordinates require a response"))?;
-            let expected = antecedent_contract::response_coordinates(
+            let expected = antecedent::contract::response_coordinates(
                 response,
                 &|id| self.names.get(id.as_usize()).cloned(),
                 labels,

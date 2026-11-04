@@ -1,13 +1,14 @@
 //! Source-bound measured Fisher lifecycle and unchanged feature-only candidate lifecycle.
-use antecedent_core::reason_code;
-use antecedent_estimate::nested_markov_binary::{
+use antecedent::estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, NestedMarkovInput, Regime, RegimeCounts,
 };
-use antecedent_io::{IoError, nested_markov_artifact::NestedFisherArtifact};
+use antecedent::io::IoError;
+use antecedent::io::nested_markov_artifact::{
+    NestedFisherArtifact, NestedMarkovConsumeLimits, NestedMarkovExpectation,
+};
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-
-use antecedent_io::nested_markov_artifact::{NestedMarkovConsumeLimits, NestedMarkovExpectation};
 
 type RegimeTuple = (Option<Vec<usize>>, Vec<usize>, Vec<f64>);
 fn declared_input(
@@ -47,7 +48,7 @@ struct Candidate {
 impl Candidate {
     fn from_artifact(artifact: NestedFisherArtifact) -> PyResult<Self> {
         let bytes = artifact.export().map_err(error)?;
-        let identity = antecedent_core::blake3_hex(&bytes);
+        let identity = antecedent::schema::blake3_hex(&bytes);
         Ok(Self { artifact, bytes, identity })
     }
 }
@@ -97,7 +98,7 @@ fn consume_nested_markov_fisher_candidate(
     if bytes.len() > 256 * 1024 {
         return Err(crate::value_err("nested_markov.fisher_artifact_limits: candidate byte bound"));
     }
-    if antecedent_core::blake3_hex(bytes) != expected_identity {
+    if antecedent::schema::blake3_hex(bytes) != expected_identity {
         return Err(crate::with_reason_code(
             crate::value_err(
                 "nested_markov.fisher_identity_mismatch: candidate identity differs from expected",

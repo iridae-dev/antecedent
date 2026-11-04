@@ -4,18 +4,18 @@
 
 use std::collections::BTreeMap;
 
-use antecedent::inference::{MappedTransferSpec, mapped_posterior_transfer_with};
-use antecedent_io::distribution_artifact::DistributionIdentity;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::{
+use antecedent::inference::{
+    ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, MappedTransferSpec,
+    PriorSet, PriorSpec, compose_external_priors, compose_external_priors_with_alphas,
+    mapped_posterior_transfer_with,
+};
+use antecedent::io::distribution_artifact::DistributionIdentity;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::{
     CompatibilityReport, DesignVariableRole, DesignVariableSummary, EstimandFingerprint,
     PriorCatalog, PriorMapping, PriorSourceMeta, PriorSourceRef, TargetDesign,
 };
-use antecedent_prob::{
-    ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
-    compose_external_priors, compose_external_priors_with_alphas,
-};
-use antecedent_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
+use antecedent::validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 
@@ -273,7 +273,7 @@ fn prior_catalog_rank<'py>(
                 },
                 "rejected" => CompatibilityReport::Rejected {
                     artifact_id,
-                    reason: antecedent_io::CompatibilityRejectReason::ArtifactUnreadable {
+                    reason: antecedent::io::CompatibilityRejectReason::ArtifactUnreadable {
                         message: "rank ignores rejected detail".into(),
                     },
                 },
@@ -299,14 +299,14 @@ fn prior_catalog_rank<'py>(
 #[pyfunction]
 fn encode_prior_source_meta(meta: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
     let m = meta_from_dict(meta)?;
-    antecedent_io::encode_prior_source_meta(&m).map_err(py_err)
+    antecedent::io::encode_prior_source_meta(&m).map_err(py_err)
 }
 
 /// Decode prior-source meta CBOR → dict.
 #[pyfunction]
 fn decode_prior_source_meta(py: Python<'_>, bytes: Vec<u8>) -> PyResult<Bound<'_, PyDict>> {
     crate::catch_ffi(|| {
-        let meta = antecedent_io::decode_prior_source_meta(&bytes).map_err(py_err)?;
+        let meta = antecedent::io::decode_prior_source_meta(&bytes).map_err(py_err)?;
         let d = PyDict::new(py);
         d.set_item("artifact_id", meta.artifact_id)?;
         let est = PyDict::new(py);
@@ -421,7 +421,7 @@ pub(crate) fn conflict_policy_from_dict(
 
 fn composed_to_dict<'py>(
     py: Python<'py>,
-    composed: &antecedent_prob::ComposedPrior,
+    composed: &antecedent::inference::ComposedPrior,
 ) -> PyResult<Bound<'py, PyDict>> {
     let coef = composed
         .prior
@@ -448,8 +448,8 @@ fn composed_to_dict<'py>(
     Ok(d)
 }
 
-fn transport_policy_from_str(s: &str) -> PyResult<antecedent_prob::TransportPolicy> {
-    antecedent_prob::TransportPolicy::parse(s).map_err(pyvalue)
+fn transport_policy_from_str(s: &str) -> PyResult<antecedent::inference::TransportPolicy> {
+    antecedent::inference::TransportPolicy::parse(s).map_err(pyvalue)
 }
 
 fn conflict_signals_from_list(
@@ -507,7 +507,7 @@ fn sources_to_py_list<'py>(
 
 fn with_conflict_fields(
     d: &Bound<'_, PyDict>,
-    summary: &antecedent_prob::ConflictSummary,
+    summary: &antecedent::inference::ConflictSummary,
 ) -> PyResult<()> {
     d.set_item("alphas_applied", summary.alphas_applied.as_ref())?;
     d.set_item(
@@ -534,7 +534,7 @@ fn compose_transport_path<'py>(
     transport_weights: Option<Vec<f64>>,
     coef_index: Option<usize>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    use antecedent_prob::{
+    use antecedent::inference::{
         TransportAdjustment, TransportContext, TransportPolicy, compose_with_transport,
     };
 
@@ -569,7 +569,7 @@ fn compose_transport_path<'py>(
         coef_index,
     };
     let (composed, _) = compose_with_transport(srcs, baseline, &ctx).map_err(pyvalue)?;
-    let (prepared, _) = antecedent_prob::apply_transport(srcs, &ctx).map_err(pyvalue)?;
+    let (prepared, _) = antecedent::inference::apply_transport(srcs, &ctx).map_err(pyvalue)?;
     let prepared: Vec<ExternalPriorSource> = prepared
         .into_iter()
         .zip(composed.alphas_applied.iter())
@@ -696,41 +696,45 @@ fn shrink_alpha_py(
 
 /// Moment-match a Beta prior to `(mean, variance)` exactly (`alpha + beta -
 /// 2` convention for the resulting `.ess()`). See
-/// `antecedent_prob::BetaHyperparameters::from_moments` for the full
+/// `antecedent::inference::BetaHyperparameters::from_moments` for the full
 /// contract; errors on out-of-support input rather than clamping it.
 #[pyfunction(name = "beta_from_moments")]
 fn beta_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::BetaHyperparameters::from_moments(mean, variance).map_err(pyvalue)?;
+    let h = antecedent::inference::BetaHyperparameters::from_moments(mean, variance)
+        .map_err(pyvalue)?;
     Ok((h.alpha, h.beta))
 }
 
 /// Build a Beta prior from `mean` and a caller-declared prior-strength
 /// `ess` exactly (`alpha + beta - 2` convention); no `variance` parameter.
-/// See `antecedent_prob::BetaHyperparameters::from_mean_and_ess` for the
+/// See `antecedent::inference::BetaHyperparameters::from_mean_and_ess` for the
 /// full contract.
 #[pyfunction(name = "beta_from_mean_and_ess")]
 fn beta_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::BetaHyperparameters::from_mean_and_ess(mean, ess).map_err(pyvalue)?;
+    let h = antecedent::inference::BetaHyperparameters::from_mean_and_ess(mean, ess)
+        .map_err(pyvalue)?;
     Ok((h.alpha, h.beta))
 }
 
 /// Moment-match a Gamma prior to `(mean, variance)` exactly (`shape - 1`
 /// convention for the resulting `.ess()`). See
-/// `antecedent_prob::GammaHyperparameters::from_moments` for the full
+/// `antecedent::inference::GammaHyperparameters::from_moments` for the full
 /// contract; errors on out-of-support input rather than clamping it.
 #[pyfunction(name = "gamma_from_moments")]
 fn gamma_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::GammaHyperparameters::from_moments(mean, variance).map_err(pyvalue)?;
+    let h = antecedent::inference::GammaHyperparameters::from_moments(mean, variance)
+        .map_err(pyvalue)?;
     Ok((h.shape, h.rate))
 }
 
 /// Build a Gamma prior from `mean` and a caller-declared prior-strength
 /// `ess` exactly (`shape - 1` convention); no `variance` parameter. See
-/// `antecedent_prob::GammaHyperparameters::from_mean_and_ess` for the full
+/// `antecedent::inference::GammaHyperparameters::from_mean_and_ess` for the full
 /// contract.
 #[pyfunction(name = "gamma_from_mean_and_ess")]
 fn gamma_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::GammaHyperparameters::from_mean_and_ess(mean, ess).map_err(pyvalue)?;
+    let h = antecedent::inference::GammaHyperparameters::from_mean_and_ess(mean, ess)
+        .map_err(pyvalue)?;
     Ok((h.shape, h.rate))
 }
 
@@ -814,7 +818,7 @@ pub(crate) fn apply_owned_composed_prior(
     cfg: antecedent::BayesianConfig,
     owned: OwnedComposedPrior,
 ) -> PyResult<antecedent::BayesianConfig> {
-    use antecedent_core::PriorAssumption;
+    use antecedent::schema::PriorAssumption;
     use std::sync::Arc;
 
     let baseline_n = owned

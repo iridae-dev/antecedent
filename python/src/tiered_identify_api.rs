@@ -3,9 +3,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, CausalSchemaBuilder, Intervention,
-    OutcomeFunctional, ResponseFunctional, ResponseQuery, TargetPopulation, Value,
+use antecedent::prelude::{CausalSchema, CausalSchemaBuilder, Intervention, Value};
+use antecedent::query::{
+    AverageEffectQuery, CausalQuery, OutcomeFunctional, ResponseFunctional, ResponseQuery,
+    TargetPopulation,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyModule};
@@ -175,15 +176,15 @@ fn identify_tiered_structure(
         let schema = builder.build().map_err(crate::py_err)?;
         let named: Vec<Vec<&str>> =
             tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
-        let background = antecedent_graph::TieredBackground::from_named(&schema, &named, within)
+        let background = antecedent::graph::TieredBackground::from_named(&schema, &named, within)
             .map_err(crate::py_err)?;
         let query = query.into_query(&schema)?;
         let result = match &query {
             CausalQuery::AverageEffect(query) => {
-                antecedent_identify::identify_tiered(&background, query)
+                antecedent::identify::identify_tiered(&background, query)
             }
             CausalQuery::Response(query) => {
-                antecedent_identify::identify_tiered_joint(&background, &schema, query)
+                antecedent::identify::identify_tiered_joint(&background, &schema, query)
             }
             _ => return Err(crate::value_err("unsupported tiered query")),
         }
@@ -191,15 +192,15 @@ fn identify_tiered_structure(
             // Unknown within-tier order denotes two scenarios, not one joint
             // ADMG. Preserve that scientific support refusal as a typed public
             // boundary while leaving data/search failures on their own paths.
-            if background.within_tier == antecedent_graph::WithinTier::Unknown
+            if background.within_tier == antecedent::graph::WithinTier::Unknown
                 && matches!(&query, CausalQuery::Response(_))
                 && matches!(
                     &error,
-                    antecedent_identify::IdentificationError::UnsupportedQuery { .. }
+                    antecedent::identify::IdentificationError::UnsupportedQuery { .. }
                 )
             {
                 crate::refusal(
-                    antecedent_core::reason_code!("route_not_supported"),
+                    antecedent::reason::reason_code!("route_not_supported"),
                     error.to_string(),
                 )
             } else {

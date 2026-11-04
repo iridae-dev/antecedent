@@ -3,8 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::Identification;
-use antecedent_core::{CausalQuery, TemporalIndexer, TemporalNodeKey, VariableId};
-use antecedent_identify::{IdentificationEnvelope, IdentificationResult};
+use antecedent::identify::{IdentificationEnvelope, IdentificationResult};
+use antecedent::prelude::VariableId;
+use antecedent::query::{CausalQuery, TemporalIndexer, TemporalNodeKey};
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 
@@ -12,9 +13,9 @@ fn error(e: impl std::fmt::Display) -> PyErr {
     crate::value_err(e.to_string())
 }
 
-fn temporal_error(e: antecedent_core::TemporalMaterializationError) -> PyErr {
+fn temporal_error(e: antecedent::query::TemporalMaterializationError) -> PyErr {
     crate::py_err(antecedent::CausalError::from(
-        antecedent_estimate::EstimationError::TemporalMaterialization(e),
+        antecedent::estimate::EstimationError::TemporalMaterialization(e),
     ))
 }
 
@@ -30,9 +31,9 @@ fn cancelled() -> PyErr {
 fn admit_targets(
     count: u64,
     names: &[String],
-    budget: &mut antecedent_core::TemporalBudget,
-    ctx: &antecedent_core::ExecutionContext,
-) -> PyResult<antecedent_core::execution::AdmissionLease> {
+    budget: &mut antecedent::query::TemporalBudget,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<antecedent::execution::AdmissionLease> {
     if ctx.cancellation.is_cancelled() {
         return Err(cancelled());
     }
@@ -52,7 +53,7 @@ fn admit_targets(
         return Err(resource("metadata byte limit"));
     }
     ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
+        antecedent::execution::AdmissionError::Cancelled => cancelled(),
         other => resource(&other.to_string()),
     })
 }
@@ -76,10 +77,10 @@ fn record(
     result: &IdentificationResult,
     indexer: Option<&TemporalIndexer>,
     names: &[String],
-    registry: Option<&antecedent_core::PopulationRegistry>,
+    registry: Option<&antecedent::query::PopulationRegistry>,
 ) -> PyResult<Value> {
     let wire =
-        antecedent_io::identification_to_wire_with_registry(result, registry).map_err(error)?;
+        antecedent::io::identification_to_wire_with_registry(result, registry).map_err(error)?;
     let adjustments = result
         .estimands
         .iter()
@@ -101,7 +102,7 @@ fn envelope<G>(
     envelope: &IdentificationEnvelope<G>,
     indexers: &[TemporalIndexer],
     names: &[String],
-    registry: Option<&antecedent_core::PopulationRegistry>,
+    registry: Option<&antecedent::query::PopulationRegistry>,
     graph: impl Fn(&G) -> PyResult<Value>,
 ) -> PyResult<Value> {
     let cases = envelope
@@ -127,7 +128,7 @@ fn envelope<G>(
 pub(crate) fn analysis_to_json(
     result: &antecedent::StudyResult,
     names: &[String],
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<Option<String>> {
     let Some(certificate) = &result.certificate else {
         return Ok(None);
@@ -148,7 +149,7 @@ pub(crate) fn analysis_to_json(
     let finalised;
     let ctx = if ctx.cancellation.is_cancelled() {
         let mut fresh = ctx.clone();
-        fresh.cancellation = antecedent_core::CancellationToken::new();
+        fresh.cancellation = antecedent::execution::CancellationToken::new();
         finalised = fresh;
         &finalised
     } else {
@@ -171,7 +172,7 @@ pub(crate) fn tiered_to_json(
     result: &IdentificationResult,
     query: &CausalQuery,
     names: &[String],
-    background: &antecedent_graph::TieredBackground,
+    background: &antecedent::graph::TieredBackground,
     within_tier: &str,
 ) -> PyResult<String> {
     let tiers = background
@@ -190,12 +191,12 @@ pub(crate) fn tiered_to_json(
         "graph_class": "tiered_background",
         "within_tier": within_tier,
         "tiers": tiers,
-        "scenario_scope": if background.within_tier == antecedent_graph::WithinTier::Unknown {
+        "scenario_scope": if background.within_tier == antecedent::graph::WithinTier::Unknown {
             "two_declared_orientation_scenarios"
         } else { "known_tier_closure" },
         "names": names,
         "cases": [record(result, None, names, None)?],
-        "witness_query": antecedent_io::causal_query_to_wire(query).map_err(error)?,
+        "witness_query": antecedent::io::causal_query_to_wire(query).map_err(error)?,
     });
     serde_json::to_string(&payload).map_err(error)
 }
@@ -205,10 +206,10 @@ pub(crate) fn to_json(
     query: &CausalQuery,
     names: &[String],
     graph_class: &str,
-    registry: Option<&antecedent_core::PopulationRegistry>,
-    ctx: &antecedent_core::ExecutionContext,
+    registry: Option<&antecedent::query::PopulationRegistry>,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<String> {
-    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let mut budget = antecedent::query::TemporalBudget::new(ctx.temporal_materialization_limits());
     let mut target_lease = None;
     let mut payload = match identification {
         Identification::Point { result, temporal_indexer, .. } => {
@@ -218,7 +219,7 @@ pub(crate) fn to_json(
         }
         Identification::CpdagEnvelope { envelope: e, .. } => {
             let mut payload = envelope(e, &[], names, registry, |g| {
-                let text = antecedent_io::dag_to_json(g, Some(names)).map_err(error)?;
+                let text = antecedent::io::dag_to_json(g, Some(names)).map_err(error)?;
                 serde_json::from_str(&text).map_err(error)
             })?;
             payload["kind"] = json!("cpdag_envelope");
@@ -226,7 +227,7 @@ pub(crate) fn to_json(
         }
         Identification::Envelope { envelope: e, .. } => {
             let mut payload = envelope(e, &[], names, registry, |g| {
-                let text = antecedent_io::pag_to_json(g, Some(names)).map_err(error)?;
+                let text = antecedent::io::pag_to_json(g, Some(names)).map_err(error)?;
                 serde_json::from_str(&text).map_err(error)
             })?;
             payload["kind"] = json!("envelope");
@@ -234,13 +235,13 @@ pub(crate) fn to_json(
         }
         Identification::TemporalEnvelope { envelope: e, .. } => {
             let mut payload = envelope(&e.envelope, &e.indexers, names, registry, |g| match g {
-                antecedent_identify::TemporalCompletionGraph::Dag(dag) => {
-                    serde_json::to_value(antecedent_io::temporal_dag_to_wire(dag).map_err(error)?)
+                antecedent::identify::TemporalCompletionGraph::Dag(dag) => {
+                    serde_json::to_value(antecedent::io::temporal_dag_to_wire(dag).map_err(error)?)
                         .map_err(error)
                 }
-                antecedent_identify::TemporalCompletionGraph::Mag(mag) => {
+                antecedent::identify::TemporalCompletionGraph::Mag(mag) => {
                     let graph: Value = serde_json::from_str(
-                        &antecedent_io::pag_to_json(
+                        &antecedent::io::pag_to_json(
                             &mag.as_static_pag_for_alg().map_err(error)?,
                             None,
                         )
@@ -251,7 +252,7 @@ pub(crate) fn to_json(
                         .nodes()
                         .iter()
                         .map(|node| match node {
-                            antecedent_core::NodeRef::Lagged { variable, lag } => Ok(
+                            antecedent::query::NodeRef::Lagged { variable, lag } => Ok(
                                 json!({"variable":variable.raw(),"offset":-i64::from(lag.raw())}),
                             ),
                             _ => Err(error("temporal completion node is not lagged")),
@@ -281,7 +282,7 @@ pub(crate) fn to_json(
     payload["structure_version"] = json!(identification.structure_version());
     payload["names"] = json!(names);
     payload["witness_query"] = serde_json::to_value(
-        antecedent_io::causal_query_to_wire_with_registry(query, registry).map_err(error)?,
+        antecedent::io::causal_query_to_wire_with_registry(query, registry).map_err(error)?,
     )
     .map_err(error)?;
     let (targets, outcome) = match query {
@@ -295,7 +296,7 @@ pub(crate) fn to_json(
         ),
         CausalQuery::Response(q) => {
             let targets = if let Some(temporal) = &q.temporal {
-                let plan = antecedent_estimate::plan_from_response_query(q, &mut budget, ctx)
+                let plan = antecedent::estimate::plan_from_response_query(q, &mut budget, ctx)
                     .map_err(|e| crate::py_err(antecedent::CausalError::from(e)))?;
                 if let Some(overlays) = plan.as_ref().and_then(|plan| plan.mechanism_overlays()) {
                     let count = overlays.count() as u64;
@@ -448,8 +449,10 @@ pub(crate) fn to_json(
 #[cfg(test)]
 mod temporal_metadata_context_tests {
     use super::*;
-    use antecedent_core::{AssumptionSet, ExecutionContext, TemporalEffectQuery, TemporalPolicy};
-    use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
+    use antecedent::identify::{DerivationTrace, IdentificationPerformanceRecord};
+    use antecedent::prelude::ExecutionContext;
+    use antecedent::query::{TemporalEffectQuery, TemporalPolicy};
+    use antecedent::schema::AssumptionSet;
 
     #[test]
     fn temporal_to_json_uses_the_supplied_context_for_limits_and_cancellation() {

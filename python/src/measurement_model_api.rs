@@ -19,26 +19,26 @@ use antecedent::analysis::transported_measurement::{
     ErrorParameter, InvarianceDeclaration, PopulationErrorStructure, TransportBasis,
     TransportReceipt, transport_measurement_estimate, verify_measurement_transport,
 };
+use antecedent::contract::measurement::MeasurementOperation;
+use antecedent::contract::{
+    ExternalCapability, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
+    PosteriorProviderContract, ProviderObjectIdentity, capability_from_name,
+};
+use antecedent::estimate::measurement::PosteriorCombination;
+use antecedent::inference::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::{
+    ArmBinding, BinaryArmRates, DifferentialAxis, ErrorStructure, MappingSemantics,
+    MeasurementBinding, MeasurementKind, MeasurementModel, MeasurementParameters, MeasurementRoute,
+    MeasurementVariable, ParameterEvidence, PosteriorReference, RepresentationMapping,
+    RepresentationVersion, ScientificQuantity,
+};
 use antecedent::{
     CategoricalTarget, ConsumedMeasurement, ContinuousErrorInput, ContinuousMeasurementEstimate,
     MeasurementAnalysisBinding, MeasurementDetail, MeasurementEstimate, MeasurementInput,
     MeasurementModelRefusal, PreparedMeasurementModel, StudyBuilder,
     consume_measurement_model_artifact,
 };
-use antecedent_contract::measurement::MeasurementOperation;
-use antecedent_contract::{
-    ExternalCapability, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
-    PosteriorProviderContract, ProviderObjectIdentity, ScientificQuantity, capability_from_name,
-};
-use antecedent_core::measurement_model::{
-    ArmBinding, BinaryArmRates, DifferentialAxis, ErrorStructure, MappingSemantics,
-    MeasurementBinding, MeasurementKind, MeasurementModel, MeasurementParameters, MeasurementRoute,
-    MeasurementVariable, ParameterEvidence, PosteriorReference, RepresentationMapping,
-    RepresentationVersion,
-};
-use antecedent_estimate::measurement::PosteriorCombination;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_stats::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -711,8 +711,8 @@ fn trust_of(
                 Ok(ExternalTrustState::ExactRequestVerified(Box::new(receipt.inner.clone())))
             }
             None => Err(declaration_refusal(
-                antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                antecedent_core::reason_details::measurement_model::POSTERIOR_RECEIPT,
+                antecedent::reason::reason_code!("measurement_posterior_not_trusted"),
+                antecedent::reason::reason_details::measurement_model::POSTERIOR_RECEIPT,
                 "exact-request verification needs the verification receipt the library issued; \
                  a label is not a receipt",
             )),
@@ -721,16 +721,16 @@ fn trust_of(
             let attestor = provider.attestor.as_deref().unwrap_or("");
             ExternalTrustState::attest(&provider.object, attestor).map_err(|error| {
                 declaration_refusal(
-                    antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                    antecedent_core::reason_details::measurement_model::POSTERIOR_DECLARATION,
+                    antecedent::reason::reason_code!("measurement_posterior_not_trusted"),
+                    antecedent::reason::reason_details::measurement_model::POSTERIOR_DECLARATION,
                     &format!("the provider declaration cannot be attested: {error:?}"),
                 )
             })
         }
         "native_supported" => Ok(ExternalTrustState::NativeSupported),
         _ => Err(declaration_refusal(
-            antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-            antecedent_core::reason_details::measurement_model::POSTERIOR_DECLARATION,
+            antecedent::reason::reason_code!("measurement_posterior_not_trusted"),
+            antecedent::reason::reason_details::measurement_model::POSTERIOR_DECLARATION,
             "a provider posterior is externally attested or exact-request verified; \
              nothing else is a trust state a caller can state",
         )),
@@ -741,7 +741,7 @@ fn trust_of(
 // Results as data.
 // ---------------------------------------------------------------------------
 
-fn record_json(record: &antecedent_core::measurement_model::CorrectedFunctionalRecord) -> Json {
+fn record_json(record: &antecedent::schema::measurement_model::CorrectedFunctionalRecord) -> Json {
     json!({
         "model_identity": record.model_identity.to_hex(),
         "route": record.route.as_str(),
@@ -766,7 +766,7 @@ fn estimate_json(estimate: &MeasurementEstimate) -> Json {
     summary["provider_trust"] = json!(
         estimate
             .provider_trust()
-            .map(antecedent_contract::measurement::LatentPosteriorTrust::as_str)
+            .map(antecedent::contract::measurement::LatentPosteriorTrust::as_str)
     );
     summary["representation_mapping_id"] = json!(estimate.representation_mapping_id());
     summary["interval"] = Json::Null;
@@ -897,8 +897,8 @@ impl ContinuousMeasurementEstimateHandle {
     fn interval(&self, level: f64) -> (Option<(f64, f64, String)>, Option<String>) {
         match self.inner.interval(level) {
             Ok((lower, upper)) => {
-                let slot = antecedent_io::contract_section::CalibrationSlotWire::not_measured(
-                    antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+                let slot = antecedent::io::contract_section::CalibrationSlotWire::not_measured(
+                    antecedent::io::calibration::CONSTRUCTION_NOT_MEASURED,
                 );
                 (Some((lower, upper, serde_json::to_string(&slot).unwrap_or_default())), None)
             }
@@ -962,7 +962,7 @@ impl PreparedMeasurementHandle {
             "evidence": identities.evidence.to_hex(),
             "model": identities.model.to_hex(),
             "operation": self.inner.operation().as_str(),
-            "provider_trust": self.inner.provider_trust().map(antecedent_contract::measurement::LatentPosteriorTrust::as_str),
+            "provider_trust": self.inner.provider_trust().map(antecedent::contract::measurement::LatentPosteriorTrust::as_str),
         })
         .to_string()
     }
@@ -1089,8 +1089,8 @@ impl MeasurementEstimateHandle {
     fn interval(&self, level: f64) -> (Option<(f64, f64, String)>, Option<String>) {
         match self.inner.interval(level) {
             Ok((lower, upper)) => {
-                let slot = antecedent_io::contract_section::CalibrationSlotWire::not_measured(
-                    antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+                let slot = antecedent::io::contract_section::CalibrationSlotWire::not_measured(
+                    antecedent::io::calibration::CONSTRUCTION_NOT_MEASURED,
                 );
                 (Some((lower, upper, serde_json::to_string(&slot).unwrap_or_default())), None)
             }
@@ -1143,7 +1143,7 @@ impl ConsumedMeasurementHandle {
 
     /// Whether the stored result was computed from data with this identity.
     fn covers_data_identity(&self, identity_hex: &str) -> PyResult<bool> {
-        let digest = antecedent_contract::evidence_ledger::parse_digest_hex(identity_hex)
+        let digest = antecedent::contract::evidence_ledger::parse_digest_hex(identity_hex)
             .ok_or_else(|| crate::value_err("a data identity is 64 hexadecimal characters"))?;
         Ok(self.inner.covers_data_identity(&digest))
     }

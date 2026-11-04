@@ -20,8 +20,8 @@ use antecedent::analysis::adaptive_procedure_report::{
     ProcedureReport, ProcedureReportBody, ProcedureReportRequest, RepeatedMeasuresProcedure,
     RepeatedMeasuresReport, RepeatedMeasuresReportBody, RepeatedMeasuresReportRequest,
 };
-use antecedent_stats::adaptive_inference::group_sequential::{Sidedness, StagewiseLook};
-use antecedent_stats::adaptive_inference::{
+use antecedent::inference::adaptive_inference::group_sequential::{Sidedness, StagewiseLook};
+use antecedent::inference::adaptive_inference::{
     AnalysisEstimator, AssignmentRule, Attribution, BetaPrior, Estimand, EstimandStatement,
     ExposureModel, FinalAnalysis, FinalSelection, GaussianMixtureLaw, InversionGrid,
     ObservedTerminal, OutcomeModelPrior, OutcomeObservation, OutcomeStructure,
@@ -380,7 +380,7 @@ pub(crate) fn receipt_json(receipt: &ResourceReceipt) -> Json {
     })
 }
 
-fn law_json(law: &antecedent_stats::adaptive_inference::EstimatorLaw) -> Json {
+fn law_json(law: &antecedent::inference::adaptive_inference::EstimatorLaw) -> Json {
     json!({
         "support": law.support.iter().map(|(v, p)| json!([v, p])).collect::<Vec<_>>(),
         "undefined_mass": law.undefined_mass,
@@ -537,7 +537,7 @@ impl AdaptiveProcedureHandle {
             "family": spec.family_name(),
             "monitoring": spec.monitoring_name(),
             "stopping_kind": spec.stopping_name(),
-            "calibration": antecedent_io_core::contract_section::CalibrationStatus::NotMeasured.as_str(),
+            "calibration": antecedent::io::contract_section::CalibrationStatus::NotMeasured.as_str(),
         })
         .to_string()
     }

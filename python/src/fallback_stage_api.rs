@@ -16,10 +16,12 @@ use antecedent::analysis::evidence_plan::EvidencePlanRequest;
 use antecedent::analysis::fallback::{
     AnalysisWithFallback, FallbackOutcome, FallbackRequest, FallbackUnavailable, RankedPlan,
 };
+use antecedent::analysis::repair::{RepairLimits, RepairObjective};
+use antecedent::design::DurableStudyCandidate;
+use antecedent::execution::SearchLimits;
+use antecedent::prelude::{ExecutionContext, VariableId};
 use antecedent::report::{ReportFormat, render_fallback_report};
 use antecedent::{CausalError, Study};
-use antecedent_core::{ExecutionContext, SearchLimits, VariableId};
-use antecedent_design::{DurableStudyCandidate, RepairLimits, RepairObjective};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 use serde_json::{Value, json};

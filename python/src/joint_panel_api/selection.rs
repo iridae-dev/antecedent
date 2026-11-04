@@ -5,8 +5,8 @@ use antecedent::analysis::joint_panel::selection::{
     PreparedRandomizedSelection, RandomizedSelectionPolicy, RandomizedSelectionResult,
     replay_randomized_selection,
 };
-use antecedent_design::program_search::ProgramSearchError;
-use antecedent_estimate::joint_design::randomized::{JointRandomizedDesign, JointRandomizedUnit};
+use antecedent::design::program_search::ProgramSearchError;
+use antecedent::estimate::joint_design::randomized::{JointRandomizedDesign, JointRandomizedUnit};
 use pyo3::{prelude::*, types::PyBytes};
 mod instrumented;
 

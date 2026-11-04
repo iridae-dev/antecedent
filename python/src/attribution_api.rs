@@ -10,15 +10,17 @@ use crate::NumericColumn;
 use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};
 use crate::*;
 use antecedent::gcm::NoiseInferenceKind;
+use antecedent::query::{
+    AnomalyAttributionQuery, AttributeTarget, CausalQuery, ChangeEstimator, ChangeMeasure,
+    MechanismChangeTest, SimulationTarget,
+};
 use antecedent::{AttributionOutcome, MechanismProgram, SimulationOutcome};
-use antecedent_core::{AnomalyAttributionQuery, AttributeTarget, ChangeEstimator, ChangeMeasure};
-use antecedent_core::{CausalQuery, MechanismChangeTest, SimulationTarget};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 /// The standard mechanism program fitted on `edges` over `data`, as a compiled route runs it.
 fn model_source(
-    data: antecedent_data::TabularData,
+    data: antecedent::prelude::TabularData,
     edges: &[(String, String)],
 ) -> PyResult<ModelSource> {
     Ok(ModelSource {
@@ -36,7 +38,7 @@ fn model_source(
 /// plumbing: variable lookup, the compiled-route source and the execution context all come
 /// from it.
 struct GcmInput {
-    data: antecedent_data::TabularData,
+    data: antecedent::prelude::TabularData,
     edges: Vec<(String, String)>,
     seed: u64,
     threads: Option<u32>,
@@ -101,7 +103,7 @@ fn change_of(
 type SampleParts = (Vec<f64>, usize, usize, Vec<f64>);
 
 /// Column means of a draw batch, its shape and its flat values.
-fn sample_parts(samples: &antecedent_model::ValueBatch) -> SampleParts {
+fn sample_parts(samples: &antecedent::gcm::ValueBatch) -> SampleParts {
     let mut means = Vec::with_capacity(samples.n_nodes);
     for i in 0..samples.n_nodes {
         let start = i * samples.n_rows;
@@ -560,7 +562,7 @@ fn json_edge_pairs(params: &serde_json::Value, key: &str) -> PyResult<Vec<(Strin
 /// The population change query of an attribution request.
 fn change_query(
     params: &serde_json::Value,
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     components: AttributionComponents,
     seed: u64,
 ) -> PyResult<(ChangeAttributionQuery, usize)> {
@@ -875,12 +877,12 @@ fn temporal_model_query(
                         ));
                     }
                 })?;
-                CausalQuery::Attribute(antecedent_core::AttributeQuery::new(
+                CausalQuery::Attribute(antecedent::query::AttributeQuery::new(
                     AttributeTarget::MechanismChange { query: detection, test },
                 ))
             }
             "rollout" => {
-                let steps: Vec<antecedent_core::SequencedIntervention> = params["interventions"]
+                let steps: Vec<antecedent::query::SequencedIntervention> = params["interventions"]
                     .as_array()
                     .map(|items| {
                         items
@@ -893,7 +895,7 @@ fn temporal_model_query(
                                 let value = json_opt_f64(item, "value")?.ok_or_else(|| {
                                     crate::value_err("a rollout intervention needs its value")
                                 })?;
-                                Ok(antecedent_core::SequencedIntervention::new(
+                                Ok(antecedent::query::SequencedIntervention::new(
                                     Intervention::set(variable, Value::f64(value)),
                                     TemporalPolicy::Sustained { from, until },
                                 ))
@@ -902,9 +904,9 @@ fn temporal_model_query(
                     })
                     .transpose()?
                     .unwrap_or_default();
-                CausalQuery::Simulate(antecedent_core::SimulateQuery::new(
-                    antecedent_core::SimulationTarget::TemporalRollout {
-                        schedule: antecedent_core::InterventionSequence::new(steps),
+                CausalQuery::Simulate(antecedent::query::SimulateQuery::new(
+                    antecedent::query::SimulationTarget::TemporalRollout {
+                        schedule: antecedent::query::InterventionSequence::new(steps),
                         n_rows: json_usize(&params, "n_rows", 200)?,
                         n_steps: json_usize(&params, "n_steps", 8)?,
                         window: 0,
@@ -1077,10 +1079,10 @@ fn evaluate_decision_py(
 fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
     catch_ffi(|| {
         let decoded = decode_causal_posterior_bytes(&bytes).or_else(|posterior_error| {
-            let (_, _, composite) = antecedent_io::decode_analysis_result_artifact(&bytes)
+            let (_, _, composite) = antecedent::io::decode_analysis_result_artifact(&bytes)
                 .map_err(|_| posterior_error)?;
             let nested = composite.posterior_artifact.ok_or_else(|| {
-                antecedent_io::IoError::Convert(
+                antecedent::io::IoError::Convert(
                     "analysis_result artifact has no posterior axis".into(),
                 )
             })?;
@@ -1213,7 +1215,7 @@ fn attribute_unit_change(
         let AttributionOutcome::UnitChange(result) = outcome else {
             return Err(outcome_mismatch());
         };
-        let pairs: Vec<(antecedent_core::ComponentId, f64)> = result
+        let pairs: Vec<(antecedent::schema::ComponentId, f64)> = result
             .components
             .iter()
             .zip(result.mean_contributions.iter())

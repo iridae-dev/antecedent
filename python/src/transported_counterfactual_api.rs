@@ -37,7 +37,7 @@ fn failure(error: &TransportedCounterfactualArtifactError) -> PyErr {
     match error {
         TransportedCounterfactualArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("transported_counterfactual.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -60,7 +60,7 @@ fn evaluate_transported_counterfactual(
         .map_err(|e| {
             with_reason_code(
                 value_err(format!("transported_counterfactual.invalid_request: {e}")),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
     let artifact_id = artifact_id.to_owned();
@@ -95,7 +95,7 @@ fn consume_transported_counterfactual_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("transported_counterfactual.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }

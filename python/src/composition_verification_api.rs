@@ -12,19 +12,18 @@
 use std::collections::BTreeMap;
 
 use antecedent::analysis::composition_verification::{
-    registry_record_attests, registry_record_identity, registry_resolved_calibration,
-    unresolved_registry_calibrations,
-};
-use antecedent_contract::composition_verification::{
     CalibrationDeclaration, CalibrationLineage, ClaimRevalidation, CompositionGraph,
     CompositionNode, CompositionView, DependencyKind, GraphError, LineageEntry, NodeKind,
     ObservedEffect, PriorAuthority, SharedDataRelation, SupportStanding, TrustStanding,
+    registry_record_attests, registry_record_identity, registry_resolved_calibration,
+    unresolved_registry_calibrations,
 };
-use antecedent_contract::evidence_ledger::{SourceId, parse_digest_hex};
-use antecedent_core::SemanticDigest;
-use antecedent_io::composition_verification_artifact::{
+use antecedent::analysis::evidence_ledger::SourceId;
+use antecedent::contract::evidence_ledger::parse_digest_hex;
+use antecedent::io::composition_verification_artifact::{
     CompositionVerificationArtifact, CompositionVerificationArtifactError,
 };
+use antecedent::scientific::SemanticDigest;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -82,7 +81,7 @@ fn artifact_refusal(error: &CompositionVerificationArtifactError) -> String {
     match error.refusal() {
         Some((code, detail, message)) => refusal_json(code, &detail, &message, None),
         None => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "composition_verification.artifact_invalid",
             &error.to_string(),
             None,
@@ -92,7 +91,7 @@ fn artifact_refusal(error: &CompositionVerificationArtifactError) -> String {
 
 pub(crate) fn graph_refusal(error: &GraphError) -> String {
     refusal_json(
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
         "composition_verification.graph_invalid",
         &error.to_string(),
         None,
@@ -477,7 +476,7 @@ impl CompositionVerificationHandle {
             Err(error) => (
                 None,
                 Some(refusal_json(
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                     "composition_verification.unknown_claim",
                     &error.to_string(),
                     Some(key),
@@ -491,7 +490,7 @@ impl CompositionVerificationHandle {
         match self.inner.revalidation().claim(key) {
             Some(claim) => claim_refusal(claim),
             None => Some(refusal_json(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 "composition_verification.unknown_claim",
                 "the claim is not in the current graph",
                 Some(key),

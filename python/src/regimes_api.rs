@@ -108,9 +108,9 @@ fn evaluate_longitudinal_regime_value(
     let g = g.iter().copied().collect::<Vec<_>>();
     let d = d.iter().copied().collect::<Vec<_>>();
     let summary = detach_catch(py, move || {
-        antecedent_estimate::longitudinal_regime::evaluate_regime_value(
+        antecedent::estimate::longitudinal_regime::evaluate_regime_value(
             &y,
-            &antecedent_estimate::longitudinal_regime::SubjectHistories {
+            &antecedent::estimate::longitudinal_regime::SubjectHistories {
                 treatment: &a,
                 treatment_probability: &p,
                 outcome_observed: &r,
@@ -188,7 +188,7 @@ fn evaluate_sequential_gformula(
     let p = p.iter().copied().collect::<Vec<_>>();
     let g = g.iter().copied().collect::<Vec<_>>();
     let summary = detach_catch(py, move || {
-        antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
+        antecedent::estimate::longitudinal_regime::evaluate_g_formula_value(
             &q,
             &actions,
             &p,
@@ -284,9 +284,9 @@ fn evaluate_sequential_doubly_robust(
     let observed = observed.iter().copied().collect::<Vec<_>>();
     let q = q.iter().copied().collect::<Vec<_>>();
     let summary = detach_catch(py, move || {
-        antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
+        antecedent::estimate::longitudinal_regime::evaluate_sequential_dr_value(
             &y,
-            &antecedent_estimate::longitudinal_regime::SubjectHistories {
+            &antecedent::estimate::longitudinal_regime::SubjectHistories {
                 treatment: &a,
                 treatment_probability: &p,
                 outcome_observed: &observed_y,
@@ -294,7 +294,7 @@ fn evaluate_sequential_doubly_robust(
                 periods,
                 minimum_probability,
             },
-            &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
+            &antecedent::estimate::longitudinal_regime::SequentialDrInputs {
                 actions: &d,
                 observation_history: &observed,
                 q_predictions: &q,

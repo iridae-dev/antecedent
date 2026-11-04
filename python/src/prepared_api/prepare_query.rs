@@ -4,11 +4,10 @@
 
 use std::sync::Arc;
 
+use antecedent::data::TableView;
+use antecedent::prelude::{Intervention, Value};
+use antecedent::query::{CausalQuery, InterventionalDistributionQuery, PathSpecificEffectQuery};
 use antecedent::{EstimatorId, IdentifierId, Study};
-use antecedent_core::{
-    CausalQuery, Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, Value,
-};
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -137,7 +136,7 @@ impl PyPreparedAnalysis {
                 let named: Vec<Vec<&str>> =
                     tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
                 let background =
-                    antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                    antecedent::graph::TieredBackground::from_named(data.schema(), &named, within)
                         .map_err(py_err)?;
                 let query = intervention_response_query(
                     &data,
@@ -653,12 +652,12 @@ impl PyPreparedAnalysis {
                 ],
             )?;
             let design = match design_kind.as_str() {
-                "bernoulli" => antecedent_core::RandomizationDesign::Bernoulli,
-                "complete" => antecedent_core::RandomizationDesign::Complete {
+                "bernoulli" => antecedent::query::RandomizationDesign::Bernoulli,
+                "complete" => antecedent::query::RandomizationDesign::Complete {
                     treated_units: treated_units
                         .ok_or_else(|| py_msg("complete randomization requires treated_units"))?,
                 },
-                "stratified" => antecedent_core::RandomizationDesign::Stratified {
+                "stratified" => antecedent::query::RandomizationDesign::Stratified {
                     blocks: blocks
                         .ok_or_else(|| py_msg("stratified randomization requires blocks"))?
                         .into_iter()
@@ -669,11 +668,11 @@ impl PyPreparedAnalysis {
                         .ok_or_else(|| py_msg("stratified randomization requires treated_per_row"))?
                         .into(),
                 },
-                "cluster" => antecedent_core::RandomizationDesign::Cluster {
+                "cluster" => antecedent::query::RandomizationDesign::Cluster {
                     treated_clusters: treated_clusters
                         .ok_or_else(|| py_msg("cluster randomization requires treated_clusters"))?,
                 },
-                "switchback" => antecedent_core::RandomizationDesign::Switchback {
+                "switchback" => antecedent::query::RandomizationDesign::Switchback {
                     periods: periods
                         .ok_or_else(|| py_msg("switchback randomization requires periods"))?
                         .into_iter()
@@ -688,13 +687,13 @@ impl PyPreparedAnalysis {
                         .ok_or_else(|| py_msg("factorial four-cell counts are required"))?;
                     let arms = second_factor_arms
                         .ok_or_else(|| py_msg("factorial second-factor labels are required"))?;
-                    antecedent_core::RandomizationDesign::Factorial2x2 {
+                    antecedent::query::RandomizationDesign::Factorial2x2 {
                         second_factor_assignment: second.into(),
                         cell_counts: counts,
                         second_factor_arms: (Arc::<str>::from(arms.0), Arc::<str>::from(arms.1)),
                     }
                 }
-                "multi_arm" => antecedent_core::RandomizationDesign::MultiArm {
+                "multi_arm" => antecedent::query::RandomizationDesign::MultiArm {
                     arms: multi_arm_labels
                         .ok_or_else(|| py_msg("multi-arm labels are required"))?
                         .into_iter()
@@ -714,7 +713,7 @@ impl PyPreparedAnalysis {
                     ));
                 }
             };
-            let mut query = antecedent_core::RandomizedEffectQuery::with_design(
+            let mut query = antecedent::query::RandomizedEffectQuery::with_design(
                 design,
                 outcome_id,
                 realized_assignment,

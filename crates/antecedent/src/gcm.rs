@@ -1946,9 +1946,9 @@ pub use antecedent_model::{ParentBatch, ValueBatch};
 pub mod compose {
     pub use antecedent_model::compose::{
         ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
-        MeanContrast, MechanismContext, MechanismOrigin, MechanismProvenance, MechanismUncertainty,
-        ParameterId, ParameterTerm, SelectionDiagramDeclaration, SelectionNodeDeclaration,
-        TabularRow, UncertaintyMeaning,
+        MeanContrast, MechanismContext, MechanismFamily, MechanismOrigin, MechanismProvenance,
+        MechanismUncertainty, ParameterId, ParameterTerm, SelectionDiagramDeclaration,
+        SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
     };
 }
 /// Items of `antecedent-model::continuous_cyclic`.

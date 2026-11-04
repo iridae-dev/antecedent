@@ -1,9 +1,9 @@
 //! Python bridge for result-level method provenance.
 //!
 //! The lookup, the record table and the bibliography de-duplication are Rust's
-//! (`antecedent_io::method_provenance`); Python receives JSON and builds its typed views.
+//! (`antecedent::io::method_provenance`); Python receives JSON and builds its typed views.
 
-use antecedent_io::method_provenance::{
+use antecedent::io::method_provenance::{
     MethodProvenanceWire, bibliography, capability_provenance, method_provenance,
 };
 use pyo3::prelude::*;

@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use antecedent::analysis::horizon_composition::{
     ComposedHorizons, HorizonDraws, compose_horizons, compose_horizons_with,
 };
-use antecedent_contract::PropagationOperation;
+use antecedent::contract::PropagationOperation;
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -69,7 +69,7 @@ fn compose_horizon_draws(
         let center =
             columns.iter().map(|c| c.iter().sum::<f64>() / c.len().max(1) as f64).collect();
         let draws = HorizonDraws { horizons, center, columns, alignment_id, evidence_id };
-        let refusal = |error: antecedent_contract::ExternalRefusal| {
+        let refusal = |error: antecedent::contract::ExternalRefusal| {
             py_msg(format!("{}: {} ({})", error.code, error.detail, error.remedy.unwrap_or("")))
         };
         let composed = match (coefficients, map) {

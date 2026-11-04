@@ -1,13 +1,13 @@
 //! Fixed native host boundary for separately installed Python providers.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::ProviderVerificationReceipt;
-use antecedent_io::canonical_json::canonical_json_digest;
-use antecedent_io::provider_envelope::{
+use antecedent::contract::ProviderVerificationReceipt;
+use antecedent::io::canonical_json::canonical_json_digest;
+use antecedent::io::provider_envelope::{
     ProviderEnvelope, ProviderEnvelopeHeader, open_provider_envelope,
     open_verified_provider_envelope, seal_provider_envelope,
 };
-use antecedent_io::provider_verification_artifact::{
+use antecedent::io::provider_verification_artifact::{
     ExecutionVerificationWire, MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES,
     ProviderVerificationReceiptWire, receipt_from_bytes, receipt_to_bytes,
     verify_execution_requests,
@@ -137,7 +137,7 @@ fn canonical_json_digest_hex(domain: &str, json: &str) -> PyResult<String> {
 /// Unframed BLAKE3 digest of raw bytes, as 64 lowercase hex characters.
 #[pyfunction]
 fn blake3_digest_hex(data: &[u8]) -> String {
-    antecedent_core::blake3_hex(data)
+    antecedent::schema::blake3_hex(data)
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

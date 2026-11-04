@@ -1,9 +1,9 @@
 //! Learner-backed trial transport on the shared prepared lifecycle.
-use antecedent_core::{
-    ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
-    TransportQuery, VariableId,
+use antecedent::estimate::{TrialAipwInput, TrialAipwOptions};
+use antecedent::prelude::{ExecutionContext, VariableId};
+use antecedent::query::{
+    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery,
 };
-use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
 
@@ -73,7 +73,7 @@ impl PreparedLearnedTrial {
     /// Native four-slot reasoning: the executed result's own view once estimated, else
     /// the not-yet-executed view of the prepared identification (identification is a
     /// property of the accepted certificate, not of a fitted estimate).
-    fn reasoning(&self) -> Option<antecedent_contract::ReasoningView> {
+    fn reasoning(&self) -> Option<antecedent::contract::ReasoningView> {
         self.last.as_deref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
             self.inner
                 .as_deref()
@@ -256,7 +256,7 @@ fn trial_request(
     target: String,
     treatment: String,
     outcome: String,
-) -> PyResult<(antecedent_graph::SelectionDiagram, TransportQuery)> {
+) -> PyResult<(antecedent::graph::SelectionDiagram, TransportQuery)> {
     let resolve = |name: &str| -> PyResult<VariableId> {
         graph
             .names
@@ -271,7 +271,7 @@ fn trial_request(
         treatment: ContinuousDomain::new(treatment, GridSpec::Values(Arc::from([0.0, 1.0]))),
     });
     let query = TransportQuery::new(response, source, target, [treatment]);
-    let diagram = antecedent_graph::SelectionDiagram::try_new(
+    let diagram = antecedent::graph::SelectionDiagram::try_new(
         graph.admg.clone(),
         selections.iter().map(|s| resolve(s)).collect::<PyResult<Vec<_>>>()?,
     )

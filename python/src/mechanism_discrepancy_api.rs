@@ -13,7 +13,7 @@ use antecedent::analysis::mechanism_discrepancy::{
     MechanismMeasurement, ParentSpec, PopulationSample, consume_mechanism_discrepancy,
     run_mechanism_discrepancy, summarize_sample,
 };
-use antecedent_core::reason_code;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;
@@ -99,7 +99,7 @@ fn mechanism_discrepancy_run<'py>(
                 None,
                 None,
                 Some(invalid_json(
-                    antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST,
+                    antecedent::reason::reason_details::mechanism_discrepancy::INVALID_REQUEST,
                     &error.to_string(),
                 )),
             ));
@@ -129,7 +129,7 @@ fn mechanism_discrepancy_run<'py>(
                 None,
                 None,
                 Some(invalid_json(
-                    antecedent_core::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
+                    antecedent::reason::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
                     &error.to_string(),
                 )),
             ),
@@ -159,7 +159,7 @@ fn mechanism_discrepancy_consume(
                 return Ok((
                     None,
                     Some(invalid_json(
-                        antecedent_core::reason_details::mechanism_discrepancy::INVALID_IDENTITY,
+                        antecedent::reason::reason_details::mechanism_discrepancy::INVALID_IDENTITY,
                         &error.to_string(),
                     )),
                 ));
@@ -174,7 +174,7 @@ fn mechanism_discrepancy_consume(
                 Err(error) => (
                     None,
                     Some(invalid_json(
-                        antecedent_core::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
+                        antecedent::reason::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
                         &error.to_string(),
                     )),
                 ),

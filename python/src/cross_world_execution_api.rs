@@ -7,13 +7,11 @@
 //! raise as a typed exception. Nothing here pairs draws.
 
 use antecedent::analysis::cross_world_execution::{
-    CrossWorldExecution, CrossWorldExecutionArtifactError, CrossWorldExecutionError,
-    CrossWorldExecutionIdentity, FiniteExecutionResult, FiniteScmExecutor, SourceTreatment,
-    UnitSampling, WholePathAccount, capability_matrix,
+    CrossWorldExecution, CrossWorldExecutionArtifact, CrossWorldExecutionArtifactError,
+    CrossWorldExecutionError, CrossWorldExecutionIdentity, FiniteExecutionResult,
+    FiniteScmExecutor, SourceTreatment, UnitSampling, WholePathAccount, capability_matrix,
 };
-use antecedent_io::cross_world_execution_artifact::{
-    CrossWorldExecutionArtifact, CrossWorldRequestWire, request_of,
-};
+use antecedent::io::cross_world_execution_artifact::{CrossWorldRequestWire, request_of};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
@@ -28,7 +26,7 @@ const STAGE: &str = "execute";
 
 fn invalid_json(detail: &str, message: String) -> String {
     json!({
-        "code": antecedent_core::reason_code!("invalid_argument"),
+        "code": antecedent::reason::reason_code!("invalid_argument"),
         "stage": STAGE,
         "detail": detail,
         "message": message,
@@ -52,9 +50,9 @@ fn core_refusal(error: &CrossWorldExecutionError) -> String {
         })
         .to_string(),
         _ => json!({
-            "code": antecedent_core::reason_code!("transport_budget_cancel"),
+            "code": antecedent::reason::reason_code!("transport_budget_cancel"),
             "stage": STAGE,
-            "detail": antecedent_core::reason_details::cross_world_execution::CANCELLED,
+            "detail": antecedent::reason::reason_details::cross_world_execution::CANCELLED,
             "message": error.to_string(),
             "offending": Json::Null,
             "remedy": Json::Null,
@@ -74,19 +72,19 @@ fn artifact_refusal(error: &CrossWorldExecutionArtifactError) -> String {
     } else {
         let detail = match error {
             CrossWorldExecutionArtifactError::Cancelled => {
-                antecedent_core::reason_details::cross_world_execution::CANCELLED
+                antecedent::reason::reason_details::cross_world_execution::CANCELLED
             }
             CrossWorldExecutionArtifactError::ResultMismatch(_) => {
-                antecedent_core::reason_details::cross_world_execution::ARTIFACT_CHANGED
+                antecedent::reason::reason_details::cross_world_execution::ARTIFACT_CHANGED
             }
-            _ => antecedent_core::reason_details::cross_world_execution::INVALID_ARTIFACT,
+            _ => antecedent::reason::reason_details::cross_world_execution::INVALID_ARTIFACT,
         };
         let code = if matches!(error, CrossWorldExecutionArtifactError::Cancelled) {
-            antecedent_core::reason_code!("transport_budget_cancel")
+            antecedent::reason::reason_code!("transport_budget_cancel")
         } else if matches!(error, CrossWorldExecutionArtifactError::ResultMismatch(_)) {
-            antecedent_core::reason_code!("route_not_supported")
+            antecedent::reason::reason_code!("route_not_supported")
         } else {
-            antecedent_core::reason_code!("invalid_argument")
+            antecedent::reason::reason_code!("invalid_argument")
         };
         json!({
             "code": code, "stage": "consume", "detail": detail, "message": error.to_string(),
@@ -101,7 +99,7 @@ fn parse_request(
 ) -> Result<antecedent::analysis::cross_world_execution::FiniteExecutionRequest, String> {
     let wire: CrossWorldRequestWire = serde_json::from_str(request_json).map_err(|e| {
         invalid_json(
-            antecedent_core::reason_details::cross_world_execution::INVALID_REQUEST,
+            antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
             e.to_string(),
         )
     })?;
@@ -191,7 +189,7 @@ fn cross_world_capability_matrix() -> String {
 fn pick<T: Copy>(name: &str, all: &[(&str, T)], what: &str) -> Result<T, String> {
     all.iter().find(|(n, _)| *n == name).map(|(_, v)| *v).ok_or_else(|| {
         invalid_json(
-            antecedent_core::reason_details::cross_world_execution::INVALID_REQUEST,
+            antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
             format!("unknown {what} `{name}`"),
         )
     })
@@ -381,7 +379,7 @@ impl PyCrossWorldExecutor {
                 Err(e) => {
                     return Ok((
                         None,
-                        Some(invalid_json(antecedent_core::reason_details::cross_world_execution::INVALID_IDENTITY, e.to_string())),
+                        Some(invalid_json(antecedent::reason::reason_details::cross_world_execution::INVALID_IDENTITY, e.to_string())),
                     ));
                 }
             },
@@ -399,7 +397,7 @@ impl PyCrossWorldExecutor {
                     Ok(obj) => (Some((obj, summary)), None),
                     Err(e) => (
                         None,
-                        Some(invalid_json(antecedent_core::reason_details::cross_world_execution::INVALID_ARTIFACT, e.to_string())),
+                        Some(invalid_json(antecedent::reason::reason_details::cross_world_execution::INVALID_ARTIFACT, e.to_string())),
                     ),
                 }
             }
@@ -463,7 +461,7 @@ fn cross_world_consume(
                 Err(e) => {
                     return Ok((
                     None,
-                    Some(invalid_json(antecedent_core::reason_details::cross_world_execution::INVALID_IDENTITY, e.to_string())),
+                    Some(invalid_json(antecedent::reason::reason_details::cross_world_execution::INVALID_IDENTITY, e.to_string())),
                 ));
                 }
             }
@@ -486,7 +484,7 @@ fn parse_unit_sampling(name: &str) -> Result<UnitSampling, String> {
         "fixed_units" => Ok(UnitSampling::FixedUnits),
         "independent_sample" => Ok(UnitSampling::IndependentSample),
         other => Err(invalid_json(
-            antecedent_core::reason_details::cross_world_execution::INVALID_REQUEST,
+            antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
             format!("unknown unit sampling `{other}`"),
         )),
     }
@@ -540,13 +538,13 @@ fn consume_for_account(
     data: &[u8],
     expected_identity_json: Option<&str>,
     cancel: Option<PyCancellationToken>,
-) -> PyResult<Result<(CrossWorldExecution, antecedent_core::ExecutionContext), String>> {
+) -> PyResult<Result<(CrossWorldExecution, antecedent::prelude::ExecutionContext), String>> {
     let expected = match expected_identity_json {
         Some(text) => match serde_json::from_str::<CrossWorldExecutionIdentity>(text) {
             Ok(v) => Some(v),
             Err(e) => {
                 return Ok(Err(invalid_json(
-                    antecedent_core::reason_details::cross_world_execution::INVALID_IDENTITY,
+                    antecedent::reason::reason_details::cross_world_execution::INVALID_IDENTITY,
                     e.to_string(),
                 )));
             }
@@ -618,9 +616,9 @@ fn cross_world_whole_path_verify(
             } else {
                 Some(
                     json!({
-                        "code": antecedent_core::reason_code!("invalid_argument"),
+                        "code": antecedent::reason::reason_code!("invalid_argument"),
                         "stage": "cross_world_uncertainty",
-                        "detail": antecedent_core::reason_details::cross_world_uncertainty::ACCOUNT_MISMATCH,
+                        "detail": antecedent::reason::reason_details::cross_world_uncertainty::ACCOUNT_MISMATCH,
                         "message": "the stored account differs from the derivation",
                         "offending": Json::Null,
                         "remedy": "derive the account from the consumed execution; a stored account is never trusted",
@@ -699,20 +697,20 @@ fn cross_world_measured_interval(
 fn cross_world_unsupported_reading(reading: &str) -> String {
     let (code, detail) = match reading {
         "interval" => (
-            antecedent_core::reason_code!("sampling_dependence_unknown"),
-            antecedent_core::reason_details::cross_world_execution::NO_INTERVAL_METHOD,
+            antecedent::reason::reason_code!("sampling_dependence_unknown"),
+            antecedent::reason::reason_details::cross_world_execution::NO_INTERVAL_METHOD,
         ),
         "posterior" => (
-            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
-            antecedent_core::reason_details::cross_world_execution::NO_POSTERIOR_METHOD,
+            antecedent::reason::reason_code!("uncertainty_representation_insufficient"),
+            antecedent::reason::reason_details::cross_world_execution::NO_POSTERIOR_METHOD,
         ),
         "sampled_abduction" => (
-            antecedent_core::reason_code!("estimator_inference_mismatch"),
-            antecedent_core::reason_details::cross_world_execution::SAMPLED_ABDUCTION_NOT_SUPPORTED,
+            antecedent::reason::reason_code!("estimator_inference_mismatch"),
+            antecedent::reason::reason_details::cross_world_execution::SAMPLED_ABDUCTION_NOT_SUPPORTED,
         ),
         _ => {
             return invalid_json(
-                antecedent_core::reason_details::cross_world_execution::INVALID_REQUEST,
+                antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
                 format!("unknown reading `{reading}`"),
             );
         }

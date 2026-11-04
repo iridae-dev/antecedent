@@ -7,12 +7,12 @@ use crate::value_err;
 use antecedent::analysis::design_ranking::{
     DesignRankingRequestWire, PriorDeclWire, ProviderDeclWire,
 };
-use antecedent_design::preposterior::DecisionPrior;
-use antecedent_design::prior_signal::{
+use antecedent::design::DecisionPrior;
+use antecedent::design::prior_signal::{
     CandidateSignalPrior, CandidateSignalSource, NativeSignalFamily, PriorSignalRequest,
     PriorSourceInput, SourceToTarget, TransportPolicyDecl, adapt_prior_to_signal,
 };
-use antecedent_io::{
+use antecedent::io::{
     EncodedArtifact, EstimandFingerprint, PosteriorQuantityWire, PriorCatalog, PriorSourceRef,
     TargetDesign, decode_posterior_artifact,
 };
@@ -50,7 +50,7 @@ struct RequestWire {
     outcome: String,
     variables: Vec<String>,
     signal: ProviderDeclWire,
-    state: antecedent_io::quantity_wire::ScientificQuantityWire,
+    state: antecedent::io::quantity_wire::ScientificQuantityWire,
 }
 
 /// Immutable adapter result: the posterior rows are never supplied back from Python.
@@ -58,7 +58,7 @@ struct RequestWire {
 pub(crate) struct CheckedPriorSignal {
     adapted: CandidateSignalPrior,
     family: NativeSignalFamily,
-    state: antecedent_io::quantity_wire::ScientificQuantityWire,
+    state: antecedent::io::quantity_wire::ScientificQuantityWire,
     observations: Vec<String>,
     source_digests: Vec<String>,
     #[pyo3(get)]
@@ -70,20 +70,20 @@ impl CheckedPriorSignal {
         if !matches!(&request.decision.prior, PriorDeclWire::Draws { states } if states.is_empty())
         {
             return Err(refusal(
-                antecedent_core::reason_details::prior_signal::PRIOR_PROJECTION_MISMATCH,
+                antecedent::reason::reason_details::prior_signal::PRIOR_PROJECTION_MISMATCH,
                 "invalid_argument",
             ));
         }
         for candidate in &request.candidates {
             if candidate.signal.state_quantity != self.state {
                 return Err(refusal(
-                    antecedent_core::reason_details::prior_signal::STATE_QUANTITY_MISMATCH,
+                    antecedent::reason::reason_details::prior_signal::STATE_QUANTITY_MISMATCH,
                     "invalid_argument",
                 ));
             }
             if candidate.signal.prior_id != self.adapted.prior_id {
                 return Err(refusal(
-                    antecedent_core::reason_details::prior_signal::PRIOR_IDENTITY_MISMATCH,
+                    antecedent::reason::reason_details::prior_signal::PRIOR_IDENTITY_MISMATCH,
                     "invalid_argument",
                 ));
             }
@@ -97,14 +97,14 @@ impl CheckedPriorSignal {
             };
             if !matches {
                 return Err(refusal(
-                    antecedent_core::reason_details::prior_signal::SIGNAL_FAMILY_MISMATCH,
+                    antecedent::reason::reason_details::prior_signal::SIGNAL_FAMILY_MISMATCH,
                     "design_signal_invalid",
                 ));
             }
         }
         let DecisionPrior::Draws(draws) = &self.adapted.prior else {
             return Err(refusal(
-                antecedent_core::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
+                antecedent::reason::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
                 "invalid_argument",
             ));
         };
@@ -143,12 +143,12 @@ pub(crate) fn adapt_prior_signal(
             return Ok((
                 None,
                 Some(refusal(
-                    antecedent_core::reason_details::prior_signal::TARGET_POPULATION_MISMATCH,
+                    antecedent::reason::reason_details::prior_signal::TARGET_POPULATION_MISMATCH,
                     "invalid_argument",
                 )),
             ));
         }
-        let _: antecedent_contract::ScientificQuantity =
+        let _: antecedent::scientific::ScientificQuantity =
             wire.state.clone().try_into().map_err(|e| value_err(format!("{e:?}")))?;
         let family = match wire.signal {
             ProviderDeclWire::Binomial => NativeSignalFamily::Binomial,
@@ -159,7 +159,7 @@ pub(crate) fn adapt_prior_signal(
                 return Ok((
                     None,
                     Some(refusal(
-                        antecedent_core::reason_details::prior_signal::UNSUPPORTED_SIGNAL_PROVIDER,
+                        antecedent::reason::reason_details::prior_signal::UNSUPPORTED_SIGNAL_PROVIDER,
                         "route_not_supported",
                     )),
                 ));
@@ -193,7 +193,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            antecedent_core::reason_details::prior_signal::POSTERIOR_DRAWS_REQUIRED,
+                            antecedent::reason::reason_details::prior_signal::POSTERIOR_DRAWS_REQUIRED,
                             "design_signal_invalid",
                         )),
                     ));
@@ -204,7 +204,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            antecedent_core::reason_details::prior_signal::SOURCE_POPULATION_MISMATCH,
+                            antecedent::reason::reason_details::prior_signal::SOURCE_POPULATION_MISMATCH,
                             "invalid_argument",
                         )),
                     ));
@@ -221,7 +221,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            antecedent_core::reason_details::prior_signal::ORIGINAL_POSTERIOR_UNIDENTIFIED,
+                            antecedent::reason::reason_details::prior_signal::ORIGINAL_POSTERIOR_UNIDENTIFIED,
                             "design_signal_invalid",
                         )),
                     ));
@@ -244,7 +244,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            antecedent_core::reason_details::prior_signal::NAMED_STATE_DRAWS_REQUIRED,
+                            antecedent::reason::reason_details::prior_signal::NAMED_STATE_DRAWS_REQUIRED,
                             "design_signal_invalid",
                         )),
                     ));
@@ -256,7 +256,7 @@ pub(crate) fn adapt_prior_signal(
                     return Ok((
                         None,
                         Some(refusal(
-                            antecedent_core::reason_details::prior_signal::INCOMPLETE_POSTERIOR,
+                            antecedent::reason::reason_details::prior_signal::INCOMPLETE_POSTERIOR,
                             "design_signal_invalid",
                         )),
                     ));
@@ -281,7 +281,7 @@ pub(crate) fn adapt_prior_signal(
                     },
                 });
                 observations.extend(input.observation_ids.iter().cloned());
-                digests.push(antecedent_core::blake3_hex(bytes));
+                digests.push(antecedent::schema::blake3_hex(bytes));
             }
             refs.push(match bytes {
                 Some(bytes) => PriorSourceRef::with_bytes(meta, bytes),
@@ -293,7 +293,7 @@ pub(crate) fn adapt_prior_signal(
             return Ok((
                 None,
                 Some(refusal(
-                    antecedent_core::reason_details::prior_signal::SOURCE_NOT_IN_CATALOG_OR_DUPLICATE,
+                    antecedent::reason::reason_details::prior_signal::SOURCE_NOT_IN_CATALOG_OR_DUPLICATE,
                     "design_signal_invalid",
                 )),
             ));
@@ -322,7 +322,7 @@ pub(crate) fn adapt_prior_signal(
             return Ok((
                 None,
                 Some(refusal(
-                    antecedent_core::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
+                    antecedent::reason::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
                     "invalid_argument",
                 )),
             ));
@@ -331,7 +331,7 @@ pub(crate) fn adapt_prior_signal(
             return Ok((
                 None,
                 Some(refusal(
-                    antecedent_core::reason_details::prior_signal::NONFINITE_MAPPED_PRIOR,
+                    antecedent::reason::reason_details::prior_signal::NONFINITE_MAPPED_PRIOR,
                     "invalid_argument",
                 )),
             ));
@@ -340,7 +340,7 @@ pub(crate) fn adapt_prior_signal(
         let diagnostics_json = serde_json::json!({"source_posteriors":posterior_diagnostics,"prior_approximation":"deterministic_resampled_original_posterior_draws","calibration":"unmeasured","source_ids":d.source_ids,"effective_weights":d.effective_weights,"draws_allocated":d.draws_allocated,"pooled_mean":d.pooled_mean,"lineage":d.lineage,"observations_checked":d.observations_checked,"overlapping_observations":d.overlapping_observations,"transport_policy_id":d.transport_policy_id,"source_digest":d.source_digest}).to_string();
         digests.push(d.source_digest.clone());
         // Bind population/maps/declared observation lineage, not only numerical adapter rows.
-        digests.push(antecedent_core::blake3_hex(request_json.as_bytes()));
+        digests.push(antecedent::schema::blake3_hex(request_json.as_bytes()));
         Ok((
             Some(CheckedPriorSignal {
                 adapted,

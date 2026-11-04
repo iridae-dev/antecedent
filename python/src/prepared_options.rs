@@ -11,9 +11,9 @@
 
 use std::sync::Arc;
 
+use antecedent::query::{PopulationRegistry, TargetPopulation};
+use antecedent::validate::CustomEffectValidator;
 use antecedent::{LatencyMode, RefuteSuite, StudyBuilder};
-use antecedent_core::{PopulationRegistry, TargetPopulation};
-use antecedent_validate::CustomEffectValidator;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -51,10 +51,10 @@ pub(crate) struct InferenceSpec {
     pub n_draws: Option<usize>,
     pub prior_scale: f64,
     pub prior_artifact: Option<Vec<u8>>,
-    pub prior_mapping: Option<antecedent_io::PriorMapping>,
+    pub prior_mapping: Option<antecedent::io::PriorMapping>,
     pub composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     /// Outcome likelihood; `None` keeps the Gaussian identity-link default.
-    pub likelihood: Option<antecedent_prob::BayesLikelihood>,
+    pub likelihood: Option<antecedent::inference::BayesLikelihood>,
     /// Numerical draw controls; `None` leaves the draw count unconstrained.
     pub draw_controls: Option<antecedent::PosteriorDrawControls>,
     /// Declared white-innovation gate `(max_lag, level)`; `None` keeps the tempered posterior.
@@ -143,8 +143,8 @@ impl InferenceSpec {
 }
 
 /// Rust likelihood of a Python `Bayesian(likelihood=...)` name.
-fn parse_likelihood(name: &str) -> PyResult<antecedent_prob::BayesLikelihood> {
-    use antecedent_prob::BayesLikelihood;
+fn parse_likelihood(name: &str) -> PyResult<antecedent::inference::BayesLikelihood> {
+    use antecedent::inference::BayesLikelihood;
     Ok(match name {
         "gaussian" => BayesLikelihood::GaussianIdentity,
         "logit" => BayesLikelihood::BernoulliLogit,
@@ -152,7 +152,7 @@ fn parse_likelihood(name: &str) -> PyResult<antecedent_prob::BayesLikelihood> {
         "poisson" => BayesLikelihood::PoissonLog,
         other => {
             return Err(crate::refusal(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 format!("unknown Bayesian likelihood {other:?}; use gaussian|logit|probit|poisson"),
             ));
         }
@@ -164,7 +164,7 @@ fn parse_draw_controls(name: &str) -> PyResult<antecedent::PosteriorDrawControls
     match name {
         "measured" => Ok(antecedent::PosteriorDrawControls::Measured),
         other => Err(crate::refusal(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!("unknown Bayesian draw controls {other:?}; use measured"),
         )),
     }
@@ -184,20 +184,20 @@ pub(crate) struct PrepareOptions {
     pub validators: Vec<Arc<dyn CustomEffectValidator>>,
     pub target_population: Option<TargetPopulation>,
     pub registry: Option<PopulationRegistry>,
-    pub cancel: Option<antecedent_core::CancellationToken>,
-    pub progress: Option<Arc<dyn antecedent_core::ProgressSink>>,
+    pub cancel: Option<antecedent::execution::CancellationToken>,
+    pub progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
     pub inference: InferenceSpec,
     /// Discovery algorithm of an accepted structure (provenance only).
     pub discovery_algorithm: Option<String>,
     /// Participant labels bound to the data rows (digests only).
-    pub participants: Option<antecedent_io::ParticipantBindingWire>,
+    pub participants: Option<antecedent::io::ParticipantBindingWire>,
     /// Declared handling of missing values.
-    pub missing: Option<antecedent_data::MissingDeclaration>,
+    pub missing: Option<antecedent::data::MissingDeclaration>,
     /// One sampling weight per row of the table, read by the routes that estimate in the
     /// weighted population (randomized ITT, balanced panel DiD); every other route refuses it.
     pub sampling_weights: Option<Arc<[f64]>>,
     /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
-    pub sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+    pub sampling_design: Option<antecedent::schema::DeclaredSamplingDesign>,
     /// Identifier a route that accepts a family of them was asked for; the compiler validates it.
     pub identifier: Option<antecedent::IdentifierId>,
     /// Estimator a route that accepts a family of them was asked for; the compiler validates it.
@@ -273,7 +273,7 @@ impl PrepareOptions {
                         crate::value_err(format!("participants option is missing {key:?}"))
                     })
                 };
-                Ok(antecedent_io::ParticipantBindingWire {
+                Ok(antecedent::io::ParticipantBindingWire {
                     rows: field("rows")?.extract()?,
                     labels: field("labels")?.extract()?,
                     codes: field("codes")?.extract()?,
@@ -289,7 +289,7 @@ impl PrepareOptions {
         let sampling_design = item("sampling_design")?
             .map(|value| -> PyResult<_> {
                 let name: String = value.extract()?;
-                antecedent_core::DeclaredSamplingDesign::ALL
+                antecedent::schema::DeclaredSamplingDesign::ALL
                     .into_iter()
                     .find(|design| design.as_str() == name)
                     .ok_or_else(|| {
@@ -304,7 +304,7 @@ impl PrepareOptions {
         let unknown = |err: antecedent::strategy_table::UnknownStrategy| {
             crate::with_reason_code(
                 crate::value_err(err.to_string()),
-                antecedent_core::reason_code!("unknown_strategy"),
+                antecedent::reason::reason_code!("unknown_strategy"),
             )
         };
         let identifier = item("identifier")?
@@ -393,7 +393,7 @@ impl PrepareOptions {
             artifact.as_deref(),
             spec.prior_mapping.take(),
             spec.composed_prior.take(),
-            spec.likelihood.unwrap_or(antecedent_prob::BayesLikelihood::GaussianIdentity),
+            spec.likelihood.unwrap_or(antecedent::inference::BayesLikelihood::GaussianIdentity),
         )?;
         let builder = match design_model {
             Some(model) => builder.bayesian_design_model(model),
@@ -404,12 +404,12 @@ impl PrepareOptions {
             None => builder,
         };
         Ok(match white_innovation {
-            Some((max_lag, level)) => builder.bayesian_white_innovation(
-                antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate {
+            Some((max_lag, level)) => {
+                builder.bayesian_white_innovation(antecedent::estimate::InnovationWhitenessGate {
                     max_lag,
                     level,
-                },
-            ),
+                })
+            }
             None => builder,
         })
     }
@@ -430,7 +430,7 @@ impl PrepareOptions {
             return Ok(());
         }
         Err(crate::refusal(
-            antecedent_core::reason_code!("option_not_applicable"),
+            antecedent::reason::reason_code!("option_not_applicable"),
             format!("{route} reads no {}; drop them", named.join(", ")),
         ))
     }
@@ -450,7 +450,7 @@ impl PrepareOptions {
             return Ok(());
         }
         Err(crate::refusal(
-            antecedent_core::reason_code!("prior_transfer_not_hydrated"),
+            antecedent::reason::reason_code!("prior_transfer_not_hydrated"),
             format!(
                 "{route} fits its Bayesian model under the isotropic prior_scale and does not \
                  hydrate {}",
@@ -535,7 +535,7 @@ impl PrepareOptions {
         match &self.target_population {
             Some(population) if *population != TargetPopulation::AllObserved => {
                 Err(crate::refusal(
-                    antecedent_core::reason_code!("population_not_estimable"),
+                    antecedent::reason::reason_code!("population_not_estimable"),
                     format!(
                         "{route} estimates the all-observed population; this route has no \
                          weighting or subpopulation estimator for another target"
@@ -547,7 +547,11 @@ impl PrepareOptions {
     }
 
     /// Execution context for prepare-time identification.
-    pub(crate) fn ctx(&self, seed: u64, threads: Option<u32>) -> antecedent_core::ExecutionContext {
+    pub(crate) fn ctx(
+        &self,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> antecedent::prelude::ExecutionContext {
         crate::py_execution_context_ext(
             seed,
             crate::resolve_user_threads(threads),

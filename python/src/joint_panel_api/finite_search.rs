@@ -1,9 +1,11 @@
 //! Exhaustive search over the compiled programs of a retained panel fit.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{PyJointPanelResult, context, facade, panel_error};
-use antecedent_design::{
-    decision_contract::{ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr},
-    program_search::{FiniteProgramDomain, ProgramControl, ProgramFeasibility, ProgramRestriction},
+use antecedent::design::decision_contract::{
+    ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
+};
+use antecedent::design::program_search::{
+    FiniteProgramDomain, ProgramControl, ProgramFeasibility, ProgramRestriction,
 };
 use pyo3::prelude::*;
 use serde::Deserialize;
@@ -131,8 +133,8 @@ impl PyJointPanelResult {
                 "exact_finite_law": result.exact_finite_law,
                 "continuous_gap": result.continuous_gap,
                 "global_certificate": false,
-                "candidate_set_identity": antecedent_core::to_hex(&result.candidate_set_identity),
-                "search_identity": antecedent_core::to_hex(&result.search_identity),
+                "candidate_set_identity": antecedent::schema::to_hex(&result.candidate_set_identity),
+                "search_identity": antecedent::schema::to_hex(&result.search_identity),
                 "dependency_identity": scoped.dependency_identity.to_hex(),
                 "scope": "model_conditional",
                 "selected_value_reliability": result.reliability,

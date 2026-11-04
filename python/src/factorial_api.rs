@@ -42,7 +42,7 @@ fn estimate_factorial_2x2(
     let probability_a = probability_a.as_array().iter().copied().collect::<Vec<_>>();
     let probability_b = probability_b.as_array().iter().copied().collect::<Vec<_>>();
     let fit = detach_catch(py, move || {
-        antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2(
+        antecedent::estimate::factorial_bernoulli::estimate_factorial_2x2(
             &outcome,
             &factor_a,
             &factor_b,

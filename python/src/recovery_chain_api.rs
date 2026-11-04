@@ -13,8 +13,8 @@ use antecedent::analysis::recovery_chain::{
     ChainWitnessCheckWire, ChainWitnessWire, RecoveryChain, RecoveryChainArtifactError,
     RecoveryChainArtifactWire,
 };
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_graph::{Admg, DenseNodeId, NodeRef};
+use antecedent::graph::{Admg, DenseNodeId, NodeRef};
+use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -110,7 +110,7 @@ fn report_json(parts: &ReportParts<'_>) -> String {
     let (reason, detail) = if parts.outcome == "nonrecoverable" {
         (
             Some("transport_proven_non_transportable"),
-            Some(antecedent_core::reason_details::recovery_chain::NONRECOVERABLE_WITNESS),
+            Some(antecedent::reason::reason_details::recovery_chain::NONRECOVERABLE_WITNESS),
         )
     } else {
         (None, None)

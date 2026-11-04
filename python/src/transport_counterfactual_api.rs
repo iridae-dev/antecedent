@@ -14,27 +14,29 @@ use crate::transport_common::{
 };
 use crate::transport_interference_api::parse_catalog;
 use crate::transport_z_api::to_py_json;
-use antecedent::{
-    CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
-    CounterfactualTransportOptions, CounterfactualTransportPreparation,
-    CounterfactualTransportResult, PreparedCounterfactualTransport,
-    consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
-};
-use antecedent_core::{
-    CounterfactualEvent, CounterfactualEventQuery, EdgeRoute, EvidenceCatalog, ExogenousCoupling,
-    SearchLimits, VariableId, WorldId, WorldSpec,
-};
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_identify::{
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::execution::SearchLimits;
+use antecedent::identify::{
     COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS, CounterfactualTransportDecision,
     CounterfactualTransportDerivation, CounterfactualTransportProblem,
     CounterfactualTransportQuery, CounterfactualTransportSource, counterfactual_transport_refusal,
     identify_counterfactual_transport,
 };
-use antecedent_io::IoError;
-use antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits;
-use antecedent_io::counterfactual_transport_wire::{
+use antecedent::io::IoError;
+use antecedent::io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits;
+use antecedent::io::counterfactual_transport_wire::{
     CounterfactualTransportArtifactWire, CounterfactualTransportExpectedIdentity,
+};
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    CounterfactualEvent, CounterfactualEventQuery, EdgeRoute, EvidenceCatalog, ExogenousCoupling,
+    WorldId, WorldSpec,
+};
+use antecedent::{
+    CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
+    CounterfactualTransportOptions, CounterfactualTransportPreparation,
+    CounterfactualTransportResult, PreparedCounterfactualTransport,
+    consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
 };
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
@@ -54,7 +56,7 @@ pub(crate) fn variable_name(names: &[String], id: VariableId) -> String {
     names.get(id.raw() as usize).cloned().unwrap_or_else(|| id.raw().to_string())
 }
 
-pub(crate) fn regime_label(catalog: &EvidenceCatalog, id: antecedent_core::RegimeId) -> String {
+pub(crate) fn regime_label(catalog: &EvidenceCatalog, id: antecedent::schema::RegimeId) -> String {
     catalog
         .regimes
         .iter()
@@ -66,7 +68,7 @@ pub(crate) fn regime_label(catalog: &EvidenceCatalog, id: antecedent_core::Regim
 /// A refusal of the route as the record's frozen `(reason code,
 /// counterfactual_transport.* detail)` pair; budgets and cancellation and
 /// errors the route does not own keep the shared identification mapping.
-fn identification_refusal(e: antecedent_identify::IdentificationError) -> PyErr {
+fn identification_refusal(e: antecedent::identify::IdentificationError) -> PyErr {
     if e.is_budget_or_cancel() {
         return error(e);
     }
@@ -153,7 +155,7 @@ fn obstruction_json(
     serde_json::json!({
         "outcome": "proven_non_transportable",
         "reason": "transport_proven_non_transportable",
-        "detail": antecedent_core::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION,
+        "detail": antecedent::reason::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION,
         "explanation": obstruction.reason,
         "witness": witness,
         "witness_clique": obstruction.witness.clique.iter()
@@ -168,7 +170,7 @@ fn obstruction_json(
 }
 
 fn missing_regimes_text(
-    missing: &antecedent_identify::CounterfactualTransportMissing,
+    missing: &antecedent::identify::CounterfactualTransportMissing,
     names: &[String],
 ) -> String {
     missing
@@ -302,7 +304,7 @@ impl CounterfactualTransportDecisionNative {
         } else {
             {
                 let (code, detail, text) = self.refusal.clone().unwrap_or((
-                    antecedent_core::reason_code!("transport_not_certified"),
+                    antecedent::reason::reason_code!("transport_not_certified"),
                     String::new(),
                     String::from("only an identified decision can be prepared"),
                 ));
@@ -318,7 +320,7 @@ impl CounterfactualTransportDecisionNative {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let report = self.obstruction.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: only a proven obstruction exports without evidence; \
                  evaluate an identified decision and export its result",
             )
@@ -331,7 +333,7 @@ impl CounterfactualTransportDecisionNative {
     fn identity(&self) -> PyResult<(Option<String>, Option<String>)> {
         let report = self.obstruction.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: only a proven obstruction has an identity here",
             )
         })?;
@@ -361,7 +363,7 @@ impl PreparedCounterfactualTransportNative {
     #[pyo3(signature=(seed=None))]
     fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
         let ctx = execution_context(seed.unwrap_or(0), self.memory_bytes, None);
-        antecedent_estimate::refuse_cancelled(&ctx, "counterfactual transport fork")
+        antecedent::estimate::refuse_cancelled(&ctx, "counterfactual transport fork")
             .map_err(error)?;
         let inner = match self.inner.data() {
             Some(data) => self.inner.refresh(data.clone(), &ctx).map_err(error)?,
@@ -633,8 +635,8 @@ fn identify_counterfactual_transport_native(
                 Ok(Decided {
                     status: "proven_non_transportable",
                     refusal: Some((
-                        antecedent_core::reason_code!("transport_proven_non_transportable"),
-                        antecedent_core::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION.to_string(),
+                        antecedent::reason::reason_code!("transport_proven_non_transportable"),
+                        antecedent::reason::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION.to_string(),
                         report.reason().to_string(),
                     )),
                     payload,
@@ -644,10 +646,10 @@ fn identify_counterfactual_transport_native(
             }
             Err(IoError::Refused { code, message })
                 if [
-                    antecedent_core::reason_code!("transport_missing_evidence"),
-                    antecedent_core::reason_code!("transport_not_certified"),
-                    antecedent_core::reason_code!("route_not_supported"),
-                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    antecedent::reason::reason_code!("transport_missing_evidence"),
+                    antecedent::reason::reason_code!("transport_not_certified"),
+                    antecedent::reason::reason_code!("route_not_supported"),
+                    antecedent::reason::reason_code!("transport_budget_cancel"),
                 ]
                 .contains(&code) =>
             {
@@ -674,7 +676,7 @@ fn identify_counterfactual_transport_native(
                         let payload = serde_json::json!({
                             "outcome": "exhausted",
                             "reason": code,
-                            "detail": antecedent_core::reason_details::counterfactual_transport::BUDGET,
+                            "detail": antecedent::reason::reason_details::counterfactual_transport::BUDGET,
                             "message": message,
                             "limits_receipt": {
                                 "operations_limit": search.operations,
@@ -686,7 +688,7 @@ fn identify_counterfactual_transport_native(
                             payload,
                             refusal: Some((
                                 code,
-                                antecedent_core::reason_details::counterfactual_transport::BUDGET
+                                antecedent::reason::reason_details::counterfactual_transport::BUDGET
                                     .to_string(),
                                 message,
                             )),
@@ -799,8 +801,8 @@ fn consume_counterfactual_transport_artifact_native(
                     status: "proven_non_transportable",
                     payload,
                     refusal: Some((
-                        antecedent_core::reason_code!("transport_proven_non_transportable"),
-                        antecedent_core::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION.to_string(),
+                        antecedent::reason::reason_code!("transport_proven_non_transportable"),
+                        antecedent::reason::reason_details::counterfactual_transport::CHECKED_OBSTRUCTION.to_string(),
                         report.reason().to_string(),
                     )),
                     prepared: None,

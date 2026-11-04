@@ -9,9 +9,8 @@
 use crate::graphs;
 use crate::*;
 use antecedent::AcceptedGraph;
-use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ResponseQuery, VariableId,
-};
+use antecedent::prelude::VariableId;
+use antecedent::query::{AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ResponseQuery};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -37,7 +36,7 @@ where
             crate::value_err(
                 "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
             ),
-            antecedent_core::reason_code!("required_option_missing"),
+            antecedent::reason::reason_code!("required_option_missing"),
         ));
     };
     Ok(Some((resolve_var(rv)?, cut, bw)))
@@ -49,7 +48,7 @@ pub(crate) fn rd_design(
     running_variable: VariableId,
     cutoff: f64,
     bandwidth: f64,
-    se_kind: Option<antecedent_estimate::AnalyticSeKind>,
+    se_kind: Option<antecedent::estimate::AnalyticSeKind>,
 ) -> antecedent::RdConfig {
     let config = antecedent::RdConfig::new(running_variable, cutoff, bandwidth);
     match se_kind {
@@ -76,14 +75,14 @@ struct PpcFields {
 }
 
 /// Stable wire name of how a predictive check's replicates carry observation noise.
-fn predictive_noise_name(noise: antecedent_validate::PredictiveNoise) -> &'static str {
+fn predictive_noise_name(noise: antecedent::validate::PredictiveNoise) -> &'static str {
     match noise {
-        antecedent_validate::PredictiveNoise::Likelihood => "likelihood",
-        antecedent_validate::PredictiveNoise::MeanOnlyImproperScale => "mean_only_improper_scale",
+        antecedent::validate::PredictiveNoise::Likelihood => "likelihood",
+        antecedent::validate::PredictiveNoise::MeanOnlyImproperScale => "mean_only_improper_scale",
     }
 }
 
-fn ppc_fields_from_checks(checks: &[antecedent_validate::PredictiveCheckReport]) -> PpcFields {
+fn ppc_fields_from_checks(checks: &[antecedent::validate::PredictiveCheckReport]) -> PpcFields {
     let mut fields = PpcFields {
         prior_ppc_p_value: None,
         prior_ppc_observed: None,
@@ -234,7 +233,7 @@ pub(crate) fn parse_target_population(
 
 pub(crate) fn parse_outcome_functional(
     spec: Option<&Bound<'_, PyDict>>,
-) -> PyResult<Option<antecedent_core::OutcomeFunctional>> {
+) -> PyResult<Option<antecedent::query::OutcomeFunctional>> {
     let Some(d) = spec else {
         return Ok(None);
     };
@@ -243,27 +242,27 @@ pub(crate) fn parse_outcome_functional(
         .ok_or_else(|| crate::value_err("outcome_functional requires 'kind'"))?
         .extract()?;
     Ok(Some(match kind.to_ascii_lowercase().as_str() {
-        "mean" => antecedent_core::OutcomeFunctional::Mean,
+        "mean" => antecedent::query::OutcomeFunctional::Mean,
         "exceedance" => {
             let threshold: f64 = d
                 .get_item("threshold")?
                 .ok_or_else(|| crate::value_err("exceedance requires 'threshold'"))?
                 .extract()?;
-            antecedent_core::OutcomeFunctional::exceedance(threshold)
+            antecedent::query::OutcomeFunctional::exceedance(threshold)
         }
         "exceedance_grid" | "grid" => {
             let thresholds: Vec<f64> = d
                 .get_item("thresholds")?
                 .ok_or_else(|| crate::value_err("exceedance_grid requires 'thresholds'"))?
                 .extract()?;
-            antecedent_core::OutcomeFunctional::exceedance_grid(thresholds)
+            antecedent::query::OutcomeFunctional::exceedance_grid(thresholds)
         }
         "quantile" => {
             let tau: f64 = d
                 .get_item("tau")?
                 .ok_or_else(|| crate::value_err("quantile requires 'tau'"))?
                 .extract()?;
-            antecedent_core::OutcomeFunctional::quantile(tau)
+            antecedent::query::OutcomeFunctional::quantile(tau)
         }
         other => {
             return Err(crate::value_err(format!("unknown outcome_functional kind {other:?}")));
@@ -304,7 +303,7 @@ pub(crate) fn parse_population_registry(
                     weights,
                     depends
                         .into_iter()
-                        .map(antecedent_core::VariableId::from_raw)
+                        .map(antecedent::prelude::VariableId::from_raw)
                         .collect::<Vec<_>>(),
                 );
             } else {
@@ -330,8 +329,8 @@ type AteBatchQuerySpec = (
     String,
     f64,
     f64,
-    Option<antecedent_core::OutcomeFunctional>,
-    Option<antecedent_core::TargetPopulation>,
+    Option<antecedent::query::OutcomeFunctional>,
+    Option<antecedent::query::TargetPopulation>,
 );
 
 fn parse_ate_batch_query_specs(queries: Vec<PyBatchQuery<'_>>) -> PyResult<Vec<AteBatchQuerySpec>> {
@@ -374,7 +373,7 @@ fn parse_batch_estimator_config(
 }
 
 fn compile_batch_study(
-    data: antecedent_data::TabularData,
+    data: antecedent::prelude::TabularData,
     edges: Vec<(String, String)>,
     identifier: Option<String>,
     estimator: Option<String>,
@@ -403,7 +402,7 @@ fn compile_batch_study(
         let named: Vec<Vec<&str>> =
             tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
         let background =
-            antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+            antecedent::graph::TieredBackground::from_named(data.schema(), &named, within)
                 .map_err(py_err)?;
         antecedent::BatchStudy::tiered(data, background)
     } else {
@@ -442,7 +441,7 @@ fn compile_batch_study(
 }
 
 fn compile_ate_batch(
-    data: antecedent_data::TabularData,
+    data: antecedent::prelude::TabularData,
     edges: Vec<(String, String)>,
     parsed_queries: Vec<AteBatchQuerySpec>,
     identifier: Option<String>,
@@ -495,7 +494,7 @@ struct CellBatchQuerySpec {
     treatments: Vec<String>,
     kinds: Vec<String>,
     parameters: Vec<Vec<f64>>,
-    functional: Option<antecedent_core::OutcomeFunctional>,
+    functional: Option<antecedent::query::OutcomeFunctional>,
     population: Option<TargetPopulation>,
     observation: crate::observation_api::ObservationArgs,
     assumptions: Vec<crate::observation_api::ObservationArgs>,
@@ -584,7 +583,7 @@ fn parse_cell_batch_query_specs(
 }
 
 fn compile_cell_batch(
-    data: antecedent_data::TabularData,
+    data: antecedent::prelude::TabularData,
     edges: Vec<(String, String)>,
     parsed_queries: Vec<CellBatchQuerySpec>,
     identifier: Option<String>,
@@ -617,8 +616,8 @@ fn compile_cell_batch(
             Some(declaration.kinds.clone()),
             Some(declaration.parameters.clone()),
             1,
-            antecedent_core::DerivativeScale::Identity,
-            antecedent_core::DerivativeWeighting::Observed,
+            antecedent::query::DerivativeScale::Identity,
+            antecedent::query::DerivativeWeighting::Observed,
         )?;
         let mut query = ResponseQuery::new(built);
         if let Some(functional) = declaration.functional.clone() {
@@ -754,7 +753,7 @@ pub(crate) fn ate_result_from_analysis(
     names: &[String],
     result: &antecedent::StudyResult,
     include_posterior_artifact: bool,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<AteAnalysisResult> {
     let effect_authority =
         result.identification.average_effect().zip(result.estimate().as_effect()).map(
@@ -829,7 +828,7 @@ pub(crate) fn ate_result_from_analysis(
         structural_unevaluable_mass,
         structural_aggregation_policy,
     } = sections;
-    let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
+    let mediation_slices: &[antecedent::estimate::TemporalMediationSlice] =
         result.mediation_grid().map_or(&[], |grid| grid.slices.as_ref());
     let mediation_uncertainty: Vec<_> =
         mediation_slices.iter().map(crate::mediation_uncertainty_projection).collect();
@@ -849,8 +848,8 @@ pub(crate) fn ate_result_from_analysis(
         missing_data_json: crate::missing_report::report_json(result.missing_data().as_ref()),
         interval_bindings_json: crate::interval_binding_api::bindings_json(result),
         ate: effect.map(|estimate| estimate.ate).filter(|ate| ate.is_finite()),
-        se_analytic: effect.map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
-        se_bootstrap: effect.and_then(antecedent_estimate::EffectEstimate::se_bootstrap),
+        se_analytic: effect.map_or(f64::NAN, antecedent::estimate::EffectEstimate::se_analytic),
+        se_bootstrap: effect.and_then(antecedent::estimate::EffectEstimate::se_bootstrap),
         bootstrap_replicates_failed: effect
             .and_then(|estimate| estimate.uncertainty.bootstrap.replicates_failed),
         adjustment_set,
@@ -897,7 +896,7 @@ pub(crate) fn ate_result_from_analysis(
         route_diagnostics: result
             .diagnostics
             .iter()
-            .filter_map(antecedent_core::diagnostic::RouteNativeDiagnostic::from_diagnostic)
+            .filter_map(antecedent::schema::diagnostic::RouteNativeDiagnostic::from_diagnostic)
             .map(|record| {
                 (
                     record.route_name().to_owned(),
@@ -1171,7 +1170,7 @@ fn identify_ate_admg(
         let zeros = [0.0_f64, 1.0];
         let pairs: Vec<(&str, &[f64])> =
             names.iter().map(|n| (n.as_str(), zeros.as_slice())).collect();
-        let data = antecedent_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
+        let data = antecedent::prelude::TabularData::from_f64_columns(pairs).map_err(py_err)?;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let admg = graph.aligned_to_names(&names)?;
@@ -1218,7 +1217,7 @@ fn identify_ate(
         let zeros = [0.0_f64, 1.0];
         let pairs: Vec<(&str, &[f64])> =
             names.iter().map(|n| (n.as_str(), zeros.as_slice())).collect();
-        let data = antecedent_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
+        let data = antecedent::prelude::TabularData::from_f64_columns(pairs).map_err(py_err)?;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
@@ -1284,7 +1283,7 @@ fn structure_query(
             Ok(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t_id, y_id)))
         }
         "intervention_response" => {
-            use antecedent_core::{ResponseFunctional, ResponseQuery};
+            use antecedent::query::{ResponseFunctional, ResponseQuery};
             let targets = treatments.unwrap_or_else(|| vec![treatment.to_string()]);
             let interventions = targets
                 .iter()
@@ -1300,7 +1299,9 @@ fn structure_query(
             )))
         }
         "response" | "response_curve" => {
-            use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+            use antecedent::query::{
+                ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery,
+            };
             Ok(CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
                 outcome: y_id,
                 treatment: ContinuousDomain::new(
@@ -1346,7 +1347,7 @@ fn structure_query(
             Ok(CausalQuery::TemporalEffect(query))
         }
         "temporal_response" => {
-            use antecedent_core::{
+            use antecedent::query::{
                 ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalResponseSpec,
             };
             let mut query = ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -1365,7 +1366,7 @@ fn structure_query(
             Ok(CausalQuery::Response(query))
         }
         "temporal_mediation" => {
-            use antecedent_core::{MediationContrast, MediationQuery};
+            use antecedent::query::{MediationContrast, MediationQuery};
             let mediators = treatments
                 .unwrap_or_default()
                 .iter()
@@ -1509,7 +1510,7 @@ fn identify_structure(
                     return Err(py_msg("temporal response is missing"));
                 };
                 if let Some(horizons) = horizons {
-                    *temporal = antecedent_core::TemporalResponseSpec::new(
+                    *temporal = antecedent::query::TemporalResponseSpec::new(
                         horizons,
                         temporal.policy.clone(),
                         max_history_lag,
@@ -1519,10 +1520,10 @@ fn identify_structure(
                     temporal.max_history_lag = max_history_lag;
                 }
                 if let Some(grid) = response_grid {
-                    if let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =
+                    if let antecedent::query::ResponseFunctional::MeanCurve { treatment, .. } =
                         &mut response.functional
                     {
-                        treatment.grid = antecedent_core::GridSpec::Values(grid.into());
+                        treatment.grid = antecedent::query::GridSpec::Values(grid.into());
                     }
                 }
                 if let Some(steps) = response_steps {
@@ -1542,8 +1543,8 @@ fn identify_structure(
                         Some(kinds),
                         Some(parameters),
                         1,
-                        antecedent_core::DerivativeScale::Identity,
-                        antecedent_core::DerivativeWeighting::Observed,
+                        antecedent::query::DerivativeScale::Identity,
+                        antecedent::query::DerivativeWeighting::Observed,
                     )?;
                     response.functional = crate::response_api::wrap_temporal_sequence_steps(
                         functional,
@@ -1571,10 +1572,13 @@ fn identify_structure(
         );
         let builder = if temporal {
             Study::series(
-                antecedent_data::TimeSeriesData::from_f64_columns(columns, 1).map_err(py_err)?,
+                antecedent::prelude::TimeSeriesData::from_f64_columns(columns, 1)
+                    .map_err(py_err)?,
             )
         } else {
-            Study::tabular(antecedent_data::TabularData::from_f64_columns(columns).map_err(py_err)?)
+            Study::tabular(
+                antecedent::prelude::TabularData::from_f64_columns(columns).map_err(py_err)?,
+            )
         };
         let mut builder = builder.graph(structure.clone()).query(query.clone());
         if let Some(id) = identifier {
@@ -1640,13 +1644,13 @@ fn parse_candidate_screen(
         screen_rows: screen_rows
             .unwrap_or_default()
             .into_iter()
-            .map(antecedent_data::GlobalId::new)
+            .map(antecedent::data::GlobalId::new)
             .collect::<Vec<_>>()
             .into(),
         estimate_rows: estimate_rows
             .unwrap_or_default()
             .into_iter()
-            .map(antecedent_data::GlobalId::new)
+            .map(antecedent::data::GlobalId::new)
             .collect::<Vec<_>>()
             .into(),
     }))
@@ -1672,7 +1676,7 @@ pub struct PyCompletedBatch {
     pub(crate) names: Vec<String>,
     seed: u64,
     threads: u32,
-    metadata_context: antecedent_core::ExecutionContext,
+    metadata_context: antecedent::prelude::ExecutionContext,
 }
 
 #[pymethods]
@@ -1985,9 +1989,9 @@ fn prepare_cells_batch(
             family_contrast,
         )?;
         let batch = batch.family_posterior(family_posterior_draws.map(|draws| {
-            antecedent_estimate::score_posterior::ScorePosteriorOptions {
+            antecedent::estimate::score_posterior::ScorePosteriorOptions {
                 draws,
-                ..antecedent_estimate::score_posterior::ScorePosteriorOptions::default()
+                ..antecedent::estimate::score_posterior::ScorePosteriorOptions::default()
             }
         }));
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));

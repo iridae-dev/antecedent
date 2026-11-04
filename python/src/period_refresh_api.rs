@@ -7,16 +7,16 @@
 //! comes back as structured JSON for the Python layer to raise as its own exception type.
 use crate::bridge::RefusalJson;
 use antecedent::consume_period_refresh_artifact as consume_ledger;
+use antecedent::estimate::temporal_refresh::{
+    MechanismStanding, ObservationCadence, ObservationPeriod, TemporalWindowIdentity,
+};
+use antecedent::io::IoError;
+use antecedent::io::period_refresh_artifact::{PriorWire, product_label};
 use antecedent::period_refresh::{
     PeriodRefresh, PeriodRefreshOutcome, PeriodRefreshSpec, SummaryOnlyFit,
 };
-use antecedent_core::reason_code;
-use antecedent_estimate::temporal_refresh::{
-    MechanismStanding, ObservationCadence, ObservationPeriod, TemporalWindowIdentity,
-};
-use antecedent_io::IoError;
-use antecedent_io::period_refresh_artifact::{PriorWire, product_label};
-use antecedent_state::{ConjugateOlsPrior, ConjugateOlsSummary, OlsSnapshot, StateError};
+use antecedent::reason::reason_code;
+use antecedent::state::{ConjugateOlsPrior, ConjugateOlsSummary, OlsSnapshot, StateError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -140,7 +140,9 @@ fn framed_with(prefix: &[u8], raw: &[u8]) -> Vec<u8> {
 }
 
 /// The retained ledger as JSON: events, live blocks (snapshot ids and row counts), results.
-fn ledger_json(wire: &antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire) -> String {
+fn ledger_json(
+    wire: &antecedent::io::period_refresh_artifact::PeriodRefreshArtifactWire,
+) -> String {
     serde_json::json!({
         "series_id": wire.series_id,
         "lags": wire.lags,

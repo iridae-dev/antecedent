@@ -27,7 +27,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError, Weak};
 use std::time::Duration;
 
-use antecedent_core::{CallbackFailure, CancellationToken, WeakCancellationToken};
+use antecedent::execution::{CallbackFailure, CancellationToken, WeakCancellationToken};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
@@ -107,11 +107,11 @@ impl Drop for ActiveGuard {
 }
 
 struct ScopedProgress {
-    inner: Arc<dyn antecedent_core::ProgressSink>,
+    inner: Arc<dyn antecedent::execution::ProgressSink>,
     scope: std::sync::Weak<Scope>,
 }
 
-impl antecedent_core::ProgressSink for ScopedProgress {
+impl antecedent::execution::ProgressSink for ScopedProgress {
     fn report(&self, fraction: f64, stage: &str) {
         // A retained context must not keep the completed run (and its Python
         // failures) alive or call its observer after that run has ended.
@@ -129,8 +129,8 @@ impl antecedent_core::ProgressSink for ScopedProgress {
 /// run's binding. Contexts constructed before a run in inspection/export have no
 /// progress observer, so cancellation's separate pending-token queue suffices.
 pub(crate) fn bind_progress(
-    progress: Option<Arc<dyn antecedent_core::ProgressSink>>,
-) -> Option<Arc<dyn antecedent_core::ProgressSink>> {
+    progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
+) -> Option<Arc<dyn antecedent::execution::ProgressSink>> {
     let inner = progress?;
     let scope = ACTIVE.with(|active| active.borrow().as_ref().map(Arc::downgrade));
     match scope {
@@ -196,22 +196,22 @@ impl ValidatorScope {
 }
 
 struct ScopedValidator {
-    inner: Arc<dyn antecedent_validate::CustomEffectValidator>,
+    inner: Arc<dyn antecedent::validate::CustomEffectValidator>,
     scope: ValidatorScope,
 }
 
-impl antecedent_validate::CustomEffectValidator for ScopedValidator {
+impl antecedent::validate::CustomEffectValidator for ScopedValidator {
     fn name(&self) -> &str {
         self.inner.name()
     }
 
     fn validate(
         &self,
-        problem: &antecedent_validate::RefutationProblem<'_>,
-        ctx: &antecedent_core::ExecutionContext,
-    ) -> Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError> {
+        problem: &antecedent::validate::RefutationProblem<'_>,
+        ctx: &antecedent::prelude::ExecutionContext,
+    ) -> Result<antecedent::validate::RefutationReport, antecedent::validate::ValidationError> {
         self.scope.call(|| self.inner.validate(problem, ctx)).unwrap_or_else(|| {
-            Err(antecedent_validate::ValidationError::data_msg(
+            Err(antecedent::validate::ValidationError::data_msg(
                 "custom validator execution scope has ended",
             ))
         })
@@ -238,7 +238,7 @@ pub(crate) fn bind_study_validators(
             Arc::new(ScopedValidator {
                 inner: Arc::clone(inner),
                 scope: ValidatorScope(scope.clone()),
-            }) as Arc<dyn antecedent_validate::CustomEffectValidator>
+            }) as Arc<dyn antecedent::validate::CustomEffectValidator>
         })
         .collect();
     let mut execution = study.clone();
@@ -327,7 +327,7 @@ pub(crate) fn callback_failure(what: &str, err: PyErr) -> CallbackFailure {
 /// text opens with (directly or after one `<label>: `), if it names one.
 fn described(id: Option<u64>, description: String) -> CallbackFailure {
     let code = crate::errors::reason_code_in_message(&description)
-        .filter(|code| antecedent_core::reason_code::is_registered(code))
+        .filter(|code| antecedent::reason::reason_code::is_registered(code))
         .map(str::to_owned);
     CallbackFailure::new(id, description, code)
 }
@@ -421,7 +421,7 @@ where
             .collect::<Vec<_>>()
     }));
     let slot: (Mutex<Option<PyResult<T>>>, Condvar) = (Mutex::new(None), Condvar::new());
-    let observation = antecedent_core::execution_attempt::ObservationToken::capture();
+    let observation = antecedent::execution::execution_attempt::ObservationToken::capture();
     let execution_policy = crate::execution_api::capture();
     // One worker only so the calling thread can poll signals; it runs the same work serially, so no extra parallelism is added and the work admits itself.
     let outcome = std::thread::scope(|s| {
@@ -490,7 +490,7 @@ where
 )]
 mod tests {
     use super::{DEFAULT_CALLBACK_FAILURE_CAPACITY, Scope, with_callback_failure};
-    use antecedent_core::CallbackFailure;
+    use antecedent::execution::CallbackFailure;
 
     #[test]
     fn worker_setup_panic_notifies_waiter() {
@@ -664,7 +664,7 @@ mod tests {
                 let expected = original.clone_ref(py);
                 let error = run::<_, ()>(py, move || {
                     let token = ambient_token().unwrap();
-                    let linked = antecedent_core::CancellationToken::new();
+                    let linked = antecedent::execution::CancellationToken::new();
                     link(&linked);
                     let _suppressed = callback_failure("ignored native fallback", original);
                     assert!(token.is_cancelled());
@@ -744,7 +744,7 @@ mod tests {
                                 None,
                             )
                             .unwrap();
-                            let observer: std::sync::Arc<dyn antecedent_core::ProgressSink> =
+                            let observer: std::sync::Arc<dyn antecedent::execution::ProgressSink> =
                                 std::sync::Arc::new(crate::callbacks::PyProgressSink::new(
                                     globals.get_item("observe").unwrap().unwrap().unbind(),
                                 ));
@@ -808,14 +808,14 @@ mod tests {
         use pyo3::prelude::*;
 
         struct Count(std::sync::Arc<std::sync::atomic::AtomicUsize>);
-        impl antecedent_core::ProgressSink for Count {
+        impl antecedent::execution::ProgressSink for Count {
             fn report(&self, _: f64, _: &str) {
                 self.0.fetch_add(1, super::Ordering::Relaxed);
             }
         }
         Python::initialize();
         let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let inner: std::sync::Arc<dyn antecedent_core::ProgressSink> =
+        let inner: std::sync::Arc<dyn antecedent::execution::ProgressSink> =
             std::sync::Arc::new(Count(std::sync::Arc::clone(&calls)));
         Python::attach(|py| {
             let (observer, owner) = run(py, move || {
@@ -884,7 +884,7 @@ mod tests {
                                                     observer_failure(error).unwrap();
                                                     // Same conversion performed by PyCustomValidator;
                                                     // a native validation diagnostic must not own the error.
-                                                    antecedent_validate::ValidationError::data_msg(
+                                                    antecedent::validate::ValidationError::data_msg(
                                                         "Python validator raised an exception",
                                                     )
                                                 })
@@ -1173,7 +1173,7 @@ mod tests {
                 // An outer failure that could not retain its original (a full stash) is an
                 // id-less failure; its description may quote the nested one, but only the
                 // outer failure's own (absent) id is ever recorded on the converted error.
-                let outer = antecedent_core::CallbackFailure::new(
+                let outer = antecedent::execution::CallbackFailure::new(
                     None,
                     format!("outer callback: {nested}"),
                     None,
@@ -1255,7 +1255,7 @@ mod tests {
     #[test]
     fn every_live_pending_context_joins_the_next_run() {
         use super::{PENDING, link};
-        use antecedent_core::CancellationToken;
+        use antecedent::execution::CancellationToken;
         PENDING.with(|pending| pending.borrow_mut().clear());
         let live: Vec<CancellationToken> = (0..500).map(|_| CancellationToken::new()).collect();
         for token in &live {
@@ -1265,7 +1265,7 @@ mod tests {
             pending
                 .borrow()
                 .iter()
-                .filter_map(antecedent_core::WeakCancellationToken::upgrade)
+                .filter_map(antecedent::execution::WeakCancellationToken::upgrade)
                 .count()
         });
         assert_eq!(queued, live.len());
@@ -1275,7 +1275,7 @@ mod tests {
     #[test]
     fn tokens_of_dropped_contexts_do_not_accumulate() {
         use super::{PENDING, link};
-        use antecedent_core::CancellationToken;
+        use antecedent::execution::CancellationToken;
         PENDING.with(|pending| pending.borrow_mut().clear());
         for _ in 0..10_000 {
             link(&CancellationToken::new());

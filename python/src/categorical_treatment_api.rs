@@ -49,7 +49,7 @@ fn failure(error: &CategoricalTreatmentArtifactError) -> PyErr {
     match error {
         CategoricalTreatmentArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("categorical_treatment.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -87,7 +87,7 @@ fn evaluate_categorical_treatment(
             value_err(
                 "categorical_treatment.invalid_request: a column is missing for a declared name",
             ),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     let posterior = declared.posterior;
@@ -112,7 +112,7 @@ fn evaluate_categorical_treatment(
             CategoricalTreatment::evaluate_declared(
                 &request,
                 &rows,
-                &antecedent_core::ExecutionContext::production(0, 1),
+                &antecedent::prelude::ExecutionContext::production(0, 1),
             )
         };
         match fitted.and_then(|done| match &posterior {
@@ -159,7 +159,7 @@ fn consume_categorical_treatment_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("categorical_treatment.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }

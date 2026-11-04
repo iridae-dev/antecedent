@@ -8,9 +8,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::design::rank_studies_bound as rank_bound;
-use antecedent_core::{QueryId, SearchLimits, VariableId};
-use antecedent_design::{RepairLimits, RepairObjective, repair};
+use antecedent::analysis::repair::{RepairLimits, RepairObjective};
+use antecedent::design::{rank_studies_bound as rank_bound, repair};
+use antecedent::execution::SearchLimits;
+use antecedent::prelude::VariableId;
+use antecedent::schema::QueryId;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyString};
 

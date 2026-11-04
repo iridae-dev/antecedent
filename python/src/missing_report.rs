@@ -2,11 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::result::MissingDataReport;
-use antecedent_data::{
+use antecedent::data::{
     ImputationDomain, ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy,
     MissingnessAssumption, RowAccounting,
 };
+use antecedent::result::MissingDataReport;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -188,7 +188,7 @@ pub(crate) fn parse_declaration(value: &Bound<'_, PyAny>) -> PyResult<MissingDec
         policy = MissingPolicy::MultipleImputation(parse_imputation(&spec)?);
     }
     let mut declaration = MissingDeclaration::new(policy).with_covariates(
-        covariates.into_iter().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>(),
+        covariates.into_iter().map(antecedent::prelude::VariableId::from_raw).collect::<Vec<_>>(),
     );
     if let Some(spec) = dict.get_item("imputation")?.filter(|value| !value.is_none()) {
         let spec = spec.cast::<PyDict>()?;

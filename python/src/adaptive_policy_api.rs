@@ -4,14 +4,14 @@
 //! source is a Python object that simulates decision paths under the shared draws it owns. The
 //! native layer holds the search, constraints, standing label, held-out refusal and replayable
 //! record; the Python object only supplies paths.
-use antecedent::design::{AdaptivePolicyFamily, PolicyFeature, PolicyRule};
 use antecedent::design::{
-    AdaptivePolicySearchError, ChanceBound, DrawSplit, HeldOutDesign, HeldOutRequirement,
-    PolicyConstraints, PolicyObjective, PolicyPath, PolicyRolloutSource, PolicySearchOptions,
-    PolicyStanding, PreparedAdaptivePolicySearch, ResponseStanding, SearchStop, StandingRequest,
+    AdaptivePolicyFamily, AdaptivePolicySearchError, ChanceBound, DrawSplit, HeldOutDesign,
+    HeldOutRequirement, PolicyConstraints, PolicyFeature, PolicyObjective, PolicyPath,
+    PolicyRolloutSource, PolicyRule, PolicySearchOptions, PolicyStanding,
+    PreparedAdaptivePolicySearch, ResponseStanding, SearchStop, StandingRequest,
 };
 use antecedent::gcm::{ModelPolicySource, ModelRolloutDesign, StageUtility};
-use antecedent_core::VariableId;
+use antecedent::prelude::VariableId;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -23,7 +23,7 @@ fn bad(message: impl AsRef<str>) -> PyErr {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    antecedent_core::identity::to_hex(bytes)
+    antecedent::schema::identity::to_hex(bytes)
 }
 
 /// Largest number of simulated rows, steps or cells a rollout may allocate.
@@ -347,7 +347,7 @@ impl PolicyRolloutSource for PySource {
         family: &AdaptivePolicyFamily,
         theta: &[f64],
         split: DrawSplit,
-        ctx: &antecedent_core::ExecutionContext,
+        ctx: &antecedent::prelude::ExecutionContext,
     ) -> Result<Vec<PolicyPath>, AdaptivePolicySearchError> {
         if ctx.cancellation.is_cancelled() {
             return Err(AdaptivePolicySearchError::Cancelled);
@@ -482,7 +482,7 @@ fn run_config(
         options.clone(),
     )
     .map_err(translate)?;
-    let mut ctx = antecedent_core::ExecutionContext::production_default(options.seed);
+    let mut ctx = antecedent::prelude::ExecutionContext::production_default(options.seed);
     crate::apply_cancel(&mut ctx, cancel);
     crate::execution_api::apply(&mut ctx);
     // Release the GIL for the search; a Python source reattaches for each callback.

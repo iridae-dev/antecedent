@@ -7,13 +7,15 @@
 use std::collections::BTreeMap;
 
 use crate::prepared_api::PyPreparedAnalysis;
-use antecedent::{JointResponseResult, PreparedJointResponse};
-use antecedent_core::{
-    AssumptionSet, CausalSchema, Conditioning, ExecutionContext, GraphFamily, InferenceSelection,
-    Intervention, InterventionContrast, InterventionWorld, ModelAssumptions, ObservationUnit,
-    OutcomeQuantity, QuantityUnits, ScientificTarget, ScientificWorldId, TargetForm,
-    TargetPopulation, TimeFrame, Value, WorldAction, WorldBinding, WorldCollection,
+use antecedent::prelude::{CausalSchema, ExecutionContext, Intervention, Value};
+use antecedent::query::TargetPopulation;
+use antecedent::schema::AssumptionSet;
+use antecedent::scientific::{
+    Conditioning, GraphFamily, InferenceSelection, InterventionContrast, InterventionWorld,
+    ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificTarget,
+    ScientificWorldId, TargetForm, TimeFrame, WorldAction, WorldBinding, WorldCollection,
 };
+use antecedent::{JointResponseResult, PreparedJointResponse};
 use pyo3::{prelude::*, types::PyBytes};
 use serde::Deserialize;
 
@@ -139,7 +141,7 @@ impl PyPreparedJointResponse {
         Ok(serde_json::json!({
             "world_ids": program.world_ids().iter().map(|w| w.raw()).collect::<Vec<_>>(),
             "contrast_coefficients": program.contrast_coefficients(),
-            "source_digest": antecedent_core::to_hex(&program.source_digest()),
+            "source_digest": antecedent::schema::to_hex(&program.source_digest()),
             "target": program.target().identity().to_hex(),
             "identified_claim": program.identification().is_identified_claim(),
             "identification": program.identification().identity().to_hex(),
@@ -217,7 +219,7 @@ impl PyJointResponseResult {
             "identified_claim": self.inner.identification().is_identified_claim(),
             "identification": self.inner.identification().identity().to_hex(),
             "target": self.inner.target().identity().to_hex(),
-            "source_digest": antecedent_core::to_hex(&self.inner.source_digest()),
+            "source_digest": antecedent::schema::to_hex(&self.inner.source_digest()),
             "calibration": self.inner.calibration(),
         })
         .to_string())

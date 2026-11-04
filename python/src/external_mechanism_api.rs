@@ -6,18 +6,18 @@
 //! caller-supplied resolver callable that maps a recorded specification (a dict) to an
 //! implementation object, and the native layer verifies the object against the record
 //! before running it.
-use antecedent_core::ExecutionContext;
-use antecedent_estimate::external_cyclic_fit::{ExternalFitPolicy, fit_external_feedback};
-use antecedent_io::external_cyclic_artifact::{
-    ExternalCyclicRequest, MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES, consume_external_cyclic_artifact,
-    inspect_external_cyclic_artifact,
-};
-use antecedent_model::continuous_cyclic::{OdePolicy, TimedClamp};
-use antecedent_model::external_mechanism::{
+use antecedent::estimate::external_cyclic_fit::{ExternalFitPolicy, fit_external_feedback};
+use antecedent::gcm::continuous_cyclic::{OdePolicy, TimedClamp};
+use antecedent::gcm::external_mechanism::{
     ExternalFeedbackSystem, ExternalFitParameter, ExternalMechanismImplementation,
     ExternalMechanismSpec, ExternalOdeSystem, TrustedMechanismResolver,
 };
-use antecedent_model::nonlinear_equilibrium::{EquilibriumError, RegimeRow};
+use antecedent::gcm::nonlinear_equilibrium::{EquilibriumError, RegimeRow};
+use antecedent::io::external_cyclic_artifact::{
+    ExternalCyclicRequest, MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES, consume_external_cyclic_artifact,
+    inspect_external_cyclic_artifact,
+};
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods};
 use std::sync::Arc;
@@ -34,7 +34,7 @@ fn execution_context(
 }
 
 fn operation_error(error: impl std::error::Error + 'static, ctx: &ExecutionContext) -> PyErr {
-    let failure = antecedent_core::CallbackFailure::in_chain(&error).cloned();
+    let failure = antecedent::execution::CallbackFailure::in_chain(&error).cloned();
     let converted = classified(&error, ctx);
     match &failure {
         Some(failure) => crate::interrupt::with_callback_failure(converted, failure),
@@ -48,7 +48,7 @@ fn classified(error: &(dyn std::error::Error + 'static), ctx: &ExecutionContext)
     }
     let mut cause: &(dyn std::error::Error + 'static) = error;
     loop {
-        if cause.is::<antecedent_core::execution::AdmissionError>()
+        if cause.is::<antecedent::execution::AdmissionError>()
             || matches!(
                 cause.downcast_ref::<EquilibriumError>(),
                 Some(EquilibriumError::Resource(_))
@@ -67,7 +67,7 @@ fn classified(error: &(dyn std::error::Error + 'static), ctx: &ExecutionContext)
 fn input_admission(
     json: &str,
     ctx: &ExecutionContext,
-) -> PyResult<antecedent_core::execution::AdmissionLease> {
+) -> PyResult<antecedent::execution::AdmissionLease> {
     if json.len() > MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES {
         return Err(crate::value_err("external cyclic input byte limit"));
     }
@@ -208,7 +208,7 @@ fn resolver_of(resolver: Option<Py<PyAny>>) -> Option<PythonResolver> {
 /// BLAKE3 digest of implementation content, as registered in a specification.
 #[pyfunction]
 fn external_content_digest(content: &[u8]) -> String {
-    antecedent_core::blake3_hex(content)
+    antecedent::schema::blake3_hex(content)
 }
 
 /// Validate a specification and return its identity.

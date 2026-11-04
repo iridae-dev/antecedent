@@ -1,14 +1,12 @@
 //! Certified search with an executable best-found fallback for unsupported expressions.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{CertificateDeclaration, PyJointPanelResult, context, facade, panel_error};
-use antecedent_core::ScientificWorldId;
-use antecedent_design::{
-    decision_contract::{ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr},
-    program_search::{
-        FiniteProgramDomain, ProgramControl, ProgramRestriction,
-        continuous::ContinuousSearchOptions,
-    },
+use antecedent::design::decision_contract::{
+    ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
 };
+use antecedent::design::program_search::continuous::ContinuousSearchOptions;
+use antecedent::design::program_search::{FiniteProgramDomain, ProgramControl, ProgramRestriction};
+use antecedent::scientific::ScientificWorldId;
 use pyo3::prelude::*;
 use serde::Deserialize;
 #[derive(Deserialize)]
@@ -60,7 +58,7 @@ impl PyJointPanelResult {
         let _input = ctx
             .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(8))
             .map_err(|e| match e {
-                antecedent_core::execution::AdmissionError::Cancelled => {
+                antecedent::execution::AdmissionError::Cancelled => {
                     crate::CausalCancelledError::new_err(e.to_string())
                 }
                 _ => crate::CausalResourceError::new_err(e.to_string()),
@@ -139,7 +137,7 @@ impl PyJointPanelResult {
                 facade::JointPanelProgramSearchResult::Certified(r)=>serde_json::json!({
                     "route":"certified","controls":r.certificate.controls,"incumbent":r.certificate.incumbent,
                     "domain_identity":r.certificate.identity.to_hex(),
-                    "global_certificate":matches!(r.certificate.stop,antecedent_design::program_search::certified::CertificateStop::Certified),
+                    "global_certificate":matches!(r.certificate.stop,antecedent::design::program_search::certified::CertificateStop::Certified),
                     "assumptions":["retained fitted point response","declared bounded controls and hard linear restrictions","outward-rounded supported arithmetic"],
                     "global_upper":r.certificate.global_upper,"gap":r.certificate.gap,"stop":r.certificate.stop,
                     "splits":r.certificate.splits,"frontier":r.certificate.frontier,
@@ -153,9 +151,9 @@ impl PyJointPanelResult {
                     "stop":format!("{:?}",result.search.stop),"gap":result.search.gap,
                     "global_certificate":result.search.global_certificate,"scope":"model_conditional",
                     "selected_action_law":result.best_source.as_ref().and_then(|source|match source.as_numerical_source(){
-                        antecedent_design::scientific_source::ScientificSourcePayload::Law(law)=>Some(serde_json::json!({
+                        antecedent::design::scientific_source::ScientificSourcePayload::Law(law)=>Some(serde_json::json!({
                             "metadata":law.metadata(),"draws":law.draws(),"frequentist_selected_value_coverage":false})),
-                        antecedent_design::scientific_source::ScientificSourcePayload::Means(_)=>None,
+                        antecedent::design::scientific_source::ScientificSourcePayload::Means(_)=>None,
                     }),
                     "selected_value_reliability":result.search.reliability }),
             }.to_string())

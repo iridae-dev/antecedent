@@ -35,13 +35,13 @@ fn evaluate_observational_policy(
         serde_json::from_str(declaration_json).map_err(|e| {
             with_reason_code(
                 value_err(format!("policy_value.invalid_request: {e}")),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
     if adjustment_names.len() != adjustment_columns.len() {
         return Err(with_reason_code(
             value_err("policy_value.invalid_request: a column is missing for a name"),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     let request = ObservationalPolicyRequest {

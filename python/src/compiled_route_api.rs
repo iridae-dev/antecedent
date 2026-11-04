@@ -11,16 +11,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use antecedent::graph::Dag;
+use antecedent::prelude::{
+    ExecutionContext, MultiEnvironmentData, TabularData, TimeSeriesData, VariableId,
+};
+use antecedent::query::{
+    AttributeQuery, AttributeTarget, CausalQuery, SimulateQuery, SimulationTarget,
+};
 use antecedent::{
     AcceptedGraph, AttributionOutcome, CausalError as RustCausalError, CompiledExecution,
     DiscoveredStructure, DiscoverySpec, InferenceMode, MechanismProgram, SimulationOutcome, Study,
 };
-use antecedent_core::{
-    AttributeQuery, AttributeTarget, CausalQuery, ExecutionContext, SimulateQuery,
-    SimulationTarget, VariableId,
-};
-use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
-use antecedent_graph::Dag;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 

@@ -796,7 +796,8 @@ pub use antecedent_discovery::{AdjacencyMask, LagMask};
 /// Packed directed-edge set of one graph-posterior atom.
 pub mod adjacency_mask {
     pub use antecedent_discovery::adjacency_mask::{
-        adjacency_mask_from_admg, has_edge, mask_is_dag,
+        adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge,
+        mask_is_dag,
     };
 }
 /// Discovery constraints with compiled masks (§13.4 / §13.8).

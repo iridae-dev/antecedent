@@ -1,14 +1,13 @@
 //! Source-bound measured eleven-dimensional Bayesian lifecycle and unchanged internal candidates.
-use antecedent_core::reason_code;
-use antecedent_estimate::nested_markov_binary::{
+use antecedent::estimate::nested_markov_bayesian::{Options, Prior};
+use antecedent::estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, NestedMarkovInput, Regime, RegimeCounts,
 };
-use antecedent_io::{IoError, nested_markov_bayesian_artifact::Artifact};
-use antecedent_learn::nested_markov_bayesian::{Options, Prior};
+use antecedent::io::IoError;
+use antecedent::io::nested_markov_bayesian_artifact::{Artifact, Expectation, Limits};
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-
-use antecedent_io::nested_markov_bayesian_artifact::{Expectation, Limits};
 
 type RegimeTuple = (Option<Vec<usize>>, Vec<usize>, Vec<f64>);
 fn declared_input(
@@ -86,7 +85,7 @@ impl Candidate {
             ));
         }
         let bytes = artifact.export().map_err(error)?;
-        let identity = antecedent_core::blake3_hex(&bytes);
+        let identity = antecedent::schema::blake3_hex(&bytes);
         Ok(Self { artifact, bytes, identity })
     }
 }
@@ -143,7 +142,7 @@ fn consume_nested_markov_posterior_candidate(
             reason_code!("invalid_argument"),
         ));
     }
-    if antecedent_core::blake3_hex(bytes) != expected_identity {
+    if antecedent::schema::blake3_hex(bytes) != expected_identity {
         return Err(crate::with_reason_code(
             crate::value_err(
                 "nested_markov.bayesian_identity_mismatch: candidate identity differs from expected",

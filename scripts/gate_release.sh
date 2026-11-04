@@ -94,6 +94,7 @@ python3 scripts/check_missing_policy_support.py
 echo "== bounds, release claims, links, conformance references =="
 python3 scripts/generate_reason_details.py --check
 python3 scripts/gate_reason_detail_literals.py
+python3 scripts/gate_python_bindings_use_facade.py
 python3 scripts/check_limits_agreement.py
 python3 scripts/check_release_claims.py
 python3 scripts/check_doc_links.py

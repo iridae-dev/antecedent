@@ -205,7 +205,7 @@ impl std::ops::Deref for ParsedEvidence {
 }
 fn evidence_with_context(
     value: &Json,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<Result<ParsedEvidence, EvidenceRefusal>> {
     let map = object(value, "evidence")?;
     let dep = object(member(map, "dependence")?, "dependence")?;
@@ -433,7 +433,7 @@ fn evidence_with_context(
             Err(error) => return Ok(Err(compiled_decision_refusal(error))),
         };
         if value.design.assignment_design == "temporal_regime" {
-            use antecedent_estimate::joint_design::compiled::JointDesignInference;
+            use antecedent::estimate::joint_design::compiled::JointDesignInference;
             let declared = object(member(map, "design_details")?, "regime details")?;
             match source.inference() {
                 JointDesignInference::StaticRegimeBootstrap { replicates, seed } => {
@@ -534,7 +534,7 @@ fn evidence_with_context(
 
 pub(crate) fn compiled_excursion_from_json(
     payload: &str,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::decision_evidence::CompiledExcursionEvidence> {
     let raw = parse_decision(payload, "excursion evidence")?;
     let parsed = evidence_with_context(&raw, ctx)?.map_err(|e| crate::value_err(e.to_string()))?;
@@ -566,7 +566,7 @@ fn decision_evidence_excursion_quantity(
         let source = compiled_excursion_from_json(payload_json, &ctx)?;
         Ok(finish(
             antecedent::decision_evidence::compiled_excursion_quantity(&source, component)
-                .map(|q| json!(antecedent_io::quantity_wire::ScientificQuantityWire::from(&q))),
+                .map(|q| json!(antecedent::io::quantity_wire::ScientificQuantityWire::from(&q))),
         ))
     })
 }
@@ -905,7 +905,7 @@ fn decision_evidence_compiled_cluster(
         if text(source_exposure, "kind")? == "unspecified" {
             return Ok(finish(Err(EvidenceRefusal::InterferenceUnspecified)));
         }
-        let recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe =
+        let recipe: antecedent::estimate::joint_design::cluster_decision::JointClusterRecipe =
             decoded(m, "recipe")?;
         let evidence_id = text(m, "evidence_id")?;
         let bound = match compile_and_evidence_from_cluster(recipe, &evidence_id, &ctx) {
@@ -948,7 +948,7 @@ fn decision_evidence_adaptive(
         let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
         let v = parse_decision(payload_json, "adaptive regime evidence")?;
         let m = object(&v, "adaptive regime evidence")?;
-        let recipe: antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe =
+        let recipe: antecedent::estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe =
             decoded(m, "recipe")?;
         let bound =
             match compile_and_evidence_from_adaptive_regime(recipe, &text(m, "evidence_id")?, &ctx)

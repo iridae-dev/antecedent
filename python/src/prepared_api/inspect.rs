@@ -177,7 +177,7 @@ impl PyPreparedAnalysis {
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
         let labels =
-            outcome_units.map(|outcome_units| antecedent_contract::ResponseCoordinateLabels {
+            outcome_units.map(|outcome_units| antecedent::contract::ResponseCoordinateLabels {
                 outcome_units,
                 population_id: population,
                 transform_id: transform,
@@ -241,7 +241,7 @@ impl PyPreparedAnalysis {
         // carries: a retarget moves the target population and its weighting
         // identity, and a second-click refute moves the validation suite.
         let labels =
-            outcome_units.map(|outcome_units| antecedent_contract::ResponseCoordinateLabels {
+            outcome_units.map(|outcome_units| antecedent::contract::ResponseCoordinateLabels {
                 outcome_units,
                 population_id: population,
                 transform_id: transform,
@@ -290,7 +290,7 @@ impl PyPreparedAnalysis {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         use antecedent::analysis::{TierDesign, tier_diagnostics};
-        use antecedent_estimate::Availability;
+        use antecedent::estimate::Availability;
 
         let result = self
             .last
@@ -303,10 +303,10 @@ impl PyPreparedAnalysis {
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
-        let name_of = |id: antecedent_core::VariableId| {
+        let name_of = |id: antecedent::prelude::VariableId| {
             self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
         };
-        let unavailable = |u: &antecedent_estimate::Unavailable| {
+        let unavailable = |u: &antecedent::estimate::Unavailable| {
             serde_json::json!({
                 "available": false, "code": u.code, "detail": u.detail, "reason": u.reason,
             })

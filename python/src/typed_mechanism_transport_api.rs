@@ -19,12 +19,12 @@ use antecedent::analysis::typed_transported_mechanism::{
     TypedTransportedComposition, check_typed_invariance, fit_typed_mechanism,
     refit_typed_mechanism_in_target, transport_typed_mechanisms, verify_typed_transport,
 };
-use antecedent_core::ExecutionContext;
-use antecedent_model::compose::{
+use antecedent::gcm::compose::{
     ContextCoordinate, ContrastArm, InvarianceDeclaration, MeanContrast, MechanismContext,
     MechanismOrigin, MechanismProvenance, SelectionDiagramDeclaration, SelectionNodeDeclaration,
 };
-use antecedent_model::mechanism_expr::MechanismExpression;
+use antecedent::gcm::mechanism_expr::MechanismExpression;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use serde_json::{Map, Value as Json, json};
 
@@ -53,7 +53,7 @@ fn refusal_json(refusal: &MechanismCompositionRefusal) -> String {
         json!({
             "code": refusal.code(),
             "stage": "compose",
-            "detail": antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
+            "detail": antecedent::reason::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             "offending": Json::Null,
             "expected": Json::Null,
             "supplied": Json::Null,

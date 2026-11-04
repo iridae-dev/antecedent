@@ -6,17 +6,20 @@ use crate::NumericColumn;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use antecedent::analysis::composition_verification::ObservedEffect;
+use antecedent::execution::CacheBudget;
+use antecedent::prelude::VariableId;
+use antecedent::query::{AverageEffectQuery, CausalQuery};
+use antecedent::schema::{
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+    ContractIdentities, ModelId, QueryId, StateVersion,
+};
+use antecedent::scientific::SemanticDigest;
 use antecedent::state::{
     CausalState, ConstraintId, DataBatchRef, GraphConstraintRecord, GraphEvidenceRecord,
     InterventionRecord, InvalidationTarget, LgssmParams, LinearOlsSuffStats, ParticleFilterState,
     StateEvent, StreamingCovariance, apply_state_event, new_antecedent_state,
     publish_recomputed_results, result_lineage_fingerprint,
-};
-use antecedent_contract::composition_verification::ObservedEffect;
-use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    AverageEffectQuery, CacheBudget, CausalQuery, ContractIdentities, ModelId, QueryId,
-    SemanticDigest, StateVersion, VariableId,
 };
 use numpy::PyArray1;
 use pyo3::prelude::*;
@@ -43,7 +46,7 @@ fn identities_of(map: &IdentityMap) -> PyResult<ContractIdentities> {
     }
     let layer = |name: &str, required: bool| -> PyResult<Option<SemanticDigest>> {
         match map.get(name).and_then(Option::as_deref) {
-            Some(hex) => antecedent_core::digest_from_hex(hex)
+            Some(hex) => antecedent::schema::digest_from_hex(hex)
                 .map(|bytes| Some(SemanticDigest::from_bytes(bytes)))
                 .ok_or_else(|| {
                     crate::value_err(format!("identity `{name}` must be 64 hexadecimal characters"))
@@ -371,7 +374,7 @@ impl PyCausalState {
         treatment_lag: u32,
         max_history_lag: Option<u32>,
     ) -> PyResult<(u64, u64)> {
-        use antecedent_core::{
+        use antecedent::query::{
             ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalResponseSpec,
         };
         let functional = ResponseFunctional::MeanCurve {

@@ -2,7 +2,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::NumericColumn;
-use antecedent_core::ExecutionContext;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
@@ -27,14 +27,14 @@ pub(crate) fn check_values(
         .and_then(|n| n.checked_add(extra_bytes))
         .ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "input size overflows",
             )
         })?;
     let limit = ctx.memory_limit_bytes().into_iter().min();
     if let Some(limit) = limit.filter(|limit| bytes > *limit) {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
+            antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
             format!("planned input copy of {bytes} bytes exceeds memory limit of {limit} bytes"),
         ));
     }
@@ -87,7 +87,7 @@ pub(crate) fn bounded_prediction_rows(
         .and_then(|n| n.checked_mul(std::mem::size_of::<Vec<f64>>() as u64))
         .ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "prediction size overflow",
             )
         })?;

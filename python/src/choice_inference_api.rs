@@ -10,7 +10,7 @@ use antecedent::analysis::choice_inference::{
     ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceKernel, ChoiceRequest, StudyCandidate,
     consume_choice_inference_result_artifact, retained_source_from_artifact,
 };
-use antecedent_io::choice_inference_result_artifact::{
+use antecedent::io::choice_inference_result_artifact::{
     ChoiceDeclarationWire, ChoiceInferenceResultArtifact, ChoiceSpecWire, declaration_from_wire,
     spec_from_wire,
 };
@@ -280,7 +280,7 @@ impl ChoiceInferenceHandle {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<ConsumedChoiceResultHandle>> {
         if artifact.len()
-            > antecedent_io::choice_inference_result_artifact::MAX_CHOICE_INFERENCE_RESULT_BYTES
+            > antecedent::io::choice_inference_result_artifact::MAX_CHOICE_INFERENCE_RESULT_BYTES
         {
             return Ok(refused(&ChoiceInferenceRefusal {
                 code: "execution_resource_limit",
@@ -466,7 +466,7 @@ fn choice_inference_result_consume(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused<ConsumedChoiceResultHandle>> {
     if artifact.len()
-        > antecedent_io::choice_inference_result_artifact::MAX_CHOICE_INFERENCE_RESULT_BYTES
+        > antecedent::io::choice_inference_result_artifact::MAX_CHOICE_INFERENCE_RESULT_BYTES
     {
         return Ok(refused(&ChoiceInferenceRefusal {
             code: "execution_resource_limit",

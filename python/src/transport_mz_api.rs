@@ -5,16 +5,17 @@ use crate::transport_common::{
 };
 use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{EvidenceCatalog, ExecutionContext, SearchLimits, Value, VariableId};
-use antecedent_expr::Assignment;
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_identify::{
+use antecedent::estimate::{Assignment, ExactEvaluationLimits};
+use antecedent::execution::SearchLimits;
+use antecedent::identify::{
     MzTransportDecision, MzTransportQuery, MzTransportRoute, ZTransportSourceSpec,
     bind_mz_transport_catalog, decide_mz_transport,
 };
-use antecedent_io::mz_transport_artifact::{
+use antecedent::io::mz_transport_artifact::{
     MzContrastWire, MzTransportArtifactWire, MzTransportConsumeLimits, MzUncertaintyWire,
 };
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::query::EvidenceCatalog;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -33,7 +34,7 @@ fn names_of(names: &[String], raw: &[u32]) -> Vec<String> {
     raw.iter().map(|v| names[*v as usize].clone()).collect()
 }
 
-fn regime_label(catalog: &EvidenceCatalog, id: antecedent_core::RegimeId) -> String {
+fn regime_label(catalog: &EvidenceCatalog, id: antecedent::schema::RegimeId) -> String {
     catalog
         .regimes
         .iter()
@@ -43,7 +44,7 @@ fn regime_label(catalog: &EvidenceCatalog, id: antecedent_core::RegimeId) -> Str
 }
 
 /// The success-path search receipt an identified decision (and its artifact) stores.
-fn search_receipt(record: &antecedent_identify::MzSearchRecord) -> serde_json::Value {
+fn search_receipt(record: &antecedent::identify::MzSearchRecord) -> serde_json::Value {
     serde_json::json!({
         "operations_limit": record.operations_limit,
         "depth_limit": record.depth_limit,
@@ -61,7 +62,7 @@ fn decision_json(
     catalog: &EvidenceCatalog,
     names: &[String],
 ) -> serde_json::Value {
-    let stages = |stages: &[antecedent_identify::MzStageRecord]| {
+    let stages = |stages: &[antecedent::identify::MzStageRecord]| {
         stages
             .iter()
             .map(|s| serde_json::json!({"stage": s.stage, "outcome": s.outcome}))
@@ -157,7 +158,7 @@ fn uncertainty_json(uncertainty: &MzUncertaintyWire, names: &[String]) -> serde_
 }
 
 fn point_json(
-    distribution: &antecedent_expr::ExactDistribution,
+    distribution: &antecedent::estimate::ExactDistribution,
     names: &[String],
 ) -> serde_json::Value {
     serde_json::json!({
@@ -171,7 +172,7 @@ fn point_json(
 /// point and outcome means under `requests`, and the point contrasts.
 fn points_json(
     requests: &[Assignment],
-    distributions: &[antecedent_expr::ExactDistribution],
+    distributions: &[antecedent::estimate::ExactDistribution],
     contrasts: &[MzContrastWire],
     names: &[String],
 ) -> serde_json::Value {
@@ -230,8 +231,9 @@ fn parse_requests(names: &[String], assignments: &Bound<'_, PyAny>) -> PyResult<
 /// The typed refusal of preparing a decision that did not identify: the
 /// decision's own frozen (reason code, `mz_transport.*` detail) pair.
 fn not_identified(decision: &MzTransportDecision) -> PyErr {
-    let code =
-        decision.reason_code().unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+    let code = decision
+        .reason_code()
+        .unwrap_or(antecedent::reason::reason_code!("transport_not_certified"));
     let detail = decision.detail_code().unwrap_or_default();
     crate::refusal(
         code,
@@ -244,11 +246,11 @@ fn not_identified(decision: &MzTransportDecision) -> PyErr {
 /// `route_not_supported`, an invalid query or catalog `invalid_argument`, a
 /// derivation, leaf or obstruction that does not check `transport_not_certified`.
 /// Budgets and errors the route does not own keep the shared identification mapping.
-fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
+fn decision_error(e: antecedent::identify::IdentificationError) -> PyErr {
     if e.is_budget_or_cancel() {
         return error(e);
     }
-    match antecedent_identify::mz_transport_refusal(&e) {
+    match antecedent::identify::mz_transport_refusal(&e) {
         Some((code, detail)) => {
             let text = e.to_string();
             let message = if text.starts_with(detail) { text } else { format!("{detail}: {text}") };
@@ -263,7 +265,7 @@ fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
 struct MultiSourceZTransportStage {
     decision: MzTransportDecision,
     graph: Admg,
-    shared: antecedent_graph::Admg,
+    shared: antecedent::graph::Admg,
     catalog: EvidenceCatalog,
     search: SearchLimits,
     max_support_rows: usize,
@@ -468,7 +470,7 @@ impl PreparedMultiSourceZTransportStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting an mz-transport artifact",
             )
         })?;
@@ -632,7 +634,7 @@ fn consume_multi_source_z_transport_artifact(
         let ctx: ExecutionContext = execution_context(0, memory_bytes, cancel);
         let consumed =
             MzTransportArtifactWire::consume_with_limits(&bytes, limits, &ctx).map_err(error)?;
-        let graph = antecedent_io::admg_from_wire(&consumed.wire.graph).map_err(error)?;
+        let graph = antecedent::io::admg_from_wire(&consumed.wire.graph).map_err(error)?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be the mapping the verified identity binds.
         consumed.wire.check_variable_names(&names).map_err(error)?;

@@ -6,7 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_data::{TabularData, TimeSeriesData};
+use antecedent::prelude::{TabularData, TimeSeriesData};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -80,7 +80,7 @@ impl PrepareRequest {
             return Ok(());
         }
         Err(crate::estimator_config::coded_refusal(
-            antecedent_estimate::sampling_weights::unsupported_route(
+            antecedent::estimate::sampling_weights::unsupported_route(
                 "this route reads no sampling weights; declare them on an estimator \
                  (weights=) or on a randomized trial or balanced two-period panel DiD",
             ),
@@ -104,10 +104,10 @@ impl PrepareRequest {
         let Some(weights) = &self.opts.sampling_weights else {
             return Ok(data);
         };
-        antecedent_estimate::SamplingWeights::new(weights.to_vec())
+        antecedent::estimate::SamplingWeights::new(weights.to_vec())
             .map_err(crate::estimator_config::coded_refusal)?;
         data.with_weights(std::sync::Arc::clone(weights)).map_err(|error| {
-            crate::estimator_config::coded_refusal(antecedent_estimate::sampling_weights::invalid(
+            crate::estimator_config::coded_refusal(antecedent::estimate::sampling_weights::invalid(
                 &error.to_string(),
             ))
         })
@@ -140,7 +140,7 @@ impl PrepareRequest {
                 Ok(super::FrameInput::Series(self.attach_sampling_weights(data)?))
             }
             _ => Err(crate::estimator_config::coded_refusal(
-                antecedent_estimate::sampling_weights::unsupported_route(
+                antecedent::estimate::sampling_weights::unsupported_route(
                     "sampling weights are read by a single series; panel, multi-environment and \
                      event frames have no sampling-weighted construction",
                 ),
@@ -183,7 +183,7 @@ impl PrepareRequest {
         mut self,
         builder: antecedent::StudyBuilder,
         series: bool,
-        ctx: &antecedent_core::ExecutionContext,
+        ctx: &antecedent::prelude::ExecutionContext,
     ) -> PyResult<super::PyPreparedAnalysis> {
         let builder = self.opts.apply_inference(builder)?;
         let builder = self.opts.apply_selection(builder);
@@ -215,7 +215,7 @@ impl PrepareRequest {
         self,
         builder: antecedent::StudyBuilder,
         series: bool,
-        ctx: &antecedent_core::ExecutionContext,
+        ctx: &antecedent::prelude::ExecutionContext,
     ) -> PyResult<super::PyPreparedAnalysis> {
         let builder = match &self.opts.data_diagnostics {
             Some(policy) => builder.data_diagnostics(policy.clone()),
@@ -253,7 +253,7 @@ impl PrepareRequest {
 /// A `DBN` graph-posterior mixture is supported only on those two inputs.
 pub(super) fn one_series(
     input: super::FrameInput,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<TimeSeriesData> {
     match input.materialize()? {
         super::FrameData::Series(series) => Ok(series),
@@ -261,7 +261,7 @@ pub(super) fn one_series(
             .align_to_grid_in(align, ctx)
             .map_err(|e| crate::py_msg(format!("event align_to_grid: {e}"))),
         _ => Err(crate::refusal(
-            antecedent_core::reason_code!("data_modality_not_supported"),
+            antecedent::reason::reason_code!("data_modality_not_supported"),
             "a DBN graph-posterior mixture is \
              supported on one series or one event stream",
         )),

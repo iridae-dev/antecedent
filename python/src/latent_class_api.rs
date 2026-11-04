@@ -36,7 +36,7 @@ fn failure(error: &LatentClassArtifactError) -> PyErr {
     match error {
         LatentClassArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("latent_class.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -47,7 +47,7 @@ fn parse<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> 
     serde_json::from_str(text).map_err(|e| {
         with_reason_code(
             value_err(format!("latent_class.invalid_request: {what}: {e}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         )
     })
 }

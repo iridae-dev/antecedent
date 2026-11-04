@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::reason_code;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 
 /// The validation error raised when `name` is not a known `what`.

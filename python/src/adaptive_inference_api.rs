@@ -16,7 +16,7 @@ use antecedent::analysis::adaptive_inference::{
     InferenceParadigm, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact, procedure_cells, procedure_status,
 };
-use antecedent_io::adaptive_monitoring_contract_artifact::{
+use antecedent::io::adaptive_monitoring_contract_artifact::{
     AdaptiveMonitoringContractArtifact, DeclarationWire, contract_boundaries,
     declaration_from_wire, declaration_to_wire,
 };
@@ -115,7 +115,7 @@ fn rule_json(
 
 fn declaration_for_rule(
     rule: antecedent::analysis::adaptive_inference::StoppingRuleDeclaration,
-) -> Option<antecedent_io::adaptive_monitoring_contract_artifact::RuleWire> {
+) -> Option<antecedent::io::adaptive_monitoring_contract_artifact::RuleWire> {
     use antecedent::analysis::adaptive_inference::{
         AdaptiveDesignDeclaration, AssignmentFamily, MonitoringStrategy, OutcomeStructure,
         ProcedureCell, StoppingRuleKind,
@@ -387,7 +387,7 @@ impl AdaptiveInferenceHandle {
                 Ok(bytes) => {
                     // The result identity also binds the request and recomputed values;
                     // the session's contract identity is not a substitute for it.
-                    let identity = antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(&bytes)
+                    let identity = antecedent::io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(&bytes)
                     .map_err(|error| crate::serialization_err(error.to_string()))?.identity;
                     (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
                 }

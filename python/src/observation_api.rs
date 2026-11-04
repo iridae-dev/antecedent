@@ -3,13 +3,14 @@
 use crate::NumericColumn;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CausalQuery, ContinuousDomain, GridSpec, ObservationAssumption, ObservationSpec,
-    ResponseFunctional, ResponseQuery, VariableId,
-};
-use antecedent_data::TableView;
-use antecedent_estimate::{
+use antecedent::data::TableView;
+use antecedent::estimate::{
     ObservationEstimatorOptions, ObservationMechanismEstimator, SelectedOutcomeCorrection,
+};
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    CausalQuery, ContinuousDomain, GridSpec, ObservationAssumption, ObservationSpec,
+    ResponseFunctional, ResponseQuery,
 };
 use pyo3::prelude::*;
 
@@ -314,7 +315,7 @@ fn gaussian_observation_log_likelihood(
 }
 
 fn build_query(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     treatment: &str,
     outcome: &str,
     args: &ObservationArgs,
@@ -340,7 +341,7 @@ fn build_query(
 }
 
 pub(crate) fn build_observation(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     args: &ObservationArgs,
     latent: VariableId,
 ) -> PyResult<ObservationSpec> {
@@ -387,7 +388,7 @@ pub(crate) fn build_observation(
 }
 
 pub(crate) fn build_assumption(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     args: &ObservationArgs,
 ) -> PyResult<ObservationAssumption> {
     let variables = || {
@@ -421,7 +422,7 @@ fn parse_correction(value: &str) -> PyResult<SelectedOutcomeCorrection> {
 
 pub(crate) fn maybe_with_observation(
     query: ResponseQuery,
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     args: Option<&ObservationArgs>,
 ) -> PyResult<ResponseQuery> {
     let Some(args) = args else {

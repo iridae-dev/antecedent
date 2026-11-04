@@ -7,19 +7,21 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::execution_facts::{
+use antecedent::execution::execution_facts::{
     ExecutionBackend, ExecutionCounts, ExecutionFactError, ExecutionFactStatus, ExecutionFacts,
     ExecutionResources, MeasuredExecution, OutputRetention,
 };
-use antecedent_core::inspect::{
+use antecedent::execution::{
+    ByteEstimates, KernelPolicy, PhysicalEffect, PhysicalOperator, RealizationKind,
+    SourceDependencyId,
+};
+use antecedent::planner::inspect::{
     EstimatedResources, EvidenceTransformation, EvidenceTransformations, InspectionInputs,
     InspectionRefusal, MaterializationSnapshot, PlanInspection, ReuseSnapshot, UncertaintyDemand,
 };
-use antecedent_core::reason_code;
-use antecedent_core::{
-    Assumption, ByteEstimates, InferenceSelection, KernelPolicy, PhysicalEffect, PhysicalOperator,
-    RealizationKind, SemanticDigest, SourceDependencyId,
-};
+use antecedent::reason::reason_code;
+use antecedent::schema::Assumption;
+use antecedent::scientific::{InferenceSelection, SemanticDigest};
 use pyo3::prelude::*;
 
 use crate::name_errors::unknown_name;
@@ -435,7 +437,7 @@ impl PyExecutionFacts {
         planned_workspace_bytes: Option<u64>,
         planned_worker_threads: Option<u64>,
     ) -> Vec<(String, String, Option<u64>)> {
-        let planned = antecedent_core::execution_facts::PlannedResources {
+        let planned = antecedent::execution::execution_facts::PlannedResources {
             peak_memory_bytes: planned_peak_memory_bytes,
             copy_bytes: planned_copy_bytes,
             workspace_bytes: planned_workspace_bytes,
@@ -672,7 +674,7 @@ impl PyInspectionInputs {
 
     /// Copy the held parts. Missing parts are refused. This method takes no callback.
     fn inspect(&self) -> PyResult<PyPlanInspection> {
-        antecedent_core::inspect::inspect(self.inner.clone())
+        antecedent::planner::inspect::inspect(self.inner.clone())
             .map(|inner| PyPlanInspection { inner })
             .map_err(inspection_err)
     }
@@ -815,7 +817,7 @@ mod tests {
             .expect("reason_code")
             .extract()
             .expect("reason text");
-        assert_eq!(code, antecedent_core::reason_code!("invalid_argument"));
+        assert_eq!(code, antecedent::reason::reason_code!("invalid_argument"));
     }
 
     #[test]

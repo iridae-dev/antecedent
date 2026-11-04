@@ -5,8 +5,8 @@
 //! response vectors; this module only translates the declaration and the pooled result.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{Declaration, admit_declaration, compile, context, facade, panel_error};
-use antecedent_data::{ImputationDomain, ImputationModel, ImputationSpec, MissingnessAssumption};
-use antecedent_estimate::multiple_imputation::PooledVectorEstimate;
+use antecedent::data::{ImputationDomain, ImputationModel, ImputationSpec, MissingnessAssumption};
+use antecedent::estimate::multiple_imputation::PooledVectorEstimate;
 use pyo3::prelude::*;
 use serde::Deserialize;
 use std::sync::Arc;

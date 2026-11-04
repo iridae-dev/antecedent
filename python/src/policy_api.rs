@@ -236,9 +236,9 @@ fn evaluate_binary_policy(
     let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
     let fit = detach_catch(py, move || {
-        antecedent_estimate::policy_value::evaluate_binary_ipw_policy(
+        antecedent::estimate::policy_value::evaluate_binary_ipw_policy(
             &outcome,
-            &antecedent_estimate::policy_value::BinaryIpwDesign {
+            &antecedent::estimate::policy_value::BinaryIpwDesign {
                 assignment: &assignment,
                 actions: &actions,
                 propensity: &propensity,
@@ -247,7 +247,7 @@ fn evaluate_binary_policy(
                 reference_costs: reference_costs.as_deref(),
                 available: available.as_deref(),
             },
-            &antecedent_estimate::policy_value::BinaryPolicyLimits {
+            &antecedent::estimate::policy_value::BinaryPolicyLimits {
                 capacity,
                 budget,
                 reference_capacity,
@@ -325,9 +325,9 @@ fn evaluate_binary_policy_doubly_robust(
     let propensity = p.iter().copied().collect::<Vec<_>>();
     let (mu0, mu1) = (mu0.to_vec(), mu1.to_vec());
     let scores = detach_catch(py, move || {
-        antecedent_estimate::policy_value::evaluate_policy_value_scores(
+        antecedent::estimate::policy_value::evaluate_policy_value_scores(
             &y,
-            &antecedent_estimate::policy_value::BinaryPolicyDesign {
+            &antecedent::estimate::policy_value::BinaryPolicyDesign {
                 assignment: &assignment,
                 actions: &actions,
                 propensity: &propensity,
@@ -406,9 +406,9 @@ fn evaluate_multi_action_policy(
     let (probability_rows, action_count) = (probabilities.nrows(), probabilities.ncols());
     let probabilities = probabilities.iter().copied().collect::<Vec<_>>();
     let fit = detach_catch(py, move || {
-        antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy(
+        antecedent::estimate::policy_value::evaluate_multi_action_ipw_policy(
             &outcome,
-            &antecedent_estimate::policy_value::MultiActionIpwDesign {
+            &antecedent::estimate::policy_value::MultiActionIpwDesign {
                 assigned: &assigned,
                 actions: &actions,
                 probabilities: &probabilities,
@@ -419,7 +419,7 @@ fn evaluate_multi_action_policy(
                 reference_costs: reference_costs.as_deref(),
                 available: available.as_deref(),
             },
-            &antecedent_estimate::policy_value::MultiActionLimits {
+            &antecedent::estimate::policy_value::MultiActionLimits {
                 capacities: capacities.as_deref(),
                 reference_capacities: reference_capacities.as_deref(),
                 budget,
@@ -450,7 +450,7 @@ fn uplift_by_score(
     let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
     let bins = detach_catch(py, move || {
-        antecedent_estimate::policy_value::uplift_by_score_bin(
+        antecedent::estimate::policy_value::uplift_by_score_bin(
             &outcome,
             &assignment,
             &score_bin,

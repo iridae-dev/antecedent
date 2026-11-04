@@ -8,6 +8,7 @@
 //! and never a sampling interval; composing the two is refused natively.
 
 use crate::bridge::{RefusalJson, check_declared_size, serialization};
+use antecedent::analysis::inverse_query::StructuralPolicy;
 use antecedent::analysis::sensitivity_decision::{
     ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, IdentifiedBound,
     MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SENSITIVITY_INFERENCE_CLAIM, SamplingInterval,
@@ -16,15 +17,14 @@ use antecedent::analysis::sensitivity_decision::{
     SensitivityIdentity, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
     UncertaintyRelationship, contract_from_artifact, decide,
 };
-use antecedent_contract::ScientificQuantity;
-use antecedent_core::reason_code;
-use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
-use antecedent_design::decision_contract::StructuralPolicy;
-use antecedent_design::decision_eval::Verdict;
-use antecedent_design::decision_structural::{AtomStatus, StructuralVerdict};
-use antecedent_io::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_validate::{
+use antecedent::design::decision_artifact::{contract_from_json_refusal, contract_to_json};
+use antecedent::design::decision_eval::Verdict;
+use antecedent::design::decision_structural::{AtomStatus, StructuralVerdict};
+use antecedent::io::IoError;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::reason::reason_code;
+use antecedent::scientific::ScientificQuantity;
+use antecedent::validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointSensitivityLimits,
 };
 use pyo3::prelude::*;
@@ -48,14 +48,14 @@ fn io_refusal(error: &IoError) -> String {
     match error {
         IoError::Refused { code, message } => {
             let (detail, text) = message.split_once(": ").unwrap_or((
-                antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
+                antecedent::reason::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
                 message.as_str(),
             ));
             refusal_json(code, detail, text)
         }
         other => refusal_json(
             reason_code!("invalid_argument"),
-            antecedent_core::reason_details::sensitivity_decision_composition::INVALID_ARTIFACT,
+            antecedent::reason::reason_details::sensitivity_decision_composition::INVALID_ARTIFACT,
             &other.to_string(),
         ),
     }
@@ -68,7 +68,7 @@ fn decision_refusal(error: &SensitivityDecisionError) -> String {
 fn declaration_refusal(message: &str) -> String {
     refusal_json(
         reason_code!("invalid_argument"),
-        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
+        antecedent::reason::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
         message,
     )
 }
@@ -269,7 +269,7 @@ fn verdict_json(verdict: &StructuralVerdict) -> Value {
     }
 }
 
-fn atom_json(atom: &antecedent_design::decision_structural::AtomSummary) -> Value {
+fn atom_json(atom: &antecedent::design::decision_structural::AtomSummary) -> Value {
     match &atom.status {
         AtomStatus::Evaluated(result) => json!({
             "id": atom.id,
@@ -622,12 +622,12 @@ fn sensitivity_confounder_value(
         Ok(result) => result,
         Err(error) => return Ok((None, Some(decision_refusal(&error)))),
     };
-    let declaration = antecedent_design::ConfounderPriorDeclaration {
+    let declaration = antecedent::design::ConfounderPriorDeclaration {
         declared_by: prior.declared_by.into(),
         basis: prior.basis.into(),
         draws_per_coordinate: prior.draws_per_coordinate,
     };
-    match antecedent_design::ConfounderValueFrame::from_sensitivity(&result, declaration) {
+    match antecedent::design::ConfounderValueFrame::from_sensitivity(&result, declaration) {
         Ok(frame) => Ok((
             Some(
                 json!({

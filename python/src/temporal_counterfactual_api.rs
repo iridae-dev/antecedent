@@ -46,7 +46,7 @@ fn failure(error: &TemporalCounterfactualArtifactError) -> PyErr {
         }
         TemporalCounterfactualArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("temporal_counterfactual.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -71,7 +71,7 @@ fn evaluate_temporal_counterfactual(
         serde_json::from_str(request_json).map_err(|e| {
             with_reason_code(
                 value_err(format!("temporal_counterfactual.invalid_request: {e}")),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
     let artifact_id = artifact_id.to_owned();
@@ -109,7 +109,7 @@ fn consume_temporal_counterfactual_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("temporal_counterfactual.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }
@@ -150,7 +150,7 @@ fn general_failure(error: &GeneralTemporalCounterfactualArtifactError) -> PyErr 
         }
         GeneralTemporalCounterfactualArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("temporal_counterfactual.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -170,7 +170,7 @@ fn evaluate_general_temporal_counterfactual(
     let request: GeneralTemporalRequestWire = serde_json::from_str(request_json).map_err(|e| {
         with_reason_code(
             value_err(format!("temporal_counterfactual.invalid_request: {e}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         )
     })?;
     let artifact_id = artifact_id.to_owned();
@@ -205,7 +205,7 @@ fn consume_general_temporal_counterfactual_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("temporal_counterfactual.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }

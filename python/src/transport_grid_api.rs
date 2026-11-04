@@ -8,9 +8,8 @@ use antecedent::analysis::{
     TransportGridData, TransportGridPoint, TransportGridQuery, TransportGridResult,
     TransportGridState,
 };
-use antecedent_core::{ExecutionContext, Value};
-use antecedent_estimate::EmpiricalTableOptions;
-use antecedent_expr::{Assignment, ExactEvaluationLimits};
+use antecedent::estimate::{Assignment, EmpiricalTableOptions, ExactEvaluationLimits};
+use antecedent::prelude::{ExecutionContext, Value};
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 #[derive(Clone)]
@@ -34,7 +33,7 @@ impl GridPreparation {
             Self::Ready(value) => Ok(value.clone()),
         }
     }
-    fn inspect(&self) -> antecedent_contract::ReasoningView {
+    fn inspect(&self) -> antecedent::contract::ReasoningView {
         match self {
             Self::Deferred(value) => value.inspect(),
             Self::Ready(value) => value.inspect(),
@@ -98,7 +97,7 @@ impl PreparedTransportGridStage {
         let points=result.points().iter().zip(&self.inner.query().at).map(|(point,at)| -> PyResult<_> {
             let coordinates:BTreeMap<_,_>=at.entries().iter().map(|(v,x)|(self.names[v.as_usize()].as_str(),x.as_f64())).collect();
             match point {
-                TransportGridPoint::Unavailable(failure)=>Ok(serde_json::json!({"at":coordinates,"status":failure.kind,"support_status":point.support_status().as_str(),"detail":failure.detail,"factor_diagnostic":antecedent_io::transport_grid_wire::TransportGridFailureWire::from_failure(failure)})),
+                TransportGridPoint::Unavailable(failure)=>Ok(serde_json::json!({"at":coordinates,"status":failure.kind,"support_status":point.support_status().as_str(),"detail":failure.detail,"factor_diagnostic":antecedent::io::transport_grid_wire::TransportGridFailureWire::from_failure(failure)})),
                 _=>{
                     let distribution=point.distribution().ok_or_else(|| error("transport.executable_point_missing_distribution"))?;
                     let query=self.inner.query().functional.derivation().query();
@@ -115,7 +114,7 @@ impl PreparedTransportGridStage {
     }
     /// Native four-slot reasoning: the executed grid's, or the prepared stage's
     /// pre-execution inspection.
-    fn reasoning(&self) -> antecedent_contract::ReasoningView {
+    fn reasoning(&self) -> antecedent::contract::ReasoningView {
         self.last.as_ref().map_or_else(|| self.inner.inspect(), TransportGridResult::reasoning)
     }
 }
@@ -220,7 +219,7 @@ impl PreparedTransportGridStage {
             .export_named(&self.names)
             .map_err(error)?;
         let mut framed = b"ANTECEDENT-TRANSPORT-GRID\x01".to_vec();
-        framed.extend(antecedent_io::to_cbor(&(self.names.clone(), bytes)).map_err(error)?);
+        framed.extend(antecedent::io::to_cbor(&(self.names.clone(), bytes)).map_err(error)?);
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
     fn contrast(&self, left: usize, right: usize, outcome: &str) -> PyResult<String> {
@@ -246,21 +245,21 @@ impl PreparedTransportGridStage {
         };
         let arena = query.functional.arena();
         let factors = arena.distribution_leaves(query.functional.root()).into_iter().map(|id| {
-            let antecedent_expr::ExprNode::Distribution { variables, conditioned_on, intervention, population, regime, .. } = arena.node(id) else {
+            let antecedent::estimate::ExprNode::Distribution { variables, conditioned_on, intervention, population, regime, .. } = arena.node(id) else {
                 return Err(error("transport factor is not a distribution"));
             };
-            Ok(serde_json::json!({"expression": id.raw(), "population": arena.population(*population), "regime": regime.map(antecedent_core::RegimeId::raw), "variables": arena.var_set(*variables).iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(), "conditioned_on": arena.var_set(*conditioned_on).iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(), "interventions": arena.intervention_assignments(*intervention).iter().map(|a|self.names[a.variable.as_usize()].as_str()).collect::<Vec<_>>()}))
+            Ok(serde_json::json!({"expression": id.raw(), "population": arena.population(*population), "regime": regime.map(antecedent::schema::RegimeId::raw), "variables": arena.var_set(*variables).iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(), "conditioned_on": arena.var_set(*conditioned_on).iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(), "interventions": arena.intervention_assignments(*intervention).iter().map(|a|self.names[a.variable.as_usize()].as_str()).collect::<Vec<_>>()}))
         }).collect::<PyResult<Vec<_>>>()?;
         let reasoning = self.reasoning();
         let identification_status =
             reasoning.identification.as_ref().map_or("unavailable", |slot| slot.status.as_str());
         let uncertainty_available = reasoning.uncertainty.is_available();
         Ok(serde_json::json!({
-            "identification":{"available":reasoning.identification.is_available(),"summary":identification_status,"payload":{"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", ""),"theorem_scope":proof.evidence_setting(),"sources":proof.sources(),"rules":proof.rules(),"required_factors":factors,"required_bindings":query.functional.arena().leaf_bindings(query.functional.root()).iter().map(|b|serde_json::json!({"population":b.population.as_ref(),"regime":b.regime.map(antecedent_core::RegimeId::raw)})).collect::<Vec<_>>()}},
+            "identification":{"available":reasoning.identification.is_available(),"summary":identification_status,"payload":{"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", ""),"theorem_scope":proof.evidence_setting(),"sources":proof.sources(),"rules":proof.rules(),"required_factors":factors,"required_bindings":query.functional.arena().leaf_bindings(query.functional.root()).iter().map(|b|serde_json::json!({"population":b.population.as_ref(),"regime":b.regime.map(antecedent::schema::RegimeId::raw)})).collect::<Vec<_>>()}},
             "support":{"available":reasoning.support.is_available(),"summary":"grid_local_support","payload":{"points":points,"population_positivity":"assumed_not_empirically_proven","slot":crate::transport_common::support_slot_json(&reasoning.support)}},
             "uncertainty":{"available":uncertainty_available,"summary":if uncertainty_available{"pointwise_bootstrap"}else{"unavailable"},"payload":{"calibration_status":"not_bound_to_this_execution","simultaneous_bands":false}},
             "assumptions":{"available":reasoning.assumptions.is_available(),"summary":"declared_population_selections_and_provider_contract","payload":{"empirically_verified":false,"target":proof.query().target.as_ref(),"sources":proof.sources(),"obligations":crate::transport_common::obligation_ids(&reasoning.assumptions)}},
-            "execution_id":self.last.as_ref().map(TransportGridResult::identity),"capabilities":{"storage":true,"proof_verification":true,"numerical_verification":true,"estimator_replay":self.inner.can_reestimate()},"evidence_contract":antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(query.functional.catalog()),"supported_operations":["estimate","bind_snapshot","rebind","export","mean","contrast","scalar_projection"],"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", "")
+            "execution_id":self.last.as_ref().map(TransportGridResult::identity),"capabilities":{"storage":true,"proof_verification":true,"numerical_verification":true,"estimator_replay":self.inner.can_reestimate()},"evidence_contract":antecedent::io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(query.functional.catalog()),"supported_operations":["estimate","bind_snapshot","rebind","export","mean","contrast","scalar_projection"],"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", "")
         }).to_string())
     }
     fn plan_summary(&self) -> BTreeMap<String, String> {
@@ -361,7 +360,7 @@ fn prepare_transport_grid(
         crate::execution_api::apply(&mut ctx);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
-            antecedent_identify::SidLimits { steps: max_steps, depth: max_depth },
+            antecedent::identify::SidLimits { steps: max_steps, depth: max_depth },
             &ctx,
         ) {
             Ok(f) => f,
@@ -369,12 +368,12 @@ fn prepare_transport_grid(
                 .search_catalog(
                     &diagram,
                     &catalog,
-                    antecedent_identify::SidLimits { steps: max_steps, depth: max_depth },
+                    antecedent::identify::SidLimits { steps: max_steps, depth: max_depth },
                     &ctx,
                 )
                 .map_err(error)?
             {
-                antecedent_identify::CatalogTransportResult::Identified(f) => *f,
+                antecedent::identify::CatalogTransportResult::Identified(f) => *f,
                 other => {
                     return Err(crate::transport_common::catalog_search_refusal(&other, &names));
                 }
@@ -419,7 +418,7 @@ fn consume_transport_grid(
     if memory_bytes.is_some_and(|n| bytes.len() as u64 > n) {
         return Err(error("grid artifact memory budget"));
     }
-    let (names, bytes): (Vec<String>, Vec<u8>) = antecedent_io::from_cbor(bytes).map_err(error)?;
+    let (names, bytes): (Vec<String>, Vec<u8>) = antecedent::io::from_cbor(bytes).map_err(error)?;
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
         ctx.set_memory_limit(memory_bytes);

@@ -14,8 +14,8 @@ use antecedent::analysis::file_table::{
     FileTableError, GaussianSummarySpec, ReadOptions, ReadPlan, SummaryMissing, TableFile,
     TableFileFormat, WeightedCapacityError, WeightedCapacityOutput, summarize_weighted_gaussian,
 };
-use antecedent_core::execution_facts::OutputRetention;
-use antecedent_data::OwnedColumn;
+use antecedent::data::OwnedColumn;
+use antecedent::execution::execution_facts::OutputRetention;
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -116,7 +116,7 @@ fn plan(
 fn read_columns(
     table: &TableFile,
     plan: &ReadPlan,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> Result<ReadResult, FileSourceError> {
     let materialized = table.materialize(plan, ctx)?;
     let receipt = materialized.receipt().clone();
@@ -212,7 +212,7 @@ impl PyTableFile {
     /// Row count the footers record, or `None` (Arrow IPC).
     #[getter]
     fn declared_rows(&self) -> Option<u64> {
-        self.inner.declared_rows().map(antecedent_data::GlobalId::get)
+        self.inner.declared_rows().map(antecedent::data::GlobalId::get)
     }
 
     /// `(name, kind, nullable, arrow_type, timezone, ordered)` for every column.

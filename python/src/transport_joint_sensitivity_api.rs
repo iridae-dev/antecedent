@@ -1,14 +1,14 @@
 //! Python bindings for joint mechanism deviations of the registered
 //! surrogate z formula. Every function here backs one routed wrapper in
 //! `antecedent.transport._joint_sensitivity` and is reached only through it.
-use antecedent::{JointSensitivityArtifactWire, JointSensitivityConsumeLimits};
-use antecedent_core::reason_code;
-use antecedent_io::IoError;
-use antecedent_io::z_transport_artifact::ZTransportConsumeLimits;
-use antecedent_validate::{
+use antecedent::io::IoError;
+use antecedent::io::z_transport_artifact::ZTransportConsumeLimits;
+use antecedent::reason::reason_code;
+use antecedent::validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
     JointSensitivityLimits, TippingBracket,
 };
+use antecedent::{JointSensitivityArtifactWire, JointSensitivityConsumeLimits};
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -117,7 +117,7 @@ fn result_json(result: &JointMechanismSensitivityResult) -> serde_json::Value {
             "operations_consumed": result.receipt.operations_consumed,
             "depth_reached": result.receipt.depth_reached,
             "live_state_bytes": result.receipt.live_state_bytes,
-            "stop": result.receipt.stop.map(antecedent_core::SearchStop::code),
+            "stop": result.receipt.stop.map(antecedent::execution::SearchStop::code),
             "explored": result.receipt.explored,
             "unevaluated": result.receipt.unevaluated,
         },
@@ -239,7 +239,7 @@ fn consume_z_transport_joint_sensitivity_artifact(
     let defaults = ZTransportConsumeLimits::default();
     let limits = JointSensitivityConsumeLimits {
         baseline: ZTransportConsumeLimits {
-            evaluation: antecedent_expr::ExactEvaluationLimits {
+            evaluation: antecedent::estimate::ExactEvaluationLimits {
                 operations: max_operations,
                 depth: max_depth,
             },

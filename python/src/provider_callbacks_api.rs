@@ -11,6 +11,11 @@
 
 use std::collections::BTreeMap;
 
+use antecedent::analysis::evidence_ledger::{SourceId, TransportIdentity};
+use antecedent::analysis::interface_contract::{
+    CalibrationStatus, ContractOperation, EvidenceBasis, SupportDomain, UncertaintyMeaning,
+};
+use antecedent::analysis::predictive_assessment::{ForecastLaw, LawSource};
 use antecedent::analysis::provider_callbacks::{
     CallbackConnectionError, CallbackContext, CallbackDeclaration, CallbackDependency,
     CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy, CallbackFailure,
@@ -27,18 +32,16 @@ use antecedent::analysis::transport_handoff::{
     TransportHandoffRefusal, TransportedClaimOffer, TransportedInputPolicy, consume_for_callback,
     hand_to_callback,
 };
-use antecedent_contract::evidence_ledger::{SourceId, TransportIdentity, parse_digest_hex};
-use antecedent_contract::interface_contract::{
-    CalibrationStatus, ContractOperation, EvidenceBasis, SupportDomain, UncertaintyMeaning,
+use antecedent::contract::evidence_ledger::parse_digest_hex;
+use antecedent::contract::{
+    ExternalRefusal, ProviderObjectIdentity, VerificationProbe, probe_from_name,
+    verify_external_object,
 };
-use antecedent_contract::{
-    ExternalRefusal, ProviderObjectIdentity, ScientificQuantity, VerificationProbe,
-    probe_from_name, verify_external_object,
-};
-use antecedent_core::{CancellationToken, ExecutionContext};
-use antecedent_io::external_claim_artifact::VerificationProbeWire;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_validate::predictive_assessment::{ForecastLaw, LawSource};
+use antecedent::execution::CancellationToken;
+use antecedent::io::external_claim_artifact::VerificationProbeWire;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::prelude::ExecutionContext;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
@@ -705,7 +708,7 @@ fn invoke_python(
     let inputs: BTreeMap<&String, Json> =
         ctx.inputs.iter().map(|(name, value)| (name, output_json(value))).collect();
     let context = json!({
-        "stream_seed": ctx.rng.as_ref().map(antecedent_core::CausalRng::state),
+        "stream_seed": ctx.rng.as_ref().map(antecedent::execution::CausalRng::state),
         "attempt": ctx.attempt,
         "idempotency_key": ctx.idempotency_key,
         "inputs": inputs,
@@ -1181,9 +1184,9 @@ fn artifact_error_json(
             .to_string()
         }
         None => json!({
-            "code": antecedent_core::reason_code!("invalid_argument"),
+            "code": antecedent::reason::reason_code!("invalid_argument"),
             "stage": "consume",
-            "detail": antecedent_core::reason_details::callback_protocol::ARTIFACT_INVALID,
+            "detail": antecedent::reason::reason_details::callback_protocol::ARTIFACT_INVALID,
             "message": error.to_string(),
             "offending": null, "expected": null, "supplied": null,
             "remedy": "supply an intact callback_result_v1 artifact",

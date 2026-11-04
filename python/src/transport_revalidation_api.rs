@@ -11,17 +11,17 @@
 
 use std::collections::BTreeMap;
 
+use antecedent::analysis::composition_verification::{
+    ObservedEffect, SupportStanding, TrustStanding,
+};
 use antecedent::analysis::transport_revalidation::{
     SceneCalibration, TransportClaimState, TransportRevalidationRefusal,
     TransportRevalidationReport, TransportScene, TransportSceneBuilder, response_coordinate,
     revalidate, transported_claim_node, transported_claim_standing,
 };
-use antecedent_contract::ProviderTrust;
-use antecedent_contract::composition_verification::{
-    ObservedEffect, SupportStanding, TrustStanding,
-};
-use antecedent_contract::evidence_ledger::parse_digest_hex;
-use antecedent_core::SemanticDigest;
+use antecedent::contract::ProviderTrust;
+use antecedent::contract::evidence_ledger::parse_digest_hex;
+use antecedent::scientific::SemanticDigest;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -225,7 +225,7 @@ fn transported_response_node(
 
 fn standalone_calibration(
     text: &str,
-) -> PyResult<antecedent_contract::composition_verification::CalibrationDeclaration> {
+) -> PyResult<antecedent::analysis::composition_verification::CalibrationDeclaration> {
     check_size(text, "calibration declaration")?;
     let parsed: Json = serde_json::from_str(text)
         .map_err(|e| crate::value_err(format!("invalid calibration declaration: {e}")))?;

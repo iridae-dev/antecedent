@@ -40,13 +40,13 @@ fn dose_context(
     threads: Option<u32>,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<antecedent_core::ExecutionContext> {
+) -> PyResult<antecedent::prelude::ExecutionContext> {
     if threads == Some(0) {
         return Err(value_err("threads must be positive"));
     }
-    let mut ctx = antecedent_core::ExecutionContext::production(
+    let mut ctx = antecedent::prelude::ExecutionContext::production(
         0,
-        threads.unwrap_or_else(antecedent_core::default_user_threads),
+        threads.unwrap_or_else(antecedent::execution::default_user_threads),
     );
     ctx.set_memory_limit(max_bytes);
     crate::apply_cancel(&mut ctx, cancel);
@@ -54,7 +54,7 @@ fn dose_context(
 }
 
 fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<String> {
-    if matches!(error, DoseGridArtifactError::Refused { code, .. } if *code == antecedent_core::reason_code!("transport_budget_cancel"))
+    if matches!(error, DoseGridArtifactError::Refused { code, .. } if *code == antecedent::reason::reason_code!("transport_budget_cancel"))
     {
         return None;
     }
@@ -71,8 +71,8 @@ fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<St
 
 fn execution_error(error: &DoseGridArtifactError) -> PyErr {
     if let DoseGridArtifactError::Refused { code, detail, message } = error {
-        if *code == antecedent_core::reason_code!("transport_budget_cancel") {
-            return if detail == antecedent_core::reason_details::dose_grid::CANCELLED {
+        if *code == antecedent::reason::reason_code!("transport_budget_cancel") {
+            return if detail == antecedent::reason::reason_details::dose_grid::CANCELLED {
                 crate::CausalCancelledError::new_err(message.clone())
             } else {
                 crate::CausalResourceError::new_err(message.clone())
@@ -275,7 +275,7 @@ fn evaluate_dose_grid_posterior(
     wire.outcome = outcome;
     let ctx = dose_context(threads, max_bytes, cancel)?;
     let (payload, facts) = detach_catch(py, move || {
-        let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let attempt = antecedent::execution::execution_attempt::observe_with_context(&ctx, || {
             let done = BayesianPosteriorRow::evaluate_with_context(request, &ctx)?;
             let bytes = done.export()?;
             let report = posterior_report_json(&done)
@@ -311,7 +311,7 @@ fn consume_dose_grid_posterior_artifact(
     let limits = PosteriorRowConsumeLimits { max_rows, max_points: max_grid };
     let ctx = dose_context(threads, max_bytes, cancel)?;
     let (payload, facts) = detach_catch(py, move || {
-        let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let attempt = antecedent::execution::execution_attempt::observe_with_context(&ctx, || {
             let done = BayesianPosteriorRow::consume_with_context(artifact, limits, &ctx)?;
             posterior_report_json(&done)
                 .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))

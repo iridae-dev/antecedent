@@ -20,42 +20,19 @@ workspace = true
 
 [features]
 # Development build (never default): `not_supported` routes run and results list `would_refuse`.
-development = ["antecedent-core/development", "antecedent-contract/development", "antecedent-data/development", "antecedent/development", "antecedent-io/development", "antecedent-io-core/development", "antecedent-prob/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-design/development", "antecedent-model/development", "antecedent-attribution/development", "antecedent-state/development", "antecedent-stats/development", "antecedent-validate/development", "antecedent-discovery/development", "antecedent-estimate/development", "antecedent-learn/development", "antecedent-learn-burn?/development"]
+development = ["antecedent/development"]
 default = ["ml-full", "ml-neural"]
-ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
-ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
+ml-gbdt = ["antecedent/ml-gbdt"]
+ml-forest = ["antecedent/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
-ml-neural = ["antecedent/ml-neural", "antecedent-estimate/ml-neural"]
-# Opt-in accelerator distribution. Cargo unifies the features of one package across the
-# graph, so naming `antecedent-learn-burn/wgpu` here links Burn's WGPU backend into the
-# learner `ml-neural` already pulls in. The CPU wheel never enables it.
-accelerator-wgpu = ["ml-neural", "dep:antecedent-learn-burn", "antecedent-learn-burn/wgpu"]
+ml-neural = ["antecedent/ml-neural"]
+# Opt-in accelerator distribution, forwarded through the facade: links Burn's WGPU backend
+# into the learner `ml-neural` already pulls in. The CPU wheel never enables it.
+accelerator-wgpu = ["ml-neural", "antecedent/ml-neural-wgpu"]
 
 [dependencies]
 blake3.workspace = true
-antecedent-core = { workspace = true }
-antecedent-contract = { workspace = true }
-antecedent-data = { workspace = true, features = ["arrow", "parquet", "ipc"] }
 antecedent = { workspace = true }
-antecedent-io = { workspace = true }
-antecedent-io-core = { workspace = true }
-antecedent-prob = { workspace = true }
-# Type conversion only (mediation estimand / graph construction for analyze*).
-antecedent-expr = { workspace = true }
-antecedent-graph = { workspace = true }
-antecedent-identify = { workspace = true }
-antecedent-design = { workspace = true }
-antecedent-model = { workspace = true }
-antecedent-attribution = { workspace = true }
-antecedent-state = { workspace = true }
-antecedent-stats = { workspace = true }
-antecedent-validate = { workspace = true }
-antecedent-discovery = { workspace = true }
-# Concrete estimator structs for the `estimator_config=` parser; the
-# `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
-antecedent-estimate = { workspace = true }
-antecedent-learn = { workspace = true }
-antecedent-learn-burn = { workspace = true, optional = true }
 # `extension-module` is also set on the workspace pyo3 dependency: this cdylib
 # must not link libpython. `build.rs` links libpython only into the test harness.
 # `multiple-pymethods` is the second impl on Dag, Cpdag, Pag, and Admg.

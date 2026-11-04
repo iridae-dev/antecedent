@@ -123,21 +123,18 @@ fn consume_staleness_baseline(
     detach_catch(py, move || {
         let ctx = py_execution_context(1, resolve_user_threads(None));
         crate::measured_inference_api::check_cancelled(&ctx)?;
-        let baseline =
-            antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted(
-                artifact, &ctx,
-            )
-            .map_err(|error| match error {
-                antecedent_io_core::IoError::StreamCancelled => {
-                    py_err(antecedent::CausalError::Cancelled {
-                        stage: "consume_staleness_baseline",
-                    })
-                }
-                antecedent_io_core::IoError::StreamBudgetRefused { message } => {
-                    crate::CausalResourceError::new_err(message)
-                }
-                other => crate::bridge::serialization(other),
-            })?;
+        let baseline = antecedent::io::staleness_artifact::StalenessBaselineWire::consume_admitted(
+            artifact, &ctx,
+        )
+        .map_err(|error| match error {
+            antecedent::io::IoError::StreamCancelled => {
+                py_err(antecedent::CausalError::Cancelled { stage: "consume_staleness_baseline" })
+            }
+            antecedent::io::IoError::StreamBudgetRefused { message } => {
+                crate::CausalResourceError::new_err(message)
+            }
+            other => crate::bridge::serialization(other),
+        })?;
         // Keep the admitted owner through verification, expected-identity checking
         // and all reads. No decoded profile can escape without its lease.
         let wire = baseline.wire();

@@ -14,12 +14,13 @@ use antecedent::analysis::inverse_query::{
     InverseQueryWire, MAX_INVERSE_QUERY_ARTIFACT_BYTES, MeanSource, StructuralAtom,
     finite_enumeration_baseline,
 };
-use antecedent_contract::{ExternalRefusal, ScientificQuantity};
-use antecedent_core::reason_code;
-use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
-use antecedent_design::decision_eval::MeanEstimate;
-use antecedent_io::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::contract::ExternalRefusal;
+use antecedent::design::decision_artifact::{contract_from_json_refusal, contract_to_json};
+use antecedent::design::decision_eval::MeanEstimate;
+use antecedent::io::IoError;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::reason::reason_code;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -62,14 +63,14 @@ fn io_refusal(error: &IoError) -> String {
     match error {
         IoError::Refused { code, message } => {
             let (detail, text) = message.split_once(": ").unwrap_or((
-                antecedent_core::reason_details::functional_inverse_query::WRONG_CONTRACT,
+                antecedent::reason::reason_details::functional_inverse_query::WRONG_CONTRACT,
                 message.as_str(),
             ));
             plain_refusal(*code, detail, Some(text.to_owned()))
         }
         other => plain_refusal(
             reason_code!("invalid_argument"),
-            antecedent_core::reason_details::functional_inverse_query::INVALID_ARTIFACT,
+            antecedent::reason::reason_details::functional_inverse_query::INVALID_ARTIFACT,
             Some(other.to_string()),
         ),
     }
@@ -100,7 +101,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
         return Ok(ForwardClaim::Means(mean.means.clone()));
     }
     if let Ok(claim) = object.extract::<PyRef<'_, crate::external_api::PyExternalClaimArtifact>>() {
-        return antecedent_design::composition_verifiers::mean_source_of(&claim.artifact)
+        return antecedent::analysis::composition::mean_source_of(&claim.artifact)
             .map(ForwardClaim::Means)
             .map_err(serialization);
     }
@@ -108,7 +109,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
         object.extract::<PyRef<'_, crate::program_claims_api::PyNativeResponseClaim>>()
     {
         use antecedent::analysis::native_claims::NativeDecisionSource;
-        use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
+        use antecedent::design::decision_contract::{SourceRepresentation, SourceRequirement};
         let mode = if claim.claim.has_joint_law() {
             SourceRepresentation::JointDraws
         } else {
@@ -181,7 +182,7 @@ fn atoms_from(objects: &[Bound<'_, PyAny>]) -> PyResult<Vec<StructuralAtom>> {
 pub(crate) struct PyInverseQueryArtifact {
     artifact: InverseQueryArtifact,
     source_claims: Vec<crate::program_claims_api::PyNativeResponseClaim>,
-    external_sources: Vec<antecedent_design::source_evidence::SourceEvidence>,
+    external_sources: Vec<antecedent::analysis::source_evidence::SourceEvidence>,
 }
 
 impl PyInverseQueryArtifact {
@@ -199,7 +200,7 @@ impl PyInverseQueryArtifact {
                 crate::value_err(
                     "functional_inverse_query.bounds_exceeded: too many original source artifacts",
                 ),
-                antecedent_core::reason_code!("inverse_functional_unsupported"),
+                antecedent::reason::reason_code!("inverse_functional_unsupported"),
             ));
         }
         let contract = contract_to_json(&self.artifact.query().contract).map_err(serialization)?;
@@ -270,7 +271,7 @@ impl PyInverseQueryArtifact {
                     let evidence =
                         crate::source_evidence_api::PySourceEvidence::from_external(&claim)?.inner;
                     if !external_sources.iter().any(
-                        |held: &antecedent_design::source_evidence::SourceEvidence| {
+                        |held: &antecedent::analysis::source_evidence::SourceEvidence| {
                             held.original_bytes() == evidence.original_bytes()
                         },
                     ) {

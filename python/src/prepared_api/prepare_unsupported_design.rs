@@ -7,8 +7,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::Study;
-use antecedent_core::CausalQuery;
-use antecedent_data::TableView;
+use antecedent::data::TableView;
+use antecedent::query::CausalQuery;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -48,7 +48,7 @@ impl PyPreparedAnalysis {
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-                let query = antecedent_core::SequentialContrastQuery {
+                let query = antecedent::query::SequentialContrastQuery {
                     outcome: id(&outcome)?,
                     first_treatment: id(&first_treatment)?,
                     second_treatment: id(&second_treatment)?,
@@ -102,7 +102,7 @@ impl PyPreparedAnalysis {
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-                let query = antecedent_core::HistoryMatchQuery {
+                let query = antecedent::query::HistoryMatchQuery {
                     outcome: id(&outcome)?,
                     treated: id(&treated)?,
                     history: history
@@ -148,7 +148,7 @@ impl PyPreparedAnalysis {
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-                let mut query = antecedent_core::IvBoundsQuery::new(
+                let mut query = antecedent::query::IvBoundsQuery::new(
                     id(&outcome)?,
                     id(&treatment)?,
                     id(&instrument)?,
@@ -168,8 +168,8 @@ impl PyPreparedAnalysis {
 fn association_functional(
     functional: &str,
     folds: Option<u32>,
-) -> PyResult<antecedent_core::AssociationFunctional> {
-    use antecedent_core::{AssociationFunctional, AssociationMeasure};
+) -> PyResult<antecedent::query::AssociationFunctional> {
+    use antecedent::query::{AssociationFunctional, AssociationMeasure};
     if functional != "predictive" && folds.is_some() {
         return Err(crate::value_err("folds applies only to predictive association"));
     }
@@ -223,36 +223,39 @@ impl PyPreparedAnalysis {
             req.refuse_design("association")?;
             let functional = association_functional(&functional, folds)?;
             let scale = match outcome_scale.as_deref() {
-                None | Some("schema") => antecedent_core::AssociationOutcome::Schema,
-                Some(other) => antecedent_core::AssociationOutcome::from_name(other)
+                None | Some("schema") => antecedent::query::AssociationOutcome::Schema,
+                Some(other) => antecedent::query::AssociationOutcome::from_name(other)
                     .ok_or_else(|| crate::value_err(format!("unknown outcome scale `{other}`")))?,
             };
             let build = move |req: PrepareRequest,
-                          schema: &antecedent_core::CausalSchema|
-              -> PyResult<(PrepareRequest, antecedent_core::AssociationQuery)> {
-            let id = |name: &str| crate::graph_build::schema_var_id(schema, name);
-            let predictors =
-                predictors.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
-            let conditioning =
-                conditioning.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
-            let mut query = antecedent_core::AssociationQuery::new(id(&outcome)?, predictors)
-                .with_conditioning(conditioning)
-                .with_functional(functional)
-                .with_outcome_scale(scale);
-            if let Some(weight) = weight.as_deref() {
-                query = query.with_weight(id(weight)?);
-            }
-            if let Some(reason) = refused_after.as_deref() {
-                query = query.following_refusal(reason);
-            }
-            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            Ok((req, query))
-        };
+                              schema: &antecedent::prelude::CausalSchema|
+                  -> PyResult<(
+                PrepareRequest,
+                antecedent::query::AssociationQuery,
+            )> {
+                let id = |name: &str| crate::graph_build::schema_var_id(schema, name);
+                let predictors =
+                    predictors.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
+                let conditioning =
+                    conditioning.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
+                let mut query = antecedent::query::AssociationQuery::new(id(&outcome)?, predictors)
+                    .with_conditioning(conditioning)
+                    .with_functional(functional)
+                    .with_outcome_scale(scale);
+                if let Some(weight) = weight.as_deref() {
+                    query = query.with_weight(id(weight)?);
+                }
+                if let Some(reason) = refused_after.as_deref() {
+                    query = query.following_refusal(reason);
+                }
+                query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+                Ok((req, query))
+            };
             if series {
                 let input = req.load_frame(py, columns, None)?;
                 let FrameData::Series(data) = input.materialize()? else {
                     return Err(crate::refusal(
-                        antecedent_core::reason_code!("data_modality_not_supported"),
+                        antecedent::reason::reason_code!("data_modality_not_supported"),
                         "an association over time reads the consecutive points of one series",
                     ));
                 };

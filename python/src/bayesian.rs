@@ -3,20 +3,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::NumericColumn;
-use antecedent::discovery::{
-    BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule, GraphPosterior as RustGraphPosterior,
-    SamplingSummary, StaticDiscoverParams,
-};
-use antecedent::discovery_defaults::resolve_ci;
-use antecedent::{DiscoveredStructure, DiscoverySpec};
-use antecedent_discovery::adjacency_mask::{
+use antecedent::discovery::adjacency_mask::{
     adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge,
     mask_is_dag,
 };
-use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, n_directed_edges};
-use antecedent_graph::Cpdag as RustCpdag;
-use antecedent_prob::InferenceDiagnostics;
-use antecedent_stats::{FdrAdjustment, PartialCorrelation};
+use antecedent::discovery::{
+    AdjacencyMask, BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule,
+    GraphPosterior as RustGraphPosterior, GraphPosteriorAtomKind, InferenceDiagnostics,
+    SamplingSummary, StaticDiscoverParams, n_directed_edges,
+};
+use antecedent::discovery_defaults::resolve_ci;
+use antecedent::graph::Cpdag as RustCpdag;
+use antecedent::inference::{FdrAdjustment, PartialCorrelation};
+use antecedent::{DiscoveredStructure, DiscoverySpec};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyModule};
 
@@ -287,7 +286,10 @@ impl PyGraphPosterior {
         d.set_item("weights", self.weights.clone())?;
         d.set_item(
             "graph_keys",
-            self.adjacency.iter().map(antecedent_discovery::AdjacencyMask::key).collect::<Vec<_>>(),
+            self.adjacency
+                .iter()
+                .map(antecedent::discovery::AdjacencyMask::key)
+                .collect::<Vec<_>>(),
         )?;
         d.set_item("edge_marginals", self.edge_marginals.clone())?;
         d.set_item("orientation_marginals", self.orientation_marginals.clone())?;
@@ -613,10 +615,10 @@ fn bayesian_params_capped(max_parents: Option<usize>) -> BayesianDiscoverParams 
 /// The local score a posterior search runs under: Gaussian noise (the default, invariant
 /// within a Markov equivalence class) or Laplace noise (which orients what non-Gaussian noise
 /// orients).
-fn score_family_of(noise: &str) -> PyResult<antecedent_state::GraphScoreFamily> {
+fn score_family_of(noise: &str) -> PyResult<antecedent::state::GraphScoreFamily> {
     match noise.to_ascii_lowercase().as_str() {
-        "gaussian" => Ok(antecedent_state::GraphScoreFamily::GaussianBic),
-        "laplace" => Ok(antecedent_state::GraphScoreFamily::LaplaceBic),
+        "gaussian" => Ok(antecedent::state::GraphScoreFamily::GaussianBic),
+        "laplace" => Ok(antecedent::state::GraphScoreFamily::LaplaceBic),
         other => {
             Err(crate::value_err(format!("unknown noise {other:?}; expected gaussian|laplace")))
         }
@@ -927,7 +929,7 @@ fn discover_ci_screened_posterior(
     let ci_label = ci_name.to_ascii_lowercase();
     let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
         std::sync::Arc::new(PartialCorrelation)
-            as std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>
+            as std::sync::Arc<dyn antecedent::inference::ConditionalIndependence + Send + Sync>
     } else {
         resolve_ci(&ci_name, None).map_err(py_err)?
     };

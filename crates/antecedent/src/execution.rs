@@ -9,6 +9,8 @@ pub use antecedent_core::BUILD_FLAVOR;
 pub use antecedent_core::RandomizationTestLimits;
 /// `antecedent-core` items from `inference_realization.rs`.
 pub use antecedent_core::RealizationKind;
+/// Admission of work against the execution context's budgets.
+pub use antecedent_core::execution::{AdmissionError, AdmissionLease, AdmissionPool};
 /// Batch callbacks for intervention programs.
 pub use antecedent_core::{
     BatchCallback, CallbackError, CallbackFailure, CallbackImplementation, CallbackOutput,
@@ -26,10 +28,6 @@ pub use antecedent_core::{CausalRng, RngFactory, StreamDomain};
 pub use antecedent_core::{ProviderCapability, ProviderDeclaration};
 /// The bounded-search contract every bounded search runs under.
 pub use antecedent_core::{SearchLimits, SearchReceipt, SearchStop};
-/// Execution context: parallelism, determinism, RNG, budgets, kernel policy.
-pub mod execution {
-    pub use antecedent_core::execution::{AdmissionError, AdmissionLease, AdmissionPool};
-}
 /// Non-authoritative accounting of operations begun by executing source engines.
 pub mod execution_attempt {
     pub use antecedent_core::execution_attempt::{ObservationToken, observe_with_context};

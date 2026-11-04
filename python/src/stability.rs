@@ -7,16 +7,18 @@
 use crate::NumericColumn;
 use std::sync::Arc;
 
-use antecedent::discovery::RegimeAssignment;
+use antecedent::data::{EnvHoldoutSplit, TableView};
+use antecedent::discovery::{
+    DiscoveryWorkspace, JpcmciPlus, MultiDatasetConstraints, Pcmci, PcmciPlus, RegimeAssignment,
+    Rpcmci,
+};
 use antecedent::discovery_defaults::{
     DEFAULT_MAX_COND_SIZE, jpcmci_constraints, pcmci_constraints, resolve_ci,
 };
-use antecedent_core::{Lag, RegimeId, VariableId};
-use antecedent_data::{EnvHoldoutSplit, MultiEnvironmentData, TableView};
-use antecedent_discovery::{
-    DiscoveryWorkspace, JpcmciPlus, MultiDatasetConstraints, Pcmci, PcmciPlus, Rpcmci,
-};
-use antecedent_validate::{
+use antecedent::graph::Lag;
+use antecedent::prelude::{MultiEnvironmentData, VariableId};
+use antecedent::schema::RegimeId;
+use antecedent::validate::{
     AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity, EnvironmentHoldout,
     FalsePositiveCheck, LagWindowSensitivity, NullTransform, OrientationStability, RegimeStability,
     SyntheticNullCalibration,
@@ -58,10 +60,10 @@ fn with_pcmci_series<F>(
 ) -> PyResult<Py<PyDict>>
 where
     F: FnOnce(
-            &antecedent_data::TimeSeriesData,
+            &antecedent::prelude::TimeSeriesData,
             &[VariableId],
             Pcmci,
-            &antecedent_core::ExecutionContext,
+            &antecedent::prelude::ExecutionContext,
             &[String],
         ) -> PyResult<Py<PyDict>>
         + Send,
@@ -80,7 +82,7 @@ where
 fn link_dict(
     py: Python<'_>,
     names: &[String],
-    link: antecedent_discovery::LaggedLink,
+    link: antecedent::discovery::LaggedLink,
 ) -> PyResult<Py<PyDict>> {
     let d = PyDict::new(py);
     let src = names
@@ -101,7 +103,7 @@ fn link_dict(
 fn discovery_stability_dict(
     py: Python<'_>,
     names: &[String],
-    report: &antecedent_validate::DiscoveryStabilityReport,
+    report: &antecedent::validate::DiscoveryStabilityReport,
 ) -> PyResult<Py<PyDict>> {
     let d = PyDict::new(py);
     let mut freqs = Vec::with_capacity(report.frequencies.len());

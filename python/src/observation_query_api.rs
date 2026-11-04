@@ -18,11 +18,11 @@ use antecedent::analysis::observation_query::{
     ObservationQueryWire, ObservationRequest, ObservationResultWire, ParameterRedrawRequest,
     RedrawPrior, consume_observation_query_artifact, retain_counts, retain_regression,
 };
-use antecedent_contract::{
+use antecedent::contract::{
     ExternalRefusal, InferenceBasis, MeasuredIndicator, ObservationOperation, ObservedSlot,
     SlotProvenance, SlotValue, calibration_refusal, interval_refusal,
 };
-use antecedent_core::measurement_model::{MeasurementKind, RepresentationVersion};
+use antecedent::scientific::{MeasurementKind, RepresentationVersion};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -55,7 +55,7 @@ fn refusals_json(code: &str, refusals: &[ExternalRefusal]) -> String {
         json!({
             "code": code,
             "stage": "observe",
-            "detail": antecedent_core::reason_details::observation_query::REQUEST_UNSUPPORTED,
+            "detail": antecedent::reason::reason_details::observation_query::REQUEST_UNSUPPORTED,
             "message": "observation query refused",
             "offending": Json::Null,
             "expected": Json::Null,
@@ -802,8 +802,13 @@ fn observation_query_consume(
         let consumed = consume_observation_query_artifact(&bytes, expected.as_deref(), &ctx);
         let query = if matches!(&consumed, Ok(value) if matches!(&value.result, ObservationResultWire::RequiredBayesFactor { .. } | ObservationResultWire::RequiredObservations { .. }))
         {
-            Some(antecedent_io_core::observation_query_artifact::ObservationQueryArtifactWire::decode(&bytes)
-                .map_err(|error| crate::value_err(error.to_string()))?.query)
+            Some(
+                antecedent::io::observation_query_artifact::ObservationQueryArtifactWire::decode(
+                    &bytes,
+                )
+                .map_err(|error| crate::value_err(error.to_string()))?
+                .query,
+            )
         } else {
             None
         };
@@ -846,19 +851,19 @@ fn count_fitted_observation_build(
     };
     if nodes_json.len() > 4 * 1024 * 1024 || evidence_json.len() > 64 * 1024 {
         return Err(crate::value_err_code(
-            antecedent_core::reason_code!("invalid_argument"),
-            antecedent_core::reason_details::observation_query::COUNT_FITTED_BOUNDS_EXCEEDED,
+            antecedent::reason::reason_code!("invalid_argument"),
+            antecedent::reason::reason_details::observation_query::COUNT_FITTED_BOUNDS_EXCEEDED,
         ));
     }
     let nodes: Vec<CountFittedNodeWire> = serde_json::from_str(nodes_json).map_err(|e| {
         crate::value_err_code(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!("observation_query.invalid_request: {e}"),
         )
     })?;
     let evidence: Vec<(String, String)> = serde_json::from_str(evidence_json).map_err(|e| {
         crate::value_err_code(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!("observation_query.invalid_request: {e}"),
         )
     })?;
@@ -888,7 +893,7 @@ fn count_fitted_of(
         CountFittedIntervalArtifactWire, CountFittedObservation,
     };
     let wire: CountFittedIntervalArtifactWire =
-        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+        antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
     Ok(CountFittedObservation::from_source(wire))
 }
 

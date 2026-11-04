@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use antecedent::PreparedStudy;
-use antecedent_core::ExecutionContext;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -17,8 +17,8 @@ use crate::{AteAnalysisResult, ate_result_from_analysis, py_execution_context_ex
 /// set on a private clone of the prepared study for this click only, so it is
 /// never retained by the handle, a snapshot, or an exported claim.
 pub(super) struct ClickControls {
-    cancel: Option<antecedent_core::CancellationToken>,
-    progress: Option<Arc<dyn antecedent_core::ProgressSink>>,
+    cancel: Option<antecedent::execution::CancellationToken>,
+    progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
     stage: Option<Arc<dyn antecedent::StageResultSink>>,
 }
 
@@ -35,7 +35,11 @@ impl ClickControls {
         })
     }
 
-    pub(super) fn ctx(&self, seed: u64, threads: Option<u32>) -> antecedent_core::ExecutionContext {
+    pub(super) fn ctx(
+        &self,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> antecedent::prelude::ExecutionContext {
         py_execution_context_ext(
             seed,
             crate::resolve_user_threads(threads),
@@ -83,7 +87,7 @@ pub(super) fn refuse_unstaged(inner: &PreparedStudy) -> PyResult<()> {
         return Ok(());
     }
     Err(crate::refusal(
-        antecedent_core::reason_code!("stage_stream_unavailable"),
+        antecedent::reason::reason_code!("stage_stream_unavailable"),
         "on_stage streams identify, estimate_point, \
          uncertainty and validate for one identification and one scalar effect whose point is \
          fitted before its uncertainty; this route fits its point and uncertainty together or \

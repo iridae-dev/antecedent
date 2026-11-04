@@ -83,7 +83,7 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
     }
 }
 
-fn check_cancel(ctx: &antecedent_core::ExecutionContext) -> PyResult<()> {
+fn check_cancel(ctx: &antecedent::prelude::ExecutionContext) -> PyResult<()> {
     if ctx.cancellation.is_cancelled() {
         return Err(crate::py_err(antecedent::CausalError::Cancelled { stage: "survival" }));
     }
@@ -94,7 +94,7 @@ fn admit_grid_copy(
     py: Python<'_>,
     n: usize,
     m: usize,
-) -> PyResult<(antecedent_core::ExecutionContext, antecedent_core::execution::AdmissionLease)> {
+) -> PyResult<(antecedent::prelude::ExecutionContext, antecedent::execution::AdmissionLease)> {
     let cells = n
         .checked_mul(m)
         .ok_or_else(|| crate::CausalResourceError::new_err("censoring grid dimensions overflow"))?;
@@ -106,7 +106,7 @@ fn admit_grid_copy(
     let acquire_ctx = ctx.clone();
     let lease = detach_catch(py, move || {
         acquire_ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent::execution::AdmissionError::Cancelled => {
                 crate::py_err(antecedent::CausalError::Cancelled { stage: "survival" })
             }
             error => crate::CausalResourceError::new_err(error.to_string()),
@@ -253,20 +253,20 @@ fn randomized_survival_ipcw(
                 ));
             }
         }
-        let result = antecedent_estimate::survival::randomized_survival_ipcw_summary(
-            &antecedent_estimate::survival::SurvivalRows {
+        let result = antecedent::estimate::survival::randomized_survival_ipcw_summary(
+            &antecedent::estimate::survival::SurvivalRows {
                 duration: &duration,
                 event_code: &event_codes,
                 treated: &treated,
                 delayed_entry: None,
             },
-            &antecedent_estimate::survival::KnownCensoring {
+            &antecedent::estimate::survival::KnownCensoring {
                 times: &times,
                 survival: &survival,
                 minimum_probability,
             },
             tau,
-            antecedent_estimate::survival::SurvivalEndpoint::Survival,
+            antecedent::estimate::survival::SurvivalEndpoint::Survival,
         )
         .map_err(crate::value_err)?;
         debug_assert!((minimum_g - result.1).abs() <= 1e-10);
@@ -364,20 +364,20 @@ fn randomized_cumulative_incidence_ipcw(
                 ));
             }
         }
-        let result = antecedent_estimate::survival::randomized_survival_ipcw_summary(
-            &antecedent_estimate::survival::SurvivalRows {
+        let result = antecedent::estimate::survival::randomized_survival_ipcw_summary(
+            &antecedent::estimate::survival::SurvivalRows {
                 duration: &duration,
                 event_code: &event_cause,
                 treated: &treated,
                 delayed_entry: None,
             },
-            &antecedent_estimate::survival::KnownCensoring {
+            &antecedent::estimate::survival::KnownCensoring {
                 times: &times,
                 survival: &survival,
                 minimum_probability,
             },
             tau,
-            antecedent_estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause },
+            antecedent::estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause },
         )
         .map_err(crate::value_err)?;
         debug_assert!((minimum_g - result.1).abs() <= 1e-10);

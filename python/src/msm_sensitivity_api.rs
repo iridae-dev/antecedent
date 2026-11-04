@@ -12,10 +12,10 @@ use antecedent::analysis::msm_sensitivity::{
     ActionUtility, MsmOutcomeLaw, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmStratum, msm_sensitivity, msm_sensitivity_artifact_bytes,
 };
-use antecedent_contract::ScientificQuantity;
-use antecedent_core::reason_code;
-use antecedent_io::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::IoError;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::reason::reason_code;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -36,7 +36,7 @@ fn msm_refusal(error: &MsmSensitivityError) -> String {
 fn declaration_refusal(message: &str) -> String {
     refusal_json(
         reason_code!("invalid_argument"),
-        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
+        antecedent::reason::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
         message,
     )
 }
@@ -45,14 +45,14 @@ fn io_refusal(error: &IoError) -> String {
     match error {
         IoError::Refused { code, message } => {
             let (detail, text) = message.split_once(": ").unwrap_or((
-                antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
+                antecedent::reason::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
                 message.as_str(),
             ));
             refusal_json(code, detail, text)
         }
         other => refusal_json(
             reason_code!("invalid_argument"),
-            antecedent_core::reason_details::sensitivity_decision_composition::INVALID_ARTIFACT,
+            antecedent::reason::reason_details::sensitivity_decision_composition::INVALID_ARTIFACT,
             &other.to_string(),
         ),
     }

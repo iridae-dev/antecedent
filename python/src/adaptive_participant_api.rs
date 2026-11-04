@@ -16,7 +16,7 @@
 
 use antecedent::analysis::adaptive_inference::AdaptiveInferenceSession;
 use antecedent::analysis::adaptive_participant_procedure::ParticipantProcedure;
-use antecedent_stats::adaptive_inference::{
+use antecedent::inference::adaptive_inference::{
     AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, CorrelationPrior, DecisionRules,
     FutilityRule, HistoricalPrior, LookDecision, LookReading, ParticipantDeclaration,
     ParticipantHistory, ParticipantSimulationRequest, ResolvedArmPrior,
@@ -190,7 +190,7 @@ fn decision_json(decision: LookDecision) -> Json {
 fn reading_json(reading: &LookReading) -> Json {
     let posterior = &reading.posterior;
     let frequentist = &reading.frequentist;
-    let comparison = |c: &antecedent_stats::adaptive_inference::ComparisonReading| json!({"arm": c.arm, "lower": c.lower, "upper": c.upper});
+    let comparison = |c: &antecedent::inference::adaptive_inference::ComparisonReading| json!({"arm": c.arm, "lower": c.lower, "upper": c.upper});
     json!({
         "look": reading.look,
         "enrolled": reading.enrolled,
@@ -301,7 +301,7 @@ impl ParticipantProcedureHandle {
                 "alpha_per_arm": spec.alpha_per_arm(),
             },
             "cell": cell.id(),
-            "calibration": antecedent_io_core::contract_section::CalibrationStatus::NotMeasured.as_str(),
+            "calibration": antecedent::io::contract_section::CalibrationStatus::NotMeasured.as_str(),
         })
         .to_string()
     }

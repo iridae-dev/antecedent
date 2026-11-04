@@ -4,7 +4,7 @@ use super::{context, panel_error};
 use antecedent::analysis::joint_panel::designs::{
     JointDesignProof, JointDesignResult, PreparedJointDesign, replay_joint_design_artifact,
 };
-use antecedent_estimate::joint_design::compiled::JointDesignInference;
+use antecedent::estimate::joint_design::compiled::JointDesignInference;
 use pyo3::{prelude::*, types::PyBytes};
 
 fn bounded_json(text: &str, description: &str) -> PyResult<()> {
@@ -169,25 +169,25 @@ impl PyJointDesignResult {
             exposure: declaration
                 .exposure
                 .into_iter()
-                .map(antecedent_core::VariableId::from_raw)
+                .map(antecedent::prelude::VariableId::from_raw)
                 .collect(),
             saturation: declaration
                 .saturation
                 .into_iter()
-                .map(antecedent_core::VariableId::from_raw)
+                .map(antecedent::prelude::VariableId::from_raw)
                 .collect(),
             mechanism: declaration
                 .mechanism
                 .into_iter()
-                .map(antecedent_core::VariableId::from_raw)
+                .map(antecedent::prelude::VariableId::from_raw)
                 .collect(),
-            hybrids: declaration.hybrids.map(antecedent_core::ScientificWorldId::from_raw),
+            hybrids: declaration.hybrids.map(antecedent::scientific::ScientificWorldId::from_raw),
             order: declaration.order,
         };
         let scope = if declaration.require_identified {
-            antecedent_design::scientific_source::ScientificConsumptionScope::IdentifiedCausal
+            antecedent::design::scientific_source::ScientificConsumptionScope::IdentifiedCausal
         } else {
-            antecedent_design::scientific_source::ScientificConsumptionScope::ModelConditional
+            antecedent::design::scientific_source::ScientificConsumptionScope::ModelConditional
         };
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let result = crate::detach_catch(py, || {
@@ -206,7 +206,7 @@ impl PyJointDesignResult {
     }
     fn posterior_quantities(&self) -> PyResult<String> {
         let source = self.inner.posterior_source().map_err(panel_error)?;
-        let antecedent_design::scientific_source::ScientificSourcePayload::Law(law) =
+        let antecedent::design::scientific_source::ScientificSourcePayload::Law(law) =
             source.as_numerical_source()
         else {
             return Err(crate::value_err("joint-design posterior source has no law"));
@@ -227,7 +227,7 @@ fn prepare_joint_design(
 ) -> PyResult<PyPreparedJointDesign> {
     bounded_json(target_json, "joint-design scientific target")?;
     bounded_json(proof_json, "joint-design proof")?;
-    let target: antecedent_io::scientific_target_wire::ScientificTargetWire =
+    let target: antecedent::io::scientific_target_wire::ScientificTargetWire =
         serde_json::from_str(target_json).map_err(|e| crate::value_err(e.to_string()))?;
     let target = target.to_domain().map_err(|e| crate::value_err(e.to_string()))?;
     let proof: JointDesignProof =
@@ -368,7 +368,7 @@ fn prepare_native_joint_design(
     let _input = ctx
         .acquire_admission(0, (recipe_json.len() as u64).saturating_mul(128))
         .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
-    let recipe: antecedent_estimate::joint_design::compiled::JointDesignRecipe =
+    let recipe: antecedent::estimate::joint_design::compiled::JointDesignRecipe =
         serde_json::from_str(recipe_json).map_err(|e| crate::value_err(e.to_string()))?;
     let inner = crate::detach_catch(py, || {
         antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign::compile(recipe, &ctx)

@@ -9,16 +9,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    AssumptionSet, Conditioning, GraphFamily, InferenceSelection, Intervention, InterventionWorld,
-    ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificTarget,
-    ScientificWorldId, TargetForm, TargetPopulation, TimeFrame, Value, VariableId, WorldAction,
-    WorldBinding, reason_code,
-};
-use antecedent_io::release_migration::{
+use antecedent::io::release_migration::{
     CurrentMethod, MethodAssignment, PreviousReleaseError, RouteRecordError, RouteRecordOutcome,
     consume_previous_release_artifact, consume_previous_route_records, current_score_row_digest,
     narrow_score_row_digest,
+};
+use antecedent::prelude::{Intervention, Value, VariableId};
+use antecedent::query::TargetPopulation;
+use antecedent::reason::reason_code;
+use antecedent::schema::AssumptionSet;
+use antecedent::scientific::{
+    Conditioning, GraphFamily, InferenceSelection, InterventionWorld, ModelAssumptions,
+    ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificTarget, ScientificWorldId,
+    TargetForm, TimeFrame, WorldAction, WorldBinding,
 };
 use pyo3::prelude::*;
 use serde_json::{Value as Json, json};

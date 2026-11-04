@@ -6,12 +6,12 @@
 //! registered code, namespaced detail and next attempt, for the Python layer
 //! to raise as a typed exception.
 
+use antecedent::analysis::evidence_ledger::SourceId;
 use antecedent::analysis::propagation_chain::{
-    ChainRefusal, FamilyDependence, FamilyEstimate, LawMeaning, PropagationChain, SharedFactorKind,
-    compile_propagation_chain, consume_propagation_chain, family_table, independent_product_table,
+    ChainChangeWire, ChainRefusal, FamilyDependence, FamilyEstimate, LawMeaning, PropagationChain,
+    PropagationChainRecordWire, SharedFactorKind, compile_propagation_chain,
+    consume_propagation_chain, family_table, independent_product_table,
 };
-use antecedent_contract::evidence_ledger::SourceId;
-use antecedent_io::propagation_chain_record::{ChainChangeWire, PropagationChainRecordWire};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;
@@ -40,13 +40,13 @@ fn refusal_json(refusal: &ChainRefusal) -> String {
 
 fn invalid_json(message: String) -> String {
     json!({
-        "code": antecedent_core::reason_code!("invalid_argument"),
+        "code": antecedent::reason::reason_code!("invalid_argument"),
         "stage": STAGE,
         "detail": "propagation_chain.invalid_request",
         "message": message,
         "offending": null,
         "next_attempt": "fix_chain_declaration",
-        "remedy": antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION.sentence(),
+        "remedy": antecedent::contract::propagation_chain::FIX_CHAIN_DECLARATION.sentence(),
     })
     .to_string()
 }
@@ -272,7 +272,7 @@ fn propagation_chain_family_table(
     let alignment = alignment.to_owned();
     let ledger = ledger.as_ref().map(|handle| handle.ledger().clone());
     crate::detach_catch(py, move || {
-        let table_result = antecedent_core::numerical_admission::with_context(&ctx, || {
+        let table_result = antecedent::execution::numerical_admission::with_context(&ctx, || {
             family_table(&alignment, &estimates, &dependence, ledger.as_ref(), rows, seed)
         });
         if ctx.cancellation.is_cancelled() {

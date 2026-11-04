@@ -10,26 +10,28 @@
 //! A mechanism the analyst wrote down is labelled declared by the facade from
 //! the source of its numbers; this bridge cannot label it fitted.
 
-use antecedent::analysis::mechanism_composition::{CompositionQueryWire, FirstOrderInterval};
+use antecedent::analysis::mechanism_composition::{
+    CompositionQueryWire, CompositionResultWire, FirstOrderInterval,
+};
 use antecedent::analysis::transported_mechanism::{
     MechanismRole, MechanismTransportDeclaration, TransportedMechanismComposition,
     TransportedMechanismReceipt, verify_mechanism_transport,
 };
+use antecedent::contract::{
+    AdmissionBasis, AdmissionCoordinate, ExternalRefusal, LatentCauseDeclaration,
+    MechanismDeclaration, MechanismOriginKind, TransportAdmission,
+};
+use antecedent::gcm::compose::{
+    ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
+    MeanContrast, MechanismFamily, MechanismUncertainty, ParameterId, ParameterTerm,
+    SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
+};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::ScientificQuantity;
 use antecedent::{
     ConsumedComposition, DependenceInput, MechanismCompositionRefusal, MechanismCompositionRequest,
     MechanismInput, MechanismRefit, MechanismSource, PreparedMechanismComposition, StudyBuilder,
     consume_mechanism_composition_artifact,
-};
-use antecedent_contract::{
-    AdmissionBasis, AdmissionCoordinate, ExternalRefusal, LatentCauseDeclaration,
-    MechanismDeclaration, MechanismOriginKind, ScientificQuantity, TransportAdmission,
-};
-use antecedent_io::mechanism_composition_artifact::CompositionResultWire;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_model::compose::{
-    ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
-    MeanContrast, MechanismFamily, MechanismUncertainty, ParameterId, ParameterTerm,
-    SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -86,7 +88,7 @@ fn refusal_json(refusal: &MechanismCompositionRefusal) -> String {
         json!({
             "code": refusal.code(),
             "stage": "compose",
-            "detail": antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
+            "detail": antecedent::reason::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             "message": "mechanism composition refused",
             "offending": Json::Null,
             "expected": Json::Null,
@@ -984,8 +986,8 @@ fn mechanism_composition_fitted_source(
         .iter()
         .position(|name| name == variable)
         .ok_or_else(|| crate::value_err(format!("unknown variable `{variable}`")))?;
-    let id = |index: usize| -> PyResult<antecedent_core::VariableId> {
-        Ok(antecedent_core::VariableId::from_raw(
+    let id = |index: usize| -> PyResult<antecedent::prelude::VariableId> {
+        Ok(antecedent::prelude::VariableId::from_raw(
             u32::try_from(index).map_err(|_| crate::value_err("variable index does not fit"))?,
         ))
     };

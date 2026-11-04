@@ -6,22 +6,23 @@ use crate::transport_common::{
 };
 use crate::transport_interference_api::parse_catalog;
 use crate::transport_z_api::to_py_json;
-use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, RegimeId, SearchLimits, Value, VariableId,
-};
-use antecedent_expr::{
+use antecedent::estimate::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits,
     LawTolerance,
 };
-use antecedent_graph::{DenseNodeId, NodeRef};
-use antecedent_identify::recovery::MISSING_LEVEL;
-use antecedent_identify::{
+use antecedent::execution::SearchLimits;
+use antecedent::graph::{DenseNodeId, NodeRef};
+use antecedent::identify::recovery::MISSING_LEVEL;
+use antecedent::identify::{
     ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery,
     RecoveryDecision, RecoveryDerivation, RecoveryDetail, RecoveryError, RecoveryLimits,
     RecoveryWitness, decide_observation_recovery, verify_recovery_witness,
 };
-use antecedent_io::IoError;
-use antecedent_io::recovery_artifact::{RecoveryArtifactWire, RecoveryConsumeLimits};
+use antecedent::io::IoError;
+use antecedent::io::recovery_artifact::{RecoveryArtifactWire, RecoveryConsumeLimits};
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::query::EvidenceCatalog;
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -90,11 +91,11 @@ fn derivation_json(derivation: &RecoveryDerivation, names: &[String]) -> serde_j
 
 fn witness_json(
     witness: &RecoveryWitness,
-    graph: &antecedent_graph::Admg,
+    graph: &antecedent::graph::Admg,
     query: &ObservationRecoveryQuery,
     names: &[String],
 ) -> serde_json::Value {
-    let model = |mechanisms: &[antecedent_identify::WitnessMechanism]| {
+    let model = |mechanisms: &[antecedent::identify::WitnessMechanism]| {
         mechanisms
             .iter()
             .map(|m| {
@@ -140,7 +141,7 @@ fn distribution_json(point: &ExactDistribution, names: &[String]) -> serde_json:
 }
 
 fn result_json(
-    recovered: &antecedent_estimate::RecoveredLaw,
+    recovered: &antecedent::estimate::RecoveredLaw,
     effects: &[ExactDistribution],
     requests: &[Assignment],
     names: &[String],
@@ -261,7 +262,7 @@ fn parse_requests(
 struct ObservationRecoveryStage {
     decision: RecoveryDecision,
     graph: Admg,
-    shared: antecedent_graph::Admg,
+    shared: antecedent::graph::Admg,
     query: ObservationRecoveryQuery,
     catalog: EvidenceCatalog,
     effect: Option<RecoveredEffectQuery>,
@@ -285,11 +286,11 @@ impl ObservationRecoveryStage {
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(String, Vec<u8>)> {
-        use antecedent_estimate::{
+        use antecedent::estimate::{
             ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
             estimate_sampled_recovery,
         };
-        use antecedent_io::sampled_recovery_artifact::{
+        use antecedent::io::sampled_recovery_artifact::{
             SampledRecoveryArtifactInput, SampledRecoveryArtifactWire,
         };
         let config = match interval_method {
@@ -467,7 +468,7 @@ impl ObservationRecoveryStage {
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
-        use antecedent_io::sampled_recovery_artifact::{
+        use antecedent::io::sampled_recovery_artifact::{
             SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
         };
         let memory = match (self.memory_bytes, memory_limit_bytes) {
@@ -681,7 +682,7 @@ impl PreparedObservationRecoveryStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "estimate before exporting an observation-recovery artifact",
             )
         })?;
@@ -703,12 +704,12 @@ impl PreparedObservationRecoveryStage {
 /// one mapped by name, or the m-graph's causal restriction.
 fn effect_graph_for(
     graph: &Admg,
-    shared: &antecedent_graph::Admg,
+    shared: &antecedent::graph::Admg,
     query: &ObservationRecoveryQuery,
     given: Option<PyRef<'_, Admg>>,
-) -> PyResult<antecedent_graph::Admg> {
-    let mut out = antecedent_graph::Admg::empty();
-    let py_err = |e: antecedent_graph::GraphError| crate::value_err(e.to_string());
+) -> PyResult<antecedent::graph::Admg> {
+    let mut out = antecedent::graph::Admg::empty();
+    let py_err = |e: antecedent::graph::GraphError| crate::value_err(e.to_string());
     if let Some(effect) = given {
         let mut dense = Vec::new();
         for n in &effect.names {
@@ -876,7 +877,7 @@ fn consume_observation_recovery_artifact(
         let ctx: ExecutionContext = execution_context(0, memory_bytes, cancel);
         let consumed = RecoveryArtifactWire::consume_with_limits(&bytes, limits, &ctx)
             .map_err(|e| io_err(&e))?;
-        let graph = antecedent_io::admg_from_wire(&consumed.wire.graph).map_err(|e| io_err(&e))?;
+        let graph = antecedent::io::admg_from_wire(&consumed.wire.graph).map_err(|e| io_err(&e))?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be the mapping the verified identity binds.
         consumed.wire.check_variable_names(&names).map_err(|e| io_err(&IoError::from(e)))?;
@@ -908,10 +909,10 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn sampled_candidate_error(code: &str, message: &str) -> PyErr {
-    if code == antecedent_core::reason_code!("invalid_argument") {
+    if code == antecedent::reason::reason_code!("invalid_argument") {
         crate::with_reason_code(
             crate::value_err(message),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         )
     } else {
         crate::refusal(code, message)
@@ -926,7 +927,7 @@ fn sampled_candidate_io_error(error: &IoError) -> PyErr {
 }
 
 fn sampled_candidate_json(
-    wire: &antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire,
+    wire: &antecedent::io::sampled_recovery_artifact::SampledRecoveryArtifactWire,
 ) -> String {
     serde_json::json!({"result":wire.result,"snapshot":wire.snapshot_id,"calibration":wire.calibration,"premises_digest":wire.premises_digest,"data_digest":wire.data_digest,"query":wire.query,"names":wire.variable_names,"receipt":wire.receipt}).to_string()
 }
@@ -946,7 +947,7 @@ fn consume_sampled_recovery_candidate(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
-    use antecedent_io::sampled_recovery_artifact::{
+    use antecedent::io::sampled_recovery_artifact::{
         SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
     };
     let valid_digest = |value: &str| {

@@ -9,16 +9,17 @@ use antecedent::analysis::recalc_static::{
     MzRecalcRequest, MzRecalcSession, StaticRecalcOutcome, StaticResponseRequest,
     StaticResponseSession, execute_mz_with_receipt, execute_static_response_with_receipt,
 };
-use antecedent_core::recalc::{
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::execution::SearchLimits;
+use antecedent::execution::recalc::{
     Boundary, RecalcCapabilities, RequestSupport, ResumeContext, RetargetSupport, StageIdentities,
 };
-use antecedent_core::{ExecutionContext, SearchLimits, VariableId};
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_identify::{MzTransportQuery, ZTransportSourceSpec};
-use antecedent_io::recalc_receipt_artifact::{
+use antecedent::identify::{MzTransportQuery, ZTransportSourceSpec};
+use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, DeclaredStageWire, RecalcReceiptArtifact, ResumeWire, identities_from_wire,
     identities_to_wire, plan_to_wire,
 };
+use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -88,7 +89,7 @@ pub(crate) fn response_request(
         || names.iter().enumerate().any(|(i, n)| n.trim().is_empty() || names[..i].contains(n))
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::STATIC_INVALID_DATA,
+            antecedent::reason::reason_details::recalc::STATIC_INVALID_DATA,
             "unique named columns required",
         ));
     }
@@ -105,31 +106,36 @@ pub(crate) fn response_request(
     })
 }
 fn inspect_laws(laws: &Bound<'_, PyAny>, catalog: &Bound<'_, PyAny>) -> PyResult<()> {
-    let len = sequence_len(laws, antecedent_core::reason_details::recalc::STATIC_INVALID_DATA)?;
+    let len = sequence_len(laws, antecedent::reason::reason_details::recalc::STATIC_INVALID_DATA)?;
     let mut cells = 0usize;
     for i in 0..len {
         let law = sequence_item(laws, i)?;
         let probabilities = law.getattr("probabilities")?;
         let n = sequence_len(
             &probabilities,
-            antecedent_core::reason_details::recalc::STATIC_INVALID_DATA,
+            antecedent::reason::reason_details::recalc::STATIC_INVALID_DATA,
         )?;
         cells = cells.checked_add(n).ok_or_else(|| {
-            invalid(antecedent_core::reason_details::recalc::LIMITS_EXCEEDED, "law size overflow")
+            invalid(
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
+                "law size overflow",
+            )
         })?;
         if cells > MAX_LAW_CELLS {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "law cells exceed1million",
             ));
         }
         let counts = law.getattr("empirical_counts")?;
         if !counts.is_none()
-            && sequence_len(&counts, antecedent_core::reason_details::recalc::STATIC_INVALID_DATA)?
-                > MAX_LAW_CELLS
+            && sequence_len(
+                &counts,
+                antecedent::reason::reason_details::recalc::STATIC_INVALID_DATA,
+            )? > MAX_LAW_CELLS
         {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "count cells exceed1million",
             ));
         }
@@ -138,11 +144,11 @@ fn inspect_laws(laws: &Bound<'_, PyAny>, catalog: &Bound<'_, PyAny>) -> PyResult
     }
     if sequence_len(
         &catalog.getattr("environments")?,
-        antecedent_core::reason_details::recalc::MZ_INVALID_REQUEST,
+        antecedent::reason::reason_details::recalc::MZ_INVALID_REQUEST,
     )? > 5
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "catalog exceeds declared limits",
         ));
     }
@@ -162,7 +168,7 @@ fn transport_request(
         || wire.evaluation_depth > 256
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "transport exceeds source/search/evaluation limits",
         ));
     }
@@ -182,9 +188,9 @@ fn transport_request(
                     .experiment_assignment
                     .into_iter()
                     .map(|(name, value)| {
-                        Ok(antecedent_core::InterventionAssignment {
+                        Ok(antecedent::query::InterventionAssignment {
                             variable: resolve(&graph.names, &name)?,
-                            value: antecedent_core::Value::f64(value),
+                            value: antecedent::prelude::Value::f64(value),
                         })
                     })
                     .collect::<PyResult<Vec<_>>>()?
@@ -194,12 +200,12 @@ fn transport_request(
         .collect::<PyResult<Vec<_>>>()?;
     let catalog = parse_catalog(catalog, graph)?;
     let tables =
-        (0..sequence_len(laws, antecedent_core::reason_details::recalc::STATIC_INVALID_DATA)?)
+        (0..sequence_len(laws, antecedent::reason::reason_details::recalc::STATIC_INVALID_DATA)?)
             .map(|i| {
                 parse_law_table(&sequence_item(laws, i)?, &catalog, graph, RegimeCheck::Strict)
             })
             .collect::<PyResult<Vec<_>>>()?;
-    let data = antecedent_expr::ExactTransportData::try_new(tables, MAX_LAW_CELLS)
+    let data = antecedent::estimate::ExactTransportData::try_new(tables, MAX_LAW_CELLS)
         .map_err(crate::transport_common::error)?;
     Ok(MzRecalcRequest {
         graph: graph.aligned_to_names(&graph.names)?,
@@ -253,9 +259,9 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
     match error {
         RecalcRunError::Refused(plan) => plan_refusal_json(plan),
         RecalcRunError::NoLiveState(stage) => refusal_json(
-            antecedent_core::reason_code!("score_table_unavailable"),
+            antecedent::reason::reason_code!("score_table_unavailable"),
             &stage.label(),
-            antecedent_core::reason_details::recalc::NO_LIVE_STATE,
+            antecedent::reason::reason_details::recalc::NO_LIVE_STATE,
             Some(&stage.label()),
             None,
             &error.to_string(),
@@ -264,61 +270,61 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
         RecalcRunError::Request(detail) => {
             let detail = detail.as_str();
             let (code, stage) = match detail {
-                antecedent_core::reason_details::recalc::CANCELLED => {
-                    (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
+                antecedent::reason::reason_details::recalc::CANCELLED => {
+                    (antecedent::reason::reason_code!("cancelled_no_claim"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::STATIC_ACTION_OUT_OF_SUPPORT
-                | antecedent_core::reason_details::recalc::MZ_ACTION_OUT_OF_SUPPORT => {
-                    (antecedent_core::reason_code!("route_not_supported"), "treatment_grid")
+                antecedent::reason::reason_details::recalc::STATIC_ACTION_OUT_OF_SUPPORT
+                | antecedent::reason::reason_details::recalc::MZ_ACTION_OUT_OF_SUPPORT => {
+                    (antecedent::reason::reason_code!("route_not_supported"), "treatment_grid")
                 }
-                antecedent_core::reason_details::recalc::STATIC_INVALID_QUERY
-                | antecedent_core::reason_details::recalc::STATIC_INVALID_CONTRAST
-                | antecedent_core::reason_details::recalc::MZ_INVALID_REQUEST => {
-                    (antecedent_core::reason_code!("invalid_argument"), "query")
+                antecedent::reason::reason_details::recalc::STATIC_INVALID_QUERY
+                | antecedent::reason::reason_details::recalc::STATIC_INVALID_CONTRAST
+                | antecedent::reason::reason_details::recalc::MZ_INVALID_REQUEST => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "query")
                 }
-                antecedent_core::reason_details::recalc::STATIC_GRAPH_UNSUPPORTED => {
-                    (antecedent_core::reason_code!("route_not_supported"), "graph")
+                antecedent::reason::reason_details::recalc::STATIC_GRAPH_UNSUPPORTED => {
+                    (antecedent::reason::reason_code!("route_not_supported"), "graph")
                 }
-                antecedent_core::reason_details::recalc::STATIC_INVALID_DATA => {
-                    (antecedent_core::reason_code!("invalid_argument"), "data_snapshot")
+                antecedent::reason::reason_details::recalc::STATIC_INVALID_DATA => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "data_snapshot")
                 }
-                antecedent_core::reason_details::recalc::STATIC_REQUIRED_FACTOR_MISSING => {
-                    (antecedent_core::reason_code!("route_not_supported"), "score_artifact")
+                antecedent::reason::reason_details::recalc::STATIC_REQUIRED_FACTOR_MISSING => {
+                    (antecedent::reason::reason_code!("route_not_supported"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
-                    (antecedent_core::reason_code!("invalid_argument"), "score_artifact")
+                antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "score_artifact")
                 }
-                _ => (antecedent_core::reason_code!("invalid_argument"), "score_artifact"),
+                _ => (antecedent::reason::reason_code!("invalid_argument"), "score_artifact"),
             };
             refusal_json(code, stage, detail, None, None, &error.to_string(), None)
         }
         RecalcRunError::Execution(cause) => {
             use antecedent::CausalError;
-            use antecedent_identify::IdentificationError;
-            use antecedent_io::IoError;
+            use antecedent::identify::IdentificationError;
+            use antecedent::io::IoError;
             let (code, detail, stage) = match cause.peeled() {
                 CausalError::Estimate(
-                    antecedent_estimate::EstimationError::Refused { code, .. }
-                    | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+                    antecedent::estimate::EstimationError::Refused { code, .. }
+                    | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "invalid_argument" => (
-                    antecedent_core::reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::recalc::STATIC_INVALID_FACTOR,
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_details::recalc::STATIC_INVALID_FACTOR,
                     "score_artifact",
                 ),
                 CausalError::Estimate(
-                    antecedent_estimate::EstimationError::Refused { code, .. }
-                    | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+                    antecedent::estimate::EstimationError::Refused { code, .. }
+                    | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "cancelled_no_claim" => (
-                    antecedent_core::reason_code!("cancelled_no_claim"),
-                    antecedent_core::reason_details::recalc::CANCELLED,
+                    antecedent::reason::reason_code!("cancelled_no_claim"),
+                    antecedent::reason::reason_details::recalc::CANCELLED,
                     "score_artifact",
                 ),
                 CausalError::Serialization(IoError::Refused { code, .. })
                     if *code == "transport_missing_evidence" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_missing_evidence"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_MISSING_EVIDENCE,
+                        antecedent::reason::reason_code!("transport_missing_evidence"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_MISSING_EVIDENCE,
                         "identification",
                     )
                 }
@@ -326,8 +332,8 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "transport_not_certified" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_not_certified"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_NOT_CERTIFIED,
+                        antecedent::reason::reason_code!("transport_not_certified"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_NOT_CERTIFIED,
                         "identification",
                     )
                 }
@@ -335,8 +341,8 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "transport_budget_cancel" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_budget_cancel"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_BUDGET_CANCEL,
+                        antecedent::reason::reason_code!("transport_budget_cancel"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_BUDGET_CANCEL,
                         "identification",
                     )
                 }
@@ -344,8 +350,8 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "cancelled_no_claim" =>
                 {
                     (
-                        antecedent_core::reason_code!("cancelled_no_claim"),
-                        antecedent_core::reason_details::recalc::CANCELLED,
+                        antecedent::reason::reason_code!("cancelled_no_claim"),
+                        antecedent::reason::reason_details::recalc::CANCELLED,
                         "score_artifact",
                     )
                 }
@@ -353,8 +359,8 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "invalid_argument" =>
                 {
                     (
-                        antecedent_core::reason_code!("invalid_argument"),
-                        antecedent_core::reason_details::recalc::STATIC_INVALID_FACTOR,
+                        antecedent::reason::reason_code!("invalid_argument"),
+                        antecedent::reason::reason_details::recalc::STATIC_INVALID_FACTOR,
                         "score_artifact",
                     )
                 }
@@ -362,8 +368,8 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "transport_numerical_failure" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_numerical_failure"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_NUMERICAL_FAILURE,
+                        antecedent::reason::reason_code!("transport_numerical_failure"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_NUMERICAL_FAILURE,
                         "score_artifact",
                     )
                 }
@@ -371,42 +377,42 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "transport_unsupported_evaluator" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_unsupported_evaluator"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_UNSUPPORTED_EVALUATOR,
+                        antecedent::reason::reason_code!("transport_unsupported_evaluator"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_UNSUPPORTED_EVALUATOR,
                         "score_artifact",
                     )
                 }
                 CausalError::NotIdentified { .. } => (
-                    antecedent_core::reason_code!("effect_not_identified"),
-                    antecedent_core::reason_details::recalc::STATIC_NOT_IDENTIFIED,
+                    antecedent::reason::reason_code!("effect_not_identified"),
+                    antecedent::reason::reason_details::recalc::STATIC_NOT_IDENTIFIED,
                     "identification",
                 ),
                 CausalError::Identify(IdentificationError::MissingEvidence { .. }) => (
-                    antecedent_core::reason_code!("transport_missing_evidence"),
-                    antecedent_core::reason_details::recalc::STATIC_TRANSPORT_MISSING_EVIDENCE,
+                    antecedent::reason::reason_code!("transport_missing_evidence"),
+                    antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_MISSING_EVIDENCE,
                     "identification",
                 ),
                 CausalError::Identify(
                     IdentificationError::NotCertified { .. }
                     | IdentificationError::InvalidDerivation { .. },
                 ) => (
-                    antecedent_core::reason_code!("transport_not_certified"),
-                    antecedent_core::reason_details::recalc::STATIC_TRANSPORT_NOT_CERTIFIED,
+                    antecedent::reason::reason_code!("transport_not_certified"),
+                    antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_NOT_CERTIFIED,
                     "identification",
                 ),
                 CausalError::Identify(
                     IdentificationError::Cancelled | IdentificationError::Budget { .. },
                 ) => (
-                    antecedent_core::reason_code!("transport_budget_cancel"),
-                    antecedent_core::reason_details::recalc::STATIC_TRANSPORT_BUDGET_CANCEL,
+                    antecedent::reason::reason_code!("transport_budget_cancel"),
+                    antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_BUDGET_CANCEL,
                     "identification",
                 ),
                 CausalError::Serialization(IoError::Refused { code, .. })
                     if *code == "transport_missing_provider" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_missing_provider"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_MISSING_PROVIDER,
+                        antecedent::reason::reason_code!("transport_missing_provider"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_MISSING_PROVIDER,
                         "score_artifact",
                     )
                 }
@@ -414,8 +420,8 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "transport_support_failure" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_support_failure"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_SUPPORT_FAILURE,
+                        antecedent::reason::reason_code!("transport_support_failure"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_SUPPORT_FAILURE,
                         "score_artifact",
                     )
                 }
@@ -423,23 +429,23 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
                     if *code == "transport_proven_non_transportable" =>
                 {
                     (
-                        antecedent_core::reason_code!("transport_proven_non_transportable"),
-                        antecedent_core::reason_details::recalc::STATIC_TRANSPORT_NON_TRANSPORTABLE,
+                        antecedent::reason::reason_code!("transport_proven_non_transportable"),
+                        antecedent::reason::reason_details::recalc::STATIC_TRANSPORT_NON_TRANSPORTABLE,
                         "identification",
                     )
                 }
                 _ => (
-                    antecedent_core::reason_code!("route_not_supported"),
-                    antecedent_core::reason_details::recalc::STATIC_ENGINE_REFUSED,
+                    antecedent::reason::reason_code!("route_not_supported"),
+                    antecedent::reason::reason_details::recalc::STATIC_ENGINE_REFUSED,
                     "score_artifact",
                 ),
             };
             refusal_json(code, stage, detail, None, None, &cause.to_string(), None)
         }
         RecalcRunError::Receipt(_) => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "score_artifact",
-            antecedent_core::reason_details::recalc::STATIC_RECEIPT_INVALID,
+            antecedent::reason::reason_details::recalc::STATIC_RECEIPT_INVALID,
             None,
             None,
             &error.to_string(),

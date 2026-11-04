@@ -21,13 +21,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::EstimatorSpec;
-use antecedent_estimate::{
+use antecedent::estimate::{
     AipwAte, AnalyticSeKind, CaliperScale, CausalForest, DistanceMatching, DmlAte, DmlScore,
     DrLearner, FrontDoorTwoStage, GlmAdjustmentAte, LearnerSpec, LinearAdjustmentAte,
     LinearFitKind, PropensityMatching, PropensityStratification, PropensityWeighting,
     TwoStageLeastSquares, WaldIv,
 };
-use antecedent_stats::{GlmFamily, GlmOptions};
+use antecedent::inference::{GlmFamily, GlmOptions};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -334,10 +334,10 @@ pub(crate) fn parse_estimator_config(
             && !declares_units
         {
             let message =
-                antecedent_estimate::flexible_learner_dependence_refusal(resolved_id, &key)
+                antecedent::estimate::flexible_learner_dependence_refusal(resolved_id, &key)
                     .to_string();
-            let (code, tail) = antecedent_core::reason_code::split_prefix(&message).unwrap_or((
-                antecedent_core::reason_code!("route_not_supported"),
+            let (code, tail) = antecedent::reason::reason_code::split_prefix(&message).unwrap_or((
+                antecedent::reason::reason_code!("route_not_supported"),
                 message.as_str(),
             ));
             return Err(crate::value_err_code(code, tail));
@@ -351,7 +351,7 @@ pub(crate) fn parse_estimator_config(
                          valid keys for {resolved_id:?} are: {}",
                         format_id_list(valid_keys),
                     )),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 ));
             }
             return Err(crate::with_reason_code(
@@ -361,7 +361,7 @@ pub(crate) fn parse_estimator_config(
                     format_id_list(&owners),
                     format_id_list(valid_keys),
                 )),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             ));
         }
     }
@@ -523,16 +523,16 @@ fn get_f64_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<f64>
 /// negative, NaN or infinite weight (named by its row) or all-zero weights are refused here.
 fn build_sampling_weights(
     dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<antecedent_estimate::SamplingWeights>> {
+) -> PyResult<Option<antecedent::estimate::SamplingWeights>> {
     let Some(weights) = get_f64_list(dict, "source_sampling_weights")? else { return Ok(None) };
-    antecedent_estimate::SamplingWeights::new(weights).map(Some).map_err(coded_refusal)
+    antecedent::estimate::SamplingWeights::new(weights).map(Some).map_err(coded_refusal)
 }
 
 /// A typed estimation refusal as a value error carrying its registered reason code.
-pub(crate) fn coded_refusal(error: antecedent_estimate::EstimationError) -> PyErr {
+pub(crate) fn coded_refusal(error: antecedent::estimate::EstimationError) -> PyErr {
     let message = error.to_string();
-    let (code, tail) = antecedent_core::reason_code::split_prefix(&message)
-        .unwrap_or((antecedent_core::reason_code!("invalid_argument"), message.as_str()));
+    let (code, tail) = antecedent::reason::reason_code::split_prefix(&message)
+        .unwrap_or((antecedent::reason::reason_code!("invalid_argument"), message.as_str()));
     crate::value_err_code(code, tail)
 }
 
@@ -689,11 +689,11 @@ const BOOTSTRAP_INTERVAL_KEYS: &[&str] =
 
 /// A requested bootstrap interval: `{"level": float, "wave_size": int, "min_replicates": int,
 /// "se_rel_tol": float | None, "half_width_rel_tol": float | None}`. Absent keys take the
-/// defaults of [`antecedent_estimate::IntervalRequest`]; the replicate cap is
+/// defaults of [`antecedent::estimate::IntervalRequest`]; the replicate cap is
 /// `bootstrap_replicates`. Tolerances must be positive and finite, the level inside (0, 1).
 fn build_bootstrap_interval(
     dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<antecedent_estimate::IntervalRequest>> {
+) -> PyResult<Option<antecedent::estimate::IntervalRequest>> {
     let Some(v) = dict.get_item("bootstrap_interval")? else { return Ok(None) };
     let sub = v.cast::<PyDict>().map_err(|_| {
         crate::value_err(format!(
@@ -712,7 +712,7 @@ fn build_bootstrap_interval(
             )));
         }
     }
-    let mut request = antecedent_estimate::IntervalRequest::default();
+    let mut request = antecedent::estimate::IntervalRequest::default();
     if let Some(level) = get_f64(sub, "level")? {
         request.level = level;
     }
@@ -821,7 +821,7 @@ pub(crate) fn bounded_penalty_values(raw: &Bound<'_, PyAny>, field: &str) -> PyR
             invalid_sequence()
         }
     })?;
-    antecedent_estimate::RidgeTuning::check_context_free_grid_len(count)
+    antecedent::estimate::RidgeTuning::check_context_free_grid_len(count)
         .map_err(|error| crate::py_err(antecedent::CausalError::from(error)))?;
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| {
@@ -849,8 +849,8 @@ pub(crate) fn bounded_penalty_values(raw: &Bound<'_, PyAny>, field: &str) -> PyR
 fn penalty_declaration(
     sub: &Bound<'_, PyDict>,
     field: &str,
-) -> PyResult<(String, antecedent_estimate::RidgeTuning)> {
-    use antecedent_estimate::RidgeTuning;
+) -> PyResult<(String, antecedent::estimate::RidgeTuning)> {
+    use antecedent::estimate::RidgeTuning;
     for (key_obj, _val) in sub.iter() {
         let key: String = key_obj
             .extract()
@@ -883,7 +883,7 @@ fn penalty_declaration(
         get_u32(sub, "inner_folds")?.map_or(defaults.inner_folds(), |folds| folds as usize);
     let tuning = RidgeTuning::new(&lambdas, inner_folds).map_err(|error| {
         let message = error.to_string();
-        let tail = antecedent_core::reason_code::split_prefix(&message)
+        let tail = antecedent::reason::reason_code::split_prefix(&message)
             .map_or(message.as_str(), |(_, tail)| tail);
         invalid(tail.to_string())
     })?;
@@ -901,8 +901,8 @@ fn penalty_declaration(
 /// penalized primary is refused by the estimator as an incoherent declaration.
 fn build_propensity_nuisance(
     dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<antecedent_estimate::PropensityNuisance>> {
-    use antecedent_estimate::{NuisanceFallback, PropensityNuisance, RidgeTuning};
+) -> PyResult<Option<antecedent::estimate::PropensityNuisance>> {
+    use antecedent::estimate::{NuisanceFallback, PropensityNuisance, RidgeTuning};
     let from_kind = |kind: &str, tuning: RidgeTuning| match kind {
         "ridge_logistic" => NuisanceFallback::RidgeLogistic(tuning),
         _ => NuisanceFallback::Lasso(tuning),
@@ -955,7 +955,7 @@ fn build_propensity_nuisance(
 
 /// Declared cluster-DML independence unit of an `aipw` estimator and its row labels.
 struct ClusterDmlConfig {
-    spec: antecedent_estimate::ClusterDml,
+    spec: antecedent::estimate::ClusterDml,
     first: Vec<u32>,
     second: Option<Vec<u32>>,
     /// The labels are those of every row of the source table, not of the analysed rows.
@@ -969,7 +969,7 @@ struct ClusterDmlConfig {
 /// A `dyad` unit takes the second endpoint labels (`second_cluster_ids`, required) and a
 /// minimum components per fold; a `cluster` unit takes neither.
 fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConfig>> {
-    use antecedent_estimate::{ClusterDml, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD};
+    use antecedent::estimate::{ClusterDml, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD};
     let Some(value) = dict.get_item("cluster_dml")? else {
         return Ok(None);
     };
@@ -1025,9 +1025,9 @@ fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConf
     };
     let min_clusters = get_u32(sub, "min_clusters")?.map_or(DEFAULT_MIN_CLUSTERS, |m| m as usize);
     let min_components = get_u32(sub, "min_components_per_fold")?;
-    let refused = |error: antecedent_estimate::EstimationError| {
+    let refused = |error: antecedent::estimate::EstimationError| {
         let message = error.to_string();
-        let tail = antecedent_core::reason_code::split_prefix(&message)
+        let tail = antecedent::reason::reason_code::split_prefix(&message)
             .map_or(message.as_str(), |(_, tail)| tail);
         invalid(tail.to_string())
     };
@@ -1073,8 +1073,11 @@ fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConf
     Ok(Some(ClusterDmlConfig { spec, first: ids, second, per_source_row }))
 }
 
-/// Store a parsed cluster-DML declaration on an estimator's [`DeclaredUnits`](antecedent_estimate::DeclaredUnits).
-fn declare_units(units: &mut antecedent_estimate::DeclaredUnits, config: Option<ClusterDmlConfig>) {
+/// Store a parsed cluster-DML declaration on an estimator's [`DeclaredUnits`](antecedent::estimate::DeclaredUnits).
+fn declare_units(
+    units: &mut antecedent::estimate::DeclaredUnits,
+    config: Option<ClusterDmlConfig>,
+) {
     let Some(ClusterDmlConfig { spec, first, second, per_source_row }) = config else {
         return;
     };
@@ -1098,7 +1101,9 @@ fn declare_units(units: &mut antecedent_estimate::DeclaredUnits, config: Option<
 /// An absent `overlap` key keeps the estimator's default (clip at 0.01, no
 /// trim). A present mapping sets both bounds: an omitted or `None` bound turns
 /// that operation off. Each bound must lie in `(0, 0.5)`.
-fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimate::OverlapPolicy>> {
+fn build_overlap(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent::estimate::OverlapPolicy>> {
     let Some(value) = dict.get_item("overlap")? else {
         return Ok(None);
     };
@@ -1128,7 +1133,7 @@ fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimat
         }
         Ok(Some(bound))
     };
-    Ok(Some(antecedent_estimate::OverlapPolicy::RequireDiagnostics {
+    Ok(Some(antecedent::estimate::OverlapPolicy::RequireDiagnostics {
         clip: bound("clip")?,
         trim: bound("trim")?,
     }))
@@ -1139,7 +1144,7 @@ fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimat
 /// declared levels.
 fn build_other_levels(
     dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<antecedent_estimate::OtherLevels>> {
+) -> PyResult<Option<antecedent::estimate::OtherLevels>> {
     let Some(value) = dict.get_item("other_levels")? else {
         return Ok(None);
     };
@@ -1150,8 +1155,8 @@ fn build_other_levels(
         ))
     })?;
     match name.as_str() {
-        "refuse" => Ok(Some(antecedent_estimate::OtherLevels::Refuse)),
-        "exclude_undeclared" => Ok(Some(antecedent_estimate::OtherLevels::ExcludeUndeclared)),
+        "refuse" => Ok(Some(antecedent::estimate::OtherLevels::Refuse)),
+        "exclude_undeclared" => Ok(Some(antecedent::estimate::OtherLevels::ExcludeUndeclared)),
         other => Err(invalid(format!(
             "estimator_config other_levels must be \"refuse\" or \"exclude_undeclared\", got {other:?}"
         ))),
@@ -1175,7 +1180,7 @@ pub(crate) fn get_learner(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Optio
 fn invalid(message: String) -> PyErr {
     crate::with_reason_code(
         crate::value_err(message),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 
@@ -1225,7 +1230,7 @@ fn build_configured_spec(
     if let Some(message) = orphan_companion(&has, get_string(dict, "fit_kind")?.as_deref()) {
         return Err(crate::with_reason_code(
             crate::value_err(message),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     let bootstrap = get_u32(dict, "bootstrap_replicates")?.unwrap_or(ambient_bootstrap);
@@ -1595,10 +1600,10 @@ fn build_configured_spec(
             }
             if let Some(ids) = source_cluster_ids {
                 let min_clusters = get_u32(dict, "min_clusters")?
-                    .map_or(antecedent_estimate::DEFAULT_MIN_CLUSTERS, |m| m as usize);
+                    .map_or(antecedent::estimate::DEFAULT_MIN_CLUSTERS, |m| m as usize);
                 est = est
                     .with_cluster_dml(
-                        antecedent_estimate::ClusterDml::new(min_clusters)
+                        antecedent::estimate::ClusterDml::new(min_clusters)
                             .map_err(coded_refusal)?,
                     )
                     .with_source_cluster_ids(ids);

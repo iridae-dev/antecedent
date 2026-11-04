@@ -1,6 +1,6 @@
 //! Python binding for the matched case-control conditional odds ratio.
 use crate::transport_common::execution_context;
-use antecedent_estimate::{
+use antecedent::estimate::{
     EstimationError, conditional_odds_ratio, parse_matched_estimand, parse_matched_sampling,
 };
 use pyo3::prelude::*;
@@ -43,7 +43,7 @@ fn matched_case_control_odds_ratio(
             crate::value_err(
                 "matched_case_control.invalid_level: level must lie strictly between 0 and 1",
             ),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     let ctx = execution_context(0, None, cancel);
@@ -52,8 +52,8 @@ fn matched_case_control_odds_ratio(
             conditional_odds_ratio(&stratum, &case, &exposed, &ctx).map_err(estimation_err)?;
         let c = fitted.counts;
         let interval = level.and_then(|level| fitted.odds_ratio_interval(level)).map(|(lo, hi)| {
-            let slot = antecedent_io::contract_section::CalibrationSlotWire::not_measured(
-                antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+            let slot = antecedent::io::contract_section::CalibrationSlotWire::not_measured(
+                antecedent::io::calibration::CONSTRUCTION_NOT_MEASURED,
             );
             (lo, hi, serde_json::to_string(&slot).unwrap_or_default())
         });

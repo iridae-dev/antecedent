@@ -1,7 +1,9 @@
 //! Declare an assembled contrast over the worlds of an existing scientific target.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use antecedent_core::{InterventionContrast, ScientificTarget, ScientificWorldId, TargetForm};
-use antecedent_io::scientific_target_wire::ScientificTargetWire;
+use antecedent::io::scientific_target_wire::ScientificTargetWire;
+use antecedent::scientific::{
+    InterventionContrast, ScientificTarget, ScientificWorldId, TargetForm,
+};
 use pyo3::prelude::*;
 use serde::Deserialize;
 

@@ -1,7 +1,7 @@
 //! Python binding for the descriptive raw-versus-adjusted comparison and the declared
 //! reporting-scale transform.
 use crate::transport_common::execution_context;
-use antecedent_estimate::{
+use antecedent::estimate::{
     AdjustedEstimate, Availability, EstimationError, MeanPair, RawContrast, ReportingScale,
     ReportingTransform, compare_raw_adjusted, raw_contrast, refuse_column_attribution,
 };
@@ -21,7 +21,7 @@ type Arm = (usize, f64, f64);
 /// `(active arm, control arm, raw difference, raw Welch SE or None, gap = raw - adjusted)`.
 type Comparison = (Arm, Arm, f64, Option<f64>, f64);
 
-fn arm(summary: &antecedent_estimate::ArmSummary) -> Arm {
+fn arm(summary: &antecedent::estimate::ArmSummary) -> Arm {
     (summary.n, summary.mean, summary.m2)
 }
 
@@ -94,8 +94,8 @@ fn transformed(transform: &ReportingTransform, level: Option<f64>) -> Transforme
     // No coverage record describes the delta-method interval of a reporting transform, so
     // its slot is `not_measured`; the interval is reported regardless.
     let slot = level.map(|_| {
-        serde_json::to_string(&antecedent_io::contract_section::CalibrationSlotWire::not_measured(
-            antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+        serde_json::to_string(&antecedent::io::contract_section::CalibrationSlotWire::not_measured(
+            antecedent::io::calibration::CONSTRUCTION_NOT_MEASURED,
         ))
         .unwrap_or_default()
     });
@@ -130,7 +130,7 @@ fn transform_mean_pair(
 ) -> PyResult<Transformed> {
     check_level(level)?;
     let pair = MeanPair::new(mean_active, mean_control, covariance.map(|(a, c, b)| [a, c, b]));
-    let transform = antecedent_estimate::transform_mean_pair(&pair, &parse_scales(&scales)?)
+    let transform = antecedent::estimate::transform_mean_pair(&pair, &parse_scales(&scales)?)
         .map_err(estimation_err)?;
     Ok(transformed(&transform, level))
 }
@@ -154,7 +154,7 @@ fn transform_raw_arms(
     let ctx = execution_context(0, None, cancel);
     crate::detach_catch(py, move || {
         let raw = raw_contrast(&outcome, &treatment, &ctx).map_err(estimation_err)?;
-        let transform = antecedent_estimate::transform_mean_pair(&raw.mean_pair(), &scales)
+        let transform = antecedent::estimate::transform_mean_pair(&raw.mean_pair(), &scales)
             .map_err(estimation_err)?;
         Ok((arm(&raw.active), arm(&raw.control), transformed(&transform, level)))
     })

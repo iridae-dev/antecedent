@@ -12,11 +12,11 @@
 use std::sync::Arc;
 
 use antecedent::Study;
-use antecedent_core::{
+use antecedent::data::TableView;
+use antecedent::query::{
     CausalQuery, OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional,
     TemporalDesignQuery, TemporalDoseTarget,
 };
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 use serde::Deserialize;

@@ -1,26 +1,25 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Python declarations delegate to the public retained joint-panel compiler.
-use antecedent::analysis::{
-    PreparedStudy,
-    joint_panel::{
-        self as facade, JointPanelColumns, JointPanelFit, JointPanelFunctional, JointPanelRequest,
-        JointPanelState, JointPanelWorld,
-    },
+use antecedent::analysis::joint_panel::{
+    JointPanelColumns, JointPanelFit, JointPanelFunctional, JointPanelRequest, JointPanelState,
+    JointPanelWorld,
 };
-use antecedent_core::{
-    CategoryDomainId, CausalSchema, CausalSchemaBuilder, ExecutionContext, InferenceSelection,
-    MeasurementSpec, RoleHint, ScientificTarget, ScientificWorldId, SmallRoleSet, ValueType,
+use antecedent::analysis::{PreparedStudy, joint_panel as facade};
+use antecedent::data::{
+    CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, Float64Column, OwnedColumn,
+    OwnedColumnarStorage, SamplingRegularity, TableView, TimeIndex, UnknownCategoryPolicy,
+    ValidityBitmap,
+};
+use antecedent::estimate::joint_panel as engine;
+use antecedent::estimate::joint_panel::{
+    PanelChannelHistory, PanelChannelProgram, PanelFitOptions, PanelProgram, PanelScenario,
+};
+use antecedent::prelude::{
+    CausalSchema, CausalSchemaBuilder, ExecutionContext, PanelData, PanelUnit, TimeSeriesData,
     VariableId,
 };
-use antecedent_data::{
-    CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, Float64Column, OwnedColumn,
-    OwnedColumnarStorage, PanelData, PanelUnit, SamplingRegularity, TableView, TimeIndex,
-    TimeSeriesData, UnknownCategoryPolicy, ValidityBitmap,
-};
-use antecedent_estimate::joint_panel::{
-    self as engine, PanelChannelHistory, PanelChannelProgram, PanelFitOptions, PanelProgram,
-    PanelScenario,
-};
+use antecedent::schema::{CategoryDomainId, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
+use antecedent::scientific::{InferenceSelection, ScientificTarget, ScientificWorldId};
 use pyo3::{prelude::*, types::PyBytes};
 use serde::Deserialize;
 use std::{collections::BTreeMap, sync::Arc};
@@ -132,7 +131,7 @@ struct CertificateDeclaration {
     functional: ContrastFunctional,
     utility_offset: f64,
     utility_scale: f64,
-    options: antecedent_design::program_search::certified::CertificateOptions,
+    options: antecedent::design::program_search::certified::CertificateOptions,
 }
 /// Time functional applied identically to every scheduled program before contrasting.
 #[derive(Deserialize)]
@@ -178,7 +177,7 @@ struct Declaration {
     family: engine::PanelFamily,
     temporal: Option<engine::time_varying::TemporalPanelSpec>,
     functional: Option<Functional>,
-    assignment: Option<antecedent_io_core::query_wire::RandomizedEffectQueryWire>,
+    assignment: Option<antecedent::io::query_wire::RandomizedEffectQueryWire>,
     #[serde(default)]
     exogenous_context: bool,
     #[serde(default)]
@@ -369,12 +368,12 @@ fn compile(declaration: Declaration) -> PyResult<Compiled> {
     let assignment = declaration
         .assignment
         .map(|wire| {
-            match antecedent_io_core::query_wire::causal_query_from_wire(
-                &antecedent_io_core::query_wire::CausalQueryWire::RandomizedEffect(wire),
+            match antecedent::io::query_wire::causal_query_from_wire(
+                &antecedent::io::query_wire::CausalQueryWire::RandomizedEffect(wire),
             )
             .map_err(crate::intervention_program_api::io_err)?
             {
-                antecedent_core::CausalQuery::RandomizedEffect(query) => Ok(query),
+                antecedent::query::CausalQuery::RandomizedEffect(query) => Ok(query),
                 _ => Err(crate::value_err("expected randomized assignment")),
             }
         })
@@ -441,7 +440,7 @@ impl PyPreparedJointPanel {
     ) -> PyResult<PyJointPanelResult> {
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let attempt = crate::detach_catch(py, || {
-            Ok(antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            Ok(antecedent::execution::execution_attempt::observe_with_context(&ctx, || {
                 self.inner.estimate(&ctx).map_err(panel_error)
             }))
         })?;
@@ -549,12 +548,12 @@ impl PyJointPanelResult {
         max_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PyPanelProgramCertificate> {
-        use antecedent_design::decision_contract::{
+        use antecedent::design::decision_contract::{
             ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
         };
-        use antecedent_design::program_search::{
+        use antecedent::design::program_search::continuous::ContinuousSearchOptions;
+        use antecedent::design::program_search::{
             FiniteProgramDomain, ProgramControl, ProgramRestriction,
-            continuous::ContinuousSearchOptions,
         };
         crate::bridge::check_declared_size(
             declaration_json,
@@ -565,7 +564,7 @@ impl PyJointPanelResult {
         let _input = ctx
             .acquire_admission(0, (declaration_json.len() as u64).saturating_mul(8))
             .map_err(|e| match e {
-                antecedent_core::execution::AdmissionError::Cancelled => {
+                antecedent::execution::AdmissionError::Cancelled => {
                     crate::CausalCancelledError::new_err(e.to_string())
                 }
                 _ => crate::CausalResourceError::new_err(e.to_string()),
@@ -695,7 +694,7 @@ impl PyJointPanelResult {
                 "identified_reference":checked.is_identified_reference(),
                 "identification_identity":checked.identification_identity.to_hex(),
                 "hybrid_support":checked.hybrids.iter().map(|h|serde_json::json!({"mask":h.mask,
-                    "source_world":h.source_world.map(antecedent_core::ScientificWorldId::raw),"unresolved":h.unresolved})).collect::<Vec<_>>(),
+                    "source_world":h.source_world.map(antecedent::scientific::ScientificWorldId::raw),"unresolved":h.unresolved})).collect::<Vec<_>>(),
                 "scope":"model_conditional_reference_decomposition",
                 "calibration":"unmeasured", "grants_unique_causal_attribution":false})
             .to_string())
@@ -758,7 +757,7 @@ impl PyJointPanelResult {
 pub(crate) struct PyPanelProgramCertificate {
     plan: facade::JointPanelCertifiedSearch,
     inner: facade::JointPanelCertifiedSearchResult,
-    options: antecedent_design::program_search::certified::CertificateOptions,
+    options: antecedent::design::program_search::certified::CertificateOptions,
 }
 #[pymethods]
 impl PyPanelProgramCertificate {
@@ -795,7 +794,7 @@ impl PyPanelProgramCertificate {
         let certificate = &self.inner.certificate;
         serde_json::json!({"controls":certificate.controls,"incumbent":certificate.incumbent,
             "domain_identity":certificate.identity.to_hex(),
-            "global_certificate":matches!(certificate.stop, antecedent_design::program_search::certified::CertificateStop::Certified),
+            "global_certificate":matches!(certificate.stop, antecedent::design::program_search::certified::CertificateStop::Certified),
             "assumptions":["retained fitted point response","declared bounded controls and hard linear restrictions","outward-rounded supported arithmetic"],
             "global_upper":certificate.global_upper,"gap":certificate.gap,"stop":certificate.stop,
             "splits":certificate.splits,"infeasible_regions":certificate.infeasible_regions,
@@ -811,7 +810,7 @@ impl PyPanelProgramCertificate {
 fn admit_declaration(
     ctx: &ExecutionContext,
     declaration_json: &str,
-) -> PyResult<antecedent_core::execution::AdmissionLease> {
+) -> PyResult<antecedent::execution::AdmissionLease> {
     crate::bridge::check_declared_size(
         declaration_json,
         crate::bridge::MAX_SPEC_DECLARATION_BYTES,
@@ -824,9 +823,9 @@ fn admit_declaration(
 fn admit_bytes(
     ctx: &ExecutionContext,
     bytes: u64,
-) -> PyResult<antecedent_core::execution::AdmissionLease> {
+) -> PyResult<antecedent::execution::AdmissionLease> {
     ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => {
+        antecedent::execution::AdmissionError::Cancelled => {
             crate::CausalCancelledError::new_err(error.to_string())
         }
         _ => crate::CausalResourceError::new_err(error.to_string()),
@@ -963,7 +962,7 @@ fn consume_joint_panel(
 ) -> PyResult<String> {
     let ctx = context(seed, threads, max_bytes, cancel)?;
     crate::detach_catch(py, || {
-        let replay = antecedent_io::joint_panel_artifact::consume_panel_execution(bytes, &ctx)
+        let replay = antecedent::io::joint_panel_artifact::consume_panel_execution(bytes, &ctx)
             .map_err(artifact_error)?;
         Ok(serde_json::json!({"point":replay.point(),"draws":replay.draws(),"grants_current_authority":replay.grants_current_authority()}).to_string())
     })
@@ -1113,7 +1112,7 @@ fn mixed_series(
     domains: &[Option<std::sync::Arc<CategoryDomain>>],
     interval_ns: u64,
 ) -> PyResult<TimeSeriesData> {
-    let schema_error = |error: antecedent_core::SchemaError| crate::value_err(error.to_string());
+    let schema_error = |error: antecedent::schema::SchemaError| crate::value_err(error.to_string());
     let mut builder = CausalSchemaBuilder::new();
     let mut built = Vec::with_capacity(names.len());
     let mut length = 0;
@@ -1236,12 +1235,12 @@ fn features(
             let text =
                 serde_json::json!([{"mode":"assign","variable":outcome,"expr":feature.expression}])
                     .to_string();
-            let parsed = antecedent_io::policy_program_artifact::interventions_from_named_json(
+            let parsed = antecedent::io::policy_program_artifact::interventions_from_named_json(
                 &text,
                 &|name| variable(names, name).ok().map(VariableId::raw),
             )
             .map_err(crate::intervention_program_api::io_err)?;
-            let Some(antecedent_core::Intervention::Assign { expr: expression, .. }) =
+            let Some(antecedent::prelude::Intervention::Assign { expr: expression, .. }) =
                 parsed.into_iter().next()
             else {
                 return Err(crate::value_err("missing programmable feature expression"));
@@ -1253,8 +1252,8 @@ fn features(
     Ok(interactions)
 }
 
-fn artifact_error(error: antecedent_io::joint_panel_artifact::PanelArtifactError) -> PyErr {
-    use antecedent_io::joint_panel_artifact::PanelArtifactError;
+fn artifact_error(error: antecedent::io::joint_panel_artifact::PanelArtifactError) -> PyErr {
+    use antecedent::io::joint_panel_artifact::PanelArtifactError;
     match error {
         PanelArtifactError::Cancelled
         | PanelArtifactError::Engine(engine::PanelError::Cancelled) => {

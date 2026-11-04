@@ -8,15 +8,14 @@ use antecedent::analysis::recalc_dr::{DrEstimator, DrRequest, DrSession, execute
 use antecedent::analysis::recalc_receipt::{
     RecalcRequestCode, RecalcRunError, TargetWeights, UtilitySpec,
 };
-use antecedent_core::recalc::{RecalcCapabilities, ResumeContext, RetargetSupport};
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_estimate::overlap::OverlapPolicy;
-use antecedent_estimate::{DmlAte, DmlScore, DrLearner, LearnerSpec};
-use antecedent_io::recalc_receipt_artifact::{
+use antecedent::estimate::fit_counts::count_resolved_fits;
+use antecedent::estimate::{DmlAte, DmlScore, DrLearner, LearnerSpec, OverlapPolicy};
+use antecedent::execution::recalc::{RecalcCapabilities, ResumeContext, RetargetSupport};
+use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, DeclaredStageWire, RecalcReceiptArtifact, ResumeWire, identities_from_wire,
     identities_to_wire, plan_to_wire,
 };
-use antecedent_learn::fit_counts::count_resolved_fits;
+use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -64,14 +63,14 @@ struct RequestWire {
 fn learner(value: &serde_json::Value) -> PyResult<LearnerSpec> {
     let spec: LearnerSpec = match value {
         serde_json::Value::String(name) => LearnerSpec::parse(name).map_err(|e| {
-            invalid(antecedent_core::reason_details::recalc::DR_INVALID_LEARNER, e.to_string())
+            invalid(antecedent::reason::reason_details::recalc::DR_INVALID_LEARNER, e.to_string())
         })?,
         _ => serde_json::from_value(value.clone()).map_err(|e| {
-            invalid(antecedent_core::reason_details::recalc::DR_INVALID_LEARNER, e.to_string())
+            invalid(antecedent::reason::reason_details::recalc::DR_INVALID_LEARNER, e.to_string())
         })?,
     };
     spec.validate().map_err(|e| {
-        invalid(antecedent_core::reason_details::recalc::DR_INVALID_LEARNER, e.to_string())
+        invalid(antecedent::reason::reason_details::recalc::DR_INVALID_LEARNER, e.to_string())
     })?;
     Ok(spec)
 }
@@ -81,7 +80,7 @@ fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
     // of rows when the cross-fit is built.
     if config.folds.is_some_and(|n| n < 2) {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::DR_INVALID_FOLDS,
+            antecedent::reason::reason_details::recalc::DR_INVALID_FOLDS,
             "fold count must be at least 2",
         ));
     }
@@ -89,7 +88,7 @@ fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
         config.overlap.map(|o| OverlapPolicy::RequireDiagnostics { clip: o.clip, trim: o.trim });
     if let Some(policy) = overlap {
         policy.validate().map_err(|e| {
-            invalid(antecedent_core::reason_details::recalc::DR_INVALID_OVERLAP, e.to_string())
+            invalid(antecedent::reason::reason_details::recalc::DR_INVALID_OVERLAP, e.to_string())
         })?;
     }
     let shared = config.learner.as_ref().map(learner).transpose()?;
@@ -99,7 +98,7 @@ fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
         "dml" => {
             if config.final_learner.is_some() {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::DR_INVALID_MODEL,
+                    antecedent::reason::reason_details::recalc::DR_INVALID_MODEL,
                     "DML has no final CATE learner",
                 ));
             }
@@ -119,7 +118,7 @@ fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
             if let Some(value) = config.score {
                 model = model.with_score(DmlScore::parse(&value).map_err(|e| {
                     invalid(
-                        antecedent_core::reason_details::recalc::DR_INVALID_SCORE,
+                        antecedent::reason::reason_details::recalc::DR_INVALID_SCORE,
                         e.to_string(),
                     )
                 })?);
@@ -132,7 +131,7 @@ fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
         "cate" => {
             if config.score.is_some() {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::DR_INVALID_MODEL,
+                    antecedent::reason::reason_details::recalc::DR_INVALID_MODEL,
                     "DR-Learner declares no selectable score",
                 ));
             }
@@ -158,7 +157,7 @@ fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
             Ok(DrEstimator::Cate(model))
         }
         _ => Err(invalid(
-            antecedent_core::reason_details::recalc::DR_INVALID_MODEL,
+            antecedent::reason::reason_details::recalc::DR_INVALID_MODEL,
             "unknown DR family model",
         )),
     }
@@ -174,14 +173,14 @@ fn build_request(
     let wire: RequestWire = parse_json(specification, "DR request")?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_DATA,
+            antecedent::reason::reason_details::recalc::INVALID_DATA,
             "one column per name required",
         ));
     }
     for (i, name) in names.iter().enumerate() {
         if name.trim().is_empty() || names[..i].contains(name) {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::INVALID_DATA,
+                antecedent::reason::reason_details::recalc::INVALID_DATA,
                 "unique nonempty names required",
             ));
         }
@@ -189,7 +188,7 @@ fn build_request(
     let position = |name: &str| {
         names.iter().position(|n| n == name).and_then(|p| u32::try_from(p).ok()).ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::recalc::UNKNOWN_VARIABLE,
+                antecedent::reason::reason_details::recalc::UNKNOWN_VARIABLE,
                 format!("no column named `{name}`"),
             )
         })
@@ -203,7 +202,7 @@ fn build_request(
         .collect::<PyResult<Vec<_>>>()?;
     if wire.target_weights.is_none() && !wire.target_depends_on.is_empty() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "weight dependencies need weights",
         ));
     }
@@ -236,9 +235,9 @@ fn dr_error_refusal(error: &RecalcRunError) -> String {
     match error {
         RecalcRunError::Refused(plan) => plan_refusal_json(plan),
         RecalcRunError::NoLiveState(stage) => refusal_json(
-            antecedent_core::reason_code!("score_table_unavailable"),
+            antecedent::reason::reason_code!("score_table_unavailable"),
             &stage.label(),
-            antecedent_core::reason_details::recalc::NO_LIVE_STATE,
+            antecedent::reason::reason_details::recalc::NO_LIVE_STATE,
             Some(&stage.label()),
             None,
             "no retained DR state",
@@ -247,112 +246,112 @@ fn dr_error_refusal(error: &RecalcRunError) -> String {
         RecalcRunError::Request(detail) => {
             let detail = detail.as_str();
             let (code, stage) = match detail {
-                antecedent_core::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH
-                | antecedent_core::reason_details::recalc::DR_FIT_COUNTER_MISMATCH
-                | antecedent_core::reason_details::recalc::DR_EFFECT_UNAVAILABLE => {
-                    (antecedent_core::reason_code!("invalid_argument"), "score_artifact")
+                antecedent::reason::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH
+                | antecedent::reason::reason_details::recalc::DR_FIT_COUNTER_MISMATCH
+                | antecedent::reason::reason_details::recalc::DR_EFFECT_UNAVAILABLE => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::DR_PREDICTOR_UNAVAILABLE
-                | antecedent_core::reason_details::recalc::DR_SCORES_UNAVAILABLE
-                | antecedent_core::reason_details::recalc::DR_PREDICTION_OUT_OF_SUPPORT => {
-                    (antecedent_core::reason_code!("route_not_supported"), "score_artifact")
+                antecedent::reason::reason_details::recalc::DR_PREDICTOR_UNAVAILABLE
+                | antecedent::reason::reason_details::recalc::DR_SCORES_UNAVAILABLE
+                | antecedent::reason::reason_details::recalc::DR_PREDICTION_OUT_OF_SUPPORT => {
+                    (antecedent::reason::reason_code!("route_not_supported"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::INVALID_DATA => {
-                    (antecedent_core::reason_code!("invalid_argument"), "data_snapshot")
+                antecedent::reason::reason_details::recalc::INVALID_DATA => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "data_snapshot")
                 }
-                antecedent_core::reason_details::recalc::INVALID_GRAPH => {
-                    (antecedent_core::reason_code!("invalid_argument"), "graph")
+                antecedent::reason::reason_details::recalc::INVALID_GRAPH => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "graph")
                 }
-                antecedent_core::reason_details::recalc::INVALID_QUERY => {
-                    (antecedent_core::reason_code!("invalid_argument"), "query")
+                antecedent::reason::reason_details::recalc::INVALID_QUERY => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "query")
                 }
-                antecedent_core::reason_details::recalc::CANCELLED => {
-                    (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
+                antecedent::reason::reason_details::recalc::CANCELLED => {
+                    (antecedent::reason::reason_code!("cancelled_no_claim"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
-                    (antecedent_core::reason_code!("invalid_argument"), "score_artifact")
+                antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::INVALID_TARGET_WEIGHTS => {
-                    (antecedent_core::reason_code!("invalid_argument"), "target_population")
+                antecedent::reason::reason_details::recalc::INVALID_TARGET_WEIGHTS => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "target_population")
                 }
-                antecedent_core::reason_details::recalc::DR_TARGET_INCOMPATIBLE => {
-                    (antecedent_core::reason_code!("route_not_supported"), "target_population")
+                antecedent::reason::reason_details::recalc::DR_TARGET_INCOMPATIBLE => {
+                    (antecedent::reason::reason_code!("route_not_supported"), "target_population")
                 }
-                _ => (antecedent_core::reason_code!("invalid_argument"), "score_artifact"),
+                _ => (antecedent::reason::reason_code!("invalid_argument"), "score_artifact"),
             };
             refusal_json(code, stage, detail, None, None, &error.to_string(), None)
         }
         RecalcRunError::Execution(cause) => {
             use antecedent::CausalError;
-            use antecedent_estimate::EstimationError;
-            use antecedent_stats::{GlmRefusalKind, StatsError};
+            use antecedent::estimate::EstimationError;
+            use antecedent::inference::{GlmRefusalKind, StatsError};
             let (code, detail, stage) = match cause.peeled() {
                 CausalError::Cancelled { .. } => (
-                    antecedent_core::reason_code!("cancelled_no_claim"),
-                    antecedent_core::reason_details::recalc::CANCELLED,
+                    antecedent::reason::reason_code!("cancelled_no_claim"),
+                    antecedent::reason::reason_details::recalc::CANCELLED,
                     "score_artifact",
                 ),
                 CausalError::Conflict { what: "source", .. } => (
-                    antecedent_core::reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::recalc::DR_SOURCE_MISMATCH,
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_details::recalc::DR_SOURCE_MISMATCH,
                     "data_snapshot",
                 ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "cancelled_no_claim" => (
-                    antecedent_core::reason_code!("cancelled_no_claim"),
-                    antecedent_core::reason_details::recalc::CANCELLED,
+                    antecedent::reason::reason_code!("cancelled_no_claim"),
+                    antecedent::reason::reason_details::recalc::CANCELLED,
                     "score_artifact",
                 ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "arm_not_populated" => (
-                    antecedent_core::reason_code!("arm_not_populated"),
-                    antecedent_core::reason_details::recalc::DR_ARM_NOT_POPULATED,
+                    antecedent::reason::reason_code!("arm_not_populated"),
+                    antecedent::reason::reason_details::recalc::DR_ARM_NOT_POPULATED,
                     "score_artifact",
                 ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "invalid_argument" => (
-                    antecedent_core::reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::recalc::DR_MODEL_DATA_INVALID,
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_details::recalc::DR_MODEL_DATA_INVALID,
                     "data_snapshot",
                 ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "design_rank_deficient" => (
-                    antecedent_core::reason_code!("design_rank_deficient"),
-                    antecedent_core::reason_details::recalc::DR_DESIGN_RANK_DEFICIENT,
+                    antecedent::reason::reason_code!("design_rank_deficient"),
+                    antecedent::reason::reason_details::recalc::DR_DESIGN_RANK_DEFICIENT,
                     "score_artifact",
                 ),
                 CausalError::NotIdentified { .. } => (
-                    antecedent_core::reason_code!("effect_not_identified"),
-                    antecedent_core::reason_details::recalc::DR_NOT_IDENTIFIED,
+                    antecedent::reason::reason_code!("effect_not_identified"),
+                    antecedent::reason::reason_details::recalc::DR_NOT_IDENTIFIED,
                     "identification",
                 ),
                 CausalError::Estimate(EstimationError::Data(_) | EstimationError::Query(_)) => (
-                    antecedent_core::reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::recalc::DR_MODEL_DATA_INVALID,
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_details::recalc::DR_MODEL_DATA_INVALID,
                     "data_snapshot",
                 ),
                 CausalError::Estimate(EstimationError::Stats(StatsError::GlmRefused {
                     kind,
                     ..
                 })) => (
-                    antecedent_core::reason_code!("route_not_supported"),
+                    antecedent::reason::reason_code!("route_not_supported"),
                     match kind {
                         GlmRefusalKind::NonConverged => {
-                            antecedent_core::reason_details::recalc::DR_GLM_NOT_CONVERGED
+                            antecedent::reason::reason_details::recalc::DR_GLM_NOT_CONVERGED
                         }
                         GlmRefusalKind::Separated => {
-                            antecedent_core::reason_details::recalc::DR_GLM_SEPARATED
+                            antecedent::reason::reason_details::recalc::DR_GLM_SEPARATED
                         }
                         GlmRefusalKind::BoundarySaturated => {
-                            antecedent_core::reason_details::recalc::DR_GLM_BOUNDARY_SATURATED
+                            antecedent::reason::reason_details::recalc::DR_GLM_BOUNDARY_SATURATED
                         }
                     },
                     "score_artifact",
@@ -360,22 +359,22 @@ fn dr_error_refusal(error: &RecalcRunError) -> String {
                 CausalError::Estimate(EstimationError::Stats(StatsError::RankDeficient {
                     ..
                 })) => (
-                    antecedent_core::reason_code!("design_rank_deficient"),
-                    antecedent_core::reason_details::recalc::DR_DESIGN_RANK_DEFICIENT,
+                    antecedent::reason::reason_code!("design_rank_deficient"),
+                    antecedent::reason::reason_details::recalc::DR_DESIGN_RANK_DEFICIENT,
                     "score_artifact",
                 ),
                 _ => (
-                    antecedent_core::reason_code!("route_not_supported"),
-                    antecedent_core::reason_details::recalc::DR_FIT_REFUSED,
+                    antecedent::reason::reason_code!("route_not_supported"),
+                    antecedent::reason::reason_details::recalc::DR_FIT_REFUSED,
                     "score_artifact",
                 ),
             };
             refusal_json(code, stage, detail, None, None, &cause.to_string(), None)
         }
         RecalcRunError::Receipt(_) => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "score_artifact",
-            antecedent_core::reason_details::recalc::DR_RECEIPT_INVALID,
+            antecedent::reason::reason_details::recalc::DR_RECEIPT_INVALID,
             None,
             None,
             &error.to_string(),
@@ -392,7 +391,7 @@ impl PyDrSession {
     fn capabilities(&self) -> RecalcCapabilities {
         RecalcCapabilities {
             retarget: RetargetSupport::Supported,
-            request: antecedent_core::recalc::RequestSupport::OnGrid,
+            request: antecedent::execution::recalc::RequestSupport::OnGrid,
             boundary: self.inner.boundary(),
         }
     }
@@ -511,14 +510,14 @@ impl PyDrSession {
         let ctx = bounded_context(seed, threads, memory_limit_bytes, None);
         let rows = bounded_prediction_rows(
             rows,
-            antecedent_core::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH,
+            antecedent::reason::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH,
             &ctx,
         )?;
         if !self.inner.is_live() {
             return Ok((
                 None,
                 Some(dr_error_refusal(&RecalcRunError::NoLiveState(
-                    antecedent_core::recalc::Stage::ScoreArtifact,
+                    antecedent::execution::recalc::Stage::ScoreArtifact,
                 ))),
             ));
         }
@@ -535,9 +534,9 @@ impl PyDrSession {
                 return Ok((
                     None,
                     Some(refusal_json(
-                        antecedent_core::reason_code!("invalid_argument"),
+                        antecedent::reason::reason_code!("invalid_argument"),
                         "score_artifact",
-                        antecedent_core::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH,
+                        antecedent::reason::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH,
                         None,
                         None,
                         "prediction feature names/order differ from retained CATE map",

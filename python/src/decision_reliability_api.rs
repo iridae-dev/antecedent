@@ -17,7 +17,7 @@ use antecedent::analysis::decision_reliability::{
     decision_reliability_coverage_design, derive_decision_uncertainty, derive_producer_uncertainty,
     publish_derived_route, reach_decision_carrier,
 };
-use antecedent_design::decision_reliability::{
+use antecedent::design::decision_reliability::{
     RankingRequest, ReliabilityError, rank, support_route,
 };
 use pyo3::prelude::*;
@@ -35,8 +35,8 @@ type AssessParts = (Py<PyBytes>, String, String);
 /// the lower owner's typed refusal fields across the historical JSON boundary.
 fn run_worker<T: Send>(
     py: Python<'_>,
-    ctx: antecedent_core::ExecutionContext,
-    work: impl FnOnce(&antecedent_core::ExecutionContext) -> Refused<T> + Send,
+    ctx: antecedent::prelude::ExecutionContext,
+    work: impl FnOnce(&antecedent::prelude::ExecutionContext) -> Refused<T> + Send,
 ) -> PyResult<Refused<T>> {
     crate::detach_catch(py, move || {
         let outcome = work(&ctx);
@@ -54,7 +54,7 @@ fn run_worker<T: Send>(
                 }));
             }
             if fields["detail"]
-                == antecedent_core::reason_details::decision_reliability::MEMORY_BUDGET_EXCEEDED
+                == antecedent::reason::reason_details::decision_reliability::MEMORY_BUDGET_EXCEEDED
             {
                 return Err(crate::CausalResourceError::new_err(refusal.clone()));
             }
@@ -90,9 +90,9 @@ fn error_json(error: &ReliabilityError) -> String {
 
 fn invalid_json(message: String) -> String {
     json!({
-        "code": antecedent_core::reason_code!("invalid_argument"),
+        "code": antecedent::reason::reason_code!("invalid_argument"),
         "stage": "decision_reliability",
-        "detail": antecedent_core::reason_details::decision_reliability::INVALID_INPUT,
+        "detail": antecedent::reason::reason_details::decision_reliability::INVALID_INPUT,
         "message": message,
         "offending": Json::Null,
         "remedy": Json::Null,

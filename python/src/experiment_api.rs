@@ -136,7 +136,7 @@ fn estimate_cuped_effect(
     let covariate = covariate.as_array().iter().copied().collect::<Vec<_>>();
     let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
     let fit = detach_catch(py, move || {
-        antecedent_estimate::randomized_scores::cuped_ht_effect(
+        antecedent::estimate::randomized_scores::cuped_ht_effect(
             &outcome,
             &covariate,
             &assignment,
@@ -157,7 +157,7 @@ fn estimate_stratified_effect(
 ) -> PyResult<(f64, f64, f64, usize)> {
     let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let fit = detach_catch(py, move || {
-        antecedent_estimate::randomized_neyman::stratified_neyman_effect(
+        antecedent::estimate::randomized_neyman::stratified_neyman_effect(
             &outcome,
             &assignment,
             &blocks,
@@ -178,7 +178,7 @@ fn exact_randomization_test(
     let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
     let fit = detach_catch(py, move || {
-        antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test(
+        antecedent::estimate::randomized_scores::bernoulli_exact_randomization_test(
             &outcome,
             &assignment,
             &propensity,
@@ -208,7 +208,7 @@ fn estimate_switchback_effect(
         return Err(crate::value_err("sequence labels must be non-empty"));
     }
     let ids = sequences.iter().map(String::as_str).collect::<Vec<_>>();
-    let fit = antecedent_estimate::switchback::switchback_itt(
+    let fit = antecedent::estimate::switchback::switchback_itt(
         &y.to_vec(), &assignment, &p.to_vec(), &ids,
     ).ok_or_else(|| crate::value_err(
         "switchback requires finite outcomes, valid probabilities, at least two independent sequences, and global support for both arms",
@@ -234,7 +234,7 @@ fn estimate_ancova_effect(
         .collect::<Vec<_>>();
     let fit = detach_catch(py, move || {
         let refs = columns.iter().map(Vec::as_slice).collect::<Vec<_>>();
-        antecedent_estimate::ancova::fit_ancova(&outcomes, &assignment, &refs)
+        antecedent::estimate::ancova::fit_ancova(&outcomes, &assignment, &refs)
             .map_err(crate::value_err)
     })?;
     Ok((fit.effect, fit.hc0_variance.sqrt(), fit.covariate_coefficients, fit.treated, fit.control))

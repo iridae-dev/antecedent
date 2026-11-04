@@ -5,36 +5,37 @@
 //! for the Python layer to raise as its own exception type.
 
 use crate::bridge::{check_declared_size, external_refusal_json, serialization};
-use antecedent_design::decision_adapters::{
+use antecedent::analysis::inverse_query::{AtomEvidence, MeanSource, StructuralPolicy};
+use antecedent::contract::ExternalRefusal;
+use antecedent::design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
     IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
     adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets,
     utility_interval,
 };
-use antecedent_design::decision_artifact::{
+use antecedent::design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
     contract_from_json, contract_from_json_refusal, contract_to_json, mean_result_to_json,
     result_to_json, source_digest,
 };
-use antecedent_design::decision_contract::{AdmissibleDecisionContract, StructuralPolicy};
-use antecedent_design::decision_eval::{
-    DecisionEvalError, MeanEstimate, MeanSource, evaluate_contract, evaluate_contract_on_means,
+use antecedent::design::decision_contract::AdmissibleDecisionContract;
+use antecedent::design::decision_eval::{
+    DecisionEvalError, MeanEstimate, evaluate_contract, evaluate_contract_on_means,
 };
-use antecedent_design::decision_robust_artifact::{
+use antecedent::design::decision_robust_artifact::{
     AdmissibleContractArtifact, ExternalCallbackReceipt, ExternalTrustLimit, RobustResultArtifact,
     admissible_contract_from_json, admissible_contract_from_json_refusal,
     admissible_contract_to_json, atom_digests_of,
 };
-use antecedent_design::decision_robustness::{AtomSupport, InputSupport};
-use antecedent_design::decision_structural::{
-    AtomEvidence, AtomStatus, StructuralDecisionResult, StructuralVerdict,
+use antecedent::design::decision_robustness::{AtomSupport, InputSupport};
+use antecedent::design::decision_structural::{
+    AtomStatus, StructuralDecisionResult, StructuralVerdict,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::IoError;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-
-use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 
 use crate::distribution_api::PyJointDistributionArtifact;
 
@@ -48,8 +49,8 @@ fn io_refusal(error: &IoError, stage: &'static str) -> String {
             (*code, message.split(':').next().unwrap_or("decision_artifact").to_owned(), None)
         }
         other => (
-            antecedent_core::reason_code!("decision_contract_unsatisfied"),
-            antecedent_core::reason_details::decision_contract::INVALID_DECLARATION.to_owned(),
+            antecedent::reason::reason_code!("decision_contract_unsatisfied"),
+            antecedent::reason::reason_details::decision_contract::INVALID_DECLARATION.to_owned(),
             Some(other.to_string()),
         ),
     };
@@ -242,7 +243,7 @@ fn composition_lineage(links_json: &str) -> PyResult<String> {
             .zip(&parents)
             .map(|((id, stage, _), parents)| (id.as_str(), stage.as_str(), parents.as_slice()))
             .collect();
-        let wire = antecedent_io::external_claim_artifact::lineage_wire(&borrowed)
+        let wire = antecedent::io::external_claim_artifact::lineage_wire(&borrowed)
             .map_err(serialization)?;
         serde_json::to_string(&wire).map_err(serialization)
     })
@@ -261,7 +262,7 @@ fn decision_source_digest(source: &PyJointDistributionArtifact) -> String {
 /// Refusal JSON for a malformed bridge argument that never reached Rust validation.
 fn invalid_json(detail: &str, offending: Option<String>) -> String {
     external_refusal_json(&ExternalRefusal {
-        code: antecedent_core::reason_code!("invalid_argument"),
+        code: antecedent::reason::reason_code!("invalid_argument"),
         stage: "adapt",
         detail: detail.to_owned(),
         offending,
@@ -362,10 +363,10 @@ struct ClaimWire {
     support: Option<SupportWire>,
 }
 
-fn parse_status(name: &str) -> Result<antecedent_core::SupportStatus, String> {
-    antecedent_core::SupportStatus::from_name(name).ok_or_else(|| {
+fn parse_status(name: &str) -> Result<antecedent::query::SupportStatus, String> {
+    antecedent::query::SupportStatus::from_name(name).ok_or_else(|| {
         invalid_json(
-            antecedent_core::reason_details::decision_adapters::UNKNOWN_SUPPORT_STATUS,
+            antecedent::reason::reason_details::decision_adapters::UNKNOWN_SUPPORT_STATUS,
             Some(name.into()),
         )
     })
@@ -394,7 +395,7 @@ fn support_from(wire: Option<SupportWire>) -> Result<AtomSupport, String> {
 fn probability_from(wire: Option<ProbabilityWire>, id: &str) -> Result<ClaimProbability, String> {
     let bad = || {
         invalid_json(
-            antecedent_core::reason_details::decision_adapters::INVALID_PROBABILITY,
+            antecedent::reason::reason_details::decision_adapters::INVALID_PROBABILITY,
             Some(id.to_owned()),
         )
     };
@@ -423,18 +424,18 @@ fn claim_from(
                     AtomEvidence::Unevaluated(reason.to_owned())
                 }
                 _ => return Err(bad(
-                    antecedent_core::reason_details::decision_adapters::UNEVALUATED_NEEDS_REASON,
+                    antecedent::reason::reason_details::decision_adapters::UNEVALUATED_NEEDS_REASON,
                 )),
             }
         }
         ("evaluated", None) => {
             return Err(bad(
-                antecedent_core::reason_details::decision_adapters::EVALUATED_NEEDS_DRAWS,
+                antecedent::reason::reason_details::decision_adapters::EVALUATED_NEEDS_DRAWS,
             ));
         }
         _ => {
             return Err(bad(
-                antecedent_core::reason_details::decision_adapters::UNKNOWN_CLAIM_STATUS,
+                antecedent::reason::reason_details::decision_adapters::UNKNOWN_CLAIM_STATUS,
             ));
         }
     };
@@ -462,13 +463,13 @@ fn prepare(
         .map_err(|refusal| external_refusal_json(&refusal))?;
     let wires: Vec<ClaimWire> = serde_json::from_str(claims_json).map_err(|e| {
         invalid_json(
-            antecedent_core::reason_details::decision_adapters::INVALID_CLAIMS,
+            antecedent::reason::reason_details::decision_adapters::INVALID_CLAIMS,
             Some(e.to_string()),
         )
     })?;
     if wires.len() != sources.len() {
         return Err(invalid_json(
-            antecedent_core::reason_details::decision_adapters::CLAIMS_SOURCES_MISMATCH,
+            antecedent::reason::reason_details::decision_adapters::CLAIMS_SOURCES_MISMATCH,
             None,
         ));
     }
@@ -483,7 +484,7 @@ fn prepare(
         });
     if cloned_bytes.is_none_or(|bytes| bytes > MAX_CLAIM_DRAW_BYTES) {
         return Err(invalid_json(
-            antecedent_core::reason_details::decision_adapters::CLAIM_DRAWS_TOO_LARGE,
+            antecedent::reason::reason_details::decision_adapters::CLAIM_DRAWS_TOO_LARGE,
             Some(format!("the claims copy more than {MAX_CLAIM_DRAW_BYTES} bytes of draws")),
         ));
     }
@@ -497,7 +498,7 @@ fn prepare(
         "point" => {
             let Ok([claim]) = <[SuppliedClaim; 1]>::try_from(claims) else {
                 return Err(invalid_json(
-                    antecedent_core::reason_details::decision_adapters::POINT_CLAIM_IS_SINGLE,
+                    antecedent::reason::reason_details::decision_adapters::POINT_CLAIM_IS_SINGLE,
                     None,
                 ));
             };
@@ -508,7 +509,7 @@ fn prepare(
         "finite_scenarios" => adapt_finite_scenarios(claims, policy),
         other => {
             return Err(invalid_json(
-                antecedent_core::reason_details::decision_adapters::UNKNOWN_CLAIM_KIND,
+                antecedent::reason::reason_details::decision_adapters::UNKNOWN_CLAIM_KIND,
                 Some(other.into()),
             ));
         }
@@ -868,7 +869,7 @@ fn evaluate_identified_set_decision(
                 .map_err(|refusal| external_refusal_json(&refusal))?;
             let wires: Vec<UtilityWire> = serde_json::from_str(utilities_json).map_err(|e| {
                 invalid_json(
-                    antecedent_core::reason_details::decision_adapters::INVALID_UTILITIES,
+                    antecedent::reason::reason_details::decision_adapters::INVALID_UTILITIES,
                     Some(e.to_string()),
                 )
             })?;
@@ -877,7 +878,10 @@ fn evaluate_identified_set_decision(
                 .map(|w| {
                     Ok(IdentifiedUtility {
                         action_id: w.action_id,
-                        utility: antecedent_core::IdentifiedSet { lower: w.lower, upper: w.upper },
+                        utility: antecedent::query::IdentifiedSet {
+                            lower: w.lower,
+                            upper: w.upper,
+                        },
                         hard_exclusions: w.hard_exclusions,
                         support: support_from(w.support)?,
                     })
@@ -911,9 +915,9 @@ fn identified_utility_interval(
             Ok(contract) => contract,
             Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
         };
-        let inputs: Vec<antecedent_core::IdentifiedSet<f64>> = intervals
+        let inputs: Vec<antecedent::query::IdentifiedSet<f64>> = intervals
             .into_iter()
-            .map(|(lower, upper)| antecedent_core::IdentifiedSet { lower, upper })
+            .map(|(lower, upper)| antecedent::query::IdentifiedSet { lower, upper })
             .collect();
         Ok(match utility_interval(&contract.contract, action_id, &inputs) {
             Ok(set) => (Some((set.lower, set.upper)), None),

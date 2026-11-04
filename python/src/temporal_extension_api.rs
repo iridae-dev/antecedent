@@ -6,20 +6,20 @@
 //! A refusal comes back as structured JSON for the Python layer to raise as its own
 //! exception type.
 use crate::bridge::RefusalJson;
-use antecedent::{IntervalEstimand, TemporalInitialState, TemporalWindow};
-use antecedent_core::reason_code;
-use antecedent_estimate::temporal_dependent_interval::{
+use antecedent::estimate::temporal_dependent_interval::{
     DependentIntervalConfig, IntervalMethod, SequenceHistory, UnitHistories,
 };
-use antecedent_estimate::temporal_initial_state::{
+use antecedent::estimate::temporal_initial_state::{
     InitialStateLaw, InitialStatePopulation, InitialStateSpec,
 };
-use antecedent_estimate::temporal_refresh::ObservationPeriod;
-use antecedent_io::IoError;
-use antecedent_io::temporal_initial_state_artifact::{
+use antecedent::estimate::temporal_refresh::ObservationPeriod;
+use antecedent::io::IoError;
+use antecedent::io::temporal_initial_state_artifact::{
     TemporalInitialStateConsumeLimits, TemporalPremisesWire,
 };
-use antecedent_io::temporal_refresh_artifact::{ReceiptWire, WindowIdentityWire};
+use antecedent::io::temporal_refresh_artifact::{ReceiptWire, WindowIdentityWire};
+use antecedent::reason::reason_code;
+use antecedent::{IntervalEstimand, TemporalInitialState, TemporalWindow};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::BTreeSet;
@@ -84,8 +84,8 @@ fn units_of(units: Option<Vec<UnitTuple>>) -> Option<Vec<UnitHistories>> {
 fn panel_of(
     snapshot_id: &str,
     units: Option<Vec<UnitTuple>>,
-) -> Result<antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel, IoError> {
-    Ok(antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel::new(
+) -> Result<antecedent::estimate::temporal_dependent_interval::TemporalUnitPanel, IoError> {
+    Ok(antecedent::estimate::temporal_dependent_interval::TemporalUnitPanel::new(
         snapshot_id,
         units_of(units),
     )?)
@@ -149,8 +149,8 @@ fn to_value(value: &impl serde::Serialize) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
 }
 
-fn invalidation_target_label(target: &antecedent_state::InvalidationTarget) -> String {
-    use antecedent_state::InvalidationTarget as T;
+fn invalidation_target_label(target: &antecedent::state::InvalidationTarget) -> String {
+    use antecedent::state::InvalidationTarget as T;
     match target {
         T::TemporalProduct(product) => format!("temporal_product:{}", product.label()),
         T::AllResults => "all_results".to_owned(),
@@ -411,7 +411,7 @@ fn temporal_dependent_interval_scope(
 #[pyclass]
 #[doc(hidden)]
 struct NativeTemporalIntervalCandidate {
-    wire: antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire,
+    wire: antecedent::io::temporal_interval_artifact::TemporalIntervalArtifactWire,
 }
 
 #[pymethods]
@@ -582,10 +582,10 @@ fn temporal_dependent_interval_measured(
         };
         let bytes = source.export().map_err(crate::transport_common::error)?;
         let measured =
-            antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure(
+            antecedent::io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure(
                 &bytes,
                 &source.seal,
-                &antecedent_io::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(
+                &antecedent::io::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(
                 ),
                 &ctx,
             );
@@ -606,7 +606,7 @@ fn consume_temporal_interval_candidate(
     artifact: &[u8],
     expected_identity: &str,
 ) -> Outcome<NativeTemporalIntervalCandidate> {
-    use antecedent_io::temporal_interval_artifact::{
+    use antecedent::io::temporal_interval_artifact::{
         TemporalIntervalArtifactWire, TemporalIntervalConsumeLimits,
     };
     let artifact = artifact.to_vec();

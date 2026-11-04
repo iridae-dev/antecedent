@@ -123,14 +123,14 @@ fn typed_table(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     column_types: std::collections::BTreeMap<String, DiagnosticStorage>,
-) -> PyResult<antecedent_data::TabularData> {
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType, VariableId,
-    };
-    use antecedent_data::{
-        BooleanColumn, Float64Column, Int64Column, OwnedColumn, OwnedColumnarStorage, TabularData,
+) -> PyResult<antecedent::prelude::TabularData> {
+    use antecedent::data::{
+        BooleanColumn, Float64Column, Int64Column, OwnedColumn, OwnedColumnarStorage,
         ValidityBitmap,
     };
+    use antecedent::prelude::TabularData;
+    use antecedent::prelude::{CausalSchemaBuilder, VariableId};
+    use antecedent::schema::{MeasurementSpec, SmallRoleSet, ValueType};
     use std::sync::Arc;
     if names.len() != columns.len() || names.is_empty() {
         return Err(crate::value_err("diagnostics require named columns of equal length"));
@@ -149,7 +149,7 @@ fn typed_table(
                     let validity = validity_from(&values, |v| *v != i64::MIN)?;
                     (
                         OwnedColumn::Timestamp(
-                            antecedent_data::TimestampColumn::new(
+                            antecedent::data::TimestampColumn::new(
                                 id,
                                 Arc::<[i64]>::from(values),
                                 validity,
@@ -159,11 +159,11 @@ fn typed_table(
                         ValueType::Unspecified,
                     )
                 } else if storage.kind == "categorical" {
-                    use antecedent_data::{
+                    use antecedent::data::{
                         CategoryCode, CategoryDomain, CategoryLevel, UnknownCategoryPolicy,
                     };
                     let validity = validity_from(&values, |v| *v >= 0)?;
-                    let domain_id = antecedent_core::CategoryDomainId::from_raw(id.raw());
+                    let domain_id = antecedent::schema::CategoryDomainId::from_raw(id.raw());
                     let domain = Arc::new(CategoryDomain {
                         id: domain_id,
                         levels: storage
@@ -186,7 +186,7 @@ fn typed_table(
                         .collect::<PyResult<Vec<_>>>()?;
                     (
                         OwnedColumn::Categorical(
-                            antecedent_data::CategoricalColumn::try_new(
+                            antecedent::data::CategoricalColumn::try_new(
                                 id, codes, validity, domain,
                             )
                             .map_err(crate::py_err)?,
@@ -239,7 +239,7 @@ fn typed_table(
                 column_types
                     .get(name)
                     .filter(|kind| kind.kind == "categorical")
-                    .map(|_| antecedent_core::CategoryDomainId::from_raw(id.raw())),
+                    .map(|_| antecedent::schema::CategoryDomainId::from_raw(id.raw())),
                 MeasurementSpec::default(),
             )
             .map_err(crate::py_err)?;
@@ -269,18 +269,18 @@ struct DiagnosticStorage {
 fn validity_from(
     values: &[i64],
     observed: impl Fn(&i64) -> bool,
-) -> PyResult<antecedent_data::ValidityBitmap> {
+) -> PyResult<antecedent::data::ValidityBitmap> {
     let mut bytes = vec![0_u8; values.len().div_ceil(8)];
     for (index, value) in values.iter().enumerate() {
         if observed(value) {
             bytes[index / 8] |= 1 << (index % 8);
         }
     }
-    antecedent_data::ValidityBitmap::from_bytes(bytes, values.len()).map_err(crate::py_err)
+    antecedent::data::ValidityBitmap::from_bytes(bytes, values.len()).map_err(crate::py_err)
 }
 
 #[pyfunction]
 fn data_diagnostic_registry_json() -> PyResult<String> {
-    serde_json::to_string(antecedent_validate::data_diagnostics::DATA_DIAGNOSTIC_CHECKS)
+    serde_json::to_string(antecedent::validate::data_diagnostics::DATA_DIAGNOSTIC_CHECKS)
         .map_err(|e| crate::value_err(e.to_string()))
 }

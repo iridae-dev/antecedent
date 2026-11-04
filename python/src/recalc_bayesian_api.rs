@@ -10,8 +10,8 @@ use antecedent::analysis::recalc_bayesian::{
     execute_bayesian_with_receipt,
 };
 use antecedent::analysis::recalc_receipt::UtilitySpec;
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
+use antecedent::io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
+use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use serde::Deserialize;
@@ -44,7 +44,7 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
         .contains(&key.as_str())
         {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
+                antecedent::reason::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
                 "unknown inference field",
             ));
         }
@@ -55,7 +55,7 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
     if let Some(bytes) = get("prior_artifact")? {
         if bytes.cast::<PyBytes>()?.as_bytes().len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "prior artifact exceeds byte bound",
             ));
         }
@@ -63,14 +63,14 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
     let n = get("n_draws")?.map(|value| value.extract::<usize>()).transpose()?.unwrap_or(256);
     if n == 0 || n > 100_000 || n.checked_mul(features).is_none_or(|cells| cells > 1_000_000) {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "posterior rows/features exceed bounded draw matrix",
         ));
     }
     let mode = get("mode")?
         .ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
+                antecedent::reason::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
                 "missing Bayesian mode",
             )
         })?
@@ -83,7 +83,7 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
         "bayesian.hmc" | "hmc" => BayesianConfig::hmc(),
         _ => {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
+                antecedent::reason::reason_details::recalc::BAYESIAN_INVALID_INFERENCE,
                 "unknown Bayesian backend",
             ));
         }
@@ -91,8 +91,9 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
     .n_draws(n)
     .prior_scale(scale);
     let spec = crate::prepared_options::InferenceSpec::parse(dict)?;
-    let config = config
-        .likelihood(spec.likelihood.unwrap_or(antecedent_prob::BayesLikelihood::GaussianIdentity));
+    let config = config.likelihood(
+        spec.likelihood.unwrap_or(antecedent::inference::BayesLikelihood::GaussianIdentity),
+    );
     if let Some(composed) = spec.composed_prior {
         crate::prior_bank::apply_owned_composed_prior(config, composed)
     } else if let Some(bytes) = spec.prior_artifact {
@@ -111,20 +112,20 @@ fn request(
     check_columns(columns, ctx)?;
     if names.len() != columns.len() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::BAYESIAN_INVALID_DATA,
+            antecedent::reason::reason_details::recalc::BAYESIAN_INVALID_DATA,
             "column names/data dimensions differ",
         ));
     }
     if names.len() > 64 {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "Bayesian feature count exceeds64",
         ));
     }
     for (i, name) in names.iter().enumerate() {
         if name.is_empty() || names[..i].contains(name) {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_DATA,
+                antecedent::reason::reason_details::recalc::BAYESIAN_INVALID_DATA,
                 "column names must be non-empty and unique",
             ));
         }
@@ -133,7 +134,7 @@ fn request(
     let locate = |name: &str| -> PyResult<VariableId> {
         let Some(i) = names.iter().position(|n| n == name) else {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_QUERY,
+                antecedent::reason::reason_details::recalc::BAYESIAN_INVALID_QUERY,
                 "unknown role variable",
             ));
         };
@@ -151,7 +152,7 @@ fn request(
         "quadratic_basis" => BayesianModel::QuadraticBasis,
         _ => {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::BAYESIAN_INVALID_QUERY,
+                antecedent::reason::reason_details::recalc::BAYESIAN_INVALID_QUERY,
                 "unknown checked Bayesian model",
             ));
         }
@@ -257,7 +258,7 @@ impl PyBayesianSession {
                 None,
                 Some(run_error(
                     &error,
-                    antecedent_core::reason_details::recalc::BAYESIAN_FIT_REFUSED,
+                    antecedent::reason::reason_details::recalc::BAYESIAN_FIT_REFUSED,
                 )),
             )),
         }
@@ -269,7 +270,7 @@ impl PyBayesianSession {
                 None,
                 Some(run_error(
                     &error,
-                    antecedent_core::reason_details::recalc::BAYESIAN_FIT_REFUSED,
+                    antecedent::reason::reason_details::recalc::BAYESIAN_FIT_REFUSED,
                 )),
             ),
         }
@@ -293,7 +294,7 @@ impl PyBayesianSession {
                 None,
                 Some(run_error(
                     &error,
-                    antecedent_core::reason_details::recalc::BAYESIAN_FIT_REFUSED,
+                    antecedent::reason::reason_details::recalc::BAYESIAN_FIT_REFUSED,
                 )),
             )),
         })

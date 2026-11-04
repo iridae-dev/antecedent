@@ -4,18 +4,19 @@ use crate::transport_common::{
     serialization_error, unframe_named_artifact,
 };
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{SearchLimits, Value, VariableDomain, VariableId, reason_code};
-use antecedent_estimate::temporal_transport::TemporalSequenceReport;
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_graph::SelectionDiagram;
-use antecedent_identify::sid::{
-    scenarios::ScenarioCoordinate,
-    temporal_sequence::{TemporalSequenceSpec, TemporalSlots},
-};
-use antecedent_io::IoError;
-use antecedent_io::temporal_transport_artifact::{
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::estimate::temporal_transport::TemporalSequenceReport;
+use antecedent::execution::SearchLimits;
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::sid::scenarios::ScenarioCoordinate;
+use antecedent::identify::sid::temporal_sequence::{TemporalSequenceSpec, TemporalSlots};
+use antecedent::io::IoError;
+use antecedent::io::temporal_transport_artifact::{
     TemporalSequenceArtifactWire, TemporalTransportConsumeLimits, temporal_refusal,
 };
+use antecedent::prelude::{Value, VariableId};
+use antecedent::query::VariableDomain;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -128,7 +129,7 @@ fn law_sequence<'py>(laws: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
 struct PreparedTemporalTransportStage {
     inner: antecedent::PreparedTemporalTransport,
     graph: Admg,
-    catalog: antecedent_core::EvidenceCatalog,
+    catalog: antecedent::query::EvidenceCatalog,
     last: Option<TemporalSequenceReport>,
     max_support_rows: usize,
     memory_bytes: Option<u64>,
@@ -180,7 +181,7 @@ impl PreparedTemporalTransportStage {
     /// The frozen plan: the sequence, horizon, the derivation's rules, the
     /// populations and regimes its leaves cite, and the history lattice sizes.
     fn plan(&self) -> PyResult<String> {
-        use antecedent_identify::sid::temporal_sequence::TemporalOutcome;
+        use antecedent::identify::sid::temporal_sequence::TemporalOutcome;
         let decision = self.inner.prepared().decision();
         let TemporalOutcome::Identified(bound) = &decision.outcome else {
             return Err(error("a prepared temporal sequence is always identified"));
@@ -191,7 +192,7 @@ impl PreparedTemporalTransportStage {
             .map(|(_, leaf)| {
                 (
                     leaf.binding.population.to_string(),
-                    leaf.binding.regime.map(antecedent_core::RegimeId::raw),
+                    leaf.binding.regime.map(antecedent::schema::RegimeId::raw),
                 )
             })
             .collect::<Vec<_>>();
@@ -220,7 +221,7 @@ impl PreparedTemporalTransportStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let report = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a temporal sequence artifact",
             )
         })?;
@@ -349,7 +350,7 @@ fn consume_temporal_transport_artifact(
         let (wire, report) =
             TemporalSequenceArtifactWire::consume_with_limits(&bytes, limits, &ctx)
                 .map_err(temporal_error)?;
-        let graph = antecedent_io::admg_from_wire(&wire.graph).map_err(error)?;
+        let graph = antecedent::io::admg_from_wire(&wire.graph).map_err(error)?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be exactly the ones the identity binds: the
         // report is read with them.
@@ -386,7 +387,7 @@ fn unroll_two_slice_template(
     baseline_effects: Vec<(String, String)>,
     latent_pairs: Vec<(String, String)>,
 ) -> PyResult<String> {
-    use antecedent_identify::sid::temporal_sequence::{TemplateRoles, unroll_two_slice};
+    use antecedent::identify::sid::temporal_sequence::{TemplateRoles, unroll_two_slice};
 
     let invalid = |message: String| {
         crate::value_err_code(
@@ -443,14 +444,14 @@ fn unroll_two_slice_template(
                 .to_owned(),
         ));
     }
-    let named = |id: antecedent_core::VariableId| coordinate_names[id.as_usize()].clone();
+    let named = |id: antecedent::prelude::VariableId| coordinate_names[id.as_usize()].clone();
     for (a, b) in &latent_pairs {
         let find = |name: &String| {
             coordinate_names
                 .iter()
                 .position(|n| n == name)
                 .and_then(|i| u32::try_from(i).ok())
-                .map(antecedent_graph::DenseNodeId::from_raw)
+                .map(antecedent::graph::DenseNodeId::from_raw)
                 .ok_or_else(|| invalid(format!("`{name}` is not an unrolled coordinate")))
         };
         let (a, b) = (find(a)?, find(b)?);
@@ -459,7 +460,7 @@ fn unroll_two_slice_template(
     let mut directed = Vec::new();
     let mut bidirected = Vec::new();
     for node in 0..unrolled.admg.node_count() {
-        let from = antecedent_graph::DenseNodeId::try_from_usize(node).map_err(crate::py_err)?;
+        let from = antecedent::graph::DenseNodeId::try_from_usize(node).map_err(crate::py_err)?;
         for &to in unrolled.admg.children(from) {
             directed.push([
                 coordinate_names[from.as_usize()].clone(),

@@ -8,19 +8,20 @@ use antecedent::analysis::recalc_joint_bayesian::{
     JointBayesianRequest, JointBayesianSession, execute_joint_bayesian_with_receipt,
 };
 use antecedent::analysis::recalc_receipt::UtilitySpec;
-use antecedent_core::{
-    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
-};
-use antecedent_estimate::joint_bayesian_transport::{
+use antecedent::estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JointPriors, JointTransportModel, JointTransportOptions,
     PriorProvenance, SourceData, SourceDependence, SourceSharing, TargetData, TransportGraphClass,
     VaryingBlock,
 };
-use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
-use antecedent_io::joint_bayesian_transport_artifact::{
+use antecedent::graph::{Admg, DenseNodeId, SelectionDiagram};
+use antecedent::io::joint_bayesian_transport_artifact::{
     DataIdentityWire, GaussianPriorWire, JointBayesianConsumeLimits, PriorProvenanceWire,
 };
-use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire};
+use antecedent::io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire};
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery,
+};
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -93,7 +94,7 @@ fn check_identity(identity: &DataIdentityWire, rows: usize) -> PyResult<()> {
         || identity.datum_ids.iter().any(|id| id.trim().is_empty())
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::JOINT_BAYESIAN_INVALID_DATA,
+            antecedent::reason::reason_details::recalc::JOINT_BAYESIAN_INVALID_DATA,
             "observation identity must name every unit once",
         ));
     }
@@ -104,12 +105,12 @@ fn request(specification: &str) -> PyResult<JointBayesianRequest> {
     let bad = |text: &str| {
         crate::with_reason_code(
             crate::value_err(format!("recalc.joint_bayesian_invalid_query: {text}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         )
     };
     if wire.names.len() > 64 {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "joint transport variable count exceeds 64",
         ));
     }
@@ -188,7 +189,7 @@ fn request(specification: &str) -> PyResult<JointBayesianRequest> {
         || wire.draws.saturating_mul(width) > limits.max_draw_cells
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
             "joint transport exceeds consumer bounds",
         ));
     }
@@ -314,7 +315,7 @@ impl PyJointBayesianSession {
                 None,
                 Some(run_error(
                     &error,
-                    antecedent_core::reason_details::recalc::JOINT_BAYESIAN_REFUSED,
+                    antecedent::reason::reason_details::recalc::JOINT_BAYESIAN_REFUSED,
                 )),
             )),
         }
@@ -336,7 +337,7 @@ impl PyJointBayesianSession {
                 None,
                 Some(run_error(
                     &error,
-                    antecedent_core::reason_details::recalc::JOINT_BAYESIAN_REFUSED,
+                    antecedent::reason::reason_details::recalc::JOINT_BAYESIAN_REFUSED,
                 )),
             ),
         }

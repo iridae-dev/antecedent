@@ -23,8 +23,9 @@ use antecedent::analysis::discovered_transport_trial::{
     verify_trial_compatible_transport_confidence_set_against,
     verify_trial_compatible_transport_estimate,
 };
-use antecedent_core::{ExecutionContext, TransportQuery, VariableId};
-use antecedent_discovery::selective::SelectiveDiscoveryError;
+use antecedent::analysis::selective_discovery::SelectiveDiscoveryError;
+use antecedent::prelude::{ExecutionContext, VariableId};
+use antecedent::query::TransportQuery;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
@@ -39,7 +40,7 @@ type TrialReply<T> = (Option<T>, Option<String>, Option<String>, Option<String>)
 type ArtifactReply =
     (Option<String>, Option<String>, Option<String>, Option<String>, Option<Py<PyBytes>>);
 
-fn estimation(error: antecedent_io::IoError) -> DiscoveredTransportError {
+fn estimation(error: antecedent::io::IoError) -> DiscoveredTransportError {
     antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure(error)
 }
 
@@ -47,9 +48,9 @@ fn options(alpha: f64) -> TrialCompatibilityOptions {
     TrialCompatibilityOptions { alpha, randomization: TrialRandomization::CompletelyRandomized }
 }
 
-fn proof_json(proof: &TrialCompatibilityProof) -> Result<Json, antecedent_io::IoError> {
+fn proof_json(proof: &TrialCompatibilityProof) -> Result<Json, antecedent::io::IoError> {
     let mut value = serde_json::to_value(proof)
-        .map_err(|error| antecedent_io::IoError::Convert(error.to_string()))?;
+        .map_err(|error| antecedent::io::IoError::Convert(error.to_string()))?;
     if let Some(map) = value.as_object_mut() {
         map.insert("retained_members".to_owned(), json!(proof.retained_members()));
         map.insert("identity".to_owned(), json!(sd::hex(&proof.identity())));
@@ -144,13 +145,13 @@ where
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Result<(DiscoveredTransportRun, Option<TrialWorkResult<T>>), SelectiveDiscoveryError> =
         crate::detach_catch(py, move || {
-            let (source, _): (antecedent_data::TabularData, _) =
+            let (source, _): (antecedent::prelude::TabularData, _) =
                 crate::discovery_api::tabular_from_batch(&source_batch)?;
-            let (target, _): (antecedent_data::TabularData, _) =
+            let (target, _): (antecedent::prelude::TabularData, _) =
                 crate::discovery_api::tabular_from_batch(&target_batch)?;
             let discovery_data = match &discovery_batch {
                 Some(batch) => {
-                    let (data, _): (antecedent_data::TabularData, _) =
+                    let (data, _): (antecedent::prelude::TabularData, _) =
                         crate::discovery_api::tabular_from_batch(batch)?;
                     Some(data)
                 }
@@ -279,7 +280,7 @@ fn verify_trial_compatible_transport_estimate_artifact(
     let (proof, verified) = crate::detach_catch(py, || {
         verify_trial_compatible_transport_estimate(
             artifact,
-            antecedent_expr::ExactEvaluationLimits::default(),
+            antecedent::estimate::ExactEvaluationLimits::default(),
             &ctx,
         )
         .map_err(crate::transport_common::error)

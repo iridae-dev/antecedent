@@ -22,17 +22,17 @@ use antecedent::analysis::decision_claims::{
     envelope_identified_utilities, evaluate_cpdag_decision, evaluate_scenario_decision,
     interval_identified_utilities, report_identified_utilities, weighted_identified_utilities,
 };
-use antecedent_contract::{
+use antecedent::analysis::design_ranking::DesignRankingArtifactWire;
+use antecedent::analysis::inverse_query::{
+    AtomEvidence, DecisionFunctional, MeanSource, StructuralAtom, StructuralPolicy, Tail,
+};
+use antecedent::analysis::repair::RepairReportArtifact;
+use antecedent::contract::{
     DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject,
     ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust,
-    ScientificQuantity, VerificationProbe, capability_from_name, probe_from_name,
-    verify_external_object,
+    VerificationProbe, capability_from_name, probe_from_name, verify_external_object,
 };
-use antecedent_core::{
-    DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeId, RegimeKind, SupportStatus,
-    VariableId,
-};
-use antecedent_design::composition_boundary::{
+use antecedent::design::composition_boundary::{
     ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
     CompositionOperation, CoordinateIssue, DecisionInput, DependenceRoute, EvidenceRelation,
     InputProvenance, InputSource, NativeExecutionRecord, PairRelation, ProviderKind, ReceiptRef,
@@ -41,29 +41,31 @@ use antecedent_design::composition_boundary::{
     check_atom_combination, check_composition, check_paired_draws, evaluate_functional_on_input,
     evaluate_with_support,
 };
-use antecedent_design::decision_adapters::IdentifiedUtility;
-use antecedent_design::decision_artifact::{
+use antecedent::design::decision_adapters::IdentifiedUtility;
+use antecedent::design::decision_artifact::{
     MAX_DECISION_ARTIFACT_BYTES, contract_from_json_refusal,
 };
-use antecedent_design::decision_contract::{DecisionFunctional, StructuralPolicy, Tail};
-use antecedent_design::decision_eval::{ActionOutcome, MeanEstimate, MeanSource, Verdict};
-use antecedent_design::decision_robust_artifact::admissible_contract_from_json_refusal;
-use antecedent_design::decision_robustness::{AtomSupport, InputSupport, RobustVerdict};
-use antecedent_design::decision_structural::{
-    AtomEvidence, AtomStatus, StructuralAtom, StructuralDecisionResult, StructuralVerdict,
+use antecedent::design::decision_eval::{ActionOutcome, MeanEstimate, Verdict};
+use antecedent::design::decision_robust_artifact::admissible_contract_from_json_refusal;
+use antecedent::design::decision_robustness::{AtomSupport, InputSupport, RobustVerdict};
+use antecedent::design::decision_structural::{
+    AtomStatus, StructuralDecisionResult, StructuralVerdict,
 };
-use antecedent_design::design_ranking_artifact::DesignRankingArtifactWire;
-use antecedent_design::proposal_receipt::{
+use antecedent::design::proposal_receipt::{
     Arrival, ArrivalVerdict, ArrivedEvidence, BaseFailureBinding, ChangedPremise, CostBinding,
     DecisionReceipt, HypotheticalBinding, LineageBinding, ObservedLaw, ProposalBundle,
     ProposalReceipt, ProposalReceiptError, ValuationBinding, on_arrival, verify as verify_bundle,
 };
-use antecedent_design::repair_artifact::RepairReportArtifact;
-use antecedent_estimate::transport_scenarios::ScenarioSetReport;
-use antecedent_io::distribution_artifact::{DistributionCalibration, DistributionTrust};
-use antecedent_io::external_claim_artifact::ExternalClaimTrust;
-use antecedent_io::quantity_wire::DistributionMeaningWire;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::estimate::transport_scenarios::ScenarioSetReport;
+use antecedent::io::distribution_artifact::{DistributionCalibration, DistributionTrust};
+use antecedent::io::external_claim_artifact::ExternalClaimTrust;
+use antecedent::io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeKind, SupportStatus,
+};
+use antecedent::schema::RegimeId;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -91,7 +93,7 @@ pub(crate) fn check_size(json: &str) -> PyResult<()> {
 /// Refusal JSON for a malformed argument that never reached Rust validation.
 fn invalid_json(detail: &str, offending: Option<String>) -> String {
     external_refusal_json(&ExternalRefusal {
-        code: antecedent_core::reason_code!("invalid_argument"),
+        code: antecedent::reason::reason_code!("invalid_argument"),
         stage: "adapt",
         detail: detail.to_owned(),
         offending,
@@ -200,7 +202,7 @@ impl PyTrustEvidence {
 pub(crate) struct PyDecisionInput {
     inner: DecisionInput,
     pub(crate) source_claim: Option<crate::program_claims_api::PyNativeResponseClaim>,
-    external_source: Option<antecedent_design::source_evidence::SourceEvidence>,
+    external_source: Option<antecedent::analysis::source_evidence::SourceEvidence>,
 }
 
 impl PyDecisionInput {
@@ -216,10 +218,11 @@ impl PyDecisionInput {
         claim: &crate::external_api::PyExternalClaimArtifact,
     ) -> PyResult<()> {
         let source = crate::source_evidence_api::PySourceEvidence::from_external(claim)?;
-        let antecedent_design::composition_boundary::InputSource::Mean(means) = self.inner.source()
+        let antecedent::design::composition_boundary::InputSource::Mean(means) =
+            self.inner.source()
         else {
             return Err(crate::recalc_api::invalid(
-                antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH,
+                antecedent::reason::reason_details::source_evidence::POINT_BINDING_MISMATCH,
                 "external original requires a mean input",
             ));
         };
@@ -379,7 +382,7 @@ fn composition_input_from_native_claim(
     contract_json: &str,
 ) -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
     use antecedent::analysis::native_claims::NativeDecisionSource;
-    use antecedent_io::external_binding_wire::RefusalWire;
+    use antecedent::io::external_binding_wire::RefusalWire;
     if contract_json.len() > MAX_DECISION_ARTIFACT_BYTES {
         return Err(crate::value_err("native composition contract exceeds bounds"));
     }
@@ -401,8 +404,8 @@ fn composition_input_from_native_claim(
         Ok(input) => input,
         Err(error) => return refused(error),
     };
-    let execution_id = antecedent_io::execution_digest(
-        &antecedent_io::execution_identity_from_context(&claim.authority.context),
+    let execution_id = antecedent::io::execution_digest(
+        &antecedent::io::execution_identity_from_context(&claim.authority.context),
     )
     .map_err(serialization)?;
     let (provider_id, snapshot_id) = match &input.source {
@@ -456,8 +459,8 @@ fn composition_input_from_distribution(
             .source_claim
             .as_ref()
             .map(|claim| {
-                let execution = antecedent_io::execution_digest(
-                    &antecedent_io::execution_identity_from_context(&claim.authority.context),
+                let execution = antecedent::io::execution_digest(
+                    &antecedent::io::execution_identity_from_context(&claim.authority.context),
                 )
                 .map_err(serialization)?;
                 Ok::<_, PyErr>(DesignTrust::NativeExecution(NativeExecutionRecord {
@@ -495,7 +498,7 @@ fn evidence_from_external_claim(
         ExternalClaimTrust::ExactRequestVerified => {
             let probes = identity.verification.as_ref().ok_or_else(|| {
                 invalid_json(
-                    antecedent_core::reason_details::external_object_verification::MISSING_PROBE,
+                    antecedent::reason::reason_details::external_object_verification::MISSING_PROBE,
                     Some(identity.provider_id.clone()),
                 )
             })?;
@@ -505,7 +508,7 @@ fn evidence_from_external_claim(
                     Ok(VerificationProbe {
                         kind: probe_from_name(&probe.kind).ok_or_else(|| {
                             invalid_json(
-                                antecedent_core::reason_details::external_object_verification::MISSING_PROBE,
+                                antecedent::reason::reason_details::external_object_verification::MISSING_PROBE,
                                 Some(probe.kind.clone()),
                             )
                         })?,
@@ -521,7 +524,7 @@ fn evidence_from_external_claim(
                 .map(|name| {
                     capability_from_name(name).ok_or_else(|| {
                         invalid_json(
-                            antecedent_core::reason_details::external_response_binding::MALFORMED_CAPABILITY,
+                            antecedent::reason::reason_details::external_response_binding::MALFORMED_CAPABILITY,
                             Some(name.clone()),
                         )
                     })
@@ -535,7 +538,7 @@ fn evidence_from_external_claim(
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| {
                     invalid_json(
-                        antecedent_core::reason_details::external_response_binding::MALFORMED_QUANTITY,
+                        antecedent::reason::reason_details::external_response_binding::MALFORMED_QUANTITY,
                         Some(error.to_owned()),
                     )
                 })?;
@@ -545,7 +548,7 @@ fn evidence_from_external_claim(
             .map(DistributionMeaning::from)
             .map_err(|error| {
                 invalid_json(
-                    antecedent_core::reason_details::external_response_binding::MALFORMED_MEANING,
+                    antecedent::reason::reason_details::external_response_binding::MALFORMED_MEANING,
                     Some(error.to_string()),
                 )
             })?;
@@ -995,7 +998,7 @@ const fn operation_name(operation: CompositionOperation) -> &'static str {
 }
 
 fn composition_receipt_json(
-    receipt: &antecedent_design::composition_boundary::CompositionReceipt,
+    receipt: &antecedent::design::composition_boundary::CompositionReceipt,
 ) -> String {
     json!({
         "operation": operation_name(receipt.operation),
@@ -1594,7 +1597,7 @@ fn scenario_identified_utilities(
 #[derive(Deserialize)]
 struct IntervalWire {
     quantity: ScientificQuantityWire,
-    interval: antecedent_io::IdentifiedSetIntervalWire,
+    interval: antecedent::io::IdentifiedSetIntervalWire,
 }
 
 /// Per-action utility intervals from one identified-set interval per input quantity.
@@ -1629,7 +1632,7 @@ fn interval_identified_action_utilities(
             let quantity = ScientificQuantity::try_from(wire.quantity).map_err(|e| {
                 invalid_json("scenario_decision.invalid_quantity", Some(e.to_owned()))
             })?;
-            let interval = antecedent_io::identified_set_interval_from_wire(&wire.interval)
+            let interval = antecedent::io::identified_set_interval_from_wire(&wire.interval)
                 .map_err(|e| {
                     invalid_json("scenario_decision.invalid_interval", Some(e.to_string()))
                 })?;
@@ -1922,8 +1925,8 @@ fn variables(names: &[String], wanted: &[String]) -> PyResult<Arc<[VariableId]>>
 
 fn arrival_invalid(message: impl Into<String>) -> String {
     proposal_refusal_json(&ProposalReceiptError {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        detail: antecedent_core::reason_details::proposal_receipt::ARRIVAL_INVALID,
+        code: antecedent::reason::reason_code!("invalid_argument"),
+        detail: antecedent::reason::reason_details::proposal_receipt::ARRIVAL_INVALID,
         message: message.into(),
     })
 }
@@ -2102,9 +2105,9 @@ impl PyProposalBundle {
             return Ok((
                 None,
                 Some(proposal_refusal_json(&ProposalReceiptError {
-                    code: antecedent_core::reason_code!("design_signal_invalid"),
+                    code: antecedent::reason::reason_code!("design_signal_invalid"),
                     detail:
-                        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_BUNDLE,
+                        antecedent::reason::reason_details::proposal_receipt::CANDIDATE_NOT_IN_BUNDLE,
                     message: format!("candidate {id} has no receipt in this bundle"),
                 })),
             ));

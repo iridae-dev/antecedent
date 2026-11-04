@@ -9,6 +9,8 @@
 //! No recovery, error-control or interval statement is produced.
 
 use crate::NumericColumn;
+use antecedent::analysis::composition_verification::{CompositionGraph, GraphError};
+use antecedent::analysis::evidence_ledger::{SourceDeclaration, SourceId};
 use antecedent::analysis::per_population_discovery::{
     PerPopulationDiscovery, PerPopulationReport, PopulationRows, add_per_population_claims,
     request_selection_targets_from_differences,
@@ -25,31 +27,28 @@ use antecedent::analysis::sample_split_parent_set_effect::{
     estimate_parent_set_effect_with_knowledge, measure_source as measure_parent_set_source,
 };
 use antecedent::analysis::selective_discovery::{
-    DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, GraphAcceptance,
+    CiTestSpec, DataIdentity, DeclaredCompletion, DiscoveredStructure, DiscoveredStructureRefusal,
+    DiscoveryClaimKeys, DiscoveryOutcome, DiscoveryPlan, DiscoverySnapshot, GraphAcceptance,
+    NativeResult, PortableDiscoveryState, SelectiveDiscoveryError, SelectiveRunReport,
+    StageDecision, StageInputs, StaticAlgorithm, StaticDiscoveryContract, StaticSelectiveDiscovery,
+    TemporalAlgorithm, TemporalDiscoveryContract, TemporalSelectiveDiscovery, WorkUnits,
     accepted_graph_stage_identity, add_discovery_claims, discovered_graph_source,
     discovered_structure_refusal, discovery_data_source, discovery_rows_source,
-};
-use antecedent_contract::composition_verification::{CompositionGraph, GraphError};
-use antecedent_contract::evidence_ledger::{SourceDeclaration, SourceId, parse_digest_hex};
-use antecedent_core::{Lag, VariableId};
-use antecedent_data::{
-    OwnedColumnarStorage, TableView, TabularData, TimeSeriesData, ValidityBitmap,
-};
-use antecedent_discovery::constraints::{BackgroundKnowledge, CiMaskType, DiscoveryConstraints};
-use antecedent_discovery::result::LaggedLink;
-use antecedent_discovery::selective::{
-    CiTestSpec, DiscoveredStructure, DiscoveredStructureRefusal, DiscoveryOutcome, DiscoveryPlan,
-    NativeResult, PortableDiscoveryState, SelectiveDiscoveryError, SelectiveRunReport,
-    StageDecision, StaticAlgorithm, StaticDiscoveryContract, StaticSelectiveDiscovery,
-    TemporalAlgorithm, TemporalDiscoveryContract, TemporalSelectiveDiscovery, WorkUnits,
-    request_downstream_interval, request_recovery_claim, request_score_search_reuse,
     request_selection_diagram,
 };
-use antecedent_discovery::selective::{DataIdentity, StageInputs};
-use antecedent_io::selective_discovery_artifact::{
+use antecedent::contract::evidence_ledger::parse_digest_hex;
+use antecedent::data::{OwnedColumnarStorage, TableView, ValidityBitmap};
+use antecedent::discovery::constraints::{CiMaskType, DiscoveryConstraints};
+use antecedent::discovery::selective::{
+    request_downstream_interval, request_recovery_claim, request_score_search_reuse,
+};
+use antecedent::discovery::{BackgroundKnowledge, LaggedLink};
+use antecedent::graph::Lag;
+use antecedent::inference::{FdrAdjustment, MultipleTestingMethod, SignificanceMethod};
+use antecedent::io::selective_discovery_artifact::{
     SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError,
 };
-use antecedent_stats::{FdrAdjustment, MultipleTestingMethod, SignificanceMethod};
+use antecedent::prelude::{TabularData, TimeSeriesData, VariableId};
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -94,9 +93,9 @@ fn artifact_refusal(error: &SelectiveDiscoveryArtifactError) -> String {
     match error.refusal() {
         Some((code, detail, message)) => refusal_json(code, STAGE, &detail, &message, &message),
         None => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             STAGE,
-            antecedent_core::reason_details::selective_discovery::ARTIFACT_INVALID,
+            antecedent::reason::reason_details::selective_discovery::ARTIFACT_INVALID,
             &error.to_string(),
             "supply an intact selective_discovery_v1 artifact",
         ),
@@ -413,10 +412,10 @@ pub(crate) fn temporal_contract(
 // ---------------------------------------------------------------------------
 
 pub(crate) fn hex(bytes: &[u8; 32]) -> String {
-    antecedent_core::to_hex(bytes)
+    antecedent::schema::to_hex(bytes)
 }
 
-pub(crate) fn node_json(node: antecedent_discovery::selective::StructureNode) -> Json {
+pub(crate) fn node_json(node: antecedent::discovery::selective::StructureNode) -> Json {
     json!({ "kind": node.kind, "variable": node.variable, "aux": node.aux })
 }
 
@@ -815,9 +814,9 @@ impl SelectiveDiscoveryHandle {
             return Ok((
                 None,
                 Some(refusal_json(
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                     STAGE,
-                    antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
+                    antecedent::reason::reason_details::selective_discovery::NOTHING_RETAINED,
                     "no discovery has run",
                     "run discovery before requesting transport across its class",
                 )),
@@ -853,9 +852,9 @@ impl SelectiveDiscoveryHandle {
             return Ok((
                 None,
                 Some(refusal_json(
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                     STAGE,
-                    antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
+                    antecedent::reason::reason_details::selective_discovery::NOTHING_RETAINED,
                     "no discovery has run",
                     "run discovery before requesting transport across its class",
                 )),
@@ -875,9 +874,9 @@ impl SelectiveDiscoveryHandle {
     fn request_selection_diagram(&self, targets: Vec<u32>) -> String {
         let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
             return refusal_json(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 STAGE,
-                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
+                antecedent::reason::reason_details::selective_discovery::NOTHING_RETAINED,
                 "no discovery has run",
                 "run discovery before requesting a selection diagram",
             );
@@ -897,9 +896,9 @@ impl SelectiveDiscoveryHandle {
     ) -> String {
         let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
             return refusal_json(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 STAGE,
-                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
+                antecedent::reason::reason_details::selective_discovery::NOTHING_RETAINED,
                 "no discovery has run",
                 "run discovery before making a claim request",
             );
@@ -1065,9 +1064,9 @@ fn selective_discovery_inspect(artifact: &[u8]) -> (Option<String>, Option<Strin
             Err(error) => (
                 None,
                 Some(refusal_json(
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                     STAGE,
-                    antecedent_core::reason_details::selective_discovery::ARTIFACT_INVALID,
+                    antecedent::reason::reason_details::selective_discovery::ARTIFACT_INVALID,
                     &error.to_string(),
                     "supply an intact selective_discovery_v1 artifact",
                 )),
@@ -1284,9 +1283,9 @@ impl PerPopulationDiscoveryHandle {
     fn request_selection_targets(&self, candidates: Vec<u32>) -> String {
         let Some(report) = self.inner.as_ref().and_then(PerPopulationDiscovery::report) else {
             return refusal_json(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 STAGE,
-                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
+                antecedent::reason::reason_details::selective_discovery::NOTHING_RETAINED,
                 "no per-population discovery has run",
                 "run per-population discovery before requesting selection targets",
             );
@@ -1620,9 +1619,9 @@ fn sample_split_discover(
 
 /// The refusal an io-level split-effect failure carries, as the structured JSON the Python
 /// layer raises; any other io failure is an error, not a refusal.
-fn effect_refusal(error: antecedent_io::IoError) -> PyResult<String> {
+fn effect_refusal(error: antecedent::io::IoError) -> PyResult<String> {
     match error {
-        antecedent_io::IoError::Refused { code, message } => {
+        antecedent::io::IoError::Refused { code, message } => {
             let detail = message.split_once(": ").map_or("refused", |(d, _)| d);
             Ok(refusal_json(code, STAGE, detail, &message, &message))
         }
@@ -1630,7 +1629,7 @@ fn effect_refusal(error: antecedent_io::IoError) -> PyResult<String> {
     }
 }
 
-fn basis_json(basis: &antecedent_core::CalibrationBasis) -> Json {
+fn basis_json(basis: &antecedent::schema::CalibrationBasis) -> Json {
     json!({
         "query": &*basis.query,
         "graph_class": &*basis.graph_class,

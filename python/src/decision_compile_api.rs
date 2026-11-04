@@ -10,9 +10,9 @@
 use std::sync::Arc;
 
 use antecedent::analysis::DecisionCompileRequest;
+use antecedent::design::{AffineUtility, DecisionProblem};
 use antecedent::planner::lowered::CarrierDemand;
 use antecedent::{CausalError, CompileCause};
-use antecedent_design::{AffineUtility, DecisionProblem};
 use pyo3::prelude::*;
 
 use crate::bridge::RefusalJson;

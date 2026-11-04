@@ -10,13 +10,15 @@
 //! JSON for the Python layer to raise as its own typed exception.
 use crate::bridge::{RefusalJson, split_detail};
 use crate::detach_catch;
+use antecedent::data::{ImputationDomain, ImputationModel, ImputationSpec};
 use antecedent::discovery::BayesianDiscoverParams;
+use antecedent::prelude::{TabularData, VariableId};
+use antecedent::query::AverageEffectQuery;
+use antecedent::reason::reason_code;
 use antecedent::{
     BayesianConfig, CausalError, GraphSelectionPerImputation, InferenceMode, RefuteSuite, Study,
     estimate_with_graph_selection_per_imputation,
 };
-use antecedent_core::{AverageEffectQuery, VariableId, reason_code};
-use antecedent_data::{ImputationDomain, ImputationModel, ImputationSpec, TabularData};
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -26,7 +28,7 @@ fn refusal(code: &str, detail: &str, message: &str) -> String {
 
 fn error_refusal(error: &CausalError) -> String {
     let text = error.to_string();
-    let message = antecedent_core::reason_code::split_prefix(&text)
+    let message = antecedent::reason::reason_code::split_prefix(&text)
         .map_or(text.as_str(), |(_, message)| message);
     let (detail, message) = split_detail(message);
     let code = error.reason_code().unwrap_or(reason_code!("invalid_argument"));
@@ -69,20 +71,20 @@ fn graph_selection_imputation_run(
         };
         if names.len() != columns.len() || names.is_empty() {
             return invalid(
-                antecedent_core::reason_details::graph_selection_imputation::COLUMNS,
+                antecedent::reason::reason_details::graph_selection_imputation::COLUMNS,
                 "names and columns must be non-empty and of equal length".to_owned(),
             );
         }
         let position = |name: &str| names.iter().position(|n| n == name);
         let (Some(t), Some(y)) = (position(&treatment), position(&outcome)) else {
             return invalid(
-                antecedent_core::reason_details::graph_selection_imputation::VARIABLES,
+                antecedent::reason::reason_details::graph_selection_imputation::VARIABLES,
                 format!("treatment `{treatment}` and outcome `{outcome}` must be data columns"),
             );
         };
         let Some(model) = ImputationModel::from_name(&model) else {
             return invalid(
-                antecedent_core::reason_details::graph_selection_imputation::MODEL,
+                antecedent::reason::reason_details::graph_selection_imputation::MODEL,
                 format!("unknown imputation model `{model}`"),
             );
         };
@@ -92,7 +94,7 @@ fn graph_selection_imputation_run(
             Ok(table) => table,
             Err(error) => {
                 return invalid(
-                    antecedent_core::reason_details::graph_selection_imputation::DATA,
+                    antecedent::reason::reason_details::graph_selection_imputation::DATA,
                     error.to_string(),
                 );
             }
@@ -112,7 +114,7 @@ fn graph_selection_imputation_run(
                 "continuous" => ImputationDomain::Continuous,
                 _ => {
                     return invalid(
-                        antecedent_core::reason_details::graph_selection_imputation::DOMAIN,
+                        antecedent::reason::reason_details::graph_selection_imputation::DOMAIN,
                         format!("unknown domain {domain:?}"),
                     );
                 }
@@ -144,14 +146,14 @@ fn graph_selection_imputation_run(
         };
         let Some(effect) = result.estimate().as_effect() else {
             return invalid(
-                antecedent_core::reason_details::graph_selection_imputation::RESULT,
+                antecedent::reason::reason_details::graph_selection_imputation::RESULT,
                 "the pooled answer is not a scalar effect".to_owned(),
             );
         };
         let Some(report) = result.missing_data().as_ref().and_then(|m| m.imputation.as_ref())
         else {
             return invalid(
-                antecedent_core::reason_details::graph_selection_imputation::RESULT,
+                antecedent::reason::reason_details::graph_selection_imputation::RESULT,
                 "the pooled result carries no imputation report".to_owned(),
             );
         };
@@ -193,13 +195,13 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 struct PyCompiledGraphImputation {
     plan: antecedent::analysis::graph_imputation::CompiledGraphImputation,
     point: Option<antecedent::analysis::graph_imputation::GraphImputationPoint>,
-    ctx: antecedent_core::ExecutionContext,
+    ctx: antecedent::prelude::ExecutionContext,
 }
 
 fn compiled_py_error(message: impl std::fmt::Display) -> PyErr {
     crate::errors::value_error_of(&refusal(
         reason_code!("invalid_argument"),
-        antecedent_core::reason_details::graph_imputation::COMPILED,
+        antecedent::reason::reason_details::graph_imputation::COMPILED,
         &message.to_string(),
     ))
 }
@@ -208,11 +210,11 @@ fn compiled_runtime_error(
     error: antecedent::analysis::graph_imputation::GraphImputationError,
 ) -> PyErr {
     use antecedent::analysis::graph_imputation::GraphImputationError;
-    use antecedent_core::search::SearchStop;
+    use antecedent::execution::SearchStop;
     let (code, detail, message) = match error {
         GraphImputationError::PointUnavailable | GraphImputationError::IntervalUnavailable => (
             reason_code!("route_not_supported"),
-            antecedent_core::reason_details::graph_imputation::UNSUPPORTED,
+            antecedent::reason::reason_details::graph_imputation::UNSUPPORTED,
             error.to_string(),
         ),
         GraphImputationError::SearchStopped(receipt) => {
@@ -223,18 +225,18 @@ fn compiled_runtime_error(
             };
             (
                 code,
-                antecedent_core::reason_details::graph_imputation::SEARCH_STOPPED,
+                antecedent::reason::reason_details::graph_imputation::SEARCH_STOPPED,
                 receipt.summary(),
             )
         }
         GraphImputationError::Engine(CausalError::Cancelled { stage }) => (
             reason_code!("cancelled_no_claim"),
-            antecedent_core::reason_details::graph_imputation::CANCELLED,
+            antecedent::reason::reason_details::graph_imputation::CANCELLED,
             stage.to_owned(),
         ),
         GraphImputationError::Engine(CausalError::Resource { message }) => (
             reason_code!("execution_resource_limit"),
-            antecedent_core::reason_details::graph_imputation::RESOURCE_LIMIT,
+            antecedent::reason::reason_details::graph_imputation::RESOURCE_LIMIT,
             message,
         ),
         GraphImputationError::Engine(error) => {
@@ -242,7 +244,7 @@ fn compiled_runtime_error(
         }
         other => (
             reason_code!("invalid_argument"),
-            antecedent_core::reason_details::graph_imputation::EXECUTION_REFUSED,
+            antecedent::reason::reason_details::graph_imputation::EXECUTION_REFUSED,
             other.to_string(),
         ),
     };
@@ -271,12 +273,13 @@ impl PyCompiledGraphImputation {
         use antecedent::analysis::graph_imputation::{
             CompiledGraphImputation, GraphImputationSpec, GraphImputationSupport,
         };
-        if !(2..=antecedent_core::graph_imputation_contract::MAX_VARIABLES).contains(&names.len())
+        if !(2..=antecedent::schema::graph_imputation_contract::MAX_VARIABLES)
+            .contains(&names.len())
             || names.len() != columns.len()
             || names.len() != domains.len()
-            || columns
-                .iter()
-                .any(|column| column.len() < antecedent_core::graph_imputation_contract::MIN_ROWS)
+            || columns.iter().any(|column| {
+                column.len() < antecedent::schema::graph_imputation_contract::MIN_ROWS
+            })
         {
             return Err(compiled_py_error("column shape is not a supported declaration"));
         }

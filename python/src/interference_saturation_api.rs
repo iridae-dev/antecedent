@@ -4,12 +4,13 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
-    VariableId,
+use antecedent::estimate::{
+    NetworkData, NetworkEdge, estimate_saturation_interference as estimate_native,
 };
-use antecedent_data::{NetworkData, NetworkEdge, TabularData};
-use antecedent_estimate::estimate_saturation_interference as estimate_native;
+use antecedent::prelude::{TabularData, VariableId};
+use antecedent::query::{
+    AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
+};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 

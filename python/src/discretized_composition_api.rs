@@ -18,9 +18,9 @@ use antecedent::analysis::discretized_composition::{
     DiscretizationMethod, DiscretizationPlan, DiscretizationRefusal, DiscretizedLinearGaussian,
     InferenceParadigm, PreparedDiscretizedComposition, consume_discretized_composition,
 };
-use antecedent_contract::evidence_ledger::parse_digest_hex;
-use antecedent_core::ExecutionContext;
-use antecedent_model::discretized_scm_artifact::export_discretized_scm;
+use antecedent::contract::evidence_ledger::parse_digest_hex;
+use antecedent::gcm::discretized_scm_artifact::export_discretized_scm;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;

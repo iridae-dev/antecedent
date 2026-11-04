@@ -20,11 +20,13 @@ use antecedent::analysis::repair::{
     SensitivityRepairFamily, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
     ZTransportRepairFamily, repair_contract, unresolved_obligations,
 };
-use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
-use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
-use antecedent_core::{DistributionAvailability, SearchLimits, VariableId};
-use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{ClassicalTransportQuery, SidLimits};
+use antecedent::contract::{ObligationKind, ObligationRecord, ObligationScope};
+use antecedent::execution::SearchLimits;
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::{ClassicalTransportQuery, SidLimits};
+use antecedent::prelude::VariableId;
+use antecedent::query::DistributionAvailability;
+use antecedent::schema::{AssumptionSource, AssumptionStatus};
 use pyo3::prelude::*;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -99,7 +101,7 @@ pub(crate) fn obligation_json(
 ) -> serde_json::Value {
     serde_json::json!({
         "quantities": obligation.quantities.iter().map(|(variable, quantity)| {
-            (names[variable.raw() as usize].clone(), antecedent_io::quantity_wire::ScientificQuantityWire::from(quantity))
+            (names[variable.raw() as usize].clone(), antecedent::io::quantity_wire::ScientificQuantityWire::from(quantity))
         }).collect::<BTreeMap<_, _>>(),
         "id": obligation.id.as_ref(),
         "kind": obligation.kind.as_str(),
@@ -129,7 +131,7 @@ pub(crate) fn obligation_json(
 fn outcome_name(report: &RepairReport) -> &'static str {
     match report.status() {
         None => "repaired",
-        Some((_, antecedent_core::reason_details::identification_repair::BUDGET)) => "exhausted",
+        Some((_, antecedent::reason::reason_details::identification_repair::BUDGET)) => "exhausted",
         Some(_) => "none_certified",
     }
 }
@@ -332,7 +334,7 @@ impl RepairContractStage {
     /// The unresolved obligations, each with its source proof step.
     #[pyo3(signature = (quantities_json=None))]
     fn obligations(&self, py: Python<'_>, quantities_json: Option<&str>) -> PyResult<Py<PyAny>> {
-        let declared: BTreeMap<String, antecedent_io::quantity_wire::ScientificQuantityWire> =
+        let declared: BTreeMap<String, antecedent::io::quantity_wire::ScientificQuantityWire> =
             serde_json::from_str(quantities_json.unwrap_or("{}"))
                 .map_err(|error| crate::value_err(error.to_string()))?;
         let mut coordinates = BTreeMap::new();
@@ -341,7 +343,7 @@ impl RepairContractStage {
                 self.names.iter().position(|candidate| candidate == &name).ok_or_else(|| {
                     crate::value_err(format!("unknown scientific coordinate variable {name}"))
                 })?;
-            let quantity = antecedent_contract::ScientificQuantity::try_from(wire)
+            let quantity = antecedent::scientific::ScientificQuantity::try_from(wire)
                 .map_err(crate::value_err)?;
             let variable = u32::try_from(variable).map_err(|_| {
                 crate::value_err("scientific coordinate variable index exceeds u32")
@@ -500,19 +502,21 @@ fn repair_z_transport_contract(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<RepairContractStage> {
-    let wire: antecedent_design::ZTransportFailureSnapshotWire =
+    let wire: antecedent::design::ZTransportFailureSnapshotWire =
         serde_json::from_slice(failure_snapshot).map_err(serialization_error)?;
     check_names(&names, wire.graph.node_count)?;
     let family = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
         let limits = SidLimits { steps: max_steps, depth: max_depth };
-        let snapshot = antecedent_design::ZTransportFailureSnapshot::from_wire(&wire, limits, &ctx)
-            .map_err(|e| {
-                crate::refusal(
-                    "invalid_argument",
-                    format!("identification_repair.invalid_request: {e}"),
-                )
-            })?;
+        let snapshot = antecedent::design::ZTransportFailureSnapshot::from_wire(
+            &wire, limits, &ctx,
+        )
+        .map_err(|e| {
+            crate::refusal(
+                "invalid_argument",
+                format!("identification_repair.invalid_request: {e}"),
+            )
+        })?;
         ZTransportRepairFamily::try_new(snapshot, limits).map_err(|e| repair_error(&e))
     })?;
     Ok(RepairContractStage { contract: Contract::ZTransport(Box::new(family)), names })

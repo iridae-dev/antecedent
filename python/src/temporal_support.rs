@@ -3,7 +3,7 @@
 //! Python must read these values. It may duplicate checks; it must not
 //! define the policy.
 
-use antecedent_core::{TemporalPolicy, TemporalResponseSpec};
+use antecedent::query::{TemporalPolicy, TemporalResponseSpec};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 

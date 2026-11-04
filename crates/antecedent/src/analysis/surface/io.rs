@@ -485,7 +485,7 @@ pub mod transport_catalog_wire {
 }
 /// Items of `antecedent-io::transport_certificate`.
 pub mod transport_certificate {
-    pub use antecedent_io::transport_certificate::CertificateOutcome;
+    pub use antecedent_io::transport_certificate::{CertificateOutcome, TransportCertificateWire};
 }
 /// Durable transport grid and statistical-provider records.
 pub mod transport_grid_wire {

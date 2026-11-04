@@ -34,14 +34,14 @@ pub(crate) struct ArrowLoadInfo {
 #[derive(Clone, Debug)]
 pub(crate) struct ColumnBatch {
     names: Vec<String>,
-    columns: Vec<antecedent_data::F64Buffer>,
+    columns: Vec<antecedent::data::F64Buffer>,
     receipt: NumpyIngestReceipt,
 }
 
 impl ColumnBatch {
     /// Rows in every column.
     pub(crate) fn num_rows(&self) -> usize {
-        self.columns.first().map_or(0, antecedent_data::F64Buffer::len)
+        self.columns.first().map_or(0, antecedent::data::F64Buffer::len)
     }
 
     /// Bytes the owned columns hold.
@@ -57,37 +57,42 @@ impl ColumnBatch {
     /// The table over the owned columns. The buffers are shared, not copied again.
     pub(crate) fn loaded(&self) -> PyResult<NumpyTable> {
         // The same schema the Arrow route builds: continuous columns with the context role hint.
-        let mut builder = antecedent_core::CausalSchemaBuilder::new();
+        let mut builder = antecedent::prelude::CausalSchemaBuilder::new();
         for name in &self.names {
             builder
                 .add_variable(
                     Arc::<str>::from(name.as_str()),
-                    antecedent_core::ValueType::Continuous,
-                    antecedent_core::SmallRoleSet::from_hint(antecedent_core::RoleHint::Context),
+                    antecedent::schema::ValueType::Continuous,
+                    antecedent::schema::SmallRoleSet::from_hint(
+                        antecedent::schema::RoleHint::Context,
+                    ),
                     None,
                     None,
-                    antecedent_core::MeasurementSpec::default(),
+                    antecedent::schema::MeasurementSpec::default(),
                 )
-                .map_err(|e| py_err(antecedent_data::DataError::from(e)))?;
+                .map_err(|e| py_err(antecedent::data::DataError::from(e)))?;
         }
-        let schema = builder.build().map_err(|e| py_err(antecedent_data::DataError::from(e)))?;
+        let schema = builder.build().map_err(|e| py_err(antecedent::data::DataError::from(e)))?;
         let rows = self.num_rows();
         let mut columns = Vec::with_capacity(self.columns.len());
         for (index, values) in self.columns.iter().enumerate() {
-            let id = antecedent_core::VariableId::from_raw(
+            let id = antecedent::prelude::VariableId::from_raw(
                 u32::try_from(index).map_err(|_| value_err("too many columns"))?,
             );
-            let column = antecedent_data::Float64Column::new(
+            let column = antecedent::data::Float64Column::new(
                 id,
                 values.clone(),
-                antecedent_data::ValidityBitmap::all_valid(rows),
+                antecedent::data::ValidityBitmap::all_valid(rows),
             )
             .map_err(py_err)?;
-            columns.push(antecedent_data::OwnedColumn::Float64(column));
+            columns.push(antecedent::data::OwnedColumn::Float64(column));
         }
-        let storage = antecedent_data::OwnedColumnarStorage::try_new(schema, columns, None, None)
+        let storage = antecedent::data::OwnedColumnarStorage::try_new(schema, columns, None, None)
             .map_err(py_err)?;
-        Ok(NumpyTable { data: antecedent_data::TabularData::new(storage), receipt: self.receipt })
+        Ok(NumpyTable {
+            data: antecedent::prelude::TabularData::new(storage),
+            receipt: self.receipt,
+        })
     }
 }
 
@@ -104,7 +109,7 @@ pub(crate) struct NumpyIngestReceipt {
 
 /// The table a NumPy ingestion produced, with the copies it made.
 pub(crate) struct NumpyTable {
-    pub(crate) data: antecedent_data::TabularData,
+    pub(crate) data: antecedent::prelude::TabularData,
     pub(crate) receipt: NumpyIngestReceipt,
 }
 
@@ -354,7 +359,7 @@ pub(crate) fn numeric_columns_to_batch(
         let (values, strided) = column.owned(name)?;
         noncontiguous += u64::from(strided);
         copied += 1;
-        owned.push(antecedent_data::F64Buffer::owned(values));
+        owned.push(antecedent::data::F64Buffer::owned(values));
     }
     Ok(ColumnBatch {
         names: names.to_vec(),
@@ -422,7 +427,7 @@ pub(crate) fn columns_to_ingested(
         for (name, column) in names.iter().zip(columns) {
             let (values, strided) = column.owned_range(name, offset, offset + len)?;
             noncontiguous = noncontiguous.saturating_add(u64::from(strided));
-            owned.push(antecedent_data::F64Buffer::owned(values));
+            owned.push(antecedent::data::F64Buffer::owned(values));
         }
         let ncols = u64::try_from(owned.len()).unwrap_or(u64::MAX);
         let unit_bytes = u64::try_from(len)
@@ -453,7 +458,7 @@ pub(crate) fn tabular_from_numpy_receipt(
 pub(crate) fn tabular_from_numpy(
     names: &[String],
     columns: &[NumericColumn<'_>],
-) -> PyResult<antecedent_data::TabularData> {
+) -> PyResult<antecedent::prelude::TabularData> {
     tabular_from_numpy_receipt(names, columns).map(|table| table.data)
 }
 
@@ -546,7 +551,7 @@ pub(crate) fn load_float64_arrow_c_columns(
 pub(crate) fn tabular_from_arrow_c_objs(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
-) -> PyResult<(antecedent_data::TabularData, u64)> {
+) -> PyResult<(antecedent::prelude::TabularData, u64)> {
     let cdi_cols = ffi::arrow_c_columns(names, columns)?;
     let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
@@ -568,14 +573,12 @@ fn arrow_retention_bytes(columns: &[Bound<'_, PyAny>]) -> Option<u64> {
 /// (`TabularData::with_retention`), whatever its column types, so it is released only when the
 /// last holder of the table (or of a table derived from its columns) drops.
 /// `CausalResourceError` when the pool cannot fund it; a cancelled run is cancelled.
-pub(crate) fn admit_retention(
-    bytes: u64,
-) -> PyResult<Arc<antecedent_core::execution::AdmissionLease>> {
-    let mut ctx = antecedent_core::ExecutionContext::production_default(1);
+pub(crate) fn admit_retention(bytes: u64) -> PyResult<Arc<antecedent::execution::AdmissionLease>> {
+    let mut ctx = antecedent::prelude::ExecutionContext::production_default(1);
     crate::execution_api::apply(&mut ctx);
     ctx.acquire_admission_bounded(0, bytes, std::time::Duration::ZERO).map(Arc::new).map_err(
         |error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent::execution::AdmissionError::Cancelled => {
                 py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
             }
             error => crate::CausalResourceError::new_err(error.to_string()),
@@ -594,12 +597,12 @@ pub(crate) fn owned_tabular_from_arrow_c_objs(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     admit: bool,
-) -> PyResult<antecedent_data::TabularData> {
+) -> PyResult<antecedent::prelude::TabularData> {
     let quoted = if admit { arrow_retention_bytes(&columns) } else { None };
     let mut lease = quoted.map(admit_retention).transpose()?;
     let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-    let frame =
-        antecedent_data::arrow_adapter::ArrowFrameView::from_c_columns(cdi_cols).map_err(py_err)?;
+    let frame = antecedent::data::arrow_adapter::ArrowFrameView::from_c_columns(cdi_cols)
+        .map_err(py_err)?;
     if admit && lease.is_none() {
         // An exporter with no length is quoted from the imported frame, still before the copy.
         let rows = u64::try_from(frame.row_count().map_err(py_err)?).unwrap_or(u64::MAX);
@@ -629,7 +632,7 @@ fn py_columns(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     arrow: ArrowBuffers,
-) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
+) -> PyResult<(antecedent::prelude::TabularData, Option<u64>)> {
     if names.len() != columns.len() {
         // Preserve the pre-unification ValueError for NumPy callers that catch it.
         return Err(crate::value_err("names and columns must have the same length"));
@@ -684,7 +687,7 @@ fn py_columns(
 pub(crate) fn tabular_from_py_columns(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
-) -> PyResult<antecedent_data::TabularData> {
+) -> PyResult<antecedent::prelude::TabularData> {
     py_columns(names, columns, ArrowBuffers::Own).map(|(data, _)| data)
 }
 
@@ -694,7 +697,7 @@ pub(crate) fn tabular_from_py_columns(
 pub(crate) fn funded_tabular_from_py_columns(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
-) -> PyResult<antecedent_data::TabularData> {
+) -> PyResult<antecedent::prelude::TabularData> {
     py_columns(names, columns, ArrowBuffers::OwnFunded).map(|(data, _)| data)
 }
 
@@ -704,6 +707,6 @@ pub(crate) fn funded_tabular_from_py_columns(
 pub(crate) fn borrowing_tabular_from_py_columns(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
-) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
+) -> PyResult<(antecedent::prelude::TabularData, Option<u64>)> {
     py_columns(names, columns, ArrowBuffers::Borrow)
 }

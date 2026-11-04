@@ -17,14 +17,14 @@ use antecedent::analysis::compact_export::{
     CompactExport, ExportInput, ExportLimits, ExportQuery, ExportRefusal, ExportSpec, MaskRegion,
     PointWithSe, QueryValue, TermSpec,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
 use crate::{detach_catch, value_err_code};
 
 /// A bounded-input error carrying the registered `invalid_argument` code.
 fn invalid_argument(message: String) -> PyErr {
-    value_err_code(antecedent_core::reason_code!("invalid_argument"), message)
+    value_err_code(antecedent::reason::reason_code!("invalid_argument"), message)
 }
 
 /// Largest declaration / query JSON accepted.

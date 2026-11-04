@@ -5,7 +5,7 @@
 //! Markov equivalence class or only a prefix of it. A cap or a search bound that stopped the walk
 //! is reported, never hidden.
 
-use antecedent_graph::{CompletionSampler, Pag as GraphPag};
+use antecedent::graph::{CompletionSampler, Pag as GraphPag};
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -40,7 +40,7 @@ fn pag_completions(pag: PyRef<'_, Pag>, max_completions: usize) -> PyResult<(Vec
             "rejected_local_incompatible": report.rejected_local_incompatible,
             "ambiguous_global_class": report.ambiguous_global_class,
             "equivalence_audit_skipped": report.equivalence_audit_skipped,
-            "search_stop": report.search_stop.map(antecedent_core::SearchStop::code),
+            "search_stop": report.search_stop.map(antecedent::execution::SearchStop::code),
             "hit_cap": sampler.hit_cap(),
             "class_audit_incomplete": sampler.class_audit_incomplete(),
             "operations_consumed": report.operations_consumed,

@@ -11,11 +11,13 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
+use antecedent::execution::{
     BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec,
-    Intervention, PinnedDependency, Portability, RecoveryRecord, ValueExpr, VariableId,
+    PinnedDependency, Portability, RecoveryRecord,
 };
-use antecedent_io::policy_program_artifact as artifact;
+use antecedent::io::policy_program_artifact as artifact;
+use antecedent::prelude::{Intervention, VariableId};
+use antecedent::query::ValueExpr;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyTuple};
@@ -290,11 +292,11 @@ pub(crate) fn program_intervention(
     variable: VariableId,
     callback: &PyBatchCallbackHandle,
     args: Vec<ValueExpr>,
-) -> PyResult<antecedent_core::Intervention> {
+) -> PyResult<antecedent::prelude::Intervention> {
     let expr = ValueExpr::callback(Arc::clone(&callback.inner) as Arc<dyn BatchCallback>, args);
     match kind {
-        "assign" => Ok(antecedent_core::Intervention::assign(variable, expr)),
-        "transform" => Ok(antecedent_core::Intervention::transform(variable, expr)),
+        "assign" => Ok(antecedent::prelude::Intervention::assign(variable, expr)),
+        "transform" => Ok(antecedent::prelude::Intervention::transform(variable, expr)),
         other => Err(value_err(format!("program mode {other:?} is not assign or transform"))),
     }
 }

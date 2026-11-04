@@ -6,8 +6,8 @@ use pyo3::prelude::*;
 
 #[derive(Clone, Debug)]
 pub(crate) struct NativeEffectAuthority {
-    pub(crate) query: antecedent_core::AverageEffectQuery,
-    pub(crate) status: antecedent_core::IdentificationStatus,
+    pub(crate) query: antecedent::query::AverageEffectQuery,
+    pub(crate) status: antecedent::schema::IdentificationStatus,
     pub(crate) ate: f64,
     pub(crate) has_structural_response: bool,
     pub(crate) support_status: Option<antecedent::support::CellStatus>,
@@ -33,21 +33,21 @@ impl crate::AteAnalysisResult {
             }
             let refuse = |detail: &str| {
                 (None, Some(serde_json::json!({
-                "code": if detail == antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND { "route_not_supported" } else { "invalid_argument" }, "stage": "bind", "detail": detail,
+                "code": if detail == antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND { "route_not_supported" } else { "invalid_argument" }, "stage": "bind", "detail": detail,
                 "offending": null, "expected": "unchanged original static mean ATE",
                 "supplied": "scalar analysis", "remedy": "use the original checked ATE contrast"
             }).to_string()))
             };
             let Some(authority) = &self.effect_authority else {
                 return Ok(refuse(
-                    antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
+                    antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
                 ));
             };
             let query = &authority.query;
             if authority.status
-                != antecedent_core::IdentificationStatus::NonparametricallyIdentified
-                || query.target_population != antecedent_core::TargetPopulation::AllObserved
-                || query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
+                != antecedent::schema::IdentificationStatus::NonparametricallyIdentified
+                || query.target_population != antecedent::query::TargetPopulation::AllObserved
+                || query.outcome_functional != antecedent::query::OutcomeFunctional::Mean
                 || !query.effect_modifiers.is_empty()
                 || authority.has_structural_response
                 || authority
@@ -55,21 +55,21 @@ impl crate::AteAnalysisResult {
                     .is_some_and(|s| s != antecedent::support::CellStatus::Supported)
             {
                 return Ok(refuse(
-                    antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
+                    antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
                 ));
             }
             if !authority.ate.is_finite() || supplied_value.to_bits() != authority.ate.to_bits() {
                 return Ok(refuse(
-                    antecedent_core::reason_details::native_claims::PROJECTION_MISMATCH,
+                    antecedent::reason::reason_details::native_claims::PROJECTION_MISMATCH,
                 ));
             }
             let Some(executed) = &authority.executed_contract else {
                 return Ok(refuse(
-                    antecedent_core::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
+                    antecedent::reason::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
                 ));
             };
-            let level = |intervention: &antecedent_core::Intervention| match intervention {
-                antecedent_core::Intervention::Set { variable, value }
+            let level = |intervention: &antecedent::prelude::Intervention| match intervention {
+                antecedent::prelude::Intervention::Set { variable, value }
                     if *variable == query.treatment =>
                 {
                     value.as_f64()
@@ -79,7 +79,7 @@ impl crate::AteAnalysisResult {
             let (Some(control), Some(active)) = (level(&query.control), level(&query.active))
             else {
                 return Ok(refuse(
-                    antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
+                    antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
                 ));
             };
             let treatment = authority

@@ -18,7 +18,7 @@ use antecedent::analysis::{
     consume_interface_contract_artifact, export_interface_contract,
     inspect_interface_contract_artifact,
 };
-use antecedent_io::interface_contract_artifact::{
+use antecedent::io::interface_contract_artifact::{
     ContractWire, contract_from_wire, contract_to_wire,
 };
 use pyo3::prelude::*;
@@ -71,7 +71,7 @@ pub(crate) fn connection_json(connection: &Connection) -> String {
         EvidenceBasis::Undeclared => json!({"declared": false, "sources": []}),
         EvidenceBasis::Declared(sources) => json!({
             "declared": true,
-            "sources": sources.iter().map(antecedent_contract::evidence_ledger::SourceId::to_hex).collect::<Vec<_>>(),
+            "sources": sources.iter().map(antecedent::analysis::evidence_ledger::SourceId::to_hex).collect::<Vec<_>>(),
         }),
     };
     json!({

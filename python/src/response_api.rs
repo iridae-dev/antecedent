@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    DerivativeScale, DerivativeWeighting, GridSpec, IntervalInterpretation, Intervention,
-    InterventionSequence, MechanismOverride, ResponseFunctional, ResponseIdentification,
-    ResponseUncertainty, ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus,
-    TemporalPolicy, Value, VariableId,
+use antecedent::prelude::{Intervention, Value, VariableId};
+use antecedent::query::{
+    DerivativeScale, DerivativeWeighting, GridSpec, IntervalInterpretation, InterventionSequence,
+    MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseUncertainty,
+    ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus, TemporalPolicy,
 };
 use pyo3::prelude::*;
 
@@ -132,11 +132,11 @@ pub(crate) struct ResponseAnalysisResult {
 }
 
 pub(crate) struct NativeResponseAuthority {
-    pub(crate) response: antecedent_core::CausalResponse,
+    pub(crate) response: antecedent::query::CausalResponse,
     pub(crate) prepared: Arc<antecedent::PreparedStudy>,
-    pub(crate) schema: antecedent_core::CausalSchema,
+    pub(crate) schema: antecedent::prelude::CausalSchema,
     pub(crate) result: Arc<antecedent::StudyResult>,
-    pub(crate) context: antecedent_core::ExecutionContext,
+    pub(crate) context: antecedent::prelude::ExecutionContext,
 }
 
 impl ResponseAnalysisResult {
@@ -160,9 +160,9 @@ impl ResponseAnalysisResult {
     pub(crate) fn with_authority(
         mut self,
         prepared: &antecedent::PreparedStudy,
-        schema: &antecedent_core::CausalSchema,
+        schema: &antecedent::prelude::CausalSchema,
         result: &antecedent::StudyResult,
-        context: &antecedent_core::ExecutionContext,
+        context: &antecedent::prelude::ExecutionContext,
     ) -> Self {
         if let (Some(response), Some(_)) = (result.response(), result.executed_contract()) {
             self.authority = Some(Arc::new(NativeResponseAuthority {
@@ -178,8 +178,8 @@ impl ResponseAnalysisResult {
 }
 
 type CoordinateSkeleton = Result<
-    Vec<antecedent_contract::ResponseCoordinateSkeleton>,
-    antecedent_contract::ExternalRefusal,
+    Vec<antecedent::contract::ResponseCoordinateSkeleton>,
+    antecedent::contract::ExternalRefusal,
 >;
 
 #[pymethods]
@@ -215,7 +215,7 @@ impl ResponseAnalysisResult {
             let Some(contract) = authority.result.executed_contract() else {
                 return Ok(None);
             };
-            let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
+            let antecedent::query::ResponseFunctional::MeanCurve { outcome, treatment } =
                 &authority.response.estimand
             else {
                 return Ok(None);
@@ -271,7 +271,7 @@ impl ResponseAnalysisResult {
                 )),
                 Err(refusal) => {
                     let json = serde_json::to_string(
-                        &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
+                        &antecedent::io::external_binding_wire::RefusalWire::from(refusal),
                     )
                     .map_err(|error| crate::value_err(error.to_string()))?;
                     Ok((None, Some(json)))
@@ -293,7 +293,7 @@ impl ResponseAnalysisResult {
         transform: &str,
     ) -> PyResult<(Option<String>, Option<String>)> {
         crate::catch_ffi(|| {
-            let labels = antecedent_contract::ResponseCoordinateLabels {
+            let labels = antecedent::contract::ResponseCoordinateLabels {
                 outcome_units,
                 population_id: population,
                 transform_id: transform,
@@ -301,10 +301,10 @@ impl ResponseAnalysisResult {
             let labelled = self
                 .coordinates
                 .clone()
-                .and_then(|cells| antecedent_contract::label_coordinates(&cells, &labels));
+                .and_then(|cells| antecedent::contract::label_coordinates(&cells, &labels));
             match labelled {
                 Ok(quantities) => {
-                    let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
+                    let wires: Vec<antecedent::io::quantity_wire::ScientificQuantityWire> =
                         quantities.iter().map(Into::into).collect();
                     let json = serde_json::to_string(&wires)
                         .map_err(|error| crate::value_err(error.to_string()))?;
@@ -312,7 +312,7 @@ impl ResponseAnalysisResult {
                 }
                 Err(refusal) => {
                     let json = serde_json::to_string(
-                        &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
+                        &antecedent::io::external_binding_wire::RefusalWire::from(refusal),
                     )
                     .map_err(|error| crate::value_err(error.to_string()))?;
                     Ok((None, Some(json)))
@@ -326,16 +326,16 @@ impl ResponseAnalysisResult {
 // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
 #[allow(clippy::result_large_err)]
 fn coordinate_skeleton(
-    response: &antecedent_core::CausalResponse,
+    response: &antecedent::query::CausalResponse,
     names: &[String],
 ) -> CoordinateSkeleton {
-    antecedent_contract::response_coordinate_skeleton(response, &|id| {
+    antecedent::contract::response_coordinate_skeleton(response, &|id| {
         names.get(id.as_usize()).cloned()
     })
 }
 
 pub(crate) fn resolve_names(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     names: &[String],
 ) -> PyResult<Vec<VariableId>> {
     if names.is_empty() {
@@ -371,7 +371,7 @@ pub(crate) fn build_functional(
             let (treatment, outcome) = scalar()?;
             Ok(ResponseFunctional::MeanCurve {
                 outcome,
-                treatment: antecedent_core::ContinuousDomain::new(
+                treatment: antecedent::query::ContinuousDomain::new(
                     treatment,
                     GridSpec::Values(Arc::from(
                         grid.ok_or_else(|| crate::value_err("grid is required"))?,
@@ -588,7 +588,7 @@ pub(crate) fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
 }
 
 pub(crate) fn response_result(
-    response: antecedent_core::CausalResponse,
+    response: antecedent::query::CausalResponse,
     structural: Option<&antecedent::result::StructuralResponseMixture>,
     treatments: Vec<String>,
     outcomes: Vec<String>,
@@ -832,7 +832,7 @@ pub(crate) fn attach_study_response_meta(
 }
 
 fn named_horizon_adjustments(
-    response: &antecedent_core::CausalResponse,
+    response: &antecedent::query::CausalResponse,
     names: &[String],
 ) -> Vec<Vec<String>> {
     match &response.horizon_identification {
@@ -857,7 +857,7 @@ fn named_horizon_adjustments(
 }
 
 fn first_horizon_template_names(
-    response: &antecedent_core::CausalResponse,
+    response: &antecedent::query::CausalResponse,
     names: &[String],
 ) -> Option<Vec<String>> {
     let first = response.horizon_identification.as_ref()?.first()?;

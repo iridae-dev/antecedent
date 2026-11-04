@@ -8,13 +8,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent::CausalError;
+use antecedent::data::TableView;
+use antecedent::execution::StreamDomain;
 use antecedent::gcm::{
     CounterfactualEngine, DoSampleResult, KdeDoSampler, McmcDoSampler, MechanismWorkspace,
     ModelEvaluator, WeightingDoSampler, arrow_strengths, counterfactual_contrasts,
     interventional_mean, population_do_contrast, simultaneous_hard_counterfactual,
 };
-use antecedent_core::{Intervention, StreamDomain, Value, VariableId};
-use antecedent_data::{TableView, TabularData};
+use antecedent::prelude::{Intervention, TabularData, Value, VariableId};
 use numpy::PyArray1;
 use pyo3::prelude::*;
 

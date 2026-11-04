@@ -16,8 +16,8 @@ use antecedent::retained_refresh::{
     RefreshMutation, RefreshObservation, RefreshResult, RetainedRefresh, SpilledRefresh,
     spill_registry_within_admission,
 };
-use antecedent::state::{ConjugateOlsPrior, RefreshOutcome, SpillRegistry};
-use antecedent_state::retention::{RetainedOperation, RetentionMode, RetentionPolicy};
+use antecedent::state::retention::{RetainedOperation, RetentionMode};
+use antecedent::state::{ConjugateOlsPrior, RefreshOutcome, RetentionPolicy, SpillRegistry};
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 
@@ -25,7 +25,7 @@ use crate::contract_refusals_api::PyRetentionPolicy;
 use crate::prepared_api::PyPreparedAnalysis;
 use crate::{py_err, value_err};
 
-fn ctx() -> antecedent_core::ExecutionContext {
+fn ctx() -> antecedent::prelude::ExecutionContext {
     crate::py_execution_context(1, 1)
 }
 

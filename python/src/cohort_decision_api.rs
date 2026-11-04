@@ -19,9 +19,9 @@ use antecedent::analysis::transported_cohort::{
     SelectionShiftDeclaration, TRANSPORTED_POINT_SCOPE, TransportRefusal, TransportedCohort,
     TransportedRequest, transport_cohort_effect_from_result, verify_cohort_transport,
 };
-use antecedent_design::composition_boundary::SupportPolicy;
-use antecedent_design::decision_artifact::contract_from_json_refusal;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::design::composition_boundary::SupportPolicy;
+use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
 use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json};
@@ -34,7 +34,7 @@ type BuildPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
 fn invalid_argument(message: String) -> PyErr {
-    value_err_code(antecedent_core::reason_code!("invalid_argument"), message)
+    value_err_code(antecedent::reason::reason_code!("invalid_argument"), message)
 }
 
 fn refusal_json(error: &CohortRefusal, stage: &'static str) -> String {
@@ -189,8 +189,8 @@ fn build_cohort_decision_source(
                         None,
                         Some(refusal_json(
                             &CohortRefusal {
-                                code: antecedent_core::reason_code!("invalid_argument"),
-                                detail: antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
+                                code: antecedent::reason::reason_code!("invalid_argument"),
+                                detail: antecedent::reason::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                                 subject: "expected_identity".to_owned(),
                                 remedy: "retain the compact export identity and supply it",
                             },
@@ -203,7 +203,7 @@ fn build_cohort_decision_source(
                     Err(error) => Err(CohortRefusal {
                         code: error.code,
                         detail:
-                            antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
+                            antecedent::reason::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                         subject: format!("{}: {}", error.detail, error.subject),
                         remedy: "re-export the model from its producer",
                     }),
@@ -602,9 +602,9 @@ fn transport_cohort_composition_node(
                 let mut wire = crate::composition_verification_api::node_wire(&node);
                 wire["standing"] = serde_json::json!({
                     "support": match standing.support {
-                        antecedent_contract::composition_verification::SupportStanding::Supported =>
+                        antecedent::analysis::composition_verification::SupportStanding::Supported =>
                             "supported",
-                        antecedent_contract::composition_verification::SupportStanding::Unsupported { .. } => "unsupported",
+                        antecedent::analysis::composition_verification::SupportStanding::Unsupported { .. } => "unsupported",
                     },
                     "trust": standing.trust.as_str(),
                     "calibration":
@@ -708,9 +708,9 @@ fn native_fit_of(
 
 fn native_fit_refusal(message: &str) -> String {
     RefusalJson::new(
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
         "bind",
-        antecedent_core::reason_details::cohort_decision::NATIVE_FIT_REFUSED,
+        antecedent::reason::reason_details::cohort_decision::NATIVE_FIT_REFUSED,
         message,
     )
     .json()
@@ -797,7 +797,7 @@ fn cohort_decision_interval(
                 Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
                 None,
             )),
-            Err(antecedent_io::IoError::Refused { code, message }) => {
+            Err(antecedent::io::IoError::Refused { code, message }) => {
                 Ok((None, Some(RefusalJson::from_coded_message(code, "evaluate", &message).json())))
             }
             Err(other) => Err(crate::transport_common::error(other)),

@@ -5,18 +5,20 @@ use crate::transport_common::{
 };
 use crate::transport_z_api::to_py_json;
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{EvidenceCatalog, SearchLimits, SearchReceipt, Value, VariableId};
-use antecedent_expr::{Assignment, ExactEvaluationLimits};
-use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{
+use antecedent::estimate::{Assignment, ExactEvaluationLimits};
+use antecedent::execution::{SearchLimits, SearchReceipt};
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::{
     ClassicalTransportQuery, ConditionalObstructionCandidate, ConditionalTransportDecision,
     ConditionalTransportQuery, ConditionalWitnessRecord, IdentificationError,
     admg_conditional_refusal, decide_admg_conditional_transport,
 };
-use antecedent_io::IoError;
-use antecedent_io::admg_conditional_transport_artifact::{
+use antecedent::io::IoError;
+use antecedent::io::admg_conditional_transport_artifact::{
     AdmgConditionalArtifactWire, AdmgConditionalConsumeLimits, AdmgConditionalObstructionWire,
 };
+use antecedent::prelude::{Value, VariableId};
+use antecedent::query::EvidenceCatalog;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -62,7 +64,7 @@ fn candidate_json(
         [names_of(names, &[VariableId::from_raw(*a)]), names_of(names, &[VariableId::from_raw(*b)])]
             .concat()
     };
-    let forest = |forest: &antecedent_identify::sid::SelectionForestRecord| {
+    let forest = |forest: &antecedent::identify::SelectionForestRecord| {
         serde_json::json!({
             "nodes": names_of(names, &forest.nodes.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()),
             "directed": forest.directed.iter().map(pair).collect::<Vec<_>>(),
@@ -86,7 +88,7 @@ fn candidate_json(
 fn witness_json(witness: &ConditionalWitnessRecord, names: &[String]) -> serde_json::Value {
     let name = |v: u32| names_of(names, &[VariableId::from_raw(v)]).remove(0);
     let edge = |e: &[u32; 2]| [name(e[0]), name(e[1])];
-    let kernel = |k: &antecedent_identify::WitnessKernelRecord| {
+    let kernel = |k: &antecedent::identify::WitnessKernelRecord| {
         serde_json::json!({
             "node": name(k.node),
             "parents": k.parents.iter().map(|p| name(*p)).collect::<Vec<_>>(),
@@ -94,7 +96,7 @@ fn witness_json(witness: &ConditionalWitnessRecord, names: &[String]) -> serde_j
             "p_one": k.ones,
         })
     };
-    let model = |m: &antecedent_identify::WitnessModelRecord| {
+    let model = |m: &antecedent::identify::WitnessModelRecord| {
         serde_json::json!({
             "latents": m.latents.iter().map(|l| serde_json::json!({"edge": edge(&l.edge), "probabilities": l.probabilities})).collect::<Vec<_>>(),
             "source": m.source.iter().map(kernel).collect::<Vec<_>>(),
@@ -190,7 +192,7 @@ fn decision_json(
 }
 
 fn point_json(
-    distribution: &antecedent_expr::ExactDistribution,
+    distribution: &antecedent::estimate::ExactDistribution,
     names: &[String],
 ) -> serde_json::Value {
     serde_json::json!({
@@ -203,7 +205,7 @@ fn point_json(
 /// Every request's conditional point and outcome means; request 0 at the top level.
 fn points_json(
     requests: &[Assignment],
-    distributions: &[antecedent_expr::ExactDistribution],
+    distributions: &[antecedent::estimate::ExactDistribution],
     names: &[String],
 ) -> serde_json::Value {
     let mut payload = point_json(&distributions[0], names);
@@ -343,7 +345,7 @@ impl AdmgConditionalTransportStage {
             let code = self
                 .decision
                 .reason_code()
-                .unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+                .unwrap_or(antecedent::reason::reason_code!("transport_not_certified"));
             let detail = self.decision.detail_code().unwrap_or_default();
             return Err(crate::refusal(
                 code,
@@ -388,7 +390,7 @@ impl AdmgConditionalTransportStage {
             let code = self
                 .decision
                 .reason_code()
-                .unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+                .unwrap_or(antecedent::reason::reason_code!("transport_not_certified"));
             let detail = self.decision.detail_code().unwrap_or_default();
             return Err(crate::refusal(
                 code,
@@ -422,8 +424,8 @@ impl AdmgConditionalTransportStage {
         seed: u64,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedAdmgConditionalTransportStage> {
-        antecedent_core::support_gate::require_supported_unscoped(
-            antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
+        antecedent::execution::support_gate::require_supported_unscoped(
+            antecedent::reason::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
             &["admg_conditional.counted_law_plugin_check"],
         )
         .map_err(|e| crate::not_supported_err(&e))?;
@@ -503,7 +505,7 @@ impl PreparedAdmgConditionalTransportStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a conditional transport artifact",
             )
         })?;
@@ -566,7 +568,7 @@ fn identify_admg_conditional_transport_stage(
             .map(|name| {
                 resolve(&graph.names, name).map_err(|_| {
                     crate::refusal(
-                        antecedent_core::reason_code!("invalid_argument"),
+                        antecedent::reason::reason_code!("invalid_argument"),
                         format!(
                             "admg_transport.invalid_query: {name:?} is not a variable of the graph"
                         ),
@@ -691,7 +693,7 @@ fn consume_admg_conditional_obstruction_artifact(
         let payload = serde_json::json!({
             "identification_status": "proven_non_transportable",
             "reason_code": "transport_proven_non_transportable",
-            "detail": antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE,
+            "detail": antecedent::reason::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE,
             "outcomes": names_of(&names, &proof.query().base.outcomes),
             "treatments": names_of(&names, &proof.query().base.treatments),
             "conditioned_on": names_of(&names, &proof.query().conditioned_on),

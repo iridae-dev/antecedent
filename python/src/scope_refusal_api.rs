@@ -10,7 +10,7 @@ use antecedent::analysis::scope_refusals::{
     joint_bayesian_transport_scope_refusal, nested_markov_scope_refusal,
     sampled_recovery_scope_refusal,
 };
-use antecedent_core::reason_code;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 
 /// A scope refusal as the Python exception a caller sees, always carrying

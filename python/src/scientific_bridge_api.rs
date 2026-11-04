@@ -14,26 +14,26 @@
 
 use std::sync::Arc;
 
-use antecedent::{
-    ConsumedScientificBridge, PreparedScientificBridge, PreparedScientificBridgeDistribution,
-    ScientificBridgeDistributionResult, ScientificBridgeRefusal, ScientificBridgeResult,
-    consume_scientific_bridge_artifact, consume_scientific_bridge_distribution_artifact,
-    scientific_bridge_artifact_shape,
-};
-use antecedent_contract::bridge::{
+use antecedent::contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
     BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting, MappingUncertainty,
     NonlinearMap, PointPropagation, QuantityClass, SourceMappingDependence,
     TransportabilityPremise, TrialEffectPair, TrialLevelValidation, ValueKind,
     point_propagation_unavailable,
 };
-use antecedent_contract::evidence_ledger::parse_digest_hex;
-use antecedent_contract::{
-    ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ReasoningView, ScientificQuantity,
-    SlotAvailability,
+use antecedent::contract::evidence_ledger::parse_digest_hex;
+use antecedent::contract::{
+    ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ReasoningView, SlotAvailability,
 };
-use antecedent_core::{ContractIdentities, SemanticDigest};
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::schema::ContractIdentities;
+use antecedent::scientific::{ScientificQuantity, SemanticDigest};
+use antecedent::{
+    ConsumedScientificBridge, PreparedScientificBridge, PreparedScientificBridgeDistribution,
+    ScientificBridgeDistributionResult, ScientificBridgeRefusal, ScientificBridgeResult,
+    consume_scientific_bridge_artifact, consume_scientific_bridge_distribution_artifact,
+    scientific_bridge_artifact_shape,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -60,7 +60,7 @@ fn refusal_json(refusal: &ScientificBridgeRefusal) -> String {
     .to_string()
 }
 
-fn external_refusal_json(refusal: &antecedent_contract::ExternalRefusal) -> String {
+fn external_refusal_json(refusal: &antecedent::contract::ExternalRefusal) -> String {
     json!({
         "code": refusal.code,
         "stage": "scientific_bridge",

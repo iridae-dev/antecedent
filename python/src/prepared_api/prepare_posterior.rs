@@ -2,12 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
+use antecedent::data::TableView;
+use antecedent::prelude::{Intervention, Value};
+use antecedent::query::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, ContinuousDomain, GridSpec,
-    Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, PopulationSelector,
-    ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
+    InterventionalDistributionQuery, PathSpecificEffectQuery, PopulationSelector,
+    ResponseFunctional, ResponseQuery, TemporalResponseSpec,
 };
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -276,7 +277,7 @@ impl PyPreparedAnalysis {
                         .collect::<PyResult<Vec<_>>>()?;
                     let mut query = AnomalyAttributionQuery::new(ids, max_units);
                     if let Some((center, scale)) = reference {
-                        query = query.with_reference(antecedent_core::AnomalyReference::fixed(
+                        query = query.with_reference(antecedent::query::AnomalyReference::fixed(
                             center, scale,
                         ));
                     }
@@ -490,8 +491,8 @@ impl PyPreparedAnalysis {
                     Some(intervention_kinds),
                     Some(intervention_parameters),
                     1,
-                    antecedent_core::DerivativeScale::Identity,
-                    antecedent_core::DerivativeWeighting::Observed,
+                    antecedent::query::DerivativeScale::Identity,
+                    antecedent::query::DerivativeWeighting::Observed,
                 )?;
                 let query = response_query(functional, &req.opts);
                 let ctx = req.opts.ctx(seed, threads);
@@ -743,8 +744,8 @@ impl PyPreparedAnalysis {
                     intervention_kinds,
                     intervention_parameters,
                     1,
-                    antecedent_core::DerivativeScale::Identity,
-                    antecedent_core::DerivativeWeighting::Observed,
+                    antecedent::query::DerivativeScale::Identity,
+                    antecedent::query::DerivativeWeighting::Observed,
                 )?;
                 let temporal_policy =
                     crate::temporal_support::policy_at_lag(policy, treatment_lag)?;

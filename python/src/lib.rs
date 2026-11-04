@@ -272,13 +272,13 @@ pub(crate) use temporal_api::{
 
 pub(crate) fn parse_within_tier(
     within_tier: Option<&str>,
-) -> PyResult<antecedent_graph::WithinTier> {
+) -> PyResult<antecedent::graph::WithinTier> {
     let Some(raw) = within_tier else {
         return Err(crate::value_err("within_tier is required when tiers are supplied"));
     };
     match raw.to_ascii_lowercase().as_str() {
-        "codetermined" => Ok(antecedent_graph::WithinTier::CoDetermined),
-        "unknown" => Ok(antecedent_graph::WithinTier::Unknown),
+        "codetermined" => Ok(antecedent::graph::WithinTier::CoDetermined),
+        "unknown" => Ok(antecedent::graph::WithinTier::Unknown),
         other => {
             Err(crate::value_err(format!("within_tier must be codetermined|unknown, got {other}")))
         }
@@ -298,6 +298,7 @@ use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 
+use antecedent::data::{DataError, TableView, tabular_from_arrow_c_columns};
 use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use antecedent::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
@@ -305,37 +306,35 @@ use antecedent::discovery::{
     two_regime_half_split,
 };
 use antecedent::error::PendingEdge as FacadePendingEdge;
-use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
+use antecedent::estimate::{CausalExprArena, TemporalLinearPredictor, TemporalMediationEstimator};
+use antecedent::execution::{CachePolicy, KernelPolicy};
 use antecedent::gcm::fit_gcm;
-use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
+use antecedent::graph::{
+    Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, GraphError, Lag, MarkedEdge,
+    MiddleMark, NodeRef, Pag, PagReview, TemporalCpdag, TemporalCpdagReview, TemporalGraphReview,
+    TemporalPag, TemporalPagReview,
+};
+use antecedent::inference::{FdrAdjustment, PartialCorrelation};
+use antecedent::io::{
+    CausalPosteriorWire, IoError, PosteriorQuantityWire, decode_causal_posterior_bytes,
+    encode_causal_posterior_bytes, encode_posterior_artifact as encode_posterior_wire,
+};
+use antecedent::prelude::{
+    ExecutionContext, IdentifiedEstimand, Intervention, MultiEnvironmentData, TimeSeriesData,
+    Value, VariableId,
+};
+use antecedent::query::{
+    AllocationMethod, AttributionComponents, ChangeAttributionQuery, MechanismChangeQuery,
+    MediationContrast, MediationQuery, PopulationRegistry, PopulationSelector, PredicateExpr,
+    ShapleyConfig, TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery,
+};
 use antecedent::review::{PendingCpdagReview, PendingGraphReview};
+use antecedent::schema::{DistributionRef, RegimeId, SchemaError, VERSION};
+use antecedent::validate::{PredictiveCheckKind, RefutationReport};
 use antecedent::{
     AcceptedGraph, BayesianConfig, CausalError as RustCausalError, InferenceMode, RefuteSuite,
     Study,
 };
-use antecedent_core::{
-    AllocationMethod, AttributionComponents, CachePolicy, ChangeAttributionQuery, DistributionRef,
-    ExecutionContext, Intervention, KernelPolicy, Lag, MechanismChangeQuery, MediationContrast,
-    MediationQuery, PopulationRegistry, PopulationSelector, PredicateExpr, RegimeId, SchemaError,
-    ShapleyConfig, TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION,
-    Value, VariableId,
-};
-use antecedent_data::{
-    DataError, MultiEnvironmentData, TableView, TimeSeriesData, tabular_from_arrow_c_columns,
-};
-use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
-use antecedent_graph::{
-    Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark,
-    NodeRef, Pag, PagReview, TemporalCpdag, TemporalCpdagReview, TemporalGraphReview, TemporalPag,
-    TemporalPagReview,
-};
-use antecedent_io::{
-    CausalPosteriorWire, IoError, PosteriorQuantityWire,
-    encode_posterior_artifact as encode_posterior_wire,
-};
-use antecedent_stats::FdrAdjustment;
-use antecedent_stats::PartialCorrelation;
-use antecedent_validate::{PredictiveCheckKind, RefutationReport};
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
@@ -478,10 +477,10 @@ pub(crate) fn accept_rpcmci_review(
 }
 
 pub(crate) fn public_adjustment_set(
-    status: antecedent_core::IdentificationStatus,
+    status: antecedent::schema::IdentificationStatus,
     set: Vec<String>,
 ) -> Vec<String> {
-    use antecedent_core::IdentificationStatus::{
+    use antecedent::schema::IdentificationStatus::{
         IdentifiedUnderParametricRestrictions, IdentifiedUnderPriorRestrictions,
         NonparametricallyIdentified,
     };
@@ -529,9 +528,9 @@ pub(crate) fn identified_set_fields(result: &antecedent::StudyResult) -> Identif
 /// Wire tag of an identified-set interval construction (`None` for one the
 /// artifact format has no tag for, which the artifact encoder refuses too).
 fn identified_set_method_tag(
-    method: antecedent_estimate::IdentifiedSetIntervalMethod,
+    method: antecedent::estimate::IdentifiedSetIntervalMethod,
 ) -> Option<String> {
-    let wire = antecedent_io::IdentifiedSetIntervalMethodWire::try_from_method(method).ok()?;
+    let wire = antecedent::io::IdentifiedSetIntervalMethodWire::try_from_method(method).ok()?;
     serde_json::to_value(wire).ok()?.as_str().map(str::to_owned)
 }
 
@@ -906,7 +905,7 @@ pub(crate) struct AteAnalysisResult {
 
 /// One refuter's record: which check ran, its comparison statistic, and pass/fail.
 ///
-/// Exposes the fields of [`antecedent_validate::RefutationReport`] so callers can name the
+/// Exposes the fields of [`antecedent::validate::RefutationReport`] so callers can name the
 /// refuter that failed instead of only seeing an aggregate pass/fail flag.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone, Debug)]
@@ -921,7 +920,7 @@ struct RefutationReportView {
     #[pyo3(get)]
     refuted_ate: f64,
     /// Scale-free comparison statistic (meaning is refuter-specific; see
-    /// [`antecedent_validate::RefutationReport::comparison`]).
+    /// [`antecedent::validate::RefutationReport::comparison`]).
     #[pyo3(get)]
     comparison: f64,
     /// Whether the check is informative for the estimator used.
@@ -958,7 +957,7 @@ struct RefutationReportView {
 
 impl From<&RefutationReport> for RefutationReportView {
     fn from(r: &RefutationReport) -> Self {
-        use antecedent_validate::RefutationScope;
+        use antecedent::validate::RefutationScope;
         let (kind, target, atom, digest, horizon_index, horizon) = match r.scope.as_ref() {
             Some(RefutationScope::WholeTarget { target }) => {
                 (Some("whole_target"), Some(target), None, None, None, None)
@@ -1001,9 +1000,11 @@ impl From<&RefutationReport> for RefutationReportView {
             failure_condition: r.failure_condition.as_ref().map(std::string::ToString::to_string),
             replicates: r.replicates,
             scope_kind: kind.map(str::to_owned),
-            scope_target_identity: target.map(antecedent_validate::RefutationTarget::identity_hex),
+            scope_target_identity: target
+                .map(antecedent::analysis::target_validation::RefutationTarget::identity_hex),
             scope_outer_atom: atom,
-            scope_completion_digest: digest.map(|digest| antecedent_core::identity::to_hex(digest)),
+            scope_completion_digest: digest
+                .map(|digest| antecedent::schema::identity::to_hex(digest)),
             scope_horizon_index: horizon_index,
             scope_horizon: horizon,
         }
@@ -1223,15 +1224,15 @@ pub(crate) struct ProbabilityIntervalSection {
 }
 
 impl ProbabilityIntervalSection {
-    pub(crate) fn new(interval: antecedent_estimate::ProbabilityInterval) -> Self {
+    pub(crate) fn new(interval: antecedent::estimate::ProbabilityInterval) -> Self {
         match interval {
-            antecedent_estimate::ProbabilityInterval::Bounded { level, lower, upper } => Self {
+            antecedent::estimate::ProbabilityInterval::Bounded { level, lower, upper } => Self {
                 level: Some(level),
                 lower: Some(lower),
                 upper: Some(upper),
                 unavailable: None,
             },
-            antecedent_estimate::ProbabilityInterval::Unavailable(reason) => Self {
+            antecedent::estimate::ProbabilityInterval::Unavailable(reason) => Self {
                 level: None,
                 lower: None,
                 upper: None,
@@ -1265,12 +1266,12 @@ pub(crate) struct DistributionAtomSection {
 /// Distribution atoms and the binary-mean interval for the estimate section.
 pub(crate) fn distribution_sections(
     names: &[String],
-    distribution: Option<&antecedent_estimate::InterventionalDistributionEstimate>,
+    distribution: Option<&antecedent::estimate::InterventionalDistributionEstimate>,
 ) -> (Option<Vec<DistributionAtomSection>>, Option<ProbabilityIntervalSection>) {
     let Some(dist) = distribution else {
         return (None, None);
     };
-    let named = |pairs: &[(antecedent_core::VariableId, antecedent_core::Value)]| {
+    let named = |pairs: &[(antecedent::prelude::VariableId, antecedent::prelude::Value)]| {
         pairs
             .iter()
             .map(|(id, value)| {
@@ -1330,17 +1331,17 @@ impl SharedStudySections {
 }
 
 pub(crate) fn mediation_uncertainty_projection(
-    slice: &antecedent_estimate::TemporalMediationSlice,
+    slice: &antecedent::estimate::TemporalMediationSlice,
 ) -> (String, Option<f64>, Option<f64>, Option<f64>) {
     match &slice.uncertainty {
-        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+        antecedent::estimate::TemporalMediationUncertainty::FrequentistPointwise {
             standard_error,
         }
-        | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+        | antecedent::estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
             requested: standard_error,
             ..
         } => ("frequentist_pointwise".to_string(), *standard_error, None, None),
-        antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+        antecedent::estimate::TemporalMediationUncertainty::BayesianPointwise {
             requested, ..
         } => (
             "bayesian_pointwise".to_string(),
@@ -1360,8 +1361,8 @@ pub(crate) fn shared_study_sections(
     let absent_effect = antecedent::EffectEstimate::new(
         f64::NAN,
         f64::NAN,
-        antecedent_core::AssumptionSet::default(),
-        antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        antecedent::schema::AssumptionSet::default(),
+        antecedent::estimate::OverlapPolicy::ExplicitOverride,
     );
     let estimate = result.estimate().as_effect().unwrap_or(&absent_effect);
     let resampling = estimate.diagnostics.resampling.as_ref().map(ResamplingSection::from_report);
@@ -1372,7 +1373,7 @@ pub(crate) fn shared_study_sections(
     let temporal_indexer = result.certificate.as_ref().and_then(|certificate| {
         match (&certificate.query, &certificate.identification) {
             (
-                antecedent_core::CausalQuery::TemporalEffect(_),
+                antecedent::query::CausalQuery::TemporalEffect(_),
                 antecedent::Identification::Point { temporal_indexer, .. },
             ) => temporal_indexer.as_ref(),
             _ => None,
@@ -1739,8 +1740,8 @@ pub(crate) struct ScoreInferenceSection {
     overlap_ok: bool,
 }
 
-impl From<&antecedent_estimate::scores::ScoreInference> for ScoreInferenceSection {
-    fn from(s: &antecedent_estimate::scores::ScoreInference) -> Self {
+impl From<&antecedent::estimate::scores::ScoreInference> for ScoreInferenceSection {
+    fn from(s: &antecedent::estimate::scores::ScoreInference) -> Self {
         Self {
             raw_means: s.raw_means.clone(),
             lower: s.lower.clone(),
@@ -1834,7 +1835,7 @@ impl ValidationSection {
     /// same logic instead of maintaining two copies of the aggregate rule.
     pub(crate) fn from_reports(
         reports: Vec<RefutationReportView>,
-        diagnostics: &[antecedent_core::Diagnostic],
+        diagnostics: &[antecedent::schema::Diagnostic],
     ) -> Self {
         let computation_failures: Vec<_> = diagnostics
             .iter()
@@ -1875,7 +1876,7 @@ impl ValidationSection {
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PerformanceSection {
-    native_execution: Option<antecedent_core::execution_facts::ExecutionFacts>,
+    native_execution: Option<antecedent::execution::execution_facts::ExecutionFacts>,
     #[pyo3(get)]
     pub(crate) plan_id: String,
     #[pyo3(get)]
@@ -1951,8 +1952,8 @@ pub(crate) struct ResamplingSection {
 }
 
 impl ResamplingSection {
-    fn from_report(report: &antecedent_estimate::ResamplingReport) -> Self {
-        use antecedent_estimate::adaptive_resample_waves::StopReason;
+    fn from_report(report: &antecedent::estimate::ResamplingReport) -> Self {
+        use antecedent::estimate::adaptive_resample_waves::StopReason;
         Self {
             level: report.rule.level,
             wave_size: report.rule.wave_size,
@@ -1993,13 +1994,13 @@ impl ResamplingSection {
 /// (matches attribution bench policy).
 pub(crate) const PY_DEFAULT_CACHE_MAX_BYTES: u64 = 4_000_000;
 
-/// Resolve an omitted or zero `threads=` to [`antecedent_core::default_user_threads`].
+/// Resolve an omitted or zero `threads=` to [`antecedent::execution::default_user_threads`].
 /// An explicit `threads >= 1` is a pin and may exceed the default cap.
 pub(crate) fn resolve_user_threads(threads: Option<u32>) -> u32 {
     match threads {
         Some(n) if n >= 1 => n,
         Some(_) => 1,
-        None => antecedent_core::default_user_threads(),
+        None => antecedent::execution::default_user_threads(),
     }
 }
 
@@ -2007,12 +2008,12 @@ pub(crate) fn resolve_user_threads(threads: Option<u32>) -> u32 {
 /// what a release build would have refused.
 #[pyfunction]
 fn build_flavor() -> &'static str {
-    antecedent_core::BUILD_FLAVOR
+    antecedent::execution::BUILD_FLAVOR
 }
 
 #[pyfunction]
 fn default_user_threads() -> u32 {
-    antecedent_core::default_user_threads()
+    antecedent::execution::default_user_threads()
 }
 
 pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
@@ -2033,8 +2034,8 @@ pub(crate) fn py_execution_context_cancel(
 pub(crate) fn py_execution_context_ext(
     seed: u64,
     threads: u32,
-    cancel: Option<antecedent_core::CancellationToken>,
-    progress: Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>,
+    cancel: Option<antecedent::execution::CancellationToken>,
+    progress: Option<std::sync::Arc<dyn antecedent::execution::ProgressSink>>,
     cache_max_bytes: Option<u64>,
 ) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, threads);
@@ -2053,7 +2054,7 @@ pub(crate) fn apply_cancel(ctx: &mut ExecutionContext, cancel: Option<PyCancella
 
 fn install_cancellation(
     ctx: &mut ExecutionContext,
-    cancel: Option<antecedent_core::CancellationToken>,
+    cancel: Option<antecedent::execution::CancellationToken>,
 ) {
     if let Some(token) = cancel {
         interrupt::link(&token);
@@ -2070,14 +2071,14 @@ fn install_cancellation(
 #[pyclass(name = "CancellationToken", from_py_object)]
 #[derive(Clone)]
 pub struct PyCancellationToken {
-    pub(crate) inner: antecedent_core::CancellationToken,
+    pub(crate) inner: antecedent::execution::CancellationToken,
 }
 
 #[pymethods]
 impl PyCancellationToken {
     #[new]
     fn new() -> Self {
-        Self { inner: antecedent_core::CancellationToken::new() }
+        Self { inner: antecedent::execution::CancellationToken::new() }
     }
 
     fn cancel(&self) {
@@ -2111,7 +2112,7 @@ mod tests {
 
     #[test]
     fn computation_failure_cannot_be_a_validation_pass() {
-        use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity};
+        use antecedent::schema::{Diagnostic, DiagnosticKind, DiagnosticSeverity};
         use std::sync::Arc;
         let mut d = Diagnostic::new(
             "refute.validator.failed",
@@ -2134,14 +2135,14 @@ mod tests {
 
     #[test]
     fn scoped_only_validation_has_no_whole_verdict() {
-        let target = antecedent_validate::target_native::RefutationTarget::new(
-            antecedent_validate::target_native::TargetFamily::TemporalEffect,
-            antecedent_validate::target_native::TargetQuadrant::TEMPORAL_FREQUENTIST,
+        let target = antecedent::analysis::target_validation::RefutationTarget::new(
+            antecedent::analysis::target_validation::TargetFamily::TemporalEffect,
+            antecedent::analysis::target_validation::TargetQuadrant::TEMPORAL_FREQUENTIST,
             ["completion-level"],
             [7; 32],
         )
         .unwrap();
-        let mut report = antecedent_validate::RefutationReport::new(
+        let mut report = antecedent::validate::RefutationReport::new(
             "target.subset_stability",
             12.0,
             12.1,
@@ -2151,7 +2152,7 @@ mod tests {
             None,
             30,
         );
-        report.scope = Some(antecedent_validate::RefutationScope::TemporalClassCompletion {
+        report.scope = Some(antecedent::validate::RefutationScope::TemporalClassCompletion {
             outer_atom: 2,
             horizon_index: 0,
             horizon: 1,
@@ -2171,14 +2172,16 @@ mod tests {
     #[test]
     fn every_native_refusal_variant_names_its_registered_reason_code() {
         use super::{RustCausalError as E, reason_code_of};
+        use antecedent::graph::GraphError;
+        use antecedent::schema::{IdentificationStatus, SchemaError};
         use antecedent::support::SupportRefusal;
-        use antecedent_core::{IdentificationStatus, SchemaError};
-        use antecedent_graph::GraphError;
 
-        let named =
-            format!("{}data_modality_not_supported: panel", antecedent_core::reason_code::PREFIX);
+        let named = format!(
+            "{}data_modality_not_supported: panel",
+            antecedent::reason::reason_code::PREFIX
+        );
         let unregistered =
-            format!("{}not_a_registered_code: x", antecedent_core::reason_code::PREFIX);
+            format!("{}not_a_registered_code: x", antecedent::reason::reason_code::PREFIX);
         let not_supported = SupportRefusal::NotSupported;
         let cases: Vec<(E, Option<&str>)> = vec![
             (
@@ -2214,8 +2217,8 @@ mod tests {
             (E::Unsupported { message: "refused: reason=not_supported: x" }, Some("not_supported")),
             // A structured callback failure names the code it carries; its text is not read.
             (
-                E::Model(antecedent_model::ModelError::CallbackFailed(
-                    antecedent_core::CallbackFailure::new(
+                E::Model(antecedent::gcm::ModelError::CallbackFailed(
+                    antecedent::execution::CallbackFailure::new(
                         Some(1),
                         "Python x failed",
                         Some("route_not_supported".into()),
@@ -2224,8 +2227,8 @@ mod tests {
                 Some("route_not_supported"),
             ),
             (
-                E::Model(antecedent_model::ModelError::CallbackFailed(
-                    antecedent_core::CallbackFailure::new(None, named.clone(), None),
+                E::Model(antecedent::gcm::ModelError::CallbackFailed(
+                    antecedent::execution::CallbackFailure::new(None, named.clone(), None),
                 )),
                 None,
             ),

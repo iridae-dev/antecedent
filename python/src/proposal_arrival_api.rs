@@ -2,8 +2,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, MAX_ARRIVAL_BYTES};
-use antecedent_core::reason_code;
-use antecedent_io::IoError;
+use antecedent::io::IoError;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 fn failure(e: IoError) -> PyErr {
     match e {
@@ -25,17 +25,17 @@ fn preserved_catalog(
     catalog: &Bound<'_, PyAny>,
     graph: &crate::graphs::Admg,
     repair: &[u8],
-) -> PyResult<antecedent_core::EvidenceCatalog> {
+) -> PyResult<antecedent::query::EvidenceCatalog> {
     if graph.names.len() > 12 {
         return Err(with_reason_code(
-            value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
+            value_err(antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
             reason_code!("route_not_supported"),
         ));
     }
     for (field, maximum) in [("environments", 64), ("regimes", 128), ("bindings", 128)] {
         if catalog.getattr(field)?.len()? > maximum {
             return Err(with_reason_code(
-                value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
+                value_err(antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
                 reason_code!("route_not_supported"),
             ));
         }
@@ -43,7 +43,7 @@ fn preserved_catalog(
     for env in catalog.getattr("environments")?.try_iter()? {
         if env?.getattr("variables")?.len()? > 12 {
             return Err(with_reason_code(
-                value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
+                value_err(antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
                 reason_code!("route_not_supported"),
             ));
         }
@@ -51,19 +51,22 @@ fn preserved_catalog(
     let mut parsed = crate::transport_interference_api::parse_catalog(catalog, graph)?;
     // Public catalogs canonically sort labels; preserve the original artifact's numeric IDs
     // when a new label sorts before an existing label.
-    let original = antecedent_design::RepairReportArtifact::from_bytes(repair).map_err(|e| {
-        with_reason_code(
-            value_err(format!("proposal_arrival.original_consumer_refused: {e}")),
-            reason_code!("invalid_argument"),
-        )
-    })?;
+    let original =
+        antecedent::analysis::repair::RepairReportArtifact::from_bytes(repair).map_err(|e| {
+            with_reason_code(
+                value_err(format!("proposal_arrival.original_consumer_refused: {e}")),
+                reason_code!("invalid_argument"),
+            )
+        })?;
     let base = original
         .data
         .catalog
         .as_ref()
         .ok_or_else(|| {
             with_reason_code(
-                value_err(antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_MISSING),
+                value_err(
+                    antecedent::reason::reason_details::proposal_arrival::BASE_CATALOG_MISSING,
+                ),
                 reason_code!("invalid_argument"),
             )
         })?
@@ -80,7 +83,7 @@ fn preserved_catalog(
                 .find(|b| b.population == r.population && b.label == r.label)
                 .map_or_else(
                     || {
-                        let id = antecedent_core::RegimeId::from_raw(next);
+                        let id = antecedent::schema::RegimeId::from_raw(next);
                         next = next.saturating_add(1);
                         id
                     },
@@ -101,11 +104,11 @@ fn inspect_law_inputs(sources: [&Bound<'_, PyAny>; 2]) -> PyResult<()> {
     for laws in sources {
         if crate::recalc_bounds::sequence_len(
             laws,
-            antecedent_core::reason_details::proposal_arrival::INVALID_REQUEST,
+            antecedent::reason::reason_details::proposal_arrival::INVALID_REQUEST,
         )? > 64
         {
             return Err(with_reason_code(
-                value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
+                value_err(antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
                 reason_code!("route_not_supported"),
             ));
         }
@@ -116,7 +119,7 @@ fn inspect_law_inputs(sources: [&Bound<'_, PyAny>; 2]) -> PyResult<()> {
                 if !values.is_none() && values.len()? > 65_536 {
                     return Err(with_reason_code(
                         value_err(
-                            antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
+                            antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
                         ),
                         reason_code!("route_not_supported"),
                     ));
@@ -125,7 +128,9 @@ fn inspect_law_inputs(sources: [&Bound<'_, PyAny>; 2]) -> PyResult<()> {
             let axes = law.getattr("axes")?;
             if axes.len()? > 12 {
                 return Err(with_reason_code(
-                    value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
+                    value_err(
+                        antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
+                    ),
                     reason_code!("route_not_supported"),
                 ));
             }
@@ -133,7 +138,7 @@ fn inspect_law_inputs(sources: [&Bound<'_, PyAny>; 2]) -> PyResult<()> {
                 if axis?.get_item(1)?.len()? > 65_536 {
                     return Err(with_reason_code(
                         value_err(
-                            antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
+                            antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED,
                         ),
                         reason_code!("route_not_supported"),
                     ));
@@ -161,7 +166,7 @@ fn estimate_proposal_arrival(
         || request_json.len() > 8 * 1024 * 1024
     {
         return Err(with_reason_code(
-            value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
+            value_err(antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
             reason_code!("route_not_supported"),
         ));
     }
@@ -169,7 +174,7 @@ fn estimate_proposal_arrival(
     if !request.repair_artifact.is_empty() || !request.ranking_artifact.is_empty() {
         return Err(with_reason_code(
             value_err(
-                antecedent_core::reason_details::proposal_arrival::DUPLICATE_ORIGINAL_ARTIFACTS,
+                antecedent::reason::reason_details::proposal_arrival::DUPLICATE_ORIGINAL_ARTIFACTS,
             ),
             reason_code!("invalid_argument"),
         ));
@@ -189,30 +194,27 @@ fn estimate_proposal_arrival(
     }
     let parsed = preserved_catalog(catalog, graph, &repair_body)?;
     inspect_law_inputs([base_laws, arrived_laws])?;
-    let parse_laws =
-        |laws: &Bound<'_, PyAny>| -> PyResult<Vec<antecedent_io::exact_law_wire::ExactLawWire>> {
-            laws.try_iter()?
-                .map(|law| {
-                    let parsed = crate::transport_common::parse_law_table(
-                        &law?,
-                        &parsed,
-                        graph,
-                        crate::transport_common::RegimeCheck::Strict,
+    let parse_laws = |laws: &Bound<'_, PyAny>| -> PyResult<Vec<antecedent::io::ExactLawWire>> {
+        laws.try_iter()?
+            .map(|law| {
+                let parsed = crate::transport_common::parse_law_table(
+                    &law?,
+                    &parsed,
+                    graph,
+                    crate::transport_common::RegimeCheck::Strict,
+                )
+                .map_err(|error| {
+                    with_reason_code(
+                        value_err(format!("proposal_arrival.original_consumer_refused: {error}")),
+                        reason_code!("invalid_argument"),
                     )
-                    .map_err(|error| {
-                        with_reason_code(
-                            value_err(format!(
-                                "proposal_arrival.original_consumer_refused: {error}"
-                            )),
-                            reason_code!("invalid_argument"),
-                        )
-                    })?;
-                    Ok(antecedent_io::exact_law_wire::ExactLawWire::from_law(&parsed))
-                })
-                .collect()
-        };
+                })?;
+                Ok(antecedent::io::ExactLawWire::from_law(&parsed))
+            })
+            .collect()
+    };
     request.catalog =
-        antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&parsed);
+        antecedent::io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&parsed);
     request.base_laws = parse_laws(base_laws)?;
     request.arrived_laws = parse_laws(arrived_laws)?;
     request.repair_artifact = repair_body;
@@ -232,7 +234,7 @@ fn consume_proposal_arrival(
 ) -> PyResult<String> {
     if artifact.len() > MAX_ARRIVAL_BYTES {
         return Err(with_reason_code(
-            value_err(antecedent_core::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
+            value_err(antecedent::reason::reason_details::proposal_arrival::BOUNDS_EXCEEDED),
             reason_code!("route_not_supported"),
         ));
     }

@@ -7,12 +7,12 @@
 )]
 
 use crate::*;
-use antecedent_graph::Dag;
+use antecedent::graph::Dag;
 use pyo3::prelude::*;
 
 fn dag_from_node_edges(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<Dag> {
-    let wire = antecedent_io::DagWire { node_count, edges };
-    antecedent_io::dag_from_wire(&wire).map_err(py_err)
+    let wire = antecedent::io::DagWire { node_count, edges };
+    antecedent::io::dag_from_wire(&wire).map_err(py_err)
 }
 
 /// Encode a minimal SCM model bundle (schema names + edges + mechanism slots).
@@ -27,8 +27,9 @@ fn encode_model_bundle(
 ) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
         use antecedent::gcm::{CompiledMechanismStore, MechanismSlot};
-        use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
-        use antecedent_io::{ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire};
+        use antecedent::io::{ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire};
+        use antecedent::prelude::CausalSchemaBuilder;
+        use antecedent::schema::{MeasurementSpec, SmallRoleSet, ValueType};
         use std::sync::Arc;
 
         let mut b = CausalSchemaBuilder::new();
@@ -143,7 +144,7 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
     catch_ffi(|| {
         let bundle = antecedent::io::decode_model_bundle_bytes(bytes).map_err(py_err)?;
         let names = bundle.schema.variables().iter().map(|v| v.name.to_string()).collect();
-        let wire = antecedent_io::dag_to_wire(&bundle.dag).map_err(py_err)?;
+        let wire = antecedent::io::dag_to_wire(&bundle.dag).map_err(py_err)?;
         Ok((names, wire.edges, bundle.mechanisms.slots.len()))
     })
 }

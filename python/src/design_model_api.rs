@@ -5,15 +5,15 @@
 //! checks, refusals and the posterior are Rust's.
 
 use antecedent::DesignPosteriorModel;
-use antecedent_estimate::randomized_posterior::{ArmBetaPrior, ArmNormalPrior, ArmOutcomeModel};
-use antecedent_estimate::switchback_posterior::{
+use antecedent::estimate::randomized_posterior::{ArmBetaPrior, ArmNormalPrior, ArmOutcomeModel};
+use antecedent::estimate::switchback_posterior::{
     CarryoverDeclaration, PeriodAdjustment, SequenceDependence, SwitchbackModel, SwitchbackPrior,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 fn invalid(message: String) -> PyErr {
-    crate::refusal(antecedent_core::reason_code!("invalid_argument"), message)
+    crate::refusal(antecedent::reason::reason_code!("invalid_argument"), message)
 }
 
 fn real(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<f64> {
@@ -125,7 +125,7 @@ fn quantile_grid(dict: &Bound<'_, PyDict>) -> PyResult<DesignPosteriorModel> {
 }
 
 fn dose_polynomial(dict: &Bound<'_, PyDict>) -> PyResult<DesignPosteriorModel> {
-    use antecedent_estimate::dose_basis_regression::ResidualPrior;
+    use antecedent::estimate::dose_basis_regression::ResidualPrior;
     let support = reals(dict, "support")?;
     let &[low, high] = support.as_slice() else {
         return Err(invalid("the dose support must be a (low, high) pair".into()));

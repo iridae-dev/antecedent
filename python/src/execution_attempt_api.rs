@@ -39,7 +39,7 @@ fn observe_native_attempts(
                 crate::value_err(
                     "native_attempt.invalid_callable: a synchronous zero-argument callable is required",
                 ),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             ));
         }
         // Execute once. Original callbacks, cancellation and transaction policies remain in force.

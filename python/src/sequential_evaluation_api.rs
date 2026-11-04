@@ -8,9 +8,9 @@
 //! to raise as its own exception type. A malformed declaration is an input error.
 
 use antecedent::analysis::sequential_evaluation as seq;
-use antecedent_core::reason_code;
-use antecedent_design::sequential_evaluation_artifact::StepWire;
-use antecedent_io::IoError;
+use antecedent::design::sequential_evaluation_artifact::StepWire;
+use antecedent::io::IoError;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -25,7 +25,7 @@ fn interval_json(
     level: f64,
     lower: f64,
     upper: f64,
-    calibration: &antecedent_io::contract_section::CalibrationSlotWire,
+    calibration: &antecedent::io::contract_section::CalibrationSlotWire,
 ) -> Json {
     json!({"level": level, "lower": lower, "upper": upper, "calibration": calibration})
 }
@@ -285,7 +285,7 @@ fn io_refusal(error: &IoError) -> String {
         other => RefusalJson::new(
             reason_code!("invalid_argument"),
             "sequential_evaluation",
-            antecedent_core::reason_details::sequential_evaluation::MALFORMED,
+            antecedent::reason::reason_details::sequential_evaluation::MALFORMED,
             &other.to_string(),
         )
         .json(),
@@ -998,7 +998,7 @@ impl PyEvaluationArtifact {
         for action in &model.actions {
             let channel = match &action.channel {
                 Some(wire) => {
-                    let parsed = antecedent_io::measurement_model_wire::model_from_wire(wire)
+                    let parsed = antecedent::io::measurement_model_wire::model_from_wire(wire)
                         .map_err(serialization)?;
                     channel_json(&parsed)
                 }

@@ -4,17 +4,20 @@
 
 use std::sync::{Arc, OnceLock};
 
+use antecedent::data::TableView;
 use antecedent::design::{DesignError, Utility};
-use antecedent::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
-use antecedent_core::{CausalRng, ExecutionContext};
-use antecedent_data::TableView;
-use antecedent_graph::DenseNodeId;
-use antecedent_model::{MechanismWorkspace, ModelError, ParentBatch};
-use antecedent_stats::{
+use antecedent::execution::CausalRng;
+use antecedent::gcm::{
+    CompiledCausalModel, DynamicMechanism, MechanismSlot, MechanismWorkspace, ModelError,
+    ParentBatch,
+};
+use antecedent::graph::DenseNodeId;
+use antecedent::inference::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
     ConditionalIndependenceTest, PreparedCiTest, StatsError,
 };
-use antecedent_validate::{
+use antecedent::prelude::ExecutionContext;
+use antecedent::validate::{
     CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError,
 };
 use numpy::{PyArray1, PyReadonlyArray1};
@@ -347,7 +350,7 @@ impl DynamicMechanism for PyDynamicMechanism {
             // A mechanism whose noise is not N(0, 1) should define `log_prob` itself.
             let mut resid = vec![0.0; n];
             self.infer_noise_column(values, parents, &mut resid)?;
-            antecedent_model::standard_normal_log_density(&resid, &mut output[..n])
+            antecedent::gcm::standard_normal_log_density(&resid, &mut output[..n])
         }
     }
 }
@@ -528,7 +531,7 @@ pub fn resolve_ci_arg(
             antecedent::discovery_defaults::resolve_ci("parcorr", weights).map_err(|e| {
                 crate::with_reason_code(
                     crate::py_err(e),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?;
         return Ok((impl_, "parcorr".into(), false));
@@ -537,7 +540,7 @@ pub fn resolve_ci_arg(
         let impl_ = antecedent::discovery_defaults::resolve_ci(name, weights).map_err(|e| {
             crate::with_reason_code(
                 crate::py_err(e),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
         return Ok((impl_, name.to_string(), false));
@@ -550,7 +553,7 @@ pub fn resolve_ci_arg(
         crate::CausalCompileError::new_err(
             "ci must be a str CI name (e.g. 'parcorr') or a callable batch test",
         ),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     ))
 }
 
@@ -650,7 +653,7 @@ impl PyProgressSink {
     }
 }
 
-impl antecedent_core::ProgressSink for PyProgressSink {
+impl antecedent::execution::ProgressSink for PyProgressSink {
     fn report(&self, fraction: f64, stage: &str) {
         Python::attach(|py| {
             if let Err(err) = self.callback.bind(py).call1((fraction, stage)) {
@@ -667,7 +670,7 @@ impl antecedent_core::ProgressSink for PyProgressSink {
 /// Build an optional [`ProgressSink`] from a Python callable.
 pub fn progress_sink_from_py(
     on_progress: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>> {
+) -> PyResult<Option<std::sync::Arc<dyn antecedent::execution::ProgressSink>>> {
     match on_progress {
         None => Ok(None),
         Some(cb) => {
@@ -675,7 +678,7 @@ pub fn progress_sink_from_py(
                 return Err(crate::value_err("on_progress must be callable"));
             }
             Ok(Some(std::sync::Arc::new(PyProgressSink::new(cb.clone().unbind()))
-                as std::sync::Arc<dyn antecedent_core::ProgressSink>))
+                as std::sync::Arc<dyn antecedent::execution::ProgressSink>))
         }
     }
 }

@@ -176,12 +176,14 @@ pub(crate) fn serialization_err(message: impl AsRef<str>) -> PyErr {
 /// Every refusal raised in this crate goes through here, so a caller catches one
 /// class and reads one `reason_code` whether Rust or Python refused.
 pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
-    let prefix = antecedent_core::reason_code::PREFIX;
+    let prefix = antecedent::reason::reason_code::PREFIX;
     unsupported_py_err(format!("{prefix}{code}: {}", message.as_ref()))
 }
 
 /// The refusal of a route that is not supported, as the Python class (`reason=not_supported:`).
-pub(crate) fn not_supported_err(error: &antecedent_core::support_gate::NotSupported) -> PyErr {
+pub(crate) fn not_supported_err(
+    error: &antecedent::execution::support_gate::NotSupported,
+) -> PyErr {
     unsupported_py_err(error.to_string())
 }
 
@@ -208,7 +210,7 @@ pub(crate) fn unsupported_py_err(message: String) -> PyErr {
 
 /// Attach a registered runtime-refusal reason code to a raised exception.
 ///
-/// Callers pass a code checked by `antecedent_core::reason_code!`, or one read
+/// Callers pass a code checked by `antecedent::reason::reason_code!`, or one read
 /// back from a reason-coded Rust message, so an unregistered code is never
 /// attached.
 pub(crate) fn with_reason_code(err: PyErr, code: &str) -> PyErr {
@@ -238,7 +240,7 @@ pub(crate) fn with_remedy(err: PyErr, remedy: Option<&str>) -> PyErr {
 /// records, so every other exception reads the empty-tuple class default.
 pub(crate) fn with_route_diagnostics(
     err: PyErr,
-    records: &[antecedent_core::diagnostic::RouteNativeDiagnostic],
+    records: &[antecedent::schema::diagnostic::RouteNativeDiagnostic],
 ) -> PyErr {
     if records.is_empty() {
         return err;
@@ -294,7 +296,7 @@ pub(crate) fn not_identified_py_err(status: &str, search_capped: bool, message: 
             .map_or_else(|| CausalCompileError::new_err(message.clone()), PyErr::from_value);
         let value = err.value(py);
         let _ =
-            value.setattr("reason_code", antecedent_core::reason_code!("effect_not_identified"));
+            value.setattr("reason_code", antecedent::reason::reason_code!("effect_not_identified"));
         let _ = value.setattr("identification_status", status);
         let _ = value.setattr("search_capped", search_capped);
         let _ = value.setattr("search_complete", !search_capped);
@@ -389,7 +391,7 @@ where
 /// variant's default; an unregistered code is never attached. An error that carries a
 /// structured callback failure names the code that failure carries, and its text is not read.
 pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
-    use antecedent_core::reason_code;
+    use antecedent::reason::reason_code;
     let named = if let Some(failure) = callback_failure_of(error) {
         failure.code().filter(|code| reason_code::is_registered(code)).map(str::to_string)
     } else {
@@ -409,9 +411,9 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
         ) => Some(reason_code!("unknown_variable")),
         RustCausalError::SchemaMismatch { .. } => Some(reason_code!("schema_mismatch")),
         RustCausalError::NotIdentified { .. } => Some(reason_code!("effect_not_identified")),
-        RustCausalError::Identify(antecedent_identify::IdentificationError::UnsupportedQuery {
-            ..
-        }) => Some(reason_code!("route_not_supported")),
+        RustCausalError::Identify(
+            antecedent::identify::IdentificationError::UnsupportedQuery { .. },
+        ) => Some(reason_code!("route_not_supported")),
         RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
         // The wire id of a support refusal that is not typed-impossible is its reason code.
         RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
@@ -441,18 +443,18 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
 /// The structured callback failure a converted native error carries, if any.
 pub(crate) fn callback_failure_of(
     error: &RustCausalError,
-) -> Option<&antecedent_core::CallbackFailure> {
-    antecedent_core::CallbackFailure::in_chain(error.peeled())
+) -> Option<&antecedent::execution::CallbackFailure> {
+    antecedent::execution::CallbackFailure::in_chain(error.peeled())
 }
 
 /// The registered-shape `reason=<code>:` a message opens with, directly or after one
 /// `<label>: ` (a matrix refusal renders its verdict first: `refused: reason=<code>: ...`).
 pub(crate) fn reason_code_in_message(message: &str) -> Option<&str> {
-    antecedent_core::reason_code::split_prefix(message)
+    antecedent::reason::reason_code::split_prefix(message)
         .or_else(|| {
             message
                 .split_once(": ")
-                .and_then(|(_, rest)| antecedent_core::reason_code::split_prefix(rest))
+                .and_then(|(_, rest)| antecedent::reason::reason_code::split_prefix(rest))
         })
         .map(|(code, _)| code)
 }
@@ -460,7 +462,7 @@ pub(crate) fn reason_code_in_message(message: &str) -> Option<&str> {
 /// Copy a registered reason code out of `message` onto `err`, leaving the message as it is.
 pub(crate) fn attach_reason_from_message(err: PyErr, message: &str) -> PyErr {
     match reason_code_in_message(message)
-        .filter(|code| antecedent_core::reason_code::is_registered(code))
+        .filter(|code| antecedent::reason::reason_code::is_registered(code))
     {
         Some(code) => with_reason_code(err, code),
         None => err,
@@ -495,22 +497,22 @@ pub(crate) fn uncoded_py_err(error: RustCausalError) -> PyErr {
         // A refusal with structured fields is the refusal it wraps.
         RustCausalError::Diagnosed { error, .. } => uncoded_py_err(*error),
         RustCausalError::Identify(
-            e @ antecedent_identify::IdentificationError::UnsupportedQuery { .. },
+            e @ antecedent::identify::IdentificationError::UnsupportedQuery { .. },
         ) => unsupported_py_err(e.to_string()),
         RustCausalError::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
         // A reason-coded estimator refusal is the one refusal class, as a Rust
         // `Unsupported` refusal is.
         RustCausalError::Estimate(
-            e @ (antecedent_estimate::EstimationError::Refused { .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { .. }
-            | antecedent_estimate::EstimationError::TargetPopulation),
+            e @ (antecedent::estimate::EstimationError::Refused { .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { .. }
+            | antecedent::estimate::EstimationError::TargetPopulation),
         ) => unsupported_py_err(e.to_string()),
         // An inference mode the route does not perform is the one refusal class, however the
         // route spelled it; a refusal with any other route record stays an estimate error.
         RustCausalError::Estimate(
-            e @ antecedent_estimate::EstimationError::Prob(antecedent_prob::ProbError::Route {
-                ..
-            }),
+            e @ antecedent::estimate::EstimationError::Prob(
+                antecedent::inference::ProbError::Route { .. },
+            ),
         ) if {
             let records = RustCausalError::route_diagnostics(&RustCausalError::Estimate(e.clone()));
             !records.is_empty() && records.iter().all(|record| record.is_unsupported_inference())
@@ -523,14 +525,14 @@ pub(crate) fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
         // A model or attribution refusal that names its reason code is the one refusal
         // class too.
-        RustCausalError::Model(e @ antecedent_model::ModelError::Unsupported { .. })
+        RustCausalError::Model(e @ antecedent::gcm::ModelError::Unsupported { .. })
             if reason_code_in_message(&e.to_string()).is_some() =>
         {
             unsupported_py_err(e.to_string())
         }
         RustCausalError::Model(e) => CausalModelError::new_err(e.to_string()),
         RustCausalError::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
-        RustCausalError::Attribution(e @ antecedent_attribution::AttributionError::Message(_))
+        RustCausalError::Attribution(e @ antecedent::gcm::AttributionError::Message(_))
             if reason_code_in_message(&e.to_string()).is_some() =>
         {
             unsupported_py_err(e.to_string())
@@ -626,7 +628,7 @@ impl IntoCausalPyErr for arrow_schema::ArrowError {
     }
 }
 
-impl IntoCausalPyErr for antecedent_validate::ValidationError {
+impl IntoCausalPyErr for antecedent::validate::ValidationError {
     fn into_antecedent_py_err(self) -> PyErr {
         RustCausalError::from(self).into_antecedent_py_err()
     }

@@ -14,14 +14,14 @@ use antecedent::analysis::target_validation::{
     TargetRefutationConfig, TargetRefutationPlan, TargetRefutationReport, TargetSuite,
     refute_prepared_target,
 };
-use antecedent_core::VariableId;
-use antecedent_validate::rosenbaum::{DEFAULT_GAMMA_GRID, MatchedSet, MatchedSetScore};
-use antecedent_validate::target_native::{
+use antecedent::prelude::VariableId;
+use antecedent::validate::rosenbaum::{DEFAULT_GAMMA_GRID, MatchedSet, MatchedSetScore};
+use antecedent::validate::target_native::{
     DerivativeCheckPoint, PosteriorPredictiveTarget, PriorSensitivityTarget,
     finite_difference_consistency, local_linearity, posterior_predictive_target_check,
     prior_sensitivity_target_check,
 };
-use antecedent_validate::{
+use antecedent::validate::{
     AssumptionRange, ComponentModel, EffectInterval, EffectScale, LinearAdjustmentSummary,
     MediationComponent, MediationComponents, MediationPath, MediationPosterior, MsmWeightPeriod,
     OvbPosterior, ValidationError, amplify, benchmark_bound, component_evalue_posterior_range,
@@ -81,7 +81,7 @@ fn target_of(
     let source = if let Some(text) = source {
         parse_source(text)?
     } else {
-        let mut writer = antecedent_core::CanonicalWriter::new("antecedent.python_target");
+        let mut writer = antecedent::schema::CanonicalWriter::new("antecedent.python_target");
         writer.texts(&labels[..]);
         writer.finish()
     };
@@ -375,7 +375,7 @@ fn sensitivity_ovb_vector(
     }
     .map_err(py_err)?;
     Ok(json!({
-        "partial_r2_treatment": summaries.iter().map(antecedent_validate::LinearAdjustmentSummary::partial_r2_treatment).collect::<Vec<_>>(),
+        "partial_r2_treatment": summaries.iter().map(antecedent::validate::LinearAdjustmentSummary::partial_r2_treatment).collect::<Vec<_>>(),
         "robustness_value": summaries.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
         "robustness_value_alpha":
             summaries.iter().map(|s| s.robustness_value(q, Some(alpha))).collect::<Vec<_>>(),
@@ -825,7 +825,7 @@ fn sensitivity_msm_parameters(
         "estimate": summaries.iter().map(|s| s.estimate).collect::<Vec<_>>(),
         "standard_error": summaries.iter().map(|s| s.standard_error).collect::<Vec<_>>(),
         "dof": summaries.iter().map(|s| s.dof).collect::<Vec<_>>(),
-        "partial_r2_treatment": summaries.iter().map(antecedent_validate::LinearAdjustmentSummary::partial_r2_treatment).collect::<Vec<_>>(),
+        "partial_r2_treatment": summaries.iter().map(antecedent::validate::LinearAdjustmentSummary::partial_r2_treatment).collect::<Vec<_>>(),
         "robustness_value": summaries.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
         "robustness_value_alpha":
             summaries.iter().map(|s| s.robustness_value(q, Some(alpha))).collect::<Vec<_>>(),

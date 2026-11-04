@@ -14,15 +14,15 @@
 use crate::NumericColumn;
 use std::sync::Arc;
 
+use antecedent::discovery::selective::{Mark, StructureEdge, StructureNode};
 use antecedent::discovery::{
     BackgroundKnowledge, DiscoverParams, MultiDatasetConstraints, StaticDiscoverParams,
     StructureStability,
 };
 use antecedent::discovery_defaults::resolve_ci;
+use antecedent::inference::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
+use antecedent::prelude::VariableId;
 use antecedent::{DiscoveredStructure, DiscoverySpec};
-use antecedent_core::VariableId;
-use antecedent_discovery::selective::{Mark, StructureEdge, StructureNode};
-use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -544,7 +544,7 @@ fn discover_jpcmci_plus_stability(
             }
             series_list.push(series);
         }
-        let multi = antecedent_data::MultiEnvironmentData::try_new(Arc::from(series_list))
+        let multi = antecedent::prelude::MultiEnvironmentData::try_new(Arc::from(series_list))
             .map_err(py_err)?;
         let mut context_ids = Vec::new();
         for name in &context_names {
@@ -632,8 +632,8 @@ fn discover_rpcmci_stability(
     drop(columns);
     detach_catch(py, move || {
         let (series, variables) = crate::series_from_batch(&batch)?;
-        let labels: Vec<antecedent_core::RegimeId> =
-            regimes.iter().map(|&r| antecedent_core::RegimeId::from_raw(r)).collect();
+        let labels: Vec<antecedent::schema::RegimeId> =
+            regimes.iter().map(|&r| antecedent::schema::RegimeId::from_raw(r)).collect();
         let assignment = antecedent::discovery::RegimeAssignment::try_new(labels)
             .map_err(|error| py_err(antecedent::CausalError::from(error)))?;
         let params = DiscoverParams {

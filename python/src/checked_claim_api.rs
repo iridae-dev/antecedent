@@ -13,11 +13,11 @@ use antecedent::analysis::PreparedStudy;
 use antecedent::analysis::checked_claim_composition::{
     CheckedStudyClaim, PreparedClaimParent, compose_checked_study_claims,
 };
-use antecedent::planner::lowered::ProblemTarget;
-use antecedent_contract::{
+use antecedent::contract::{
     CheckedWorldPointError, CheckedWorldPointLimits, ClaimEnvelope, ClaimOperation,
 };
-use antecedent_core::{
+use antecedent::planner::lowered::ProblemTarget;
+use antecedent::scientific::{
     InterventionContrast, InterventionWorld, ScientificTarget, ScientificWorldId, TargetForm,
     WorldCollection,
 };
@@ -105,7 +105,7 @@ fn scientific_target(study: &PreparedStudy) -> PyResult<ScientificTarget> {
 /// Mint a parent from a completed estimate: the exact retained study and result.
 fn parent(
     prepared: &PyPreparedAnalysis,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<Parent> {
     let (study, retained) = prepared.target_refutation_source();
     let result = retained.ok_or_else(|| {
@@ -209,7 +209,7 @@ impl PyCheckedStudyClaim {
             "point": self.inner.point(),
             "claim_id": claim.claim_id.to_hex(),
             "kind": format!("{:?}", claim.kind),
-            "parents": self.inner.parents().iter().map(antecedent_core::SemanticDigest::to_hex).collect::<Vec<_>>(),
+            "parents": self.inner.parents().iter().map(antecedent::scientific::SemanticDigest::to_hex).collect::<Vec<_>>(),
             "proof_identity": self.inner.proof_identity().to_hex(),
             "target_identity": self.inner.target().identity().to_hex(),
             "domains": {

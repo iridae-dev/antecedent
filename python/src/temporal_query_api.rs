@@ -1,11 +1,12 @@
 //! Temporal attachments reuse native response and unfolded cross-world scientific owners.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    CausalQuery, CausalSchema, Intervention, InterventionalDistributionQuery,
-    PathSpecificEffectQuery, ResponseQuery, TemporalPolicy, TemporalResponseSpec, Value,
+use antecedent::data::TableView;
+use antecedent::prelude::{CausalSchema, Intervention, Value};
+use antecedent::query::{
+    CausalQuery, InterventionalDistributionQuery, PathSpecificEffectQuery, ResponseQuery,
+    TemporalPolicy, TemporalResponseSpec,
 };
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -53,7 +54,7 @@ impl TemporalGeometry {
             || self.window.is_some()
         {
             return Err(crate::refusal(
-                antecedent_core::reason_code!("option_not_applicable"),
+                antecedent::reason::reason_code!("option_not_applicable"),
                 "this unfolded cross-world target has one lag and one horizon; temporal geometry cannot change its scientific target",
             ));
         }
@@ -189,7 +190,7 @@ impl TemporalTarget {
                 }
                 _ => {
                     return Err(crate::refusal(
-                        antecedent_core::reason_code!("option_not_applicable"),
+                        antecedent::reason::reason_code!("option_not_applicable"),
                         "this unfolded target does not declare a target population",
                     ));
                 }
@@ -250,7 +251,7 @@ impl PyPreparedAnalysis {
             )?;
             if response_options.is_some() {
                 return Err(crate::refusal(
-                    antecedent_core::reason_code!("option_not_applicable"),
+                    antecedent::reason::reason_code!("option_not_applicable"),
                     "the native unfolded temporal estimator does not use static response smoothing options",
                 ));
             }

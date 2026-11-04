@@ -33,7 +33,7 @@ impl PyCompiledCategoricalPosteriorCandidate {
             CategoricalPosteriorCandidateRequest, CategoricalSamplingPremise, prepare,
         };
         use antecedent::analysis::categorical_treatment::{CovarianceKindWire, LevelScaleWire};
-        use antecedent_core::sampling_design::SamplingDesign;
+        use antecedent::schema::DeclaredSamplingDesign as SamplingDesign;
         if sampling_design != "independent_subject_trajectories" {
             return Err(value_err(
                 "categorical candidate requires independent_subject_trajectories",

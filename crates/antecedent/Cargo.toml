@@ -28,6 +28,8 @@ ml-gbdt = ["antecedent-estimate/ml-gbdt", "antecedent-model/ml-gbdt"]
 ml-forest = ["antecedent-estimate/ml-forest", "antecedent-model/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-estimate/ml-neural"]
+# Burn's WGPU backend for the neural learner (opt-in accelerator distribution).
+ml-neural-wgpu = ["ml-neural", "antecedent-learn/ml-neural-wgpu"]
 
 [dependencies]
 antecedent-core = { workspace = true }

@@ -26,17 +26,17 @@ use antecedent::analysis::recalc_receipt::{
     RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, StageCounts, TargetWeights,
     UtilitySpec, execute_with_receipt,
 };
-use antecedent_core::recalc::{
+use antecedent::estimate::{AipwAte, CellSaturatedAipw, ScoreTable};
+use antecedent::execution::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
     Stage, StageIdentities, StageIdentity,
 };
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_estimate::{AipwAte, CellSaturatedAipw, ScoreTable};
-use antecedent_io::frozen_scores_artifact::{FrozenScoreTable, FrozenScoresArtifactError};
-use antecedent_io::recalc_receipt_artifact::{
+use antecedent::io::frozen_scores_artifact::{FrozenScoreTable, FrozenScoresArtifactError};
+use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, CountsWire, RecalcReceiptArtifact, ReceiptEntryWire, identities_to_wire,
     plan_to_wire, stage_from_label,
 };
+use antecedent::prelude::{ExecutionContext, VariableId};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
@@ -54,7 +54,7 @@ type Columns = Vec<(String, Vec<f64>)>;
 fn invalid(detail: &str, text: impl AsRef<str>) -> PyErr {
     with_reason_code(
         value_err(format!("{detail}: {}", text.as_ref())),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 
@@ -71,7 +71,7 @@ fn plan_refusal_json(plan: &RecalcPlan) -> String {
 /// A malformed run-time request (`recalc.<snake_case>` detail).
 fn request_refusal_json(detail: &str) -> String {
     refusal_json(
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
         "",
         detail,
         None,
@@ -83,9 +83,9 @@ fn request_refusal_json(detail: &str) -> String {
 
 fn no_live_state_json(stage: Stage, planned: Option<&RecalcPlan>) -> String {
     refusal_json(
-        antecedent_core::reason_code!("score_table_unavailable"),
+        antecedent::reason::reason_code!("score_table_unavailable"),
         &stage.label(),
-        antecedent_core::reason_details::recalc::NO_LIVE_STATE,
+        antecedent::reason::reason_details::recalc::NO_LIVE_STATE,
         Some(&stage.label()),
         Some(
             "run the stage in this process, or resume with supplied data so it is recomputed \
@@ -128,7 +128,7 @@ fn export_refusal(error: RecalcRunError) -> PyResult<ExportPayload> {
 fn artifact_error(error: &FrozenScoresArtifactError) -> PyErr {
     match error {
         FrozenScoresArtifactError::LimitsExceeded(what) => {
-            invalid(antecedent_core::reason_details::recalc::LIMITS_EXCEEDED, what)
+            invalid(antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED, what)
         }
         other => crate::serialization_err(other.to_string()),
     }
@@ -152,7 +152,7 @@ fn retarget_of(name: &str) -> PyResult<RetargetSupport> {
     .to_capabilities()
     .map(|c| c.retarget)
     .map_err(|e| {
-        invalid(antecedent_core::reason_details::recalc::INVALID_DECLARATION, e.to_string())
+        invalid(antecedent::reason::reason_details::recalc::INVALID_DECLARATION, e.to_string())
     })
 }
 
@@ -171,14 +171,14 @@ impl Frame {
     fn new(names: &[String], columns: &[NumericColumn<'_>]) -> PyResult<Self> {
         if names.is_empty() || names.len() != columns.len() {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::INVALID_DATA,
+                antecedent::reason::reason_details::recalc::INVALID_DATA,
                 "one named numeric column per name is required",
             ));
         }
         for (i, name) in names.iter().enumerate() {
             if name.trim().is_empty() || names[..i].contains(name) {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::INVALID_DATA,
+                    antecedent::reason::reason_details::recalc::INVALID_DATA,
                     "column names must be unique and non-empty",
                 ));
             }
@@ -189,7 +189,7 @@ impl Frame {
             || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
         {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::INVALID_DATA,
+                antecedent::reason::reason_details::recalc::INVALID_DATA,
                 "columns must be finite and equally long",
             ));
         }
@@ -199,12 +199,12 @@ impl Frame {
     fn position(&self, name: &str) -> PyResult<u32> {
         let at = self.names.iter().position(|n| n == name).ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::recalc::UNKNOWN_VARIABLE,
+                antecedent::reason::reason_details::recalc::UNKNOWN_VARIABLE,
                 format!("no column named `{name}`"),
             )
         })?;
         u32::try_from(at).map_err(|_| {
-            invalid(antecedent_core::reason_details::recalc::INVALID_DATA, "too many columns")
+            invalid(antecedent::reason::reason_details::recalc::INVALID_DATA, "too many columns")
         })
     }
 
@@ -224,7 +224,7 @@ impl Frame {
         let Some(weights) = weights else {
             if !depends_on.is_empty() {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -233,7 +233,7 @@ impl Frame {
         let weights = column_vec(weights);
         if weights.len() != self.rows || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                 "target weights must be finite, non-negative and one per row",
             ));
         }
@@ -246,7 +246,7 @@ impl Frame {
 fn utility_of(benefit_per_unit: f64, cost: f64) -> PyResult<UtilitySpec> {
     if !benefit_per_unit.is_finite() || !cost.is_finite() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "utility must be finite",
         ));
     }
@@ -259,15 +259,15 @@ fn quantity_of(name: &str, arm: Option<u32>) -> PyResult<ScoreQuantity> {
         ("interaction", None) => Ok(ScoreQuantity::Interaction),
         ("cell_minus_control", Some(arm)) => Ok(ScoreQuantity::CellMinusControl { arm }),
         ("cell_minus_control", None) => Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "cell_minus_control needs an arm",
         )),
         ("average_effect" | "interaction", Some(_)) => Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "only cell_minus_control takes an arm",
         )),
         (other, _) => Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             format!(
                 "quantity must be average_effect, interaction or cell_minus_control, got `{other}`"
             ),
@@ -281,7 +281,7 @@ fn context(seed: u64, threads: Option<u32>) -> ExecutionContext {
     crate::apply_cancel(&mut ctx, None);
     crate::execution_api::apply(&mut ctx);
     // The route proves reuse by counted fits; no persistent cache may stand in for a fit.
-    ctx.cache_policy = antecedent_core::CachePolicy::disabled();
+    ctx.cache_policy = antecedent::execution::CachePolicy::disabled();
     ctx
 }
 
@@ -413,7 +413,7 @@ fn cell_request(
     let treatment_ids = frame.positions(treatments)?;
     if treatment_ids.is_empty() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "at least one treatment is required",
         ));
     }
@@ -598,7 +598,7 @@ pub struct PyCrossfitSession {
     /// The input row count of the last completed run, with the identities that run left. A
     /// later run that fails after changing the live scores leaves other identities, and the
     /// count is then not the scores' own.
-    input_rows: Option<(u64, antecedent_core::recalc::StageIdentities)>,
+    input_rows: Option<(u64, antecedent::execution::recalc::StageIdentities)>,
 }
 
 #[pymethods]
@@ -645,7 +645,7 @@ impl PyCrossfitSession {
         let outcome = frame.position(outcome)?;
         if treatment == outcome {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                 "treatment and outcome must differ",
             ));
         }
@@ -691,7 +691,7 @@ impl PyCrossfitSession {
             Some((rows, identities)) if identities == self.inner.identities() => *rows,
             _ => {
                 return export_refusal(RecalcRunError::NoLiveState(
-                    antecedent_core::recalc::Stage::ScoreArtifact,
+                    antecedent::execution::recalc::Stage::ScoreArtifact,
                 ));
             }
         };
@@ -727,7 +727,7 @@ fn resume_request(
         None => {
             if !target_depends_on.is_empty() {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -737,7 +737,7 @@ fn resume_request(
             let weights = column_vec(weights);
             if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::INVALID_REQUEST,
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target weights must be finite and non-negative",
                 ));
             }
@@ -752,13 +752,13 @@ fn resume_request(
         .map(|(label, own)| {
             let stage = stage_from_label(label).ok_or_else(|| {
                 invalid(
-                    antecedent_core::reason_details::recalc::INVALID_CHANGED_INPUT,
+                    antecedent::reason::reason_details::recalc::INVALID_CHANGED_INPUT,
                     format!("unknown stage `{label}`"),
                 )
             })?;
             let own = StageIdentity::from_hex(own).ok_or_else(|| {
                 invalid(
-                    antecedent_core::reason_details::recalc::INVALID_CHANGED_INPUT,
+                    antecedent::reason::reason_details::recalc::INVALID_CHANGED_INPUT,
                     "an identity is 64 lowercase hex digits",
                 )
             })?;

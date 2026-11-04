@@ -5,11 +5,11 @@
 //! Python wrapper parses it into frozen dataclasses. Each immutable completion retains
 //! exactly the score tables of its own execution.
 
+use antecedent::prelude::{ExecutionContext, VariableId};
 use antecedent::{
     BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, MemberFailure,
     RetargetClaim, RetargetContrast,
 };
-use antecedent_core::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 
 use crate::ate_api::PyCompletedBatch;
@@ -66,9 +66,9 @@ fn band_json(
         Err(error)
             if matches!(
                 error.detail,
-                antecedent_core::reason_details::batch_retarget::PARTIAL_FAMILY
-                    | antecedent_core::reason_details::batch_retarget::POINT_ONLY_MEMBER
-                    | antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE
+                antecedent::reason::reason_details::batch_retarget::PARTIAL_FAMILY
+                    | antecedent::reason::reason_details::batch_retarget::POINT_ONLY_MEMBER
+                    | antecedent::reason::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE
             ) =>
         {
             Ok(serde_json::json!({

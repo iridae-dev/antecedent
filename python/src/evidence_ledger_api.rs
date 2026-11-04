@@ -10,6 +10,14 @@
 //! Nothing here estimates anything about dependence: it is declared, or it
 //! stays unknown, and no interval, posterior or coverage statement is made.
 
+use antecedent::analysis::evidence_ledger::{
+    EvidenceSource, Lineage, MassAccount, ObservationBasis, ObservationId, Overlap, ResultId,
+    ResultRecord, ResultRevalidation, ResultStatus, SourceDeclaration, SourceId, SourceKind,
+    SourceStatus, TransportIdentity,
+};
+use antecedent::analysis::sequential_evaluation::EvidenceLedger;
+use antecedent::contract::evidence_ledger::{EffectiveObservations, parse_digest_hex};
+use antecedent::inference::synthesis::{BetweenStudyMethod, MeanPrior, TauPrior};
 use antecedent::{
     BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
     EvidenceLedgerRefusal, EvidenceLedgerSession, LedgerRefresh, ObservationAccount,
@@ -17,12 +25,6 @@ use antecedent::{
     StudyEstimate, StudySummary, SynthesisOutcome, SynthesisValue,
     consume_evidence_ledger_artifact,
 };
-use antecedent_contract::evidence_ledger::{
-    EffectiveObservations, EvidenceLedger, EvidenceSource, Lineage, MassAccount, ObservationBasis,
-    ObservationId, Overlap, ResultId, ResultRecord, ResultRevalidation, ResultStatus,
-    SourceDeclaration, SourceId, SourceKind, SourceStatus, TransportIdentity, parse_digest_hex,
-};
-use antecedent_stats::synthesis::{BetweenStudyMethod, MeanPrior, TauPrior};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -80,7 +82,7 @@ fn optional_result(map: &Map<String, Json>, key: &str) -> PyResult<Option<Result
     opt_text(map, key)?.map(|value| result_id(&value)).transpose()
 }
 
-fn digest(value: &str, what: &str) -> PyResult<antecedent_core::SemanticDigest> {
+fn digest(value: &str, what: &str) -> PyResult<antecedent::scientific::SemanticDigest> {
     parse_digest_hex(value)
         .ok_or_else(|| crate::value_err(format!("{what} must be 64 hexadecimal characters")))
 }
@@ -421,7 +423,7 @@ fn record_json(record: &ResultRecord) -> Json {
         "mass": mass_json(&record.mass),
         "claim_class": record.claim_class.as_str(),
         "observations_digest": record.observations_digest.map(|d| d.to_hex()),
-        "transport_identities": record.transport_identities.iter().map(antecedent_core::SemanticDigest::to_hex).collect::<Vec<_>>(),
+        "transport_identities": record.transport_identities.iter().map(antecedent::scientific::SemanticDigest::to_hex).collect::<Vec<_>>(),
         "data_reuse": record.data_reuse,
         "dependence_declared": record.dependence_declared,
         "replaces": record.replaces.map(|id| id.to_hex()),
@@ -622,7 +624,7 @@ impl EvidenceLedgerHandle {
             Ok(self
                 .inner
                 .standing(result_id(result)?)
-                .map(antecedent_contract::evidence_ledger::Revalidation::as_str))
+                .map(antecedent::analysis::evidence_ledger::Revalidation::as_str))
         })
     }
 

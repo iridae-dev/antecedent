@@ -1,23 +1,23 @@
 //! Measured Gaussian/learned transport lifecycle and unchanged feature-only candidates.
 mod enabled {
     use crate::transport_interference_api::TransportIdentificationResult;
-    use antecedent_core::reason_code;
-    use antecedent_estimate::joint_bayesian_transport::{
+    use antecedent::estimate::joint_bayesian_transport::{
         DataIdentity, GaussianPrior, JointPriors, JointTransportModel, JointTransportOptions,
         PriorProvenance, SourceData, SourceDependence, SourceSharing, TargetData,
         TransportGraphClass, VaryingBlock,
     };
-    use antecedent_estimate::learned_joint_transport::LearnedJointModel;
-    use antecedent_identify::{TransportFormula, TransportIdentification};
-    use antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation;
-    use antecedent_io::joint_bayesian_transport_artifact::{
+    use antecedent::estimate::learned_joint_transport::LearnedJointModel;
+    use antecedent::identify::{TransportFormula, TransportIdentification};
+    use antecedent::io::joint_bayesian_transport_artifact::JointBayesianExpectation;
+    use antecedent::io::joint_bayesian_transport_artifact::{
         DataIdentityWire, GaussianPriorWire, JointBayesianArtifactWire, JointBayesianConsumeLimits,
         PriorProvenanceWire,
     };
-    use antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire;
-    use antecedent_io::learned_joint_transport_artifact::{
+    use antecedent::io::learned_joint_transport_artifact::LearnedJointArtifactWire;
+    use antecedent::io::learned_joint_transport_artifact::{
         LearnedJointConsumeLimits, LearnedJointExpectation,
     };
+    use antecedent::reason::reason_code;
     use pyo3::prelude::*;
     use serde::Deserialize;
 
@@ -89,7 +89,7 @@ mod enabled {
     fn invalid(detail: &str) -> PyErr {
         crate::value_err_code(reason_code!("invalid_argument"), detail)
     }
-    fn io(error: antecedent_io::IoError) -> PyErr {
+    fn io(error: antecedent::io::IoError) -> PyErr {
         crate::transport_common::error(error)
     }
 
@@ -141,7 +141,7 @@ mod enabled {
         let (id, graph, populations) = proof.original_joint_inputs();
         // A display-level graph_class cannot relabel the original certified graph.
         if (0..graph.admg.node_count()).any(|i| {
-            antecedent_graph::DenseNodeId::try_from_usize(i)
+            antecedent::graph::DenseNodeId::try_from_usize(i)
                 .is_ok_and(|node| !graph.admg.bidirected_neighbors(node).is_empty())
         }) {
             return Err(crate::refusal(
@@ -165,11 +165,11 @@ mod enabled {
                 ));
             }
         };
-        let resolve = |name: &str| -> PyResult<antecedent_core::VariableId> {
+        let resolve = |name: &str| -> PyResult<antecedent::prelude::VariableId> {
             let Some(i) = graph.names.iter().position(|n| n == name) else {
                 return Err(invalid("joint_transport.schema_mismatch"));
             };
-            Ok(antecedent_core::VariableId::from_raw(crate::fit_u32(i)?))
+            Ok(antecedent::prelude::VariableId::from_raw(crate::fit_u32(i)?))
         };
         let treatment = resolve(&request.treatment)?;
         let outcome = resolve(&request.outcome)?;
@@ -191,7 +191,7 @@ mod enabled {
         let features: Vec<u32> = request
             .features
             .iter()
-            .map(|name| resolve(name).map(antecedent_core::VariableId::raw))
+            .map(|name| resolve(name).map(antecedent::prelude::VariableId::raw))
             .collect::<PyResult<_>>()?;
         let varying = match request.varying.as_str() {
             "intercept" => VaryingBlock::Intercept,

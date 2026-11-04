@@ -1,8 +1,8 @@
 //! Explicit next attempts when a finer panel explanation is not identified.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{DecompositionDeclaration, PyJointPanelResult, context, facade, panel_error};
-use antecedent_core::ScientificWorldId;
-use antecedent_estimate::joint_panel::time_varying::PanelExplanation;
+use antecedent::estimate::joint_panel::time_varying::PanelExplanation;
+use antecedent::scientific::ScientificWorldId;
 use pyo3::prelude::*;
 use serde::Deserialize;
 

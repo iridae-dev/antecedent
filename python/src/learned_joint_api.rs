@@ -8,7 +8,7 @@
 use antecedent::analysis::learned_joint_scope::{
     LearnedJointRefusal, LearnedJointRequest, learned_joint_transport_scope_refusal,
 };
-use antecedent_core::reason_code;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 
 /// A scope refusal as the Python exception a caller sees, always carrying

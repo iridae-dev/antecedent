@@ -4,22 +4,23 @@ use crate::transport_common::{
     resolve, serialization_error, unframe_named_artifact,
 };
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{EvidenceCatalogDelta, ExecutionContext, Value, VariableId};
-use antecedent_design::{
+use antecedent::design::{
     CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, TransportEvidenceCandidate,
     ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
     ZTransportPlanSpec, plan_z_transport_evidence, snapshot_z_transport_failure,
 };
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::{
     ComponentFactorization, SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
     ZTransportDecision, ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence,
     ZTransportObstruction, ZTransportOutcome, ZTransportQuery, ZTransportResult,
     ZTransportSourceSpec, bind_z_transport_catalog, decide_two_source_z_transport,
     decide_z_transport_inspecting, identify_z_transport,
 };
-use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
+use antecedent::io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::query::EvidenceCatalogDelta;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -73,17 +74,17 @@ fn certified(result: ZTransportResult) -> PyResult<Box<ZTransportDerivation>> {
     match result {
         ZTransportResult::Identified(proof) => Ok(proof),
         ZTransportResult::NotCertified { reason, .. } => Err(crate::refusal(
-            antecedent_core::reason_code!("transport_not_certified"),
+            antecedent::reason::reason_code!("transport_not_certified"),
             format!("zTR refused: {reason}"),
         )),
     }
 }
 
 /// Refuse a law set that is not an empirical plug-in table.
-fn require_empirical_counts(data: &antecedent_expr::ExactTransportData) -> PyResult<()> {
+fn require_empirical_counts(data: &antecedent::estimate::ExactTransportData) -> PyResult<()> {
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return Err(crate::refusal(
-            antecedent_core::reason_code!("transport_missing_provider"),
+            antecedent::reason::reason_code!("transport_missing_provider"),
             "z_transport.empirical_counts_required",
         ));
     }
@@ -95,10 +96,10 @@ fn require_empirical_counts(data: &antecedent_expr::ExactTransportData) -> PyRes
 /// row could otherwise renumber every existing binding in the hypothetical or
 /// arriving catalog.
 fn align_catalog_regime_ids(
-    base: &antecedent_core::EvidenceCatalog,
-    catalog: &antecedent_core::EvidenceCatalog,
-) -> PyResult<antecedent_core::EvidenceCatalog> {
-    use antecedent_core::RegimeId;
+    base: &antecedent::query::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
+) -> PyResult<antecedent::query::EvidenceCatalog> {
+    use antecedent::schema::RegimeId;
 
     let mut aligned = catalog.clone();
     let mut remap = Vec::<(RegimeId, RegimeId)>::new();
@@ -143,7 +144,7 @@ fn align_catalog_regime_ids(
 /// variable names and as a structured object rather than a debug dump.
 fn decision_json(
     decision: &ZTransportDecision,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     names: &[String],
 ) -> serde_json::Value {
     let mut value = decision_body(decision, catalog, names);
@@ -153,7 +154,7 @@ fn decision_json(
 
 fn decision_body(
     decision: &ZTransportDecision,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     names: &[String],
 ) -> serde_json::Value {
     match decision {
@@ -217,7 +218,7 @@ fn limits_receipt_json(
 ) -> serde_json::Value {
     serde_json::json!({
         "outcome": "exhausted",
-        "identification_status": antecedent_core::TransportOutcomeKind::BudgetCancel.as_str(),
+        "identification_status": antecedent::query::TransportOutcomeKind::BudgetCancel.as_str(),
         "limits_receipt": {
             "budget": receipt.budget,
             "steps_limit": receipt.steps_limit,
@@ -539,7 +540,7 @@ impl ZTransportStage {
             let proposed_regimes = proposed_catalog
                 .regimes
                 .iter()
-                .filter(|r| r.evidence_kind == antecedent_core::EvidenceKind::Proposed)
+                .filter(|r| r.evidence_kind == antecedent::query::EvidenceKind::Proposed)
                 .cloned()
                 .collect::<Vec<_>>();
             let delta = EvidenceCatalogDelta::try_new(&base, proposed_regimes).map_err(error)?;
@@ -646,7 +647,7 @@ pub(crate) struct PreparedZTransportStage {
     inner: antecedent::PreparedZTransport,
     graph: Admg,
     diagram: SelectionDiagram,
-    catalog: antecedent_core::EvidenceCatalog,
+    catalog: antecedent::query::EvidenceCatalog,
     last: Option<antecedent::ZTransportResult>,
     max_support_rows: usize,
     memory_bytes: Option<u64>,
@@ -655,7 +656,7 @@ pub(crate) struct PreparedZTransportStage {
 
 #[pyclass(skip_from_py_object)]
 struct ZTransportProposalStage {
-    inner: antecedent_design::ZTransportProposal,
+    inner: antecedent::design::ZTransportProposal,
     graph: Admg,
     diagram: SelectionDiagram,
     query: ZTransportQuery,
@@ -740,14 +741,14 @@ impl PreparedZTransportStage {
     #[allow(clippy::too_many_arguments)]
     fn build(
         diagram: SelectionDiagram,
-        functional: antecedent_identify::BoundZTransportFunctional,
-        data: antecedent_expr::ExactTransportData,
-        request: antecedent_expr::Assignment,
+        functional: antecedent::identify::BoundZTransportFunctional,
+        data: antecedent::estimate::ExactTransportData,
+        request: antecedent::estimate::Assignment,
         empirical: bool,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
         graph: Admg,
-        catalog: antecedent_core::EvidenceCatalog,
+        catalog: antecedent::query::EvidenceCatalog,
         max_support_rows: usize,
         memory_bytes: Option<u64>,
         seed: u64,
@@ -784,7 +785,7 @@ impl PreparedZTransportStage {
     fn last_result(&self, what: &str) -> PyResult<&antecedent::ZTransportResult> {
         self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 format!("transport.no_execution_claim: {what}"),
             )
         })
@@ -851,7 +852,7 @@ impl PreparedZTransportStage {
         let diagram = self.diagram.clone();
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || {
-            antecedent_validate::z_transport_mechanism_sensitivity(
+            antecedent::validate::z_transport_mechanism_sensitivity(
                 &diagram,
                 inner.functional(),
                 inner.data(),
@@ -902,11 +903,11 @@ impl PreparedZTransportStage {
         let provider = match estimator.as_deref() {
             None => None,
             Some("empirical_support_bayesian_bootstrap") => {
-                Some(antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport)
+                Some(antecedent::estimate::BayesianTransportLawProvider::EmpiricalSupport)
             }
-            Some("state_space_dirichlet") => {
-                Some(antecedent_estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet)
-            }
+            Some("state_space_dirichlet") => Some(
+                antecedent::estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet,
+            ),
             Some(name) => {
                 return Err(crate::value_err(format!("unknown z-transport provider {name}")));
             }
@@ -1104,7 +1105,7 @@ fn consume_z_transport_sensitivity_artifact(
         let (diagram, functional, data, _request, _limits, _point) =
             ZTransportArtifactWire::reconstruct(&wire.baseline_artifact, limits, &ctx)
                 .map_err(error)?;
-        let typed = antecedent_validate::z_transport_mechanism_sensitivity(
+        let typed = antecedent::validate::z_transport_mechanism_sensitivity(
             &diagram,
             &functional,
             &data,
@@ -1151,7 +1152,7 @@ fn replay_z_transport_proposal(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<()> {
-    let wire: antecedent_design::ZTransportProposalWire =
+    let wire: antecedent::design::ZTransportProposalWire =
         serde_json::from_slice(artifact).map_err(serialization_error)?;
     crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
@@ -1250,11 +1251,11 @@ fn identify_z_transport_stage(
 pub(crate) fn intervention_assignments(
     names: &[String],
     assignment: BTreeMap<String, f64>,
-) -> PyResult<Arc<[antecedent_core::InterventionAssignment]>> {
+) -> PyResult<Arc<[antecedent::query::InterventionAssignment]>> {
     assignment
         .into_iter()
         .map(|(name, value)| {
-            Ok(antecedent_core::InterventionAssignment {
+            Ok(antecedent::query::InterventionAssignment {
                 variable: resolve(names, &name)?,
                 value: Value::f64(value),
             })

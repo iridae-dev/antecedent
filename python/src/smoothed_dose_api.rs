@@ -2,9 +2,10 @@
 use crate::transport_common::{
     error, execution_context, frame_named_artifact, serialization_error, unframe_named_artifact,
 };
-use antecedent_core::{SmoothedDoseTransportQuery, VariableId};
-use antecedent_estimate::{SmoothedDoseInput, SmoothedDoseOptions};
-use antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits;
+use antecedent::estimate::{SmoothedDoseInput, SmoothedDoseOptions};
+use antecedent::io::smoothed_dose_artifact::SmoothedDoseConsumeLimits;
+use antecedent::prelude::VariableId;
+use antecedent::query::SmoothedDoseTransportQuery;
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
 
@@ -32,7 +33,7 @@ fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<SmoothedDo
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =
         value.get("sampling").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
-    antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling(&sampling).map_err(error)?;
+    antecedent::estimate::smoothed_dose::parse_smoothed_dose_sampling(&sampling).map_err(error)?;
     value["sampling"] = sampling.into();
     serde_json::from_value(value).map_err(value_error)
 }
@@ -66,10 +67,10 @@ fn build(
     graph: &crate::graphs::Admg,
     selections: &[String],
     spec: &str,
-) -> PyResult<(antecedent_graph::SelectionDiagram, SmoothedDoseTransportQuery)> {
+) -> PyResult<(antecedent::graph::SelectionDiagram, SmoothedDoseTransportQuery)> {
     let spec: QuerySpec = serde_json::from_str(spec).map_err(value_error)?;
     let kernel =
-        antecedent_estimate::smoothed_dose::parse_smoothing_kernel(&spec.kernel).map_err(error)?;
+        antecedent::estimate::smoothed_dose::parse_smoothing_kernel(&spec.kernel).map_err(error)?;
     let query = SmoothedDoseTransportQuery {
         outcome: resolve(graph, &spec.outcome)?,
         dose: resolve(graph, &spec.dose)?,
@@ -81,7 +82,7 @@ fn build(
         dose_support: spec.dose_support,
         density_provenance: Arc::from(spec.density_provenance.as_str()),
     };
-    let diagram = antecedent_graph::SelectionDiagram::try_new(
+    let diagram = antecedent::graph::SelectionDiagram::try_new(
         graph.admg.clone(),
         selections.iter().map(|s| resolve(graph, s)).collect::<PyResult<Vec<_>>>()?,
     )
@@ -171,7 +172,7 @@ impl PreparedSmoothedDoseNative {
     /// outcome model (`model` is its JSON): `(posterior json, framed artifact bytes)`.
     #[pyo3(signature=(model))]
     fn posterior(&self, py: Python<'_>, model: &str) -> PyResult<(String, Py<PyBytes>)> {
-        let model: antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire =
+        let model: antecedent::io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire =
             serde_json::from_str(model).map_err(value_error)?;
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || inner.posterior(model).map_err(error))?;
@@ -224,7 +225,7 @@ impl PreparedSmoothedDoseNative {
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a smoothed dose artifact",
             )
         })?;
@@ -241,7 +242,7 @@ impl PreparedSmoothedDoseNative {
     fn last_result(&self) -> PyResult<String> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before reading a result",
             )
         })?;
@@ -264,7 +265,7 @@ fn prepare_smoothed_dose(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedSmoothedDoseNative> {
-    antecedent_estimate::smoothed_dose::parse_smoothed_dose_target(target_name).map_err(error)?;
+    antecedent::estimate::smoothed_dose::parse_smoothed_dose_target(target_name).map_err(error)?;
     let (diagram, query) = build(graph, &selections, query)?;
     let input = parse_input(data, &graph.names)?;
     let options: SmoothedDoseOptions = serde_json::from_str(options).map_err(value_error)?;
@@ -362,7 +363,7 @@ fn consume_smoothed_dose_posterior(
         .map_err(error)?;
         if result.wire().variable_names != names {
             return Err(crate::refusal(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 "transport.names_mismatch: the artifact was built under other variable names",
             ));
         }

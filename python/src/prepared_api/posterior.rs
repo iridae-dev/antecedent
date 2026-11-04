@@ -2,10 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::data::TableView;
 use antecedent::discovery::{BayesianDiscoverParams, GraphMcmcSchedule};
+use antecedent::prelude::{CausalSchema, TabularData, TimeSeriesData};
+use antecedent::query::{CausalQuery, MediationQuery, ResponseQuery};
 use antecedent::{CausalContract, DiscoveredStructure, DiscoverySpec, Study};
-use antecedent_core::{CausalQuery, CausalSchema, MediationQuery, ResponseQuery};
-use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use pyo3::prelude::*;
 
 use super::{PrepareRequest, PyPreparedAnalysis, apply_estimator, with_response_options};
@@ -14,7 +15,7 @@ pub(crate) fn contract_to_map(
     contract: &CausalContract,
     schema: &CausalSchema,
     query: &CausalQuery,
-    registry: Option<&antecedent_core::PopulationRegistry>,
+    registry: Option<&antecedent::query::PopulationRegistry>,
 ) -> std::collections::HashMap<String, String> {
     let mut out = std::collections::HashMap::new();
     out.insert("target".into(), contract.identities.target.to_hex());
@@ -137,8 +138,8 @@ pub(crate) fn contract_to_map(
             .collect::<Vec<_>>()
             .join(","),
     );
-    if let Ok(wire) = antecedent_io::causal_query_to_wire_with_registry(query, registry) {
-        for (key, value) in antecedent_io::executed_functional_labels(&wire) {
+    if let Ok(wire) = antecedent::io::causal_query_to_wire_with_registry(query, registry) {
+        for (key, value) in antecedent::io::executed_functional_labels(&wire) {
             out.insert(key, value);
         }
     }
@@ -148,8 +149,8 @@ pub(crate) fn contract_to_map(
 /// Flat inspect keys for the score-reuse and target-weights identities.
 pub(super) fn insert_reuse_identities(
     report: &mut std::collections::HashMap<String, String>,
-    score_reuse: Option<antecedent_core::SemanticDigest>,
-    target_weights: Option<antecedent_core::SemanticDigest>,
+    score_reuse: Option<antecedent::scientific::SemanticDigest>,
+    target_weights: Option<antecedent::scientific::SemanticDigest>,
 ) {
     if let Some(digest) = score_reuse {
         report.insert("score_reuse".into(), digest.to_hex());
@@ -169,7 +170,7 @@ pub(super) fn require_prepared_names(
             crate::value_err(format!(
                 "prepared {op} requires the same column names (order) as prepare"
             )),
-            antecedent_core::reason_code!("schema_mismatch"),
+            antecedent::reason::reason_code!("schema_mismatch"),
         ));
     }
     Ok(())
@@ -191,7 +192,7 @@ pub(super) fn take_supplied_posterior(
 pub(super) fn exact_dag_posterior(
     supplied: Option<antecedent::discovery::GraphPosterior>,
     data: &TabularData,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
     if let Some(gp) = supplied {
         return Ok(gp);
@@ -209,8 +210,8 @@ pub(super) fn exact_dag_posterior(
 fn compiled_posterior(
     spec: DiscoverySpec,
     input: crate::compiled_route_api::DiscoverInput,
-    variables: &[antecedent_core::VariableId],
-    ctx: &antecedent_core::ExecutionContext,
+    variables: &[antecedent::prelude::VariableId],
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
     let (posterior, _route) =
         crate::discovery_api::compiled_search(spec, input, variables, ctx, |structure| {
@@ -235,7 +236,7 @@ pub(super) fn dbn_posterior(
     n_chains: u32,
     n_warmup: u32,
     mcmc_draws: u32,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
     if let Some(gp) = supplied {
         // A supplied posterior is not fitted, so fitting options that differ from the
@@ -275,13 +276,13 @@ pub(super) fn finish_static_graph_posterior(
     gp: antecedent::discovery::GraphPosterior,
     query: CausalQuery,
     spec: Option<antecedent::EstimatorSpec>,
-    response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
-    ctx: &antecedent_core::ExecutionContext,
+    response_options: Option<antecedent::estimate::ContinuousResponseOptions>,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
     req.refuse_prior("a graph-posterior mixture")?;
     if spec.is_some() && req.opts.inference.is_bayesian() {
         return Err(crate::refusal(
-            antecedent_core::reason_code!("option_not_applicable"),
+            antecedent::reason::reason_code!("option_not_applicable"),
             "a Bayesian graph-posterior mixture fits \
              Bayesian g-computation per atom; a configured Frequentist estimator does not apply",
         ));
@@ -296,7 +297,7 @@ pub(super) fn finish_static_graph_posterior(
 }
 
 pub(super) enum SeriesGraphQuery {
-    Temporal(antecedent_core::TemporalEffectQuery),
+    Temporal(antecedent::query::TemporalEffectQuery),
     Mediation(MediationQuery),
     Response(ResponseQuery),
 }
@@ -306,7 +307,7 @@ pub(super) fn finish_series_graph_posterior(
     mut req: PrepareRequest,
     gp: antecedent::discovery::GraphPosterior,
     query: SeriesGraphQuery,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
     req.refuse_prior("a DBN graph-posterior mixture")?;
     let mut builder = Study::series(series).graph_posterior(gp);

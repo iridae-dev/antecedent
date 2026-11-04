@@ -3,12 +3,12 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::effect_constancy::EffectConstancyIdentity;
 use antecedent::analysis::effect_constancy_consumers::{ConstancyConsumers, PriorPartitionBinding};
-use antecedent_contract::ScientificQuantity;
-use antecedent_design::decision_artifact::{contract_from_json, mean_result_to_json};
-use antecedent_io::prior_bank::{
+use antecedent::design::decision_artifact::{contract_from_json, mean_result_to_json};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::{
     EstimandFingerprint, PriorCatalog, PriorSourceMeta, PriorSourceRef, TargetDesign,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -50,7 +50,7 @@ enum ReviewWire {
 fn invalid(message: impl std::fmt::Display) -> PyErr {
     with_reason_code(
         value_err(format!("effect_constancy_consumer.invalid_request: {message}")),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 

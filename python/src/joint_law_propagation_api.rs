@@ -16,11 +16,12 @@ use antecedent::analysis::joint_law_propagation::{
     propagate_linear_moments_spread, propagate_mixture, propagate_mixture_exceedance,
     propagate_spread, propagate_transported_spread_aligned,
 };
-use antecedent_contract::{
+use antecedent::contract::{
     InputAlignment, InputRole, PropagationDependence, PropagationInput, PropagationOperation,
-    PropagationRequest, RequestedReading,
+    PropagationRequest,
 };
-use antecedent_io::joint_law_propagation_artifact::{PropagationRequestWire, float_bits};
+use antecedent::io::joint_law_propagation_artifact::{PropagationRequestWire, float_bits};
+use antecedent::scientific::RequestedReading;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
@@ -54,9 +55,9 @@ fn refusal_json(refusal: &JointLawPropagationRefusal) -> String {
 
 fn invalid_json(message: String) -> String {
     json!({
-        "code": antecedent_core::reason_code!("invalid_argument"),
+        "code": antecedent::reason::reason_code!("invalid_argument"),
         "stage": STAGE,
-        "detail": antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST,
+        "detail": antecedent::reason::reason_details::joint_law_propagation::INVALID_REQUEST,
         "message": message,
         "offending": Json::Null,
         "remedy": Json::Null,
@@ -144,7 +145,7 @@ fn joint_law_column(
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     }
     let identity = artifact.inner().metadata().identity.clone();
-    let aligned = identity.alignment == antecedent_io::distribution_artifact::DrawAlignment::Joint;
+    let aligned = identity.alignment == antecedent::io::distribution_artifact::DrawAlignment::Joint;
     let alignment_id = if aligned { alignment_identity(artifact.inner()).ok() } else { None };
     (
         Some(
@@ -529,7 +530,7 @@ fn joint_law_consume(
             let values: Vec<Json> =
                 consumed.values().into_iter().map(|(name, value)| json!([name, value])).collect();
             let n_rows = consumed.n_rows();
-            let verdict = consumed.verdict().map(antecedent_stats::DecisionVerdict::as_str);
+            let verdict = consumed.verdict().map(antecedent::inference::DecisionVerdict::as_str);
             (
                 Some(
                     json!({
@@ -571,7 +572,7 @@ fn joint_law_unsupported_reading(reading: &str) -> String {
         dependence: PropagationDependence::AlignedJointLaw,
         reading: parsed,
     };
-    match antecedent_contract::check_propagation(&request) {
+    match antecedent::contract::check_propagation(&request) {
         Err(refusal) => refusal_json(&JointLawPropagationRefusal { refusals: vec![refusal] }),
         Ok(_) => invalid_json("the reading is not a unsupported reading".to_owned()),
     }

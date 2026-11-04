@@ -9,7 +9,7 @@
 use super::PyPreparedAnalysis;
 
 impl PyPreparedAnalysis {
-    fn variable_name(&self, id: antecedent_core::VariableId) -> String {
+    fn variable_name(&self, id: antecedent::prelude::VariableId) -> String {
         self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
     }
 
@@ -18,8 +18,8 @@ impl PyPreparedAnalysis {
         use antecedent::analysis::RetainedOperation as R;
         use serde_json::json;
         let operation = self.inner.retained_operation();
-        let name = |id: antecedent_core::VariableId| self.variable_name(id);
-        let names = |ids: &[antecedent_core::VariableId]| {
+        let name = |id: antecedent::prelude::VariableId| self.variable_name(id);
+        let names = |ids: &[antecedent::prelude::VariableId]| {
             ids.iter().copied().map(|id| self.variable_name(id)).collect::<Vec<_>>()
         };
         let mut detail = match &operation {

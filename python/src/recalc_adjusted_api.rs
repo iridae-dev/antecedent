@@ -5,21 +5,22 @@
 use crate::NumericColumn;
 use std::collections::BTreeMap;
 
+use antecedent::analysis::categorical_treatment::LevelScale;
 use antecedent::analysis::recalc_adjusted::{
     AdjustedContrast, AdjustedModel, AdjustedRequest, AdjustedSession,
     execute_adjusted_with_receipt,
 };
 use antecedent::analysis::recalc_receipt::{RecalcRunError, TargetWeights, UtilitySpec};
-use antecedent_core::recalc::{RecalcCapabilities, ResumeContext, RetargetSupport};
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_estimate::adjustment_resume::count_adjusted_model_fits;
-use antecedent_estimate::categorical_treatment::{CategoricalTreatmentSpec, LevelScale};
-use antecedent_estimate::vector_treatment::VectorCovariance;
-use antecedent_io::recalc_receipt_artifact::{
+use antecedent::analysis::vector_treatment::VectorCovariance;
+use antecedent::estimate::adjustment_resume::count_adjusted_model_fits;
+use antecedent::estimate::categorical_treatment::CategoricalTreatmentSpec;
+use antecedent::execution::recalc::{RecalcCapabilities, ResumeContext, RetargetSupport};
+use antecedent::inference::{GlmFamily, GlmOptions};
+use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, DeclaredStageWire, RecalcReceiptArtifact, ResumeWire, identities_from_wire,
     identities_to_wire, plan_to_wire,
 };
-use antecedent_stats::{GlmFamily, GlmOptions};
+use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -82,7 +83,7 @@ fn covariance(name: &str) -> PyResult<VectorCovariance> {
         "hc3" => VectorCovariance::Hc3,
         _ => {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::ADJUSTED_INVALID_MODEL,
+                antecedent::reason::reason_details::recalc::ADJUSTED_INVALID_MODEL,
                 "unknown covariance",
             ));
         }
@@ -99,14 +100,14 @@ fn build_request(
     check_columns(columns, ctx)?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_DATA,
+            antecedent::reason::reason_details::recalc::INVALID_DATA,
             "one named column per name is required",
         ));
     }
     for (i, name) in names.iter().enumerate() {
         if name.trim().is_empty() || names[..i].contains(name) {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::INVALID_DATA,
+                antecedent::reason::reason_details::recalc::INVALID_DATA,
                 "column names must be unique and nonempty",
             ));
         }
@@ -114,7 +115,7 @@ fn build_request(
     let position = |name: &str| {
         names.iter().position(|n| n == name).and_then(|p| u32::try_from(p).ok()).ok_or_else(|| {
             invalid(
-                antecedent_core::reason_details::recalc::UNKNOWN_VARIABLE,
+                antecedent::reason::reason_details::recalc::UNKNOWN_VARIABLE,
                 format!("no column named `{name}`"),
             )
         })
@@ -129,7 +130,7 @@ fn build_request(
     let adjustment = wire.adjustment.iter().map(|n| position(n)).collect::<PyResult<Vec<_>>>()?;
     if wire.target_weights.is_none() && !wire.target_depends_on.is_empty() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_REQUEST,
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             "weight dependencies need weights",
         ));
     }
@@ -159,14 +160,14 @@ fn build_request(
                 "negative_binomial" => GlmFamily::NegativeBinomial,
                 _ => {
                     return Err(invalid(
-                        antecedent_core::reason_details::recalc::ADJUSTED_INVALID_MODEL,
+                        antecedent::reason::reason_details::recalc::ADJUSTED_INVALID_MODEL,
                         "unknown GLM family",
                     ));
                 }
             };
             if max_iter == 0 || !tolerance.is_finite() || tolerance <= 0.0 {
                 return Err(invalid(
-                    antecedent_core::reason_details::recalc::ADJUSTED_INVALID_MODEL,
+                    antecedent::reason::reason_details::recalc::ADJUSTED_INVALID_MODEL,
                     "invalid GLM fit options",
                 ));
             }
@@ -215,45 +216,45 @@ fn adjusted_error_refusal(error: &RecalcRunError) -> String {
         RecalcRunError::Request(detail) => {
             let detail = detail.as_str();
             let (code, stage) = match detail {
-                antecedent_core::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED => {
-                    (antecedent_core::reason_code!("effect_not_identified"), "identification")
+                antecedent::reason::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED => {
+                    (antecedent::reason::reason_code!("effect_not_identified"), "identification")
                 }
-                antecedent_core::reason_details::recalc::INVALID_GRAPH
-                | antecedent_core::reason_details::recalc::INVALID_ADJUSTMENT_SET => {
-                    (antecedent_core::reason_code!("invalid_argument"), "identification")
+                antecedent::reason::reason_details::recalc::INVALID_GRAPH
+                | antecedent::reason::reason_details::recalc::INVALID_ADJUSTMENT_SET => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "identification")
                 }
-                antecedent_core::reason_details::recalc::CATEGORICAL_ROLE_MISMATCH => {
-                    (antecedent_core::reason_code!("invalid_argument"), "query")
+                antecedent::reason::reason_details::recalc::CATEGORICAL_ROLE_MISMATCH => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "query")
                 }
-                antecedent_core::reason_details::recalc::CANCELLED => {
-                    (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
+                antecedent::reason::reason_details::recalc::CANCELLED => {
+                    (antecedent::reason::reason_code!("cancelled_no_claim"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
-                    (antecedent_core::reason_code!("invalid_argument"), "score_artifact")
+                antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "score_artifact")
                 }
-                antecedent_core::reason_details::recalc::INVALID_TARGET_WEIGHTS => {
-                    (antecedent_core::reason_code!("invalid_argument"), "target_population")
+                antecedent::reason::reason_details::recalc::INVALID_TARGET_WEIGHTS => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "target_population")
                 }
-                antecedent_core::reason_details::recalc::INVALID_DATA => {
-                    (antecedent_core::reason_code!("invalid_argument"), "data_snapshot")
+                antecedent::reason::reason_details::recalc::INVALID_DATA => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "data_snapshot")
                 }
-                antecedent_core::reason_details::recalc::CONTRAST_OUT_OF_SUPPORT
-                | antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT => {
-                    (antecedent_core::reason_code!("route_not_supported"), "treatment_grid")
+                antecedent::reason::reason_details::recalc::CONTRAST_OUT_OF_SUPPORT
+                | antecedent::reason::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT => {
+                    (antecedent::reason::reason_code!("route_not_supported"), "treatment_grid")
                 }
-                antecedent_core::reason_details::recalc::INVALID_CATEGORICAL_CONTRAST
-                | antecedent_core::reason_details::recalc::INVALID_CONTRAST
-                | antecedent_core::reason_details::recalc::INCOMPATIBLE_CONTRAST => {
-                    (antecedent_core::reason_code!("invalid_argument"), "law")
+                antecedent::reason::reason_details::recalc::INVALID_CATEGORICAL_CONTRAST
+                | antecedent::reason::reason_details::recalc::INVALID_CONTRAST
+                | antecedent::reason::reason_details::recalc::INCOMPATIBLE_CONTRAST => {
+                    (antecedent::reason::reason_code!("invalid_argument"), "law")
                 }
-                _ => (antecedent_core::reason_code!("invalid_argument"), "score_artifact"),
+                _ => (antecedent::reason::reason_code!("invalid_argument"), "score_artifact"),
             };
             refusal_json(code, stage, detail, None, None, &error.to_string(), None)
         }
         RecalcRunError::NoLiveState(stage) => refusal_json(
-            antecedent_core::reason_code!("score_table_unavailable"),
+            antecedent::reason::reason_code!("score_table_unavailable"),
             &stage.label(),
-            antecedent_core::reason_details::recalc::NO_LIVE_STATE,
+            antecedent::reason::reason_details::recalc::NO_LIVE_STATE,
             Some(&stage.label()),
             None,
             "no retained adjusted fit",
@@ -261,52 +262,52 @@ fn adjusted_error_refusal(error: &RecalcRunError) -> String {
         ),
         RecalcRunError::Execution(cause) => {
             use antecedent::CausalError;
-            use antecedent_estimate::EstimationError;
-            use antecedent_stats::{GlmRefusalKind, StatsError};
+            use antecedent::estimate::EstimationError;
+            use antecedent::inference::{GlmRefusalKind, StatsError};
             let (code, detail, stage) = match cause.peeled() {
                 CausalError::Estimate(EstimationError::Data(_) | EstimationError::Query(_)) => (
-                    antecedent_core::reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::recalc::ADJUSTED_MODEL_DATA_INVALID,
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_details::recalc::ADJUSTED_MODEL_DATA_INVALID,
                     "data_snapshot",
                 ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "arm_not_populated" => (
-                    antecedent_core::reason_code!("arm_not_populated"),
-                    antecedent_core::reason_details::recalc::ADJUSTED_ARM_NOT_POPULATED,
+                    antecedent::reason::reason_code!("arm_not_populated"),
+                    antecedent::reason::reason_details::recalc::ADJUSTED_ARM_NOT_POPULATED,
                     "score_artifact",
                 ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "invalid_argument" => (
-                    antecedent_core::reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::recalc::ADJUSTED_MODEL_DATA_INVALID,
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_details::recalc::ADJUSTED_MODEL_DATA_INVALID,
                     "data_snapshot",
                 ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
                 ) if *code == "design_rank_deficient" => (
-                    antecedent_core::reason_code!("design_rank_deficient"),
-                    antecedent_core::reason_details::recalc::ADJUSTED_DESIGN_RANK_DEFICIENT,
+                    antecedent::reason::reason_code!("design_rank_deficient"),
+                    antecedent::reason::reason_details::recalc::ADJUSTED_DESIGN_RANK_DEFICIENT,
                     "score_artifact",
                 ),
                 CausalError::Estimate(EstimationError::Stats(StatsError::GlmRefused {
                     kind,
                     ..
                 })) => (
-                    antecedent_core::reason_code!("route_not_supported"),
+                    antecedent::reason::reason_code!("route_not_supported"),
                     match kind {
                         GlmRefusalKind::NonConverged => {
-                            antecedent_core::reason_details::recalc::ADJUSTED_GLM_NOT_CONVERGED
+                            antecedent::reason::reason_details::recalc::ADJUSTED_GLM_NOT_CONVERGED
                         }
                         GlmRefusalKind::Separated => {
-                            antecedent_core::reason_details::recalc::ADJUSTED_GLM_SEPARATED
+                            antecedent::reason::reason_details::recalc::ADJUSTED_GLM_SEPARATED
                         }
                         GlmRefusalKind::BoundarySaturated => {
-                            antecedent_core::reason_details::recalc::ADJUSTED_GLM_BOUNDARY_SATURATED
+                            antecedent::reason::reason_details::recalc::ADJUSTED_GLM_BOUNDARY_SATURATED
                         }
                     },
                     "score_artifact",
@@ -314,22 +315,22 @@ fn adjusted_error_refusal(error: &RecalcRunError) -> String {
                 CausalError::Estimate(EstimationError::Stats(StatsError::RankDeficient {
                     ..
                 })) => (
-                    antecedent_core::reason_code!("design_rank_deficient"),
-                    antecedent_core::reason_details::recalc::ADJUSTED_DESIGN_RANK_DEFICIENT,
+                    antecedent::reason::reason_code!("design_rank_deficient"),
+                    antecedent::reason::reason_details::recalc::ADJUSTED_DESIGN_RANK_DEFICIENT,
                     "score_artifact",
                 ),
                 _ => (
-                    antecedent_core::reason_code!("route_not_supported"),
-                    antecedent_core::reason_details::recalc::ADJUSTED_FIT_REFUSED,
+                    antecedent::reason::reason_code!("route_not_supported"),
+                    antecedent::reason::reason_details::recalc::ADJUSTED_FIT_REFUSED,
                     "score_artifact",
                 ),
             };
             refusal_json(code, stage, detail, None, None, &cause.to_string(), None)
         }
         RecalcRunError::Receipt(_) => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "score_artifact",
-            antecedent_core::reason_details::recalc::ADJUSTED_RECEIPT_INVALID,
+            antecedent::reason::reason_details::recalc::ADJUSTED_RECEIPT_INVALID,
             None,
             None,
             &error.to_string(),
@@ -348,7 +349,7 @@ impl PyAdjustedSession {
     fn capabilities(&self) -> RecalcCapabilities {
         RecalcCapabilities {
             retarget: RetargetSupport::Supported,
-            request: antecedent_core::recalc::RequestSupport::OnGrid,
+            request: antecedent::execution::recalc::RequestSupport::OnGrid,
             boundary: self.inner.boundary(),
         }
     }
@@ -404,7 +405,7 @@ impl PyAdjustedSession {
         let ctx = bounded_context(0, Some(1), memory_limit_bytes, None);
         let rows = bounded_prediction_rows(
             rows,
-            antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
+            antecedent::reason::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
             &ctx,
         )?;
         if let Some(expected) = self.inner.prediction_columns() {
@@ -412,9 +413,9 @@ impl PyAdjustedSession {
                 return Ok((
                     None,
                     Some(refusal_json(
-                        antecedent_core::reason_code!("invalid_argument"),
+                        antecedent::reason::reason_code!("invalid_argument"),
                         "score_artifact",
-                        antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
+                        antecedent::reason::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
                         None,
                         None,
                         "prediction feature names/order differ from the retained model",
@@ -508,9 +509,9 @@ impl PyAdjustedSession {
                 None,
                 None,
                 Some(refusal_json(
-                    antecedent_core::reason_code!("score_table_unavailable"),
+                    antecedent::reason::reason_code!("score_table_unavailable"),
                     &stage.label(),
-                    antecedent_core::reason_details::recalc::NO_LIVE_STATE,
+                    antecedent::reason::reason_details::recalc::NO_LIVE_STATE,
                     Some(&stage.label()),
                     Some("supply raw data and refit in this process".to_owned()),
                     "no retained adjusted fit",

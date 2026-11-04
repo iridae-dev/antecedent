@@ -4,17 +4,16 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CachePolicy, ExecutionContext, KernelPolicy, RandomizationTestLimits,
-    TemporalMaterializationLimits,
-};
+use antecedent::execution::{CachePolicy, KernelPolicy, RandomizationTestLimits};
+use antecedent::prelude::ExecutionContext;
+use antecedent::query::TemporalMaterializationLimits;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
 pub(crate) struct Policy {
     context: ExecutionContext,
-    progress: Option<Arc<dyn antecedent_core::ProgressSink>>,
-    cancel: Option<antecedent_core::CancellationToken>,
+    progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
+    cancel: Option<antecedent::execution::CancellationToken>,
     /// Most Python callback failures one run retains for attribution.
     callback_failure_capacity: usize,
     /// Observed treatment ranges a pulse's active level may lie beyond the observed treatment

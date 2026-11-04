@@ -16,10 +16,10 @@ use antecedent::analysis::composition::{
     ProviderOrData, SuppliedSources, consume, consume_with_limits, describe_artifact,
     detect_node_kind, export_bundle, mean_decision_bytes,
 };
-use antecedent_contract::ExternalRefusal;
-use antecedent_core::reason_code;
-use antecedent_design::decision_artifact::contract_from_json_refusal;
-use antecedent_io::IoError;
+use antecedent::contract::ExternalRefusal;
+use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::io::IoError;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -43,12 +43,12 @@ pub(crate) fn error_refusal(error: &BundleError) -> String {
         {
             (
                 reason_code!("schema_mismatch"),
-                antecedent_core::reason_details::composition_bundle::INCOMPATIBLE_VERSION,
+                antecedent::reason::reason_details::composition_bundle::INCOMPATIBLE_VERSION,
             )
         }
         _ => (
             reason_code!("invalid_argument"),
-            antecedent_core::reason_details::composition_bundle::INVALID_CONTAINER,
+            antecedent::reason::reason_details::composition_bundle::INVALID_CONTAINER,
         ),
     };
     external_refusal_json(&ExternalRefusal {

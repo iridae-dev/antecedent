@@ -13,7 +13,9 @@ pub(crate) fn execute_score(
     seed: u64,
     threads: Option<u32>,
     stage: &'static str,
-    fit: impl FnOnce(&antecedent_core::ExecutionContext) -> Result<ArrayFit, antecedent::CausalError>,
+    fit: impl FnOnce(
+        &antecedent::prelude::ExecutionContext,
+    ) -> Result<ArrayFit, antecedent::CausalError>,
 ) -> PyResult<ArrayFit> {
     let ctx = crate::py_execution_context(seed, crate::resolve_user_threads(threads));
     let check_cancel = || {
@@ -29,11 +31,11 @@ pub(crate) fn execute_score(
     }
     check_cancel()?;
     let (result, failure) =
-        antecedent_core::numerical_admission::with_context_and_failure(&ctx, || fit(&ctx));
+        antecedent::execution::numerical_admission::with_context_and_failure(&ctx, || fit(&ctx));
     check_cancel()?;
     if let (true, Some(error)) = (result.is_err(), failure) {
         return Err(match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent::execution::AdmissionError::Cancelled => {
                 py_err(antecedent::CausalError::Cancelled { stage })
             }
             error => crate::CausalResourceError::new_err(error.to_string()),
@@ -148,7 +150,7 @@ fn consumer_error(error: ArrayFitError) -> antecedent::CausalError {
             antecedent::CausalError::Resource { message: error.to_string() }
         }
         error @ (ArrayFitError::Admission(_) | ArrayFitError::Refused { .. }) => error.into(),
-        error => antecedent::CausalError::Serialization(antecedent_io::IoError::Convert(
+        error => antecedent::CausalError::Serialization(antecedent::io::IoError::Convert(
             error.to_string(),
         )),
     }

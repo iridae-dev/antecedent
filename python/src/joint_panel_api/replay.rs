@@ -1,7 +1,7 @@
 //! Historical replay of exported experimental updates, without current authority.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{context, facade, panel_error};
-use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent::analysis::inverse_query::DistributionArtifact;
 use pyo3::prelude::*;
 
 /// Posterior weights and weighted coordinate means of a replayed numerical law.

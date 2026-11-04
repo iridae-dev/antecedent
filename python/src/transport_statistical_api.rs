@@ -2,14 +2,13 @@
 use crate::graphs::Admg;
 use crate::transport_exact_api::ClassicalTransportStage;
 use crate::transport_interference_api::parse_catalog;
-use antecedent_core::{ExecutionContext, RegimeId, Value};
-use antecedent_estimate::{
-    EmpiricalTableEstimator, EmpiricalTableOptions, RegimeSample, StatisticalTransportInput,
+use antecedent::estimate::{
+    EmpiricalTableEstimator, EmpiricalTableOptions, ExactDiscreteLaw, ExactEvaluationLimits,
+    ExactTransportData, InterventionAssignment, RegimeSample, StatisticalTransportInput,
 };
-use antecedent_expr::{
-    ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData, InterventionAssignment,
-};
-use antecedent_identify::SidLimits;
+use antecedent::identify::SidLimits;
+use antecedent::prelude::{ExecutionContext, Value};
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use std::collections::BTreeMap;
@@ -40,7 +39,7 @@ impl StatisticalPreparation {
             Self::Ready(ready) => Ok(ready.clone()),
         }
     }
-    fn query(&self) -> &antecedent_identify::ClassicalTransportQuery {
+    fn query(&self) -> &antecedent::identify::ClassicalTransportQuery {
         match self {
             Self::Deferred(deferred) => deferred.functional().derivation().query(),
             Self::Ready(ready) => ready.query(),
@@ -67,7 +66,7 @@ struct PreparedStatisticalStage {
     inner: StatisticalPreparation,
     last_prepared: Option<antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>,
     graph: Admg,
-    catalog: antecedent_core::EvidenceCatalog,
+    catalog: antecedent::query::EvidenceCatalog,
     last: Option<antecedent::StatisticalStudyResult>,
     memory_bytes: Option<u64>,
     max_support_rows: usize,
@@ -93,7 +92,7 @@ impl PreparedStatisticalStage {
                 "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
                 "atom_intervals": posterior.atom_intervals.to_vec(),
                 "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
-                "calibration_status": posterior.interval_reason.map_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED, |reason| reason.as_str()),
+                "calibration_status": posterior.interval_reason.map_or(antecedent::estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED, |reason| reason.as_str()),
             })
         })
     }
@@ -309,7 +308,7 @@ impl PreparedStatisticalStage {
             if result.bayesian_estimate().is_some() {
                 let available = result.reasoning().uncertainty.is_available();
                 let reason = match &result.reasoning().uncertainty {
-                    antecedent_contract::SlotAvailability::Unavailable { reason } => {
+                    antecedent::contract::SlotAvailability::Unavailable { reason } => {
                         Some(reason.as_ref())
                     }
                     _ => None,
@@ -334,7 +333,7 @@ impl PreparedStatisticalStage {
         } else {
             let supported = view.reasoning.uncertainty.is_available();
             let reason = match &view.reasoning.uncertainty {
-                antecedent_contract::SlotAvailability::Unavailable { reason } => {
+                antecedent::contract::SlotAvailability::Unavailable { reason } => {
                     Some(reason.as_ref())
                 }
                 _ => None,
@@ -546,7 +545,7 @@ fn prepare_statistical_transport(
         let ctx = execution_context(seed, memory_bytes, cancel);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
-            antecedent_identify::SidLimits { steps: max_steps, depth: max_depth },
+            antecedent::identify::SidLimits { steps: max_steps, depth: max_depth },
             &ctx,
         ) {
             Ok(bound) => bound,
@@ -559,7 +558,7 @@ fn prepare_statistical_transport(
                 )
                 .map_err(error)?
             {
-                antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
+                antecedent::identify::CatalogTransportResult::Identified(bound) => *bound,
                 other => {
                     return Err(crate::transport_common::catalog_search_refusal(
                         &other,
@@ -660,7 +659,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 /// rather than read as an empty sample set.
 pub(crate) fn parse_statistical_input(
     payload: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<StatisticalTransportInput> {
@@ -691,7 +690,7 @@ pub(crate) fn parse_statistical_input(
 
 fn parse_optional_laws(
     laws: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<Vec<ExactDiscreteLaw>> {
@@ -710,7 +709,7 @@ fn parse_optional_laws(
 
 fn parse_sample(
     sample: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<RegimeSample> {

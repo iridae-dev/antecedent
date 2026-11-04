@@ -12,18 +12,19 @@ use crate::transport_counterfactual_api::{
     PreparedCounterfactualTransportNative, io_refusal, regime_label, variable_name,
 };
 use crate::transport_z_api::to_py_json;
-use antecedent_core::{EvidenceCatalog, SearchLimits};
-use antecedent_estimate::counterfactual_transport_sampled::{
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::estimate::counterfactual_transport_sampled::{
     DatasetOverlap, OverlapDeclaration, SampledAxis, SampledCounterfactualTransportEstimate,
     SampledIntervalOutcome, SampledRegimeCounts, SampledRegimeCountsParts, SampledTableKey,
     SampledTransportLimits, SampledTransportRequest, SamplingDesign, UnseenCellRule,
 };
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_io::sampled_counterfactual_transport_artifact::{
+use antecedent::execution::SearchLimits;
+use antecedent::io::sampled_counterfactual_transport_artifact::{
     SampledCounterfactualTransportArtifactWire, SampledCounterfactualTransportConsumeLimits,
     SampledCounterfactualTransportExpectedIdentity, consume_sampled_counterfactual_transport,
     sampled_counterfactual_transport_artifact,
 };
+use antecedent::query::EvidenceCatalog;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
@@ -212,7 +213,7 @@ fn regime_of<'c>(
     catalog: &'c EvidenceCatalog,
     population: &str,
     label: &str,
-) -> PyResult<&'c antecedent_core::EvidenceRegime> {
+) -> PyResult<&'c antecedent::query::EvidenceRegime> {
     catalog
         .regimes
         .iter()

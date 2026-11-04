@@ -27,10 +27,11 @@ use antecedent::analysis::discovered_transport_temporal::{
     estimate_discovered_temporal_transport, transport_discovered_temporal_structure,
     transport_discovered_temporal_structure_with_context, transport_temporal_class,
 };
-use antecedent_core::{
-    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
+use antecedent::analysis::selective_discovery::{DiscoveryOutcome, SelectiveDiscoveryError};
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery,
 };
-use antecedent_discovery::selective::{DiscoveryOutcome, SelectiveDiscoveryError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -139,7 +140,7 @@ pub(crate) fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
             Err(crate::transport_common::error(error.clone()))
         }
         DiscoveredTransportError::Operational(error) => {
-            use antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind as K;
+            use antecedent::identify::discovered_transport::DiscoveredTransportOperationalKind as K;
             Err(match error.kind {
                 K::Cancelled => crate::CausalCancelledError::new_err(error.message.clone()),
                 K::Resource => crate::CausalResourceError::new_err(error.message.clone()),
@@ -255,7 +256,7 @@ fn discovered_transport_run(
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Result<DiscoveredTransportRun, SelectiveDiscoveryError> =
         crate::detach_catch(py, move || {
-            let (data, _): (antecedent_data::TabularData, _) =
+            let (data, _): (antecedent::prelude::TabularData, _) =
                 crate::discovery_api::tabular_from_batch(&batch)?;
             Ok(discover_and_transport(&contract, &data, &ids, &query, bound, &ctx))
         })?;
@@ -377,9 +378,9 @@ fn discovered_transport_estimate_run(
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Ran = crate::detach_catch(py, move || {
-        let (source, _): (antecedent_data::TabularData, _) =
+        let (source, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&source_batch)?;
-        let (target, _): (antecedent_data::TabularData, _) =
+        let (target, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&target_batch)?;
         let run = match discover_and_transport(&contract, &source, &ids, &query, bound, &ctx) {
             Ok(run) => run,
@@ -452,7 +453,7 @@ fn verify_discovered_transport_estimate_artifact(
     let verified = crate::detach_catch(py, || {
         verify_discovered_transport_estimate(
             artifact,
-            antecedent_expr::ExactEvaluationLimits::default(),
+            antecedent::estimate::ExactEvaluationLimits::default(),
             &ctx,
         )
         .map_err(crate::transport_common::error)
@@ -555,9 +556,9 @@ fn discovered_temporal_graph_transport(
     exhausted_search_bounds: usize,
 ) -> PyResult<Reply> {
     enum Owned {
-        Dag(antecedent_graph::TemporalDag),
-        Cpdag(antecedent_graph::TemporalCpdag),
-        Pag(antecedent_graph::TemporalPag),
+        Dag(antecedent::graph::TemporalDag),
+        Cpdag(antecedent::graph::TemporalCpdag),
+        Pag(antecedent::graph::TemporalPag),
     }
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
@@ -614,8 +615,8 @@ fn discovered_temporal_transport_estimate_run(
 ) -> PyResult<EstimateReply> {
     type Ran = Result<
         (
-            antecedent_discovery::selective::DiscoveryOutcome,
-            antecedent_discovery::selective::SelectiveRunReport,
+            antecedent::analysis::selective_discovery::DiscoveryOutcome,
+            antecedent::analysis::selective_discovery::SelectiveRunReport,
             Result<DiscoveredTemporalTransportReport, DiscoveredTransportError>,
             Option<Result<(DiscoveredTransportEstimate, Vec<u8>), DiscoveredTransportError>>,
         ),
@@ -633,21 +634,22 @@ fn discovered_temporal_transport_estimate_run(
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Ran = crate::detach_catch(py, move || {
-        let (series, _): (antecedent_data::TimeSeriesData, _) =
+        let (series, _): (antecedent::prelude::TimeSeriesData, _) =
             crate::discovery_api::series_from_batch(&source_batch)?;
-        let (source, _): (antecedent_data::TabularData, _) =
+        let (source, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&source_batch)?;
-        let (target, _): (antecedent_data::TabularData, _) =
+        let (target, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&target_batch)?;
-        let mut adapter = antecedent_discovery::selective::TemporalSelectiveDiscovery::new();
+        let mut adapter =
+            antecedent::analysis::selective_discovery::TemporalSelectiveDiscovery::new();
         let discovery = match adapter.run(&contract, &series, &ctx) {
             Ok(report) => report,
             Err(error) => return Ok(Err(error)),
         };
         let Some(outcome) = adapter.outcome().cloned() else {
             return Ok(Err(SelectiveDiscoveryError::refused(
-                antecedent_core::reason_code!("invalid_argument"),
-                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
+                antecedent::reason::reason_code!("invalid_argument"),
+                antecedent::reason::reason_details::selective_discovery::NOTHING_RETAINED,
                 "the discovery run retained no outcome",
             )));
         };
@@ -714,9 +716,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 mod transport_operational_error_tests {
     use super::{DiscoveredTransportError, refusal_of};
     use antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure as map_io;
-    use antecedent_core::execution::AdmissionError;
-    use antecedent_identify::{IdentificationBudget, IdentificationError};
-    use antecedent_io::IoError;
+    use antecedent::execution::AdmissionError;
+    use antecedent::identify::{IdentificationBudget, IdentificationError};
+    use antecedent::io::IoError;
     use pyo3::prelude::*;
 
     #[test]

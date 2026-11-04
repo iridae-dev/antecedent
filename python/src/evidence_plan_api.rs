@@ -17,17 +17,23 @@ use antecedent::analysis::evidence_plan::{
     variable_names,
 };
 use antecedent::analysis::fallback::{failure_capability_parts, failure_next_actions};
-use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, SearchLimits, VariableId};
-use antecedent_design::structure_identification::{
-    GraphIdentFlag, GraphPosteriorSample, identified_under_intervention, structure_posterior,
+use antecedent::analysis::repair::{
+    RepairConsumeLimits, RepairLimits, RepairObjective, SensitivityFinding, SensitivityMethod,
 };
-use antecedent_design::{
+use antecedent::design::structure_identification::GraphIdentFlag;
+use antecedent::design::{
     CandidateGeneration, CandidateTemplate, EvidencePlan, EvidencePlanArtifact,
-    EvidencePlanArtifactError, FailureRoutes, PlanOption, RepairConsumeLimits, RepairLimits,
-    RepairObjective, SensitivityFinding, SensitivityMethod, failure_routes, generate_candidates,
+    EvidencePlanArtifactError, FailureRoutes, GraphPosteriorSample, PlanOption, failure_routes,
+    generate_candidates, identified_under_intervention, structure_posterior,
 };
-use antecedent_graph::Admg as CoreAdmg;
-use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
+use antecedent::execution::SearchLimits;
+use antecedent::graph::Admg as CoreAdmg;
+use antecedent::identify::{
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
+};
+use antecedent::prelude::VariableId;
+use antecedent::query::{AverageEffectQuery, CausalQuery};
+use antecedent::schema::AssumptionSet;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -84,7 +90,7 @@ fn template_json(template: &CandidateTemplate, names: &[String]) -> Value {
             "levels": {},
             "conditioned_on": names_of(names, &e.conditioned_on),
             "measured": names_of(names, &e.measured),
-            "joint": matches!(e.distribution, antecedent_core::DistributionAvailability::Joint),
+            "joint": matches!(e.distribution, antecedent::query::DistributionAvailability::Joint),
         })).collect::<Vec<_>>(),
         "addresses": ids_of(&template.addresses),
         "routes": ids_of(&template.routes),
@@ -177,15 +183,15 @@ fn plan_json(plan: &EvidencePlan, names: &[String]) -> Value {
 /// The variables whose measurement or setting a verified study relies on: the ranker's
 /// unlock list, derived from the repair reports instead of declared by hand.
 fn unlocks_json(
-    reports: &[antecedent_design::RepairReport],
-    candidates: &[antecedent_design::DurableStudyCandidate],
+    reports: &[antecedent::design::RepairReport],
+    candidates: &[antecedent::design::DurableStudyCandidate],
     observed: &[VariableId],
     names: &[String],
 ) -> Value {
     let mut variables: Vec<VariableId> = Vec::new();
     let mut verified: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     for report in reports {
-        let unlocks = antecedent_design::verified_unlocks(report, candidates, observed);
+        let unlocks = antecedent::design::verified_unlocks(report, candidates, observed);
         variables.extend(unlocks.variables);
         verified.extend(unlocks.verified);
     }
@@ -408,11 +414,11 @@ fn failure_stage(
     let overturned = finding.as_ref().is_some_and(|found| !found.robust);
     if !overturned {
         let identification_graph = from_observed.as_ref().unwrap_or(&graph);
-        match antecedent_design::structure_identification::identifies(identification_graph, t, y) {
+        match antecedent::design::structure_identification::identifies(identification_graph, t, y) {
             Ok(GraphIdentFlag::Unidentified) => {}
             Ok(GraphIdentFlag::Identified) => {
                 return Err(crate::refusal(
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                     "identification_repair.not_a_failure: the effect is identified by the graph; \
                      there is no gap to plan for",
                 ));
@@ -460,12 +466,12 @@ fn evidence_failure_dag(
             .iter()
             .map(|name| {
                 let id = resolve(&graph.names, name)?;
-                antecedent_graph::DenseNodeId::try_from_usize(id.raw() as usize)
+                antecedent::graph::DenseNodeId::try_from_usize(id.raw() as usize)
                     .map_err(|e| crate::value_err(e.to_string()))
             })
             .collect::<PyResult<Vec<_>>>()?;
         Some(
-            antecedent_graph::latent_project(&graph.dag, &dense)
+            antecedent::graph::latent_project(&graph.dag, &dense)
                 .map_err(|e| crate::value_err(e.to_string()))?,
         )
     } else {
@@ -514,7 +520,7 @@ impl EvidencePlanStage {
     /// failure contract: the options, the routes behind them, the unlocks and the artifact.
     pub(crate) fn of_result(
         result: &antecedent::analysis::evidence_plan::EvidencePlanResult,
-        candidates: &[antecedent_design::DurableStudyCandidate],
+        candidates: &[antecedent::design::DurableStudyCandidate],
         observed: &[VariableId],
     ) -> Self {
         Self {
@@ -610,7 +616,7 @@ fn identify_structure_posterior(
             graph: graph.aligned_to_names(&names)?,
         });
     }
-    let refuse = |e: antecedent_design::StructureIdentificationError| {
+    let refuse = |e: antecedent::design::StructureIdentificationError| {
         crate::refusal(e.code, format!("{}: {}", e.detail, e.message))
     };
     let posterior = structure_posterior(&samples, t, y).map_err(refuse)?;

@@ -123,12 +123,12 @@ impl From<&AssociationPayload> for AssociationSection {
                 replicates_requested: record.replicates_requested,
                 replicates_ok: record.replicates_ok,
                 block_length: record.block_length,
-                spread_level: antecedent_estimate::SPREAD_LEVEL,
+                spread_level: antecedent::estimate::SPREAD_LEVEL,
             }),
             posterior: estimate.posterior.map(|record| AssociationPosteriorSection {
                 method: record.method.to_owned(),
                 draws: record.draws,
-                level: antecedent_estimate::SPREAD_LEVEL,
+                level: antecedent::estimate::SPREAD_LEVEL,
             }),
             prediction: payload.scores.as_ref().zip(estimate.prediction.as_ref()).map(
                 |(scores, fit)| AssociationPredictionSection {

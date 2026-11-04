@@ -2,7 +2,7 @@
 //!
 //! A program is the JSON of `antecedent.intervention_programs`: transforms and assignments
 //! whose expressions name variables. It is parsed by the library
-//! (`antecedent_io::policy_program_artifact`), compiled by the same overlay and executed by
+//! (`antecedent::io::policy_program_artifact`), compiled by the same overlay and executed by
 //! the same per-node executor as every Rust route: forward sampling, counterfactual execution
 //! on abduced noise, and the temporal rollout that reads earlier steps. Nothing here
 //! evaluates an expression.
@@ -13,17 +13,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent::SimulationOutcome;
+use antecedent::data::TableView;
 use antecedent::gcm::{
-    PolicyRoute, PolicySupport, PolicyValue, PreparedPolicy, RouteDecision,
+    PolicyRoute, PolicySupport, PolicyValue, PreparedPolicy, RouteDecision, ValueBatch,
     policy_support as facade_policy_support,
 };
-use antecedent_core::{
-    Intervention, InterventionSequence, SequencedIntervention, SimulationTarget, TemporalPolicy,
+use antecedent::io::{IoError, policy_program_artifact as artifact};
+use antecedent::prelude::Intervention;
+use antecedent::query::{
+    InterventionSequence, SequencedIntervention, SimulationTarget, TemporalPolicy,
 };
-use antecedent_data::TableView;
-use antecedent_io::IoError;
-use antecedent_io::policy_program_artifact as artifact;
-use antecedent_model::ValueBatch;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods};
@@ -47,7 +46,7 @@ pub(crate) fn io_err(error: IoError) -> PyErr {
 fn programs_of(fitted: &PyFittedGcm, text: &str) -> PyResult<Vec<Intervention>> {
     let schema = fitted.data.schema();
     artifact::interventions_from_named_json(text, &|name| {
-        schema.id_of(name).ok().map(antecedent_core::VariableId::raw)
+        schema.id_of(name).ok().map(antecedent::prelude::VariableId::raw)
     })
     .map_err(io_err)
 }
@@ -287,7 +286,7 @@ impl PyPreparedPolicy {
         // A runtime-bound program has no identity; every other program does.
         let identity = artifact::policy_program_identity(&interventions)
             .ok()
-            .map(|digest| antecedent_core::to_hex(&digest));
+            .map(|digest| antecedent::schema::to_hex(&digest));
         let core = PreparedPolicy::prepare(&fitted.bind(py).borrow().inner.model, interventions)
             .map_err(py_err)?;
         Ok(Self { fitted, core, identity })
@@ -620,7 +619,7 @@ pub(crate) fn policy_program_identity(names: Vec<String>, policies: &str) -> PyR
     let interventions = artifact::interventions_from_named_json(policies, &index_resolver(&names))
         .map_err(io_err)?;
     let digest = artifact::policy_program_identity(&interventions).map_err(io_err)?;
-    Ok(antecedent_core::to_hex(&digest))
+    Ok(antecedent::schema::to_hex(&digest))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -1,7 +1,7 @@
 //! Original finite-law functional proof binding; historical replay issues no authority.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use antecedent_design::decision_artifact::contract_from_json_refusal;
+use antecedent::design::decision_artifact::contract_from_json_refusal;
 use pyo3::prelude::*;
 
 /// Retain the original law and full functional request for independent original-engine replay.
@@ -16,25 +16,25 @@ fn export_law_functional_source(
         if contract_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
             return Err(crate::with_reason_code(
                 crate::value_err(
-                    antecedent_core::reason_details::functional_source::INVALID_CONTRACT,
+                    antecedent::reason::reason_details::functional_source::INVALID_CONTRACT,
                 ),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             ));
         }
         let functional = crate::composition_api::parsed_functional(functional_json)?;
         let contract = contract_from_json_refusal(contract_json)
             .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
-        let antecedent_design::composition_boundary::InputSource::JointLaw(source) =
+        let antecedent::design::composition_boundary::InputSource::JointLaw(source) =
             input.inner().source()
         else {
             return Err(crate::with_reason_code(
                 crate::value_err(
-                    antecedent_core::reason_details::functional_source::ORIGINAL_LAW_REQUIRED,
+                    antecedent::reason::reason_details::functional_source::ORIGINAL_LAW_REQUIRED,
                 ),
-                antecedent_core::reason_code!("route_not_supported"),
+                antecedent::reason::reason_code!("route_not_supported"),
             ));
         };
-        let mut artifact = antecedent_design::functional_source::LawFunctionalArtifact::produce(
+        let mut artifact = antecedent::design::functional_source::LawFunctionalArtifact::produce(
             source.clone(),
             contract,
             action_id,
@@ -54,8 +54,8 @@ fn export_law_functional_source(
         ))
     })
 }
-fn functional_source_error(error: antecedent_io::IoError) -> PyErr {
-    if let antecedent_io::IoError::Refused { code, message } = error {
+fn functional_source_error(error: antecedent::io::IoError) -> PyErr {
+    if let antecedent::io::IoError::Refused { code, message } = error {
         crate::value_err_code(code, message)
     } else {
         crate::serialization_err(error.to_string())
@@ -69,7 +69,7 @@ fn consume_law_functional_source(
     expected_identity: Option<&str>,
 ) -> PyResult<String> {
     crate::catch_ffi(|| {
-        antecedent_design::functional_source::LawFunctionalArtifact::consume_expected(
+        antecedent::design::functional_source::LawFunctionalArtifact::consume_expected(
             bytes,
             expected_identity,
         )
@@ -87,24 +87,24 @@ fn resolve_law_functional_source(
 ) -> PyResult<String> {
     crate::catch_ffi(|| {
         use antecedent::analysis::native_claims::NativeDecisionSource;
-        use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
-        let artifact = antecedent_design::functional_source::LawFunctionalArtifact::consume(bytes)
+        use antecedent::design::decision_contract::{SourceRepresentation, SourceRequirement};
+        let artifact = antecedent::design::functional_source::LawFunctionalArtifact::consume(bytes)
             .map_err(functional_source_error)?;
         let expected = artifact.source_evidence().ok_or_else(|| {
             crate::with_reason_code(
                 crate::value_err(
-                    antecedent_core::reason_details::functional_source::NATIVE_SOURCE_UNAVAILABLE,
+                    antecedent::reason::reason_details::functional_source::NATIVE_SOURCE_UNAVAILABLE,
                 ),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
         let fresh = crate::source_evidence_api::PySourceEvidence::from_claim(actual)?;
         expected.require_same_source(&fresh.inner).map_err(|_| {
             crate::with_reason_code(
                 crate::value_err(
-                    antecedent_core::reason_details::functional_source::SOURCE_MISMATCH,
+                    antecedent::reason::reason_details::functional_source::SOURCE_MISMATCH,
                 ),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
         let original = actual
@@ -117,9 +117,9 @@ fn resolve_law_functional_source(
         let NativeDecisionSource::JointLaw(law) = original.source else {
             return Err(crate::with_reason_code(
                 crate::value_err(
-                    antecedent_core::reason_details::functional_source::NATIVE_SOURCE_UNAVAILABLE,
+                    antecedent::reason::reason_details::functional_source::NATIVE_SOURCE_UNAVAILABLE,
                 ),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             ));
         };
         if artifact
@@ -130,9 +130,9 @@ fn resolve_law_functional_source(
         {
             return Err(crate::with_reason_code(
                 crate::value_err(
-                    antecedent_core::reason_details::functional_source::SOURCE_MISMATCH,
+                    antecedent::reason::reason_details::functional_source::SOURCE_MISMATCH,
                 ),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             ));
         }
         let mut report = artifact.summary().map_err(functional_source_error)?;

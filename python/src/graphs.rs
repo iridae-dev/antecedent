@@ -2,6 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::graph::{
+    Dag as RustDag, DenseNodeId, Endpoint, Lag, MarkedEdge, MiddleMark, NodeRef,
+    TemporalAdmg as RustTemporalAdmg, TemporalDag as RustTemporalDag,
+};
 use antecedent::io::{
     admg_to_dot as facade_admg_to_dot, admg_to_gml as facade_admg_to_gml,
     admg_to_json as facade_admg_to_json,
@@ -34,11 +38,7 @@ use antecedent::io::{
     pag_with_names_from_json as facade_pag_with_names_from_json,
     pag_with_names_from_networkx_node_link as facade_pag_with_names_from_networkx_node_link,
 };
-use antecedent_core::{Lag, VariableId};
-use antecedent_graph::{
-    Dag as RustDag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef,
-    TemporalAdmg as RustTemporalAdmg, TemporalDag as RustTemporalDag,
-};
+use antecedent::prelude::VariableId;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyType};
 
@@ -303,7 +303,7 @@ impl Dag {
     #[pyo3(signature = (x, y, z=None))]
     fn d_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
         crate::catch_ffi(|| {
-            use antecedent_graph::DSeparationWorkspace;
+            use antecedent::graph::DSeparationWorkspace;
             let xid = self.name_index(x)?;
             let yid = self.name_index(y)?;
             let mut zids = Vec::new();
@@ -360,7 +360,7 @@ impl Dag {
 #[pyclass(name = "Cpdag", from_py_object)]
 #[derive(Clone)]
 pub struct Cpdag {
-    pub(crate) cpdag: antecedent_graph::Cpdag,
+    pub(crate) cpdag: antecedent::graph::Cpdag,
     pub(crate) names: Vec<String>,
 }
 
@@ -383,7 +383,7 @@ impl Cpdag {
         crate::catch_ffi(|| {
             require_unique_names(&names)?;
             let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-            let mut g = antecedent_graph::Cpdag::with_variables(n);
+            let mut g = antecedent::graph::Cpdag::with_variables(n);
             for (from, to) in &directed {
                 let f = resolve_name_index(&names, from)?;
                 let t = resolve_name_index(&names, to)?;
@@ -409,7 +409,7 @@ impl Cpdag {
         crate::catch_ffi(|| {
             require_unique_names(&names)?;
             let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-            let mut g = antecedent_graph::Cpdag::with_variables(n);
+            let mut g = antecedent::graph::Cpdag::with_variables(n);
             for (from, to, kind) in &edges {
                 let f = resolve_name_index(&names, from)?;
                 let t = resolve_name_index(&names, to)?;
@@ -506,7 +506,7 @@ impl Cpdag {
 #[pyclass(name = "Pag", from_py_object)]
 #[derive(Clone)]
 pub struct Pag {
-    pub(crate) pag: antecedent_graph::Pag,
+    pub(crate) pag: antecedent::graph::Pag,
     pub(crate) names: Vec<String>,
 }
 
@@ -538,7 +538,7 @@ impl Pag {
         crate::catch_ffi(|| {
             require_unique_names(&names)?;
             let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-            let mut g = antecedent_graph::Pag::with_variables(n);
+            let mut g = antecedent::graph::Pag::with_variables(n);
             for (a, b, at_a, at_b) in &edges {
                 let ia = resolve_name_index(&names, a)?;
                 let ib = resolve_name_index(&names, b)?;
@@ -623,9 +623,9 @@ impl Pag {
                 .m_separation_status(xid, yid, &zids, max_paths, max_len)
                 .map_err(py_err)?;
             Ok(match status {
-                antecedent_graph::PagSeparation::Separated => "separated",
-                antecedent_graph::PagSeparation::Connected => "connected",
-                antecedent_graph::PagSeparation::Undetermined => "undetermined",
+                antecedent::graph::PagSeparation::Separated => "separated",
+                antecedent::graph::PagSeparation::Connected => "connected",
+                antecedent::graph::PagSeparation::Undetermined => "undetermined",
             })
         })
     }
@@ -658,7 +658,7 @@ impl Pag {
 #[pyclass(name = "Admg", from_py_object)]
 #[derive(Clone)]
 pub struct Admg {
-    pub(crate) admg: antecedent_graph::Admg,
+    pub(crate) admg: antecedent::graph::Admg,
     pub(crate) names: Vec<String>,
 }
 
@@ -666,9 +666,9 @@ impl Admg {
     /// Copy the named graph into the receiving schema's variable-id namespace.
     /// Projection keeps source VariableIds, while Python tables assign ids from
     /// their column-name order. Dense graph indices and the original graph stay intact.
-    pub(crate) fn aligned_to_names(&self, names: &[String]) -> PyResult<antecedent_graph::Admg> {
+    pub(crate) fn aligned_to_names(&self, names: &[String]) -> PyResult<antecedent::graph::Admg> {
         check_names_len(&self.names, self.admg.node_count())?;
-        let mut aligned = antecedent_graph::Admg::empty();
+        let mut aligned = antecedent::graph::Admg::empty();
         for name in &self.names {
             let id = resolve_name_index(names, name)?;
             aligned.add_node(NodeRef::Static(VariableId::from_raw(id.raw()))).map_err(py_err)?;
@@ -705,7 +705,7 @@ impl Admg {
         crate::catch_ffi(|| {
             require_unique_names(&names)?;
             let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-            let mut g = antecedent_graph::Admg::with_variables(n);
+            let mut g = antecedent::graph::Admg::with_variables(n);
             for (from, to) in &directed {
                 let f = resolve_name_index(&names, from)?;
                 let t = resolve_name_index(&names, to)?;
@@ -749,7 +749,7 @@ impl Admg {
     #[pyo3(signature = (x, y, z=None))]
     fn m_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
         crate::catch_ffi(|| {
-            use antecedent_graph::DSeparationWorkspace;
+            use antecedent::graph::DSeparationWorkspace;
             let xid = self.name_index(x)?;
             let yid = self.name_index(y)?;
             let mut zids = Vec::new();
@@ -908,7 +908,7 @@ impl TemporalDag {
 #[pyclass(name = "TemporalCpdag", from_py_object)]
 #[derive(Clone)]
 pub struct TemporalCpdag {
-    pub(crate) cpdag: antecedent_graph::TemporalCpdag,
+    pub(crate) cpdag: antecedent::graph::TemporalCpdag,
     pub(crate) names: Vec<String>,
 }
 
@@ -954,7 +954,7 @@ impl TemporalCpdag {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             require_unique_names(&names)?;
-            let mut g = antecedent_graph::TemporalCpdag::empty();
+            let mut g = antecedent::graph::TemporalCpdag::empty();
             let var_of = |nm: &str| -> PyResult<VariableId> {
                 match names.iter().position(|n| n == nm) {
                     Some(i) => variable_id(i),
@@ -1016,7 +1016,7 @@ impl TemporalCpdag {
 #[pyclass(name = "TemporalPag", from_py_object)]
 #[derive(Clone)]
 pub struct TemporalPag {
-    pub(crate) pag: antecedent_graph::TemporalPag,
+    pub(crate) pag: antecedent::graph::TemporalPag,
     pub(crate) names: Vec<String>,
 }
 
@@ -1060,7 +1060,7 @@ impl TemporalPag {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             require_unique_names(&names)?;
-            let mut g = antecedent_graph::TemporalPag::empty();
+            let mut g = antecedent::graph::TemporalPag::empty();
             let var_of = |nm: &str| -> PyResult<VariableId> {
                 match names.iter().position(|n| n == nm) {
                     Some(i) => variable_id(i),
@@ -1225,7 +1225,7 @@ impl TemporalAdmg {
 type LaggedEdge = (String, u32, String, u32);
 
 fn ensure_lagged_cpdag(
-    g: &mut antecedent_graph::TemporalCpdag,
+    g: &mut antecedent::graph::TemporalCpdag,
     variable: VariableId,
     lag: Lag,
 ) -> PyResult<DenseNodeId> {
@@ -1241,7 +1241,7 @@ fn ensure_lagged_cpdag(
 }
 
 fn ensure_lagged_pag(
-    g: &mut antecedent_graph::TemporalPag,
+    g: &mut antecedent::graph::TemporalPag,
     variable: VariableId,
     lag: Lag,
 ) -> PyResult<DenseNodeId> {

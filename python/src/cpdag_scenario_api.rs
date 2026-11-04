@@ -13,20 +13,23 @@ use crate::transport_common::{
     resolve, resolve_variable_ids, serialization_error, unframe_named_artifact,
 };
 use crate::transport_interference_api::parse_catalog;
-use antecedent_core::{NodeRef, SearchLimits, Value, VariableDomain, VariableId, reason_code};
-use antecedent_estimate::cpdag_scenarios::CpdagScenarioReport;
-use antecedent_estimate::scenario_covariance::ScenarioCovariance;
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_identify::ClassicalTransportQuery;
-use antecedent_identify::sid::cpdag_completion::{
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::estimate::cpdag_scenarios::CpdagScenarioReport;
+use antecedent::estimate::scenario_covariance::ScenarioCovariance;
+use antecedent::execution::SearchLimits;
+use antecedent::identify::ClassicalTransportQuery;
+use antecedent::identify::sid::cpdag_completion::{
     CompletionEvidenceBinding, CpdagCompletionInput, CpdagEvidence, enumerate_cpdag_completions,
 };
-use antecedent_identify::sid::scenarios::ScenarioCoordinate;
-use antecedent_io::IoError;
-use antecedent_io::cpdag_completion_artifact::{CpdagCompletionArtifactWire, CpdagConsumeLimits};
-use antecedent_io::scenario_covariance_artifact::{
+use antecedent::identify::sid::scenarios::ScenarioCoordinate;
+use antecedent::io::IoError;
+use antecedent::io::cpdag_completion_artifact::{CpdagCompletionArtifactWire, CpdagConsumeLimits};
+use antecedent::io::scenario_covariance_artifact::{
     CovarianceSpec, ScenarioCovarianceArtifactWire, ScenarioCovarianceConsumeLimits,
 };
+use antecedent::prelude::{Value, VariableId};
+use antecedent::query::{NodeRef, VariableDomain};
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::sync::Arc;
@@ -105,8 +108,8 @@ fn parse_coordinates(
 
 /// A scenario row's identification status in the shared transport vocabulary.
 fn identification_status(status: &str) -> &'static str {
-    antecedent_core::TransportOutcomeKind::from_identification_status(status)
-        .unwrap_or(antecedent_core::TransportOutcomeKind::Identified)
+    antecedent::query::TransportOutcomeKind::from_identification_status(status)
+        .unwrap_or(antecedent::query::TransportOutcomeKind::Identified)
         .as_str()
 }
 
@@ -216,7 +219,7 @@ impl CpdagScenarioRun {
 type CompletionIds = Vec<(Vec<(VariableId, VariableId)>, Arc<str>)>;
 
 /// Completion ids by their sorted edge lists, for evidence declared by edges.
-fn completion_ids(cpdag: &antecedent_graph::Cpdag) -> Result<CompletionIds, Refusal> {
+fn completion_ids(cpdag: &antecedent::graph::Cpdag) -> Result<CompletionIds, Refusal> {
     let ctx = crate::execution_api::context(0);
     let limits = SearchLimits { operations: 10_000_000, depth: 64 };
     let enumeration =
@@ -232,9 +235,9 @@ fn completion_ids(cpdag: &antecedent_graph::Cpdag) -> Result<CompletionIds, Refu
 fn evidence_from_python(
     mode: &str,
     declared: &[EvidenceTuple<'_>],
-    catalogs: Vec<antecedent_core::EvidenceCatalog>,
+    catalogs: Vec<antecedent::query::EvidenceCatalog>,
     names: &[String],
-    cpdag: &antecedent_graph::Cpdag,
+    cpdag: &antecedent::graph::Cpdag,
 ) -> PyResult<Result<CpdagEvidence, Refusal>> {
     match mode {
         "shared" => {
@@ -276,7 +279,7 @@ fn evidence_from_python(
                             None => {
                                 return Ok(Err(argument_refusal(
                                     reason_code!("invalid_argument"),
-                                    antecedent_identify::sid::cpdag_completion::CPDAG_EVIDENCE_MISMATCH_DETAIL,
+                                    antecedent::identify::sid::cpdag_completion::CPDAG_EVIDENCE_MISMATCH_DETAIL,
                                     "the declared edges are not a completion of this CPDAG",
                                 )));
                             }
@@ -342,7 +345,7 @@ fn cpdag_completion_scenarios_stage(
     if !aligned {
         return Err(crate::value_err("the CPDAG's variable ids must match its name positions"));
     }
-    let named = Admg { admg: antecedent_graph::Admg::empty(), names: names.clone() };
+    let named = Admg { admg: antecedent::graph::Admg::empty(), names: names.clone() };
     let coordinates = parse_coordinates(&coordinates, &names)?;
     let resolved = |variables: &[String]| -> PyResult<Arc<[VariableId]>> {
         variables.iter().map(|n| resolve(&names, n)).collect::<PyResult<Vec<_>>>().map(Arc::from)
@@ -358,7 +361,7 @@ fn cpdag_completion_scenarios_stage(
             None,
             Some(argument_refusal(
                 reason_code!("route_not_supported"),
-                antecedent_core::reason_details::cpdag_scenarios::EXACT_LAWS_ONLY,
+                antecedent::reason::reason_details::cpdag_scenarios::EXACT_LAWS_ONLY,
                 "the completion route evaluates supplied exact laws; counted laws are not supported",
             )),
         ));
@@ -529,7 +532,7 @@ fn scenario_shared_covariance_stage(
                 None,
                 Some(argument_refusal(
                     reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::scenario_covariance::INVALID_DECLARATION,
+                    antecedent::reason::reason_details::scenario_covariance::INVALID_DECLARATION,
                     &e.to_string(),
                 )),
             ));

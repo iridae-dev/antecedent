@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::data::{SamplingRegularity, TableView, TimeDummyEncoding, TimeIndex};
 use antecedent::discovery::{SpaceDummyCiMode, TimeDummyCiMode};
-use antecedent_core::{CausalSchema, Lag, VariableId};
-use antecedent_data::{
-    SamplingRegularity, TableView, TabularData, TimeDummyEncoding, TimeIndex, TimeSeriesData,
-};
-use antecedent_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
+use antecedent::graph::{Dag, DenseNodeId, Lag, TemporalDag, ensure_lagged};
+use antecedent::prelude::{CausalSchema, TabularData, TimeSeriesData, VariableId};
 use pyo3::prelude::*;
 
 use crate::{CausalDataError, py_err};

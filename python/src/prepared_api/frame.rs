@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use antecedent::Study;
-use antecedent_core::CausalSchema;
-use antecedent_data::{TableView, TabularData, TimeSeriesData};
+use antecedent::data::TableView;
+use antecedent::prelude::{CausalSchema, TabularData, TimeSeriesData};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -24,20 +24,16 @@ pub(super) enum FrameInput {
         data: TabularData,
         event_times_ns: Arc<[i64]>,
         align_interval_ns: u64,
-        retention: Option<Arc<antecedent_core::execution::AdmissionLease>>,
+        retention: Option<Arc<antecedent::execution::AdmissionLease>>,
     },
 }
 
 /// Materialized frame data, built without the GIL.
 pub(super) enum FrameData {
     Series(TimeSeriesData),
-    Panel(antecedent_data::PanelData),
-    MultiEnv(antecedent_data::MultiEnvironmentData),
-    Events(
-        antecedent_data::EventData,
-        u64,
-        Option<Arc<antecedent_core::execution::AdmissionLease>>,
-    ),
+    Panel(antecedent::prelude::PanelData),
+    MultiEnv(antecedent::prelude::MultiEnvironmentData),
+    Events(antecedent::prelude::EventData, u64, Option<Arc<antecedent::execution::AdmissionLease>>),
 }
 
 impl FrameInput {
@@ -119,27 +115,27 @@ impl FrameInput {
                     .into_iter()
                     .zip(unit_ids)
                     .map(|(data, unit_id)| {
-                        Ok(antecedent_data::PanelUnit {
+                        Ok(antecedent::prelude::PanelUnit {
                             unit_id,
                             series: series_from_tabular(data)?,
                         })
                     })
                     .collect::<PyResult<Vec<_>>>()?;
                 Ok(FrameData::Panel(
-                    antecedent_data::PanelData::try_new(Arc::from(units)).map_err(py_err)?,
+                    antecedent::prelude::PanelData::try_new(Arc::from(units)).map_err(py_err)?,
                 ))
             }
             Self::MultiEnv(envs) => {
                 let series =
                     envs.into_iter().map(series_from_tabular).collect::<PyResult<Vec<_>>>()?;
                 Ok(FrameData::MultiEnv(
-                    antecedent_data::MultiEnvironmentData::try_new(Arc::from(series))
+                    antecedent::prelude::MultiEnvironmentData::try_new(Arc::from(series))
                         .map_err(py_err)?,
                 ))
             }
             Self::Events { data, event_times_ns, align_interval_ns, retention } => {
                 let events =
-                    antecedent_data::EventData::try_new(data.storage().clone(), event_times_ns)
+                    antecedent::prelude::EventData::try_new(data.storage().clone(), event_times_ns)
                         .map_err(py_err)?;
                 Ok(FrameData::Events(events, align_interval_ns, retention))
             }
@@ -159,7 +155,7 @@ impl FrameData {
 
     pub(super) fn builder(
         self,
-        ctx: &antecedent_core::ExecutionContext,
+        ctx: &antecedent::prelude::ExecutionContext,
     ) -> PyResult<antecedent::StudyBuilder> {
         Ok(match self {
             Self::Series(data) => Study::series(data),

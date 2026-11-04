@@ -2,9 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::data::TableView;
+use antecedent::prelude::{Intervention, TabularData, Value};
+use antecedent::query::{AverageEffectQuery, CausalQuery, ResponseQuery};
 use antecedent::{EstimatorId, IdentifierId, Study};
-use antecedent_core::{AverageEffectQuery, CausalQuery, Intervention, ResponseQuery, Value};
-use antecedent_data::{TableView, TabularData};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 use std::sync::Arc;
@@ -186,7 +187,7 @@ impl PyPreparedAnalysis {
                 let named: Vec<Vec<&str>> =
                     tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
                 let background =
-                    antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                    antecedent::graph::TieredBackground::from_named(data.schema(), &named, within)
                         .map_err(py_err)?;
                 let query = static_ate_query(
                     &data,
@@ -351,8 +352,8 @@ impl PyPreparedAnalysis {
                     intervention_kinds,
                     intervention_parameters,
                     1,
-                    antecedent_core::DerivativeScale::Identity,
-                    antecedent_core::DerivativeWeighting::Observed,
+                    antecedent::query::DerivativeScale::Identity,
+                    antecedent::query::DerivativeWeighting::Observed,
                 )?;
                 let query = response_query(functional, &req.opts);
                 let mut builder = req.opts.apply(with_response_options(
@@ -589,7 +590,7 @@ impl PyPreparedAnalysis {
 /// to intervene on the same variables.
 fn widen_counterfactual(
     query: CausalQuery,
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     extra_outcomes: &[String],
     joint_active: &[(String, f64)],
     joint_control: &[(String, f64)],

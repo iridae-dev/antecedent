@@ -5,8 +5,8 @@ use antecedent::analysis::joint_panel::{
     ChangeComponent, PopulationReferenceAttempt, PopulationReferenceBindings,
     PopulationReferenceDecomposition, ReferenceComponentBindings,
 };
-use antecedent_design::scientific_source::ScientificConsumptionScope;
-use antecedent_graph::SelectionDiagram;
+use antecedent::design::scientific_source::ScientificConsumptionScope;
+use antecedent::graph::SelectionDiagram;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
@@ -38,12 +38,12 @@ fn identified_default() -> bool {
 }
 fn parse(
     text: &str,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<(
     PopulationReferenceBindings,
     SelectionDiagram,
     ScientificConsumptionScope,
-    antecedent_core::execution::AdmissionLease,
+    antecedent::execution::AdmissionLease,
 )> {
     bounded_json(text, "population reference decomposition")?;
     let declaration: Declaration =
@@ -51,16 +51,17 @@ fn parse(
     let worlds = declaration
         .stratum_worlds
         .iter()
-        .map(|row| row.map(antecedent_core::ScientificWorldId::from_raw))
+        .map(|row| row.map(antecedent::scientific::ScientificWorldId::from_raw))
         .collect::<Vec<_>>();
     let hybrids = worlds
         .first()
         .copied()
         .ok_or_else(|| crate::value_err("population reference requires a stratum world basis"))?;
-    let variables =
-        |values: Vec<u32>| values.into_iter().map(antecedent_core::VariableId::from_raw).collect();
+    let variables = |values: Vec<u32>| {
+        values.into_iter().map(antecedent::prelude::VariableId::from_raw).collect()
+    };
     let bindings = PopulationReferenceBindings {
-        baseline: antecedent_core::VariableId::from_raw(declaration.baseline),
+        baseline: antecedent::prelude::VariableId::from_raw(declaration.baseline),
         strata: declaration.strata,
         stratum_worlds: worlds,
         before_weights: declaration.before_weights,
@@ -84,15 +85,15 @@ fn parse(
         .ok_or_else(|| crate::value_err("population graph memory quote overflow"))?;
     let graph_lease = ctx.acquire_admission(0, graph_bytes).map_err(|error| {
         panel_error(match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                antecedent_estimate::joint_panel::PanelError::Cancelled.into()
+            antecedent::execution::AdmissionError::Cancelled => {
+                antecedent::estimate::joint_panel::PanelError::Cancelled.into()
             }
             error => {
-                antecedent_estimate::joint_panel::PanelError::Resource(error.to_string()).into()
+                antecedent::estimate::joint_panel::PanelError::Resource(error.to_string()).into()
             }
         })
     })?;
-    let graph = antecedent_io::admg_from_wire(&antecedent_io_core::wire::AdmgWire {
+    let graph = antecedent::io::admg_from_wire(&antecedent::io::wire::AdmgWire {
         node_count: declaration.diagram.node_count,
         directed: declaration.diagram.directed,
         bidirected: declaration.diagram.bidirected,
@@ -104,7 +105,7 @@ fn parse(
             .diagram
             .selection_targets
             .into_iter()
-            .map(antecedent_core::VariableId::from_raw)
+            .map(antecedent::prelude::VariableId::from_raw)
             .collect::<Vec<_>>(),
     )
     .map_err(|error| crate::value_err(error.to_string()))?;
@@ -117,13 +118,13 @@ fn parse(
     Ok((bindings, diagram, scope, graph_lease))
 }
 fn report(result: &PopulationReferenceDecomposition) -> PyResult<String> {
-    let graph = antecedent_io::admg_to_wire(result.transport.diagram().causal_graph())
+    let graph = antecedent::io::admg_to_wire(result.transport.diagram().causal_graph())
         .map_err(|error| crate::serialization_err(error.to_string()))?;
     let uncertainty = match result.source.as_numerical_source() {
-        antecedent_design::scientific_source::ScientificSourcePayload::Law(law) => {
+        antecedent::design::scientific_source::ScientificSourcePayload::Law(law) => {
             serde_json::json!({"law":law.metadata()})
         }
-        antecedent_design::scientific_source::ScientificSourcePayload::Means(means) => {
+        antecedent::design::scientific_source::ScientificSourcePayload::Means(means) => {
             serde_json::json!({"estimate":format!("{:?}",means.estimate)})
         }
     };
@@ -132,7 +133,7 @@ fn report(result: &PopulationReferenceDecomposition) -> PyResult<String> {
 pub(super) fn execute(
     result: &JointDesignResult,
     text: &str,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<String> {
     let (bindings, diagram, scope, _graph_lease) = parse(text, ctx)?;
     report(
@@ -144,7 +145,7 @@ pub(super) fn execute(
 pub(super) fn export(
     result: &JointDesignResult,
     text: &str,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<Vec<u8>> {
     let (bindings, diagram, scope, _graph_lease) = parse(text, ctx)?;
     result.export_population_reference(&bindings, &diagram, scope, ctx).map_err(panel_error)
@@ -153,7 +154,7 @@ pub(super) fn consume(
     result: &JointDesignResult,
     artifact: &[u8],
     text: &str,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<String> {
     let (bindings, diagram, scope, _graph_lease) = parse(text, ctx)?;
     report(
@@ -200,14 +201,15 @@ fn components(text: &str) -> PyResult<(ReferenceComponentBindings, ScientificCon
     bounded_json(text, "scientific component reference artifact")?;
     let declaration: Components =
         serde_json::from_str(text).map_err(|error| crate::value_err(error.to_string()))?;
-    let variables =
-        |values: Vec<u32>| values.into_iter().map(antecedent_core::VariableId::from_raw).collect();
+    let variables = |values: Vec<u32>| {
+        values.into_iter().map(antecedent::prelude::VariableId::from_raw).collect()
+    };
     Ok((
         ReferenceComponentBindings {
             exposure: variables(declaration.exposure),
             saturation: variables(declaration.saturation),
             mechanism: variables(declaration.mechanism),
-            hybrids: declaration.hybrids.map(antecedent_core::ScientificWorldId::from_raw),
+            hybrids: declaration.hybrids.map(antecedent::scientific::ScientificWorldId::from_raw),
             order: declaration.order,
         },
         if declaration.require_identified {
@@ -220,7 +222,7 @@ fn components(text: &str) -> PyResult<(ReferenceComponentBindings, ScientificCon
 pub(super) fn export_components(
     result: &JointDesignResult,
     text: &str,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<Vec<u8>> {
     let (bindings, scope) = components(text)?;
     result.export_reference_decomposition(&bindings, scope, ctx).map_err(panel_error)
@@ -229,7 +231,7 @@ pub(super) fn consume_components(
     result: &JointDesignResult,
     artifact: &[u8],
     text: &str,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<String> {
     let (bindings, scope) = components(text)?;
     let result = result

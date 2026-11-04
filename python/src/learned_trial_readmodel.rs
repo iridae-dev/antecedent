@@ -1,7 +1,7 @@
 //! Retained trial proof navigation. Reading never reidentifies, fits, or scans rows.
 use super::PreparedLearnedTrial;
+use antecedent::identify::{TransportCertificate, TransportFormula, TransportIdentification};
 use antecedent::{LearnedTrialState, PreparedStudy};
-use antecedent_identify::{TransportCertificate, TransportFormula, TransportIdentification};
 use pyo3::{prelude::*, types::PyString};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -229,14 +229,14 @@ impl PreparedLearnedTrial {
             .iter()
             .map(|o| {
                 let source = match &o.source {
-                    antecedent_core::AssumptionSource::UserDeclared => {
+                    antecedent::schema::AssumptionSource::UserDeclared => {
                         json!({"kind":"user_declared"})
                     }
-                    antecedent_core::AssumptionSource::AlgorithmDefault { algorithm } => {
+                    antecedent::schema::AssumptionSource::AlgorithmDefault { algorithm } => {
                         json!({"kind":"algorithm_default","algorithm":algorithm})
                     }
-                    antecedent_core::AssumptionSource::Artifact => json!({"kind":"artifact"}),
-                    antecedent_core::AssumptionSource::Derived { from } => {
+                    antecedent::schema::AssumptionSource::Artifact => json!({"kind":"artifact"}),
+                    antecedent::schema::AssumptionSource::Derived { from } => {
                         json!({"kind":"derived","from":from})
                     }
                 };
@@ -255,7 +255,7 @@ impl PreparedLearnedTrial {
         };
         let Some(slot) = reasoning.uncertainty.as_ref() else {
             let reason = match &reasoning.uncertainty {
-                antecedent_contract::SlotAvailability::Unavailable { reason } => reason.as_ref(),
+                antecedent::contract::SlotAvailability::Unavailable { reason } => reason.as_ref(),
                 _ => unreachable!("checked slot above"),
             };
             return encode(&unavailable(offset, reason));

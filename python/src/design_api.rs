@@ -11,8 +11,9 @@ use antecedent::design::{
     EnvironmentPlan, ExperimentPlan, GaussianMeanSignal, InterventionDesignEffect,
     MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, SamplingPlan,
 };
-use antecedent_core::{EnvironmentId, ModelId, QueryId, VariableId};
-use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
+use antecedent::inference::{GraphIdentFlag, WeightedGraphSamples};
+use antecedent::prelude::VariableId;
+use antecedent::schema::{EnvironmentId, ModelId, QueryId};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyList, PyModule};
 
@@ -605,10 +606,10 @@ pub(crate) fn ranking_view(ranking: &antecedent::design::ScoredDesignRanking) ->
 
 pub(crate) fn decision_target_digest(
     hex: Option<&str>,
-) -> PyResult<Option<antecedent_core::SemanticDigest>> {
+) -> PyResult<Option<antecedent::scientific::SemanticDigest>> {
     hex.map(|hex| {
-        antecedent_core::digest_from_hex(hex)
-            .map(antecedent_core::SemanticDigest::from_bytes)
+        antecedent::schema::digest_from_hex(hex)
+            .map(antecedent::scientific::SemanticDigest::from_bytes)
             .ok_or_else(|| crate::value_err("decision_target must be 64 hexadecimal characters"))
     })
     .transpose()

@@ -6,26 +6,24 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use antecedent::data::TableView;
 use antecedent::gcm::{
-    ChangeAttributionResult as RustChangeAttributionResult, FittedGcm, RobustChangeOptions,
+    AnomalyScores as RustAnomalyScores, CacheStats,
+    ChangeAttributionResult as RustChangeAttributionResult, ComponentContribution, ComputeBudget,
+    FittedGcm, MechanismAssignment, MechanismFamily, MechanismRegistry, NodeFamilyConstraint,
+    RobustChangeOptions, SelectionOptions, ValidationSplits, ValueBatch,
     rank_root_causes as facade_rank_root_causes,
 };
-use antecedent::{AcceptedGraph, AttributionOutcome, MechanismProgram, SimulationOutcome};
-use antecedent_attribution::{
-    AnomalyScores as RustAnomalyScores, CacheStats, ComponentContribution, ComputeBudget,
-};
-use antecedent_core::{
+use antecedent::graph::Dag;
+use antecedent::prelude::{ExecutionContext, Intervention, TabularData, Value, VariableId};
+use antecedent::query::{
     AllocationMethod, AnomalyAttributionQuery, AttributeTarget, AttributionComponents,
-    ChangeAttributionQuery, ChangeEstimator, ChangeMeasure, ComponentId, ExecutionContext,
-    Intervention, MechanismChangeQuery, MechanismChangeTest, PopulationSelector, ShapleyConfig,
-    SimulationTarget, UnitChangeQuery, Value, ValueExpr, VariableId,
+    ChangeAttributionQuery, ChangeEstimator, ChangeMeasure, MechanismChangeQuery,
+    MechanismChangeTest, PopulationSelector, ShapleyConfig, SimulationTarget, UnitChangeQuery,
+    ValueExpr,
 };
-use antecedent_data::{TableView, TabularData};
-use antecedent_graph::Dag;
-use antecedent_model::{
-    MechanismAssignment, MechanismFamily, MechanismRegistry, NodeFamilyConstraint,
-    SelectionOptions, ValidationSplits, ValueBatch,
-};
+use antecedent::schema::ComponentId;
+use antecedent::{AcceptedGraph, AttributionOutcome, MechanismProgram, SimulationOutcome};
 use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
@@ -1564,7 +1562,7 @@ impl Selection {
         data: TabularData,
         names: Vec<String>,
         accepted: Option<AcceptedGraph>,
-        ctx: &antecedent_core::ExecutionContext,
+        ctx: &antecedent::prelude::ExecutionContext,
     ) -> PyResult<PyFittedGcm> {
         let selection =
             if self.is_standard() { None } else { Some((&self.registry, &self.options)) };
@@ -1808,7 +1806,7 @@ impl<T> FitCache<T> {
 
 struct PolicyMaterialization {
     fitted: Arc<FittedGcm>,
-    _retention: antecedent_core::execution::AdmissionLease,
+    _retention: antecedent::execution::AdmissionLease,
 }
 
 /// Checked topology and program over owned observations, before statistical fitting.
@@ -1845,7 +1843,7 @@ impl PyPreparedPolicyAnalysis {
         data.schema().id_of(outcome).map_err(py_err)?;
         let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
         // Lower expressions and their dependency ordering now, without mechanisms or samples.
-        let interventions = antecedent_io::policy_program_artifact::interventions_from_named_json(
+        let interventions = antecedent::io::policy_program_artifact::interventions_from_named_json(
             policies,
             &|name| data.schema().id_of(name).ok().map(VariableId::raw),
         )
@@ -1853,7 +1851,7 @@ impl PyPreparedPolicyAnalysis {
         detach_catch(py, move || {
             let graph = dag_from_edges(&data, &edges)?;
             let topology =
-                antecedent_model::CompiledCausalModel::compile(graph.clone()).map_err(py_err)?;
+                antecedent::gcm::CompiledCausalModel::compile(graph.clone()).map_err(py_err)?;
             let template = antecedent::gcm::PreparedPolicy::prepare(&topology, interventions)
                 .map_err(py_err)?;
             Ok(Self {
@@ -1888,15 +1886,15 @@ impl PyPreparedPolicyAnalysis {
 
     #[getter]
     fn identity(&self) -> Option<String> {
-        antecedent_io::policy_program_artifact::policy_program_identity(
+        antecedent::io::policy_program_artifact::policy_program_identity(
             self.template.interventions(),
         )
         .ok()
-        .map(|digest| antecedent_core::to_hex(&digest))
+        .map(|digest| antecedent::schema::to_hex(&digest))
     }
 
     fn export_program<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        let bytes = antecedent_io::policy_program_artifact::encode_policy_program(
+        let bytes = antecedent::io::policy_program_artifact::encode_policy_program(
             self.template.interventions(),
         )
         .map_err(crate::intervention_program_api::io_err)?;
@@ -1937,8 +1935,8 @@ impl PyPreparedPolicyAnalysis {
         let fitted = detach_catch(py, || {
             let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
             // Admission also checks cancellation on a reused fit, before publishing a run.
-            let admission_error = |error: antecedent_core::execution::AdmissionError| match error {
-                antecedent_core::execution::AdmissionError::Cancelled => {
+            let admission_error = |error: antecedent::execution::AdmissionError| match error {
+                antecedent::execution::AdmissionError::Cancelled => {
                     py_err(antecedent::CausalError::Cancelled { stage: "policy_fit" })
                 }
                 error => crate::CausalResourceError::new_err(error.to_string()),

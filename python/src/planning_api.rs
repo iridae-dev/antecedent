@@ -24,7 +24,7 @@ type Object = Map<String, Value>;
 fn invalid(message: impl AsRef<str>) -> PyErr {
     crate::with_reason_code(
         value_err(format!("planning request: {}", message.as_ref())),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 

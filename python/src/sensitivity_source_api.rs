@@ -3,16 +3,16 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::bridge::serialization;
 use crate::sensitivity_decision_api::PySensitivityArtifact;
-use antecedent_core::reason_code;
-use antecedent_io::IoError;
-use antecedent_validate::JointDeviationSpec;
+use antecedent::io::IoError;
+use antecedent::reason::reason_code;
+use antecedent::validate::JointDeviationSpec;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 #[derive(Clone)]
 pub(crate) struct SourceRecipe {
     pub(crate) prepared: antecedent::PreparedZTransport,
     pub(crate) spec: JointDeviationSpec,
-    pub(crate) context: antecedent_core::ExecutionContext,
+    pub(crate) context: antecedent::prelude::ExecutionContext,
 }
 impl PySensitivityArtifact {
     pub(crate) fn checked_source(
@@ -98,7 +98,7 @@ fn export_sensitivity_source<'py>(
     let source = artifact.checked_source(py)?.ok_or_else(|| {
         crate::with_reason_code(
             crate::value_err(
-                antecedent_core::reason_details::sensitivity_source::SOURCE_UNAVAILABLE,
+                antecedent::reason::reason_details::sensitivity_source::SOURCE_UNAVAILABLE,
             ),
             reason_code!("invalid_argument"),
         )
@@ -110,7 +110,9 @@ fn export_sensitivity_source<'py>(
 fn consume_sensitivity_source(py: Python<'_>, data: &[u8]) -> PyResult<PySensitivityArtifact> {
     if data.len() > antecedent::analysis::sensitivity_source::MAX_BYTES {
         return Err(crate::with_reason_code(
-            crate::value_err(antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED),
+            crate::value_err(
+                antecedent::reason::reason_details::sensitivity_source::LIMITS_EXCEEDED,
+            ),
             reason_code!("invalid_argument"),
         ));
     }

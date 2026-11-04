@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{ContrastFunctional, PyJointPanelResult, context, facade, panel_error};
 use crate::evidence_ledger_api::EvidenceLedgerHandle;
-use antecedent_contract::evidence_ledger::SourceId;
+use antecedent::analysis::evidence_ledger::SourceId;
 use pyo3::{prelude::*, types::PyBytes};
 use serde::Deserialize;
 
@@ -35,7 +35,7 @@ fn parse_update(declaration_json: &str) -> PyResult<facade::PanelExperimentUpdat
     )?;
     let d: Declaration =
         serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
-    let dependency = antecedent_contract::evidence_ledger::parse_digest_hex(&d.mapping_dependency)
+    let dependency = antecedent::contract::evidence_ledger::parse_digest_hex(&d.mapping_dependency)
         .ok_or_else(|| crate::value_err("invalid mapping dependency digest"))?;
     Ok(facade::PanelExperimentUpdate {
         bridge: crate::scientific_bridge_api::parse_contract(&d.bridge)?,
@@ -68,7 +68,7 @@ impl PyJointPanelResult {
         let functional: ContrastFunctional =
             serde_json::from_str(functional_json).map_err(|e| crate::value_err(e.to_string()))?;
         let quantity = self.inner.experiment_quantity(&functional.native()).map_err(panel_error)?;
-        serde_json::to_string(&antecedent_io::quantity_wire::ScientificQuantityWire::from(
+        serde_json::to_string(&antecedent::io::quantity_wire::ScientificQuantityWire::from(
             &quantity,
         ))
         .map_err(|e| crate::value_err(e.to_string()))
@@ -154,24 +154,22 @@ struct FutureDeclaration {
     candidates: Vec<Future>,
 }
 struct Utility;
-impl antecedent_design::decision::Utility<Action, facade::PanelExperimentDecisionState>
-    for Utility
-{
+impl antecedent::design::Utility<Action, facade::PanelExperimentDecisionState> for Utility {
     fn evaluate_batch(
         &self,
         actions: &[Action],
         states: &[facade::PanelExperimentDecisionState],
         out: &mut [f64],
-    ) -> Result<(), antecedent_design::DesignError> {
+    ) -> Result<(), antecedent::design::DesignError> {
         if out.len() != actions.len() * states.len() {
-            return Err(antecedent_design::DesignError::Shape(
+            return Err(antecedent::design::DesignError::Shape(
                 "terminal utility output axes".into(),
             ));
         }
         for (i, action) in actions.iter().enumerate() {
             for (j, state) in states.iter().enumerate() {
                 if action.coefficients.len() != state.responses.len() {
-                    return Err(antecedent_design::DesignError::Shape(
+                    return Err(antecedent::design::DesignError::Shape(
                         "terminal utility response coordinates".into(),
                     ));
                 }
@@ -188,7 +186,7 @@ impl antecedent_design::decision::Utility<Action, facade::PanelExperimentDecisio
     }
 }
 type FutureProblem = (
-    antecedent_design::decision::DecisionProblem<Action, facade::PanelExperimentDecisionState>,
+    antecedent::design::DecisionProblem<Action, facade::PanelExperimentDecisionState>,
     Vec<facade::PanelFutureSample>,
 );
 fn future_problem(declaration_json: &str) -> PyResult<FutureProblem> {
@@ -214,11 +212,8 @@ fn future_problem(declaration_json: &str) -> PyResult<FutureProblem> {
     {
         return Err(crate::value_err("terminal action identities must be unique"));
     }
-    let problem = antecedent_design::decision::DecisionProblem::new(
-        d.actions,
-        std::sync::Arc::new(Utility),
-        vec![],
-    );
+    let problem =
+        antecedent::design::DecisionProblem::new(d.actions, std::sync::Arc::new(Utility), vec![]);
     let candidates = d
         .candidates
         .into_iter()
@@ -268,7 +263,7 @@ impl PyPanelExperiment {
         crate::detach_catch(py, || {
             let (prior, posterior) = self.inner.response_means(ledger).map_err(panel_error)?;
             let law = self.inner.numerical_law_source(ledger).map_err(panel_error)?;
-            Ok(serde_json::json!({"prior_means":prior,"posterior_means":posterior,"posterior_weights":law.metadata().weights,"scope":self.inner.scope(),"quantities":self.inner.quantities(ledger).map_err(panel_error)?.iter().map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+            Ok(serde_json::json!({"prior_means":prior,"posterior_means":posterior,"posterior_weights":law.metadata().weights,"scope":self.inner.scope(),"quantities":self.inner.quantities(ledger).map_err(panel_error)?.iter().map(antecedent::io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
         })
     }
     fn decide(
@@ -277,12 +272,12 @@ impl PyPanelExperiment {
         contract_json: &str,
         ledger: PyRef<'_, EvidenceLedgerHandle>,
     ) -> PyResult<String> {
-        let contract = antecedent_design::decision_artifact::contract_from_json(contract_json)
+        let contract = antecedent::design::decision_artifact::contract_from_json(contract_json)
             .map_err(|e| crate::value_err(e.to_string()))?;
         let ledger = ledger.ledger().clone();
         crate::detach_catch(py, || {
             let result = self.inner.decide(&contract, &ledger).map_err(panel_error)?;
-            antecedent_design::decision_artifact::result_to_json(
+            antecedent::design::decision_artifact::result_to_json(
                 &result.result,
                 self.inner.numerical_law_source(&ledger).map_err(panel_error)?,
             )
@@ -353,7 +348,7 @@ struct FutureStudiesDeclaration {
     studies: Vec<FutureStudyDeclaration>,
 }
 fn future_regime(d: FutureRegimeDeclaration) -> PyResult<facade::PanelFutureRegime> {
-    let dependency = antecedent_contract::evidence_ledger::parse_digest_hex(&d.mapping_dependency)
+    let dependency = antecedent::contract::evidence_ledger::parse_digest_hex(&d.mapping_dependency)
         .ok_or_else(|| crate::value_err("invalid mapping dependency digest"))?;
     Ok(facade::PanelFutureRegime {
         functional: d.functional.native(),
@@ -404,7 +399,7 @@ impl PyPanelExperiment {
         {
             return Err(crate::value_err("terminal action identities must be unique"));
         }
-        let problem = antecedent_design::decision::DecisionProblem::new(
+        let problem = antecedent::design::DecisionProblem::new(
             d.actions,
             std::sync::Arc::new(Utility),
             vec![],
@@ -448,7 +443,7 @@ impl super::designs::PyJointDesignResult {
         }
         let source = self.inner.posterior_source().map_err(panel_error)?;
         let quantity = facade::JointLawExperimentResult::quantity(&source).map_err(panel_error)?;
-        serde_json::to_string(&antecedent_io::quantity_wire::ScientificQuantityWire::from(
+        serde_json::to_string(&antecedent::io::quantity_wire::ScientificQuantityWire::from(
             &quantity,
         ))
         .map_err(|e| crate::value_err(e.to_string()))
@@ -526,7 +521,7 @@ impl PyDesignExperiment {
         {
             return Err(crate::value_err("terminal action identities must be unique"));
         }
-        let problem = antecedent_design::decision::DecisionProblem::new(
+        let problem = antecedent::design::DecisionProblem::new(
             d.actions,
             std::sync::Arc::new(Utility),
             vec![],
@@ -566,12 +561,12 @@ impl PyDesignExperiment {
         contract_json: &str,
         ledger: PyRef<'_, EvidenceLedgerHandle>,
     ) -> PyResult<String> {
-        let contract = antecedent_design::decision_artifact::contract_from_json(contract_json)
+        let contract = antecedent::design::decision_artifact::contract_from_json(contract_json)
             .map_err(|e| crate::value_err(e.to_string()))?;
         let ledger = ledger.ledger().clone();
         crate::detach_catch(py, || {
             let result = self.inner.decide(&contract, &ledger).map_err(panel_error)?;
-            antecedent_design::decision_artifact::result_to_json(
+            antecedent::design::decision_artifact::result_to_json(
                 &result.result,
                 self.inner.numerical_law_source(&ledger).map_err(panel_error)?,
             )
@@ -623,7 +618,7 @@ impl super::designs::PyNativeJointDesignResult {
         let binding: facade::NativeExperimentBinding =
             serde_json::from_str(binding_json).map_err(|e| crate::value_err(e.to_string()))?;
         let quantity = self.inner.experiment_quantity(&binding).map_err(panel_error)?;
-        serde_json::to_string(&antecedent_io::quantity_wire::ScientificQuantityWire::from(
+        serde_json::to_string(&antecedent::io::quantity_wire::ScientificQuantityWire::from(
             &quantity,
         ))
         .map_err(|e| crate::value_err(e.to_string()))
@@ -711,7 +706,7 @@ impl PyNativeExperiment {
         {
             return Err(crate::value_err("terminal action identities must be unique"));
         }
-        let problem = antecedent_design::decision::DecisionProblem::new(
+        let problem = antecedent::design::DecisionProblem::new(
             d.actions,
             std::sync::Arc::new(Utility),
             vec![],
@@ -751,12 +746,12 @@ impl PyNativeExperiment {
         contract_json: &str,
         ledger: PyRef<'_, EvidenceLedgerHandle>,
     ) -> PyResult<String> {
-        let contract = antecedent_design::decision_artifact::contract_from_json(contract_json)
+        let contract = antecedent::design::decision_artifact::contract_from_json(contract_json)
             .map_err(|e| crate::value_err(e.to_string()))?;
         let ledger = ledger.ledger().clone();
         crate::detach_catch(py, || {
             let result = self.inner.decide(&contract, &ledger).map_err(panel_error)?;
-            antecedent_design::decision_artifact::result_to_json(
+            antecedent::design::decision_artifact::result_to_json(
                 &result.result,
                 self.inner.numerical_law_source(&ledger).map_err(panel_error)?,
             )

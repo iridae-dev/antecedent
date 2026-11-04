@@ -15,7 +15,7 @@ use antecedent::analysis::mnar_sensitivity::{
     MnarSensitivityError, MnarSensitivityResult, MnarSensitivitySpec, MnarTipping, MnarTippingSide,
     mnar_sensitivity,
 };
-use antecedent_core::reason_code;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 
@@ -162,7 +162,7 @@ fn mnar_sensitivity_run(
                         None,
                         Some(refusal_json(
                             reason_code!("route_not_supported"),
-                            antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_MECHANISM,
+                            antecedent::reason::reason_details::mnar_sensitivity::UNSUPPORTED_MECHANISM,
                             &format!(
                                 "`{name}` is not a supported departure model; the supported models are {:?}",
                                 MnarModel::ALL.map(MnarModel::name)

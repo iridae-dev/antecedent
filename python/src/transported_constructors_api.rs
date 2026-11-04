@@ -15,6 +15,7 @@
 use antecedent::analysis::adaptive_inference::{
     AdaptiveInferenceRefusal, AdaptiveInferenceSession,
 };
+use antecedent::analysis::evidence_ledger::SourceId;
 use antecedent::analysis::sequential_evaluation as seq;
 use antecedent::analysis::transported_constructors::{
     ActionAlphabet, ActionUtility, AdaptiveTransportRequest, AdaptiveTransportedValue,
@@ -27,14 +28,13 @@ use antecedent::analysis::transported_constructors::{
     transported_synthesis_response, verify_adaptive_transport, verify_temporal_policy,
     verify_transported_policy,
 };
-use antecedent_contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
-use antecedent_contract::evidence_ledger::SourceId;
-use antecedent_core::SemanticDigest;
-use antecedent_io::adaptive_monitoring_contract_artifact::{
+use antecedent::contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
+use antecedent::inference::synthesis::{MeanPrior, TauPrior};
+use antecedent::io::adaptive_monitoring_contract_artifact::{
     DeclarationWire, declaration_from_wire,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_stats::synthesis::{MeanPrior, TauPrior};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::SemanticDigest;
 use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -49,7 +49,7 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 /// `(response, evaluation json, refusal json)`.
 type Built = (Option<TransportedResponseHandle>, Option<String>, Option<String>);
 
-fn refused(refusal: &antecedent_contract::ExternalRefusal) -> Built {
+fn refused(refusal: &antecedent::contract::ExternalRefusal) -> Built {
     (None, None, Some(external_refusal_json(refusal)))
 }
 
@@ -653,7 +653,7 @@ fn adaptive_trial_construct(
 /// The trial's unit and stratum lists are caller-sized: bound them by the adaptive-unit limit
 /// every other adaptive path enforces.
 fn check_trial_units(unit_strata: &[usize], stratum_labels: &[String]) -> PyResult<()> {
-    let limit = antecedent_stats::adaptive_inference::MAX_ADAPTIVE_UNITS;
+    let limit = antecedent::inference::adaptive_inference::MAX_ADAPTIVE_UNITS;
     if unit_strata.len() > limit || stratum_labels.len() > limit {
         return Err(crate::value_err(format!(
             "an adaptive trial transport takes at most {limit} units and strata"
@@ -781,7 +781,7 @@ fn surrogate_bridge_construct(
 ) -> PyResult<Built> {
     let wire: BridgeIn = declaration(bridge_json, "surrogate bridge")?;
     let quantity = |wire: ScientificQuantityWire| {
-        antecedent_contract::ScientificQuantity::try_from(wire).map_err(crate::value_err)
+        antecedent::scientific::ScientificQuantity::try_from(wire).map_err(crate::value_err)
     };
     let bridge = TransportedSurrogateBridge {
         surrogate: quantity(wire.surrogate)?,

@@ -7,9 +7,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::file_table::{checked_projection, checked_push_filter};
-use antecedent_data::column_closure::{
-    ClosureInputs, ColumnClosure, ColumnFilter, ColumnRole, ObservationFrame,
+use antecedent::analysis::file_table::{
+    ClosureInputs, ColumnClosure, ColumnFilter, ColumnRole, ObservationFrame, checked_projection,
+    checked_push_filter,
 };
 use pyo3::prelude::*;
 
@@ -19,7 +19,7 @@ use crate::value_err_code;
 type ClosureDuties = (Vec<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>);
 
 fn refuse(message: impl std::fmt::Display) -> PyErr {
-    value_err_code(antecedent_core::reason_code!("invalid_argument"), message.to_string())
+    value_err_code(antecedent::reason::reason_code!("invalid_argument"), message.to_string())
 }
 
 fn roles(names: Vec<String>) -> Vec<ColumnRole> {

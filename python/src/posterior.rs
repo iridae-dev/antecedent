@@ -117,7 +117,7 @@ impl PosteriorArtifact {
                 treatment_contrast,
                 preparation: None,
             };
-            antecedent_io_core::posterior::validate_posterior_meta(&meta, Some(&draws))
+            antecedent::io::posterior::validate_posterior_meta(&meta, Some(&draws))
                 .map_err(|error| crate::value_err(error.to_string()))?;
             Ok(Self {
                 n_draws,
@@ -207,7 +207,7 @@ impl PosteriorArtifact {
                 treatment_contrast,
                 preparation: None,
             };
-            antecedent_io_core::posterior::validate_posterior_meta(&meta, None)
+            antecedent::io::posterior::validate_posterior_meta(&meta, None)
                 .map_err(|error| crate::value_err(error.to_string()))?;
             Ok(Self {
                 n_draws,

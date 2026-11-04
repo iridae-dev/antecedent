@@ -2,11 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance, VariableId};
-use antecedent_data::{NetworkData, NetworkEdge, TabularData};
-use antecedent_estimate::{
-    ObservationalExposureSpec, estimate_observational_exposure as estimate_native,
+use antecedent::estimate::{
+    NetworkData, NetworkEdge, ObservationalExposureSpec,
+    estimate_observational_exposure as estimate_native,
 };
+use antecedent::prelude::{TabularData, VariableId};
+use antecedent::query::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 

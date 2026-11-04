@@ -5,14 +5,14 @@
 //! raise as its own exception type.
 
 use crate::bridge::{check_declared_len, check_declared_size};
-use antecedent_io::external_binding_wire::{
+use antecedent::io::external_binding_wire::{
     ColumnResponseWire, ContractWire, MAX_BINDING_WIRE_BYTES, RefusalWire, ResponseWire,
     bind_column, bind_response,
 };
-use antecedent_io::external_claim_artifact::{
+use antecedent::io::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimIdentity, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
 };
-use antecedent_io::external_column_claim_artifact::{
+use antecedent::io::external_column_claim_artifact::{
     ExternalColumnClaimArtifact, ExternalColumnIdentity, MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES,
     MAX_EXTERNAL_COLUMN_ROWS,
 };

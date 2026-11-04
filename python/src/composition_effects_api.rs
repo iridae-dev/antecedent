@@ -10,21 +10,20 @@
 //! No interval, posterior or calibration record is produced.
 
 use antecedent::analysis::composition_verification::{
-    contract_effects, freshness_effects, invalidation_effects, ledger_effects, query_revalidation,
-    stage_effects, stage_node, stage_node_with_standing,
+    ClaimStanding, NodeKind, SupportStanding, TrustStanding, contract_effects, freshness_effects,
+    invalidation_effects, ledger_effects, query_revalidation, stage_effects, stage_node,
+    stage_node_with_standing,
 };
+use antecedent::analysis::evidence_ledger::ResultId;
 use antecedent::analysis::selective_discovery::revalidate_after_discovery;
-use antecedent_contract::claim::ClaimEnvelope;
-use antecedent_contract::composition_verification::{
-    ClaimStanding, NodeKind, SupportStanding, TrustStanding,
-};
-use antecedent_contract::evidence_ledger::ResultId;
-use antecedent_core::recalc::{ChangeKind, Stage, StageIdentity};
-use antecedent_core::{ContractIdentities, ModelId, QueryId, SemanticDigest, StateVersion};
-use antecedent_io::recalc_receipt_artifact::{
+use antecedent::contract::ClaimEnvelope;
+use antecedent::execution::recalc::{ChangeKind, Stage, StageIdentity};
+use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, DeclaredStageWire, plan_from_wire, stage_from_label,
 };
-use antecedent_state::{ChangedInput, InvalidationLog, InvalidationTarget};
+use antecedent::schema::{ContractIdentities, ModelId, QueryId, StateVersion};
+use antecedent::scientific::SemanticDigest;
+use antecedent::state::{ChangedInput, InvalidationLog, InvalidationTarget};
 use pyo3::prelude::*;
 use serde_json::{Map, Value as Json, json};
 
@@ -40,7 +39,7 @@ use crate::scientific_bridge_api::parse_claim;
 type Declared = (Option<String>, Option<String>);
 
 fn invalid(detail: &str, message: &str, offending: Option<&str>) -> String {
-    refusal_json(antecedent_core::reason_code!("invalid_argument"), detail, message, offending)
+    refusal_json(antecedent::reason::reason_code!("invalid_argument"), detail, message, offending)
 }
 
 fn flag(map: &Map<String, Json>, key: &str) -> PyResult<bool> {
@@ -141,7 +140,7 @@ fn composition_plan_declaration(
                 return Ok((
                     None,
                     Some(invalid(
-                        antecedent_core::reason_details::composition_verification::STAGE_NOT_IN_PLAN,
+                        antecedent::reason::reason_details::composition_verification::STAGE_NOT_IN_PLAN,
                         &format!("the requested workflow does not contain stage `{label}`"),
                         Some(&label),
                     )),
@@ -220,7 +219,7 @@ fn identities_of(value: &Json) -> PyResult<ContractIdentities> {
 struct ClaimBinding {
     key: String,
     claim: ClaimEnvelope,
-    freshness: antecedent_contract::claim::ClaimFreshness,
+    freshness: antecedent::contract::claim::ClaimFreshness,
     current: Option<ContractIdentities>,
 }
 

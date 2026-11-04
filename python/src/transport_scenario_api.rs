@@ -5,18 +5,21 @@ use crate::transport_common::{
 };
 use crate::transport_statistical_api::parse_statistical_input;
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{SearchLimits, Value, VariableDomain, VariableId, reason_code};
-use antecedent_estimate::transport_scenarios::ScenarioSetReport;
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{
-    ClassicalTransportQuery, ConditionalTransportQuery,
-    sid::scenarios::{ScenarioCoordinate, TransportScenario, TransportScenarioSet},
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::estimate::transport_scenarios::ScenarioSetReport;
+use antecedent::execution::SearchLimits;
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::sid::scenarios::{
+    ScenarioCoordinate, TransportScenario, TransportScenarioSet,
 };
-use antecedent_io::IoError;
-use antecedent_io::transport_scenario_artifact::{
+use antecedent::identify::{ClassicalTransportQuery, ConditionalTransportQuery};
+use antecedent::io::IoError;
+use antecedent::io::transport_scenario_artifact::{
     TransportScenarioArtifactWire, TransportScenarioConsumeLimits, scenario_refusal,
 };
+use antecedent::prelude::{Value, VariableId};
+use antecedent::query::VariableDomain;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -90,7 +93,7 @@ fn parse_coordinates(
 /// `unevaluated`); the execution statuses `unsupported_provider` and
 /// `support_failure` belong to identified scenarios whose evaluation then failed.
 fn scenario_identification_status(status: &str) -> PyResult<&'static str> {
-    use antecedent_core::TransportOutcomeKind;
+    use antecedent::query::TransportOutcomeKind;
     if matches!(status, "unsupported_provider" | "support_failure") {
         return Ok(TransportOutcomeKind::Identified.as_str());
     }
@@ -172,7 +175,7 @@ fn law_sequence<'py>(laws: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
 pub(crate) struct PreparedTransportScenariosStage {
     inner: antecedent::PreparedTransportScenarios,
     graph: Admg,
-    catalog: antecedent_core::EvidenceCatalog,
+    catalog: antecedent::query::EvidenceCatalog,
     last: Option<ScenarioSetReport>,
     max_support_rows: usize,
     memory_bytes: Option<u64>,
@@ -190,7 +193,7 @@ impl PreparedTransportScenariosStage {
     pub(crate) fn prepared_and_report(
         &self,
     ) -> Option<(
-        &antecedent_estimate::transport_scenarios::PreparedScenarioSet,
+        &antecedent::estimate::transport_scenarios::PreparedScenarioSet,
         &ScenarioSetReport,
         &[String],
     )> {
@@ -202,13 +205,13 @@ impl PreparedTransportScenariosStage {
 
 /// Supplied exact laws, or `StatisticalTransportData` for the empirical plug-in.
 enum Provider {
-    Exact(antecedent_expr::ExactTransportData),
-    Empirical(antecedent_estimate::StatisticalTransportInput),
+    Exact(antecedent::estimate::ExactTransportData),
+    Empirical(antecedent::estimate::StatisticalTransportInput),
 }
 
 fn parse_provider(
     laws: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<Provider> {
@@ -278,7 +281,7 @@ impl PreparedTransportScenariosStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let report = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a scenario artifact",
             )
         })?;
@@ -460,7 +463,7 @@ fn consume_transport_scenarios_artifact(
             TransportScenarioArtifactWire::consume_with_limits(&bytes, limits, &ctx)
                 .map_err(scenario_error)?;
         for scenario in &wire.scenarios {
-            let graph = antecedent_io::admg_from_wire(&scenario.graph).map_err(error)?;
+            let graph = antecedent::io::admg_from_wire(&scenario.graph).map_err(error)?;
             crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         }
         // The frame's names must be exactly the ones the identity binds: the

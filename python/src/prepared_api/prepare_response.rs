@@ -3,11 +3,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::Study;
-use antecedent_core::{
-    CausalQuery, ContinuousDomain, FeedbackDeclaration, GridSpec, InitialLaw, ResponseFunctional,
+use antecedent::data::TableView;
+use antecedent::query::{
+    CausalQuery, ContinuousDomain, FeedbackDeclaration, GridSpec, ResponseFunctional,
     ResponseQuery, TemporalResponseSpec,
 };
-use antecedent_data::TableView;
+use antecedent::scientific::InitialLaw;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -219,8 +220,8 @@ impl PyPreparedAnalysis {
                     intervention_kinds,
                     intervention_parameters,
                     1,
-                    antecedent_core::DerivativeScale::Identity,
-                    antecedent_core::DerivativeWeighting::Observed,
+                    antecedent::query::DerivativeScale::Identity,
+                    antecedent::query::DerivativeWeighting::Observed,
                 )?;
                 let temporal_policy =
                     crate::temporal_support::policy_at_lag(policy, treatment_lag)?;
@@ -395,7 +396,7 @@ impl PyPreparedAnalysis {
                     )
                 };
                 builder = if as_average_effect {
-                    let mut average = antecedent_core::AverageEffectQuery::with_levels(
+                    let mut average = antecedent::query::AverageEffectQuery::with_levels(
                         t_id,
                         y_id,
                         control_level,

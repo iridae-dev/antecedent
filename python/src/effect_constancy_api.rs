@@ -34,7 +34,7 @@ fn failure(error: &EffectConstancyArtifactError) -> PyErr {
     match error {
         EffectConstancyArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("effect_constancy.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -86,7 +86,7 @@ fn consume_effect_constancy_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("effect_constancy.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }

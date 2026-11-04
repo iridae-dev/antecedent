@@ -11,19 +11,18 @@
 //! and is published only inside a measured design, and every other request comes
 //! back as the typed refusals of the contract.
 
+use antecedent::analysis::evidence_ledger::SourceId;
 use antecedent::analysis::predictive_assessment::{
-    PredictiveAssessmentConsumeLimits, PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
-    ScoreIntervalQuery, consume_predictive_assessment_artifact, fit_declaration_from_ledger,
-    observation_keys_from_ledger,
-};
-use antecedent_contract::evidence_ledger::SourceId;
-use antecedent_validate::predictive_assessment::{
     AssessmentIdentity, DependenceDeclaration, EnsembleCrpsForm, FiniteTruth, FitDeclaration,
     ForecastLaw, Horizon, LawSource, ObservationKey, Outcome, OverlapPolicy, OverlapStatus,
-    PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws,
-    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalRequest, ScoreKind,
-    ValidationDesign, distribution_drift, exact_expected_score, score_case,
+    PredictiveAssessmentConsumeLimits, PredictiveAssessmentRefusal, PredictiveAssessmentReport,
+    PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws, PreparedPredictiveAssessment,
+    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalQuery,
+    ScoreIntervalRequest, ScoreKind, ValidationDesign, consume_predictive_assessment_artifact,
+    distribution_drift, exact_expected_score, fit_declaration_from_ledger,
+    observation_keys_from_ledger,
 };
+use antecedent::validate::predictive_assessment::score_case;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -53,7 +52,7 @@ fn refusal_json(refusal: &PredictiveAssessmentRefusal) -> String {
 }
 
 fn contract_refusal(
-    error: &antecedent_validate::predictive_assessment::PredictiveAssessmentError,
+    error: &antecedent::validate::predictive_assessment::PredictiveAssessmentError,
 ) -> String {
     json!({
         "code": error.code,
@@ -434,7 +433,7 @@ fn overlap_json(status: &OverlapStatus) -> Json {
     }
 }
 
-fn drift_json(drift: &antecedent_validate::predictive_assessment::DistributionDrift) -> Json {
+fn drift_json(drift: &antecedent::analysis::predictive_assessment::DistributionDrift) -> Json {
     json!({
         "label": drift.label,
         "calibration": drift.calibration,

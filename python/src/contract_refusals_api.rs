@@ -10,22 +10,21 @@
 
 use std::sync::Arc;
 
-use antecedent_contract::rewrite_legality::{
+use antecedent::contract::rewrite_legality::{
     FrameContents, NuisanceEffect, PreparationEffect, PreservationAxis, PreservedIdentities,
     PushdownEffect, Rewrite, RewriteRefusal, SummaryEffect, TileEffect,
 };
-use antecedent_contract::summary_observation::{
+use antecedent::contract::summary_observation::{
     Dependence, FrequentistSummary, LikelihoodUpdateAdmission, Origin, SamplingApproximation,
     Selection, SummaryObservationError, SummaryObservationModel, SummaryUse,
 };
-use antecedent_core::reason_code;
-use antecedent_io_core::feature_version::{
+use antecedent::io::feature_version::{
     FeatureRead, FeatureRefusal, FeatureVersion, RequestedVersion, classify_feature_read,
 };
-use antecedent_io_core::{FormatVersion, SemanticVersion};
-use antecedent_state::retention::{
-    RetainedOperation, RetentionMode, RetentionPolicy, RetentionRefusal,
-};
+use antecedent::io::{FormatVersion, SemanticVersion};
+use antecedent::reason::reason_code;
+use antecedent::state::RetentionPolicy;
+use antecedent::state::retention::{RetainedOperation, RetentionMode, RetentionRefusal};
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
@@ -782,14 +781,15 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use std::sync::Arc;
 
-    use antecedent_contract::rewrite_legality::{FrameContents, PreservationAxis};
-    use antecedent_contract::summary_observation::{
+    use antecedent::contract::rewrite_legality::{FrameContents, PreservationAxis};
+    use antecedent::contract::summary_observation::{
         FrequentistSummary, FrequentistSummaryKind, REPORT_AS_FREQUENTIST_INTERVAL, SummaryUse,
         USE_AS_LIKELIHOOD_UPDATE,
     };
-    use antecedent_io_core::feature_version::{FeatureRead, FeatureRefusal, FeatureVersion};
-    use antecedent_io_core::{FormatVersion, STABLE_FORMAT, SemanticVersion};
-    use antecedent_state::retention::{RetainedOperation, RetentionMode, RetentionPolicy};
+    use antecedent::io::feature_version::{FeatureRead, FeatureRefusal, FeatureVersion};
+    use antecedent::io::{FormatVersion, STABLE_FORMAT, SemanticVersion};
+    use antecedent::state::RetentionPolicy;
+    use antecedent::state::retention::{RetainedOperation, RetentionMode};
 
     use super::{
         Rewrite, adapt_summary, nuisance_effect, preparation_effect, pushdown_effect, read_feature,

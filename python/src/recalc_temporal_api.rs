@@ -5,12 +5,11 @@ use crate::recalc_bounds::check_values;
 use crate::recalc_family_api::{caps, payload, resume, run_error};
 use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use antecedent::analysis::recalc_temporal::{
-    TemporalOutcome, TemporalRequest, TemporalRunError, TemporalSession,
-    consume_temporal_recalc_artifact, execute_temporal_with_receipt,
+    TemporalHistoryWire, TemporalOutcome, TemporalRequest, TemporalRunError, TemporalSession,
+    TemporalUnitWire, consume_temporal_recalc_artifact, execute_temporal_with_receipt,
 };
-use antecedent_core::ExecutionContext;
-use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
-use antecedent_io::temporal_recalc_artifact::{TemporalHistoryWire, TemporalUnitWire};
+use antecedent::io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
+use antecedent::prelude::ExecutionContext;
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
@@ -41,7 +40,7 @@ fn request(
     let mut request: TemporalRequest = parse_json(text, "temporal histories")?;
     if !request.units.is_empty() {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_DECLARATION,
+            antecedent::reason::reason_details::recalc::INVALID_DECLARATION,
             "temporal histories travel as columns, not in the declaration",
         ));
     }
@@ -58,7 +57,7 @@ fn request(
         || total != Some(rows)
     {
         return Err(invalid(
-            antecedent_core::reason_details::recalc::INVALID_DECLARATION,
+            antecedent::reason::reason_details::recalc::INVALID_DECLARATION,
             "history columns must agree with the per-unit window counts",
         ));
     }
@@ -94,8 +93,8 @@ fn request(
 fn gated_code(cause: &antecedent::CausalError) -> Option<&'static str> {
     match cause.peeled() {
         antecedent::CausalError::Estimate(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "not_supported" => Some(*code),
         _ => None,
     }
@@ -108,20 +107,20 @@ fn error(error: &TemporalRunError) -> String {
             refusal_json(
                 gated_code(cause).unwrap_or_default(),
                 "inference",
-                antecedent_core::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
+                antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "not_supported" =>
         {
             refusal_json(
                 code,
                 "inference",
-                antecedent_core::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
+                antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
                 None,
                 None,
                 &error.to_string(),
@@ -129,106 +128,106 @@ fn error(error: &TemporalRunError) -> String {
             )
         }
         TemporalRunError::Recalc(error) => {
-            run_error(error, antecedent_core::reason_details::recalc::TEMPORAL_FIT_REFUSED)
+            run_error(error, antecedent::reason::reason_details::recalc::TEMPORAL_FIT_REFUSED)
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "route_not_supported" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("route_not_supported"),
+                antecedent::reason::reason_code!("route_not_supported"),
                 "identification",
-                antecedent_core::reason_details::recalc::TEMPORAL_SCOPE_UNSUPPORTED,
+                antecedent::reason::reason_details::recalc::TEMPORAL_SCOPE_UNSUPPORTED,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "invalid_argument" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 "score_artifact",
-                antecedent_core::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
+                antecedent::reason::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_missing_evidence" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_missing_evidence"),
+                antecedent::reason::reason_code!("transport_missing_evidence"),
                 "identification",
-                antecedent_core::reason_details::recalc::TEMPORAL_MISSING_EVIDENCE,
+                antecedent::reason::reason_details::recalc::TEMPORAL_MISSING_EVIDENCE,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_budget_cancel" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_budget_cancel"),
+                antecedent::reason::reason_code!("transport_budget_cancel"),
                 "identification",
-                antecedent_core::reason_details::recalc::TEMPORAL_BUDGET_CANCEL,
+                antecedent::reason::reason_details::recalc::TEMPORAL_BUDGET_CANCEL,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_support_failure" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_support_failure"),
+                antecedent::reason::reason_code!("transport_support_failure"),
                 "law",
-                antecedent_core::reason_details::recalc::TEMPORAL_SUPPORT_FAILURE,
+                antecedent::reason::reason_details::recalc::TEMPORAL_SUPPORT_FAILURE,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_missing_provider" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_missing_provider"),
+                antecedent::reason::reason_code!("transport_missing_provider"),
                 "score_artifact",
-                antecedent_core::reason_details::recalc::TEMPORAL_MISSING_PROVIDER,
+                antecedent::reason::reason_details::recalc::TEMPORAL_MISSING_PROVIDER,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_unsupported_evaluator" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_unsupported_evaluator"),
+                antecedent::reason::reason_code!("transport_unsupported_evaluator"),
                 "score_artifact",
-                antecedent_core::reason_details::recalc::TEMPORAL_EVALUATOR_UNSUPPORTED,
+                antecedent::reason::reason_details::recalc::TEMPORAL_EVALUATOR_UNSUPPORTED,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_numerical_failure" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_numerical_failure"),
+                antecedent::reason::reason_code!("transport_numerical_failure"),
                 "score_artifact",
-                antecedent_core::reason_details::recalc::TEMPORAL_NUMERICAL_FAILURE,
+                antecedent::reason::reason_details::recalc::TEMPORAL_NUMERICAL_FAILURE,
                 None,
                 None,
                 &error.to_string(),
@@ -236,81 +235,81 @@ fn error(error: &TemporalRunError) -> String {
             )
         }
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "route_not_supported" => refusal_json(
-            antecedent_core::reason_code!("route_not_supported"),
+            antecedent::reason::reason_code!("route_not_supported"),
             "data_snapshot",
-            antecedent_core::reason_details::recalc::TEMPORAL_HISTORY_UNSUPPORTED,
+            antecedent::reason::reason_details::recalc::TEMPORAL_HISTORY_UNSUPPORTED,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "transport_support_failure" => refusal_json(
-            antecedent_core::reason_code!("transport_support_failure"),
+            antecedent::reason::reason_code!("transport_support_failure"),
             "law",
-            antecedent_core::reason_details::recalc::TEMPORAL_SUPPORT_FAILURE,
+            antecedent::reason::reason_details::recalc::TEMPORAL_SUPPORT_FAILURE,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "invalid_argument" => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "data_snapshot",
-            antecedent_core::reason_details::recalc::TEMPORAL_DATA_INVALID,
+            antecedent::reason::reason_details::recalc::TEMPORAL_DATA_INVALID,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "cancelled_no_claim" => refusal_json(
-            antecedent_core::reason_code!("cancelled_no_claim"),
+            antecedent::reason::reason_code!("cancelled_no_claim"),
             "score_artifact",
-            antecedent_core::reason_details::recalc::CANCELLED,
+            antecedent::reason::reason_details::recalc::CANCELLED,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "not_supported" => refusal_json(
             code,
             "inference",
-            antecedent_core::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
+            antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Data(_)
-            | antecedent_estimate::EstimationError::Query(_),
+            antecedent::estimate::EstimationError::Data(_)
+            | antecedent::estimate::EstimationError::Query(_),
         ) => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "data_snapshot",
-            antecedent_core::reason_details::recalc::TEMPORAL_DATA_INVALID,
+            antecedent::reason::reason_details::recalc::TEMPORAL_DATA_INVALID,
             None,
             None,
             &error.to_string(),
             None,
         ),
         _ => refusal_json(
-            antecedent_core::reason_code!("route_not_supported"),
+            antecedent::reason::reason_code!("route_not_supported"),
             "score_artifact",
-            antecedent_core::reason_details::recalc::TEMPORAL_FIT_REFUSED,
+            antecedent::reason::reason_details::recalc::TEMPORAL_FIT_REFUSED,
             None,
             None,
             &error.to_string(),
@@ -319,9 +318,9 @@ fn error(error: &TemporalRunError) -> String {
     }
 }
 fn outcome(
-    previous: &antecedent_core::recalc::StageIdentities,
+    previous: &antecedent::execution::recalc::StageIdentities,
     session: &TemporalSession,
-    capabilities: &antecedent_core::recalc::RecalcCapabilities,
+    capabilities: &antecedent::execution::recalc::RecalcCapabilities,
     out: &TemporalOutcome,
 ) -> PyResult<RunPayload> {
     payload(
@@ -416,7 +415,7 @@ impl PyTemporalSession {
                     None,
                     Some(run_error(
                         &RecalcRunError::Request(RecalcRequestCode::Cancelled),
-                        antecedent_core::reason_details::recalc::TEMPORAL_FIT_REFUSED,
+                        antecedent::reason::reason_details::recalc::TEMPORAL_FIT_REFUSED,
                     )),
                 ));
             }
@@ -436,7 +435,7 @@ impl PyTemporalSession {
     ) -> PyResult<ReplayPayload> {
         if artifact.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid(
-                antecedent_core::reason_details::recalc::LIMITS_EXCEEDED,
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
                 "temporal artifact exceeds byte bound",
             ));
         }
@@ -444,7 +443,7 @@ impl PyTemporalSession {
         let ctx = context(seed, threads);
         crate::detach_catch(py, move || match consume_temporal_recalc_artifact(&bytes, &ctx) {
             Ok((session, out)) => {
-                let previous = antecedent_core::recalc::StageIdentities::new();
+                let previous = antecedent::execution::recalc::StageIdentities::new();
                 let (result, receipt, refusal) =
                     outcome(&previous, &session, &caps(session.boundary()), &out)?;
                 Ok((Some(Self { inner: session }), result, receipt, refusal))
@@ -471,7 +470,7 @@ impl PyTemporalSession {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)>
     {
-        let config: antecedent_io::temporal_interval_artifact::IntervalConfigWire =
+        let config: antecedent::io::temporal_interval_artifact::IntervalConfigWire =
             parse_json(config_json, "checked temporal interval config")?;
         let config = config.to_config().map_err(crate::py_msg)?;
         crate::measured_inference_api::before_work(
@@ -504,20 +503,20 @@ impl PyTemporalSession {
         if self.inner.source_factor().is_none() {
             return error(&TemporalRunError::Recalc(
                 antecedent::analysis::recalc_receipt::RecalcRunError::NoLiveState(
-                    antecedent_core::recalc::Stage::ScoreArtifact,
+                    antecedent::execution::recalc::Stage::ScoreArtifact,
                 ),
             ));
         }
-        let refused = TemporalRunError::Io(antecedent_io::IoError::Refused {
-            code: antecedent_core::reason_code!("route_not_supported"),
+        let refused = TemporalRunError::Io(antecedent::io::IoError::Refused {
+            code: antecedent::reason::reason_code!("route_not_supported"),
             message:
                 "temporal_interval.interval_not_supported: use the measured original-source interval entry"
                     .into(),
         });
         refusal_json(
-            antecedent_core::reason_code!("route_not_supported"),
+            antecedent::reason::reason_code!("route_not_supported"),
             "inference",
-            antecedent_core::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
+            antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
             None,
             None,
             &refused.to_string(),

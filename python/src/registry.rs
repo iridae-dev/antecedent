@@ -215,7 +215,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transported_constructors_api::register(m)?;
     decision_reliability_api::register(m)?;
     program_claims_api::register(m)?;
-    m.add("__version__", antecedent_core::VERSION)?;
+    m.add("__version__", antecedent::schema::VERSION)?;
     // Surfaced so the Python package can refuse to stay silent when an
     // unoptimized extension sneaks in: a stale editable install rebuilt through
     // PEP 517/660 defaults to Cargo's debug profile, which keeps every estimate
@@ -291,7 +291,7 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     )?;
     dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
     // Propensity overlap default shared by every propensity-score estimator.
-    let Some((clip, trim)) = antecedent_estimate::default_propensity_overlap().bounds() else {
+    let Some((clip, trim)) = antecedent::estimate::default_propensity_overlap().bounds() else {
         return Err(value_err("the default propensity overlap policy requires diagnostics"));
     };
     dict.set_item("overlap_clip", clip)?;
@@ -304,7 +304,7 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
 
 #[pyfunction]
 fn identification_status_names() -> Vec<String> {
-    use antecedent_core::IdentificationStatus as S;
+    use antecedent::schema::IdentificationStatus as S;
     fn name(status: S) -> String {
         match status {
             S::NonparametricallyIdentified
@@ -332,7 +332,7 @@ fn identification_status_names() -> Vec<String> {
 /// list `CausalUnsupportedError(reason_code=...)` validates against.
 #[pyfunction]
 fn runtime_refusal_codes() -> Vec<&'static str> {
-    antecedent_core::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
+    antecedent::reason::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
 }
 
 /// The committed host-integration JSON Schema, exactly as generated.

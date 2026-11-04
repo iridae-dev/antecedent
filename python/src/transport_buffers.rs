@@ -1,5 +1,5 @@
 //! Bulk numeric transport inputs bypass JSON; Rust owns each detached snapshot.
-use antecedent_estimate::{SmoothedDoseInput, TrialAipwInput};
+use antecedent::estimate::{SmoothedDoseInput, TrialAipwInput};
 use numpy::PyReadonlyArray1;
 use pyo3::{prelude::*, types::PyDict};
 
@@ -55,7 +55,7 @@ pub(crate) fn trial(
     let data = payload.cast::<PyDict>()?;
     let sampling: String = required(data, "sampling")?.extract()?;
     if continuous {
-        antecedent_estimate::parse_learned_continuous_sampling(&sampling)
+        antecedent::estimate::parse_learned_continuous_sampling(&sampling)
             .map_err(crate::transport_common::error)?;
     }
     Ok(TrialAipwInput {
@@ -73,7 +73,7 @@ pub(crate) fn smoothed(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<Sm
     let payload = data.call_method1("_buffers", (names.to_vec(),))?;
     let data = payload.cast::<PyDict>()?;
     let sampling: String = required(data, "sampling")?.extract()?;
-    antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling(&sampling)
+    antecedent::estimate::smoothed_dose::parse_smoothed_dose_sampling(&sampling)
         .map_err(crate::transport_common::error)?;
     Ok(SmoothedDoseInput {
         features: required(data, "features")?.extract()?,

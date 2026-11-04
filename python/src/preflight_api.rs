@@ -7,12 +7,12 @@
 
 use std::sync::Arc;
 
+use antecedent::data::TableView;
+use antecedent::prelude::{CausalSchema, VariableId};
 use antecedent::{
     CausalError, ColumnPriority, CostModel, EstimatorId, PreflightInput, RankDropPolicy,
     estimate_with_rank_drop, fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
-use antecedent_core::{CausalSchema, VariableId};
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use serde::Serialize;
 
@@ -439,7 +439,7 @@ fn policy_for(schema: &CausalSchema, priority: Option<Vec<String>>) -> PyResult<
 
 /// Structured refusal fields as JSON (`null` and empty lists for absent entries).
 pub(crate) fn refusal_fields_value(
-    fields: &antecedent_estimate::RefusalFields,
+    fields: &antecedent::estimate::RefusalFields,
 ) -> serde_json::Value {
     serde_json::json!({
         "stage": fields.stage,
@@ -468,7 +468,7 @@ pub(crate) fn refusal_fields_value(
 /// Structured refusal fields as a Python dict (`None` and empty lists for absent entries).
 pub(crate) fn refusal_fields_dict<'py>(
     py: Python<'py>,
-    fields: &antecedent_estimate::RefusalFields,
+    fields: &antecedent::estimate::RefusalFields,
 ) -> PyResult<Bound<'py, PyAny>> {
     py.import("json")?.call_method1("loads", (refusal_fields_value(fields).to_string(),))
 }
@@ -479,7 +479,7 @@ pub(crate) fn refusal_fields_dict<'py>(
 /// `refusal_fields = None` class default registered with the errors.
 pub(crate) fn with_refusal_fields(
     err: PyErr,
-    fields: Option<&antecedent_estimate::RefusalFields>,
+    fields: Option<&antecedent::estimate::RefusalFields>,
 ) -> PyErr {
     if let Some(fields) = fields {
         Python::attach(|py| {
@@ -617,7 +617,7 @@ impl PyPreparedBatch {
 type CostModelParts = (String, String, u64, Vec<(String, f64, f64)>);
 
 fn cost_model_error(error: &antecedent::CostModelError) -> PyErr {
-    crate::value_err_code(antecedent_core::reason_code!("invalid_argument"), error.to_string())
+    crate::value_err_code(antecedent::reason::reason_code!("invalid_argument"), error.to_string())
 }
 
 fn model_from_parts(
@@ -659,7 +659,7 @@ fn parse_cost_model(text: &str) -> PyResult<CostModelParts> {
 
 /// A table and the resolved columns of a binary-effect design.
 struct BoundDesign {
-    data: antecedent_data::TabularData,
+    data: antecedent::prelude::TabularData,
     treatment: VariableId,
     outcome: VariableId,
     adjustment: Vec<VariableId>,

@@ -15,10 +15,10 @@ use antecedent::analysis::{
     DecisionArtifact, FlagshipDependence, FlagshipError, FlagshipWorkflow, MixedDecision,
     load_decision, replay_decision,
 };
-use antecedent_contract::mixed_module::{
+use antecedent::contract::mixed_module::{
     CutFeedback, GaussianLaw, MixedModulePolicy, SharedParameterModel,
 };
-use antecedent_core::ExecutionContext;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
@@ -87,7 +87,7 @@ fn classified(error: &FlagshipError) -> Result<String, PyErr> {
         FlagshipError::Route(detail)
         | FlagshipError::Dependence(detail)
         | FlagshipError::Policy(detail) => Ok(refusal(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "mixed_decision.invalid_request",
             detail,
             "supply a request the workflow can run: a lawful covariance, a finite positive \
@@ -190,8 +190,8 @@ fn policy_of(policy_json: Option<&str>) -> PyResult<MixedModulePolicy> {
     }
 }
 
-fn evaluation_json(evaluation: &antecedent_design::decision_eval::DecisionResult) -> Json {
-    use antecedent_design::decision_eval::Verdict;
+fn evaluation_json(evaluation: &antecedent::design::decision_eval::DecisionResult) -> Json {
+    use antecedent::design::decision_eval::Verdict;
     let (verdict, chosen): (&str, Vec<&str>) = match &evaluation.verdict {
         Verdict::UniquelyOptimal(action) => ("uniquely_optimal", vec![action.as_str()]),
         Verdict::Indistinguishable(actions) => {

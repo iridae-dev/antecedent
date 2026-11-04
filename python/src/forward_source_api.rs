@@ -21,9 +21,9 @@ use antecedent::analysis::inverse_sources::{
     transported_source, verify_observational,
 };
 use antecedent::analysis::mechanism_composition::CompositionQueryWire;
-use antecedent_core::reason_code;
-use antecedent_design::decision_artifact::contract_from_json_refusal;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -145,7 +145,7 @@ fn forward_source_composed(
         .map(|wire| {
             Ok(ComposedActionQuery {
                 action_id: wire.action_id,
-                coordinate: antecedent_contract::ScientificQuantity::try_from(wire.coordinate)
+                coordinate: antecedent::scientific::ScientificQuantity::try_from(wire.coordinate)
                     .map_err(crate::value_err)?,
                 query: wire.query,
                 level_values: wire.level_values,
@@ -379,7 +379,7 @@ fn scenario_query_of(text: &str) -> PyResult<ObservationalScenarioQuery> {
     let wire: ScenarioQueryIn = serde_json::from_str(text)
         .map_err(|e| crate::value_err(format!("invalid scenario query: {e}")))?;
     let quantity = |wire: ScientificQuantityWire| {
-        antecedent_contract::ScientificQuantity::try_from(wire).map_err(crate::value_err)
+        antecedent::scientific::ScientificQuantity::try_from(wire).map_err(crate::value_err)
     };
     let event = match wire.event.direction.as_str() {
         "at_least" => OutcomeEvent::AtLeast(wire.event.threshold),

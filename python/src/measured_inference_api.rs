@@ -1,7 +1,6 @@
 //! Factory-only measured scalar carrier and bounded fresh native consumer.
-use antecedent_io::measured_inference::{
-    MAX_MEASURED_ARTIFACT_BYTES, MeasuredExpectation, MeasuredInference,
-};
+use antecedent::analysis::cohort_decision::MeasuredInference;
+use antecedent::io::measured_inference::{MAX_MEASURED_ARTIFACT_BYTES, MeasuredExpectation};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::sync::{Arc, OnceLock};
@@ -11,7 +10,7 @@ enum NativeAuthority {
     Checked(antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal),
 }
 impl NativeAuthority {
-    fn report(&self) -> &antecedent_io::measured_inference::MeasuredInferenceReport {
+    fn report(&self) -> &antecedent::io::measured_inference::MeasuredInferenceReport {
         match self {
             Self::Io(value) => value.report(),
             Self::Checked(value) => value.report(),
@@ -85,53 +84,54 @@ impl NativeMeasuredInference {
             let bytes = self.authority.source_artifact();
             match self.authority.report().route.as_str() {
                 "joint_bayesian" => {
-                    let wire = antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::decode(bytes).map_err(crate::transport_common::error)?;
+                    let wire = antecedent::io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::decode(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "learned_joint" => {
-                    let wire = antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::decode(bytes).map_err(crate::transport_common::error)?;
+                    let wire = antecedent::io::learned_joint_transport_artifact::LearnedJointArtifactWire::decode(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "nested_fisher" => {
-                    let wire: antecedent_io::nested_markov_artifact::NestedFisherArtifact =
-                        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::io::nested_markov_artifact::NestedFisherArtifact =
+                        antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "nested_bayesian" => {
-                    let wire: antecedent_io::nested_markov_bayesian_artifact::Artifact =
-                        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::io::nested_markov_bayesian_artifact::Artifact =
+                        antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "sampled_recovery" => {
-                    let wire: antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::io::sampled_recovery_artifact::SampledRecoveryArtifactWire = antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "temporal_interval" => {
-                    let wire: antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::io::temporal_interval_artifact::TemporalIntervalArtifactWire = antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "sampled_counterfactual_transport" => {
-                    let wire = antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::decode(bytes).map_err(|e| { let (code, message) = e.refusal(); crate::transport_counterfactual_api::io_refusal(code, message) })?;
+                    let wire = antecedent::io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::decode(bytes).map_err(|e| { let (code, message) = e.refusal(); crate::transport_counterfactual_api::io_refusal(code, message) })?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "cohort_interval" => {
-                    let wire: antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::analysis::cohort_decision::CohortIntervalArtifactWire =
+                        antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "count_fitted_interval" => {
-                    let wire: antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::analysis::count_fitted_observation::CountFittedIntervalArtifactWire = antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "adaptive_interval" => {
-                    let wire = antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
+                    let wire = antecedent::io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "choice_interval" => {
-                    let wire = antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
+                    let wire = antecedent::io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "categorical_prior_predictive_interval" => {
-                    let source = antecedent_core::categorical_candidate_contract::CategoricalCandidateSource::decode(bytes).map_err(crate::value_err)?;
+                    let source = antecedent::schema::categorical_candidate_contract::CategoricalCandidateSource::decode(bytes).map_err(crate::value_err)?;
                     serde_json::to_string(&serde_json::json!({
                         "snapshot": source.snapshot(),
                         "outcome": source.outcomes(),
@@ -142,8 +142,8 @@ impl NativeMeasuredInference {
                     .map_err(crate::py_msg)
                 }
                 "mnar_fixed_shift_interval" => {
-                    let ctx = antecedent_core::ExecutionContext::production_default(0);
-                    let decoded = antecedent_io::mnar_candidate_source::decode_source(bytes, &ctx)
+                    let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+                    let decoded = antecedent::io::mnar_candidate_source::decode_source(bytes, &ctx)
                         .map_err(crate::transport_common::error)?;
                     let source = decoded.source();
                     let rows: Vec<_> = source
@@ -169,13 +169,13 @@ impl NativeMeasuredInference {
                     .map_err(crate::py_msg)
                 }
                 "split_effect" => {
-                    let wire: antecedent_io::measured_inference::split_effect::SplitEffectSource =
-                        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::io::measured_inference::split_effect::SplitEffectSource =
+                        antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 "split_parent_set_effect" => {
-                    let wire: antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource =
-                        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    let wire: antecedent::io::measured_inference::split_parent_set_effect::ParentSetEffectSource =
+                        antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
                 _ => Err(crate::value_err("measured_inference.source_report_not_supported")),
@@ -200,7 +200,7 @@ pub(crate) fn before_work(
     if cancel.is_some_and(|token| token.inner.is_cancelled()) {
         return Err(crate::with_reason_code(
             crate::CausalCancelledError::new_err("measured_inference.cancelled before native work"),
-            antecedent_core::reason_code!("cancelled_no_claim"),
+            antecedent::reason::reason_code!("cancelled_no_claim"),
         ));
     }
     let planned = u64::try_from(bytes)
@@ -215,13 +215,13 @@ pub(crate) fn before_work(
     }
     Ok(())
 }
-pub(crate) fn check_cancelled(ctx: &antecedent_core::ExecutionContext) -> PyResult<()> {
+pub(crate) fn check_cancelled(ctx: &antecedent::prelude::ExecutionContext) -> PyResult<()> {
     if ctx.cancellation.is_cancelled() {
         return Err(crate::with_reason_code(
             crate::CausalCancelledError::new_err(
                 "measured_inference.cancelled before returning a claim",
             ),
-            antecedent_core::reason_code!("cancelled_no_claim"),
+            antecedent::reason::reason_code!("cancelled_no_claim"),
         ));
     }
     Ok(())
@@ -231,7 +231,7 @@ pub(crate) fn context(
     seed: u64,
     memory: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> antecedent_core::ExecutionContext {
+) -> antecedent::prelude::ExecutionContext {
     let mut ctx = crate::py_execution_context_cancel(seed, 1, cancel);
     ctx.set_shared_memory_limit(memory);
     ctx

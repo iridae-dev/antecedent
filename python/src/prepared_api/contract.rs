@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::PreparedStudy;
-use antecedent_core::ExecutionContext;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 
 use crate::response_api::{ResponseAnalysisResult, attach_study_response_meta, response_result};
@@ -26,7 +26,7 @@ pub(crate) fn response_from_retained(
     let response = result.response().cloned().ok_or_else(|| {
         crate::value_err("prepared response estimate did not carry a response payload")
     })?;
-    let name_of = |id: antecedent_core::VariableId| {
+    let name_of = |id: antecedent::prelude::VariableId| {
         names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
     };
     let treatments = result.treatment.map(name_of).into_iter().collect();
@@ -53,18 +53,18 @@ pub(crate) fn response_from_retained(
 
 pub(crate) fn parse_transform_intent(
     intent: &str,
-) -> PyResult<antecedent_contract::TransformIntent> {
+) -> PyResult<antecedent::prelude::TransformIntent> {
     let intent = match intent {
-        "display_precision" => antecedent_contract::TransformIntent::DisplayPrecision,
-        "compatible_data_replace" => antecedent_contract::TransformIntent::CompatibleDataReplace,
-        "retarget" => antecedent_contract::TransformIntent::Retarget,
-        "filter_display" => antecedent_contract::TransformIntent::FilterDisplay,
-        "filter_population" => antecedent_contract::TransformIntent::FilterPopulation,
-        "new_conditional_query" => antecedent_contract::TransformIntent::NewConditionalQuery,
-        "change_graph" => antecedent_contract::TransformIntent::ChangeGraph,
-        "change_prior" => antecedent_contract::TransformIntent::ChangePrior,
-        "change_physical_policy" => antecedent_contract::TransformIntent::ChangePhysicalPolicy,
-        "average_unweighted_class" => antecedent_contract::TransformIntent::AverageUnweightedClass,
+        "display_precision" => antecedent::prelude::TransformIntent::DisplayPrecision,
+        "compatible_data_replace" => antecedent::prelude::TransformIntent::CompatibleDataReplace,
+        "retarget" => antecedent::prelude::TransformIntent::Retarget,
+        "filter_display" => antecedent::prelude::TransformIntent::FilterDisplay,
+        "filter_population" => antecedent::prelude::TransformIntent::FilterPopulation,
+        "new_conditional_query" => antecedent::prelude::TransformIntent::NewConditionalQuery,
+        "change_graph" => antecedent::prelude::TransformIntent::ChangeGraph,
+        "change_prior" => antecedent::prelude::TransformIntent::ChangePrior,
+        "change_physical_policy" => antecedent::prelude::TransformIntent::ChangePhysicalPolicy,
+        "average_unweighted_class" => antecedent::prelude::TransformIntent::AverageUnweightedClass,
         other => {
             return Err(crate::value_err(format!("unknown transform intent {other:?}")));
         }
@@ -72,7 +72,7 @@ pub(crate) fn parse_transform_intent(
     Ok(intent)
 }
 pub(crate) fn transform_report_map(
-    report: &antecedent_contract::TransformationReport,
+    report: &antecedent::contract::TransformationReport,
 ) -> std::collections::HashMap<String, String> {
     let mut out = std::collections::HashMap::new();
     out.insert("intent".into(), report.intent.as_str().to_string());
@@ -81,7 +81,7 @@ pub(crate) fn transform_report_map(
     }
     out.insert("refused".into(), report.refused.to_string());
     if let Some(refusal) = &report.refusal {
-        if let Some((code, _)) = antecedent_core::reason_code::split_prefix(refusal) {
+        if let Some((code, _)) = antecedent::reason::reason_code::split_prefix(refusal) {
             out.insert("refusal_code".into(), code.to_string());
         }
         out.insert("refusal".into(), refusal.to_string());

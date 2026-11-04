@@ -74,9 +74,9 @@ fn measurement_pooled_differential_transport(
     if threads == Some(0) {
         return Err(crate::value_err("threads must be positive"));
     }
-    let ctx = antecedent_core::ExecutionContext::production(
+    let ctx = antecedent::prelude::ExecutionContext::production(
         seed,
-        threads.unwrap_or_else(antecedent_core::default_user_threads),
+        threads.unwrap_or_else(antecedent::execution::default_user_threads),
     );
     let sources: Vec<PopulationValidation> = sources
         .into_iter()

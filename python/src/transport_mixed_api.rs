@@ -5,15 +5,16 @@ use crate::transport_common::{
 };
 use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, RegimeId, SearchLimits, SearchReceipt, Value, VariableId,
-};
-use antecedent_expr::{Assignment, ExactEvaluationLimits};
-use antecedent_identify::{
+use antecedent::estimate::{Assignment, ExactEvaluationLimits};
+use antecedent::execution::{SearchLimits, SearchReceipt};
+use antecedent::identify::{
     MixedQuantity, MixedSourceDecision, MixedSourceDerivation, MixedSourceQuery,
     ZTransportSourceSpec, bind_mixed_source_catalog, decide_mixed_source, render_quantity,
 };
-use antecedent_io::mixed_source_artifact::{MixedSourceArtifactWire, MixedSourceConsumeLimits};
+use antecedent::io::mixed_source_artifact::{MixedSourceArtifactWire, MixedSourceConsumeLimits};
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::query::EvidenceCatalog;
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -53,7 +54,7 @@ fn quantity_json(quantity: &MixedQuantity, names: &[String]) -> serde_json::Valu
     })
 }
 
-fn stages_json(stages: &[antecedent_identify::MixedStageRecord]) -> Vec<serde_json::Value> {
+fn stages_json(stages: &[antecedent::identify::MixedStageRecord]) -> Vec<serde_json::Value> {
     stages.iter().map(|s| serde_json::json!({"stage": s.stage, "outcome": s.outcome})).collect()
 }
 
@@ -182,7 +183,7 @@ fn decision_json(
 }
 
 fn point_json(
-    distribution: &antecedent_expr::ExactDistribution,
+    distribution: &antecedent::estimate::ExactDistribution,
     names: &[String],
 ) -> serde_json::Value {
     serde_json::json!({
@@ -196,7 +197,7 @@ fn point_json(
 /// under `requests`.
 fn points_json(
     requests: &[Assignment],
-    distributions: &[antecedent_expr::ExactDistribution],
+    distributions: &[antecedent::estimate::ExactDistribution],
     names: &[String],
 ) -> serde_json::Value {
     let mut payload = point_json(&distributions[0], names);
@@ -247,8 +248,9 @@ fn parse_requests(names: &[String], assignments: &Bound<'_, PyAny>) -> PyResult<
 /// The typed refusal of preparing a decision that did not identify: the
 /// decision's own frozen (reason code, `mixed_search.*` detail) pair.
 fn not_identified(decision: &MixedSourceDecision) -> PyErr {
-    let code =
-        decision.reason_code().unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+    let code = decision
+        .reason_code()
+        .unwrap_or(antecedent::reason::reason_code!("transport_not_certified"));
     let detail = decision.detail_code().unwrap_or_default();
     let route = match decision {
         MixedSourceDecision::NamedRoute { route, .. } => format!(" (use the {route} route)"),
@@ -263,10 +265,10 @@ fn not_identified(decision: &MixedSourceDecision) -> PyErr {
 /// A decision error: a declared bound the query exceeds, or a model artifact
 /// offered as an experimental law, is `route_not_supported` naming the detail;
 /// anything else keeps its identification mapping.
-fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
+fn decision_error(e: antecedent::identify::IdentificationError) -> PyErr {
     match e {
-        antecedent_identify::IdentificationError::UnsupportedInput { code } => {
-            crate::refusal(antecedent_core::reason_code!("route_not_supported"), code)
+        antecedent::identify::IdentificationError::UnsupportedInput { code } => {
+            crate::refusal(antecedent::reason::reason_code!("route_not_supported"), code)
         }
         other => error(other),
     }
@@ -277,7 +279,7 @@ fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
 struct MixedSourceStage {
     decision: MixedSourceDecision,
     graph: Admg,
-    shared: antecedent_graph::Admg,
+    shared: antecedent::graph::Admg,
     catalog: EvidenceCatalog,
     search: SearchLimits,
     max_support_rows: usize,
@@ -383,7 +385,7 @@ impl MixedSourceStage {
         seed: u64,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedMixedSourceStage> {
-        antecedent_core::support_gate::require_supported_unscoped(
+        antecedent::execution::support_gate::require_supported_unscoped(
             "mixed_source.counted_laws_unsupported",
             &["mixed_source.counted_law_plugin_check"],
         )
@@ -466,7 +468,7 @@ impl PreparedMixedSourceStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a mixed-source artifact",
             )
         })?;
@@ -622,7 +624,7 @@ fn consume_mixed_source_artifact(
         let ctx: ExecutionContext = execution_context(0, memory_bytes, cancel);
         let consumed =
             MixedSourceArtifactWire::consume_with_limits(&bytes, limits, &ctx).map_err(error)?;
-        let graph = antecedent_io::admg_from_wire(&consumed.wire.graph).map_err(error)?;
+        let graph = antecedent::io::admg_from_wire(&consumed.wire.graph).map_err(error)?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be the mapping the verified identity binds.
         consumed.wire.check_variable_names(&names).map_err(error)?;

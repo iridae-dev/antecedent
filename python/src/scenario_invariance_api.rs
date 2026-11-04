@@ -7,12 +7,13 @@
 //! hands the structure to Python as JSON.
 
 use crate::bridge::RefusalJson;
-use antecedent_core::{VariableId, reason_code};
-use antecedent_estimate::EstimationError;
-use antecedent_estimate::scenario_invariance_report::{EnvelopeSide, ScenarioSetInvarianceReport};
-use antecedent_identify::sid::scenario_invariance::{
+use antecedent::estimate::EstimationError;
+use antecedent::estimate::scenario_invariance_report::{EnvelopeSide, ScenarioSetInvarianceReport};
+use antecedent::identify::sid::scenario_invariance::{
     InvarianceBody, InvarianceReport, ObstructionWitness,
 };
+use antecedent::prelude::VariableId;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 
@@ -138,7 +139,7 @@ fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyRes
             None,
             Some(refusal_json(
                 reason_code!("invalid_argument"),
-                antecedent_core::reason_details::scenario_invariance::WRONG_RESULT_TYPE,
+                antecedent::reason::reason_details::scenario_invariance::WRONG_RESULT_TYPE,
                 "supply the stage returned by prepare_transport_scenarios",
             )),
         ));
@@ -148,7 +149,7 @@ fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyRes
             None,
             Some(refusal_json(
                 reason_code!("not_executed"),
-                antecedent_core::reason_details::scenario_invariance::NOT_ESTIMATED,
+                antecedent::reason::reason_details::scenario_invariance::NOT_ESTIMATED,
                 "call estimate() on the scenario stage before asking for its invariance report",
             )),
         ));
@@ -157,7 +158,7 @@ fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyRes
         Ok(set) => Ok((Some(set_json(names, &set).to_string()), None)),
         Err(EstimationError::Refused { code, message }) => {
             let (detail, text) = message.split_once(": ").unwrap_or((
-                antecedent_core::reason_details::scenario_invariance::REFUSED,
+                antecedent::reason::reason_details::scenario_invariance::REFUSED,
                 message.as_str(),
             ));
             Ok((None, Some(refusal_json(code, detail, text))))

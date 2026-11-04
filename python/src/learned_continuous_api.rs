@@ -2,11 +2,12 @@
 use crate::transport_common::{
     error, execution_context, frame_named_artifact, serialization_error, unframe_named_artifact,
 };
-use antecedent_core::{
-    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
+use antecedent::estimate::{LearnedContinuousOptions, LearnerSpec, TrialAipwInput};
+use antecedent::io::learned_continuous_artifact::LearnedContinuousConsumeLimits;
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery,
 };
-use antecedent_estimate::{LearnedContinuousOptions, LearnerSpec, TrialAipwInput};
-use antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits;
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
 
@@ -31,7 +32,7 @@ fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwI
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =
         value.get("sampling").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
-    antecedent_estimate::parse_learned_continuous_sampling(&sampling).map_err(error)?;
+    antecedent::estimate::parse_learned_continuous_sampling(&sampling).map_err(error)?;
     value["sampling"] = sampling.into();
     serde_json::from_value(value).map_err(value_error)
 }
@@ -53,14 +54,14 @@ fn build(
     target: String,
     treatment: &str,
     outcome: &str,
-) -> PyResult<(antecedent_graph::SelectionDiagram, TransportQuery)> {
+) -> PyResult<(antecedent::graph::SelectionDiagram, TransportQuery)> {
     let treatment = resolve(graph, treatment)?;
     let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: resolve(graph, outcome)?,
         treatment: ContinuousDomain::new(treatment, GridSpec::Values(Arc::from([0.0, 1.0]))),
     });
     let query = TransportQuery::new(response, source, target, [treatment]);
-    let diagram = antecedent_graph::SelectionDiagram::try_new(
+    let diagram = antecedent::graph::SelectionDiagram::try_new(
         graph.admg.clone(),
         selections.iter().map(|s| resolve(graph, s)).collect::<PyResult<Vec<_>>>()?,
     )
@@ -199,7 +200,7 @@ impl PreparedLearnedContinuousNative {
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a learned continuous artifact",
             )
         })?;
@@ -216,7 +217,7 @@ impl PreparedLearnedContinuousNative {
     fn last_result(&self) -> PyResult<String> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before reading a result",
             )
         })?;
@@ -242,7 +243,7 @@ fn prepare_learned_continuous(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedLearnedContinuousNative> {
-    antecedent_estimate::parse_learned_continuous_target(&target_name).map_err(error)?;
+    antecedent::estimate::parse_learned_continuous_target(&target_name).map_err(error)?;
     let (diagram, query) = build(graph, &selections, source, target, &treatment, &outcome)?;
     let input = parse_input(data, &graph.names)?;
     let options: LearnedContinuousOptions = serde_json::from_str(&options).map_err(value_error)?;

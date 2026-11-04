@@ -4,14 +4,14 @@
 //! dataclasses. A refusal keeps its registered reason code and structured fields; an interval
 //! request and a machine-learning nuisance are refused before any data is read.
 
-use antecedent::{
-    CausalError, ConstituentRole, DerivedTreatmentDeclaration, check_derived_treatment,
-    estimate_derived_joint_cells, estimate_joint_cell_cost,
-};
-use antecedent_estimate::{
+use antecedent::estimate::{
     CellStatus, DEFAULT_RIDGE_GRID, EstimationError, FactorizedJointConfig, FactorizedJointFit,
     JointCellReport, JointContrast, RidgeTuning, declared_joint_nuisance, orderings_for,
     refuse_joint_inference, refuse_joint_learner_inference,
+};
+use antecedent::{
+    CausalError, ConstituentRole, DerivedTreatmentDeclaration, check_derived_treatment,
+    estimate_derived_joint_cells, estimate_joint_cell_cost,
 };
 use pyo3::prelude::*;
 use serde_json::{Value, json};

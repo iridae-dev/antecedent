@@ -5,16 +5,19 @@ use crate::transport_common::{
 };
 use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{EvidenceCatalog, RegimeId, SearchLimits, VariableId};
-use antecedent_design::{
+use antecedent::design::{
     StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanArtifactWire, StudyPlanConsumeLimits,
     StudyPlanError, StudyPlanResult, plan_studies,
 };
-use antecedent_identify::{
+use antecedent::execution::SearchLimits;
+use antecedent::identify::{
     MixedSourceDecision, MixedSourceQuery, MzTransportDecision, MzTransportQuery,
     STUDY_PLAN_MEMORY_BYTES, StudyPlan, StudyPlanLimits, StudyPlanRoute, StudyPlanStop,
     StudySubsetOutcome, ZTransportSourceSpec,
 };
+use antecedent::prelude::VariableId;
+use antecedent::query::EvidenceCatalog;
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -74,7 +77,7 @@ fn labels(result: &StudyPlanResult) -> BTreeMap<RegimeId, String> {
 fn outcome_name(plan: &StudyPlan) -> &'static str {
     match plan.status() {
         None => "sufficient",
-        Some((_, antecedent_core::reason_details::study_plan::BUDGET)) => "exhausted",
+        Some((_, antecedent::reason::reason_details::study_plan::BUDGET)) => "exhausted",
         Some(_) => "none_certified",
     }
 }
@@ -258,7 +261,7 @@ impl StudyPlanStage {
     /// Export the plan as a portable, independently replayable artifact.
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let wire = self.result.to_artifact().map_err(plan_error)?;
-        let bytes = antecedent_io::to_cbor(&wire).map_err(serialization_error)?;
+        let bytes = antecedent::io::to_cbor(&wire).map_err(serialization_error)?;
         let framed = frame_named_artifact(STUDY_PLAN_PREFIX, &self.names, bytes)?;
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
@@ -425,14 +428,14 @@ fn replay_study_plan(
 ) -> PyResult<String> {
     let (names, bytes) = unframe_named_artifact(STUDY_PLAN_PREFIX, artifact, "study-plan")?;
     let wire: StudyPlanArtifactWire =
-        antecedent_io::from_cbor(&bytes).map_err(serialization_error)?;
+        antecedent::io::from_cbor(&bytes).map_err(serialization_error)?;
     let limits = StudyPlanConsumeLimits {
         search: SearchLimits { operations: max_operations, depth: max_depth },
         memory_limit_bytes: STUDY_PLAN_MEMORY_BYTES,
     };
     crate::detach_catch(py, move || {
         let graph =
-            antecedent_io::admg_from_wire(&wire.premises.graph).map_err(serialization_error)?;
+            antecedent::io::admg_from_wire(&wire.premises.graph).map_err(serialization_error)?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         let ctx = execution_context(0, memory_bytes, cancel);
         let consumed = wire.consume_with_limits(limits, &ctx).map_err(plan_error)?;
