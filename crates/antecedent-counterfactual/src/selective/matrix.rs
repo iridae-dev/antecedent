@@ -2,7 +2,7 @@
 //!
 //! Each row names one quantity class, model class, conditioning, intervention
 //! kind, population, history and evidence combination, and whether it is
-//! executed here, keeps its own theorem-scoped route, or is closed. A request
+//! executed here, keeps its own theorem-scoped route, or is not supported. A request
 //! outside every executed row is a **scientific** refusal that names the
 //! unmet dimension and the declaration that would open it; it is never a cache
 //! miss. The same rows are checked-in registry data in
@@ -208,8 +208,8 @@ pub enum CapabilityStatus {
     /// Executed by its own existing theorem-scoped route; selective execution
     /// does not run it and does not widen its boundary.
     ExistingTheoremRoute,
-    /// Closed with a typed refusal and the prerequisites that would open it.
-    Closed,
+    /// Not supported, with a typed refusal and the prerequisites that would support it.
+    NotSupported,
 }
 
 impl CapabilityStatus {
@@ -219,7 +219,7 @@ impl CapabilityStatus {
         match self {
             Self::Executed => "executed",
             Self::ExistingTheoremRoute => "existing_theorem_route",
-            Self::Closed => "closed",
+            Self::NotSupported => "not_supported",
         }
     }
 }
@@ -245,13 +245,13 @@ pub struct MatrixRow {
     pub coupling: CouplingKind,
     /// Status.
     pub status: CapabilityStatus,
-    /// The route that executes the row, or the refusal's subject for a closed row.
+    /// The route that executes the row, or the refusal's subject for a unsupported row.
     pub route: &'static str,
     /// The theorem or assumption set the row is scoped to.
     pub theorem: &'static str,
-    /// Reason code of the refusal a closed row returns.
+    /// Reason code of the refusal a unsupported row returns.
     pub refusal_code: Option<&'static str>,
-    /// Detail of the refusal a closed row returns.
+    /// Detail of the refusal a unsupported row returns.
     pub refusal_detail: Option<&'static str>,
     /// What would open the row.
     pub remedy: &'static str,
@@ -377,13 +377,13 @@ boundary and does not abduce a target-population factual unit.",
         evidence: &[],
         population: PopulationKind::Transported,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "No joint theorem composes a transport support with factual abduction in a \
 target population: a transport identification supplies no abduction, shared-noise or per-world \
 receipts, and abduction in the source population is not abduction of a target unit.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.transported_row_closed"),
+        refusal_detail: Some("cross_world_execution.no_transported_row_derivation"),
         remedy: "supply a transport support for the quantity, a fixed-population cross-world \
 support, and the cross-population invariance of the exogenous law with target-population \
 factual evidence; the static additive linear case has its own theorem-scoped route",
@@ -397,7 +397,7 @@ factual evidence; the static additive linear case has its own theorem-scoped rou
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "Latent confounding whose mechanisms and exogenous law are not declared, or are \
 to be fitted from observational data, does not identify a cross-world joint law; the same \
@@ -417,7 +417,7 @@ route that accepts the latent structure",
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "A cross-world joint law is not identified by a graph alone; mechanisms and \
 a noise law must be declared.",
@@ -435,7 +435,7 @@ two-slice additive linear model), or ask an interventional rather than a cross-w
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "Mechanisms hold for the history or regime they were declared under; factual \
 evidence from another history needs a new compatibility and identification check.",
@@ -453,7 +453,7 @@ establish and supply the invariance of the mechanisms across the two histories",
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::NotRequired,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "Worlds are defined by hard interventions; a stochastic or policy intervention \
 adds a randomization law whose coupling across worlds is not declared.",
@@ -471,7 +471,7 @@ exogenous term as part of the SCM",
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::NotRequired,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "A finite SCM's exogenous law is not identified from observational data alone \
 (response-type mass is partially identified); fitting it needs declared constraints.",
@@ -617,7 +617,7 @@ fn transported_refusal() -> MatrixRefusal {
 /// Decide a request against the matrix.
 ///
 /// # Errors
-/// A [`MatrixRefusal`] naming the closed row or the first dimension no
+/// A [`MatrixRefusal`] naming the unsupported row or the first dimension no
 /// executed row admits.
 pub fn decide(request: &MatrixRequest) -> MatrixDecision {
     if request.population == PopulationKind::Transported {
@@ -684,13 +684,13 @@ mod tests {
     }
 
     #[test]
-    fn row_ids_are_unique_and_closed_rows_carry_a_refusal() {
+    fn row_ids_are_unique_and_unsupported_rows_carry_a_refusal() {
         let mut ids: Vec<_> = ALL_ROWS.iter().map(|r| r.id).collect();
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), ALL_ROWS.len());
         for row in &ALL_ROWS {
-            let closed = row.status == CapabilityStatus::Closed;
+            let closed = row.status == CapabilityStatus::NotSupported;
             assert_eq!(row.refusal_code.is_some(), closed, "{}", row.id);
             assert_eq!(row.refusal_detail.is_some(), closed, "{}", row.id);
             assert_eq!(!row.remedy.is_empty(), closed, "{}", row.id);
@@ -698,7 +698,7 @@ mod tests {
     }
 
     #[test]
-    fn executed_cells_resolve_and_every_closed_cell_names_its_row() {
+    fn executed_cells_resolve_and_every_unsupported_cell_names_its_row() {
         let row = decide(&finite(QuantityClass::NaturalPathSpecific)).unwrap();
         assert_eq!(row.id, "natural_path_specific.finite_markovian_scm");
         assert!(row.needs_shared_exogenous());
@@ -754,7 +754,7 @@ mod tests {
         };
         let refused = decide(&request).unwrap_err();
         assert_eq!(refused.code, "route_not_supported");
-        assert_eq!(refused.detail, "cross_world_execution.transported_row_closed");
+        assert_eq!(refused.detail, "cross_world_execution.no_transported_row_derivation");
         for gate in [
             "transport_support_missing",
             "cross_population_assumptions_missing",

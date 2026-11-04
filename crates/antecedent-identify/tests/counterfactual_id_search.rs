@@ -744,7 +744,7 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
         [at(0, 0, 0.0)],
     )
     .unwrap();
-    expect(&routed, "route_not_supported", "counterfactual_id.path_specific_deferred");
+    expect(&routed, "route_not_supported", "counterfactual_id.path_specific_not_supported");
     // x = x' (the observed conditional), an unknown level, an unknown variable.
     let same = CounterfactualEventQuery::new(
         two(),

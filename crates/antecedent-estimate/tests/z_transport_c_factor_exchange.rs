@@ -12,7 +12,7 @@ use common::z_scm::{Scm, Spec, bit, build, diagram, evaluate_risk, identify_and_
 // After the line-8 reduction the district {Z, A, Y} keeps X and M as external
 // parents; M is a descendant of A, so conditioning the exchanged source law on
 // M would not be the c-factor Q^s_z[{X, A, Y}] = P^s_{z, m}(x, a, y).
-fn g5_scm() -> Scm {
+fn five_node_scm() -> Scm {
     Scm {
         n: 5,
         exo_p: vec![0.3, 0.6, 0.4, 0.2, 0.7, 0.5, 0.15, 0.35],
@@ -30,7 +30,7 @@ fn g5_scm() -> Scm {
 
 #[test]
 fn line10_exchange_takes_the_source_c_factor_with_external_parents_intervened() {
-    let scm = g5_scm();
+    let scm = five_node_scm();
     let diagram =
         diagram(5, &[(0, 1), (1, 2), (2, 3), (3, 4), (1, 4)], &[(0, 1), (0, 4), (2, 4)], &[]);
     let query = query(4, 1, &[0], &[(0, false)]);

@@ -29,66 +29,67 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 For optimized local test commands, measured bottlenecks and the CI build
 strategy, see [test performance](guides/test-performance.md).
 
-GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
+GitHub Actions CI (`ci.yml`) runs the gate in tiers. Each CI job is one section of
+`scripts/gate_release.sh`, so a local run and CI cannot drift; cheap checks come first and the
+expensive scientific lane last:
 
-- **`rust`** — fmt, DCO, and the workspace Rust tests and doctests. The facade
-  and remaining packages run in parallel on Ubuntu; both suites also run on
-  macOS after merge. Three lints that can hide a
-  real defect (`cast_possible_truncation`, `cast_sign_loss`, `float_cmp`) are
-  never allowed file-wide in library code: an allow sits on the smallest item or
-  statement that needs it and states its reason (`scripts/gate_lint_allows.sh`).
-- **`features`** — Clippy and the feature combinations crates.io users get (default
-  features, each optional feature alone, `--no-default-features`), which the
-  workspace-wide jobs never build because the `python` member enables `ml-full`
-  and `ml-neural`.
-- **`deny`** — `cargo deny check` (licenses, advisories, sources) and the
-  crates.io publish dry-run.
-- **`gates`** — requires every parallel `gate-sections` job to pass. The sections divide inventory, capability evidence, graphless and support
-  matrix checks, checked execution, feature gates, and benchmark smokes.
-  Running `scripts/gate_release.sh` without `--section` still executes all of
-  them for a local release-candidate check.
-- **`python-lint`** — `scripts/gate_python_lint.sh` (Ruff, mypy), then pytest with an
-  85% coverage floor after building the native extension.
-- **`python-wheels`** — builds and tests the supported wheel matrix.
+0. **`static`** — source reading only, no build and no test: DCO, rustfmt, lint allows, test
+   targets, crate ownership, the test registry and lane filters, parity inventories, provenance,
+   capability records, the one support count (`scripts/gate_support.py`), the release inventory
+   (`scripts/check_release_inventory.py`), residual limitations, bounds, release claims, links and
+   every generated file being current. Calibration status is printed as an annotation here and never
+   fails a change.
+1. **Builds** — compile, list or lint; no test runs. **`features`** (Clippy and the feature
+   combinations crates.io users get: default features, each optional feature alone,
+   `--no-default-features`), **`public-api`** (public items match `parity/public_api/*.txt`),
+   **`cited-tests`** (eight shards; every cited test is a compiled, non-ignored test),
+   **`benches`** (Criterion smoke, skipped on a pull request that touches no bench),
+   **`python-native`** (the extension the Python jobs share), **`deny`** (`cargo deny check` and
+   the crates.io publish dry-run) and **`fuzz`**.
+2. **Engineering tests** — tests of the software with no scientific claim. **`rust`** (the
+   engineering nextest selection and doctests; the facade and remaining packages run in parallel on
+   Ubuntu, both also on macOS after merge), **`development`** (the development build that runs
+   `not_supported` routes), **`python-lint`** (Ruff, mypy, script tests, then pytest without the
+   scientific and calibration markers, with an 85% coverage floor) and **`python-wheels`** (builds
+   and tests the supported wheel matrix). The optional learner and Gaussian-process feature tests
+   run in `features` on every pull request.
+3. **`scientific`** — one job, `bash scripts/test.sh scientific`: only the scientific assertions
+   whose evidence changed since their recorded pass (`parity/scientific_records.toml`). The job
+   fails when the run leaves that ledger changed, so the records a change owes are committed with
+   it.
+4. **Release candidate** — `scripts/gate_release_candidate.sh`, run locally (below): every
+   scientific assertion re-run, scale cases, the installed wheel and the CI-run check.
 
-**Statistical calibration is measured on a development machine before you push,
-never on GitHub.** CI only checks that the committed coverage records match the
-code being uploaded, and the `gates` job fails when they do not (see
-[Coverage records](#coverage-records)). Criterion benchmark smokes do run
-through `gate_release.sh`; they check execution, not timing regressions.
-`cargo deny` runs inside `gate_release.sh` only when `cargo-deny` is on PATH,
-which it is not in CI.
+Running `scripts/gate_release.sh` without `--section` executes tiers 0 to 3 locally in order.
 
-## Gates (local / slow path)
+**Statistical calibration is measured on a development machine, never on GitHub.** A calibration
+status is an annotation (`python3 scripts/calibration_status.py status`) and never fails a job; only
+its record shape is checked (`calibration_status.py --check`). Criterion benchmark smokes check
+execution, not timing regressions. `cargo deny` runs inside `gate_release.sh` only when `cargo-deny`
+is on PATH, which it is not in CI's `benches` job (the `deny` job owns it there).
 
-Feature gates own inventory honesty + conformance for a domain. Run them locally
-before a release, or when a change might break something unintended:
+## Gates (local)
+
+Each gate below is also a step of `scripts/gate_release.sh`. Run one on its own when a change might
+break something unintended:
 
 ```bash
-bash scripts/gate_estimate_ci.sh
-bash scripts/gate_bayesian.sh
-bash scripts/gate_gcm.sh
-bash scripts/gate_pag.sh
-bash scripts/gate_context.sh
-bash scripts/gate_attribution.sh
-bash scripts/gate_design_state.sh
+python3 scripts/check_parity_inventories.py   # every parity inventory: done rows have evidence, exit artifacts exist
 bash scripts/gate_upstream_names.sh
-bash scripts/gate_response_calibration.sh
-bash scripts/gate_causal_artifacts.sh
-bash scripts/gate_estimate_reuse.sh
-bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
-bash scripts/gate_transport.sh     # transport stage contracts; every fixture family runs a positive and a counterexample
-bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause runs a cited test; batch benches assert their regression bound
+bash scripts/gate_composition.sh   # composition consuming contract/claim tests resolve to real tests
+bash scripts/gate_transport.sh     # transport stage contracts; every fixture family has a positive and a counterexample
+bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause cites a test
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
-bash scripts/gate_support_matrix.sh   # public support cells; default not supported
 python3 scripts/gate_support.py       # the one support rule over every unit, and the one support count
+python3 scripts/gate_support.py --cited-tests   # every cited test is compiled and not ignored (builds test binaries)
 python3 scripts/gate_not_supported_sites.py   # `not_supported` is built only in require_supported
-bash scripts/gate_checked_execution.sh   # every supported estimator executes from its retained checked plan with no builder alive
+python3 scripts/check_release_inventory.py   # acceptance manifest, counterparts, scope, children, routes, specifications
+bash scripts/gate_checked_execution.sh   # every supported estimator cites a test that executes from its retained checked plan
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
 bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is not current, collect, print the status
-bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
+bash scripts/gate_release.sh       # tiers 0 to 3 in order
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
 
@@ -101,7 +102,7 @@ compares the listing with the committed `parity/public_api/<crate>.txt`. Any
 difference fails the gate with a line diff. An intended API change is made
 deliberate by regenerating the snapshots (`bash scripts/gate_public_api.sh
 --write`) and committing the diff, which a reviewer then reads as the API
-change. The gate runs in the `inventory` section of `gate_release.sh`. Keep
+change. The gate runs in the `public-api` section of `gate_release.sh`. Keep
 cross-crate plumbing that is not a supported API out of the snapshot by making
 it `pub(crate)`, or, when another workspace crate or a fixture needs it, behind
 a `test-util`-style feature (see `antecedent-identify`) rather than
@@ -440,7 +441,7 @@ Mark a `parity/*.toml` capability `done` only with conformance under `conformanc
 **or** a named harness in the gate script, plus a recorded reference-generation
 command when black-box comparison applies.
 
-Statuses: `pending` | `in_progress` | `done`.
+Statuses: `pending` | `done`.
 
 ## Release candidates
 
@@ -449,10 +450,9 @@ is an additional cut requirement for each release. Run its Python and Rust jobs 
 sizes against the candidate, and close its leftover ledger. It remains outside
 `gate_release.sh`; passing the commands below alone does not discharge S.
 
-`gate_release.sh` is the PR inventory; a release is cut with
+`gate_release.sh` is the pull-request gate; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
-tagging). It refuses a dirty tree, `SKIP_PRIOR_GATES`, `SKIP_PYTHON_SMOKE` and
-`ALLOW_SKIP_PYTHON_SMOKE`, and requires `cargo-deny`. It needs one input:
+tagging). It refuses a dirty tree and requires `cargo-deny`. It needs one input:
 
 ```bash
 CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
@@ -463,25 +463,29 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   the commit being cut (`gh run list --workflow ci.yml --commit "$(git rev-parse HEAD)"`).
   The gate reads it with `gh run view <id> --json headSha,jobs` and requires
   every job id listed in `parity/release.toml` `required_jobs` to have
-  succeeded. Job ids are `ci.yml` keys (`rust`, `features`, `deny`, `gates`,
-  `python-lint`, `python-wheels`); a run reports display names instead, one per matrix
+  succeeded. Job ids are `ci.yml` keys (`static`, `rust`, `features`, `public-api`,
+  `cited-tests`, `benches`, `deny`, `development`, `python-lint`, `scientific`,
+  `python-wheels`); a run reports display names instead, one per matrix
   combination ("Rust ubuntu-latest", "Rust ubuntu-latest facade",
   "Rust macos-latest facade", "Wheel macos-14 py3.12"). The Rust facade
   and remaining-workspace suites are both required on Ubuntu and macOS;
   together they execute the workspace's tests and doctests.
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
-- The gate then runs `gate_release.sh` (which prints the calibration status; the
-  records that are not current are listed and do not fail the cut), Python lint/types, the Python suite with
-  its coverage floor, and builds one wheel into a fresh directory, installs it
-  into a fresh venv and runs the full Python test suite against that installed
-  wheel (outside `python/`, so the source tree cannot shadow it).
+- The gate then runs every section of `gate_release.sh` except the owed-only scientific lane
+  (the calibration status is printed as an annotation; the records that are not current are
+  listed and do not fail the cut), re-runs and re-records every scientific assertion
+  (`bash scripts/test.sh scientific --all`), runs the release inventory with no unresolved row,
+  the composition and decision exit stories, the release-only scale cases and the release-closure
+  receipts, and builds one wheel into a fresh directory, installs it into a fresh venv and runs
+  the documented examples, the cyclic-systems gate and the full Python test suite against that
+  installed wheel (outside `python/`, so the source tree cannot shadow it).
 
 Each gate that decides a release has a `--self-test` mode that feeds it
 deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`, `gate_gcm_conformance.sh`,
-`gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
+`check_release_inventory.py`, `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
 `gate_release_candidate.sh`, plus the
-citation, reachability, metadata and support-matrix gates.
+citation, reachability, metadata and support gates.
 `scripts/gate_selftests.sh` runs all of them. Each case builds a repo overlay and
 runs a whole gate, so it takes tens of minutes and is run on demand (after
 changing a gate or its cases), not by `gate_release.sh` or CI.
@@ -545,13 +549,19 @@ python3 scripts/scientific_records.py status --check  # same, exit 1 if any owed
 python3 scripts/scientific_records.py run             # run owed ones, record passes
 python3 scripts/scientific_records.py run --all       # rerun and re-record everything
 bash scripts/test.sh scientific                       # same as run
+bash scripts/test.sh scientific --all                 # same as run --all (release)
 ```
 
-The capability, transport, composition, checked-execution and GCM conformance gates run
-the same carry-forward for the scientific rows they cite; their other rows run as before.
+`run` is the one entry point for scientific assertions. The default engineering lanes
+exclude them (the nextest default filter and the pytest `scientific` marker are both
+derived from the registries), so a normal run executes engineering tests plus only the
+scientific tests whose evidence changed. The owed Rust assertions run in a single
+`cargo nextest run` with the optimized test profile and the owed Python assertions in one
+pytest batch. The capability, transport, composition, checked-execution and GCM
+conformance gates only resolve their rows to exact tests (`run_evidence_rows.py --static`).
 Everything that does run keeps the runner's proof that the exact assertion executed and
 was not ignored; failures are reported and never recorded. A release candidate sets
-`ANTECEDENT_SCIENTIFIC_ALL=1` (or passes `--all` to a gate or `test.sh scientific`) and
+`ANTECEDENT_SCIENTIFIC_ALL=1` (or passes `--all` to `test.sh scientific`) and
 runs everything. A recorded pass is evidence for support only; it is never a calibration
 measurement or coverage record.
 
@@ -660,8 +670,9 @@ Before merging the release PR:
    Python/Rust agreement. Remove temporary cut notes and provisional wording.
 2. Run the relevant tests, formatters, linters, and documentation checks locally.
    Open a PR and require the CI jobs on the committed HEAD, including the
-   `gates` job (`gate_release.sh`), Python lint/pytest, and `python-wheels`
-   matrix. The full release gate runs in CI; a local full run is optional.
+   every job in `parity/release.toml` `required_jobs` (`static`, `scientific`,
+   `python-lint`, `python-wheels` and the rest). The pull-request gate runs in CI; a local full run
+   is optional.
 3. For an actual release cut, run
    `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. It prints the
    coverage records that are not current for HEAD (`calibration_status.py`);

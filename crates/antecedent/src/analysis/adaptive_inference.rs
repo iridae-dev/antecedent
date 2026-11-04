@@ -220,7 +220,7 @@ impl AdaptiveInferenceSession {
     pub fn interval(&self) -> Result<(), AdaptiveInferenceRefusal> {
         Err(AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
-            detail: "adaptive_inference.interval_closed".to_owned(),
+            detail: "adaptive_inference.interval_names_no_quantity".to_owned(),
             message: format!(
                 "an interval, credible interval or coverage statement of the procedure {} as an unqualified request names no scientific quantity: an interval belongs to one named result; request the interval of a result with measured_interval, which reports it with its calibration status; the point values and uncalibrated diagnostics are the result",
                 self.contract.cell().identifier()
@@ -258,7 +258,7 @@ impl AdaptiveInferenceSession {
             |error| match error {
                 antecedent_io::IoError::Refused { code, message } => {
                     let (detail, text) = message.split_once(": ").map_or(
-                        ("adaptive_inference.interval_closed", message.as_str()),
+                        ("adaptive_inference.interval_names_no_quantity", message.as_str()),
                         |(d, t)| (d, t),
                     );
                     AdaptiveInferenceRefusal {

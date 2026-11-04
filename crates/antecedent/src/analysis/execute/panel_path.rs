@@ -836,7 +836,7 @@ impl super::Study {
             ));
         }
         diagnostics.push(Diagnostic::new(
-            "response.simultaneous_band_withheld",
+            "response.no_simultaneous_band_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "panel response withholds a simultaneous band: series circular-block simultaneous \
@@ -1241,7 +1241,7 @@ impl super::Study {
             self.declared.class_prior.is_some(),
         ));
         diagnostics.push(Diagnostic::new(
-            "response.simultaneous_band_withheld",
+            "response.no_simultaneous_band_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "panel response withholds a simultaneous band: series circular-block simultaneous \
@@ -1917,7 +1917,7 @@ fn panel_between_unit_band(mean: &[f64], unit_means: &[Arc<[f64]>]) -> ResponseU
 fn panel_between_unit_band_diagnostic(units: usize) -> Diagnostic {
     if units < 2 {
         return Diagnostic::new(
-            "estimate.temporal_response.panel.band_withheld",
+            "estimate.temporal_response.panel.no_band_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "a one-unit panel has no between-unit dispersion, so no pointwise band is \

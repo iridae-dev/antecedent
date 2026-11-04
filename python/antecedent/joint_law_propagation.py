@@ -430,7 +430,7 @@ class PropagationClaim(ScientificResult):
 
         An interval at the composed coordinate is read through :meth:`check_composed_interval`.
         """
-        _refuse(_native.joint_law_closed_reading("interval"))
+        _refuse(_native.joint_law_unsupported_reading("interval"))
 
     def coordinate_id(self) -> str:
         """The composed coordinate (``operation|route|roles``) a coverage record must be measured at."""
@@ -482,7 +482,7 @@ class PropagationClaim(ScientificResult):
 
     def posterior(self) -> None:
         """Always raises ``uncertainty_representation_insufficient``."""
-        _refuse(_native.joint_law_closed_reading("posterior"))
+        _refuse(_native.joint_law_unsupported_reading("posterior"))
 
 
 @dataclass(repr=False, frozen=True)

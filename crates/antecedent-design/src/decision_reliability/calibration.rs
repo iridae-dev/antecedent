@@ -174,7 +174,7 @@ impl PublishedRoute {
 ///
 /// A record measured at several sizes inside a band supports every size of the band,
 /// and only because each size visited passed; a size above the last band has no
-/// record and is closed. The width of a band is what the measurement has to visit: a
+/// record and is not supported. The width of a band is what the measurement has to visit: a
 /// selection correction grows with the logarithm of the count, and the best-candidate
 /// set switches from paired comparisons to the dependence-free construction above
 /// 64 candidates, so no band spans that switch.

@@ -19,9 +19,10 @@
 //! probabilities (best, top-k, better than a baseline) are Monte Carlo estimates under
 //! the supplied law over the candidate set as supplied; they refuse adaptively
 //! generated candidates without a [`CandidateSearchRecord`]. Publishing any ranking
-//! probability or interval ([`PreparedDecisionReliability::publish`]) refuses with
-//! `not_supported` until a coverage record measures it at its coordinate
-//! (candidate-set size, Monte Carlo budget, selection rule).
+//! probability or interval ([`PreparedDecisionReliability::publish`]) reports it with a
+//! calibration slot: `calibrated` where a coverage record measured it at its coordinate
+//! (candidate-set size, Monte Carlo budget, selection rule), otherwise the status that
+//! names why not.
 //!
 //! # Lifecycle
 //!
@@ -179,7 +180,7 @@ impl PreparedDecisionReliability {
         Ok(Self { artifact })
     }
 
-    /// The report: three uncertainty components, ranking statements and closed routes.
+    /// The report: three uncertainty components, ranking statements and unsupported routes.
     #[must_use]
     pub const fn report(&self) -> &ReliabilityReport {
         &self.artifact.report

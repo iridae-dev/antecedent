@@ -203,7 +203,7 @@ class LearnedContinuousEstimate(ScientificResult):
     ``uncertainty`` is ``point_only`` when no interval was requested,
     ``bootstrap_interval_requested`` for a bootstrap request of two or more replicates
     (``PreparedLearnedContinuous.interval()`` forms it with its calibration slot) and
-    ``withheld`` (``estimator_inference_mismatch``) below the replicate floor. With
+    ``too_few_replicates`` (``estimator_inference_mismatch``) below the replicate floor. With
     ``bootstrap=0``, ``interval()`` returns an ``available`` analytic influence interval and
     its standard error.
     """

@@ -774,14 +774,14 @@ fn observation_query_required_observations_conjugate(
     Ok(claimed(py, result))
 }
 
-/// The closed routes: `interval` or `calibrated_probability`. Always the
+/// The unsupported routes: `interval` or `calibrated_probability`. Always the
 /// typed refusal.
 #[pyfunction]
-fn observation_query_closed(route: &str) -> PyResult<String> {
+fn observation_query_unsupported(route: &str) -> PyResult<String> {
     let refusal = match route {
         "interval" => interval_refusal(),
         "calibrated_probability" => calibration_refusal(),
-        other => return Err(crate::value_err(format!("unknown closed route `{other}`"))),
+        other => return Err(crate::value_err(format!("unknown unsupported route `{other}`"))),
     };
     Ok(refusals_json(refusal.code, &[refusal]))
 }
@@ -948,7 +948,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
         observation_query_required_observations_conjugate,
         module
     )?)?;
-    module.add_function(wrap_pyfunction!(observation_query_closed, module)?)?;
+    module.add_function(wrap_pyfunction!(observation_query_unsupported, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_consume, module)?)?;
     Ok(())
 }

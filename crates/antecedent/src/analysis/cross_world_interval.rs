@@ -144,7 +144,7 @@ pub fn whole_path_interval_basis(
     if request.exogenous != ExogenousInference::ExactEnumeration {
         return Err(refused(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "cross_world_execution.interval_route_closed",
+            "cross_world_execution.no_interval_method",
             RouteClosure::Exogenous.as_str(),
             "with declared mechanisms the exogenous posterior is enumerated exactly; a sampled abduction adds Monte Carlo error to an exactly computable quantity, so request exact enumeration",
         ));
@@ -152,7 +152,7 @@ pub fn whole_path_interval_basis(
     if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
         return Err(refused(
             antecedent_core::reason_code!("transport_not_certified"),
-            "cross_world_execution.interval_route_closed",
+            "cross_world_execution.no_interval_method",
             RouteClosure::TargetPopulation.as_str(),
             "no theorem composes the transport identification with a target-population abduction; derive the interval in the population the mechanisms were declared for",
         ));
@@ -299,7 +299,7 @@ impl CrossWorldExecution {
         else {
             return Err(refused(
                 antecedent_core::reason_code!("uncertainty_representation_insufficient"),
-                "cross_world_execution.interval_route_closed",
+                "cross_world_execution.no_interval_method",
                 RouteClosure::UnitSampling.as_str(),
                 "the declared sampling determines no variance for these units (an independent sample needs at least two units); use the point value",
             ));

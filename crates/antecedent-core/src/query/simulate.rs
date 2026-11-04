@@ -3,7 +3,7 @@
 //!
 //! Each answer is a property of the fitted model, not an identified estimand of
 //! the population; only the Monte Carlo error of the draws is quantified. The
-//! route executes and stays unsupported until a coverage record supports it.
+//! route executes with calibration status `not_measured`; no coverage record covers it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

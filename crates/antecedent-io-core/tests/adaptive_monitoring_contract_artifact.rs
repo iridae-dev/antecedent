@@ -106,7 +106,7 @@ fn a_futility_rule_travels_through_the_wire_with_both_parameters() {
     assert!(matches!(
         Artifact::seal(&source, InferenceParadigm::BayesianPosterior),
         Err(Error::Refused { code, detail, .. })
-            if code == "route_not_supported" && detail == "adaptive_inference.cell_carried_forward"
+            if code == "route_not_supported" && detail == "adaptive_inference.cell_not_delivered"
     ));
 }
 

@@ -171,7 +171,7 @@ def test_borrowing_is_part_of_the_identity_and_frozen_after_the_first_look(proce
     assert amended.identity == other.identity
     error = refused(
         lambda: procedure.amend_borrowing(borrowing(0.6), looks_performed=1),
-        detail="adaptive_inference.borrowing_frozen",
+        detail="adaptive_inference.borrowing_fixed_after_first_look",
         code="adaptive_assumption_violated",
     )
     assert "frozen" in str(error)

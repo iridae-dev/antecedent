@@ -792,12 +792,12 @@ impl SelectiveDiscoveryHandle {
 
     /// Refusal of a recovery or error-control claim for the retained structure.
     fn request_recovery_claim(&self) -> String {
-        self.closed_claim(|o| request_recovery_claim(o).map(|_| ()))
+        self.unsupported_claim(|o| request_recovery_claim(o).map(|_| ()))
     }
 
     /// Refusal of an interval for a downstream estimate resting on the retained structure.
     fn request_downstream_interval(&self) -> String {
-        self.closed_claim(|o| request_downstream_interval(o).map(|_| ()))
+        self.unsupported_claim(|o| request_downstream_interval(o).map(|_| ()))
     }
 
     /// The structural transport verdict of a mean-curve query across the retained class.
@@ -891,7 +891,7 @@ impl SelectiveDiscoveryHandle {
 }
 
 impl SelectiveDiscoveryHandle {
-    fn closed_claim(
+    fn unsupported_claim(
         &self,
         request: impl FnOnce(&DiscoveryOutcome) -> Result<(), SelectiveDiscoveryError>,
     ) -> String {

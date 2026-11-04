@@ -3,7 +3,7 @@
 The identified set is an interval of average effects, never a point. The known truths are the
 frozen Balke-Pearl table (reproduced by an exact-count sample and by the eight-row weighted law),
 a perfect-compliance law whose effect is point identified, and the Imbens-Manski interval, which
-covers the identified set. Each route is unsupported and uncalibrated.
+covers the identified set. Each route is reported with calibration status `not_measured`.
 """
 
 from __future__ import annotations

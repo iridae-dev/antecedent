@@ -129,7 +129,7 @@ fn artifact_derivative_and_contrast_replay_to_closed_form() {
 }
 
 #[test]
-fn artifact_records_support_unmeasured_calibration_and_closed_band() {
+fn artifact_records_support_unmeasured_calibration_and_no_band() {
     let wire = seal("level", 0.1);
     assert_eq!(wire.result.support.len(), GRID.len());
     for (row, dose) in wire.result.support.iter().zip(GRID) {
@@ -210,7 +210,7 @@ fn unresealed_changes_hit_the_digests() {
 }
 
 #[test]
-fn seal_refuses_closed_unsupported_and_uncertified_requests() {
+fn seal_refuses_unsupported_and_uncertified_requests() {
     let detail = |request: DoseGridRequestWire| match DoseGridArtifactWire::seal(request) {
         Err(error) => error.refusal(),
         Ok(_) => panic!("the request must be refused"),
@@ -218,7 +218,10 @@ fn seal_refuses_closed_unsupported_and_uncertified_requests() {
     let mut band = request("level", 0.1);
     band.claims.simultaneous_band = true;
     let (code, why) = detail(band);
-    assert_eq!((code, why.as_str()), ("route_not_supported", "dose_grid.simultaneous_band_closed"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("route_not_supported", "dose_grid.no_simultaneous_band_method")
+    );
 
     let mut observational = request("level", 0.1);
     observational.design = "observational".into();
@@ -544,7 +547,7 @@ fn a_band_whose_replicate_row_grid_product_is_unbounded_is_refused_before_any_fi
 }
 
 #[test]
-fn a_contrast_under_a_curvature_bound_keeps_its_band_closed() {
+fn a_contrast_under_a_curvature_bound_has_no_band() {
     let sealed = DoseGridArtifactWire::seal(bias_aware("contrast", 0.1)).unwrap();
     assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_CLOSED);
     let section = sealed.result.bias_aware.as_ref().unwrap();

@@ -207,7 +207,7 @@ def test_illegal_values_and_contradictory_declarations_are_refused():
         )
 
 
-def test_intervals_machine_learning_nuisance_and_lasso_are_closed():
+def test_intervals_machine_learning_nuisance_and_lasso_are_not_supported():
     data = draw(300, 6, LAW)
 
     def call(**options):
@@ -215,7 +215,7 @@ def test_intervals_machine_learning_nuisance_and_lasso_are_closed():
 
     error = refusal(lambda: call(level=0.95))
     assert error.reason_code == "penalized_interval_not_supported"
-    assert "joint_cells.interval_withheld" in str(error)
+    assert "joint_cells.no_interval_method" in str(error)
     for name in ("ml", "neural_network", "gradient_boosting"):
         error = refusal(lambda name=name: call(nuisance=name))
         assert error.reason_code == "ml_nuisance_not_supported"
@@ -224,7 +224,7 @@ def test_intervals_machine_learning_nuisance_and_lasso_are_closed():
     # built: it is refused before any data is read.
     error = refusal(lambda: call(nuisance="random_forest", level=0.95))
     assert error.reason_code == "ml_nuisance_not_supported"
-    assert "joint_cells.ml_interval_withheld" in str(error)
+    assert "joint_cells.no_ml_interval_method" in str(error)
     with pytest.raises(CausalValueError):
         call(nuisance="random_forest", penalties=[0.1])
     with pytest.raises(CausalValueError):

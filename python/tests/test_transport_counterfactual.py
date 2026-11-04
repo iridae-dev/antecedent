@@ -1026,7 +1026,7 @@ def test_absent_mislabelled_counted_and_malformed_evidence_is_refused_before_a_n
     with pytest.raises(CausalUnsupportedError) as raised:
         derivation.evaluate(evidence=counted)
     assert raised.value.reason_code == "route_not_supported"
-    assert "counterfactual_transport.sampled_inference_closed" in str(raised.value)
+    assert "counterfactual_transport.no_sampled_inference" in str(raised.value)
 
     # Levels that are not the declared ones.
     wrong = list(laws)

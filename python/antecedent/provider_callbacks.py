@@ -1237,7 +1237,7 @@ class CallbackSession:
         return artifact_from_receipt(self, ExportedCallbackResult(bytes(done[0]), done[1]))
 
 
-# -- artifacts and closed routes ---------------------------------------------------------------
+# -- artifacts and unsupported routes ---------------------------------------------------------------
 
 
 @outcome_operation

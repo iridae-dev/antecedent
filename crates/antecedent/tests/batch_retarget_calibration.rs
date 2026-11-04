@@ -1,5 +1,5 @@
 //! Coverage of the unpublished family-level max-t band of a batch retarget (record
-//! `estimate.batch_retarget_covariance`, closed route
+//! `estimate.batch_retarget_covariance`, unsupported route
 //! `antecedent.PreparedBatch.simultaneous_interval`).
 //!
 //! Four retargeted AIPW claims share one row snapshot: two binary treatments and two

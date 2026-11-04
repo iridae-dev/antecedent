@@ -232,7 +232,7 @@ fn contrast_between_named_doses_matches_closed_form() {
 }
 
 #[test]
-fn claims_are_separate_typed_fields_and_band_stays_closed() {
+fn claims_are_separate_typed_fields_and_band_is_not_supported() {
     let level = run(DoseFunctional::Level, claims(true, false), 0.1);
     assert!(level.derivatives.is_empty() && level.contrast.is_none());
     assert!(level.simultaneous_band.is_none());
@@ -253,7 +253,7 @@ fn claims_are_separate_typed_fields_and_band_stays_closed() {
         band,
     ));
     assert!(refused.is_err());
-    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.simultaneous_band_closed");
+    assert_eq!(reason(&refused.unwrap_err()), "dose_grid.no_simultaneous_band_method");
 }
 
 #[test]

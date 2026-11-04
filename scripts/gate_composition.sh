@@ -1,36 +1,24 @@
 #!/usr/bin/env bash
-# Composition gate: ledger rows in parity/compiler.toml drive invocations.
+# Composition gate: ledger rows in parity/compiler.toml are the composition evidence.
 #
 # Every row must name an executing test (`evidence_test` + `evidence_assertion`).
-# The gate proves each one ran:
-#   - the assertion is resolved to its full test name (`cargo test -- --list`;
-#     lib tests are module-qualified, e.g. `execution::tests::<fn>`) and run
-#     with `--exact`; exactly one test must pass and none may fail;
-#   - `composition_filter` is a cargo substring filter, not a regex, so a
-#     `a|b` value (or a list) is split and each part runs on its own; every
-#     part must pass at least one test and fail none;
-#   - Python rows run the pytest node; at least one test passes, none fail.
-# Counts are parsed from cargo's `test result: ... N passed; M failed` lines and
-# pytest's summary line, never from a loose grep that `0 passed` satisfies.
+# This gate resolves each one without running it (scripts/run_evidence_rows.py
+# --static): the assertion must be a declared, non-ignored `#[test]` compiled into
+# its cargo target (or a Python test that pytest can name). The tests themselves run
+# in the engineering lane (`bash scripts/test.sh`), and any row that is also a cited
+# scientific assertion runs through `scripts/scientific_records.py run`. `--self-test`
+# runs the executing runner against a throwaway workspace with broken rows.
 #
 #   bash scripts/gate_composition.sh              # full gate
 #   bash scripts/gate_composition.sh --self-test  # broken inputs must fail
 set -euo pipefail
 
-# Scientific rows with a current recorded pass (parity/scientific_records.toml)
-# are carried forward, not rerun. --all or ANTECEDENT_SCIENTIFIC_ALL=1 runs and
-# re-records every row (release candidate). See scripts/scientific_records.py.
-_args=()
-for _a in "$@"; do
-  if [[ "$_a" == --all ]]; then export ANTECEDENT_SCIENTIFIC_ALL=1; else _args+=("$_a"); fi
-done
-set -- "${_args[@]+"${_args[@]}"}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# run_rows ROOT LEDGER — execute every ledger row; non-zero exit on any failure.
+# run_rows ROOT LEDGER [--static] — execute (or only resolve) every ledger row; non-zero exit on any failure.
 run_rows() {
-  python3 "$ROOT/scripts/run_evidence_rows.py" "$1" "$2" "$ROOT"
+  python3 "$ROOT/scripts/run_evidence_rows.py" "$1" "$2" "$ROOT" capabilities gate_composition "${@:3}"
 }
 
 self_test() {
@@ -87,9 +75,9 @@ def test_passes():
 def test_fails():
     raise AssertionError("deliberately broken")
 PYT
-  row() { # id test assertion [filter]
+  row() { # id test assertion [extra toml line]
     printf '[[capabilities]]\nid = "%s"\nevidence_test = "%s"\nevidence_assertion = "%s"\n' "$1" "$2" "$3"
-    if [[ -n "${4:-}" ]]; then printf 'composition_filter = "%s"\n' "$4"; fi
+    if [[ -n "${4:-}" ]]; then printf '%s\n' "$4"; fi
     printf '\n'
   }
   export CARGO_TARGET_DIR="$tmp/target"
@@ -97,7 +85,7 @@ PYT
   {
     row good.lib crates/selftest/src/lib.rs lib_passes
     row good.inner crates/selftest/src/inner.rs lib_passes
-    row good.it crates/selftest/tests/it.rs it_passes it_passes
+    row good.it crates/selftest/tests/it.rs it_passes
     row good.py python/tests/test_selftest.py test_passes
   } >"$tmp/parity/good.toml"
   if ! out="$(run_rows "$tmp" parity/good.toml 2>&1)"; then
@@ -109,16 +97,14 @@ PYT
   local -a cases=(
     "panic.lib|crates/selftest/src/lib.rs|lib_panics|"
     "panic.it|crates/selftest/tests/it.rs|it_panics|"
-    "panic.filter|crates/selftest/tests/it.rs|it_passes|it_"
     "missing.assertion|crates/selftest/tests/it.rs|no_such_test|"
-    "pipe.filter|crates/selftest/tests/it.rs|it_passes|it_passes|zz_no_match"
+    "filter.unsupported|crates/selftest/tests/it.rs|it_passes|composition_filter = \"it_\""
     "fail.py|python/tests/test_selftest.py|test_fails|"
     "missing.py|python/tests/test_selftest.py|test_absent|"
     "no.evidence|||"
   )
   local spec cid test assertion filt
   for spec in "${cases[@]}"; do
-    # The last field keeps any further `|`, so pipe.filter's filter stays `a|b`.
     IFS='|' read -r cid test assertion filt <<<"$spec"
     if [[ "$cid" == "no.evidence" ]]; then
       printf '[[capabilities]]\nid = "no.evidence"\n' >"$tmp/parity/case.toml"
@@ -154,12 +140,8 @@ if [[ $# -gt 1 || ( $# -eq 1 && "${1:-}" != "--evidence-only" ) ]]; then
   exit 2
 fi
 
-if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
-  echo "FAIL: SKIP_PYTHON_SMOKE=1 is not composition evidence"
-  exit 1
-fi
 if ! command -v uv >/dev/null 2>&1; then
-  echo "FAIL: uv is required for the composition Python smoke"
+  echo "FAIL: uv is required; unexecuted Python rows are not composition evidence"
   exit 1
 fi
 
@@ -173,8 +155,8 @@ if [[ "${1:-}" != "--evidence-only" ]]; then
   bash scripts/gate_evidence_reachability.sh
 fi
 
-echo "== composition consuming tests =="
-run_rows "$ROOT" parity/compiler.toml
+echo "== composition consuming tests resolve (they run in the engineering and scientific lanes) =="
+run_rows "$ROOT" parity/compiler.toml --static
 
 echo "revision: ${REVISION}"
 echo "gate_composition: ok"

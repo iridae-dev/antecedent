@@ -173,7 +173,7 @@ impl ContinuousResponseEstimator {
             // rank-deficient covariance or a transform singularity), not a
             // deliberate withholding. Say why the one interval is absent.
             support.warnings.push(Diagnostic::new(
-                "response.derivative_interval_withheld",
+                "response.no_derivative_interval_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 "no interval is reported: the delta-method variance of this transformed derivative is not finite at this coordinate (a degenerate local covariance or a transform singularity)",

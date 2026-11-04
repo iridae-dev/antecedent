@@ -313,11 +313,11 @@ fn mean_input(id: &str, provider: &str, snapshot: &str, means: &[f64]) -> Decisi
     .unwrap()
 }
 
-fn e1_input() -> DecisionInput {
+fn lab_one_input() -> DecisionInput {
     mean_input("e1", "lab-1", "snap-e1", &[1.0, 3.0, 5.5])
 }
 
-fn e2_mean_input() -> DecisionInput {
+fn lab_two_mean_input() -> DecisionInput {
     mean_input("e2mean", "lab-2", "snap-e2", &[2.0, 3.5, 5.0])
 }
 
@@ -361,7 +361,7 @@ fn law(provider: &str, snapshot: &str, mask: Option<Vec<bool>>) -> DistributionA
     .unwrap()
 }
 
-fn e2_law_input(mask: Option<Vec<bool>>) -> DecisionInput {
+fn lab_two_law_input(mask: Option<Vec<bool>>) -> DecisionInput {
     DecisionInput::from_distribution_artifact(
         "e2law",
         &law("lab-2", "snap-e2", mask),
@@ -436,7 +436,7 @@ fn acceptance_an_unsupported_action_is_reported_and_the_rest_are_compared() {
 
 #[test]
 fn acceptance_another_source_answers_the_action_the_native_claim_cannot() {
-    let decision = compare(&contract("mean"), &[native_input(), e1_input()]);
+    let decision = compare(&contract("mean"), &[native_input(), lab_one_input()]);
     close(decision.outcomes[0].expected_utility, 2.0);
     close(decision.outcomes[1].expected_utility, 3.0);
     close(decision.outcomes[2].expected_utility, 5.5 - 3.0);
@@ -450,7 +450,7 @@ fn acceptance_another_source_answers_the_action_the_native_claim_cannot() {
     assert_eq!(decision.evpi, None, "sources are compared by value, never state by state");
     assert!(decision.outcomes.iter().all(|o| o.expected_regret.is_none()));
 
-    let alone = compare(&contract("mean"), &[e1_input()]);
+    let alone = compare(&contract("mean"), &[lab_one_input()]);
     close(alone.outcomes[0].expected_utility, 1.0);
     close(alone.outcomes[1].expected_utility, 2.0);
     close(alone.outcomes[2].expected_utility, 2.5);
@@ -458,7 +458,7 @@ fn acceptance_another_source_answers_the_action_the_native_claim_cannot() {
         alone.verdict,
         SupportedVerdict::Compared(Verdict::UniquelyOptimal("extend".into()))
     );
-    let means = compare(&contract("mean"), &[e2_mean_input()]);
+    let means = compare(&contract("mean"), &[lab_two_mean_input()]);
     close(means.outcomes[1].expected_utility, 2.5);
 }
 
@@ -493,12 +493,13 @@ fn acceptance_the_joint_law_decision_matches_the_hand_derived_values() {
     close(result.actions[1].expected_regret.unwrap(), 2.0);
     close(result.actions[2].expected_regret.unwrap(), 2.5);
 
-    let composed = compare(&law_contract(), &[e2_law_input(None)]);
+    let composed = compare(&law_contract(), &[lab_two_law_input(None)]);
     close(composed.evpi.unwrap(), 2.0);
     assert_eq!(composed.results.len(), 1);
 
     // With dose 2 masked unsupported only wait and treat are scored: E[max] = 3.5.
-    let masked = compare(&law_contract(), &[e2_law_input(Some(vec![true, true, false, true]))]);
+    let masked =
+        compare(&law_contract(), &[lab_two_law_input(Some(vec![true, true, false, true]))]);
     assert_eq!(
         masked.dispositions[2].status,
         ActionStatus::Unsupported {
@@ -514,7 +515,7 @@ fn acceptance_the_joint_law_decision_matches_the_hand_derived_values() {
 
 #[test]
 fn acceptance_probability_and_quantile_come_only_from_the_joint_law() {
-    let law = e2_law_input(None);
+    let law = lab_two_law_input(None);
     let value_of = |action: &str, which: DecisionFunctional| {
         evaluate_functional_on_input(&law_contract(), action, which, &law, SupportStatus::Supported)
             .unwrap()
@@ -527,7 +528,7 @@ fn acceptance_probability_and_quantile_come_only_from_the_joint_law() {
     }
 
     // The same study's point means agree on the expectation and refuse everything else.
-    let mean = e2_mean_input();
+    let mean = lab_two_mean_input();
     let expectation = evaluate_functional_on_input(
         &contract("mean"),
         "treat",
@@ -576,7 +577,7 @@ fn independent(left: &str, right: &str) -> PairRelation {
 
 #[test]
 fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it() {
-    let inputs = [native_input(), e1_input(), e2_law_input(None)];
+    let inputs = [native_input(), lab_one_input(), lab_two_law_input(None)];
     let relations =
         [independent("native", "e1"), independent("e1", "e2law"), shared("native", "e2law", None)];
     let pooled =
@@ -589,7 +590,7 @@ fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it() {
             right: "e2law".into(),
         }
     );
-    let pair = [e1_input(), e2_law_input(None)];
+    let pair = [lab_one_input(), lab_two_law_input(None)];
     let receipt = check_composition(
         &pair,
         &[independent("e1", "e2law")],
@@ -609,7 +610,7 @@ fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it() {
         id: "jl-1".into(),
         source_input: "e2law".into(),
     };
-    let supported = [native_input(), e2_law_input(None)];
+    let supported = [native_input(), lab_two_law_input(None)];
     let receipt = check_composition(
         &supported,
         &[shared("native", "e2law", Some(route))],
@@ -767,7 +768,7 @@ fn claim(spec: &ClaimSpec<'_>) -> ExternalClaimArtifact {
     ExternalClaimArtifact::from_bound_claim(&bound, CONTRACT).unwrap()
 }
 
-fn e1_claim() -> ExternalClaimArtifact {
+fn lab_one_claim() -> ExternalClaimArtifact {
     claim(&ClaimSpec {
         provider: "lab-1",
         snapshot: "snap-e1",
@@ -777,7 +778,7 @@ fn e1_claim() -> ExternalClaimArtifact {
     })
 }
 
-fn e2_claim(evidence: &str) -> ExternalClaimArtifact {
+fn lab_two_claim(evidence: &str) -> ExternalClaimArtifact {
     claim(&ClaimSpec {
         provider: "lab-2",
         snapshot: "snap-e2",
@@ -809,8 +810,8 @@ fn composed_builder(e2_evidence: &str) -> (BundleBuilder, String) {
         )
         .unwrap();
     builder.declare_inspected("program", "native.mean.do(a=1)", 4.0).unwrap();
-    add(&mut builder, "e1", &e1_claim().to_bytes("e1").unwrap());
-    add(&mut builder, "e2claim", &e2_claim(e2_evidence).to_bytes("e2").unwrap());
+    add(&mut builder, "e1", &lab_one_claim().to_bytes("e1").unwrap());
+    add(&mut builder, "e2claim", &lab_two_claim(e2_evidence).to_bytes("e2").unwrap());
     let relation = builder.relate("e1", "e2claim", EvidenceRelationship::Independent).unwrap();
     let contract_bytes = DecisionContractArtifact::new(contract).unwrap().to_bytes("c").unwrap();
     add(&mut builder, "contract_j", &contract_bytes);
@@ -888,7 +889,7 @@ fn acceptance_overlapping_evidence_fails_the_declared_independence() {
 
 #[test]
 fn acceptance_the_point_only_decision_is_an_attested_result_with_the_hand_values() {
-    let e1 = e1_claim();
+    let e1 = lab_one_claim();
     let source = mean_source_of(&e1).unwrap();
     let contract = contract("mean");
     let result = evaluate_contract_on_means(&contract, &source).unwrap();

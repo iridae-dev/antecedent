@@ -45,7 +45,7 @@ coverage records.
 - **Scope.** The untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other
   functionals, other target populations and trimmed fits refit full-sample nuisances and
   are refused: `route_not_supported` (`penalized_propensity.scope`) for ridge, and
-  `selection_inference_not_supported` (`penalized_propensity.selection_closed`) for a lasso,
+  `selection_inference_not_supported` (`penalized_propensity.selection_not_supported`) for a lasso,
   because a full-sample lasso would select its support on the rows it scores.
 - **Folds.** Five folds from the established seeded, arm-stratified, unit-level plan
   (`fold_seed` is the analysis seed); duplicated rows of one unit share a fold. Fold `k`'s
@@ -238,8 +238,8 @@ advance and triggered only by a fit failure.
 | `invalid_argument` | `penalized_propensity.invalid_penalty` | empty grid, non-positive or non-finite penalty, or fewer than two inner folds; the fold plan separately enforces its row-count and index-representation limits |
 | `invalid_argument` | `penalized_propensity.fallback_with_penalty` | a fallback declared beside a penalized primary |
 | `route_not_supported` | `penalized_propensity.scope` | a ridge penalty with a non-mean functional, a population other than `AllObserved`, or trimming |
-| `selection_inference_not_supported` | `penalized_propensity.selection_closed` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
-| `nuisance_fallback_not_supported` | `penalized_propensity.fallback_closed` | a GLM fit fails under an ML fallback, or under any fallback on a full-sample route |
+| `selection_inference_not_supported` | `penalized_propensity.selection_not_supported` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
+| `nuisance_fallback_not_supported` | `penalized_propensity.fallback_not_supported` | a GLM fit fails under an ML fallback, or under any fallback on a full-sample route |
 | `cancelled_no_claim` | `penalized_propensity.cancelled` | penalty selection was cancelled; no estimate is reported |
 
 Selection observes cancellation once per penalty of every outer fold, so a cancel is seen

@@ -157,7 +157,7 @@ fn the_posterior_is_the_dirichlet_closed_form_on_the_qualified_prior() {
     close(pbest, 1.0, 1e-9, "probability best sums to one");
     close(result.values[12], 10.0, 1e-12, "borrowed observations");
     close(result.values[13], 0.0, 0.0, "no conflict");
-    assert_eq!(result.closed_claim, None);
+    assert_eq!(result.unsupported_claim, None);
 }
 
 #[test]
@@ -222,7 +222,10 @@ fn a_stopping_decision_is_the_contracts_rule_on_the_posterior() {
     for r in [&at_three, &at_six] {
         assert_eq!(r.values[3] == 1.0, r.values[2] <= 0.2 + 1e-12);
     }
-    assert_eq!(at_six.closed_claim, Some("choice_inference.stopping_reliability_closed"));
+    assert_eq!(
+        at_six.unsupported_claim,
+        Some("choice_inference.no_stopping_reliability_procedure")
+    );
 }
 
 #[test]
@@ -346,7 +349,7 @@ fn the_hierarchical_posterior_carries_the_respondents_dependence() {
     let h = compute_choice_result(&c, &hierarchical(0), &ctx()).unwrap();
     let mean: f64 = (0..3).map(|k| h.values[3 * k]).sum();
     close(mean, 1.0, 1e-8, "population shares sum to one");
-    assert_eq!(h.closed_claim, None);
+    assert_eq!(h.unsupported_claim, None);
     // pooled counts (13, 3, 2) of 18 choices: the pooled posterior is more certain `a` is best
     let mut pooled = categorical(false);
     pooled.retained_sources.clear();
@@ -377,9 +380,7 @@ fn uniform_final_only() -> ChoiceDesignDeclaration {
 }
 
 #[test]
-fn a_measured_interval_is_refused_while_no_coverage_record_attests_the_cell() {
-    // Name kept for the capability record that cites it: the interval is no longer refused; it is
-    // reported with a `not_measured` calibration slot.
+fn a_measured_interval_is_reported_with_a_not_measured_calibration_slot() {
     let bytes = Artifact::to_bytes(
         &contract(uniform_final_only()),
         &ChoiceResultSpec::Posterior { look: 0 },

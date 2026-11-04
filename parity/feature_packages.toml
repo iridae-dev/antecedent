@@ -696,10 +696,10 @@ record = "provider_callback.portable_result"
 record_state = "frozen"
 
 [[feature]]
-id = "provider_callback.closed_claims"
+id = "provider_callback.unsupported_claims"
 purpose = "closed: interval, posterior guarantee, native trust, identification evidence or joint law supplied by a callback"
 depends_on = ["provider_callback.law_posterior_protocol"]
-record = "provider_callback.closed_claims"
+record = "provider_callback.unsupported_claims"
 record_state = "frozen"
 
 [[feature]]

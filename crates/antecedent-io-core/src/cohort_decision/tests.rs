@@ -229,7 +229,7 @@ fn compact_variance_matches_the_hand_calculation_and_a_double_sum_oracle() {
 }
 
 #[test]
-fn the_interval_route_is_closed_with_a_remedy() {
+fn the_interval_route_is_not_supported_with_a_remedy() {
     let source = build(&compact_model(), &cohort()).unwrap();
     let interval = source.interval_refusal();
     assert_eq!(interval.code, "route_not_supported");

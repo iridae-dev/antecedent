@@ -683,7 +683,7 @@ fn supported_target(
             return Err(functional_unsupported(
                 "inverse.observational_scenarios",
                 "observational scenarios compatible with an outcome (P(X | Y)) are not actions \
-                 and are closed; ask for feasible interventions instead",
+                 and are not supported; ask for feasible interventions instead",
             ));
         }
     };

@@ -36,8 +36,6 @@ pub enum ContractReason {
     ClaimCalibration,
     /// `claim.calibration.basis`.
     ClaimCalibrationBasis,
-    /// `claim.calibration.off_axis`.
-    ClaimCalibrationOffAxis,
     /// `claim.domains`.
     ClaimDomains,
     /// `claim.id`.
@@ -477,7 +475,6 @@ impl ContractReason {
             Self::CheckedAipwRowBinding => "checked_aipw.row_binding",
             Self::ClaimCalibration => "claim.calibration",
             Self::ClaimCalibrationBasis => "claim.calibration.basis",
-            Self::ClaimCalibrationOffAxis => "claim.calibration.off_axis",
             Self::ClaimDomains => "claim.domains",
             Self::ClaimId => "claim.id",
             Self::ClaimKind => "claim.kind",
@@ -958,7 +955,6 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::CheckedAipwRowBinding,
     ContractReason::ClaimCalibration,
     ContractReason::ClaimCalibrationBasis,
-    ContractReason::ClaimCalibrationOffAxis,
     ContractReason::ClaimDomains,
     ContractReason::ClaimId,
     ContractReason::ClaimKind,
@@ -1181,7 +1177,6 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "checked_aipw.row_binding",
     "claim.calibration",
     "claim.calibration.basis",
-    "claim.calibration.off_axis",
     "claim.domains",
     "claim.id",
     "claim.kind",

@@ -705,7 +705,7 @@ impl ContinuousResponseEstimator {
         support.warnings.retain(|warning| {
             !matches!(
                 warning.code.as_ref(),
-                "response.derivative_interval_withheld"
+                "response.no_derivative_interval_method"
                     | "response.derivative_interval_bias_corrected"
                     | "response.derivative_interval_delta_method"
                     | "response.derivative_interval_fieller"

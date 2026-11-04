@@ -67,4 +67,4 @@ artifact = surface.to_sensitivity_artifact(
 decided = require_success(sensitivity_decision.decide(artifact.contract(), artifact))
 print(decided.explain())
 assert decided.kind == "invariant_action" and decided.invariant_action == "treat"
-assert decided.sampling.status == "withheld"
+assert decided.sampling.status == "no_interval_method"

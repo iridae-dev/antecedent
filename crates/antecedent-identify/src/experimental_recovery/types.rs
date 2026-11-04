@@ -246,7 +246,7 @@ pub struct CoefficientRecovery {
     pub recipe: &'static str,
     /// Coordinates pinned down by coverage and generic rank.
     pub recoverable: Vec<DirectCoefficient>,
-    /// Unresolved directions. Empty only when the coefficient goal is closed.
+    /// Unresolved directions. Empty only when the coefficient goal is not supported.
     pub unresolved: Vec<UnresolvedDirection>,
     /// Finite-sample condition offered with the design. Not applied.
     pub finite_sample_conditioning: FiniteSampleConditioning,
@@ -419,7 +419,7 @@ pub enum ExperimentalRecoveryDecision {
 }
 
 impl ExperimentalRecoveryDecision {
-    /// Whether the coefficient recovery goal is closed.
+    /// Whether the coefficient recovery goal is not supported.
     ///
     /// Only a [`Self::Recovered`] report closes it. A rank-deficient or
     /// under-covered design, a refusal, and [`NotThisRecipe`] all leave it open.

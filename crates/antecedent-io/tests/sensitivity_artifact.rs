@@ -56,7 +56,7 @@ fn withheld() -> UncertaintyRelationship {
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
             reason_code: "not_supported".into(),
-            detail: "joint_sensitivity.interval_withheld".into(),
+            detail: "joint_sensitivity.no_interval_method".into(),
         },
     }
 }
@@ -476,7 +476,7 @@ fn a_joint_result_is_adapted_exactly_and_travels_through_the_wire() {
     assert_eq!(artifact.uncertainty().assumption_range.kind, "assumption_range");
     assert!(matches!(
         &artifact.uncertainty().sampling,
-        SamplingStatus::Withheld { detail, .. } if detail == "joint_sensitivity.interval_withheld"
+        SamplingStatus::Withheld { detail, .. } if detail == "joint_sensitivity.no_interval_method"
     ));
     assert_eq!(artifact.provenance().decision_threshold, Some(0.25));
     assert_eq!(artifact.provenance().source_tipping[0].analytic, Some(5.0 / 30.0));

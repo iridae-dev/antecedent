@@ -1,9 +1,10 @@
 # Conformance registry for programmable interventions, mechanism selection, graph
 # falsification, batch noise replay and intrinsic causal influence.
 #
-# Every row names one test that must pass in `scripts/gate_gcm_conformance.sh`; the rows are
-# executed by `scripts/run_evidence_rows.py` (exactly one test per Rust row, at least one
-# per Python row). `scripts/check_gcm_conformance.py` requires every clause below to have
+# Every row names one test; `scripts/gate_gcm_conformance.sh` resolves each one
+# (`scripts/run_evidence_rows.py --static`) and the test lanes run them: the tree-provider
+# rows are gated on the `ml-gbdt` and `ml-forest` features and run with the optional-feature
+# step of `bash scripts/test.sh` (`-p antecedent-model --features gaussian-process,ml-full`). `scripts/check_gcm_conformance.py` requires every clause below to have
 # evidence, every cited test to exist, and every benchmark to be registered and to assert its
 # regression bound.
 
@@ -135,6 +136,66 @@ id = "selection_every_candidate_scored_on_shared_folds"
 clause = "mechanism_selection_known_truth"
 evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
 evidence_assertion = "every_candidate_is_scored_on_the_same_folds_with_a_comparable_decomposition"
+
+[[conformance]]
+id = "selection_with_providers_a_tree_ensemble_recovers_a_quadratic_mechanism"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "a_tree_ensemble_recovers_a_quadratic_mechanism"
+
+[[conformance]]
+id = "selection_with_providers_a_tree_ensemble_recovers_a_threshold_mechanism"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "a_tree_ensemble_recovers_a_threshold_mechanism"
+
+[[conformance]]
+id = "selection_with_providers_a_tree_ensemble_recovers_an_interaction_mechanism"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "a_tree_ensemble_recovers_an_interaction_mechanism"
+
+[[conformance]]
+id = "selection_with_providers_a_tree_ensemble_recovers_a_sinusoidal_mechanism"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "a_tree_ensemble_recovers_a_sinusoidal_mechanism"
+
+[[conformance]]
+id = "selection_with_providers_a_tree_ensemble_beats_the_linear_family_on_a_step"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "a_tree_ensemble_beats_the_linear_family_on_a_step"
+
+[[conformance]]
+id = "selection_with_providers_linear_truth_keeps_the_linear_family"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "linear_truth_keeps_the_linear_family"
+
+[[conformance]]
+id = "selection_with_providers_a_binary_node_with_a_nonlinear_logit_selects_a_tree_classifier"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "a_binary_node_with_a_nonlinear_logit_selects_a_tree_classifier"
+
+[[conformance]]
+id = "selection_with_providers_additive_tree_noise_inversion_round_trips_and_samples_the_truth"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "additive_tree_noise_inversion_round_trips_and_samples_the_truth"
+
+[[conformance]]
+id = "selection_with_providers_categorical_tree_abduction_replays_the_observation_and_normalises"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "categorical_tree_abduction_replays_the_observation_and_normalises"
+
+[[conformance]]
+id = "selection_with_providers_time_ordered_splits_remove_the_inflation_that_serial_dependence_causes"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "time_ordered_splits_remove_the_inflation_that_serial_dependence_causes"
 
 [[conformance]]
 id = "mechanism_operation_refused_by_name"

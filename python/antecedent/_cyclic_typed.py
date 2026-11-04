@@ -892,7 +892,7 @@ class RecoveredWorldAnswer(ScientificResult):
                 f"recovered world {self.world}: all {self.withheld_mass:g} of the law's mass "
                 "was withheld from the outcome mixture",
                 reason_code="route_not_supported",
-                detail="cyclic_recovery.mass_withheld",
+                detail="cyclic_recovery.no_outcome_mass",
                 next_attempt="add a regime that clamps each missing source while its target is "
                 "passive, or read the draw statuses of the law",
             )

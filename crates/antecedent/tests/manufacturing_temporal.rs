@@ -880,7 +880,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
         fresh
             .diagnostics
             .iter()
-            .all(|d| d.code.as_ref() != "estimate.dbn_posterior.mediation.uncertainty_withheld")
+            .all(|d| d.code.as_ref() != "estimate.dbn_posterior.mediation.no_uncertainty_method")
     );
     let grid = fresh.mediation_grid().expect("mediation grid");
     let slice = &grid.slices[0];
@@ -949,7 +949,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replic
         result
             .diagnostics
             .iter()
-            .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.uncertainty_withheld")
+            .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.no_uncertainty_method")
     );
     assert!(matches!(
         result.mediation_grid().unwrap().slices[0].uncertainty,
@@ -1123,7 +1123,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
         antecedent_estimate::TemporalMediationUncertainty::Unavailable
     ));
     let codes: Vec<&str> = result.diagnostics.iter().map(|d| d.code.as_ref()).collect();
-    assert!(codes.contains(&"estimate.dbn_posterior.mediation.scalar_withheld"), "{codes:?}");
+    assert!(codes.contains(&"estimate.dbn_posterior.mediation.no_scalar_method"), "{codes:?}");
     assert!(!codes.contains(&"estimate.dbn_posterior.mediation.shared_block"), "{codes:?}");
 }
 

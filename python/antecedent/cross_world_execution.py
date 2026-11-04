@@ -21,7 +21,7 @@ named world is evaluated under that same posterior state. The pipeline keeps its
   variable elimination, without forming that space.
 
 Every value is a ``point_only`` result of exact enumeration under the declared model (mechanism
-adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are closed:
+adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are not supported:
 :meth:`CrossWorldExecution.interval` and :meth:`CrossWorldExecution.posterior` always raise
 ``sampling_dependence_unknown`` and ``uncertainty_representation_insufficient``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
 :func:`consume_cross_world_execution_artifact` replays everything with a fresh executor and
@@ -345,7 +345,7 @@ class CapabilityRow:
 
 
 def capability_matrix() -> tuple[CapabilityRow, ...]:
-    """The capability matrix: what is executed, what keeps its own route, what is closed."""
+    """The capability matrix: what is executed, what keeps its own route, what is not supported."""
     rows = json.loads(_native.cross_world_capability_matrix())
     return tuple(
         CapabilityRow(
@@ -376,7 +376,7 @@ def decide(
 
     Raises:
         CrossWorldExecutionRefusal: the request is outside every executed row; the refusal names
-            the closed row or dimension and what would open it.
+            the unsupported row or dimension and what would open it.
     """
     row, refusal = _native.cross_world_decide(
         quantity, model, conditioning, interventions, population, history, evidence
@@ -558,11 +558,11 @@ class CrossWorldExecution(ScientificResult):
 
     def interval(self) -> None:
         """Always raises ``sampling_dependence_unknown``: no unit sampling is declared."""
-        _refuse(_native.cross_world_closed_reading("interval"))
+        _refuse(_native.cross_world_unsupported_reading("interval"))
 
     def posterior(self) -> None:
         """Always raises ``uncertainty_representation_insufficient``."""
-        _refuse(_native.cross_world_closed_reading("posterior"))
+        _refuse(_native.cross_world_unsupported_reading("posterior"))
 
     @outcome_operation
     def whole_path_uncertainty(
@@ -790,11 +790,11 @@ class WholePathAccount(ScientificResult):
 
     def interval(self) -> None:
         """Always raises ``sampling_dependence_unknown``: a spread is not an interval."""
-        _refuse(_native.cross_world_closed_reading("interval"))
+        _refuse(_native.cross_world_unsupported_reading("interval"))
 
     def posterior(self) -> None:
         """Always raises ``uncertainty_representation_insufficient``: a spread is not a posterior."""
-        _refuse(_native.cross_world_closed_reading("posterior"))
+        _refuse(_native.cross_world_unsupported_reading("posterior"))
 
 
 def _whole_path(

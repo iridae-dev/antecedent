@@ -216,7 +216,7 @@ impl CounterfactualIdRefusal {
     fn path_specific() -> Self {
         Self::plain(
             antecedent_core::reason_code!("route_not_supported"),
-            "counterfactual_id.path_specific_deferred",
+            "counterfactual_id.path_specific_not_supported",
             "a world routes edges: path-specific and recanting-district effects on ADMGs are \
              outside this identification route"
                 .into(),

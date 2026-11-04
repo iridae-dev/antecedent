@@ -1588,7 +1588,7 @@ class TransportedMechanismComposition(ScientificResult):
 
     Every component says whether it was carried from the source fit or refitted in the target.
     The numbers are exact given the mechanisms; the variance is first-order, uncalibrated and
-    scoped; the interval route is closed.
+    scoped; the interval route is not supported.
     """
 
     identity: str

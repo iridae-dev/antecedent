@@ -58,7 +58,7 @@ pub struct ScoreDifference {
     pub label: &'static str,
     /// Always `unmeasured`.
     pub calibration: &'static str,
-    /// Always `not_reported`: a score-difference interval is closed.
+    /// Always `not_reported`: a score-difference interval is not supported.
     pub interval: &'static str,
 }
 

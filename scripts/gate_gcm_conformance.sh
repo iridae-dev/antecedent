@@ -4,10 +4,11 @@
 # invocation.
 #
 # The registry contract (every clause cited, every cited test and benchmark present, every
-# owned acceptance case bound to a test the gate runs) is checked statically, then every
-# [[conformance]] row is executed by the shared row runner: Rust rows must pass exactly one
-# test, Python rows at least one, none may fail. The tree-ensemble recovery tests need the
-# tree providers and run with them. Each [[performance]] benchmark runs in Criterion's smoke
+# owned acceptance case bound to a test the lanes run) is checked statically, then every
+# [[conformance]] row is resolved by the shared row runner (--static) to an exact,
+# non-ignored test. The engineering lane runs them (the tree-provider rows with the
+# optional-feature step of scripts/test.sh); scientific rows run through
+# scripts/scientific_records.py run (owed only). Each [[performance]] benchmark runs in Criterion's smoke
 # mode, which executes its in-process regression and reuse assertions; a full timing run is
 # `cargo bench -p <package> --bench <bench>`.
 #
@@ -17,14 +18,6 @@
 #   bash scripts/gate_gcm_conformance.sh --self-test  # broken registries must fail
 set -euo pipefail
 
-# Scientific rows with a current recorded pass (parity/scientific_records.toml)
-# are carried forward, not rerun. --all or ANTECEDENT_SCIENTIFIC_ALL=1 runs and
-# re-records every row (release candidate). See scripts/scientific_records.py.
-_args=()
-for _a in "$@"; do
-  if [[ "$_a" == --all ]]; then export ANTECEDENT_SCIENTIFIC_ALL=1; else _args+=("$_a"); fi
-done
-set -- "${_args[@]+"${_args[@]}"}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 REGISTRY=parity/gcm_conformance.toml
@@ -52,11 +45,8 @@ python3 scripts/check_gcm_conformance.py
 echo "== acceptance manifest =="
 python3 scripts/check_acceptance_manifest.py
 
-echo "== conformance tests =="
-python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" conformance gate_gcm_conformance
-
-echo "== nonlinear mechanism recovery with the tree providers =="
-cargo test -p antecedent-model --features ml-gbdt,ml-forest --test mechanism_selection -- with_providers::
+echo "== conformance tests resolve to exact tests =="
+python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" conformance gate_gcm_conformance --static
 
 if [[ "$benches" -eq 1 ]]; then
   echo "== batch execution performance requirements =="

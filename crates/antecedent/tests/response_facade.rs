@@ -655,7 +655,7 @@ fn prepared_graph_posterior_response_reuses_identification() {
             .diagnostics
             .iter()
             .any(|d| d.code.as_ref() == "estimate.response.graph_posterior.joint_if_se"
-                || d.code.as_ref() == "estimate.response.graph_posterior.uncertainty_withheld")
+                || d.code.as_ref() == "estimate.response.graph_posterior.no_uncertainty_method")
     );
     assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() <= 1.0 + 1e-9);
 }
@@ -1015,7 +1015,7 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
             );
             assert!(
                 result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref()
-                    == "estimate.response.graph_posterior.uncertainty_withheld"),
+                    == "estimate.response.graph_posterior.no_uncertainty_method"),
                 "{mode} {label}: the withheld aggregate is disclosed"
             );
         }
@@ -1257,7 +1257,7 @@ fn graph_posterior_response_different_adjustments_publish_atoms_not_a_mean() {
     assert!((set.lower[0] - low).abs() < 1e-12 && (set.upper[0] - high).abs() < 1e-12);
     assert!(matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None));
     let codes: Vec<&str> = result.diagnostics.iter().map(|d| d.code.as_ref()).collect();
-    assert!(codes.contains(&"estimate.response.graph_posterior.uncertainty_withheld"));
+    assert!(codes.contains(&"estimate.response.graph_posterior.no_uncertainty_method"));
     assert!(!codes.contains(&"estimate.response.graph_posterior.joint_if_se"));
 }
 

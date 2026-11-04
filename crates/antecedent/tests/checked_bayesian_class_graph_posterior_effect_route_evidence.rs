@@ -186,7 +186,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                 assert!(
                     result.posterior.is_some()
                         || result.diagnostics.iter().any(|d| {
-                            d.code.as_ref() == "estimate.graph_posterior.posterior_withheld"
+                            d.code.as_ref() == "estimate.graph_posterior.no_posterior_method"
                         }),
                     "{coordinate}: withheld aggregate posterior must be disclosed"
                 );

@@ -243,8 +243,8 @@ fn the_adaptive_inference_result_golden_is_replayed_and_gated() {
     assert_eq!(meta.feature, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE);
     assert_eq!(meta.claim, "point_only");
     assert_eq!(meta.calibration, "unmeasured");
-    // The conjugate posterior reports every claim through an interval route: no closed claim.
-    assert_eq!(meta.closed_claim, None);
+    // The conjugate posterior reports every claim through an interval route: no unsupported claim.
+    assert_eq!(meta.unsupported_claim, None);
 
     let mut newer = meta;
     newer.version = ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION + 1;

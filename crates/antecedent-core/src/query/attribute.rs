@@ -3,8 +3,8 @@
 //! anomaly scores, unit change and mechanism-change detection.
 //!
 //! Each target is computed under the mechanisms fitted on the supplied
-//! structure. None is a geometric support-matrix cell; the route executes and
-//! stays unsupported until a coverage record supports it.
+//! structure. None is a geometric support-matrix cell; the route executes with
+//! calibration status `not_measured`; no coverage record covers it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -219,7 +219,7 @@ fn disclosure(estimate: &antecedent_estimate::IvBoundsEstimate) -> Diagnostic {
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "unsupported and uncalibrated route: the instrument is declared independent of the \
+            "route with calibration status `not_measured`: the instrument is declared independent of the \
              potential outcomes and excluded from the outcome (neither is checked), the answer \
              is the identified set [{:.4}, {:.4}] of average effects the observed law leaves \
              open and not a point, and the result reports {interval}; no coverage record names it",

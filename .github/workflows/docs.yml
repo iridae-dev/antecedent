@@ -67,11 +67,10 @@ jobs:
       - name: Conformance docs
         run: python3 scripts/generate_conformance_docs.py
 
-      - name: Generated documentation is current
-        run: |
-          set -euo pipefail
-          python3 scripts/generate_support_matrix_docs.py
-          git diff --exit-code -- docs/conformance docs/support-matrix.md
+      # The static job of ci.yml fails when these generated files are stale; this job only
+      # needs them to build the site.
+      - name: Support matrix docs
+        run: python3 scripts/generate_support_matrix_docs.py
 
       - name: Build narrative site strictly
         run: |

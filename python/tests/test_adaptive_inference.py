@@ -312,7 +312,7 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     assert v[4] + v[10] == pytest.approx(1.0, abs=1e-8)
     assert v[11] == pytest.approx(expected_loss(shapes[1], shapes[0]), abs=1e-7)
     assert v[5] == pytest.approx(expected_loss(shapes[0], shapes[1]), abs=1e-7)
-    assert result.closed_claim is None
+    assert result.unsupported_claim is None
     # The first look saw half the data.
     early = require_success(session.analyse(ai.BayesianPosterior(look=0)))
     first = counts_of(
@@ -414,7 +414,7 @@ def test_no_interval_is_supported_for_any_route():
     session = prepare(thompson_design())
     error = refused(session.interval)
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert error.detail == "adaptive_inference.interval_closed"
+    assert error.detail == "adaptive_inference.interval_names_no_quantity"
 
 
 def test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells():
@@ -496,7 +496,7 @@ def test_adaptive_weighting_matches_an_independent_calculation(scheme):
     assert result._wire_values[0] == pytest.approx(estimate, abs=1e-10)
     assert result._wire_values[1] == pytest.approx(variance, abs=1e-10)
     assert result._wire_values[2] == len(y)
-    assert result.closed_claim is None
+    assert result.unsupported_claim is None
 
 
 def test_a_probability_below_the_floor_is_refused_not_clipped():
@@ -548,7 +548,7 @@ def test_repeated_measures_use_the_subject_mean_as_the_unit():
     assert again._wire_values[0] == pytest.approx(result._wire_values[0], abs=1e-12)
 
 
-def test_the_hierarchical_cluster_cell_is_carried_forward():
+def test_the_hierarchical_cluster_cell_is_not_delivered():
     design = replace(
         epsilon_greedy_design(measurements=3, sizes=(40,)), outcome="hierarchical_clustered"
     )
@@ -558,7 +558,7 @@ def test_the_hierarchical_cluster_cell_is_carried_forward():
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "adaptive_inference.cell_carried_forward"
+    assert error.detail == "adaptive_inference.cell_not_delivered"
 
 
 # --------------------------------------------------------------------------- confidence sequence
@@ -615,7 +615,7 @@ def test_group_sequential_boundaries_and_decisions_match_published_values():
     assert error.reason_code == "adaptive_design_ignored"
 
 
-def test_group_sequential_with_adaptive_assignment_is_a_closed_pairing():
+def test_group_sequential_with_adaptive_assignment_is_a_pairing_not_supported():
     design = replace(
         thompson_design(),
         monitoring="group_sequential",
@@ -684,18 +684,18 @@ def test_the_procedure_matrix_lists_every_cell_once_and_agrees_with_the_registry
         assert row.get("owner") == cell.owner, row["id"]
         assert row["status"] in {
             "supported",
-            "closed_incoherent",
-            "closed_pairing",
-            "carried_forward",
+            "incoherent",
+            "pairing_not_supported",
+            "not_delivered",
         }
     classes = [c.status for c in matrix]
     assert {s: classes.count(s) for s in set(classes)} == {
         "supported": 12,
-        "closed_incoherent": 360,
-        "closed_pairing": 20,
-        "carried_forward": 208,
+        "incoherent": 360,
+        "pairing_not_supported": 20,
+        "not_delivered": 208,
     }
-    assert all(c.owner for c in matrix if c.status == "carried_forward")
+    assert all(c.owner for c in matrix if c.status == "not_delivered")
 
 
 # --------------------------------------------------------------------------- artifacts
@@ -764,7 +764,7 @@ def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_exp
     assert consumed.paradigm == "bayesian_posterior"
     assert consumed.procedure == produced.procedure
     assert consumed.stopping_rule["spec"] == "posterior_probability_best"
-    assert consumed.closed_claim is None
+    assert consumed.unsupported_claim is None
     for a, b in zip(consumed._wire_values, produced._wire_values, strict=True):
         assert a == pytest.approx(b, abs=1e-9)
     # A different experiment (one outcome changed) is another identity: the consumer that

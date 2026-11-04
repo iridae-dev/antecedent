@@ -272,7 +272,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `counterfactual_transport.invalid_witness` | `transport_not_certified` | Discard the stored witness; it does not verify by exact enumeration. |
 | `counterfactual_transport.missing_law` | `transport_missing_provider` | Supply the law of the cited regime at the needed intervention level. |
 | `counterfactual_transport.missing_regime` | `transport_missing_evidence` | Supply the named regimes the catalog lacks; the query is derivable with them. |
-| `counterfactual_transport.sampled_inference_closed` | `route_not_supported` | Use the sampled counterfactual transport route for counted, empirical or posterior laws. |
+| `counterfactual_transport.no_sampled_inference` | `route_not_supported` | Use the sampled counterfactual transport route for counted, empirical or posterior laws. |
 | `counterfactual_transport.selected_sample_law` | `route_not_supported` | Supply laws of the population itself; this route has no sampling-selection model. |
 | `counterfactual_transport.support_failure` | `transport_support_failure` | Supply laws with positive mass on every conditioning event the formula divides by. |
 | `counterfactual_transport.zero_conditioning_mass` | `transport_support_failure` | Condition on an event with positive mass in the target population. |
@@ -310,7 +310,7 @@ ok
 | `observation_query.artifact_invalid` | `invalid_argument` | Supply an intact observation_query_v1 artifact of the supported layout. |
 | `observation_query.artifact_refused` | `invalid_argument` | Supply the artifact whose identity equals the retained one and whose result recomputes from its premises. |
 | `observation_query.blank_field` | `invalid_argument` | Name the outcome variable and the variable and level of every slot. |
-| `observation_query.calibrated_probability_closed` | `uncertainty_representation_insufficient` | A probability from a model fitted to a sample is a point value with no claim about how often it is right. |
+| `observation_query.no_calibrated_probability` | `uncertainty_representation_insufficient` | A probability from a model fitted to a sample is a point value with no claim about how often it is right. |
 | `observation_query.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the cancellation is not a verdict on the model. |
 | `observation_query.construct_mismatch` | `measurement_binding_mismatch` | Request the construct the model names, or declare a model for the construct asked about. |
 | `observation_query.construct_observed_directly` | `invalid_argument` | Condition on the construct directly or on its measured indicator, not both. |
@@ -704,7 +704,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `joint_law_propagation.mixture_weights_unknown` | `invalid_argument` | Supply the mixture weights or ask for the dependence envelope. |
 | `cross_world_uncertainty.unit_sampling_undeclared` | `sampling_dependence_unknown` | Declare fixed units or an independent sample of a population. |
 | `cross_world_uncertainty.sampled_path_not_supported` | `estimator_inference_mismatch` | Use exact enumeration; sampled-path coverage is not measured. |
-| `cross_world_uncertainty.transported_path_closed` | `transport_not_certified` | Derive in the population the mechanisms were declared for; no transported abduction derivation exists. |
+| `cross_world_uncertainty.no_transported_path_derivation` | `transport_not_certified` | Derive in the population the mechanisms were declared for; no transported abduction derivation exists. |
 | `cross_world_uncertainty.incompatible_history` | `route_not_supported` | Declare mechanisms for the history of the evidence. |
 | `cross_world_uncertainty.bounds_exceeded` | `invalid_argument` | Reduce units or states below the bound. |
 | `cross_world_uncertainty.result_mismatch` | `invalid_argument` | Pass the result of executing this request. |
@@ -750,7 +750,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.anytime_settings_missing` | `adaptive_contract_incomplete` | Declare the miscoverage level and tuning sample size of the confidence sequences. |
 | `adaptive_inference.historical_prior_invalid` | `invalid_argument` | Declare one prior per arm with valid sources: successes within trials, a discount in [0, 1], a label. |
 | `adaptive_inference.anytime_settings_invalid` | `invalid_argument` | Declare a miscoverage level in (0, 1) and a positive tuning sample size. |
-| `adaptive_inference.borrowing_frozen` | `adaptive_assumption_violated` | Declare the borrowing before recruitment and keep it; a different plan is a new declaration. |
+| `adaptive_inference.borrowing_fixed_after_first_look` | `adaptive_assumption_violated` | Declare the borrowing before recruitment and keep it; a different plan is a new declaration. |
 | `adaptive_inference.assignment_not_replayed` | `adaptive_assumption_violated` | Retain the allocation probabilities the declared procedure computed, or declare the procedure that ran. |
 | `adaptive_inference.stopping_not_replayed` | `adaptive_assumption_violated` | Retain the looks the declared decisions performed, or declare the decisions that ran. |
 | `adaptive_inference.batch_incomplete` | `adaptive_assumption_violated` | Retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed. |
@@ -795,7 +795,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `discretized_scm_artifact.rederivation_refused` | `invalid_argument` | Re-export from the producing composition. |
 | `discretized_scm_artifact.identity_mismatch` | `invalid_argument` | Supply the artifact whose identity was retained. |
 | `discretized_scm_artifact.claimed_numbers_differ` | `invalid_argument` | Re-export from the producing composition. |
-| `paradigm_parity.paradigm_closed` | `route_not_supported` | Use the paradigm the route supports; the closed reason is returned as the remedy. |
+| `paradigm_parity.paradigm_not_supported` | `route_not_supported` | Use the paradigm the route supports; the closed reason is returned as the remedy. |
 
 ### Evidence overlap of design studies
 

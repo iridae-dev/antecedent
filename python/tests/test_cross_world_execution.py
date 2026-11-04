@@ -243,15 +243,15 @@ def test_a_measured_interval_needs_a_declared_sampling_and_reports_its_calibrati
     with pytest.raises(R) as error:
         require_success(execution.measured_interval("independent_sample"))
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    assert error.value.detail == "cross_world_execution.no_interval_method"
     with pytest.raises(R) as error:
         execution.interval()
     assert error.value.reason_code == "sampling_dependence_unknown"
-    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    assert error.value.detail == "cross_world_execution.no_interval_method"
     with pytest.raises(R) as error:
         require_success(execution.posterior())
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "cross_world_execution.posterior_route_closed"
+    assert error.value.detail == "cross_world_execution.no_posterior_method"
 
     # Sixty units under a declared sampling: the interval is conditional on the declared model
     # and carries its calibration slot.
@@ -309,7 +309,7 @@ def test_a_whole_path_interval_is_annotated_outside_the_measured_cells() -> None
     with pytest.raises(R) as error:
         require_success(execution.measured_interval("independent_sample"))
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    assert error.value.detail == "cross_world_execution.no_interval_method"
     fixed = require_success(execution.measured_interval("fixed_units"))
     assert fixed.lower <= fixed.point <= fixed.upper
     assert fixed.unit_sampling == "fixed_units"
@@ -332,10 +332,10 @@ def test_a_whole_path_interval_is_annotated_outside_the_measured_cells() -> None
     with pytest.raises(R) as error:
         small.interval()
     assert error.value.reason_code == "sampling_dependence_unknown"
-    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    assert error.value.detail == "cross_world_execution.no_interval_method"
     with pytest.raises(R) as error:
         require_success(small.posterior())
-    assert error.value.detail == "cross_world_execution.posterior_route_closed"
+    assert error.value.detail == "cross_world_execution.no_posterior_method"
 
 
 def test_unsupported_requests_are_scientific_refusals() -> None:
@@ -406,7 +406,7 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
 def test_capability_matrix_and_decide() -> None:
     rows = {row.id: row for row in cw.capability_matrix()}
     assert rows["natural_path_specific.finite_markovian_scm"].status == "executed"
-    assert rows["transported.cross_world_execution"].status == "closed"
+    assert rows["transported.cross_world_execution"].status == "not_supported"
     for row in rows.values():
         if row.status == "closed":
             assert row.refusal_code and row.remedy

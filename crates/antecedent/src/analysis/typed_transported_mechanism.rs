@@ -32,7 +32,7 @@
 //! one; the transport assumption adds no variance ([`UNCERTAINTY_SCOPE`]). Monte Carlo
 //! error is numerical-approximation uncertainty and is reported apart. The receipt's
 //! inference label is `point_only`, its support label is `extrapolative`; the interval
-//! route stays closed ([`TypedTransportedComposition::interval`]).
+//! route is not supported ([`TypedTransportedComposition::interval`]).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -337,7 +337,7 @@ impl TypedTransportedComposition {
     }
 
     /// The standing this composition states as a claim in a composition graph: built from
-    /// mechanisms the library composed, so no provider trust; the interval route is closed,
+    /// mechanisms the library composed, so no provider trust; the interval route is not supported,
     /// so no calibration record is claimed; support `extrapolative`.
     #[must_use]
     pub fn claim_standing(&self) -> super::composition_verification::ClaimStanding {

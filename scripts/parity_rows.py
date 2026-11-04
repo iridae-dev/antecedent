@@ -1,6 +1,6 @@
 """The one reader of the parity manifests for the feature gates.
 
-Every feature gate (`gate_bayesian.sh`, `gate_gcm.sh`, ...) reads `[[capabilities]]`
+The parity inventory gate (`check_parity_inventories.py`) reads `[[capabilities]]`
 rows and checks that each `done` row has evidence on disk. They all go through
 this module, which parses with `tomllib`, so the gates see exactly the rows a real
 TOML parser sees (multi-line strings, single-quoted literals, CRLF files,
@@ -18,8 +18,7 @@ indented keys and trailing comments included).
 Evidence is the file (or fixture directory) that carries a row's behaviour. A test
 file or a fixture directory must actually hold tests or fixtures, so deleting every
 test in the cited file turns the gate red instead of leaving a path that merely
-exists. The tests themselves are run, and counted, by the cargo lines each gate
-issues through `scripts/counted_cargo.sh`.
+exists. The tests themselves run in the engineering and scientific lanes (`scripts/test.sh`).
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ RETIRED = ("intentional_deviation",)
 REASON_PROSE_SCHEMAS = frozenset({
     "support_refusal_reasons.toml", "support_n_a.toml", "support_axes.toml",
     "support_graphless.toml", "python_facade_surface.toml",
-    "interval_level_exceptions.toml", "counterparts.toml",
+    "counterparts.toml",
     "estimator_route_residual.toml", "test_refactor_dispositions.toml",
     "scenario_matrix.toml", "slow_correctness_tests.toml",
 })

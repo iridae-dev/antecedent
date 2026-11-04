@@ -15,7 +15,7 @@
 //! requests are refused with a typed refusal that names the evidence that would support
 //! them ([`LawRequest`]). No utility standard error and no interval is inherited.
 //!
-//! The adjacent uncertainty route is closed. For a linear compact model that retains its
+//! The adjacent uncertainty route is not supported. For a linear compact model that retains its
 //! coefficient covariance, the variance of the weighted cohort-mean contrast
 //! `phibar' V phibar` is computable and is reported as a labelled
 //! [`UncalibratedStandardError`] diagnostic. It conditions on the declared cohort rows
@@ -250,7 +250,7 @@ impl LawRequest {
                     Self::Quantile => "quantile",
                     _ => "nonlinear_utility",
                 },
-                "closed by logic: a cohort mean of conditional contrasts is one expectation, \
+                "not defined: a cohort mean of conditional contrasts is one expectation, \
                  and one expectation determines no law (a probability, a quantile or a \
                  nonlinear utility of the contrast is not a function of its mean); supply \
                  per-draw cohort utilities from a declared shared law as \
@@ -261,7 +261,7 @@ impl LawRequest {
                 antecedent_core::reason_code!("joint_law_required"),
                 "cohort_decision.joint_law_required",
                 "joint_law",
-                "closed by logic: conditional contrasts supply no pairing across units or with \
+                "not defined: conditional contrasts supply no pairing across units or with \
                  other quantities, and a coupling is a premise no mean determines; supply \
                  aligned joint draws as `DecisionDraws` (a declared shared simulation) or a \
                  declared dependence",

@@ -1,6 +1,6 @@
 """Bayesian panel DiD and fuzzy local ratio through the installed ``antecedent`` package.
 
-The routes are explicitly unsupported and uncalibrated; the posterior is compared with a
+The routes are reported with calibration status `not_measured`; the posterior is compared with a
 closed-form Normal-Inverse-Gamma reference computed here, independently of the library.
 """
 

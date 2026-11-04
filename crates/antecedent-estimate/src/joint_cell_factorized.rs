@@ -205,7 +205,7 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
         "gradient_boosted_trees" => Ok(Some(LearnerSpec::GradientBoostedTrees(GbtSpec::default()))),
         "lasso" => Err(refuse(
             antecedent_core::reason_code!("selection_inference_not_supported"),
-            "penalized_propensity.selection_closed",
+            "penalized_propensity.selection_not_supported",
             "a lasso conditional propensity is not a declared joint-cell nuisance: the \
              prefix-stratum selections are not cross-fitted per cell, so the option is closed; \
              declare ridge_logistic, random_forest or gradient_boosted_trees",
@@ -237,7 +237,7 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
 pub fn refuse_joint_inference() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("penalized_interval_not_supported"),
-        "joint_cells.interval_withheld",
+        "joint_cells.no_interval_method",
         "factorized joint cells publish point estimates and an aligned score table only; no \
          interval or joint covariance is supported for penalized conditional propensities",
     )
@@ -252,7 +252,7 @@ pub fn refuse_joint_inference() -> EstimationError {
 pub fn refuse_joint_learner_inference() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("ml_nuisance_not_supported"),
-        "joint_cells.ml_interval_withheld",
+        "joint_cells.no_ml_interval_method",
         "learner-supplied joint cells publish point estimates and an aligned score table only; \
          an interval or joint covariance over machine-learning nuisances needs a nuisance \
          remainder and coverage support that no record grants",

@@ -1323,7 +1323,7 @@ fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == "estimate.temporal_response.band_withheld"),
+            .any(|w| w.code.as_ref() == "estimate.temporal_response.no_band_method"),
         "the withheld band must be diagnosed"
     );
 

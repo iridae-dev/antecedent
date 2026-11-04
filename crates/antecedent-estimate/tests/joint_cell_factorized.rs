@@ -2,7 +2,7 @@
 //! checked against a known joint law enumerated by hand, the family keeps its supported cells
 //! when one is empty or rare, ordering sensitivity is reported, a declared `antecedent-learn`
 //! learner supplies the nuisances out of fold (point only), the factorization reproduces the
-//! empirical joint frequencies of a hand-counted law, and every closed route (undeclared
+//! empirical joint frequencies of a hand-counted law, and every unsupported route (undeclared
 //! learner, lasso, interval, covariance) refuses with its reason code.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -237,7 +237,7 @@ fn the_score_table_is_a_point_and_score_artifact_that_round_trips() {
     }
     let (code, message) = refused(refuse_joint_inference());
     assert_eq!(code, "penalized_interval_not_supported");
-    assert!(message.contains("joint_cells.interval_withheld"), "{message}");
+    assert!(message.contains("joint_cells.no_interval_method"), "{message}");
 }
 
 /// A family with one empty cell keeps the other cells: the empty cell is refused alone with
@@ -461,9 +461,9 @@ fn declarations_outside_the_bounded_cell_are_refused() {
 
 /// Ridge-logistic is the default route, `random_forest` and `gradient_boosted_trees` declare a
 /// learner, and lasso, an undeclared machine-learning name, an unknown name and an interval or
-/// covariance request over either route are closed with their registered reason codes.
+/// covariance request over either route is not supported with their registered reason codes.
 #[test]
-fn undeclared_learners_lasso_and_intervals_are_closed() {
+fn undeclared_learners_lasso_and_intervals_are_not_supported() {
     assert_eq!(declared_joint_nuisance("ridge_logistic").unwrap(), None);
     assert!(matches!(
         declared_joint_nuisance("random_forest").unwrap(),
@@ -487,7 +487,7 @@ fn undeclared_learners_lasso_and_intervals_are_closed() {
     assert_eq!(code, "penalized_interval_not_supported");
     let (code, message) = refused(refuse_joint_learner_inference());
     assert_eq!(code, "ml_nuisance_not_supported");
-    assert!(message.contains("joint_cells.ml_interval_withheld"), "{message}");
+    assert!(message.contains("joint_cells.no_ml_interval_method"), "{message}");
     assert!(message.contains("remainder and coverage support"), "{message}");
 }
 

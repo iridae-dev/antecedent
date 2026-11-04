@@ -147,7 +147,7 @@ fn borrowing_is_frozen_after_the_first_look_with_an_assumption_refusal() {
     assert_ne!(amended.identity(), a.identity());
     let refusal = refused(a.amend_borrowing(&borrowing(0.6), 1));
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.borrowing_frozen");
+    assert_eq!(refusal.detail, "adaptive_inference.borrowing_fixed_after_first_look");
     assert!(a.amend_borrowing(&borrowing(0.5), 4).is_ok(), "no change is not an amendment");
 }
 
@@ -437,7 +437,7 @@ fn sealing_under_other_borrowing_is_refused_because_the_allocation_does_not_repl
     assert_eq!(refusal.detail, "adaptive_inference.assignment_not_replayed");
     // And once the procedure has made a look, the borrowing cannot be changed at all.
     let frozen = refused(run.procedure.amend_borrowing(&borrowing(1.0), 5));
-    assert_eq!(frozen.detail, "adaptive_inference.borrowing_frozen");
+    assert_eq!(frozen.detail, "adaptive_inference.borrowing_fixed_after_first_look");
 }
 
 #[test]

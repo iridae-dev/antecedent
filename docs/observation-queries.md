@@ -249,7 +249,7 @@ value. The count-fitted interval is measured as a whole-method design:
 A declared model's posterior probability is an exact number with no sampling
 distribution, so a sampling interval for it is logically closed with
 `not_supported` (`observation_query.declared_model_has_no_sampling_interval`,
-`observation_query.calibrated_probability_closed`). The interval is earned only
+`observation_query.no_calibrated_probability`). The interval is earned only
 where the number does have a sampling distribution: tables fitted to counts. The
 count-fitted route (`antecedent.analysis.count_fitted_observation`) retains
 per-parent-configuration counts and the row count `n`, places an independent

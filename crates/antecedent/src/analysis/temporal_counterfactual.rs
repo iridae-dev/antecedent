@@ -1,4 +1,4 @@
-//! Fixed-population temporal counterfactual and the closed transported route.
+//! Fixed-population temporal counterfactual and the unsupported transported route.
 //!
 //! One cell is supported: on a fixed, fully observed, Markovian two-slice DAG with
 //! linear-Gaussian additive-noise mechanisms, each unit's exogenous history is abduced once from
@@ -7,7 +7,7 @@
 //! outcomes in both worlds and their sample mean contrast, with a shared-abduction receipt that
 //! an independent consumer replays ([`TemporalCounterfactual::consume`]).
 //!
-//! The transported path-specific counterfactual stays **closed**:
+//! The transported path-specific counterfactual is **not supported**:
 //! [`transported_path_specific`] never evaluates, it reports exactly which prerequisite gate is
 //! missing and which regime factors are absent. Neither a transported mean nor a source
 //! counterfactual alone supports their composition.

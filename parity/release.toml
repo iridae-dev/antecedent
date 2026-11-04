@@ -1,4 +1,4 @@
-# Status: pending | in_progress | done
+# Status: pending | done
 
 library = "antecedent"
 
@@ -14,7 +14,7 @@ reviewed_version = "3.0.0"
 id = "release.parity_closure"
 status = "done"
 evidence_kind = "process_attested"
-notes = "Shipped pinned baseline rows are done across inventories; no waivers; required chapters closed. Enforced by scripts/gate_release.sh (parity honesty pass over every inventory, all_done for release.toml) and scripts/gate_parity_schema.sh; no unit test executes it."
+notes = "Shipped pinned baseline rows are done across inventories; no waivers; required chapters closed. Enforced by scripts/check_parity_inventories.py (parity honesty pass over every inventory, all_done for release.toml), run from scripts/gate_release.sh, and scripts/gate_parity_schema.sh; no unit test executes it."
 
 [[capabilities]]
 id = "release.graph_dot_json"
@@ -42,13 +42,13 @@ notes = "CPython 3.11–3.14 × Linux x86_64/aarch64, macOS arm64, Windows x86_6
 id = "release.conformance_docs"
 status = "done"
 evidence_kind = "process_attested"
-notes = "docs/conformance generated from conformance/. Enforced by scripts/gate_release.sh, which regenerates docs/conformance with scripts/generate_conformance_docs.py and fails on drift; the docs workflow runs the same generator."
+notes = "docs/conformance generated from conformance/. Enforced by the static section of scripts/gate_release.sh, which regenerates docs/conformance with scripts/generate_conformance_docs.py and fails on drift; the docs workflow runs the same generator."
 
 [[capabilities]]
 id = "release.hot_path_baselines"
 status = "done"
 evidence_kind = "process_attested"
-notes = "docs/hot_paths.md + benches/baselines owners/contracts. Enforced by scripts/gate_hot_path_baselines.sh (owner/contract metadata for docs/hot_paths.md and benches/baselines), run from scripts/gate_release.sh."
+notes = "docs/hot_paths.md + benches/baselines owners/contracts. Enforced by scripts/gate_hot_path_baselines.sh (owner/contract metadata for docs/hot_paths.md and benches/baselines), run from the static section of scripts/gate_release.sh."
 
 [[capabilities]]
 id = "release.security_review"
@@ -69,4 +69,4 @@ id = "release.ci_required_jobs"
 status = "done"
 evidence_kind = "process_attested"
 notes = "Job ids from .github/workflows/ci.yml that must succeed on the candidate SHA. Enforced by scripts/gate_release_candidate.sh, which reads required_jobs through scripts/ci_workflow.py and checks each is green on the candidate SHA; gate self-tests break the input on purpose."
-required_jobs = ["rust", "features", "deny", "gates", "python-lint", "python-wheels"]
+required_jobs = ["static", "rust", "features", "public-api", "cited-tests", "benches", "deny", "development", "python-lint", "scientific", "python-wheels"]

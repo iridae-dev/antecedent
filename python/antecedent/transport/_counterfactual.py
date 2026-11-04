@@ -411,7 +411,7 @@ class CounterfactualTransportDerivation:
         """Evaluate on exact finite laws of the cited population/regime/world.
 
         A counted or empirical law is refused (``not_supported``,
-        ``counterfactual_transport.sampled_inference_closed``): sampled evidence
+        ``counterfactual_transport.no_sampled_inference``): sampled evidence
         belongs to :meth:`estimate_sampled`. A cited regime without a law at a
         needed intervention level is ``transport_missing_provider``; a
         conditioning event of zero mass is ``transport_support_failure``.

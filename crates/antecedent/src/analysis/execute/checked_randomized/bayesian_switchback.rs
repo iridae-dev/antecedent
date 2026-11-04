@@ -16,7 +16,7 @@
 //! The estimand is the constant direct effect of the declared model, with the carryover, the
 //! sustained effect and the period contrasts where declared; it is not the Horvitz-Thompson
 //! schedule average, which it equals when the effect is constant. Rows of a sequence must be in
-//! period order. The route is explicitly unsupported and uncalibrated, and its draws are the
+//! period order. The route is reported with calibration status `not_measured`, and its draws are the
 //! exact Student-t marginals' quantile grid.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

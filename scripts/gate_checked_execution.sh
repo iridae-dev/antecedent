@@ -12,32 +12,21 @@
 # prepared,lowering} or planner re-enters the public builder outside test items,
 # or when code outside antecedent-core writes an `ExecutionContext` literal. It
 # then adds the compiler-path, lowered-dispatch and lowering-registry assertions
-# to the evidence rows. Resolve every citation to a non-ignored libtest identity,
-# run each distinct assertion once, and attribute failures to every support
-# cell that cites it.
+# to the evidence rows. Resolve every citation to a non-ignored libtest identity
+# without running it: the engineering lane runs the ordinary assertions and
+# scripts/scientific_records.py run (owed only) runs the scientific ones.
 set -euo pipefail
 
-# Scientific rows with a current recorded pass (parity/scientific_records.toml)
-# are carried forward, not rerun. --all or ANTECEDENT_SCIENTIFIC_ALL=1 runs and
-# re-records every row (release candidate). See scripts/scientific_records.py.
-_args=()
-for _a in "$@"; do
-  if [[ "$_a" == --all ]]; then export ANTECEDENT_SCIENTIFIC_ALL=1; else _args+=("$_a"); fi
-done
-set -- "${_args[@]+"${_args[@]}"}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-shard=all
-if [[ "${1:-}" == --shard && $# -eq 2 && "$2" =~ ^[0-3]/4$ ]]; then
-  shard="$2"
-elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--shard 0/4|1/4|2/4|3/4]" >&2
+if [[ $# -ne 0 ]]; then
+  echo "usage: $0" >&2
   exit 2
 fi
 
 EVIDENCE="$(mktemp)"
 trap 'rm -f "$EVIDENCE"' EXIT
-python3 "$ROOT/scripts/gate_checked_execution.py" "$EVIDENCE" "$shard"
+python3 "$ROOT/scripts/gate_checked_execution.py" "$EVIDENCE" all
 
-python3 scripts/run_evidence_rows.py "$ROOT" "$EVIDENCE" "$ROOT" fixture_evidence gate_checked_execution
+python3 scripts/run_evidence_rows.py "$ROOT" "$EVIDENCE" "$ROOT" fixture_evidence gate_checked_execution --static

@@ -1,38 +1,29 @@
 #!/usr/bin/env bash
 # Composition exit gate: complete only when seven end-to-end user stories pass from clean
-# preparation through independent artifact consumption, with zero newly introduced unmeasured
-# interval coordinates.
+# preparation through independent artifact consumption.
 #
 #   bash scripts/gate_composition_exit.sh                         # run everything, print the per-story table
-#   bash scripts/gate_composition_exit.sh --require-calibrated    # PENDING_CALIBRATION is a failure (release)
-#   bash scripts/gate_composition_exit.sh --self-test             # cheap: the checker and the verdict logic
+#   bash scripts/gate_composition_exit.sh --self-test             # cheap: the verdict logic
 #
-# It runs the seven Rust stories (crates/antecedent/tests/composition_exit_gate.rs), the Python stories
+# It runs the seven Rust stories (crates/antecedent/tests/composition_exit_gate.rs) and the Python stories
 # (python/tests/test_composition_exit_gate.py, against the extension already built into python/.venv; build
 # it first with `cd python && uv run maturin develop --release`, or set COMPOSITION_EXIT_BUILD_PYTHON=1),
-# then scripts/check_interval_surfaces.py --run-refusals (which also executes the cited closed-route
-# refusal tests), and joins them with scripts/composition_exit_report.py.
+# and joins them with scripts/composition_exit_report.py.
 #
-# Status per story: PASS / FAIL / PENDING_CALIBRATION. Story 3's "calibrated" and the multi-source interval
-# records are PENDING_CALIBRATION while the coverage records allocated to them in
-# parity/capability_records.toml are absent from parity/coverage_records.toml, and PASS automatically
-# once they exist. Exit
-# status is nonzero on any FAIL; PENDING_CALIBRATION exits 0 unless --require-calibrated.
+# Status per story: PASS / FAIL. Exit status is nonzero on any FAIL. Calibration is printed afterwards
+# as an annotation (scripts/calibration_status.py intervals) and never changes the verdict.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-require_calibrated=()
 for arg in "$@"; do
   case "$arg" in
     --self-test)
-      python3 scripts/check_interval_surfaces.py --self-test
       python3 scripts/composition_exit_report.py --self-test
       echo "gate_composition_exit self-test: ok"
       exit 0
       ;;
-    --require-calibrated) require_calibrated=(--require-calibrated) ;;
-    *) echo "usage: gate_composition_exit.sh [--require-calibrated|--self-test]" >&2; exit 2 ;;
+    *) echo "usage: gate_composition_exit.sh [--self-test]" >&2; exit 2 ;;
   esac
 done
 
@@ -53,14 +44,11 @@ if [[ "${COMPOSITION_EXIT_BUILD_PYTHON:-0}" == "1" ]]; then
 fi
 (cd python && uv run pytest -v -p no:cacheprovider tests/test_composition_exit_gate.py 2>&1) | tee "$tmp/python.log" || true
 
-echo "== composition exit: interval coordinates and calibration state =="
-python3 scripts/check_interval_surfaces.py --run-refusals --json >"$tmp/intervals.json" || true
-if [[ ! -s "$tmp/intervals.json" ]]; then
-  echo '{"intervals":"FAIL","calibration":{},"errors":["check_interval_surfaces.py produced no result"]}' >"$tmp/intervals.json"
-fi
-
 echo
 status=0
-python3 scripts/composition_exit_report.py --rust "$tmp/rust.log" --python "$tmp/python.log" \
-  --intervals "$tmp/intervals.json" ${require_calibrated[@]+"${require_calibrated[@]}"} || status=$?
+python3 scripts/composition_exit_report.py --rust "$tmp/rust.log" --python "$tmp/python.log" || status=$?
+
+echo
+echo "== calibration annotation (informational) =="
+python3 scripts/calibration_status.py intervals || true
 exit "$status"

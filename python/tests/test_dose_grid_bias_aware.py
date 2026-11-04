@@ -88,11 +88,11 @@ def test_a_contrast_under_a_bound_has_bias_aware_interval_and_no_band() -> None:
     assert section.lower[0] <= result.contrast.lower <= result.contrast.upper <= section.upper[0]
 
 
-def test_a_band_claim_on_a_contrast_refuses_closed() -> None:
+def test_a_band_claim_on_a_contrast_is_refused() -> None:
     claims = DoseClaims(pointwise_level=True, simultaneous_band=True)
     with pytest.raises(DoseGridRefusal) as info:
         run("contrast", claims=claims, curvature_bound=0.2)
-    assert info.value.detail == "dose_grid.simultaneous_band_closed"
+    assert info.value.detail == "dose_grid.no_simultaneous_band_method"
 
 
 def test_the_quadratic_premise_and_a_bound_are_separate_rows() -> None:

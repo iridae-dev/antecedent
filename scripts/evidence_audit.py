@@ -2,12 +2,20 @@
 """Join existing test, claim, fixture and provenance registries without support.
 
 report is source/metadata inspection, never execution verification. --strict fails
-on every reported gap. scientific-filter prints the nextest expression selecting
-the cited Rust scientific assertions (test.sh runs it as one workspace run, after
-checking it against a nextest listing); run-scientific executes exact registered
-scientific tests through the existing evidence runner, or only the cited Python
-ones with --python-only; ignored measurements remain forbidden.
-No command runs calibration, replay or performance acceptance measurements.
+on every reported gap.
+
+The test lanes are derived from the registries, never listed by hand:
+
+  scientific-filter         nextest expression of the cited Rust scientific assertions
+  scientific-python-nodes   the cited Python scientific assertions, one node per line
+                            (python/tests/conftest.py marks them `scientific`)
+  rust-engineering-filter   `not (calibration) and not (scientific)`: every other Rust test.
+                            It is the nextest default-filter; --write regenerates
+                            .config/nextest.toml and --check fails on drift.
+
+Scientific assertions run only through `scripts/scientific_records.py run` (owed
+only); this module executes nothing. No command runs calibration, replay or
+performance acceptance measurements.
 """
 
 from __future__ import annotations
@@ -18,7 +26,6 @@ import json
 import re
 import subprocess
 import sys
-import tempfile
 import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -884,47 +891,146 @@ def scientific_rows(claims: list[dict]) -> list[dict]:
     return list(found.values())
 
 
+NEXTEST_CONFIG = ".config/nextest.toml"
+_DEFAULT_FILTER = re.compile(r'(?ms)^default-filter = """.*?"""\n')
+
+
+def grouped_selection(rows: list[dict]) -> list[str]:
+    """One compact nextest clause per cargo target, listing its exact test names."""
+    by_target: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for row in rows:
+        by_target[(row["crate"], row["cargo_target"])].add(row["libtest_name"])
+    clauses = []
+    for (crate, target), names in sorted(by_target.items()):
+        where = "kind(lib)" if target == "lib" else f"binary(={target})"
+        if len(names) == 1:
+            test = f"test(={next(iter(names))})"
+        else:
+            test = "test(/^(?:" + "|".join(re.escape(n) for n in sorted(names)) + ")$/)"
+        clauses.append(f"(package(={crate}) and {where} and {test})")
+    return clauses
+
+
+def calibration_rows(root: Path) -> list[dict]:
+    return registered_calibration_acceptance(root) + registered_calibration_simulations(root)
+
+
+def scientific_rust_rows(root: Path) -> list[dict]:
+    rows = scientific_rows(claim_rows(root))
+    rust = registered_rust_assertions(
+        [(r["evidence_test"], r["evidence_assertion"]) for r in rows if r["evidence_test"].endswith(".rs")],
+        root,
+    )
+    if not rust:
+        raise ValueError("scientific Rust selection is empty")
+    return rust
+
+
+def scientific_python_nodes(root: Path) -> list[str]:
+    return sorted(
+        f"{r['evidence_test']}::{r['evidence_assertion']}"
+        for r in scientific_rows(claim_rows(root))
+        if r["evidence_test"].endswith(".py")
+    )
+
+
+def engineering_filter_lines(root: Path) -> list[str]:
+    """The nextest default-filter: every Rust test that is neither calibration nor scientific."""
+    calibration, scientific = grouped_selection(calibration_rows(root)), grouped_selection(scientific_rust_rows(root))
+    if not calibration:
+        raise ValueError("calibration selection is empty")
+
+    def block(clauses: list[str]) -> list[str]:
+        return ["not ("] + [f"  {c}{' or' if i < len(clauses) - 1 else ''}" for i, c in enumerate(clauses)] + [")"]
+
+    lines = block(calibration)
+    lines[-1] = ") and"
+    return lines + block(scientific)
+
+
+def engineering_filter(root: Path) -> str:
+    return " ".join(" ".join(engineering_filter_lines(root)).split())
+
+
+def render_default_filter(root: Path) -> str:
+    return 'default-filter = """\n' + "\n".join(engineering_filter_lines(root)) + '\n"""\n'
+
+
+def engineering_filter_drift(root: Path) -> str | None:
+    """None when .config/nextest.toml carries the generated default-filter."""
+    config = root / NEXTEST_CONFIG
+    text = config.read_text(encoding="utf-8")
+    match = _DEFAULT_FILTER.search(text)
+    if match is None:
+        return f"{NEXTEST_CONFIG} has no default-filter"
+    expected = engineering_filter(root)
+    actual = " ".join(tomllib.loads(text)["profile"]["default"]["default-filter"].split())
+    if actual != expected:
+        return (
+            f"{NEXTEST_CONFIG} default-filter is stale; regenerate it with "
+            "`python3 scripts/evidence_audit.py rust-engineering-filter --write`"
+        )
+    return None
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "command",
-        choices=("report", "run-scientific", "rust-calibration-filter", "rust-calibration-simulation-filter", "rust-software-exclusion-filter", "scientific-filter"),
-    )
-    parser.add_argument(
-        "--python-only",
-        action="store_true",
-        help="run-scientific: run only the cited Python assertions (Rust ones run through scientific-filter)",
+        choices=(
+            "report",
+            "rust-calibration-filter",
+            "rust-calibration-simulation-filter",
+            "rust-engineering-filter",
+            "scientific-filter",
+            "scientific-python-nodes",
+        ),
     )
     parser.add_argument("--listing", type=Path, help="Verify classified assertions in a nextest JSON listing")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--check", action="store_true", help="rust-engineering-filter: fail when nextest.toml has drifted")
+    parser.add_argument("--write", action="store_true", help="rust-engineering-filter: regenerate nextest.toml")
     args = parser.parse_args()
-    if args.command in ("rust-calibration-filter", "rust-calibration-simulation-filter", "rust-software-exclusion-filter"):
-        rows = []
-        if args.command != "rust-calibration-simulation-filter":
-            rows += registered_calibration_acceptance(REPO_ROOT)
-        if args.command != "rust-calibration-filter":
-            rows += registered_calibration_simulations(REPO_ROOT)
+    if args.command == "rust-engineering-filter":
+        if args.write:
+            config = REPO_ROOT / NEXTEST_CONFIG
+            text = config.read_text(encoding="utf-8")
+            if _DEFAULT_FILTER.search(text) is None:
+                raise ValueError(f"{NEXTEST_CONFIG} has no default-filter to replace")
+            config.write_text(
+                _DEFAULT_FILTER.sub(lambda _: render_default_filter(REPO_ROOT), text, count=1),
+                encoding="utf-8",
+                newline="\n",
+            )
+            return 0
+        if args.check:
+            drift = engineering_filter_drift(REPO_ROOT)
+            if drift:
+                print(drift, file=sys.stderr)
+            return int(bool(drift))
+        print(engineering_filter(REPO_ROOT))
+        return 0
+    if args.command == "scientific-python-nodes":
+        print("\n".join(scientific_python_nodes(REPO_ROOT)))
+        return 0
+    if args.command in ("rust-calibration-filter", "rust-calibration-simulation-filter"):
+        rows = (
+            registered_calibration_acceptance(REPO_ROOT)
+            if args.command == "rust-calibration-filter"
+            else registered_calibration_simulations(REPO_ROOT)
+        )
         if not rows:
-            raise ValueError("calibration acceptance selection is empty")
+            raise ValueError("calibration selection is empty")
         if args.listing:
             problems = calibration_discovery_problems(rows, json.loads(args.listing.read_text(encoding="utf-8")))
             if problems:
                 print("\n".join(problems), file=sys.stderr)
                 return 1
-        expressions = []
-        for row in rows:
-            target = "kind(lib)" if row["cargo_target"] == "lib" else f"binary(={row['cargo_target']})"
-            expressions.append(f"(package(={row['crate']}) and {target} and test(={row['libtest_name']}))")
-        print(" or ".join(expressions))
+        print(nextest_selection(rows))
         return 0
     if args.command == "scientific-filter":
-        rows = scientific_rows(build_report(REPO_ROOT)["claims"])
-        rust_rows = registered_rust_assertions(
-            [(r["evidence_test"], r["evidence_assertion"]) for r in rows if r["evidence_test"].endswith(".rs")]
-        )
-        if not rust_rows:
-            raise ValueError("scientific Rust selection is empty")
+        rust_rows = scientific_rust_rows(REPO_ROOT)
         if args.listing:
             problems = calibration_discovery_problems(rust_rows, json.loads(args.listing.read_text(encoding="utf-8")))
             if problems:
@@ -933,93 +1039,28 @@ def main() -> int:
         print(nextest_selection(rust_rows))
         return 0
     report = build_report(REPO_ROOT)
-    if args.command == "report":
-        print(json.dumps(report, indent=2) if args.json else render(report), end="\n")
-        return int(
-            args.strict
-            and (
-                any(c["gaps"] for c in report["claims"])
-                or any(f["gaps"] for f in report["fixtures"])
-                or any(
-                    p["algorithm_section_review"]
-                    not in ("reviewed_with_limits", "justified_non_algorithm_mapping")
-                    for p in report["provenance"]
-                )
-                or bool(report["route_evidence_ledger_findings"])
-                or bool(report["disposition_findings"])
-                or bool(
-                    report.get("scenario_matrix")
-                    and (
-                        report["scenario_matrix"]["findings"]
-                        or report["scenario_matrix"]["counts"].get("gap")
-                    )
+    print(json.dumps(report, indent=2) if args.json else render(report), end="\n")
+    return int(
+        args.strict
+        and (
+            any(c["gaps"] for c in report["claims"])
+            or any(f["gaps"] for f in report["fixtures"])
+            or any(
+                p["algorithm_section_review"]
+                not in ("reviewed_with_limits", "justified_non_algorithm_mapping")
+                for p in report["provenance"]
+            )
+            or bool(report["route_evidence_ledger_findings"])
+            or bool(report["disposition_findings"])
+            or bool(
+                report.get("scenario_matrix")
+                and (
+                    report["scenario_matrix"]["findings"]
+                    or report["scenario_matrix"]["counts"].get("gap")
                 )
             )
         )
-    rows = scientific_rows(report["claims"])
-    if args.python_only:
-        rows = [row for row in rows if row["evidence_test"].endswith(".py")]
-        if not rows:
-            print("scientific: no cited Python assertions; nothing to run")
-            return 0
-    if any(row["evidence_test"].endswith(".py") for row in rows):
-        interpreters = [
-            REPO_ROOT / "python/.venv/bin/python",
-            REPO_ROOT / "python/.venv/Scripts/python.exe",
-        ]
-        interpreter = next((p for p in interpreters if p.is_file()), None)
-        if interpreter is None:
-            print(
-                "FAIL: the Python conformance environment is missing; run bash scripts/test.sh python"
-            )
-            return 1
-        checked = subprocess.run(
-            [
-                str(interpreter),
-                str(REPO_ROOT / "scripts/native_build_identity.py"),
-                "check",
-            ],
-            check=False,
-        )
-        if checked.returncode:
-            return checked.returncode
-    missing = [
-        c
-        for c in report["claims"]
-        if "scientific" in c["roles"]
-        and (not c.get("evidence_test") or not c.get("evidence_assertion"))
-    ]
-    if missing:
-        print(
-            f"FAIL: {len(missing)} scientific declarations lack exact assertion citations; "
-            "running the cited assertions does not close those gaps",
-            flush=True,
-        )
-    # The existing runner rejects ignored tests and proves each exact assertion ran.
-    with tempfile.TemporaryDirectory(prefix="antecedent-scientific-") as tmp:
-        ledger = Path(tmp) / "selection.toml"
-        ledger.write_text(
-            "\n".join(
-                "[[capabilities]]\n"
-                + "\n".join(f"{k} = {json.dumps(v)}" for k, v in r.items())
-                for r in rows
-            ),
-            encoding="utf-8",
-        )
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(REPO_ROOT / "scripts/run_evidence_rows.py"),
-                str(REPO_ROOT),
-                str(ledger),
-                str(REPO_ROOT),
-                "capabilities",
-                "scientific",
-            ],
-            cwd=REPO_ROOT,
-            check=False,
-        ).returncode
-        return result or int(bool(missing))
+    )
 
 
 if __name__ == "__main__":

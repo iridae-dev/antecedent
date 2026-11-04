@@ -1931,36 +1931,6 @@ dataset = { generator = "mediation_scm", seed = 9170820, n = 2000, direct = 0.3,
 evidence = { status = "bound", test = "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_frequentist_nominal_95_coverage" }
 
 [[case]]
-id = "runtime_reported_levels_have_95_percent_records"
-area = "interval_evidence"
-workflow = "calibration registry check"
-configuration = { levels = [0.95] }
-expected = { kind = "receipt", outputs = ["every runtime 95% claim has an applicable 95% record"] }
-targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
-dataset = { generator = "registry_check", seed = 5207820, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/check_interval_levels.py::audit" }
-
-[[case]]
-id = "intentional_90_percent_bands_preserved"
-area = "interval_evidence"
-workflow = "calibration registry check"
-configuration = { levels = [0.9] }
-expected = { kind = "receipt", outputs = ["configured 90% bands remain 90% with their own records"] }
-targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
-dataset = { generator = "registry_check", seed = 3779819, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/check_interval_levels.py::audit" }
-
-[[case]]
-id = "support_matrix_citations_match_records_and_endpoints"
-area = "interval_evidence"
-workflow = "calibration registry check"
-configuration = { registries = ["calibration", "support_matrix"] }
-expected = { kind = "receipt", outputs = ["runtime endpoint, reported level, record and support-matrix citation agree"] }
-targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
-dataset = { generator = "registry_check", seed = 2735937, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/check_interval_levels.py::audit" }
-
-[[case]]
 id = "simulated_datasets_reused_across_contrasts_where_valid"
 area = "interval_evidence"
 workflow = "calibration campaign"
@@ -1969,16 +1939,6 @@ expected = { kind = "receipt", outputs = ["shared dataset digest across contrast
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
 dataset = { generator = "registry_check", seed = 9924652, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
 evidence = { status = "bound", test = "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_bind_separate_records_on_one_dataset" }
-
-[[case]]
-id = "ready_backlog_coordinates_executed_and_failures_resolved"
-area = "interval_evidence"
-workflow = "calibration campaign"
-configuration = { coordinates = 17 }
-expected = { kind = "receipt", outputs = ["all 17 ready coordinates measured", "every failure resolved before its workflow closes"] }
-targets = { runtime_seconds = 3600, memory_bytes = 8589934592, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
-dataset = { generator = "registry_check", seed = 2930764, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/test_generate_calibration_backlog.py::test_ready_coordinates_must_be_measured_with_failures_resolved" }
 
 [[case]]
 id = "posterior_interval_with_2000_draws_calibrated"
@@ -2409,16 +2369,6 @@ expected = { kind = "refusal", outputs = ["names the serial-dependence requireme
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Scores are O(n); iid interval at 100k cases is seconds." }
 dataset = { generator = "predictive_forecast_scores", seed = 9569560, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
 evidence = { status = "bound", test = "crates/antecedent-validate/tests/predictive_assessment.rs::the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count" }
-
-[[case]]
-id = "predictive_score_release_note_states_measured_iid_range"
-area = "predictive_scores"
-workflow = "docs and release notes"
-configuration = { defect = "release note says 400, 800 and 1,600 cases upward while the measured range ends at 1,600" }
-expected = { kind = "receipt", outputs = ["wording states the actual supported iid scope", "runtime limits, examples, release notes and calibration records agree", "no unqualified 'upward'"] }
-targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Scores are O(n); iid interval at 100k cases is seconds." }
-dataset = { generator = "documentation_check", seed = 1695710, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "scripts/test_check_predictive_score_scope.py::test_an_unqualified_upward_in_a_release_note_is_found" }
 
 [[case]]
 id = "balanced_300_participant_independent_assignment_score_interval"

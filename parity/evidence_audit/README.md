@@ -37,15 +37,16 @@ unresolved DOI or title mismatch; explicit `--fetch` uses Crossref/DataCite.
   Statistical smoke checks remain ordinary software tests and are labelled
   separately. Measurements remain with `scripts/measure_calibration.sh`.
 - Python assertions requiring currently attesting measurements carry the explicit
-  `requires_calibration` marker. `python-software` reports those deselections;
+  `requires_calibration` marker. The default Python lane deselects them (and the
+  `scientific` assertions, which `tests/conftest.py` marks from the registries);
   `python-calibration-acceptance` selects them after lockdown and calibration.
-  Default Python commands and `all` retain them as required assertions: no skip,
-  xfail or fabricated attestation turns an unmeasured branch green.
+  No skip, xfail or fabricated attestation turns an unmeasured branch green.
   The audit inventories these assertions from their source markers.
 - Thirteen Rust measured-record consumers are classified by exact assertion in
-  the existing test registry. `rust-software` explicitly deselects them;
-  `rust-calibration-acceptance` retains the separate post-lockdown selection.
-  Default `rust` and `all` still require them. The shared report uses the same
+  the existing test registry. The nextest default filter
+  (`evidence_audit.py rust-engineering-filter`) deselects them together with the
+  scientific assertions; `rust-calibration-acceptance` retains the separate
+  post-lockdown selection. The shared report uses the same
   classification, and the runner verifies each exact, non-ignored assertion in
   its registered binary before applying a selection.
 - Six shared calibration-decision controls executed in 126 places each in the

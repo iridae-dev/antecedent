@@ -44,7 +44,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_posterior.rs",
-          "sha256": "e41ca1d3c5a081315017a94f62c913e659a7fa19c9692280b6124f12a8b8877b"
+          "sha256": "310126fd6f77a99475704379283084252c3c86f925d865a9c9906e3c19e1866e"
         },
         {
           "role": "assertion_source",

@@ -68,8 +68,8 @@ pub(super) fn unsupported_diagnostic() -> Diagnostic {
         "estimate.policy_value.bayesian.unsupported",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
-        "unsupported and uncalibrated Bayesian route: the Bayesian-bootstrap posterior of the \
-         augmented score has no coverage evidence, the declared assignment probabilities (not \
+        "Bayesian route with calibration status `not_measured`: the Bayesian-bootstrap posterior of the \
+         augmented score has no coverage record (calibration `not_measured`), the declared assignment probabilities (not \
          the prior) identify the value, and outcome predictions must be subject-excluded",
     )
 }

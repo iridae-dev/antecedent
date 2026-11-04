@@ -7,12 +7,12 @@
 //! * [`CellStatus::Supported`]: a design contract, an estimator and an
 //!   uncertainty method exist for the cell, per inferential paradigm listed.
 //!   A supported cell still reports point values only: the interval and
-//!   guarantee routes stay closed until whole-procedure coverage is measured.
+//!   guarantee routes is not supported.
 //! * [`CellStatus::Closed`]: refused with a typed reason. Either the cell is
 //!   not a coherent procedure, or it pairs components that are each delivered
 //!   but whose pairing is not: a guarantee for two components does not support
 //!   their pairing.
-//! * [`CellStatus::CarriedForward`]: coherent, not delivered, and owned.
+//! * [`CellStatus::NotDelivered`]: coherent, not delivered, and owned.
 //!
 //! The matrix is a total function of the four axes; [`procedure_cells`]
 //! enumerates the whole product so a cell cannot be left unlisted.
@@ -210,17 +210,17 @@ pub enum CellStatus {
         paradigms: &'static [InferenceParadigm],
     },
     /// Refused: the cell is not a coherent procedure.
-    ClosedIncoherent {
+    Incoherent {
         /// Why, and what would make it coherent.
         reason: &'static str,
     },
     /// Refused: every component is delivered but the pairing is not.
-    ClosedPairing {
+    PairingNotSupported {
         /// Why, and what would support it.
         reason: &'static str,
     },
     /// Coherent but not delivered; the owner is the named work item.
-    CarriedForward {
+    NotDelivered {
         /// Owning work item.
         owner: &'static str,
         /// What is missing.
@@ -234,9 +234,9 @@ impl CellStatus {
     pub const fn class(&self) -> &'static str {
         match self {
             Self::Supported { .. } => "supported",
-            Self::ClosedIncoherent { .. } => "closed_incoherent",
-            Self::ClosedPairing { .. } => "closed_pairing",
-            Self::CarriedForward { .. } => "carried_forward",
+            Self::Incoherent { .. } => "incoherent",
+            Self::PairingNotSupported { .. } => "pairing_not_supported",
+            Self::NotDelivered { .. } => "not_delivered",
         }
     }
 }
@@ -273,24 +273,24 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
 
     // Coherence first.
     if cell.monitoring == M::FinalAnalysisOnly && cell.stopping != S::NoStopping {
-        return CellStatus::ClosedIncoherent {
+        return CellStatus::Incoherent {
             reason: "a stopping rule needs interim analyses to act on; declare interim looks or remove the rule",
         };
     }
     if cell.monitoring != M::FinalAnalysisOnly && cell.stopping == S::NoStopping {
-        return CellStatus::ClosedIncoherent {
+        return CellStatus::Incoherent {
             reason: "interim analyses with no stopping rule have no decision to account for; declare the rule or analyze at the final look only",
         };
     }
     if cell.monitoring == M::GroupSequential && cell.stopping == S::DecisionTheoretic {
-        return CellStatus::ClosedIncoherent {
+        return CellStatus::Incoherent {
             reason: "alpha spending governs error-rate boundaries; a decision-theoretic rule belongs to a different monitoring strategy",
         };
     }
     if matches!(cell.outcome, O::CategoricalChoice | O::RepeatedChoice)
         && cell.assignment != A::FixedRandomization
     {
-        return CellStatus::ClosedIncoherent {
+        return CellStatus::Incoherent {
             reason: "a choice outcome has no assignment among arms: every unit faces the same declared choice set, so an assignment policy that adapts to outcomes is not defined for it",
         };
     }
@@ -398,9 +398,9 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
         _ => None,
     });
     if let Some((owner, reason)) = owner {
-        return CellStatus::CarriedForward { owner, reason };
+        return CellStatus::NotDelivered { owner, reason };
     }
-    CellStatus::ClosedPairing {
+    CellStatus::PairingNotSupported {
         reason: "each component is delivered separately but this pairing has no design contract, estimator or whole-procedure calibration design of its own; a guarantee for two components does not support their pairing",
     }
 }

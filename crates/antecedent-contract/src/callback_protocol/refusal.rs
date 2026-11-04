@@ -473,9 +473,9 @@ pub fn provider_unavailable(identity: &str) -> CallbackRefusal {
     )
 }
 
-// -- closed routes (callback_protocol_invalid, joint_law_required) -----------------------------------------
+// -- unsupported routes (callback_protocol_invalid, joint_law_required) -----------------------------------------
 
-/// An interval from a callback law is closed.
+/// An interval from a callback law is not supported.
 #[must_use]
 pub fn interval_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(
@@ -488,7 +488,7 @@ pub fn interval_not_supported() -> CallbackRefusal {
     )
 }
 
-/// A posterior or probability guarantee from a callback is closed.
+/// A posterior or probability guarantee from a callback is not supported.
 #[must_use]
 pub fn posterior_guarantee_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(

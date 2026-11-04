@@ -553,7 +553,7 @@ pub struct StaticDiscoveryContract {
     pub discriminating_path_budget: DiscriminatingPathBudget,
     /// The one population the rows were drawn from.
     pub population: String,
-    /// Further populations. Must be empty: multi-population discovery is closed.
+    /// Further populations. Must be empty: multi-population discovery is not supported.
     pub additional_populations: Vec<String>,
     /// Master seed of the execution context the run uses.
     pub rng_seed: u64,
@@ -601,7 +601,7 @@ impl StaticDiscoveryContract {
     ///
     /// # Errors
     ///
-    /// A closed route (several populations, multi-dataset constraints), a blank population,
+    /// A unsupported route (several populations, multi-dataset constraints), a blank population,
     /// repeated or no variables, a threshold outside `(0, 1)` or inconsistent constraints.
     pub fn validate(&self) -> Result<(), SelectiveDiscoveryError> {
         validate_common(
@@ -670,7 +670,7 @@ pub struct TemporalDiscoveryContract {
     pub fdr: Option<FdrAdjustment>,
     /// The one population the series was drawn from.
     pub population: String,
-    /// Further populations. Must be empty: multi-population discovery is closed.
+    /// Further populations. Must be empty: multi-population discovery is not supported.
     pub additional_populations: Vec<String>,
     /// Master seed of the execution context the run uses.
     pub rng_seed: u64,

@@ -65,7 +65,7 @@ multi-step Sustained is not evidenced here.
 An analytic delta-method band would treat lag-aligned rows as independent, so
 it is not published: with zero
 bootstrap replicates the surface carries no band and an
-`estimate.temporal_response.band_withheld` warning.
+`estimate.temporal_response.no_band_method` warning.
 
 `block_band` pins what requested replicates publish instead: the joint
 circular-block bootstrap of the dose × horizon surface, produced through the

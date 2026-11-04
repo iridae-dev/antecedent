@@ -134,7 +134,7 @@ const DETAIL_ZERO_MASS: &str = "counterfactual_transport.zero_conditioning_mass"
 const DETAIL_MISSING: &str = "counterfactual_transport.missing_law";
 const DETAIL_INCOMPATIBLE: &str = "counterfactual_transport.evidence_incompatible";
 const DETAIL_INVALID: &str = "counterfactual_transport.invalid_evidence";
-const DETAIL_COUNTED: &str = "counterfactual_transport.sampled_inference_closed";
+const DETAIL_COUNTED: &str = "counterfactual_transport.no_sampled_inference";
 const DETAIL_BUDGET: &str = "counterfactual_transport.budget";
 
 fn refused(code: &'static str, detail: &str, message: impl AsRef<str>) -> EstimationError {
@@ -1267,7 +1267,7 @@ fn describe(code: f64, what: &str) -> EstimationError {
 ///
 /// # Errors
 ///
-/// `route_not_supported` (`counterfactual_transport.sampled_inference_closed`) for
+/// `route_not_supported` (`counterfactual_transport.no_sampled_inference`) for
 /// a counted or non-exact law; `invalid_argument`
 /// (`counterfactual_transport.invalid_evidence`) for a law whose population,
 /// regime, axes or levels do not match the catalog and the declared levels;

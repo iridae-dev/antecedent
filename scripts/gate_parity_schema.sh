@@ -19,4 +19,4 @@ fi
 
 python3 "$ROOT/scripts/gate_parity_schema.py"
 
-python3 "$ROOT/scripts/gate_parity_schema_2.py" "$@"
+python3 "$ROOT/scripts/check_registry_integrity.py" "$@"

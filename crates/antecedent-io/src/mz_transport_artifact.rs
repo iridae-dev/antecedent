@@ -48,7 +48,7 @@ pub const MZ_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_mz_transport_point_v2";
 /// Uncertainty status: exact laws, no sampling uncertainty.
 pub const MZ_POINT_ONLY: &str = "point_only";
 /// Uncertainty status: no interval, for the stated reason.
-pub const MZ_WITHHELD: &str = "withheld";
+pub const MZ_WITHHELD: &str = "no_interval_method";
 /// Uncertainty status: a nominal pointwise percentile-bootstrap interval.
 pub const MZ_NOMINAL_INTERVAL: &str = "nominal_interval";
 /// Reason of bookkeeping that records no estimator run for counted laws.
@@ -215,7 +215,7 @@ impl MzUncertaintyWire {
         }
     }
 
-    /// Counted laws on the closed public route: no interval, reason
+    /// Counted laws on the unsupported public route: no interval, reason
     /// [`MZ_INTERVAL_NOT_SUPPORTED`], with the declared-sampling reason the
     /// internal estimator would also withhold for, if any.
     #[must_use]

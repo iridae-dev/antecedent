@@ -131,7 +131,7 @@ fn decision_json(
 
 /// Interval bookkeeping in variable names. `seed` is the stored seed of an
 /// estimator run (`None` when no interval run is recorded); while the interval
-/// route is closed, counted laws report `withheld` / `not_supported` and
+/// route is not supported, counted laws report `withheld` / `not_supported` and
 /// `available` is always false.
 fn uncertainty_json(uncertainty: &MzUncertaintyWire, names: &[String]) -> serde_json::Value {
     serde_json::json!({
@@ -416,7 +416,7 @@ impl PreparedMultiSourceZTransportStage {
     /// Evaluate the frozen formula for every prepared request, with point
     /// contrasts against request 0. Exact laws are point-only; counted laws
     /// return the point with the interval withheld as `not_supported`
-    /// (the interval route is closed until its coverage records exist).
+    /// (the interval route is not supported until its coverage records exist).
     #[pyo3(signature=(*, memory_bytes=None, cancel=None, seed=None))]
     fn estimate(
         &mut self,
@@ -654,7 +654,7 @@ fn consume_multi_source_z_transport_artifact(
             .into();
         payload["data_digest"] = consumed.wire.data_digest.clone().into();
         // Bookkeeping was re-derived from the laws and catalog; the stored seed
-        // (none while the interval route is closed) is reported as stored.
+        // (none while the interval route is not supported) is reported as stored.
         payload["interval"] = uncertainty_json(&consumed.wire.uncertainty, &names);
         Ok(payload.to_string())
     })

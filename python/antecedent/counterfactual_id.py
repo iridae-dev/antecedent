@@ -29,7 +29,7 @@ This is not general counterfactual identification.
 
 This module builds only the effect-on-the-treated query, so the Rust route's
 ``counterfactual_id.query_outside_contract`` (other conjunctions),
-``counterfactual_id.path_specific_deferred`` (worlds that route edges) and
+``counterfactual_id.path_specific_not_supported`` (worlds that route edges) and
 ``counterfactual_id.counterfactual_hedge`` (unreached on this shape) refusals
 are not reachable from Python; they are tested in Rust only.
 """

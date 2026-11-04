@@ -60,17 +60,17 @@ classified by `procedure_status`:
   measures and a final analysis (adaptive weighting on subject means); fixed
   randomization with group-sequential monitoring (boundaries); fixed
   randomization with one final analysis (fixed-sample, executed elsewhere);
-* **incoherent** (144; stored as `closed_incoherent`): the combination
+* **incoherent** (144; stored as `incoherent`): the combination
   describes no procedure, for example a stopping rule with no interim
   analysis to act on. It refuses `route_not_supported` with
-  `adaptive_inference.cell_closed`;
-* **pairing not delivered** (17; stored as `closed_pairing`): every component
+  `adaptive_inference.cell_incoherent`;
+* **pairing not delivered** (17; stored as `pairing_not_supported`): every component
   is delivered but their pairing has no method. A guarantee for two components
   never supports their pairing. It refuses `route_not_supported` with
   `adaptive_inference.pairing_not_supported`;
-* **no method yet** (192; stored as `carried_forward`), each with an owning
+* **no method yet** (192; stored as `not_delivered`), each with an owning
   module, refusing `route_not_supported` with
-  `adaptive_inference.cell_carried_forward`: upper-confidence-bound, contextual
+  `adaptive_inference.cell_not_delivered`: upper-confidence-bound, contextual
   and batched assignment, hierarchical clustered outcomes, continuous
   monitoring, futility and resource stopping.
 
@@ -181,7 +181,7 @@ discount, the prior effective sample size `alpha + beta` and the part borrowed
 from history (`sum a0 trials`) are recorded. **Borrowing is frozen before
 recruitment**: it is part of the declaration identity, `amend_borrowing` accepts
 a different plan only while no look has been performed, and refuses it after
-the first look with `adaptive_inference.borrowing_frozen`
+the first look with `adaptive_inference.borrowing_fixed_after_first_look`
 (`adaptive_assumption_violated`).
 
 **Allocation.** One declared policy: Thompson sampling with a minimum

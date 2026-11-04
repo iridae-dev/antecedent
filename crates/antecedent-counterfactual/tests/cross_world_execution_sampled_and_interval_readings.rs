@@ -142,12 +142,15 @@ fn a_sampled_posterior_is_refused_before_any_work_for_every_request_shape() {
 }
 
 #[test]
-fn interval_and_posterior_readings_are_closed_for_every_quantity_and_coupling() {
+fn interval_and_posterior_readings_are_not_supported_for_every_quantity_and_coupling() {
     for (name, quantity, _) in quantities() {
         for coupling in COUPLINGS {
             for (reading, expected) in [
-                (RequestedReading::Interval, "joint_law_propagation.interval_route_closed"),
-                (RequestedReading::Posterior, "joint_law_propagation.posterior_route_closed"),
+                (RequestedReading::Interval, "joint_law_propagation.no_interval_construction"),
+                (
+                    RequestedReading::Posterior,
+                    "joint_law_propagation.no_posterior_for_fixed_law_inputs",
+                ),
             ] {
                 let mut exec = FiniteScmExecutor::new();
                 let r = request(
@@ -163,7 +166,7 @@ fn interval_and_posterior_readings_are_closed_for_every_quantity_and_coupling() 
                     "{name} {coupling:?} {reading:?}"
                 );
                 assert_eq!(d, expected, "{name} {coupling:?} {reading:?}");
-                assert_eq!(exec.retained_len(), 0, "a closed reading retains no abduction");
+                assert_eq!(exec.retained_len(), 0, "a unsupported reading retains no abduction");
                 assert_eq!(exec.counters().shared_draws, 0);
             }
         }

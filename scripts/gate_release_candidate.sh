@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Release-candidate gate. `gate_release.sh` is the PR inventory / composition
-# umbrella; a green local run of that script is not an RC.
+# Release-candidate gate: tier 4, the release-only checks on top of the pull-request gate.
+# `gate_release.sh` is the pull-request gate (static checks, builds, engineering tests, the
+# scientific assertions owed); a green local run of that script alone is not a release candidate.
 #
 # This script:
-#   1. requires CI_RUN_ID: a GitHub Actions `ci` run on this exact HEAD in which
-#      every display-name expansion of every `required_jobs` id
-#      (parity/release.toml) concluded `success`
-#   2. runs gate_release.sh (inventory, composition, prior feature gates, and
-#      the calibration status listing, which prints the records that are not
-#      current and never fails)
-#   3. requires the composition and decision exit gates to have no pending calibration or
-#      implementation work, complete bounds documentation and final release claims
-#   4. runs Python lint/types and the full Python test suite
-#   5. runs the release-only scale cases inside their frozen budgets, the
-#      release-closure receipts (scripts/check_release_closure.py: refusal
-#      boundaries, replay identity, practitioner scale, calibration replicates and
-#      confirmation, construction binding), the ready-coordinate calibration
-#      receipt and the closure self-tests
-#   6. builds one local wheel into a fresh directory, installs it into a fresh
-#      venv, and runs the documented examples and the full Python test suite
-#      against the installed wheel
+#   1. requires CI_RUN_ID: a GitHub Actions `ci` run on this exact HEAD in which every
+#      display-name expansion of every `required_jobs` id (parity/release.toml) concluded
+#      `success`, and a clean working tree
+#   2. runs every section of gate_release.sh except the owed-only scientific lane, with
+#      cargo-deny required
+#   3. re-runs every scientific assertion and records the passes
+#      (`bash scripts/test.sh scientific --all`)
+#   4. runs the release-only checks: the release inventory with no unresolved row, strict bounds
+#      and final claims, the composition and decision exit stories, the release-only scale
+#      cases, the release-closure receipts and the cross-language interchange
+#   5. builds one local wheel into a fresh directory, installs it into a fresh venv, and runs the
+#      documented examples, the cyclic-systems gate and the full Python test suite against the
+#      installed wheel
+#
+# Calibration status stays an annotation (scripts/calibration_status.py status): it is printed by
+# the static section and never fails a candidate.
 #
 #   CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
 #   bash scripts/gate_release_candidate.sh --self-test
@@ -70,7 +70,7 @@ self_test() {
   if ! check_ci_run "$tmp/green.json" "$head" >"$tmp/out" 2>&1; then
     echo "SELF-TEST FAIL: an all-green run on HEAD was rejected"; cat "$tmp/out"; status=1
   fi
-  python3 "$ROOT/scripts/gate_release_candidate.py" "$tmp"
+  python3 "$ROOT/scripts/synthesize_broken_ci_runs.py" "$tmp"
   local case
   for case in missing_leg missing_job failed_job wrong_sha ids_not_names; do
     if check_ci_run "$tmp/$case.json" "$head" >"$tmp/out" 2>&1; then
@@ -87,16 +87,6 @@ self_test() {
   else
     echo "self-test ok: missing CI_RUN_ID refused"
   fi
-  local skip
-  for skip in SKIP_PRIOR_GATES SKIP_PYTHON_SMOKE ALLOW_SKIP_PYTHON_SMOKE; do
-    if env "$skip=1" CI_RUN_ID=0 bash "$0" >"$tmp/out" 2>&1; then
-      echo "SELF-TEST FAIL: RC ran with $skip=1"; status=1
-    elif ! grep -q "$skip is set" "$tmp/out"; then
-      echo "SELF-TEST FAIL: $skip=1 failed for the wrong reason"; cat "$tmp/out"; status=1
-    else
-      echo "self-test ok: $skip=1 refused"
-    fi
-  done
   if [[ "$status" -ne 0 ]]; then
     return 1
   fi
@@ -113,16 +103,6 @@ if [[ -z "${CI_RUN_ID:-}" ]]; then
   echo "  find it with: gh run list --workflow ci.yml --commit \"\$(git rev-parse HEAD)\""
   exit 1
 fi
-# A release candidate is the whole gate. Every escape hatch that lets a feature
-# gate, a Python smoke or the dependency policy be skipped is refused here,
-# including SKIP_PRIOR_GATES, which would drop composition and transport (the
-# two gates that never soft-skip).
-for var in SKIP_PRIOR_GATES SKIP_PYTHON_SMOKE ALLOW_SKIP_PYTHON_SMOKE; do
-  if [[ -n "${!var:-}" && "${!var}" != "0" ]]; then
-    echo "FAIL: $var is set; a release candidate runs every gate (unset it)"
-    exit 1
-  fi
-done
 if ! command -v cargo-deny >/dev/null 2>&1; then
   echo "FAIL: cargo-deny is required for the RC dependency policy check (cargo install cargo-deny --locked)"
   exit 1
@@ -148,50 +128,46 @@ trap 'rm -f "$RUN_JSON"' EXIT
 gh run view "$CI_RUN_ID" --json headSha,jobs >"$RUN_JSON"
 check_ci_run "$RUN_JSON" "$(git rev-parse HEAD)"
 
-echo "== release candidate: PR inventory + composition + calibration attestation =="
-bash scripts/gate_release.sh
+# Every section of the pull-request gate except the owed-only scientific lane, which the next
+# step replaces with a full re-run.
+for gate_section in static public-api cited-tests benches deny python-lint engineering development; do
+  echo "== release candidate: gate_release.sh --section ${gate_section} =="
+  bash scripts/gate_release.sh --section "$gate_section"
+done
 
-echo "== release candidate: calibrated composition exit =="
-bash scripts/gate_composition_exit.sh --require-calibrated
+echo "== release candidate: every scientific assertion, re-run and re-recorded =="
+bash scripts/test.sh scientific --all
 
-echo "== release candidate: complete and calibrated decision exit =="
-bash scripts/gate_decision_exit.sh --release
+echo "== release candidate: cited tests listed by cargo =="
+bash scripts/gate_capability_records.sh --resolve
+
+echo "== release candidate: release inventory with no unresolved row =="
+python3 scripts/check_release_inventory.py --require-zero
 
 echo "== release candidate: strict bounds and final claims =="
 python3 scripts/check_limits_agreement.py --strict
 python3 scripts/check_release_claims.py --final
+
+echo "== release candidate: composition and decision exit stories =="
+bash scripts/gate_composition_exit.sh
+bash scripts/gate_decision_exit.sh --require-implemented
 
 echo "== release candidate: release-only scale cases within their frozen budgets =="
 bash scripts/gate_scale_cases.sh
 
 echo "== release candidate: release-closure receipts =="
 python3 scripts/check_release_closure.py
-echo "== release candidate: closure audit has no unresolved row =="
-python3 scripts/closure_audit.py --require-zero
-python3 scripts/generate_calibration_backlog.py --require-measured
-python3 scripts/check_acceptance_manifest.py --self-test
-python3 scripts/test_check_acceptance_manifest.py
-python3 scripts/test_check_release_closure.py
-python3 scripts/check_counterparts.py --self-test
-python3 scripts/test_check_counterparts.py
-python3 scripts/reconcile_release_scope.py --self-test
-python3 scripts/check_method_children.py --self-test
-python3 scripts/route_methods.py --self-test
-python3 scripts/reconcile_method_specs.py --self-test
-python3 scripts/derive_milestone_readiness.py --self-test
-python3 scripts/closure_audit.py --self-test
-python3 scripts/test_closure_audit.py
-python3 scripts/test_generate_calibration_backlog.py
 python3 scripts/run_scale_cases.py --self-test
+python3 scripts/test_check_release_closure.py
 ci_workflow_tests
 
-echo "== release candidate: Python lint / types =="
-bash scripts/gate_python_lint.sh
-
-echo "== release candidate: Python test suite =="
+echo "== release candidate: Rust producer, Python consumer of the Gaussian joint law =="
 (
-  cd python
-  uv run pytest -q --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+  interchange_dir="$(mktemp -d)"
+  trap 'rm -rf "$interchange_dir"' EXIT
+  ANTECEDENT_GAUSSIAN_INTERCHANGE_DIR="$interchange_dir" cargo test -p antecedent --lib -- \
+    joint_gaussian_posterior_keeps_whole_contrast_draws_aligned_and_changed_data_refits
+  (cd python && uv run python "$ROOT/scripts/check_joint_gaussian_interchange.py" "$interchange_dir")
 )
 
 echo "== release candidate: local wheel, full suite against the installed wheel =="
@@ -217,6 +193,8 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
   "$venv_dir/venv/bin/python" "$ROOT/scripts/gate_release_candidate_2.py" "$venv_dir"
   # Every documented snippet and embedded example, from the installed wheel.
   "$venv_dir/venv/bin/python" "$ROOT/scripts/run_doc_examples.py"
+  # The cyclic-systems implementation gate against the installed wheel.
+  (cd "$ROOT" && "$venv_dir/venv/bin/python" scripts/gate_cyclic_systems.py --python "$venv_dir/venv/bin/python")
   "$venv_dir/venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/python/tests"
 )
 

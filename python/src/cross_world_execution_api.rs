@@ -685,15 +685,15 @@ fn cross_world_measured_interval(
 /// (`uncertainty_representation_insufficient`) and a sampled abduction only adds Monte Carlo
 /// error to an exactly computable quantity (`estimator_inference_mismatch`).
 #[pyfunction]
-fn cross_world_closed_reading(reading: &str) -> String {
+fn cross_world_unsupported_reading(reading: &str) -> String {
     let (code, detail) = match reading {
         "interval" => (
             antecedent_core::reason_code!("sampling_dependence_unknown"),
-            "cross_world_execution.interval_route_closed",
+            "cross_world_execution.no_interval_method",
         ),
         "posterior" => (
             antecedent_core::reason_code!("uncertainty_representation_insufficient"),
-            "cross_world_execution.posterior_route_closed",
+            "cross_world_execution.no_posterior_method",
         ),
         "sampled_abduction" => (
             antecedent_core::reason_code!("estimator_inference_mismatch"),
@@ -727,6 +727,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(cross_world_whole_path, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_whole_path_verify, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_measured_interval, module)?)?;
-    module.add_function(wrap_pyfunction!(cross_world_closed_reading, module)?)?;
+    module.add_function(wrap_pyfunction!(cross_world_unsupported_reading, module)?)?;
     Ok(())
 }

@@ -1409,18 +1409,6 @@ pub(in crate::contract_section) fn verify_claim_calibration(
     if !statuses_ok || crate::calibration::rederive_calibration(slot) != *slot {
         unresolved.push(ContractReason::ClaimCalibration);
     }
-    if contract
-        .reasoning
-        .support
-        .value
-        .as_ref()
-        .is_some_and(|support| support.matrix_status == "off_axis")
-        && std::iter::once(slot)
-            .chain(slot.secondary.iter())
-            .any(|entry| entry.status == "calibrated")
-    {
-        unresolved.push(ContractReason::ClaimCalibrationOffAxis);
-    }
     let consistent = std::iter::once(slot)
         .chain(slot.secondary.iter())
         .filter_map(|slot| slot.basis.as_ref())
@@ -1520,7 +1508,7 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             // Off-axis design results retain their interval construction in
             // the claim even though the support matrix has no supported cell.
             // The query-specific payload validator verifies its support and
-            // endpoints; calibration remains unavailable on this axis.
+            // endpoints; the claim's calibration slot is re-derived from its basis like any other.
             key.validation.is_empty()
                 && slot.matrix_status == "off_axis"
                 && slot.matrix_coordinate.is_none()

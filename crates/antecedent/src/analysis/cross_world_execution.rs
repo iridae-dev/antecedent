@@ -27,7 +27,7 @@
 //!
 //! A value is a `point_only` result of exact enumeration under a declared
 //! model. Mechanism adequacy is a named premise, not a check. Interval and
-//! posterior readings are closed ([`CrossWorldExecution::interval`] and
+//! posterior readings are not supported ([`CrossWorldExecution::interval`] and
 //! [`CrossWorldExecution::posterior`] refuse): the whole abduction-action-
 //! prediction path has no measured coverage record, and the calibration design
 //! that would open it is recorded in `docs/cross-world-execution.md`.
@@ -179,13 +179,13 @@ impl CrossWorldExecution {
     ///
     /// # Errors
     /// Always: `sampling_dependence_unknown`
-    /// (`cross_world_execution.interval_route_closed`); read the interval of a named
+    /// (`cross_world_execution.no_interval_method`); read the interval of a named
     /// unit sampling with `measured_interval`.
     pub fn interval(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
         Err(closed_reading(
             antecedent_core::reason_code!("sampling_dependence_unknown"),
             "interval",
-            "cross_world_execution.interval_route_closed",
+            "cross_world_execution.no_interval_method",
         ))
     }
 
@@ -197,12 +197,12 @@ impl CrossWorldExecution {
     ///
     /// # Errors
     /// Always: `uncertainty_representation_insufficient`
-    /// (`cross_world_execution.posterior_route_closed`).
+    /// (`cross_world_execution.no_posterior_method`).
     pub fn posterior(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
         Err(closed_reading(
             antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             "posterior",
-            "cross_world_execution.posterior_route_closed",
+            "cross_world_execution.no_posterior_method",
         ))
     }
 }

@@ -404,7 +404,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
     // The inner fit runs without replicates; its withholding note must not survive the
     // outer band. The band discloses the response family's block rule, and twelve
     // replicates are flagged as too few for a stable SD.
-    assert!(!warns("estimate.temporal_response.band_withheld"));
+    assert!(!warns("estimate.temporal_response.no_band_method"));
     assert!(warns("response.temporal.block.persistence_boundary"));
     assert!(warns("response.temporal.pointwise_band_few_replicates"));
     assert!(
@@ -506,7 +506,7 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
     for code in [
         "response.observation_sequence_band_withheld",
         "response.observation_joint_uncertainty_unavailable",
-        "response.simultaneous_band_withheld",
+        "response.no_simultaneous_band_method",
         "response.temporal.pointwise_band_few_replicates",
     ] {
         assert!(

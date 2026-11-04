@@ -890,7 +890,7 @@ fn a_routed_world_is_deferred_through_the_facade() {
         &ctx(),
     ));
     assert!(
-        text.contains("reason=route_not_supported: counterfactual_id.path_specific_deferred"),
+        text.contains("reason=route_not_supported: counterfactual_id.path_specific_not_supported"),
         "{text}"
     );
 }

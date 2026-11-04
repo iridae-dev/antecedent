@@ -3,7 +3,7 @@
 
 A residual limitation is something a closure record, a recorded evidence row or checked work says
 is still missing: a narrowed promise with its next attempt, a theory reason that closes a quadrant,
-an evidence row whose interval has no coverage record, a failed capability gate, or a source comment
+an interval whose calibration is not yet measured, a failed capability gate, or a source comment
 that says a coverage claim has not been measured. This script scans
 
   parity/counterparts.toml                    narrowed promises and theory-closed quadrants

@@ -310,8 +310,8 @@ def _adaptive_premise_proven(path: Path) -> bool:
         (path, "fn", producer[0], producer[1]),
         (base / "procedure_uncertainty.rs", "fn", "premise_reason_code", "e7c1e8626a528b0980e4908f547d51413e9a17bb582361af9593b275653d18d5"),
         (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "refusal_of", "cc7d439d6ef611d653d461b664ca078fc0da34963fc271daef2da48f6d302142"),
-        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "premise_remedy", "18989b05bf34791ce49bf78378c92925ec0bbec318f64a2db044a9da3655e269"),
-        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "const", "ASSUMPTION_DETAILS", "96cc07be8e8d97a6edbf81e75420dc2c649792377f90019d2db0f434bf5bcb01"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "premise_remedy", "0c1d0f2938c2319560babbe138d3ca33d8829ba489b86f0e29a5cd03a1e9648a"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "const", "ASSUMPTION_DETAILS", "8e1ce67d6d75afc09b56ba0d1752b0dce63c2d3b051103550888d27e6c82d294"),
     ]
     if path.name == "repeated_measures_posterior.rs":
         dependencies.append((REPO_ROOT / "crates/antecedent/src/analysis/repeated_measures_posterior_report.rs", "fn", "compute", "633c763abdd67b1601e015594186bf784df2c0299958934d0377c571d485a0ba"))

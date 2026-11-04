@@ -264,7 +264,10 @@ fn a_posterior_stopping_decision_follows_the_declared_expected_loss_rule() {
     close(v[0], 1.0, 0.0, "best arm");
     assert!(v[1] > 0.99 && v[2] < 0.05, "probability best {} loss {}", v[1], v[2]);
     close(v[3], 1.0, 0.0, "stop");
-    assert_eq!(outcome.result.closed_claim, Some("adaptive_inference.stopping_reliability_closed"));
+    assert_eq!(
+        outcome.result.unsupported_claim,
+        Some("adaptive_inference.no_stopping_reliability_procedure")
+    );
 }
 
 #[test]
@@ -289,7 +292,7 @@ fn fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs()
     // No interval is supported for the whole procedure.
     let interval = session.interval().unwrap_err();
     assert_eq!(interval.code, "quantity_semantics_mismatch");
-    assert_eq!(interval.detail, "adaptive_inference.interval_closed");
+    assert_eq!(interval.detail, "adaptive_inference.interval_names_no_quantity");
 }
 
 #[test]
@@ -551,13 +554,13 @@ fn repeated_measures_subjects_are_the_unit_and_the_contrast_recovers_the_truth()
 }
 
 #[test]
-fn the_hierarchical_cluster_cell_is_carried_forward_not_analysed_as_repeated_measures() {
+fn the_hierarchical_cluster_cell_is_not_delivered_not_analysed_as_repeated_measures() {
     let mut declaration = repeated_measures_trial([0.0, 0.4], 40, 12);
     declaration.cell.outcome = OutcomeStructure::HierarchicalClustered;
     let session = session(declaration);
     let refusal = session.analyse(&contrast_request(false), &ctx()).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
+    assert_eq!(refusal.detail, "adaptive_inference.cell_not_delivered");
 }
 
 // -- anytime-valid confidence sequences -------------------------------------------------------------
@@ -581,7 +584,7 @@ fn confidence_sequences_of_a_known_truth_trial_contain_the_arm_means() {
     }
     assert!(v[8] <= 0.3 && 0.3 <= v[9], "contrast bounds {} {}", v[8], v[9]);
     // The interval is reported through the interval route; no claim is left without a construction.
-    assert_eq!(outcome.result.closed_claim, None);
+    assert_eq!(outcome.result.unsupported_claim, None);
 }
 
 // -- group-sequential monitoring --------------------------------------------------------------------

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Broken-evidence self-test for scripts/test_evidence.py (gate_support_matrix.sh --self-test).
+"""Broken-evidence self-test for scripts/test_evidence.py (python3 scripts/test_evidence_selftest.py).
 
 Builds a throwaway cargo workspace with one conformance fixture and test files
 that hide a cited test in every way a text scan fails open on: `#[ignore]`

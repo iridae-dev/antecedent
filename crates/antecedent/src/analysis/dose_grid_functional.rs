@@ -6,7 +6,7 @@
 //! `contrast`), on a fixed, caller-declared bandwidth. Level and contrast claims,
 //! derivative claims and the simultaneous band are separate: a derivative needs a
 //! derivative claim, a level or contrast needs a pointwise-level claim, and the
-//! simultaneous band is closed (`dose_grid.simultaneous_band_closed`). Every interval
+//! simultaneous band is not supported (`dose_grid.no_simultaneous_band_method`). Every interval
 //! is pointwise with calibration `unmeasured`: no coverage claim is made, and the
 //! smoothing bias is not included. A dose that is not supported (outside the observed
 //! range, or with too little local weight) is refused, never extrapolated;
@@ -50,7 +50,7 @@ impl DoseGridFunctional {
     ///
     /// # Errors
     /// A typed refusal whose detail is one of `dose_grid.graph_not_certified`,
-    /// `dose_grid.simultaneous_band_closed`, `dose_grid.derivative_without_claim`,
+    /// `dose_grid.no_simultaneous_band_method`, `dose_grid.derivative_without_claim`,
     /// `dose_grid.level_without_claim`, `dose_grid.invalid_request`,
     /// `dose_grid.bandwidth_outside_range`, `dose_grid.unsupported_dose`,
     /// `dose_grid.insufficient_local_weight` or `dose_grid.non_finite_result`; see

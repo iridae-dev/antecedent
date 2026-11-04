@@ -115,7 +115,7 @@ learner, with its default hyperparameters. It runs under its own cross-fitting c
 - **Point only.** The result keeps the aligned `ScoreTable` and the family contrasts, but no
   interval or covariance: a flexible nuisance needs its own remainder-rate and coverage support,
   and no record grants one. A requested interval refuses `ml_nuisance_not_supported`
-  (`joint_cells.ml_interval_withheld`).
+  (`joint_cells.no_ml_interval_method`).
 
 Other machine-learning names (`ml`, `neural_network`, `gradient_boosting`, ...) are not declared
 learners and refuse `ml_nuisance_not_supported` (`joint_cells.ml_learner_not_declared`). The
@@ -176,8 +176,8 @@ supported) has per-row scores. Point contrasts are the difference of the cell me
 table's provenance carries the ridge tag (or the learner marker, see above), so the
 established rule applies: **no interval or joint covariance is published** for a penalized
 propensity (see [penalized AIPW](penalized-aipw.md)) or a learner-supplied nuisance. A requested interval
-refuses `penalized_interval_not_supported` (`joint_cells.interval_withheld`) on the ridge route
-and `ml_nuisance_not_supported` (`joint_cells.ml_interval_withheld`) with a declared learner. Calibration status stays `not_measured`.
+refuses `penalized_interval_not_supported` (`joint_cells.no_interval_method`) on the ridge route
+and `ml_nuisance_not_supported` (`joint_cells.no_ml_interval_method`) with a declared learner. Calibration status stays `not_measured`.
 
 Lasso is closed (`selection_inference_not_supported`); a machine-learning name that is not a
 declared learner refuses `ml_nuisance_not_supported`; an unknown provider name is an invalid

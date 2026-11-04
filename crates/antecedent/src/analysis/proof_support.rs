@@ -195,7 +195,7 @@ pub(crate) fn verify_retained_temporal(
 #[must_use]
 pub(crate) fn graph_posterior_withheld_diagnostic() -> Diagnostic {
     Diagnostic::new(
-        "estimate.graph_posterior.posterior_withheld",
+        "estimate.graph_posterior.no_posterior_method",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
         "aggregate posterior withheld: a graph- or completion-conditional posterior \

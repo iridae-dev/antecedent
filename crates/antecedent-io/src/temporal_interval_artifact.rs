@@ -2,7 +2,7 @@
 //! (`dependent_temporal_interval`).
 //!
 //! Format version 1 (two steps; version 2 for any other number of steps, under its own
-//! feature marker). **Internal**: the public interval route is closed while the
+//! feature marker). **Internal**: the public interval route is not supported while the
 //! interval's calibration is unmeasured, so no public producer writes this artifact;
 //! it exists so the interval's whole resampling is reproducible and checkable. The
 //! artifact embeds the unit panel (snapshot id, unit ids, time ids and values), the

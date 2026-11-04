@@ -128,7 +128,7 @@ impl ParticipantProcedure {
     /// is still open.
     ///
     /// # Errors
-    /// `adaptive_assumption_violated` with `adaptive_inference.borrowing_frozen`
+    /// `adaptive_assumption_violated` with `adaptive_inference.borrowing_fixed_after_first_look`
     /// when `looks_performed` is above zero and the plan differs: borrowing
     /// is part of the declaration identity and frozen before recruitment.
     pub fn amend_borrowing(

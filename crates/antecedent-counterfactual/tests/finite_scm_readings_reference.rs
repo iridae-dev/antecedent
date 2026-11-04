@@ -318,9 +318,9 @@ fn the_envelope_is_refused_where_the_declared_set_cannot_be_honoured() {
     assert_eq!(exec.counters().abductions, 0, "the refusals did no work");
 }
 
-/// Interval and posterior readings stay closed by the joint-law rule.
+/// Interval and posterior readings are not supported by the joint-law rule.
 #[test]
-fn interval_and_posterior_readings_stay_closed_beside_the_spread() {
+fn interval_and_posterior_readings_are_not_supported_beside_the_spread() {
     let reference = reference();
     for reading in [RequestedReading::Interval, RequestedReading::Posterior] {
         let mut request = request(&reference["cases"][0]);

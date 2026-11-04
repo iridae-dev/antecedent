@@ -318,7 +318,7 @@ def test_flexible_learners_refuse_cluster_options(estimator, option):
     data, cluster = clustered(groups=30, size=10)
     names = ["z0", "z1", "t", "y"]
     columns = [data[name] for name in names]
-    with pytest.raises(ValueError, match="cluster_dml.flexible_learner_closed") as error:
+    with pytest.raises(ValueError, match="cluster_dml.flexible_learner_not_supported") as error:
         native_ate(
             names,
             columns,
@@ -331,7 +331,7 @@ def test_flexible_learners_refuse_cluster_options(estimator, option):
             estimator_config={option: [int(c) for c in cluster]},
         )
     assert "route_not_supported" in refusal_text(error.value)
-    assert "cluster_dml.flexible_learner_closed" in str(error.value)
+    assert "cluster_dml.flexible_learner_not_supported" in str(error.value)
     assert "unknown estimator_config key" not in str(error.value)
     assert_registered_refusal(error.value)
 

@@ -520,7 +520,7 @@ pub(super) const NOT_INVERTIBLE_PENALIZED_DESIGN: &str =
 /// Why the plug-in gradient of a collinear design has a point and no band.
 pub(super) fn plugin_gradient_band_unavailable() -> Diagnostic {
     Diagnostic::new(
-        "response.derivative_interval_withheld",
+        "response.no_derivative_interval_method",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
         "no Frequentist interval is reported for this additive-GAM plug-in gradient: the penalized design is rank deficient (collinear treatment columns), so the coefficient sandwich cannot be formed and only the point value is published",
@@ -531,7 +531,7 @@ pub(super) fn plugin_gradient_band_unavailable() -> Diagnostic {
 /// constructed on the identity scale only.
 pub(super) fn plugin_gradient_interval_withheld() -> Diagnostic {
     Diagnostic::new(
-        "response.derivative_interval_withheld",
+        "response.no_derivative_interval_method",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
         "no Frequentist interval is reported for this transformed-scale additive-GAM plug-in Jacobian: its coefficient-sandwich confidence band is constructed on the identity scale only, so only the point value is published; the identity-scale Jacobian and the directional derivative report the band",

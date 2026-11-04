@@ -325,7 +325,7 @@ fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer() {
     assert_eq!(consumed.body.outcome.range[1].to_bits(), direct.range.maximum.to_bits());
     assert_eq!(consumed.body.outcome.frontier.len(), 9);
     assert_eq!(consumed.body.perturbation.factors[0].factor, "outcome_kernel");
-    assert_eq!(consumed.body.sampling.status, "withheld");
+    assert_eq!(consumed.body.sampling.status, "no_interval_method");
     assert_eq!(consumed.body.sampling.interval, None);
     assert_eq!(consumed.body.receipt.operations_consumed, direct.receipt.operations_consumed);
     // A budget-truncated (operations) analysis exports and replays identically.
@@ -500,7 +500,7 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
         (
             "interval",
             Box::new(|w| w.body.sampling.interval = Some([0.1, 0.9])),
-            ("route_not_supported", "joint_sensitivity.interval_withheld".to_owned()),
+            ("route_not_supported", "joint_sensitivity.no_interval_method".to_owned()),
         ),
         (
             "claim",
@@ -833,14 +833,14 @@ fn the_range_artifact_refuses_a_forged_sampling_interval() {
     let ctx = ExecutionContext::for_tests(1);
     let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
     assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
-    assert_eq!(result.uncertainty.detail, "joint_sensitivity.interval_withheld");
+    assert_eq!(result.uncertainty.detail, "joint_sensitivity.no_interval_method");
     let mut wire = artifact();
     wire.body.sampling.interval = Some([0.0, 1.0]);
     reseal(&mut wire);
     let error = consume(&wire).unwrap_err();
     assert_eq!(
         refused(&error),
-        ("route_not_supported", "joint_sensitivity.interval_withheld".into())
+        ("route_not_supported", "joint_sensitivity.no_interval_method".into())
     );
 }
 

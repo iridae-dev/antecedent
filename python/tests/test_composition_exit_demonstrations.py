@@ -55,17 +55,17 @@ def _registry() -> dict[str, dict[str, Any]]:
     return {r["id"]: r for r in records}
 
 
-def _route_is_closed(record_id: str, route: str) -> bool:
+def _route_is_unsupported(record_id: str, route: str) -> bool:
     routes = {r["name"]: r for r in _registry()[record_id]["routes"]}
     return routes[route]["status"] == "closed"
 
 
-def _refused_closed(call: Any, record_id: str, route: str, detail: str) -> None:
+def _refused_unsupported(call: Any, record_id: str, route: str, detail: str) -> None:
     """Refuse with ``not_supported`` and the frozen detail while the registry says closed.
 
     A route the registry has since opened is not called: its demonstration is support test.
     """
-    if not _route_is_closed(record_id, route):
+    if not _route_is_unsupported(record_id, route):
         return
     with pytest.raises(CausalUnsupportedError) as caught:
         call()
@@ -489,7 +489,7 @@ def _counterfactual(**overrides: Any) -> Any:
     return temporal_fixed_population(_histories(), **arguments)
 
 
-def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> None:
+def test_demo_temporal_counterfactual_and_unsupported_cells_stay_visibly_unsupported() -> None:
     # Closed-form SCM L0 = 1 + u0, L1 = 0.5 + 0.8 L0 + 1.5 A0 + u1,
     # Y = -1 + 0.5 L0 + 0.7 A0 + 2 L1 + 1.2 A1 + u2. Abduction recovers each unit's noise exactly
     # and the shared noise cancels: Y(1,1) - Y(0,0) = 0.7 + 1.2 + 2 * 1.5 = 4.9 for every unit.

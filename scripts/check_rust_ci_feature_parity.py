@@ -2,8 +2,24 @@
 """Keep split Rust CI suites on the full workspace's Cargo feature graph."""
 
 import json
+import re
 import subprocess
 import sys
+from pathlib import Path
+
+CI_WORKFLOW = Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml"
+
+
+def workflow_features() -> tuple[str, str]:
+    """The two feature lists the split Rust suites pass, read from the ci workflow's env."""
+    text = CI_WORKFLOW.read_text(encoding="utf-8")
+    found = []
+    for name in ("RUST_CI_REST_FEATURES", "RUST_CI_FACADE_FEATURES"):
+        match = re.search(rf"^\s*{name}:\s*(\S+)\s*$", text, re.M)
+        if match is None:
+            raise SystemExit(f"{CI_WORKFLOW}: {name} is not set")
+        found.append(match.group(1))
+    return found[0], found[1]
 
 
 def cargo(*args: str) -> str:
@@ -11,9 +27,12 @@ def cargo(*args: str) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: check_rust_ci_feature_parity.py REST_FEATURES FACADE_FEATURES")
-    rest_features, facade_features = sys.argv[1:]
+    if len(sys.argv) == 1:
+        rest_features, facade_features = workflow_features()
+    elif len(sys.argv) == 3:
+        rest_features, facade_features = sys.argv[1:]
+    else:
+        raise SystemExit("usage: check_rust_ci_feature_parity.py [REST_FEATURES FACADE_FEATURES]")
     metadata = json.loads(cargo("metadata", "--no-deps", "--format-version", "1"))
     workspace = set(metadata["workspace_members"])
     names = {package["name"] for package in metadata["packages"] if package["id"] in workspace}

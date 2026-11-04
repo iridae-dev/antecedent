@@ -202,7 +202,7 @@ mod internal {
     }
 
     /// Fit the selected graph and propagate the regular IID multinomial information.
-    /// This feature-gated candidate does not activate the closed public interval route.
+    /// This feature-gated candidate does not activate the unsupported public interval route.
     ///
     /// # Errors
     /// Invalid level/counts, unsupported graph/regime, failed or boundary likelihood fit,

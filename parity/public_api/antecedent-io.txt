@@ -6864,7 +6864,7 @@ pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::to: a
 pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::z: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::degrees_of_freedom: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::from: alloc::string::String
-pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::interval: core::option::Option<[f64; 2]>
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::interval: [f64; 2]
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::location: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::mean: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::probability_positive: f64

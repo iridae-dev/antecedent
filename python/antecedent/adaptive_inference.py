@@ -644,7 +644,7 @@ class AdaptiveResult(ScientificResult, Generic[PayloadT]):
     procedure: str
     method: str
     payload: PayloadT
-    closed_claim: str | None
+    unsupported_claim: str | None
     contract_identity: str
     look: int | None
     stopping_rule: dict[str, Any] | None
@@ -716,8 +716,8 @@ class ProcedureCell:
 def procedure_matrix() -> tuple[ProcedureCell, ...]:
     """Every combination of assignment, outcome structure, monitoring and stopping rule.
 
-    Each cell is ``supported`` (with its paradigms), ``closed_incoherent``, ``closed_pairing`` or
-    ``carried_forward`` (with its owner); none is unlisted.
+    Each cell is ``supported`` (with its paradigms), ``incoherent``, ``pairing_not_supported`` or
+    ``not_delivered`` (with its owner); none is unlisted.
     """
     cells = []
     for cell in json.loads(_native.adaptive_procedure_matrix()):
@@ -766,7 +766,7 @@ def _result(wire: dict[str, Any]) -> AdaptiveResult:
             tuple(float("nan") if v is None else float(v) for v in wire["values"]),
         ),
         _wire_values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
-        closed_claim=wire["closed_claim"],
+        unsupported_claim=wire["unsupported_claim"],
         contract_identity=wire["contract_identity"],
         look=int(wire["look"]),
         stopping_rule=wire.get("stopping_rule"),
@@ -1077,7 +1077,7 @@ class ConsumedAdaptiveResult(ScientificResult):
     method: str
     payload: AdaptivePayload
     _wire_values: tuple[float, ...]
-    closed_claim: str | None
+    unsupported_claim: str | None
 
 
 @outcome_operation
@@ -1162,7 +1162,7 @@ def consume_adaptive_inference_result_artifact(
             tuple(float("nan") if v is None else float(v) for v in wire["values"]),
         ),
         _wire_values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
-        closed_claim=wire["closed_claim"],
+        unsupported_claim=wire["unsupported_claim"],
     )
 
 
@@ -2739,7 +2739,7 @@ class ParticipantProcedure:
 
         Raises:
             AdaptiveInferenceRefusal: ``adaptive_assumption_violated`` with
-                ``adaptive_inference.borrowing_frozen`` when ``looks_performed`` is above zero and
+                ``adaptive_inference.borrowing_fixed_after_first_look`` when ``looks_performed`` is above zero and
                 the plan differs.
         """
         wire = _procedure_json([prior._wire() for prior in borrowing])

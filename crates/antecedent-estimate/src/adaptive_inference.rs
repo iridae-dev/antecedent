@@ -31,7 +31,7 @@
 //! interval of [`crate::adaptive_measured_interval`]) are reported with a calibration
 //! annotation resolved from [`crate::adaptive_measured_interval::calibration_basis`];
 //! calibration annotates and never gates them. The one claim with no construction, the
-//! error rate of a posterior stopping rule, stays a [`ClosedClaim`] that refuses
+//! error rate of a posterior stopping rule, stays a [`UnsupportedClaim`] that refuses
 //! with `estimator_inference_mismatch`. The numerics are in
 //! [`antecedent_stats::adaptive_inference`].
 //!
@@ -121,14 +121,14 @@ pub(crate) fn refuse_if_interrupted(ctx: &ExecutionContext) -> Result<(), Adapti
     check_cancelled(ctx)
 }
 
-/// A claim that stays closed because no construction yields it (the error rate of a posterior
-/// stopping rule; bias-adjusted estimates after stopping). Intervals are not closed claims: they
+/// A claim that is not supported because no construction yields it (the error rate of a posterior
+/// stopping rule; bias-adjusted estimates after stopping). Intervals are not unsupported claims: they
 /// are reported with a calibration annotation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ClosedClaim {
-    /// The refusal code of the closed claim.
+pub struct UnsupportedClaim {
+    /// The refusal code of the unsupported claim.
     pub code: &'static str,
-    /// Namespaced detail naming the closed claim.
+    /// Namespaced detail naming the unsupported claim.
     pub detail: &'static str,
     /// Calibration reason: `estimator_grid_not_measured`.
     pub reason: &'static str,
@@ -136,15 +136,15 @@ pub struct ClosedClaim {
 
 /// Reliability of a posterior stopping rule: a posterior threshold is a statement about the
 /// posterior, not an error rate of the rule, and no construction yields one.
-fn stopping_reliability_closed() -> ClosedClaim {
-    ClosedClaim {
+fn stopping_reliability_unsupported() -> UnsupportedClaim {
+    UnsupportedClaim {
         code: antecedent_core::reason_code!("estimator_inference_mismatch"),
-        detail: "adaptive_inference.stopping_reliability_closed",
+        detail: "adaptive_inference.no_stopping_reliability_procedure",
         reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
     }
 }
 
-impl ClosedClaim {
+impl UnsupportedClaim {
     /// A claim that no construction yields because the estimator does not implement that
     /// inference mode.
     pub(crate) fn mismatch(detail: &'static str) -> Self {
@@ -155,7 +155,7 @@ impl ClosedClaim {
         }
     }
 
-    pub(crate) fn closed(detail: &'static str) -> Self {
+    pub(crate) fn unsupported(detail: &'static str) -> Self {
         Self {
             code: antecedent_core::reason_code!("route_not_supported"),
             detail,
@@ -294,8 +294,8 @@ pub struct StoppingDecision {
     pub expected_loss: f64,
     /// Whether the rule says stop.
     pub stop: bool,
-    /// The closed claim about the rule's error rates.
-    pub guarantee: ClosedClaim,
+    /// The unsupported claim about the rule's error rates.
+    pub guarantee: UnsupportedClaim,
 }
 
 /// Evaluate a posterior stopping rule.
@@ -346,7 +346,7 @@ pub fn expected_loss_stopping(
         probability_best: best.probability_best,
         expected_loss: best.expected_loss,
         stop,
-        guarantee: stopping_reliability_closed(),
+        guarantee: stopping_reliability_unsupported(),
     })
 }
 
@@ -555,9 +555,9 @@ pub struct GroupSequentialResult {
     pub statistics: Vec<f64>,
     /// First look at which the statistic crossed, if any.
     pub stopped_at: Option<usize>,
-    /// The closed claim about bias-adjusted estimates and intervals after
+    /// The unsupported claim about bias-adjusted estimates and intervals after
     /// stopping.
-    pub guarantee: ClosedClaim,
+    pub guarantee: UnsupportedClaim,
 }
 
 /// Apply a rule to the standardized statistics of the performed looks.
@@ -595,7 +595,9 @@ pub fn group_sequential_decision(
         spend_increments: boundaries.spend_increments,
         statistics: statistics.to_vec(),
         stopped_at,
-        guarantee: ClosedClaim::closed("adaptive_inference.stagewise_adjustment_closed"),
+        guarantee: UnsupportedClaim::unsupported(
+            "adaptive_inference.no_stagewise_adjustment_procedure",
+        ),
     })
 }
 

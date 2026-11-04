@@ -24,7 +24,7 @@ is not supported; it never extrapolates. Intervals are pointwise normal interval
 heteroskedasticity-robust standard error with calibration ``"unmeasured"``: no coverage claim is
 made. Level/contrast claims, derivative claims and the simultaneous band are separate
 (:class:`DoseClaims`). Without a declared smoothness bound a simultaneous band refuses
-(``dose_grid.simultaneous_band_closed``).
+(``dose_grid.no_simultaneous_band_method``).
 
 Passing ``curvature_bound`` (a declared bound ``B`` on ``|m'''|``) to :func:`dose_functional`
 adds bias-aware intervals (:class:`DoseBiasAware`): each level or derivative interval is widened
@@ -117,7 +117,7 @@ class DoseGridRefusal(StructuredRefusal):
 
     ``reason_code`` is the inherited, registered code; ``detail`` is the namespaced
     ``dose_grid.*`` slot (for example ``dose_grid.unsupported_dose``,
-    ``dose_grid.simultaneous_band_closed`` or ``dose_grid.graph_not_certified``).
+    ``dose_grid.no_simultaneous_band_method`` or ``dose_grid.graph_not_certified``).
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
@@ -621,7 +621,7 @@ def _dose_functional(
 
     Raises :class:`DoseGridRefusal` (a :class:`~antecedent.errors.CausalUnsupportedError`) with
     ``detail`` one of ``dose_grid.graph_not_certified`` (observational design),
-    ``dose_grid.simultaneous_band_closed``, ``dose_grid.derivative_without_claim``,
+    ``dose_grid.no_simultaneous_band_method``, ``dose_grid.derivative_without_claim``,
     ``dose_grid.level_without_claim``, ``dose_grid.invalid_request``,
     ``dose_grid.bandwidth_outside_range``, ``dose_grid.unsupported_dose`` (outside the observed
     dose range) or ``dose_grid.insufficient_local_weight`` (too little local weight).

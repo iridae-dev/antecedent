@@ -286,6 +286,7 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "antecedent": {
         "build_flavor",
+        "citations",
         "propagation_chain",
         "data_diagnostics",
         # Verbs
@@ -493,6 +494,8 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "AnalysisResult": {
         "would_refuse",
+        "citations",
+        "method_provenance",
         "counterfactual_contrasts",
         "interval_bindings",
         "structural_aggregation_policy",
@@ -621,6 +624,8 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "LoadedResult": {
         "fitted_model_from_source",
+        "citations",
+        "method_provenance",
         "decoded_artifact",
         "fitted_model",
         "acceptance",

@@ -143,7 +143,7 @@ def test_ledger_supported_record_has_provenance_fixtures_and_ledger_cell(
 
 
 @pytest.mark.parametrize("record", SUPPORTED, ids=ids(SUPPORTED))
-def test_ledger_supported_record_routes_are_supported_not_closed(record: Record) -> None:
+def test_ledger_supported_record_routes_are_supported_not_refused(record: Record) -> None:
     for route in record["routes"]:
         if route["status"] == "closed":
             # A permanent in-release closure inside a supported record is allowed; it must be named.
@@ -185,7 +185,7 @@ def test_ledger_inferential_claim_has_a_construction_check_or_is_not_supported(
 
 
 @pytest.mark.parametrize("record", CARRIED, ids=ids(CARRIED))
-def test_ledger_carried_forward_routes_are_closed_with_a_registered_code(
+def test_ledger_not_delivered_routes_are_refused_with_a_registered_code(
     record: Record,
 ) -> None:
     assert record["routes"], record["id"]
@@ -311,7 +311,7 @@ REGISTERED_CLOSED_ROUTES = [
     REGISTERED_CLOSED_ROUTES,
     ids=[route["name"] for _, route in REGISTERED_CLOSED_ROUTES],
 )
-def test_ledger_closed_public_producer_refuses_with_its_typed_cell(
+def test_ledger_unsupported_public_producer_refuses_with_its_typed_cell(
     record: Record, route: Record
 ) -> None:
     assert route["name"] in CLOSED_PRODUCERS, f"no producer call for closed route {route['name']}"
@@ -333,7 +333,7 @@ def test_ledger_registry_closed_routes_are_all_known_producers() -> None:
             assert any(route["status"] == "closed" for route in record["routes"])
 
 
-def test_ledger_no_public_python_consumer_for_a_closed_artifact() -> None:
+def test_ledger_no_public_python_consumer_for_an_unsupported_artifact() -> None:
     # Producer and consumer stay closed together: a closed route has no public Python
     # consumer name (the artifact consumers of the carried-forward cells are Rust-internal).
     stems = ("joint_bayesian", "nested_markov", "sampled_observation", "dependent_interval")

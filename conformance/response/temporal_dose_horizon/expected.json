@@ -223,7 +223,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_facade.rs",
-          "sha256": "1c170166367808bcd15716ccd3199bc3a77e8fa4e34a41ec13d2e8ee0b866698"
+          "sha256": "c31118ffbd6fd46f32951dfd37cb1df060afc9186539008ddaea47f0e7dd3de1"
         }
       ],
       "fixture_payload_sha256": "8cd6c855615103423cc201882cf7547c3294d965149bd7b9f354c82ef9a197b9"

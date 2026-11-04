@@ -1,7 +1,6 @@
 """Strict finite refusal and shared-owner proof regressions."""
 
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -392,7 +391,7 @@ class CrossFileHelperTests(unittest.TestCase):
                           lit.reason_code == "adaptive_assumption_violated"}, details)
         original = nontest_pair
         for filename, before, after in [
-            ("adaptive_procedure_report.rs", "adaptive_inference.borrowing_frozen", "adaptive_inference.arm_not_observed"),
+            ("adaptive_procedure_report.rs", "adaptive_inference.borrowing_fixed_after_first_look", "adaptive_inference.arm_not_observed"),
             ("procedure_uncertainty.rs", 'reason_code!("adaptive_assumption_violated")', 'reason_code!("invalid_argument")'),
             ("repeated_measures_posterior_report.rs", "refusal_of(&error)", "invalid(&error)"),
         ]:
@@ -417,7 +416,7 @@ class CrossFileHelperTests(unittest.TestCase):
         def changed(path_arg, **kwargs):
             code, skel = original(path_arg, **kwargs)
             if path_arg.resolve() == report.resolve():
-                code = code.replace("adaptive_inference.borrowing_frozen",
+                code = code.replace("adaptive_inference.borrowing_fixed_after_first_look",
                                     "adaptive_inference.borrowing_freeze", 1)
             return code, skel
         with patch("capability_source.nontest_pair", side_effect=changed):
@@ -875,57 +874,6 @@ class SharedNamespaceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(refusal_stage_literals(panel, in_crate=False), set())
-
-
-
-class UntrustedIntervalInputTests(unittest.TestCase):
-    def test_original_report_input_passes_and_authority_or_numeric_drift_refuses(self):
-        from check_interval_coordinates import untrusted_interval_input_problems
-
-        root = REPO_ROOT
-        records = tomllib.loads((root / "parity/capability_records.toml").read_text(encoding="utf-8"))[
-            "record"
-        ]
-        record = next(r for r in records if r["id"] == "inference.measured_scalar")
-        item = record["untrusted_interval_inputs"][0]
-        self.assertEqual(untrusted_interval_input_problems(root, record, item), [])
-        for mutation in [
-            {"class": "MeasuredScalarReport"},
-            {"authority_type": "ScalarExecution"},
-            {"unknown": True},
-            {"authority_fixture": "unproven"},
-        ]:
-            self.assertTrue(untrusted_interval_input_problems(root, record, item | mutation))
-        source = root / item["source"]
-        original_pair = nontest_pair
-        drifts = [
-            ("for execution in executions {", "for mut execution in executions {"),
-            ("lower: execution.interval.0,", "lower: execution.interval.0 + 1.0,"),
-            (
-                "Result<MeasuredInferenceReport, IoError>",
-                "Result<MeasuredInference, IoError>",
-            ),
-            ("pub(crate) fn authorize(", "pub fn authorize("),
-            (
-                "    report: MeasuredInferenceReport,",
-                "    pub report: MeasuredInferenceReport,",
-            ),
-            (
-                "#[derive(Clone, Debug)]\npub struct MeasuredInference",
-                "#[derive(Clone, Debug, Deserialize)]\npub struct MeasuredInference",
-            ),
-        ]
-        for before, after in drifts:
-
-            def changed(path, before=before, after=after, **kwargs):
-                code, skel = original_pair(path, **kwargs)
-                return (code.replace(before, after), skel) if path == source else (code, skel)
-
-            with (
-                self.subTest(drift=after),
-                patch("check_interval_coordinates.nontest_pair", side_effect=changed),
-            ):
-                self.assertTrue(untrusted_interval_input_problems(root, record, item))
 
 
 if __name__ == "__main__":

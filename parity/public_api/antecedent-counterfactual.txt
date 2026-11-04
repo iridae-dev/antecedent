@@ -1927,7 +1927,7 @@ pub variant antecedent_counterfactual::CounterfactualError::Numerical { message:
 pub variant antecedent_counterfactual::NoiseInferenceKind::AssumedNoise
 pub variant antecedent_counterfactual::NoiseInferenceKind::Invertible
 pub variant antecedent_counterfactual::NoiseInferenceKind::PosteriorNoise
-pub variant antecedent_counterfactual::selective::CapabilityStatus::Closed
+pub variant antecedent_counterfactual::selective::CapabilityStatus::NotSupported
 pub variant antecedent_counterfactual::selective::CapabilityStatus::Executed
 pub variant antecedent_counterfactual::selective::CapabilityStatus::ExistingTheoremRoute
 pub variant antecedent_counterfactual::selective::ConditioningKind::FactualEvidence

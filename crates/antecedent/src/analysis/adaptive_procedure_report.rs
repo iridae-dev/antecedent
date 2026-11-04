@@ -264,7 +264,7 @@ fn premise_remedy(detail: &str) -> &'static str {
         "adaptive_inference.exact_law_unavailable" => {
             "use the simulated whole-procedure law, which has no closed form for an adaptive assignment or a weighted score"
         }
-        "adaptive_inference.borrowing_frozen" => {
+        "adaptive_inference.borrowing_fixed_after_first_look" => {
             "declare the borrowing before recruitment and keep it: a new borrowing plan is a new declaration, not an amendment of a procedure that has made a look"
         }
         "adaptive_inference.assignment_not_replayed" => {
@@ -294,7 +294,7 @@ fn premise_remedy(detail: &str) -> &'static str {
 /// Details whose premise is an assumption of the retained history or of a
 /// frozen declaration, not the support of a cell.
 const ASSUMPTION_DETAILS: [&str; 4] = [
-    "adaptive_inference.borrowing_frozen",
+    "adaptive_inference.borrowing_fixed_after_first_look",
     "adaptive_inference.assignment_not_replayed",
     "adaptive_inference.stopping_not_replayed",
     "adaptive_inference.batch_incomplete",

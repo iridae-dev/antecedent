@@ -1,4 +1,4 @@
-//! The closed transported path-specific counterfactual route and its precise gates.
+//! The unsupported transported path-specific counterfactual route and its precise gates.
 //!
 //! The composition of a transport theorem and a fixed-population cross-world
 //! theorem is **not** evaluated here: no joint theorem is derived, so the route
@@ -95,7 +95,7 @@ impl TransportedCounterfactualPrerequisites {
     }
 }
 
-/// The live refusal of the closed transported-counterfactual route.
+/// The live refusal of the unsupported transported-counterfactual route.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TransportedCounterfactualRefusal {
     /// Registered code, stage and detail.

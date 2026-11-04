@@ -90,7 +90,7 @@ class SourceScans(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "parity").mkdir()
-            (root / "parity/upstream_name_allowlist.toml").write_text('names=["distinctiveupstream"]\nscan_suffixes=[".toml"]\n', encoding="utf-8")
+            (root / "parity/permitted_upstream_name_files.toml").write_text('names=["distinctiveupstream"]\nscan_suffixes=[".toml"]\n', encoding="utf-8")
             (root / ".secret.toml").write_text('value="distinctiveupstream"\n', encoding="utf-8")
             (root / ".github").mkdir()
             (root / ".github/workflow.toml").write_text('value="distinctiveupstream"\n', encoding="utf-8")

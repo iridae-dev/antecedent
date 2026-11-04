@@ -189,7 +189,7 @@ fn an_undeclared_fit_set_is_unverified_never_held_out() {
 }
 
 #[test]
-fn the_interval_causal_and_probability_routes_are_closed() {
+fn the_interval_causal_and_probability_routes_are_not_supported() {
     let l = ledger();
     let keys = observation_keys_from_ledger(&l.ledger, l.test).unwrap();
     let prepared = PreparedPredictiveAssessment::assess(

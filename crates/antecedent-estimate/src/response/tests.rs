@@ -370,7 +370,7 @@ fn bayesian_point_derivative_refits_nuisances_per_draw() {
             codes.iter().any(|c| c == "response.derivative_interval_bias_corrected"),
             "{codes:?}"
         );
-        assert!(!codes.iter().any(|c| c == "response.derivative_interval_withheld"));
+        assert!(!codes.iter().any(|c| c == "response.no_derivative_interval_method"));
         let note = response
             .support
             .warnings
@@ -1381,7 +1381,7 @@ fn point_elasticity_applies_scale_transform() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+            .any(|w| w.code.as_ref() == "response.no_derivative_interval_method"),
         "log-scale elasticity no longer withholds its interval"
     );
 }
@@ -1932,7 +1932,7 @@ fn frequentist_plugin_gradient_reports_its_band_and_a_transformed_scale_says_why
                 .support
                 .warnings
                 .iter()
-                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+                .any(|w| w.code.as_ref() == "response.no_derivative_interval_method")
         );
     }
     // A log-treatment scale needs a positive treatment point, so it is read at (0.2, 0.3).
@@ -1950,7 +1950,7 @@ fn frequentist_plugin_gradient_reports_its_band_and_a_transformed_scale_says_why
         .support
         .warnings
         .iter()
-        .find(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+        .find(|w| w.code.as_ref() == "response.no_derivative_interval_method")
         .expect("the withheld interval is disclosed");
     assert!(withheld.message.contains("identity scale"), "{}", withheld.message);
 }

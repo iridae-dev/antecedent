@@ -873,7 +873,7 @@ fn sensitivity_parts() -> SensitivityParts {
             identified_bound: None,
             sampling: SamplingStatus::Withheld {
                 reason_code: "uncertainty_representation_insufficient".into(),
-                detail: "joint_sensitivity.interval_withheld".into(),
+                detail: "joint_sensitivity.no_interval_method".into(),
             },
         },
         provenance: SensitivityProvenance {

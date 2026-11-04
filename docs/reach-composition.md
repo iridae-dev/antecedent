@@ -42,7 +42,7 @@ Consumers and their owning modules:
 All five routes return a point with a delta-method standard error that
 includes the uncertainty of the estimated measurement parameters. The
 standard error is uncalibrated; `PreparedMeasurementModel::interval` and the
-estimate's `interval` always refuse (`measurement_model.interval_closed`).
+estimate's `interval` always refuse (`measurement_model.interval_requires_estimate`).
 The route card (`antecedent_contract::measurement::route_card`) lists each
 route's allowed and refused operations, and a refused operation reads
 `route_not_supported` / `measurement_model.operation_not_supported` with the
@@ -219,7 +219,7 @@ declared unseen-mass family; the row has no interval route.
 | sampled interval | closed | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Refusal details: counted, empirical or posterior laws given to the exact
-route are `counterfactual_transport.sampled_inference_closed`; a cyclic graph
+route are `counterfactual_transport.no_sampled_inference`; a cyclic graph
 is `counterfactual_transport.graph_outside_contract`; a selected-sample law is
 `counterfactual_transport.selected_sample_law`; an
 undeclared table relation is `counterfactual_transport_sampled.overlap_unknown`.
@@ -252,7 +252,7 @@ classified still valid, recompute or withdrawn by `transport_revalidation`
 | discovered CPDAG class | structural envelope, never a point or interval | REFUSED | REFUSED | REFUSED (`transport_sensitivity.no_scalar_family`) | REFUSED | NO ROUTE | DIRECT (library and Python `transport.discovered.transport_across_class` for a CPDAG or PAG class, estimates through `transport.discovered.estimate_discovered_transport`; temporal classes at a declared horizon in the library) | NO ROUTE | SCHEDULED |
 | provider output as source evidence | point-only or unmeasured, never native target data, never measured | not applicable (source evidence) | not applicable | not applicable | not applicable | NO ROUTE | DIRECT (admission; attested never relabelled verified) | NO ROUTE | SCHEDULED |
 | discretized composition | point-only with a computed mean-contrast bound | REFUSED (`discretized_scm.point_only` for an interval) | REFUSED | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| whole-path cross-world spread (finite Markovian row) | uncalibrated spread, never added across estimands | REFUSED (`cross_world_execution.interval_route_closed`) | REFUSED | REFUSED | REFUSED | DIRECT | REFUSED (`cross_world_uncertainty.transported_path_closed`) | NO ROUTE | SCHEDULED |
+| whole-path cross-world spread (finite Markovian row) | uncalibrated spread, never added across estimands | REFUSED (`cross_world_execution.no_interval_method`) | REFUSED | REFUSED | REFUSED | DIRECT | REFUSED (`cross_world_uncertainty.no_transported_path_derivation`) | NO ROUTE | SCHEDULED |
 
 Temporal transport of a policy value is delivered by
 `temporal_policy_transport`, not by the counterfactual route above. None of
@@ -304,7 +304,7 @@ cell: it has no decision-reliability route.
   `derived_unmeasured` and is never support: publishing it refuses
   `not_supported`.
 - Which paradigm each route supports, and the typed closed row for a missing
-  one (`paradigm_parity.paradigm_closed`), is the parity table of
+  one (`paradigm_parity.paradigm_not_supported`), is the parity table of
   `antecedent_model::discretized_scm::PARITY_TABLE`.
 - The refusals named above, and their remedies, are listed in
   [refusal codes](reference/refusal-codes.md).

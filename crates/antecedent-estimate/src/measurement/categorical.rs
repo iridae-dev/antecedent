@@ -4,7 +4,7 @@
 //! The correction maps observed-label summaries to true-category proportions,
 //! expected counts and outcome means. It consumes assigned labels and the
 //! declared confusion matrix; per-unit calibrated probability vectors are not
-//! consumed (a separate, closed route).
+//! consumed (a separate, unsupported route).
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::identity::SemanticDigest;

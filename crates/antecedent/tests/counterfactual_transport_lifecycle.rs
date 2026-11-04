@@ -606,7 +606,7 @@ fn absent_mislabelled_and_counted_evidence_is_refused_before_a_number() {
     let error = prepared.evaluate(&empirical, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("counterfactual_transport.sampled_inference_closed"), "{message}");
+    assert!(message.contains("counterfactual_transport.no_sampled_inference"), "{message}");
 }
 
 // ---------------------------------------------------------------------------

@@ -992,10 +992,10 @@ fn opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic() {
     assert_eq!(calls.get(), 2);
 }
 
-// -- closed routes ----------------------------------------------------------------------------------
+// -- unsupported routes ----------------------------------------------------------------------------------
 
 #[test]
-fn interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed() {
+fn interval_posterior_guarantee_native_trust_identification_and_joint_law_are_refused() {
     let closed = antecedent_core::reason_code!("callback_protocol_invalid");
     let insufficient = antecedent_core::reason_code!("uncertainty_representation_insufficient");
     for (refusal, detail, expected) in [

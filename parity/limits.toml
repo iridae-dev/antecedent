@@ -439,7 +439,7 @@ implementation = [{ path = "python/src/transported_counterfactual_api.rs", const
 documentation = [{ path = "python/src/bridge.rs", constant = "MAX_DATA_DECLARATION_BYTES" }]
 guard = { path = "python/src/transported_counterfactual_api.rs", pattern = "check_declared_size\\(text, MAX_JSON_BYTES," }
 refusal = { path = "python/src/bridge.rs", pattern = "if len > limit \\{[\\s\\S]{0,240}?return Err\\(" }
-scope_fixture = { path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs", pattern = "\\bx8t_selection_on_outcome_mechanism_refuses_with_a_two_model_witness\\b" }
+scope_fixture = { path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs", pattern = "\\bselection_on_outcome_mechanism_refuses_with_a_two_model_witness\\b" }
 
 [[bound]]
 record = "transport.learned_joint"

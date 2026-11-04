@@ -246,7 +246,7 @@ fn the_decision_reliability_report_is_recomputed_and_cannot_be_altered() {
     let current =
         assess(&original.draws, original.validation.as_ref(), &original.request, &ctx()).unwrap();
     original.verify(&DecisionReliabilityExpectation::default(), &ctx()).unwrap();
-    // No route is closed: calibration annotates a route and never refuses it.
+    // No route is not supported: calibration annotates a route and never refuses it.
     assert!(current.closed_routes.is_empty());
     assert!(original.report.closed_routes.is_empty());
     let consumed =

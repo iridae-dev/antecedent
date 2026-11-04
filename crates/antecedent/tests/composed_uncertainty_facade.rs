@@ -312,7 +312,7 @@ fn a_composed_interval_is_reported_with_its_calibration_at_its_coordinate() {
     // An interval of the whole composition without a named construction is refused.
     let refusal = claim.interval().expect_err("unqualified");
     assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
-    assert_eq!(refusal.details(), vec!["joint_law_propagation.interval_route_closed"]);
+    assert_eq!(refusal.details(), vec!["joint_law_propagation.no_interval_construction"]);
 }
 
 #[test]

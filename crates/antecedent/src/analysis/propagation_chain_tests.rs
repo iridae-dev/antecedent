@@ -117,7 +117,7 @@ fn a_changed_assumption_reaches_only_the_stages_that_depend_on_it() {
 }
 
 #[test]
-fn the_interval_reading_is_closed_and_names_the_measured_coverage_attempt() {
+fn the_interval_reading_is_not_supported_and_names_the_measured_coverage_attempt() {
     let chain = PropagationChain::seal(draft(ChainReading::Spread, LawMeaning::Posterior), &ctx())
         .expect("seals");
     let refusal = chain.interval().expect_err("closed");

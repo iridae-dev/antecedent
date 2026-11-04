@@ -987,9 +987,6 @@
   "predictive_assessment.score_interval": [
    "predictive_assessment.score_interval"
   ],
-  "provider_callback.closed_claims": [
-   "provider_callback.closed_claims"
-  ],
   "provider_callback.consumers": [
    "provider_callback.consumers"
   ],
@@ -10702,19 +10699,6 @@
      "year": 2013
     }
    ]
-  },
-  {
-   "deviations": [
-    "The decision is relative to the declarations: a declared dependency set, state identity, stream identity or trust level is a statement the provider owns, and the protocol does not verify it.",
-    "Output validation checks that an answer is a well-formed object of the declared quantity (shape, finiteness, support, monotone distribution and quantile functions); it does not check the provider's numerical truth.",
-    "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
-    "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or unmeasured."
-   ],
-   "digest": "8b110113ef20d6f19b504ec440836a95ba10f117e68af1fc5502fcad2b7d2c63",
-   "id": "provider_callback.closed_claims",
-   "review": "none",
-   "scope_limits": [],
-   "sources": []
   },
   {
    "deviations": [

@@ -5156,7 +5156,7 @@ fn withhold_class_observation_band(
         warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD
     });
     diagnostics.push(Diagnostic::new(
-        "estimate.temporal_class.observation_class_band_withheld",
+        "estimate.temporal_class.no_observation_class_band_method",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         "class-level observation band is withheld on a multi-completion identified set; \

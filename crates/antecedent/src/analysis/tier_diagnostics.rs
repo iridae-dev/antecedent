@@ -266,7 +266,7 @@ fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
 /// The always-present reason no interval-limit E-value is reported.
 fn interval_withheld() -> Unavailable {
     unavailable(
-        "tier_diagnostics.evalue_interval_withheld",
+        "tier_diagnostics.no_evalue_interval_method",
         "an E-value for the effect-interval limit needs that endpoint converted to a risk \
          ratio; the conversion (outcome-SD plug-in, RR ~ exp(0.91 d)) is an approximation \
          whose own uncertainty is excluded and no coverage record measures the converted \

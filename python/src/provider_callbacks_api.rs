@@ -1266,7 +1266,7 @@ fn callback_closed_refusal(route: &str) -> PyResult<String> {
             "native_trust" => refuse_native_trust(),
             "identification_evidence" => refuse_identification_evidence(),
             "joint_law" => refuse_joint_law(),
-            other => return Err(bad("closed route", other)),
+            other => return Err(bad("unsupported route", other)),
         };
         Ok(refusal_json(&refusal).to_string())
     })

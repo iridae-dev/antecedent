@@ -45,7 +45,7 @@
 //! contract of another experiment.
 //!
 //! The artifact makes no statistical claim. It carries no interval, posterior
-//! or coverage statement; the guarantee routes of every cell are closed.
+//! or coverage statement; the guarantee routes of every cell are not supported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

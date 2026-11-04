@@ -2,7 +2,7 @@
 //!
 //! The bounds are computed by the compiled `IvBounds` study (`Study.compile` and
 //! `prepare_iv_bounds`); this module only carries the identified set and the evidence behind it to
-//! Python. The result is unsupported and uncalibrated, and it is never a point.
+//! Python. The result is reported with calibration status `not_measured`, and it is never a point.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -26,7 +26,7 @@ probability, quantile, nonlinear utility or joint law refuses (``decision_contra
 or ``joint_law_required``). For a linear compact model that retains its coefficient covariance
 the variance of the weighted cohort mean is available as
 :attr:`CohortDecisionSource.uncalibrated_standard_error`, labelled model-based with calibration
-unmeasured; the interval route is closed (``route_not_supported``).
+unmeasured; the interval route is not supported (``route_not_supported``).
 
 A source built from a verified analysis result is native. A source built from a caller-built
 compact export is a declared model and is never native.
@@ -405,7 +405,7 @@ class CohortDecisionSource(ScientificResult):
             calibration=str(raw["calibration"]),
         )
 
-    # -- closed routes ---------------------------------------------------------------------
+    # -- unsupported routes ---------------------------------------------------------------------
     def interval(self, *, level: float = 0.95) -> MeasuredInference:
         """The measured interval of the cohort mean of a natively fitted linear effect.
 

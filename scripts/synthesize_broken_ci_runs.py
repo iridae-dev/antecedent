@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""Write broken variants of a green CI run (one matrix leg missing, one required job absent or
+failed, the wrong commit, jobs reported by id) so the release candidate's CI-run check can be
+shown to reject each: `python3 scripts/synthesize_broken_ci_runs.py DIR` reads DIR/green.json."""
+
 import json
 import sys
 from pathlib import Path
@@ -16,7 +20,7 @@ wheels = [j for j in green["jobs"] if j["name"].startswith("Wheel ")]
 write("missing_leg.json", {**green, "jobs": [j for j in green["jobs"] if j is not wheels[-1]]})
 # A whole required job id absent.
 write(
-    "missing_job.json", {**green, "jobs": [j for j in green["jobs"] if j["name"] != "Domain gates"]}
+    "missing_job.json", {**green, "jobs": [j for j in green["jobs"] if j["name"] != "Static checks"]}
 )
 # A required job that failed.
 write(
@@ -38,7 +42,7 @@ write(
         **green,
         "jobs": [
             {"name": n, "conclusion": "success"}
-            for n in ("rust", "gates", "python-lint", "python-wheels")
+            for n in ("static", "rust", "scientific", "python-lint", "python-wheels")
         ],
     },
 )

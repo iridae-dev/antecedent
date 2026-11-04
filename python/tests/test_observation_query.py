@@ -393,7 +393,7 @@ def test_input_errors_are_typed_not_refusals():
 # --------------------------------------------------------------------------- closed routes
 
 
-def test_interval_and_calibrated_probability_are_closed():
+def test_interval_and_calibrated_probability_are_not_supported():
     claim = oq.condition_on(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
@@ -402,7 +402,7 @@ def test_interval_and_calibrated_probability_are_closed():
     with pytest.raises(ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
     assert calibrated.value.reason_code == "uncertainty_representation_insufficient"
-    assert calibrated.value.detail == "observation_query.calibrated_probability_closed"
+    assert calibrated.value.detail == "observation_query.no_calibrated_probability"
     fitted = oq.conjugate_posterior(1.0, 1.0, successes=1, failures=1, basis="sample_fitted")
     with pytest.raises(ObservationQueryRefusal):
         fitted.calibrated_probability()

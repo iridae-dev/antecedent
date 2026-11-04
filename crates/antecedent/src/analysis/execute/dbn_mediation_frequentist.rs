@@ -714,7 +714,7 @@ fn dbn_mediation_band_diagnostics(
     let mut diagnostics = Vec::new();
     if !mixed {
         diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.mediation.scalar_withheld",
+            "estimate.dbn_posterior.mediation.no_scalar_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "the contributing atoms name different or partially identified estimands, so no \
@@ -762,7 +762,7 @@ fn dbn_mediation_band_diagnostics(
             diagnostics.extend(warning);
         }
         _ => diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.mediation.uncertainty_withheld",
+            "estimate.dbn_posterior.mediation.no_uncertainty_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             if replicates_requested {

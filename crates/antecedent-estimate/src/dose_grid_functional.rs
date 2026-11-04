@@ -52,10 +52,10 @@
 //! * **Inference claim.** A pointwise normal interval (heteroskedasticity-robust
 //!   sandwich standard error from the linearized influences) at one dose or for one
 //!   contrast, with calibration [`IntervalCalibration::Unmeasured`]: no coverage
-//!   claim is made and the public route stays closed while calibration is
+//!   claim is made and the public route is not supported while calibration is
 //!   unmeasured. Level, derivative and contrast claims are separate typed
 //!   fields, enabled separately through [`ClaimSet`]. A simultaneous band is a
-//!   different claim: requesting it is refused (`dose_grid.simultaneous_band_closed`)
+//!   different claim: requesting it is refused (`dose_grid.no_simultaneous_band_method`)
 //!   and [`DoseGridRow::simultaneous_band`] is always `None`.
 //! * **Bias-aware intervals and band.** [`estimate_dose_grid_bias_aware`] builds both
 //!   claims the row leaves out on the same fit: under a declared bound on the absolute third
@@ -116,7 +116,7 @@ pub struct ClaimSet {
     pub pointwise_level: bool,
     /// A pointwise claim about `m'(d)`.
     pub derivative: bool,
-    /// A simultaneous band over the grid. Always refused: the route is closed.
+    /// A simultaneous band over the grid. Always refused: the route is not supported.
     pub simultaneous_band: bool,
 }
 
@@ -205,7 +205,7 @@ pub struct NumericalReport {
     pub max_abs_influence_sum: f64,
 }
 
-/// A simultaneous band. Uninhabited in effect: the route is closed, so no value is built.
+/// A simultaneous band. Uninhabited in effect: the route is not supported, so no value is built.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimultaneousBand {
     /// Lower envelope per grid dose.
@@ -307,7 +307,7 @@ pub struct DoseGridRow {
     pub derivatives: Vec<DoseDerivative>,
     /// Contrast (contrast functional only).
     pub contrast: Option<DoseContrast>,
-    /// Simultaneous band; always `None` (closed).
+    /// Simultaneous band; always `None` (not supported).
     pub simultaneous_band: Option<SimultaneousBand>,
     /// Per-dose support report.
     pub support: SupportReport,
@@ -411,7 +411,7 @@ fn validate_claims(request: &DoseGridRequest<'_>) -> Result<(), EstimationError>
     if request.claims.simultaneous_band {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "dose_grid.simultaneous_band_closed",
+            "dose_grid.no_simultaneous_band_method",
             "a simultaneous band is a separate claim: without a smoothing-bias bound it would \
              exclude the bias. Next attempt: estimate_dose_grid_bias_aware, or a sealed \
              request that declares bias_aware with a curvature bound",
@@ -867,7 +867,7 @@ fn grid_rows(
 /// # Errors
 ///
 /// A typed refusal whose detail is one of `dose_grid.graph_not_certified`,
-/// `dose_grid.simultaneous_band_closed`, `dose_grid.derivative_without_claim`,
+/// `dose_grid.no_simultaneous_band_method`, `dose_grid.derivative_without_claim`,
 /// `dose_grid.level_without_claim`, `dose_grid.invalid_request`,
 /// `dose_grid.bandwidth_outside_range`, `dose_grid.unsupported_dose` or
 /// `dose_grid.insufficient_local_weight`.
@@ -1341,7 +1341,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
     if request.claims.simultaneous_band && (contrast || points.len() < 2) {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "dose_grid.simultaneous_band_closed",
+            "dose_grid.no_simultaneous_band_method",
             "a simultaneous band covers a level or derivative grid of two or more doses. Next \
              attempt: request a grid, or drop the band claim",
         ));

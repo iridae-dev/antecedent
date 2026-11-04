@@ -55,8 +55,8 @@ lists each unit that lacks a provenance record or an independent check;
   generated into a separate Rust lookup and
   [graphless support page](../docs/graphless-support-matrix.md); absent keys
   default to refusal and cannot inherit a geometric cell. Run
-  `bash scripts/gate_graphless_support.sh` to check generated output and that
-  each cited calibration and retained-route test is still in its harness.
+  `python3 scripts/gate_support.py` to check generated output, and add `--cited-tests` to check that
+  each cited known-truth and retained-route test is still in its harness.
 
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 
@@ -235,13 +235,7 @@ command where black-box comparison applies.
 
 ```bash
 bash scripts/gate_parity_schema.sh
-bash scripts/gate_estimate_ci.sh
-bash scripts/gate_bayesian.sh
-bash scripts/gate_gcm.sh
-bash scripts/gate_pag.sh
-bash scripts/gate_context.sh
-bash scripts/gate_attribution.sh
-bash scripts/gate_design_state.sh
+python3 scripts/check_parity_inventories.py
 bash scripts/gate_composition.sh
 bash scripts/gate_transport.sh
 bash scripts/gate_gcm_conformance.sh
@@ -270,7 +264,7 @@ PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
 DAG-only-reject conformance; static FCI/RFCI `done`. Permanent: PAG-native
 ID is generalized adjustment only; full ID/IDC needs MAG/ADMG completion.
 
-Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
+Context: J/RPCMCI, effects, conditional ATE gated by `check_parity_inventories.py`.
 RPCMCI uses caller-supplied regime labels; unsupervised regime search is OOS.
 
 Release: artifact format freeze, wheel matrix, conformance docs, hot-path

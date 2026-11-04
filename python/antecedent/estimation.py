@@ -1270,7 +1270,7 @@ class _PreparedEngine(Generic[ResultT]):
         ``latency`` tier's replicate count from the omitted-default table
         (``antecedent._native.omitted_defaults()``), as Pulse / Sustained do;
         ``0`` publishes the point surface with no band and an
-        ``estimate.temporal_response.band_withheld`` warning. Every other
+        ``estimate.temporal_response.no_band_method`` warning. Every other
         prepared response refuses a positive ``bootstrap``. Pulse / Sustained /
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list; a
         Frequentist ``TemporalMediationEffect`` with ``bootstrap=None`` follows the

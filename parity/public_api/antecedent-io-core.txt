@@ -17704,7 +17704,6 @@ pub variant antecedent_io_core::ContractReason::BodyTemporalNestedPoint
 pub variant antecedent_io_core::ContractReason::CheckedAipwRowBinding
 pub variant antecedent_io_core::ContractReason::ClaimCalibration
 pub variant antecedent_io_core::ContractReason::ClaimCalibrationBasis
-pub variant antecedent_io_core::ContractReason::ClaimCalibrationOffAxis
 pub variant antecedent_io_core::ContractReason::ClaimDomains
 pub variant antecedent_io_core::ContractReason::ClaimId
 pub variant antecedent_io_core::ContractReason::ClaimKind

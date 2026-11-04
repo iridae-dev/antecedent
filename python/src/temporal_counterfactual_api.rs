@@ -238,7 +238,7 @@ fn role_of(tag: &str) -> PyResult<PopulationRole> {
     }
 }
 
-/// The closed transported path-specific route: always the live refusal, as JSON.
+/// The unsupported transported path-specific route: always the live refusal, as JSON.
 ///
 /// Reports every missing prerequisite gate and every required regime factor absent from the
 /// supplied evidence map. Nothing is evaluated whatever is supplied.

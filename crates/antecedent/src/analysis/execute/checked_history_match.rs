@@ -12,7 +12,7 @@
 //! `bayesian.period_history_outcome_model`: the posterior of a declared Gaussian outcome model
 //! with period effects, the history-mean score and a treatment-by-score interaction centred at
 //! the treated mean, reported as the model-based effect on the treated units (a different
-//! estimand, with no donor pairing). It is unsupported and uncalibrated as well.
+//! estimand, with no donor pairing). It is reported with calibration status `not_measured` as well.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{
@@ -164,7 +164,7 @@ impl CheckedHistoryMatchOperation {
                 "estimate.history_match.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unsupported and uncalibrated route: the mean history carrying the confounding is \
+                "route with calibration status `not_measured`: the mean history carrying the confounding is \
                  the caller's assumption, a match never crosses a calendar period, the standard \
                  error is Abadie-Imbens for one match with replacement, the interval is the Newey-West \
                  interval over the matched calendar periods, and their calibration is unmeasured",

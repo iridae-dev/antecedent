@@ -474,7 +474,7 @@ def test_callback_laws_and_incomplete_provider_identities_are_refused_by_name() 
     expect(error, "invalid_argument", "predictive_assessment.provider_identity_incomplete")
 
 
-def test_the_closed_routes_raise_typed_refusals() -> None:
+def test_the_unsupported_routes_raise_typed_refusals() -> None:
     n = 20
     result = pa.assess(
         observed(normals(n, 1)),

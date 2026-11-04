@@ -275,7 +275,7 @@ impl super::Study {
             && matches!(mixed.response.uncertainty, ResponseUncertainty::None)
         {
             diagnostics.push(Diagnostic::new(
-                "estimate.response.graph_posterior.uncertainty_withheld",
+                "estimate.response.graph_posterior.no_uncertainty_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 if self.settings.inference.is_bayesian() {

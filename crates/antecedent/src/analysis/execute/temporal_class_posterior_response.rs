@@ -454,7 +454,7 @@ fn class_posterior_diagnostics(
     );
     if multi_atom {
         diagnostics.push(Diagnostic::new(
-            "estimate.response.graph_posterior.uncertainty_withheld",
+            "estimate.response.graph_posterior.no_uncertainty_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "multi-atom temporal class-posterior response withholds an aggregate band: \

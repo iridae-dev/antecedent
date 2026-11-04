@@ -202,7 +202,7 @@ fn point_only_without_replicates_and_the_same_interval_for_any_thread_budget() {
         point
             .diagnostics
             .iter()
-            .any(|d| d.code.as_ref() == "estimate.temporal.point.uncertainty_withheld")
+            .any(|d| d.code.as_ref() == "estimate.temporal.point.no_uncertainty_method")
     );
     let draws_a = run_series(&data, &graph, query.clone(), Some(bayesian(64)), 0, &serial).unwrap();
     let draws_b = run_series(&data, &graph, query, Some(bayesian(64)), 0, &parallel).unwrap();

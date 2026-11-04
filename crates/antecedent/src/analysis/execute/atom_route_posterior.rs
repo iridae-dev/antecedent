@@ -68,7 +68,7 @@ use crate::result::{PrimaryEstimate, ResultPayload, StructuralAggregationPolicy}
 pub(crate) const ATOM_ROUTE_POSTERIOR_CODE: &str = "estimate.graph_posterior.atom_route";
 
 /// Stable code of the disclosure that states why a mixture publishes no aggregate interval.
-const UNCERTAINTY_WITHHELD_CODE: &str = "estimate.graph_posterior.uncertainty_withheld";
+const UNCERTAINTY_WITHHELD_CODE: &str = "estimate.graph_posterior.no_uncertainty_method";
 
 /// Method tag every posterior atom's estimand carries: the atoms answer one target by
 /// structure-specific identifications, so the estimand identity is the target's.

@@ -5,7 +5,7 @@ Two kinds are kept apart and never merged:
 
 * **cell-level**: the supported row's own evidence is `frozen_external_oracle`:
   its cited test compares the cell's output with a pinned upstream run
-  recorded in `known_truth_fixture` (gate_support_matrix.sh requires that test
+  recorded in `known_truth_fixture` (gate_support.py requires that test
   to consume the fixture).
 * **component-level**: a component the cell's execution ran is checked against
   an external oracle elsewhere. The components come from

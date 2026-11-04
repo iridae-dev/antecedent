@@ -1,17 +1,21 @@
 """Execute registry evidence rows and prove each one ran.
 
-    run_evidence_rows.py ROOT LEDGER REPO [TABLE] [GATE]
+    run_evidence_rows.py ROOT LEDGER REPO [TABLE] [GATE] [--static]
 
 ROOT holds the workspace the rows point into, LEDGER is the TOML registry
 relative to ROOT, and REPO supplies the Python project. TABLE names the array
-of rows (`id`, `evidence_test`, `evidence_assertion`, optional
-`composition_filter`); GATE labels the summary lines. Simulation evidence is
-incomplete unless ANTECEDENT_RUN_CALIBRATION_SIMULATIONS=1 explicitly opts in.
+of rows (`id`, `evidence_test`, `evidence_assertion`); GATE labels the summary
+lines. Every cited Rust test is resolved statically to its exact libtest name
+(declared `#[test]`, not ignored, compiled into its cargo target) and every
+cited Python test to its exact node. All Rust rows then run in one `cargo
+nextest run --ignore-default-filter` invocation and all Python rows in one
+pytest batch; a row counts only if its exact test is reported passed.
+Simulation evidence is incomplete unless ANTECEDENT_RUN_CALIBRATION_SIMULATIONS=1
+explicitly opts in. `--static` resolves the rows and executes nothing.
 
-Scientific rows (see scripts/scientific_records.py) whose recorded pass is still
-current are carried forward instead of run, and new passes are recorded in
-parity/scientific_records.toml. ANTECEDENT_SCIENTIFIC_ALL=1 runs everything (a
-release candidate); ANTECEDENT_SCIENTIFIC_RECORD=0 stops recording;
+Callers: scripts/scientific_records.py run (the one scientific entry point)
+selects the owed scientific rows, and gates use `--static` to keep their cited
+tests honest while the engineering lane executes the ordinary ones.
 ANTECEDENT_EVIDENCE_PASSED_OUT=FILE writes the ids that were proven to run.
 """
 
@@ -23,32 +27,35 @@ import sys
 import time
 import tomllib
 from collections import defaultdict
-from functools import cache
 from pathlib import Path
 
-from _repo import cargo_target_feature_args, test_target
-from test_evidence import python_test_markers, registered_calibration_simulations
+from _repo import WORKSPACE_TEST_FEATURES, cargo_target_feature_args
+from test_evidence import (
+    python_test_markers,
+    registered_calibration_simulations,
+    registered_rust_assertions,
+    static_python_test,
+)
 
-root = Path(sys.argv[1]).resolve()
-ledger = Path(sys.argv[2])
-repo = Path(sys.argv[3]).resolve()
-table = sys.argv[4] if len(sys.argv) > 4 else "capabilities"
-gate = sys.argv[5] if len(sys.argv) > 5 else "gate_composition"
+_argv = [a for a in sys.argv[1:] if a != "--static"]
+static_only = len(_argv) != len(sys.argv) - 1
+root = Path(_argv[0]).resolve()
+ledger = Path(_argv[1])
+repo = Path(_argv[2]).resolve()
+table = _argv[3] if len(_argv) > 3 else "capabilities"
+gate = _argv[4] if len(_argv) > 4 else "gate_composition"
 simulation_rows = (registered_calibration_simulations(root)
                    if (root / "parity/v3_test_registry.toml").exists() else [])
 simulations = {(r["evidence_test"], r["evidence_assertion"]) for r in simulation_rows}
 run_simulations = os.environ.get("ANTECEDENT_RUN_CALIBRATION_SIMULATIONS") == "1"
 
-CARGO_RESULT = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.M)
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-
-
-def cargo_counts(log: str) -> tuple[int, int]:
-    """(passed, failed) summed over every test binary cargo ran."""
-    results = CARGO_RESULT.findall(log)
-    passed = sum(int(p) for _, p, _ in results)
-    failed = max(sum(int(f) for _, _, f in results), sum(s == "FAILED" for s, _, _ in results))
-    return passed, failed
+# `PASS [   0.012s] ( 3/10) antecedent-design::suite_01 module::name`; the counter is optional.
+STATUS_LINE = re.compile(
+    r"^\s*(PASS|FAIL|LEAK-FAIL|LEAK|TIMEOUT|EXECFAIL|SIGABRT|SIGSEGV|SIGBUS|SIGILL|SIGFPE|SIGKILL|SIGTERM|SIGTRAP)"
+    r"\s+\[[^\]]*\]\s+(?:\(\s*\d+/\s*\d+\)\s+)?(\S+)\s+(\S.*?)\s*$",
+    re.M,
+)
 
 
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
@@ -89,91 +96,79 @@ failures: list[str] = []
 passed_labels: set[str] = set()
 
 
-def check(labels: list[str], cmd: list[str], cwd: Path, counter, exact: bool) -> None:
-    label = ", ".join(labels)
-    code, log = run(cmd, cwd)
-    passed, failed = counter(log)
-    wanted = "exactly 1" if exact else "at least 1"
-    ok = code == 0 and failed == 0 and (passed == 1 if exact else passed >= 1)
-    if not ok:
-        tail = "\n".join(log.splitlines()[-40:])
-        failures.extend(labels)
-        print(
-            f"FAIL: {label}: exit={code} passed={passed} failed={failed} "
-            f"(want {wanted} passed, 0 failed)\n  $ {' '.join(cmd)}\n{tail}"
+def workspace_features() -> list[str]:
+    """The feature set `scripts/test.sh` builds the workspace with, for the packages this root has."""
+    present = []
+    for spec in WORKSPACE_TEST_FEATURES:
+        package, _, feature = spec.partition("/")
+        manifest = root / "crates" / package / "Cargo.toml"
+        if manifest.is_file() and feature in tomllib.loads(manifest.read_text(encoding="utf-8")).get("features", {}):
+            present.append(spec)
+    return present
+
+
+def nextest_expression(targets: dict[tuple[str, str], set[str]]) -> str:
+    clauses = []
+    for (crate, target), names in sorted(targets.items()):
+        where = "kind(lib)" if target == "lib" else f"binary(={target})"
+        clauses.append(
+            f"(package(={crate}) and {where} and ("
+            + " | ".join(f"test(={name})" for name in sorted(names))
+            + "))"
         )
-    else:
-        passed_labels.update(labels)
-        print(f"ok: {label} ({passed} passed)")
+    return " or ".join(clauses)
 
 
-def lib_module(test_rel: str) -> str:
-    """`crates/x/src/a/b.rs` -> `a::b::`; `src/lib.rs` / `mod.rs` map to their parent."""
-    parts = Path(test_rel).parts
-    rel = list(parts[parts.index("src") + 1 :])
-    rel[-1] = rel[-1].removesuffix(".rs")
-    if rel[-1] in ("lib", "mod"):
-        rel = rel[:-1]
-    return "".join(f"{p}::" for p in rel)
+def run_rust(expected: dict[tuple[str, str, str], list[str]], features: set[str]) -> None:
+    """One nextest invocation for every cited Rust test; each must be reported passed."""
+    if shutil.which("cargo-nextest") is None:
+        for labels in expected.values():
+            failures.extend(labels)
+        print(f"FAIL: cargo-nextest is required to run {len(expected)} cited Rust test(s)")
+        return
+    targets: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for crate, target, name in expected:
+        targets[(crate, target)].add(name)
+    command = [
+        "cargo", "nextest", "run",
+        *(["--locked"] if (root / "Cargo.lock").is_file() else []),
+        "--no-tests", "fail", "--no-fail-fast", "--color", "never",
+        "--status-level", "pass", "--final-status-level", "none",
+        # The default filter is the engineering lane; this run selects exact scientific tests.
+        "--ignore-default-filter",
+        "--workspace",
+    ]
+    all_features = sorted({*workspace_features(), *features})
+    if all_features:
+        command += ["--features", ",".join(all_features)]
+    command += ["-E", nextest_expression(targets)]
+    print(f"{gate}: running {len(expected)} cited Rust tests in {len(targets)} cargo targets (one nextest run)", flush=True)
+    code, log = run(command, root)
+    seen: dict[tuple[str, str], str] = {}
+    for status, binary_id, name in STATUS_LINE.findall(ANSI_ESCAPE.sub("", log)):
+        seen[(binary_id, name)] = status
+    bad = 0
+    for (crate, target, name), labels in expected.items():
+        identity = crate + ("" if target == "lib" else f"::{target}")
+        status = seen.get((identity, name))
+        if status == "PASS":
+            passed_labels.update(labels)
+            for label in labels:
+                print(f"ok: {label} (cited Rust test executed)")
+        else:
+            bad += 1
+            failures.extend(labels)
+            print(f"FAIL: {', '.join(labels)}: {identity} {name} " + (f"reported {status}" if status else "did not run"))
+    if code != 0 or bad:
+        print(f"FAIL: nextest exit={code}, {bad} of {len(expected)} cited Rust tests not passed\n  $ {' '.join(command[:12])} ...\n{log[-3000:]}")
+        if code != 0 and not bad:
+            failures.append("rust-batch")
 
 
-def child_module_dir(test_rel: str) -> Path:
-    """Directory holding the file modules declared by `test_rel`."""
-    path = root / test_rel
-    if path.name in ("lib.rs", "mod.rs"):
-        return path.parent
-    return path.with_suffix("")
-
-
-@cache
-def rust_listing(crate: str, target: tuple[str, ...], ignored: bool = False):
-    command = ["cargo", "test", "-p", crate, *target, "--", "--list"]
-    if ignored:
-        command.append("--ignored")
-    return run(command, root)
-
-
-def resolve_rust(crate: str, target: list[str], assertion: str, test_rel: str, module: str | None):
-    code, log = rust_listing(crate, tuple(target))
-    if code != 0:
-        return None, f"`cargo test -p {crate} {' '.join(target)} -- --list` failed:\n{log[-2000:]}"
-    names = [ln[: -len(": test")] for ln in log.splitlines() if ln.endswith(": test")]
-    hits = [n for n in names if n.rsplit("::", 1)[-1] == assertion]
-    if module is not None:
-        # Keep tests defined in this file: inside its module, and not inside a
-        # child module that lives in its own file.
-        children = child_module_dir(test_rel)
-
-        def in_file(name: str) -> bool:
-            if not name.startswith(module):
-                return False
-            first = name[len(module) :].split("::", 1)[0]
-            return not (
-                (children / f"{first}.rs").is_file() or (children / first / "mod.rs").is_file()
-            )
-
-        hits = [n for n in hits if in_file(n)]
-    if len(hits) != 1:
-        return (
-            None,
-            f"assertion {assertion!r} resolves to {hits or 'no test'} in {crate} {' '.join(target)}",
-        )
-    ignored_code, ignored_log = rust_listing(crate, tuple(target), True)
-    if ignored_code != 0:
-        return (
-            None,
-            f"ignored-test listing failed in {crate} {' '.join(target)}: {ignored_log[-2000:]}",
-        )
-    if f"{hits[0]}: test" in ignored_log.splitlines():
-        return None, f"assertion {assertion!r} is ignored in {crate} {' '.join(target)}"
-    return hits[0], None
-
-
-def filters(value) -> list[str]:
-    if value is None:
-        return []
-    parts = value if isinstance(value, list) else str(value).split("|")
-    return [p.strip() for p in parts if isinstance(p, str) and p.strip()]
+def python_marker() -> list[str]:
+    # Scientific assertions are deselected by the default lane; this run selects them by node id.
+    return ["-m", "not requires_calibration or calibration_simulation"
+            if run_simulations else "not requires_calibration and not calibration_simulation"]
 
 
 rows = tomllib.loads((root / ledger).read_text(encoding="utf-8")).get(table, [])
@@ -182,36 +177,13 @@ if not rows:
     sys.exit(1)
 
 total_rows = len(rows)
-scientific = None
-carry_all = os.environ.get("ANTECEDENT_SCIENTIFIC_ALL") != "1"
-recording = os.environ.get("ANTECEDENT_SCIENTIFIC_RECORD") != "0"
-if (
-    (carry_all or recording)
-    and (root / "parity/scientific_records.toml").is_file()
-    and (Path(__file__).parent / "scientific_records.py").is_file()
-):
-    try:
-        import scientific_records
-
-        scientific = scientific_records.GateSession(root)
-    except Exception as error:  # carrying forward is an optimization: run everything instead
-        print(f"{gate}: scientific records unavailable ({error}); running every row")
-if scientific is not None and carry_all:
-    carried = [r for r in rows if r.get("evidence_test") and scientific.current(r)]
-    rows = [r for r in rows if r not in carried]
-    for r in carried:
-        print(f"carried: {r.get('id') or r.get('route')} (recorded scientific pass is current)")
-    print(f"{gate}: {len(carried)} scientific row(s) carried forward, {len(rows)} to run", flush=True)
 by_id = {}
 for r in rows:
     by_id.setdefault(r.get("id") or r.get("route") or "<no id>", []).append(r)
 
-rust_batches: dict[tuple[str, tuple[str, ...]], dict[str, list[str]]] = defaultdict(
-    lambda: defaultdict(list)
-)
-python_nodes: dict[str, list[str]] = defaultdict(list)
-filter_batches: dict[tuple[str, tuple[str, ...], str], list[str]] = defaultdict(list)
 started = time.monotonic()
+python_nodes: dict[str, list[str]] = defaultdict(list)
+rust_cited: list[tuple[str, str, list[str]]] = []  # (evidence_test, assertion, labels)
 for row in rows:
     cid = row.get("id") or row.get("route") or "<no id>"
     if row.get("status") == "closed" and not row.get("evidence_test"):
@@ -221,6 +193,10 @@ for row in rows:
     if not test_rel or not assertion:
         failures.append(cid)
         print(f"FAIL: {cid}: no evidence_test/evidence_assertion; every {gate} row must execute")
+        continue
+    if row.get("composition_filter") is not None:
+        failures.append(cid)
+        print(f"FAIL: {cid}: composition_filter is not supported; cite each test as its own row")
         continue
 
     python_simulation = (test_rel.endswith(".py") and (root / test_rel).is_file()
@@ -235,115 +211,57 @@ for row in rows:
             failures.append(cid)
             print(f"FAIL: {cid}: Python evidence {test_rel} is not under python/")
             continue
-        node = f"{test_rel.removeprefix('python/')}::{assertion}"
-        python_nodes[node].append(cid)
-        for part in filters(row.get("composition_filter")):
-            failures.append(f"{cid}.filter")
-            print(f"FAIL: {cid}: composition_filter {part!r} is not supported on a Python row")
+        problems = static_python_test(root / test_rel, assertion)
+        if problems:
+            failures.append(cid)
+            print(f"FAIL: {cid}: {'; '.join(problems)}")
+            continue
+        python_nodes[f"{test_rel.removeprefix('python/')}::{assertion}"].append(cid)
         continue
 
-    m = re.fullmatch(r"crates/([^/]+)/(tests|src)/(.+)\.rs", test_rel)
-    if not m:
+    if not re.fullmatch(r"crates/([^/]+)/(tests|src)/(.+)\.rs", test_rel):
         failures.append(cid)
         print(f"FAIL: {cid}: evidence_test {test_rel} is not a known layout")
         continue
-    crate, kind, stem = m.groups()
-    if kind == "tests":
-        name, prefix = test_target(crate, stem.split("/")[0], root)
-        target = ["--test", name]
-        module = prefix or None
-    else:
-        target = ["--lib"]
-        module = lib_module(test_rel)
-    target.extend(cargo_target_feature_args(root / "crates" / crate / "Cargo.toml", target))
-    name, problem = resolve_rust(crate, target, assertion, test_rel, module)
-    if problem:
-        failures.append(cid)
-        print(f"FAIL: {cid}: {problem}")
-        continue
-    rust_batches[(crate, tuple(target))][name].append(cid)
-    for part in filters(row.get("composition_filter")):
-        if not run_simulations and any(r["crate"] == crate and part in r["libtest_name"] for r in simulation_rows):
-            failures.append(f"{cid}.filter[{part}]")
-            print(f"INCOMPLETE: {cid}: filter {part!r} includes a calibration simulation")
-            continue
-        filter_batches[(crate, tuple(target), part)].append(f"{cid}.filter[{part}]")
+    rust_cited.append((test_rel, assertion, [cid]))
+
+# Resolve every Rust citation to its exact libtest identity; attribute a problem to its row.
+expected: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+features: set[str] = set()
+if rust_cited:
+    try:
+        resolved = registered_rust_assertions([(t, a) for t, a, _ in rust_cited], root)
+        groups = [(t, a, labels, [r for r in resolved if (r["evidence_test"], r["evidence_assertion"]) == (t, a)])
+                  for t, a, labels in rust_cited]
+    except ValueError:
+        groups = []
+        for t, a, labels in rust_cited:
+            try:
+                groups.append((t, a, labels, registered_rust_assertions([(t, a)], root)))
+            except ValueError as problem:
+                failures.extend(labels)
+                print(f"FAIL: {', '.join(labels)}: {problem}")
+    for t, a, labels, found in groups:
+        for r in found:
+            target_args = ["--lib"] if r["cargo_target"] == "lib" else ["--test", r["cargo_target"]]
+            required = cargo_target_feature_args(root / "crates" / r["crate"] / "Cargo.toml", target_args)
+            qualified = {f"{r['crate']}/{f}" for f in [*r.get("features", []), *(required[1].split(",") if required else [])]}
+            features |= qualified
+            expected[(r["crate"], r["cargo_target"], r["libtest_name"])].extend(labels)
 
 print(
-    f"{gate}: resolved {len(rows)} rows into {len(rust_batches)} Rust targets, "
-    f"{len(python_nodes)} Python nodes and {len(filter_batches)} filters "
-    f"in {time.monotonic() - started:.1f}s",
+    f"{gate}: resolved {len(rows)} rows into {len(expected)} exact Rust tests "
+    f"and {len(python_nodes)} Python nodes in {time.monotonic() - started:.1f}s",
     flush=True,
 )
 
-for (crate, target), members in rust_batches.items():
-    has_nextest = shutil.which("cargo-nextest") is not None
-    expression = " | ".join(f"test(={name})" for name in members)
-    command = (
-        [
-            "cargo",
-            "nextest",
-            "run",
-            "--no-tests",
-            "fail",
-            *(["--ignore-default-filter"] if run_simulations else []),
-            "-p",
-            crate,
-            *target,
-            "-E",
-            expression,
-        ]
-        if has_nextest
-        else []
-    )
-    print(
-        f"{gate}: running Rust target {crate} {' '.join(target)} ({len(members)} cited tests)",
-        flush=True,
-    )
-    if has_nextest:
-        code, log = run(command, root)
-        # CI requests colored Cargo output. Nextest colors the summary's
-        # numbers as well as "passed", so strip terminal codes before parsing.
-        counts = re.findall(r"(\d+) tests? run: (\d+) passed", ANSI_ESCAPE.sub("", log))
-        passed = int(counts[-1][1]) if counts else 0
-        failed = 0 if code == 0 else 1
-    else:
-        # Local installations need no nextest dependency; CI installs it and
-        # runs each target's cited tests in one process-isolated invocation.
-        code, log, passed, failed = 0, "", 0, 0
-        for name in members:
-            exact_code, exact_log = run(
-                ["cargo", "test", "-p", crate, *target, "--", "--exact", name], root
-            )
-            exact_passed, exact_failed = cargo_counts(exact_log)
-            passed += exact_passed
-            failed += exact_failed or (exact_code != 0 or exact_passed != 1)
-            if exact_code != 0:
-                code = exact_code
-                log += exact_log[-1000:]
-    if code != 0 or failed or passed != len(members):
-        print(
-            f"FAIL: Rust target {crate} {' '.join(target)}: exit={code}, passed={passed}, failed={failed}\n{log[-3000:]}"
-        )
-        # Attribute a failed target to its exact cited tests as well.
-        before = len(failures)
-        for name, labels in members.items():
-            check(
-                labels,
-                ["cargo", "test", "-p", crate, *target, "--", "--exact", name],
-                root,
-                cargo_counts,
-                exact=True,
-            )
-        if len(failures) == before:
-            failures.append(f"{crate} {' '.join(target)} batch")
-    else:
-        for labels in members.values():
-            for label in labels:
-                passed_labels.add(label)
-                print(f"ok: {label} (cited Rust test executed)")
+if static_only:
+    for labels in [*expected.values(), *python_nodes.values()]:
+        passed_labels.update(labels)
+elif expected:
+    run_rust(expected, features)
 
-if python_nodes:
+if python_nodes and not static_only:
     command = [
         "uv",
         "run",
@@ -355,7 +273,7 @@ if python_nodes:
         "-rA",
         "-p",
         "no:cacheprovider",
-        *(["-m", "not requires_calibration or calibration_simulation"] if run_simulations else []),
+        *python_marker(),
         *python_nodes,
     ]
     print(f"{gate}: running {len(python_nodes)} distinct Python nodes", flush=True)
@@ -381,7 +299,7 @@ if python_nodes:
                 "-rA",
                 "-p",
                 "no:cacheprovider",
-                *(["-m", "not requires_calibration or calibration_simulation"] if run_simulations else []),
+                *python_marker(),
                 node,
             ]
             exact_code, detail = run(exact, root / "python")
@@ -401,29 +319,14 @@ if python_nodes:
         failures.append("python-batch")
         print(f"FAIL: Python batch failed although cited nodes passed alone:\n{log[-3000:]}")
 
-for (crate, target, part), labels in filter_batches.items():
-    check(
-        labels, ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False
-    )
-
 if os.environ.get("ANTECEDENT_EVIDENCE_PASSED_OUT"):
     import json
 
     Path(os.environ["ANTECEDENT_EVIDENCE_PASSED_OUT"]).write_text(
         json.dumps(sorted(passed_labels - set(failures))), encoding="utf-8"
     )
-if scientific is not None and recording:
-    # Only a row proven to have run, alone under its id, is recorded.
-    proven = [
-        group[0]
-        for cid, group in by_id.items()
-        if len(group) == 1 and cid in passed_labels and cid not in failures
-    ]
-    recorded = scientific.record(proven)
-    if recorded:
-        print(f"{gate}: recorded {recorded} scientific pass(es) in parity/scientific_records.toml")
 if failures:
     print(f"{gate}: {len(failures)} failing row(s): {', '.join(failures)}")
     sys.exit(1)
-print(f"{gate} rows: ok ({total_rows} rows)")
+print(f"{gate} rows: ok ({total_rows} rows{', resolved only' if static_only else ''})")
 print(f"{gate}: total evidence runtime {time.monotonic() - started:.1f}s")

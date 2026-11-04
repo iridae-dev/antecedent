@@ -369,7 +369,7 @@ fn frequentist_class_and_latent_confounded_derivatives_match_the_structural_refe
                             .support
                             .warnings
                             .iter()
-                            .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+                            .any(|w| w.code.as_ref() == "response.no_derivative_interval_method"),
                         "{label}: a published band is not disclosed as withheld"
                     );
                 }

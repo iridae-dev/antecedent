@@ -329,7 +329,7 @@ impl super::CheckedSyntheticControlOperation {
                 DiagnosticSeverity::Info,
                 format!(
                     "{} adopting units; worst split R-hat {max_rhat:.4}; smallest bulk ESS \
-                     {min_ess:.1}; unsupported and uncalibrated",
+                     {min_ess:.1}; calibration status `not_measured`",
                     rollout.adoptions.len()
                 ),
             )],
@@ -453,7 +453,7 @@ impl super::CheckedSyntheticControlOperation {
                 DiagnosticSeverity::Info,
                 format!(
                     "posterior predictive intervals for {} post periods; split R-hat {:.4}; \
-                     bulk ESS {:.1}; unsupported and uncalibrated",
+                     bulk ESS {:.1}; calibration status `not_measured`",
                     fit.n_post_periods, fit.max_split_rhat, fit.min_bulk_ess
                 ),
             )],

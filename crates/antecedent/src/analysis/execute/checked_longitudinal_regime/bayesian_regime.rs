@@ -129,8 +129,8 @@ impl CheckedLongitudinalRegimeOperation {
                 "estimate.longitudinal.bayesian_sequential_regime_value.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unsupported and uncalibrated Bayesian route: the Bayesian-bootstrap posterior of \
-                 the backward-recursive augmented score has no coverage evidence, the declared \
+                "Bayesian route with calibration status `not_measured`: the Bayesian-bootstrap posterior of \
+                 the backward-recursive augmented score has no coverage record (calibration `not_measured`), the declared \
                  sequential probabilities (not the prior) identify the value, and Q predictions \
                  must be subject-excluded",
             )])

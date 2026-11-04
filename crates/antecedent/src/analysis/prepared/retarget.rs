@@ -680,7 +680,7 @@ fn retarget_diagnostics(
 ) -> Vec<antecedent_core::Diagnostic> {
     if flags.interval_withheld {
         diagnostics.push(antecedent_core::Diagnostic::new(
-            "estimate.aipw.penalized_interval_withheld",
+            "estimate.aipw.no_penalized_interval_method",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
             "the prepared scores come from whole-cluster folds or learner-supplied joint-cell nuisances; the retargeted point is reported without a standard error, covariance or band because no iid interval is supported for that construction",

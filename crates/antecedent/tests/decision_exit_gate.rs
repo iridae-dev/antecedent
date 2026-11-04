@@ -10,7 +10,7 @@
 //! result body), unsealed and re-sealed, and asserts its named refusals.
 //!
 //! The smoothed dose-response interval and the joint-sensitivity sampling uncertainty
-//! are not measured here: their routes stay closed (`not_supported`), and `scripts/gate_decision_exit.sh`
+//! are not measured here: their routes are not supported (`not_supported`), and `scripts/gate_decision_exit.sh`
 //! reports the calibration state separately. No story attaches an interval.
 //!
 //! Registered in `scripts/decision_exit_report.py` (`DECISION_STORIES`).
@@ -636,7 +636,7 @@ fn story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range
     assert_eq!(consumed.body.outcome.frontier.len(), 9);
     // The union is never a confidence interval: the sampling interval is withheld.
     assert_eq!(consumed.body.inference_claim, "assumption_range");
-    assert_eq!(consumed.body.sampling.status, "withheld");
+    assert_eq!(consumed.body.sampling.status, "no_interval_method");
     assert_eq!(consumed.body.sampling.interval, None);
 
     let original = consumed;
@@ -682,7 +682,7 @@ fn story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range
     w.body.sampling.interval = Some([0.1, 0.9]);
     assert_eq!(
         refused(&sensitivity_reseal(w)),
-        ("route_not_supported", "joint_sensitivity.interval_withheld".to_owned())
+        ("route_not_supported", "joint_sensitivity.no_interval_method".to_owned())
     );
 }
 

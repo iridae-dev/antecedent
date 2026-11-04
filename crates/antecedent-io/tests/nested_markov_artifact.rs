@@ -4,7 +4,7 @@
 //!
 //! The oracle is the enumerated latent-variable SCM of the engine's own tests, summed out
 //! by hand; it calls nothing in the code under test. Calibration is unmeasured, the
-//! public interval route stays closed, and nothing here asserts coverage.
+//! public interval route is not supported, and nothing here asserts coverage.
 #![allow(clippy::cast_precision_loss, reason = "binary levels and tiny fixed enumerations")]
 
 use antecedent_core::ExecutionContext;

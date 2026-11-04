@@ -735,7 +735,7 @@ impl CheckedInterferenceOperation {
                 "estimate.interference.cluster_bayesian_bootstrap",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unsupported and uncalibrated Bayesian-bootstrap posterior of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+                "Bayesian-bootstrap posterior (calibration status `not_measured`) of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
             ),
         ))
     }

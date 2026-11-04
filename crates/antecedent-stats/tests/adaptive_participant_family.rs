@@ -361,7 +361,7 @@ fn borrowing_is_frozen_after_the_first_look() {
     // After the first look a different plan is refused with its own detail...
     match original.amend_borrowing(&proposed, 1) {
         Err(Error::PremiseFailed { detail, .. }) => {
-            assert_eq!(detail, "adaptive_inference.borrowing_frozen");
+            assert_eq!(detail, "adaptive_inference.borrowing_fixed_after_first_look");
         }
         other => panic!("expected the frozen-borrowing refusal, got {other:?}"),
     }

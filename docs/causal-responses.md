@@ -292,7 +292,7 @@ above. With cell scales `s_j` (the SD of the replicates of cell `j`) and
 `max_j |θ*_j − θ̂_j| / s_j`, and the band is `θ̂_j ± c·s_j` (the static
 multiplier band and the Gaussian max-t critical value read the same rank). At
 least 40 joint replicates are required; otherwise
-`response.simultaneous_band_withheld` explains why no band was published. The
+`response.no_simultaneous_band_method` explains why no band was published. The
 pointwise band needs only two surviving replicates, but below 40 it carries
 `response.temporal.pointwise_band_few_replicates`: its SD is then itself noisy.
 
@@ -376,7 +376,7 @@ when any cell reads fewer than 15 effective rows.
   root-node means. Both target the population level `E[Y_h | do(A)]`. With zero
   replicates no band is published: the analytic OLS band would treat lag-aligned
   rows as independent, which temporal rows are not, so the surface keeps its
-  point values and warns `estimate.temporal_response.band_withheld`.
+  point values and warns `estimate.temporal_response.no_band_method`.
 - **Frequentist observation-adjusted.** Each outer replicate additionally refits
   the observation nuisance on exactly the resampled tuples and replaces the
   outcome-time column with the replicate pseudo-outcome. Sequence overlays whose
@@ -404,7 +404,7 @@ atoms). An explicit count always wins. Omitted, it follows
 `standard` 199, `report` 200. Declare the count explicitly when you need a band.
 `bootstrap=0` returns the point surface with `uncertainty.kind == "none"`, the
 withheld-band message in `support.warnings`, and
-`estimate.temporal_response.band_withheld: …` in `diagnostics`. The seed on
+`estimate.temporal_response.no_band_method: …` in `diagnostics`. The seed on
 `Execution(seed=...)` drives the replicates, so a fixed seed reproduces the band.
 The simultaneous band is `result.value.simultaneous_band` (`None` when none
 was published), rebuilt from the support diagnostics above. Its `lower` / `upper`
@@ -623,7 +623,7 @@ sampling coverage of every published derivative interval is measured in
   across outcomes is refused.
 
   The Frequentist result is point-only: `uncertainty` is empty and the warning
-  `response.derivative_interval_withheld` says why. Each gradient coordinate
+  `response.no_derivative_interval_method` says why. Each gradient coordinate
   is a linear functional of the target fit's coefficients, so a
   coefficient-sandwich confidence band exists. Its analytic variance uses an
   HC2 correction based on each complete row's leverage in the penalized spline

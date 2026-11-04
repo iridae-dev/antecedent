@@ -71,7 +71,7 @@ pub const JOINT_SENSITIVITY_MAX_DEPTH: usize = 64;
 pub(crate) const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
 /// Hard ceiling on a declared memory cap (the shared search default).
 pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
-/// Hard cap on replicates of the (closed) endpoint bootstrap. This is the upper end of the
+/// Hard cap on replicates of the (not supported) endpoint bootstrap. This is the upper end of the
 /// replicate range the recorded coverage measurements of the route cover (record
 /// `sensitivity.joint_uncertainty`, bound `max_bootstrap_internal`), so it moves only with a new
 /// measurement, not with a work budget.
@@ -89,7 +89,7 @@ pub(crate) const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon conta
 pub(crate) const JOINT_SENSITIVITY_INTERPRETATION: &str = "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval";
 /// The only inference claim the range carries.
 pub const ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
-/// The one sampling composition declared for this cell (closed route).
+/// The one sampling composition declared for this cell (unsupported route).
 pub(crate) const JOINT_SENSITIVITY_SAMPLING_METHOD: &str =
     "conservative_endpoint_percentile_bootstrap";
 /// The coverage target that composition is measured against.
@@ -98,7 +98,7 @@ pub(crate) const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage 
 /// (the frontier's unresolved reason).
 pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str = "joint_sensitivity.budget";
 /// Detail of the withheld sampling interval.
-pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.interval_withheld";
+pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.no_interval_method";
 
 /// A mechanism factor a caller may ask to perturb.
 ///
@@ -368,7 +368,7 @@ pub struct JointSensitivityUncertainty {
     pub coverage_target: &'static str,
     /// Registered reason code of the withheld interval.
     pub reason_code: &'static str,
-    /// `joint_sensitivity.interval_withheld`.
+    /// `joint_sensitivity.no_interval_method`.
     pub detail: &'static str,
 }
 

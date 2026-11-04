@@ -148,14 +148,14 @@ pub(crate) fn status_json(status: &CellStatus) -> Json {
             "class": "supported",
             "paradigms": paradigms.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
         }),
-        CellStatus::ClosedIncoherent { reason } => {
-            json!({"class": "closed_incoherent", "reason": reason})
+        CellStatus::Incoherent { reason } => {
+            json!({"class": "incoherent", "reason": reason})
         }
-        CellStatus::ClosedPairing { reason } => {
-            json!({"class": "closed_pairing", "reason": reason})
+        CellStatus::PairingNotSupported { reason } => {
+            json!({"class": "pairing_not_supported", "reason": reason})
         }
-        CellStatus::CarriedForward { owner, reason } => {
-            json!({"class": "carried_forward", "owner": owner, "reason": reason})
+        CellStatus::NotDelivered { owner, reason } => {
+            json!({"class": "not_delivered", "owner": owner, "reason": reason})
         }
         _ => json!({"class": "unrecognized"}),
     }
@@ -221,7 +221,7 @@ impl AdaptiveInferenceHandle {
                             "procedure": outcome.procedure.identifier(),
                             "method": outcome.result.method,
                             "values": outcome.result.values,
-                            "closed_claim": outcome.result.closed_claim,
+                            "unsupported_claim": outcome.result.unsupported_claim,
                             "contract_identity": outcome.contract_identity,
                             "look": outcome.request.look(),
                             "stopping_rule": rule_json(outcome.stopping_rule),
@@ -498,7 +498,7 @@ fn adaptive_inference_result_consume(
                 "stopping_rule": rule_json(consumed.stopping_rule()),
                 "method": result.method,
                 "values": result.values,
-                "closed_claim": result.closed_claim,
+                "unsupported_claim": result.unsupported_claim,
             });
             (Some(ConsumedAdaptiveResultHandle { summary: summary.to_string() }), None)
         }

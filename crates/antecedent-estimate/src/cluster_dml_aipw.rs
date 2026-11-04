@@ -663,7 +663,7 @@ pub(crate) fn refuse_interval_request(
     if bootstrap_replicates != 0 || !matches!(se_kind, AnalyticSeKind::Homoskedastic) {
         return Err(refuse(
             antecedent_core::reason_code!("cluster_interval_not_supported"),
-            "cluster_dml.interval_withheld",
+            "cluster_dml.no_interval_method",
             "cluster-DML AIPW reports its own cluster-sandwich standard error (a row \
              bootstrap would split clusters and another se_kind is ambiguous); set \
              bootstrap_replicates to 0 and keep the default se_kind to receive the point \
@@ -958,12 +958,12 @@ impl DeclaredUnits {
 /// Typed refusal of a cluster or dependence declaration on a flexible-learner estimator
 /// (`dml`, `dr.learner`, `causal.forest`), whose configurations carry no dependence option.
 ///
-/// The refusal is `route_not_supported` (`cluster_dml.flexible_learner_closed`).
+/// The refusal is `route_not_supported` (`cluster_dml.flexible_learner_not_supported`).
 #[must_use]
 pub fn flexible_learner_dependence_refusal(estimator_id: &str, option: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "cluster_dml.flexible_learner_closed",
+        "cluster_dml.flexible_learner_not_supported",
         &format!(
             "estimator {estimator_id:?} does not support the dependence option {option:?}: \
              its cross-fitting and inference are not justified under clustered or dyadic \

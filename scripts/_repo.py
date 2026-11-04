@@ -16,6 +16,15 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+# The workspace feature set the Rust tests build with (`workspace=` in scripts/test.sh);
+# the scientific run uses the same set so a recorded pass means the same thing.
+WORKSPACE_TEST_FEATURES = (
+    "antecedent/calibration-internal",
+    "antecedent-identify/test-util",
+    "antecedent-io/calibration-internal",
+    "antecedent-validate/calibration-internal",
+)
+
 
 def ensure_scripts_on_path() -> None:
     """Make sibling scripts importable.

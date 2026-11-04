@@ -15,7 +15,7 @@ from evidence_kinds import (
 
 root = Path(".")
 
-STATUS_VALUES = {"pending", "in_progress", "done"}
+STATUS_VALUES = {"pending", "done"}
 # "none" is for Rust-only primitives. Recording them as "thin" would claim a Python
 # surface that does not exist; omitting the row would leave a shipped capability, and
 # its paper provenance, outside the inventory entirely.
@@ -24,7 +24,7 @@ BASE_REQUIRED = ("id", "status")
 
 # What kind of proposition the row's evidence actually demonstrates. Required on
 # every `done` row (release.toml exempt — its rows are release infrastructure
-# with their own evidence map in gate_release.sh, not scientific capabilities).
+# with their own evidence map in check_parity_inventories.py, not scientific capabilities).
 # The 2026-08 audit found rows whose notes read as external-package agreement
 # while the fixture's own oracle block recorded clean-room enumeration; this
 # field makes the claim strength machine-readable so wording cannot outrun it.
@@ -78,7 +78,7 @@ def has_consuming_test(fixture: str) -> bool:
 # happen to carry: the richer schema is what exposed the row that motivated this
 # gate, so it has to be a stated contract, not a statistical accident.
 # Second tuple element: whether `done` rows must carry `evidence_kind`.
-# Only release.toml is exempt (infrastructure rows, evidence map in gate_release.sh).
+# Only release.toml is exempt (infrastructure rows, evidence map in check_parity_inventories.py).
 MANIFESTS = {
     "parity/estimate.toml": (("group", "description", "owner"), True),
     "parity/discovery.toml": (("group", "description", "owner"), True),

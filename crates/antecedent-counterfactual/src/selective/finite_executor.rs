@@ -6,11 +6,11 @@
 //! reuses it together with the shared exogenous states; a request that changes
 //! the factual evidence, a mechanism table or exogenous law, the structure, the
 //! population or the history has a different identity and abduces again.
-//! Reuse is never support: the matrix, the closed readings and the joint-law
+//! Reuse is never support: the matrix, the unsupported readings and the joint-law
 //! rule are applied to every request before any work, reused or not.
 //!
 //! The row is exact: nothing is sampled, so `shared_draws` is always zero and no
-//! interval or posterior is produced (those readings are closed; see
+//! interval or posterior is produced (those readings are not supported; see
 //! `docs/cross-world-execution.md` for the recorded calibration design that
 //! would be required to open a sampled route). Up to the joint-state bound the
 //! exogenous posterior is enumerated and retained; past it the same quantity is
@@ -82,7 +82,7 @@ impl NoiseCoupling {
 pub enum ExogenousInference {
     /// Exact enumeration of the joint exogenous states.
     ExactEnumeration,
-    /// Posterior sampling: closed, no coverage record exists.
+    /// Posterior sampling: not supported; exact enumeration is the exogenous posterior.
     PosteriorSampling,
 }
 

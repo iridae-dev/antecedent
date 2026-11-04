@@ -22,15 +22,19 @@ with Path(os.environ['FAKE_CALLS']).open('a') as out: out.write(' '.join(args) +
 if os.environ.get('CACHE_TIMEOUT') == '1' and os.environ.get('RUSTC_WRAPPER') == 'sccache':
     print('sccache: error: Timed out waiting for server startup. Maybe the remote service is unreachable?', file=sys.stderr)
     sys.exit(2)
-if '--list' in args:
-    if '--ignored' not in args and os.environ.get('MISSING') != '1': print('evidence_test: test')
-    if '--ignored' in args and os.environ.get('IGNORED') == '1': print('evidence_test: test')
-elif 'nextest' in args:
-    count = 0 if os.environ.get('EMPTY') == '1' else 1
-    if os.environ.get('COLOR') == '1':
-        print(f'\x1b[32;1mSummary\x1b[0m \x1b[1m1\x1b[0m test run: \x1b[1m{count}\x1b[0m \x1b[32;1mpassed\x1b[0m')
-    else:
-        print(f'Summary 1 test run: {count} passed, {1-count} skipped')
+if 'nextest' in args:
+    assert '--ignore-default-filter' in args and '--workspace' in args, args
+    if os.environ.get('EMPTY') != '1':
+        counter = '( 1/1) ' if os.environ.get('COUNTER') == '1' else ''
+        names = ['evidence_test', 'simulation_test'] if '--ignore-default-filter' in args and 'simulation_test' in ' '.join(args) else ['evidence_test']
+        for name in names:
+            if os.environ.get('COLOR') == '1':
+                print(f'        \x1b[32;1mPASS\x1b[0m [   0.001s] {counter}example {name}')
+            else:
+                print(f'        PASS [   0.001s] {counter}example {name}')
+    if os.environ.get('FAILING') == '1':
+        print('        FAIL [   0.001s] example evidence_test')
+        sys.exit(100)
 """,
         encoding="utf-8",
         newline="\n",
@@ -67,7 +71,7 @@ evidence_assertion = "evidence_test"
         "FAKE_CALLS": str(calls),
     }
 
-    def run(**changes):
+    def run(*extra, **changes):
         calls.write_text("", encoding="utf-8", newline="\n")
         return subprocess.run(
             [
@@ -78,11 +82,15 @@ evidence_assertion = "evidence_test"
                 str(root),
                 "fixture_evidence",
                 "self_test",
+                *extra,
             ],
             env={**base, **changes},
             capture_output=True,
             text=True,
         )
+
+    def run_static():
+        return run("--static")
 
     good = run()
     assert good.returncode == 0, good.stdout + good.stderr
@@ -92,18 +100,28 @@ evidence_assertion = "evidence_test"
     )
     colored = run(COLOR="1")
     assert colored.returncode == 0, colored.stdout + colored.stderr
-    assert sum("--exact" in line for line in calls.read_text(encoding="utf-8").splitlines()) == 0
+    counted = run(COUNTER="1")
+    assert counted.returncode == 0, counted.stdout + counted.stderr
+    failing = run(FAILING="1")
+    assert failing.returncode != 0 and "reported FAIL" in failing.stdout, failing.stdout
+    assert sum("nextest run" in line for line in calls.read_text(encoding="utf-8").splitlines()) == 1
+    static = run_static()
+    assert static.returncode == 0 and "resolved only" in static.stdout, static.stdout + static.stderr
+    assert "nextest" not in calls.read_text(encoding="utf-8"), "--static executed a test"
     recovered = run(CACHE_TIMEOUT="1", RUSTC_WRAPPER="sccache")
     assert recovered.returncode == 0 and "retrying without wrapper" in recovered.stdout
-    for setting, expected in (
-        ("IGNORED", "ignored"),
-        ("MISSING", "no test"),
-        ("EMPTY", "passed=0"),
+    lib = root / "crates/example/src/lib.rs"
+    for setting, source, expected in (
+        ("IGNORED", "#[test] #[ignore] fn evidence_test() {}\n", "#[ignore]"),
+        ("MISSING", "#[test] fn other() {}\n", "no fn evidence_test"),
+        ("EMPTY", "#[test] fn evidence_test() {}\n", "did not run"),
     ):
+        lib.write_text(source, encoding="utf-8", newline="\n")
         bad = run(**{setting: "1"})
         assert bad.returncode != 0 and expected in bad.stdout, (setting, bad.stdout, bad.stderr)
         if setting == "EMPTY":
             assert "self_test: 2 failing row(s): first, second" in bad.stdout, bad.stdout
+    lib.write_text("#[test] fn evidence_test() {}\n", encoding="utf-8", newline="\n")
 
     (root / "parity").mkdir()
     registry = root / "parity/v3_test_registry.toml"
@@ -131,8 +149,8 @@ evidence_assertion = "evidence_test"
         'evidence_assertion="evidence_test"\ncomposition_filter="simulation"\n', encoding="utf-8"
     )
     filtered = run()
-    assert filtered.returncode != 0 and "filter 'simulation' includes a calibration simulation" in filtered.stdout
-    assert "-E simulation" not in calls.read_text(encoding="utf-8")
+    assert filtered.returncode != 0 and "composition_filter is not supported" in filtered.stdout
+    assert "nextest" not in calls.read_text(encoding="utf-8")
     registry.unlink()
 
     uv = bin_dir / "uv"
@@ -150,6 +168,7 @@ else:
     )
     uv.chmod(0o755)
     (root / "python/tests").mkdir(parents=True)
+    (root / "python/tests/test_evidence.py").write_text("def test_evidence(): pass\n", encoding="utf-8")
     (root / "evidence.toml").write_text(
         """[[fixture_evidence]]
 id = "python_first"

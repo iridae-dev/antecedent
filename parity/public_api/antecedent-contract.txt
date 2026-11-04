@@ -8573,9 +8573,9 @@ pub variant antecedent_contract::adaptive_design::AssignmentFamily::ThompsonBeta
 pub variant antecedent_contract::adaptive_design::AssignmentFamily::UpperConfidenceBound
 pub variant antecedent_contract::adaptive_design::BoundarySidedness::OneSidedUpper
 pub variant antecedent_contract::adaptive_design::BoundarySidedness::TwoSidedSymmetric
-pub variant antecedent_contract::adaptive_design::CellStatus::CarriedForward { owner: &'static str, reason: &'static str }
-pub variant antecedent_contract::adaptive_design::CellStatus::ClosedIncoherent { reason: &'static str }
-pub variant antecedent_contract::adaptive_design::CellStatus::ClosedPairing { reason: &'static str }
+pub variant antecedent_contract::adaptive_design::CellStatus::NotDelivered { owner: &'static str, reason: &'static str }
+pub variant antecedent_contract::adaptive_design::CellStatus::Incoherent { reason: &'static str }
+pub variant antecedent_contract::adaptive_design::CellStatus::PairingNotSupported { reason: &'static str }
 pub variant antecedent_contract::adaptive_design::CellStatus::Supported { paradigms: &'static [antecedent_contract::adaptive_design::InferenceParadigm] }
 pub variant antecedent_contract::adaptive_design::DelayMechanism::IgnorableAdministrative
 pub variant antecedent_contract::adaptive_design::DelayMechanism::Immediate

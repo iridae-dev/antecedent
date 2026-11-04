@@ -45,7 +45,7 @@
 //! The verified identity is three digests: premises (graph, selections, smoothed-dose
 //! query, certificate, options, seed, fold scheme, frozen bounds, feature schema,
 //! sampling design, variable names), data (rows, doses, known densities) and evidence
-//! (the whole executed result, fold models included). The interval route is closed
+//! (the whole executed result, fold models included). The interval route is not supported
 //! (`not_supported`), so the format has no interval field; the stored status is
 //! re-derived.
 use crate::{IoError, admg_from_wire, admg_to_wire, wire::AdmgWire};

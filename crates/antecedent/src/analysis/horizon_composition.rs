@@ -14,7 +14,7 @@
 //! a dependence the fit does not carry.
 //!
 //! The result is a labelled spread (`uncalibrated_spread`); an interval at the composed
-//! coordinate stays closed until a coverage record is measured at it.
+//! coordinate has no construction here; the spread is the result.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,5 +1,5 @@
 //! Retained, native-issued Bayesian posterior projections under the shared planner.
-//! Calibrated joint-transport publication remains a separate closed route.
+//! Calibrated joint-transport publication remains a separate unsupported route.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::{Fields, dag_from_edges, float_bytes, literal, table_from_columns};
 use super::recalc_receipt::{

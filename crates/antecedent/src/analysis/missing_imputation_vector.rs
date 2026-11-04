@@ -1354,7 +1354,7 @@ fn pool_into_result(
     };
     debug_assert_eq!(report.vector.as_ref().map(|v| v.points.len()), Some(m));
     // The interval of the first completed table does not describe the pooled answer, and the
-    // pooled construction has no coverage record yet.
+    // pooled construction has no interval method.
     result.extras.interval = None;
     result.executed_contract = None;
     Ok((result, report))

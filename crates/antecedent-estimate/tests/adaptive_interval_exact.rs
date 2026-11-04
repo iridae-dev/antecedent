@@ -40,7 +40,7 @@ fn a_one_shape_posterior_interval_is_the_explicit_quantile() {
 }
 
 #[test]
-fn a_degenerate_or_closed_request_has_no_interval() {
+fn a_degenerate_or_unsupported_request_has_no_interval() {
     assert!(beta_credible_interval(0.0, 1.0, 0.95).is_none());
     assert!(beta_credible_interval(1.0, 1.0, 1.0).is_none());
     assert!(beta_credible_interval(1.0, 1.0, 0.0).is_none());
@@ -73,7 +73,8 @@ fn the_repeated_interval_is_the_look_boundary_times_the_standard_error() {
 fn the_welch_difference_of_two_small_arms_is_the_hand_value() {
     // Control 1, 2, 3: mean 2, variance 1, variance of the mean 1/3.
     // Treatment 2, 4, 6: mean 4, variance 4, variance of the mean 4/3.
-    let (difference, se) = welch_difference(&[1.0, 2.0, 3.0], &[2.0, 4.0, 6.0]).expect("difference");
+    let (difference, se) =
+        welch_difference(&[1.0, 2.0, 3.0], &[2.0, 4.0, 6.0]).expect("difference");
     close(difference, 2.0, 1e-15, "difference");
     close(se, (5.0_f64 / 3.0).sqrt(), 1e-15, "standard error");
     assert!(welch_difference(&[1.0], &[2.0, 4.0]).is_none());

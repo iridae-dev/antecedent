@@ -81,7 +81,7 @@ fn request() -> FiniteExecutionRequest {
 fn the_capability_matrix_is_stated_and_every_closed_row_is_actionable() {
     let rows = capability_matrix();
     assert!(rows.iter().any(|r| r.status == CapabilityStatus::Executed));
-    for row in rows.iter().filter(|r| r.status == CapabilityStatus::Closed) {
+    for row in rows.iter().filter(|r| r.status == CapabilityStatus::NotSupported) {
         assert!(row.refusal_code.is_some() && !row.remedy.is_empty(), "{}", row.id);
     }
 }
@@ -93,7 +93,7 @@ fn natural_direct_effect_seals_replays_and_resumes() {
     assert_eq!(sealed.result().label, "point_only");
     let interval = sealed.interval().err().expect("an unqualified interval is closed");
     assert_eq!(interval.code, "sampling_dependence_unknown");
-    assert_eq!(interval.detail, "cross_world_execution.interval_route_closed");
+    assert_eq!(interval.detail, "cross_world_execution.no_interval_method");
     assert_eq!(sealed.posterior().unwrap_err().code, "uncertainty_representation_insufficient");
 
     let bytes = sealed.to_bytes("natural-direct").unwrap();

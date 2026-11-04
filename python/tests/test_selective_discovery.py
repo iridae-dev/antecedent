@@ -318,7 +318,7 @@ def test_a_second_population_and_a_kind_mismatch_are_refused() -> None:
 # -- closed claims, graph uncertainty -----------------------------------------------------------
 
 
-def test_closed_claims_and_score_search_are_refused() -> None:
+def test_unsupported_claims_and_score_search_are_refused() -> None:
     adapter, _, _ = run_full(contract(), DATA)
     for request, code, detail in (
         (
@@ -340,7 +340,7 @@ def test_closed_claims_and_score_search_are_refused() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.request_score_search_reuse()
     assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "selective_discovery.score_search_closed"
+    assert refused.value.detail == "selective_discovery.score_search_not_supported"
 
 
 def test_a_discovered_structure_never_supplies_a_selection_diagram() -> None:

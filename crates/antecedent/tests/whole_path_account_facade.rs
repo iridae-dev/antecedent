@@ -107,7 +107,7 @@ fn the_account_is_the_enumerated_spread_bound_to_its_execution() {
     assert_eq!(inspection.sources.len(), 4);
     assert_eq!(inspection.sources[0].0, "structural");
 
-    // The reading stays closed: a spread is a labelled diagnostic, never an interval.
+    // The reading is not supported: a spread is a labelled diagnostic, never an interval.
     assert!(sealed.interval().is_err());
     assert_eq!(sealed.posterior().unwrap_err().code, "uncertainty_representation_insufficient");
 }

@@ -17,7 +17,7 @@
 //! its contract and binds it into its program identity.
 //!
 //! None of these routes is a geometric support-matrix cell. They execute and
-//! stay unsupported until a coverage record supports them.
+//! carry calibration status `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

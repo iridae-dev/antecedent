@@ -226,7 +226,7 @@ def s1_producer():
     interval = counted_live["interval"]
     assert (interval["available"], interval["status"], interval["reason"]) == (
         False,
-        "withheld",
+        "no_interval_method",
         "sampling_dependence_unknown",
     )
     assert interval["mean_intervals"] == [] and interval["seed"] == 3

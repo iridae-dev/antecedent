@@ -25,8 +25,8 @@ nodes; the estimate is computed with ``n`` and ``2n`` nodes and the disagreement
 Identification is **declared**, never inferred: pass a :class:`MediationPremises`. A declared
 unmeasured treatment-outcome, treatment-mediator or mediator-outcome confounder, a
 treatment-induced mediator-outcome confounder, or an undeclared cross-world independence
-refuses. The interventional (randomized-draw) estimand is closed and refuses with
-``nonlinear_mediation.interventional_effects_closed``.
+refuses. The interventional (randomized-draw) estimand is unsupported and refuses with
+``nonlinear_mediation.interventional_effects_not_supported``.
 
 Bootstrap standard errors and percentile bootstrap intervals (fixed seed, replicate ids
 ``0 .. replicates``; ``interval_status == "percentile_bootstrap_interval"``) are reported for the
@@ -95,7 +95,7 @@ class MediationRefusal(StructuredRefusal):
 
     ``reason_code`` is the registered code; ``detail`` is the namespaced ``family.slot`` slot
     (for example ``nonlinear_mediation.confounding``,
-    ``nonlinear_mediation.interventional_effects_closed``, ``nonlinear_mediation.overlap`` or
+    ``nonlinear_mediation.interventional_effects_not_supported``, ``nonlinear_mediation.overlap`` or
     ``nonlinear_mediation.integration_error``). ``stage`` is ``estimate`` or ``consume`` and
     ``offending`` names a changed identity field when a consumer refused one.
     """
@@ -533,7 +533,7 @@ def mediation_effects(
     declared confounding (``effect_not_identified``, ``nonlinear_mediation.confounding``), a
     treatment-induced confounder or undeclared cross-world independence
     (``cross_world_not_identified``), the interventional estimand
-    (``route_not_supported``, ``nonlinear_mediation.interventional_effects_closed``), weak
+    (``route_not_supported``, ``nonlinear_mediation.interventional_effects_not_supported``), weak
     overlap (``nonlinear_mediation.overlap``), an integration error above tolerance
     (``nonlinear_mediation.integration_error``) and degenerate or rank-deficient models.
     """

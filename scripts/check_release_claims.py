@@ -9,9 +9,8 @@ The claim vocabulary is the one in the header of parity/capability_records.toml 
   assumption_range     range over a declared sensitivity set; not a CI
   none                 no numerical claim (identification/inspection only)
 
-plus the two release-notes phrases `nominal` (an interval with no coverage record at its own
-coordinate, `estimator_grid_not_measured`; a release ships none) and `statistical interval` (the
-reader-facing name of a `calibrated` interval).
+plus the release-notes phrase `statistical interval` (the reader-facing name of a `calibrated`
+interval).
 
 Cells and Refusals are generated marker blocks. The checker compares those blocks to
 the renderer. It does not read claim lines, glossary headings, or `## Explicit refusals` out of
@@ -314,11 +313,6 @@ GLOSSARY = (
         "An exact or plug-in point estimate. No interval of any kind is claimed.",
     ),
     (
-        "`nominal`",
-        "An interval whose coverage was never measured at its own coordinate "
-        "(`estimator_grid_not_measured`). Cells publish none.",
-    ),
-    (
         "`calibrated`",
         "An interval with a coverage record measured at its own coordinate; shown to readers "
         "as a *statistical interval*. A cell is described this way only once its records exist.",
@@ -348,7 +342,6 @@ BARE_CALIBRATED = re.compile(
     r"(?<![\w-])(?<!un)(?<!not )(?<!not yet )(?<!until )(?<!pending )calibrated\b", re.I
 )
 STAT = re.compile(r"(?<!not a )(?<!no )statistical interval", re.I)
-NOMINAL = re.compile(r"(?<!no )(?<!not )(?<!never )(?<!any )\bnominal\b", re.I)
 
 
 def load(root: Path, rel: str) -> dict:
@@ -507,8 +500,6 @@ def claim_words(body: str) -> set[str]:
         found.add("none")
     if BARE_CALIBRATED.search(body) or STAT.search(body):
         found.add("calibrated")
-    if NOMINAL.search(body):
-        found.add("nominal")
     return found
 
 

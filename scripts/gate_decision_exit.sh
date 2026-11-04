@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 # Decision exit gate (SCAFFOLD): complete only when each registered decision story's end-to-end
-# user story passes from clean preparation through independent artifact consumption, and every
-# record ships zero unmeasured interval coordinates.
+# user story passes from clean preparation through independent artifact consumption.
 #
 #   bash scripts/gate_decision_exit.sh                          # run registered stories, print the table
-#   bash scripts/gate_decision_exit.sh --require-calibrated     # PENDING_CALIBRATION is a failure
 #   bash scripts/gate_decision_exit.sh --require-implemented    # PENDING_IMPLEMENTATION is a failure
-#   bash scripts/gate_decision_exit.sh --release                # both
-#   bash scripts/gate_decision_exit.sh --self-test              # cheap: the verdict logic and the checker
+#   bash scripts/gate_decision_exit.sh --self-test              # cheap: the verdict logic
 #
 # REGISTRY: each decision story adds its end-to-end story test files to `DECISION_STORIES` in
 # scripts/decision_exit_report.py (the single registry; `rust` = (crate, integration-test target) pairs,
@@ -15,18 +12,15 @@
 # crates/antecedent/tests/decision_exit_gate.rs. Do not register a test that does not exist.
 # A story can read PASS only with registered story files AND an `evidence` list (route-evidence
 # test names that must be defined in a story file or an already-cited record fixture and must appear
-# as passed in the story's run log; pytest runs with -rA so passes are listed by name). An allocated
-# coverage id (any record of the story) is reported PENDING_CALIBRATION until it has a
-# calibration reading (an annotation). See STORY RULES in scripts/decision_exit_report.py.
-# The stories are run here from the registry, the interval-coordinate check
-# (scripts/check_interval_coordinates.py, all records) runs with its refusal tests, and
-# decision_exit_report.py joins them.
+# as passed in the story's run log; pytest runs with -rA so passes are listed by name). See STORY
+# RULES in scripts/decision_exit_report.py. The stories are run here from the registry and
+# decision_exit_report.py joins them. Calibration is printed afterwards as an annotation
+# (scripts/calibration_status.py intervals) and never changes the verdict.
 #
-# Status per story: PASS / FAIL / PENDING_IMPLEMENTATION / PENDING_CALIBRATION (see
-# scripts/decision_exit_report.py). Exit status is nonzero on any FAIL; the two PENDING states exit 0
-# unless their --require flag (or --release) is given. The Python stories run against the extension
-# already built into python/.venv (`cd python && uv run maturin develop --release`, or set
-# DECISION_EXIT_BUILD_PYTHON=1).
+# Status per story: PASS / FAIL / PENDING_IMPLEMENTATION (see scripts/decision_exit_report.py). Exit
+# status is nonzero on any FAIL; PENDING_IMPLEMENTATION exits 0 unless --require-implemented. The Python
+# stories run against the extension already built into python/.venv
+# (`cd python && uv run maturin develop --release`, or set DECISION_EXIT_BUILD_PYTHON=1).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -35,13 +29,12 @@ flags=()
 for arg in "$@"; do
   case "$arg" in
     --self-test)
-      python3 scripts/check_interval_coordinates.py --self-test
       python3 scripts/decision_exit_report.py --self-test
       echo "gate_decision_exit self-test: ok"
       exit 0
       ;;
-    --require-calibrated | --require-implemented | --release) flags+=("$arg") ;;
-    *) echo "usage: gate_decision_exit.sh [--require-calibrated|--require-implemented|--release|--self-test]" >&2; exit 2 ;;
+    --require-implemented) flags+=("$arg") ;;
+    *) echo "usage: gate_decision_exit.sh [--require-implemented|--self-test]" >&2; exit 2 ;;
   esac
 done
 
@@ -81,14 +74,12 @@ else
   echo "== decision exit: no story tests registered yet (scripts/decision_exit_report.py DECISION_STORIES) =="
 fi
 
-echo "== decision exit: interval coordinates and calibration state (all records) =="
-python3 scripts/check_interval_coordinates.py --run-refusals --json >"$tmp/intervals.json" || true
-if [[ ! -s "$tmp/intervals.json" ]]; then
-  echo '{"intervals":"FAIL","calibration":{},"errors":["check_interval_coordinates.py produced no result"]}' >"$tmp/intervals.json"
-fi
-
 echo
 status=0
-python3 scripts/decision_exit_report.py --runs "$tmp/runs.tsv" --intervals "$tmp/intervals.json" \
+python3 scripts/decision_exit_report.py --runs "$tmp/runs.tsv" \
   ${flags[@]+"${flags[@]}"} || status=$?
+
+echo
+echo "== calibration annotation (informational) =="
+python3 scripts/calibration_status.py intervals || true
 exit "$status"

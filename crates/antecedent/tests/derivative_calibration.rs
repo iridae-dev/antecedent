@@ -30,7 +30,7 @@
 //! band (`plugin_gradient_interval_internal`) is scored on the same DGP and
 //! seeds by `response_jacobian_dag_frequentist_nominal_90_coverage` and
 //! `directional_derivative_dag_frequentist_nominal_90_coverage`, and the public
-//! route stays closed until those records are measured.
+//! route is not supported until those records are measured.
 //!
 //! The skewed / heteroskedastic treatment-law ADE run is a misspecification
 //! probe outside the Gaussian-score assumption: it records coverage and checks
@@ -1216,7 +1216,7 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+            .any(|w| w.code.as_ref() == "response.no_derivative_interval_method")
     };
     // Each transform publishes a Confidence scalar. Elasticity uses Fieller
     // bounds; the remaining transforms use a delta-method interval.
@@ -1318,7 +1318,7 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
                 .support
                 .warnings
                 .iter()
-                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+                .any(|w| w.code.as_ref() == "response.no_derivative_interval_method"),
             "{label}: a published band is not disclosed as withheld"
         );
         let ResponseIdentification::PointIdentified(

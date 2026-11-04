@@ -123,7 +123,7 @@ def joint_mechanism_sensitivity(
 
     Nothing is re-identified: the stage's checked functional and retained laws
     are evaluated. The result carries ``inference_claim == "assumption_range"``
-    and ``uncertainty["status"] == "withheld"``.
+    and ``uncertainty["status"] == "no_interval_method"``.
     """
     deviation = _deviation(deviation)
     return call_native(

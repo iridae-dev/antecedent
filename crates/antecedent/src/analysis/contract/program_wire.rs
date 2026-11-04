@@ -332,7 +332,7 @@ fn iv_lowering(
         if lowering.se_kind == antecedent_estimate::AnalyticSeKind::Homoskedastic {
             "anderson_rubin_if_weak"
         } else {
-            "withheld_non_homoskedastic"
+            "robust_se_without_weak_instrument_interval"
         };
     let wire = CheckedIvLoweringWire {
         format: 1,

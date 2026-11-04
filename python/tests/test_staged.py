@@ -286,7 +286,7 @@ def test_frequentist_plugin_gradient_reports_a_pointwise_band(kind):
     # The additive-GAM gradient reports its coefficient-sandwich band like every other route,
     # and the band is not disclosed as withheld.
     assert result.uncertainty.kind == "pointwise"
-    assert not [w for w in result.support.warnings if "response.derivative_interval_withheld" in w]
+    assert not [w for w in result.support.warnings if "response.no_derivative_interval_method" in w]
 
 
 @pytest.mark.parametrize("kind", ["selected", "right_km", "left_km", "right_cox", "left_cox"])

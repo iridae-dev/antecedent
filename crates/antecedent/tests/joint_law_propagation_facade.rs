@@ -317,11 +317,11 @@ fn the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval() {
     }
     assert_eq!(
         cdf.interval().expect_err("closed").details(),
-        vec!["joint_law_propagation.interval_route_closed"]
+        vec!["joint_law_propagation.no_interval_construction"]
     );
     assert_eq!(
         cdf.posterior().expect_err("closed").details(),
-        vec!["joint_law_propagation.posterior_route_closed"]
+        vec!["joint_law_propagation.no_posterior_for_fixed_law_inputs"]
     );
     // A value function without a verified sign structure is refused.
     let refused = propagate_dependence_envelope(

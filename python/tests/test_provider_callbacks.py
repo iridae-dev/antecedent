@@ -543,7 +543,7 @@ def values_digest_of(execution):
 # -- closed routes ------------------------------------------------------------------------------
 
 
-def test_closed_routes_refuse_with_registered_codes_and_remedies():
+def test_unsupported_routes_refuse_with_registered_codes_and_remedies():
     for route, code, detail in (
         (
             pc.refuse_interval,

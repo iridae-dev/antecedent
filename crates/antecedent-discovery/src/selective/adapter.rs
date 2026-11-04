@@ -25,7 +25,7 @@
 //! value the test returned for exactly that coordinate. A native unwrapped run may use a
 //! covariance-session optimization and is not covered by this bitwise claim. Retaining the *skeleton state*
 //! between runs is not offered: the algorithms interleave orientation with the final search
-//! passes and expose no resumable state, so that stage is a closed route.
+//! passes and expose no resumable state, so that stage is a unsupported route.
 //!
 //! # Score-based search
 //!

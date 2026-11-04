@@ -20,7 +20,7 @@
 //!
 //! Lowering computes no number and grants no support: a chain value is a labelled
 //! point or uncalibrated spread, and an interval of a composed quantity stays
-//! closed without a measured coverage record.
+//! not constructed without a measured coverage record.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

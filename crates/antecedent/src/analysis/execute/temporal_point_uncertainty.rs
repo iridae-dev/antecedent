@@ -47,7 +47,7 @@ pub(super) const POINT_BLOCK_DIAGNOSTIC: &str = "estimate.temporal.point.circula
 /// Diagnostic code of a published temporal point-route posterior.
 pub(super) const POINT_POSTERIOR_DIAGNOSTIC: &str = "estimate.temporal.point.posterior";
 /// Diagnostic code of a withheld temporal point-route interval.
-pub(super) const POINT_UNCERTAINTY_WITHHELD: &str = "estimate.temporal.point.uncertainty_withheld";
+pub(super) const POINT_UNCERTAINTY_WITHHELD: &str = "estimate.temporal.point.no_uncertainty_method";
 /// Backend label of the tempered slope posterior.
 const POSTERIOR_BACKEND: &str = "temporal.slope.tempered_gaussian";
 

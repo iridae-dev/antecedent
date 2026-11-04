@@ -161,7 +161,7 @@ def test_candidate_constructor_and_foreign_callback_cannot_mint_native_authority
     assert calls == []
 
 
-def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_closed(monkeypatch):
+def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_unsupported(monkeypatch):
     monkeypatch.delattr(_native, "consume_checked_temporal_interval_candidate", raising=False)
     with pytest.raises(CausalValueError):
         Candidate.load(b"", expected=identity(), max_replicates=2001)

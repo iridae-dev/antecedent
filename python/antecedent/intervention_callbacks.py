@@ -643,7 +643,7 @@ def decode_programs(
         if kind == "closed":
             decoded.extend(_programs(first))
         else:
-            # The native decoder validates callback rows; closed rows alone omit these fields.
+            # The native decoder validates callback rows; unsupported rows alone omit these fields.
             assert variable is not None and callback_name is not None and reads is not None
             decoded.append(
                 CallbackProgram(

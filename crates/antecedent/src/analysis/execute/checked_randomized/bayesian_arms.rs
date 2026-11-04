@@ -678,7 +678,7 @@ impl super::CheckedRandomizedOperation {
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 format!(
-                    "unsupported and uncalibrated Bayesian route: every first-stage draw is positive (smallest {:.4}) so the ratio posterior is proper; a first stage reaching zero is refused, never published as a ratio",
+                    "Bayesian route with calibration status `not_measured`: every first-stage draw is positive (smallest {:.4}) so the ratio posterior is proper; a first stage reaching zero is refused, never published as a ratio",
                     fit.first_stage.draws.iter().copied().fold(f64::INFINITY, f64::min)
                 ),
             )],

@@ -45,8 +45,8 @@
 //! * an **interval** only through [`check_composed_interval`], which needs a
 //!   measured coverage record for the composed coordinate (operation, route,
 //!   input roles and construction). A component interval does not cover the
-//!   composition; without a record the interval reading is closed. A
-//!   posterior statement about a composed quantity is closed in the same way.
+//!   composition; without a record the interval reading is not supported. A
+//!   posterior statement about a composed quantity is not supported in the same way.
 //!
 //! Every refusal carries a registered reason code, a namespaced
 //! `joint_law_propagation.*` detail and a remedy that names the dependence
@@ -260,7 +260,7 @@ pub enum RequestedReading {
     /// An interval. Closed unless a measured coverage record for the composed
     /// coordinate is supplied to [`check_composed_interval`].
     Interval,
-    /// A posterior or posterior-probability statement. Closed.
+    /// A posterior or posterior-probability statement. Not supported.
     Posterior,
     /// A labelled envelope.
     Envelope,
@@ -510,13 +510,13 @@ fn closed_reading(reading: RequestedReading) -> Option<ExternalRefusal> {
     match reading {
         RequestedReading::Interval => Some(refuse(
             code,
-            "joint_law_propagation.interval_route_closed",
+            "joint_law_propagation.no_interval_construction",
             "interval",
             "a composed quantity carries no interval until a construction is named: a component interval does not cover the composition. Ask for check_composed_interval with the construction and the declared evidence size, which reports the interval with its calibration status; or take the labelled point value under a supported dependence route, or the dependence envelope",
         )),
         RequestedReading::Posterior => Some(refuse(
             code,
-            "joint_law_propagation.posterior_route_closed",
+            "joint_law_propagation.no_posterior_for_fixed_law_inputs",
             "posterior",
             "a composed quantity of fixed-law inputs carries no posterior: a posterior statement needs the posterior draws of the inputs under one alignment identity; the labelled point value under a supported dependence route is the result",
         )),
@@ -1595,10 +1595,13 @@ mod tests {
     }
 
     #[test]
-    fn interval_and_posterior_readings_are_closed() {
+    fn interval_and_posterior_readings_are_not_supported() {
         for (reading, expected) in [
-            (RequestedReading::Interval, "joint_law_propagation.interval_route_closed"),
-            (RequestedReading::Posterior, "joint_law_propagation.posterior_route_closed"),
+            (RequestedReading::Interval, "joint_law_propagation.no_interval_construction"),
+            (
+                RequestedReading::Posterior,
+                "joint_law_propagation.no_posterior_for_fixed_law_inputs",
+            ),
         ] {
             let closed = request(
                 PropagationOperation::Sum,

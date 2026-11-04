@@ -212,7 +212,7 @@ pub const SMOOTHED_DOSE_BOUNDS: SmoothedDoseBounds = SmoothedDoseBounds {
 /// Point-only status: no interval was requested.
 pub(crate) const DOSE_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub(crate) const DOSE_WITHHELD: &str = "withheld";
+pub(crate) const DOSE_WITHHELD: &str = "too_few_replicates";
 /// A bootstrap interval was requested; `smoothed_dose_interval_internal` forms it and its
 /// calibration slot carries the status.
 pub(crate) const DOSE_BOOTSTRAP_INTERVAL: &str = "bootstrap_interval_requested";
@@ -408,7 +408,7 @@ impl SmoothedDoseInput {
     }
 }
 
-/// Interval status of a public estimate. No interval is attached while the route is closed.
+/// Interval status of a public estimate. No interval is attached while the route is not supported.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SmoothedDoseUncertainty {
@@ -446,7 +446,7 @@ impl SmoothedDoseUncertainty {
         }
     }
 
-    /// Whether an interval is available. Never true while the route is closed.
+    /// Whether an interval is available. Never true while the route is not supported.
     #[must_use]
     pub fn available(&self) -> bool {
         false
@@ -564,7 +564,7 @@ pub struct MembershipOverlap {
 pub struct SmoothedDoseEstimate {
     /// One entry per grid dose, in the query's grid order.
     pub grid: Vec<SmoothedDoseGridPoint>,
-    /// Interval status; the interval route is closed.
+    /// Interval status; the interval route is not supported.
     pub uncertainty: SmoothedDoseUncertainty,
     /// Every fold's portable outcome and membership model.
     pub models: SmoothedDoseModels,
@@ -1721,7 +1721,7 @@ fn fit_and_evaluate(
 }
 
 /// Execute the point estimate: validate, cross-fit every nuisance, integrate, apply the
-/// support and quadrature refusals and report the interval status of the closed route.
+/// support and quadrature refusals and report the interval status of the unsupported route.
 ///
 /// # Errors
 /// Any [`validate_smoothed_dose`] refusal, a workspace estimate above the mandatory cap

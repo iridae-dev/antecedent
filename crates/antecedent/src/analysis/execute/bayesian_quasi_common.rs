@@ -1,7 +1,7 @@
 //! Shared assembly of the Bayesian design-based routes: panel difference-in-differences,
 //! synthetic control and the fuzzy-jump / kink local ratio.
 //!
-//! These routes are explicitly unsupported and uncalibrated. A posterior here is the declared
+//! These routes are reported with calibration status `not_measured`. A posterior here is the declared
 //! outcome model's belief about the same estimand the frequentist row estimates. It never
 //! supplies or tests an identifying premise: the design's premises stay declared in the
 //! result's assumptions, and no calibration or coverage evidence covers the credible interval.
@@ -195,7 +195,7 @@ pub(super) fn finish_design_posterior_as(
             "estimate.quasi.bayesian.unsupported",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "unsupported and uncalibrated Bayesian route: no coverage or calibration evidence \
+            "Bayesian route with calibration status `not_measured`: no coverage record \
              covers this posterior, and the prior supplies no identifying premise",
         ),
         Diagnostic::new(

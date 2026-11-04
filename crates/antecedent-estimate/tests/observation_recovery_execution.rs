@@ -78,7 +78,7 @@ fn complete_case(model: &MModel) -> Vec<f64> {
 }
 
 #[test]
-fn k1_recovery_matches_the_enumerated_truth() {
+fn single_censoring_recovery_matches_the_enumerated_truth() {
     // O -> X, O -> R: R _||_ X | O, so P(X, O) = P(X | O, R = 1) P(O).
     let model = MModel::new(1, 1, &[(1, 0)], &[vec![1]], 21).unwrap();
     let derivation = derive(&model, None);
@@ -125,7 +125,7 @@ fn k1_recovery_matches_the_enumerated_truth() {
 }
 
 #[test]
-fn k2_cross_censoring_matches_the_enumerated_truth() {
+fn cross_censoring_matches_the_enumerated_truth() {
     // X0 -> X1, X0 -> R1, X1 -> R0: each missingness depends on the other variable.
     let model = MModel::new(2, 0, &[(0, 1)], &[vec![1], vec![0]], 8).unwrap();
     let derivation = derive(&model, None);

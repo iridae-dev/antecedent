@@ -1,8 +1,8 @@
-//! The closed transported row of the cross-world capability matrix.
+//! The unsupported transported row of the cross-world capability matrix.
 //!
 //! No joint theorem composes a transport support with factual abduction in a target
 //! population, so every transported request whose quantity and model have no theorem-scoped
-//! route of their own is refused with the closed row's code, detail, remedy and the named
+//! route of their own is refused with the unsupported row's code, detail, remedy and the named
 //! unmet prerequisites. This file sweeps the whole quantity-by-model-by-everything-else surface
 //! of `decide` for the transported population, checks that the only transported cell that opens
 //! is the static additive linear one (and that it opens to its own route rather than to an
@@ -38,7 +38,7 @@ const MODELS: [ModelClass; 6] = [
 ];
 
 #[test]
-fn every_transported_cell_is_closed_except_the_static_additive_theorem_route() {
+fn every_transported_cell_is_not_supported_except_the_static_additive_theorem_route() {
     let theorem_cells: Vec<_> = rows()
         .iter()
         .filter(|r| r.status == CapabilityStatus::ExistingTheoremRoute)
@@ -84,7 +84,7 @@ fn every_transported_cell_is_closed_except_the_static_additive_theorem_route() {
                                     assert_eq!(refusal.code, "route_not_supported");
                                     assert_eq!(
                                         refusal.detail,
-                                        "cross_world_execution.transported_row_closed"
+                                        "cross_world_execution.no_transported_row_derivation"
                                     );
                                     assert_eq!(
                                         refusal.subject,
@@ -176,7 +176,10 @@ fn a_different_target_population_refuses_before_any_work_and_the_declared_one_ex
         let err = exec.execute(&request(Some(target)), &ctx).expect_err(target);
         let refusal = err.refusal().unwrap();
         assert_eq!(refusal.code, "route_not_supported", "{target:?}");
-        assert_eq!(refusal.detail, "cross_world_execution.transported_row_closed", "{target:?}");
+        assert_eq!(
+            refusal.detail, "cross_world_execution.no_transported_row_derivation",
+            "{target:?}"
+        );
         assert!(err.missing().iter().any(|m| m == "target_population_abduction_receipt"));
         let c = exec.counters();
         assert_eq!((c.abductions, c.world_predictions, c.shared_draws), (0, 0, 0), "{target:?}");

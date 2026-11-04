@@ -49,9 +49,9 @@
 //! coordinate and [`composed_exceedance_decision`] is a decision about a
 //! composed exceedance probability with its Monte Carlo band. Each carries the
 //! calibration status [`CALIBRATION_STATUS`] (`unmeasured`): a construction is
-//! not a coverage statement, and the joint-law rule keeps the interval reading
-//! closed until a record measured at that exact coordinate and construction
-//! exists.
+//! not a coverage statement, and the joint-law rule reports the interval
+//! reading with that status until a record measured at that exact coordinate and
+//! construction exists.
 //!
 //! No coverage statement or posterior is produced by anything here.
 //!

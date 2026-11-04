@@ -490,7 +490,7 @@ fn failed_or_cancelled_update_leaves_the_retained_state_untouched() {
 }
 
 #[test]
-fn closed_routes_are_refused_with_a_remedy() {
+fn unsupported_routes_are_refused_with_a_remedy() {
     let data = collider_table(50, 23);
     let mut multi = pc_contract(&[0, 1, 2, 3], "parcorr");
     multi.additional_populations = vec!["second_site".to_owned()];
@@ -501,7 +501,7 @@ fn closed_routes_are_refused_with_a_remedy() {
 }
 
 #[test]
-fn closed_claims_are_refused_with_not_supported_and_a_remedy() {
+fn unsupported_claims_are_refused_with_not_supported_and_a_remedy() {
     let data = collider_table(40, 71);
     let (outcome, _) = full_static(&oracle_contract(&[0, 1, 2, 3]), &data);
     let recovery = request_recovery_claim(&outcome).unwrap_err();
@@ -514,7 +514,7 @@ fn closed_claims_are_refused_with_not_supported_and_a_remedy() {
     assert!(interval.to_string().contains("disjoint discovery and analysis rows"));
     let score = request_score_search_reuse().unwrap_err();
     assert_eq!(score.code(), Some("route_not_supported"));
-    assert_eq!(score.detail(), Some("selective_discovery.score_search_closed"));
+    assert_eq!(score.detail(), Some("selective_discovery.score_search_not_supported"));
 }
 
 // -- transport under graph uncertainty ----------------------------------------------------------

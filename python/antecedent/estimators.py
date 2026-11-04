@@ -1381,7 +1381,7 @@ class CausalForest:
     the whole-cluster cross-fitted score with its cluster-sandwich standard error;
     ``min_clusters`` (default 20) is the smallest cluster count accepted. Row-aligned
     ``cluster_ids``, ``cluster_dml`` and ``multiway_ids`` in an ``estimator_config`` refuse
-    ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of being ignored.
+    ``route_not_supported`` (``cluster_dml.flexible_learner_not_supported``) instead of being ignored.
     """
 
     n_trees: int | None = None

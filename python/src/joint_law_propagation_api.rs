@@ -555,7 +555,7 @@ fn joint_law_consume(
 /// The refusal of an interval or posterior reading of a composed quantity (always
 /// `uncertainty_representation_insufficient`).
 #[pyfunction]
-fn joint_law_closed_reading(reading: &str) -> String {
+fn joint_law_unsupported_reading(reading: &str) -> String {
     let Some(parsed) = RequestedReading::from_name(reading) else {
         return invalid_json(format!("unknown reading `{reading}`"));
     };
@@ -573,7 +573,7 @@ fn joint_law_closed_reading(reading: &str) -> String {
     };
     match antecedent_contract::check_propagation(&request) {
         Err(refusal) => refusal_json(&JointLawPropagationRefusal { refusals: vec![refusal] }),
-        Ok(_) => invalid_json("the reading is not a closed reading".to_owned()),
+        Ok(_) => invalid_json("the reading is not a unsupported reading".to_owned()),
     }
 }
 
@@ -836,7 +836,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(joint_law_envelope, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_correlation_range, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_consume, module)?)?;
-    module.add_function(wrap_pyfunction!(joint_law_closed_reading, module)?)?;
+    module.add_function(wrap_pyfunction!(joint_law_unsupported_reading, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_linear_moments_spread, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_spread, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_aligned_linear_spread, module)?)?;

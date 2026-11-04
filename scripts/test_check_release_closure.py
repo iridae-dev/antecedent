@@ -22,7 +22,6 @@ WHEEL_STEP = """
   "$venv_dir/venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/python/tests"
 """
 CI = "cargo nextest run -P ci --workspace"
-CALIBRATION_GATE = "run_ps practitioner_design\n"
 
 
 def case(cid: str, kind: str, test: str, **extra: Any) -> dict[str, Any]:
@@ -37,31 +36,6 @@ def case(cid: str, kind: str, test: str, **extra: Any) -> dict[str, Any]:
         "targets": targets,
         "evidence": {"status": "bound", "test": test},
     }
-
-
-def record(**extra: Any) -> dict[str, Any]:
-    point = {
-        "point": 0,
-        "replicates": 2000,
-        "mcse": 0.005,
-        "observed": 0.95,
-        "role": "gated",
-        "boundary": False,
-    }
-    base = {
-        "id": "rec",
-        "test": "crates/c/tests/t.rs::design",
-        "nominal": 0.95,
-        "n_min": 10,
-        "n_max": 1000,
-        "role": "gated",
-        "boundary": False,
-        "grid": [point],
-        "calibration_sha": "a",
-        "estimator": "e",
-        "interval_method": "m",
-    }
-    return {**base, **extra}
 
 
 class ReleaseClosureTest(unittest.TestCase):
@@ -103,38 +77,6 @@ class ReleaseClosureTest(unittest.TestCase):
             "import runpy\nEXAMPLES = 'examples/python'\nrunpy.run_path\n",
         )
         self.assertEqual(closure.example_problems(self.root), [])
-
-    def test_a_practitioner_scale_case_needs_its_gate_registration_and_a_full_record(self) -> None:
-        data = {
-            "case": [
-                case(
-                    "scale",
-                    "calibrated_interval",
-                    "crates/c/tests/t.rs::practitioner_design",
-                    area="practitioner_scale",
-                    configuration={"participants": 100},
-                )
-            ]
-        }
-        rec = record(test="crates/c/tests/t.rs::practitioner_design")
-        self.assertEqual(closure.practitioner_scale_problems(data, [rec], CALIBRATION_GATE), [])
-        self.assertTrue(
-            any("does not run" in p for p in closure.practitioner_scale_problems(data, [rec], ""))
-        )
-        self.assertTrue(
-            any(
-                "no coverage record" in p
-                for p in closure.practitioner_scale_problems(data, [], CALIBRATION_GATE)
-            )
-        )
-        unbound = copy.deepcopy(data)
-        unbound["case"][0]["evidence"] = {"status": "planned"}
-        self.assertTrue(
-            any(
-                "not bound" in p
-                for p in closure.practitioner_scale_problems(unbound, [rec], CALIBRATION_GATE)
-            )
-        )
 
     def test_a_refusal_case_must_be_bound_to_a_live_asserting_test(self) -> None:
         self.put(
@@ -181,336 +123,22 @@ class ReleaseClosureTest(unittest.TestCase):
         unrelated = {"case": [case("a", "value", "crates/c/tests/t.rs::runs")]}
         self.assertEqual(closure.replay_identity_problems(unrelated, self.root), [])
 
-    def calibrated(self) -> dict[str, Any]:
-        return {"case": [case("cal", "calibrated_interval", "crates/c/tests/t.rs::design")]}
-
-    def test_split_enrollment_binds_the_actual_analysis_grid_and_rejects_false_sizes(self) -> None:
-        data = self.calibrated()
-        target = data["case"][0]
-        target["configuration"] = {
-            "participants": 2000,
-            "analysis_rows": 500,
-            "discovery_fraction": 0.75,
-        }
-        rec = record(
-            grid=[
-                {**record()["grid"][0], "point": 0, "n_min": 250, "n_max": 250, "replicates": 400},
-                {**record()["grid"][0], "point": 1, "n_min": 500, "n_max": 500},
-                {
-                    **record()["grid"][0],
-                    "point": 2,
-                    "n_min": 1000,
-                    "n_max": 1000,
-                    "replicates": 400,
-                },
-            ]
-        )
-        self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
-        rec["grid"][1]["replicates"] = 1999
-        self.assertTrue(
-            any(
-                "point 1" in p and "below 2000" in p
-                for p in closure.calibrated_record_problems(data, [rec])
-            )
-        )
-        target["configuration"]["analysis_rows"] = 1000
-        self.assertEqual(closure.records_of(target, [rec]), [])
-        self.assertTrue(
-            any(
-                "analysis_rows must equal" in p
-                for p in closure.calibrated_record_problems(data, [rec])
-            )
-        )
-        target["configuration"] = {
-            "participants": 3000,
-            "analysis_rows": 1500,
-            "discovery_fraction": 0.5,
-        }
-        self.assertEqual(closure.case_size(target), 1500)
-        self.assertEqual(closure.split_size_problems(target), [])
-        target["configuration"]["record_size_basis"] = "procedure_rows"
-        self.assertEqual(closure.case_size(target), 3000)
-        self.assertEqual(closure.split_size_problems(target), [])
-        target["configuration"]["record_size_basis"] = "ambiguous"
-        self.assertTrue(closure.split_size_problems(target))
-
-    def test_parent_split_case_cannot_borrow_a_legacy_half_split_record(self) -> None:
-        target = case(
-            "parent",
-            "calibrated_interval",
-            "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::design",
-            configuration={"participants": 2000, "analysis_rows": 500, "discovery_fraction": 0.75},
-        )
-        legacy = record(test=target["evidence"]["test"], functional="total_effect.variables_15")
-        current = {
-            **legacy,
-            "id": "v2",
-            "functional": "total_effect.variables_15.discovery_fraction_0_75.topology_layered",
-        }
-        self.assertEqual(closure.records_of(target, [legacy, current]), [current])
-
-    def test_weighted_split_new_allocation_keeps_procedure_scope_and_version_binding(self) -> None:
-        target = case(
-            "weighted",
-            "calibrated_interval",
-            "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::design",
-            configuration={
-                "participants": 3000,
-                "analysis_rows": 750,
-                "discovery_fraction": 0.75,
-                "record_size_basis": "procedure_rows",
-            },
-        )
-        legacy = record(
-            test=target["evidence"]["test"],
-            n_min=3000,
-            n_max=3000,
-            functional="weighted_population_total_effect",
-        )
-        current = {
-            **legacy,
-            "id": "v2",
-            "functional": "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant",
-        }
-        self.assertEqual(closure.case_size(target), 3000)
-        self.assertEqual(closure.records_of(target, [legacy, current]), [current])
-
-        target["configuration"].update(
-            interval_variance="hc3_sampling_weighted", record_functional_suffix="variance_hc3"
-        )
-        hc3 = {
-            **current,
-            "id": "v3",
-            "se_kind": "hc3_sampling_weighted",
-            "functional": current["functional"] + ".variance_hc3",
-        }
-        self.assertEqual(closure.records_of(target, [legacy, current, hc3]), [hc3])
-        wrong_variance = {**hc3, "se_kind": "hc1_sampling_weighted"}
-        wrong_suffix = {**hc3, "functional": current["functional"] + ".variance_hc3_extra"}
-        for wrong in (wrong_variance, wrong_suffix):
-            self.assertEqual(closure.records_of(target, [wrong]), [])
-
-    def test_every_measured_coverage_role_requires_the_actual_scored_minimum(self) -> None:
-        data = {"case": [case("conditional", "calibrated_interval", "crates/c/tests/t.rs::design")]}
-        for role in ("gated", "reported_level", "one_sided", "conservative_point"):
-            with self.subTest(role=role):
-                rec = record(
-                    role=role, grid=[{**record()["grid"][0], "role": role, "replicates": 1999}]
-                )
-                self.assertTrue(
-                    any(
-                        "1999 replicates" in p
-                        for p in closure.calibrated_record_problems(data, [rec])
-                    )
-                )
-                rec["grid"][0]["replicates"] = 2000
-                self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
-                rec["grid"][0]["observed"] = 0.92
-                self.assertTrue(
-                    any(
-                        "below the floor" in p
-                        for p in closure.calibrated_record_problems(data, [rec])
-                    )
-                )
-        boundary = record(
-            role="named_boundary", grid=[{**record()["grid"][0], "role": "named_boundary"}]
-        )
-        self.assertTrue(
-            any(
-                "no measured non-boundary" in p
-                for p in closure.calibrated_record_problems(data, [boundary])
-            )
-        )
-
-    def test_decision_draw_budget_binds_its_own_grid_point_and_not_the_default_middle(self) -> None:
-        data = {
-            "case": [
-                case(
-                    "decision",
-                    "calibrated_interval",
-                    "crates/c/tests/t.rs::design",
-                    area="decision_reliability",
-                    configuration={"candidates": 16, "monte_carlo_budget": 4000},
-                )
-            ]
-        }
-        rec = record(
-            n_min=1000,
-            n_max=4000,
-            role="one_sided",
-            grid=[
-                {
-                    **record()["grid"][0],
-                    "point": 1,
-                    "n_min": 2000,
-                    "n_max": 2000,
-                    "role": "one_sided",
-                },
-                {
-                    **record()["grid"][0],
-                    "point": 2,
-                    "n_min": 4000,
-                    "n_max": 4000,
-                    "role": "one_sided",
-                    "replicates": 400,
-                },
-            ],
-        )
-        self.assertEqual(closure.case_size(data["case"][0]), 4000)
-        self.assertTrue(
-            any(
-                "point 2 has 400 replicates" in p
-                for p in closure.calibrated_record_problems(data, [rec])
-            )
-        )
-        rec["grid"][1]["replicates"] = 2000
-        self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
-
-    def test_perfect_one_sided_coverage_keeps_valid_zero_plugin_mcse_but_not_a_missing_count(
+    def test_every_interval_case_binds_a_record_for_its_public_test_and_the_attested_gate(
         self,
     ) -> None:
-        data = {
-            "case": [case("conservative", "calibrated_interval", "crates/c/tests/t.rs::design")]
-        }
-        rec = record(
-            role="one_sided",
-            grid=[{**record()["grid"][0], "role": "one_sided", "observed": 1.0, "mcse": 0.0}],
-        )
-        self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
-        rec["grid"][0]["replicates"] = 400
-        self.assertTrue(
-            any("400 replicates" in p for p in closure.calibrated_record_problems(data, [rec]))
-        )
-
-    def test_calibrated_records_need_two_thousand_replicates_and_uncertainty(self) -> None:
-        data = self.calibrated()
-        self.assertEqual(closure.calibrated_record_problems(data, [record()]), [])
-        few = record(grid=[{**record()["grid"][0], "replicates": 400}])
-        self.assertTrue(
-            any("below 2000" in p for p in closure.calibrated_record_problems(data, [few]))
-        )
-        for mcse in (None, 0.0, float("nan")):
-            blind = record(grid=[{**record()["grid"][0], "mcse": mcse}])
-            self.assertTrue(
-                any(
-                    "Monte Carlo uncertainty" in p
-                    for p in closure.calibrated_record_problems(data, [blind])
-                ),
-                mcse,
-            )
-        low = record(grid=[{**record()["grid"][0], "observed": 0.90}])
-        self.assertTrue(
-            any("failed measurement" in p for p in closure.calibrated_record_problems(data, [low]))
-        )
-        self.assertTrue(
-            any("no coverage record" in p for p in closure.calibrated_record_problems(data, []))
-        )
-        other_level = record(nominal=0.90)
+        candidate, release = "bash scripts/gate_release.sh", "python3 scripts/check_release_inventory.py\n"
+        self.assertEqual(closure.attestation_problems(candidate, release), [])
         self.assertTrue(
             any(
-                "no coverage record" in p
-                for p in closure.calibrated_record_problems(data, [other_level])
-            )
-        )
-        too_small = record(n_min=500, n_max=1000)
-        self.assertTrue(
-            any(
-                "no coverage record" in p
-                for p in closure.calibrated_record_problems(data, [too_small])
-            )
-        )
-
-    def test_a_boundary_record_needs_a_confirmation_covering_the_case(self) -> None:
-        data = self.calibrated()
-        self.assertEqual(closure.confirmation_problems(data, [record()]), [])
-        boundary = record(boundary=True)
-        self.assertTrue(
-            any(
-                "no independent confirmation" in p
-                for p in closure.confirmation_problems(data, [boundary])
-            )
-        )
-        confirmed = record(
-            boundary=True,
-            confirmed_passing_range=[50, 1000],
-            confirmation=[{"point": 1, "replicates": 2000}],
-        )
-        self.assertEqual(closure.confirmation_problems(data, [confirmed]), [])
-        misses = record(
-            boundary=True, confirmed_passing_range=[500, 1000], confirmation=[{"replicates": 2000}]
-        )
-        self.assertTrue(closure.confirmation_problems(data, [misses]))
-        thin = record(
-            boundary=True, confirmed_passing_range=[50, 1000], confirmation=[{"replicates": 400}]
-        )
-        self.assertTrue(any("replicates" in p for p in closure.confirmation_problems(data, [thin])))
-        bare = record(confirmed_passing_range=[50, 1000])
-        self.assertTrue(
-            any("no confirmation" in p for p in closure.confirmation_problems(data, [bare]))
-        )
-
-    def test_every_interval_case_binds_a_record_for_its_public_test_and_the_bound_manifest(
-        self,
-    ) -> None:
-        data = self.calibrated()
-        candidate, release = (
-            "bash scripts/gate_release.sh",
-            "check_acceptance_manifest.py --require-bound\n",
-        )
-        gate = "cargo test design\n"
-        self.assertEqual(
-            closure.construction_problems(data, [record()], candidate, release, gate), []
-        )
-        unattested = closure.construction_problems(data, [record()], candidate, "", gate)
-        self.assertTrue(
-            any("--require-bound" in p or "every manifest case" in p for p in unattested)
-        )
-        self.assertTrue(
-            any(
-                "does not run the candidate" in p or "gate_release.sh" in p
-                for p in closure.construction_problems(data, [record()], "", release, gate)
+                "does not run the release inventory" in p
+                for p in closure.attestation_problems(candidate, "")
             )
         )
         self.assertTrue(
             any(
-                "does not run design" in p
-                for p in closure.construction_problems(data, [record()], candidate, release, "")
+                "does not run gate_release.sh" in p
+                for p in closure.attestation_problems("", release)
             )
-        )
-
-    def test_declared_calibration_point_must_match_the_actual_size_binding(self) -> None:
-        target = case(
-            "declared",
-            "calibrated_interval",
-            "crates/c/tests/t.rs::design",
-            configuration={"participants": 100, "calibration_grid_point": 2},
-        )
-        rec = record(
-            grid=[
-                {
-                    "point": 2,
-                    "n_min": 100,
-                    "n_max": 100,
-                    "replicates": 2000,
-                    "mcse": 0.005,
-                    "observed": 0.95,
-                    "role": "gated",
-                }
-            ]
-        )
-        self.assertEqual(closure.calibrated_record_problems({"case": [target]}, [rec]), [])
-        target["configuration"]["calibration_grid_point"] = 1
-        self.assertTrue(
-            any(
-                "differs from the configured" in p
-                for p in closure.calibrated_record_problems({"case": [target]}, [rec])
-            )
-        )
-
-    def test_donor_counts_are_explicit_case_sizes(self) -> None:
-        self.assertEqual(
-            closure.case_size(case("knn", "value", "x::y", configuration={"donors": 100000})),
-            100000,
         )
 
 

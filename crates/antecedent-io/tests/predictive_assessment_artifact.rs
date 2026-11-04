@@ -79,7 +79,7 @@ fn a_fresh_consumer_reproduces_every_score_and_the_identity() {
             .unwrap();
     assert_eq!(consumed.report(), artifact.report());
     assert_eq!(consumed.identity(), artifact.identity());
-    // The artifact states the closed claims it carries.
+    // The artifact states the unsupported claims it carries.
     let meta = consumed.meta();
     assert_eq!(meta.inference_claim, "point_only");
     assert_eq!(meta.calibration, "unmeasured");

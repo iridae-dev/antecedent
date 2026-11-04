@@ -184,7 +184,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
-notes = "Estimator bayesian.gcomp with a Treated or Untreated target population on the Gaussian identity outcome model. Treatment-by-covariate interactions are centred at the arm's covariate means, so the treatment coefficient is the outcome model's contrast averaged over that arm in every draw. It is the Bayesian counterpart of the matched effect on the treated as a different, model-based estimand, labelled by the assumption bayesian.gcomp.model_based_arm_effect; it is not a matching posterior. Other likelihoods and populations are refused with population_not_estimable. Explicitly unsupported and uncalibrated."
+notes = "Estimator bayesian.gcomp with a Treated or Untreated target population on the Gaussian identity outcome model. Treatment-by-covariate interactions are centred at the arm's covariate means, so the treatment coefficient is the outcome model's contrast averaged over that arm in every draw. It is the Bayesian counterpart of the matched effect on the treated as a different, model-based estimand, labelled by the assumption bayesian.gcomp.model_based_arm_effect; it is not a matching posterior. Other likelihoods and populations are refused with population_not_estimable. Calibration status `not_measured`."
 
 [[route]]
 id = "supported.AverageEffect.Admg"
@@ -2236,7 +2236,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_panel_did/rollout.rs"
-notes = "Plan id bayesian.panel_did; estimator bayesian.panel_did. Units are whole clusters, or whole subjects under independent_subject_trajectories; never rows. The posterior columns are the scalar summary, the aggregation components, the group-time cells and the leads; the QuasiRollout payload carries the credible intervals and bands beside the posterior. A declared frequentist resample is refused naming the next attempt. Explicitly unsupported and uncalibrated."
+notes = "Plan id bayesian.panel_did; estimator bayesian.panel_did. Units are whole clusters, or whole subjects under independent_subject_trajectories; never rows. The posterior columns are the scalar summary, the aggregation components, the group-time cells and the leads; the QuasiRollout payload carries the credible intervals and bands beside the posterior. A declared frequentist resample is refused naming the next attempt. Calibration status `not_measured`."
 
 [[route]]
 id = "bayesian.synthetic_control_predictive_path"
@@ -2249,7 +2249,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs"
-notes = "Plan id bayesian.synthetic_control. The Bayesian counterpart of the conformal set is a different object: a model-based predictive interval for the counterfactual path under the declared Gaussian error model, not a finite-sample permutation guarantee. Explicitly unsupported and uncalibrated."
+notes = "Plan id bayesian.synthetic_control. The Bayesian counterpart of the conformal set is a different object: a model-based predictive interval for the counterfactual path under the declared Gaussian error model, not a finite-sample permutation guarantee. Calibration status `not_measured`."
 
 [[route]]
 id = "bayesian.temporal_local_ratio"
@@ -2262,7 +2262,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs"
-notes = "Plan ids bayesian.fuzzy_rd and bayesian.regression_kink with the calendar-time option. Serial dependence within a block is kept and ignored across block boundaries. Reads a selected bandwidth when the MSE-optimal rule is declared. Explicitly unsupported and uncalibrated."
+notes = "Plan ids bayesian.fuzzy_rd and bayesian.regression_kink with the calendar-time option. Serial dependence within a block is kept and ignored across block boundaries. Reads a selected bandwidth when the MSE-optimal rule is declared. Calibration status `not_measured`."
 
 [[route]]
 id = "quasi.local_ratio.design_layer"
@@ -2302,7 +2302,7 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_panel_did/bayesian.rs"
 support_exit = "Retained checked route. Support exit by 2027-03-31: needs a known-truth coverage record of the credible interval under the declared independent-units design."
-notes = "Plan id bayesian.panel_did; estimator bayesian.panel_did; contract reason dependencies.checked_bayesian_panel_did_operation. Normal-Inverse-Gamma posterior of the same difference in outcome changes the frequentist row estimates, with independent units (a cluster holding more than one unit is refused). Parallel untreated trends and no anticipation stay declared. Explicitly unsupported and uncalibrated: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
+notes = "Plan id bayesian.panel_did; estimator bayesian.panel_did; contract reason dependencies.checked_bayesian_panel_did_operation. Normal-Inverse-Gamma posterior of the same difference in outcome changes the frequentist row estimates, with independent units (a cluster holding more than one unit is refused). Parallel untreated trends and no anticipation stay declared. Calibration status `not_measured`: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
 
 [[route]]
 id = "bayesian.synthetic_control"
@@ -2316,7 +2316,7 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control/bayesian.rs"
 support_exit = "Retained checked route. Support exit by 2027-03-31: needs a known-truth coverage record of the donor-weight posterior interval."
-notes = "Plan id bayesian.synthetic_control; estimator bayesian.synthetic_control; contract reason dependencies.checked_bayesian_synthetic_control_operation. Dirichlet donor-weight posterior with declared-coefficient AR(1) errors, sampled over four chains gated by split R-hat and effective sample size. The difference-in-differences synthetic variant has no posterior and is refused naming the next attempt. With staggered adoptions it fits each adopting unit's posterior against the never-treated donors and averages the draws with post-period weights (independence of the per-unit posteriors is declared); a conformal declaration runs the posterior predictive path (row bayesian.synthetic_control_predictive_path). Explicitly unsupported and uncalibrated: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
+notes = "Plan id bayesian.synthetic_control; estimator bayesian.synthetic_control; contract reason dependencies.checked_bayesian_synthetic_control_operation. Dirichlet donor-weight posterior with declared-coefficient AR(1) errors, sampled over four chains gated by split R-hat and effective sample size. The difference-in-differences synthetic variant has no posterior and is refused naming the next attempt. With staggered adoptions it fits each adopting unit's posterior against the never-treated donors and averages the draws with post-period weights (independence of the per-unit posteriors is declared); a conformal declaration runs the posterior predictive path (row bayesian.synthetic_control_predictive_path). Calibration status `not_measured`: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
 
 [[route]]
 id = "bayesian.fuzzy_rd"
@@ -2330,7 +2330,7 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/bayesian.rs"
 support_exit = "Retained checked route. Support exit by 2027-03-31: needs a known-truth coverage record of the ratio credible interval at the fixed bandwidth."
-notes = "Plan id bayesian.fuzzy_rd; estimator bayesian.local_ratio; contract reason dependencies.checked_bayesian_local_ratio_operation. Fixed-bandwidth local-linear Gaussian joint posterior of the outcome-jump over treatment-jump ratio; the point is the posterior median and the credible interval is withheld when the denominator has posterior mass near zero. Explicitly unsupported and uncalibrated: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
+notes = "Plan id bayesian.fuzzy_rd; estimator bayesian.local_ratio; contract reason dependencies.checked_bayesian_local_ratio_operation. Fixed-bandwidth local-linear Gaussian joint posterior of the outcome-jump over treatment-jump ratio; the point is the posterior median and the credible interval is withheld when the denominator has posterior mass near zero. Calibration status `not_measured`: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
 
 [[route]]
 id = "bayesian.regression_kink"
@@ -2344,7 +2344,7 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/bayesian.rs"
 support_exit = "Retained checked route. Support exit by 2027-03-31: needs a known-truth coverage record of the slope-ratio credible interval at the fixed bandwidth."
-notes = "Plan id bayesian.regression_kink; estimator bayesian.local_ratio; contract reason dependencies.checked_bayesian_local_ratio_operation. Same posterior on the outcome slope change over the treatment slope change at the kink; the point is the posterior median and the credible interval is withheld when the denominator has posterior mass near zero. Explicitly unsupported and uncalibrated: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
+notes = "Plan id bayesian.regression_kink; estimator bayesian.local_ratio; contract reason dependencies.checked_bayesian_local_ratio_operation. Same posterior on the outcome slope change over the treatment slope change at the kink; the point is the posterior median and the credible interval is withheld when the denominator has posterior mass near zero. Calibration status `not_measured`: no parity/support_graphless.toml row, no coverage record, and the prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
 
 [[route]]
 id = "bayesian.temporal.white_innovation_linear"
@@ -2487,7 +2487,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_history_match.rs"
-notes = "Plan id bayesian.period_history_outcome_model; estimator bayesian.period_history_outcome_model, selected explicitly under Bayesian inference. The posterior of a Gaussian outcome model with calendar-period effects, the history-mean score and a treatment-by-score interaction centred at the treated mean; the treatment coefficient is the model-based effect on the treated units of the periods that hold both arms. It is a different estimand from the matched contrast (no donor pairing) and reads equal sampling weights only. Explicitly unsupported and uncalibrated: the prior supplies no identifying premise."
+notes = "Plan id bayesian.period_history_outcome_model; estimator bayesian.period_history_outcome_model, selected explicitly under Bayesian inference. The posterior of a Gaussian outcome model with calendar-period effects, the history-mean score and a treatment-by-score interaction centred at the treated mean; the treatment coefficient is the model-based effect on the treated units of the periods that hold both arms. It is a different estimand from the matched contrast (no donor pairing) and reads equal sampling weights only. Calibration status `not_measured`: the prior supplies no identifying premise."
 
 [[route]]
 id = "iv_bounds.balke_pearl"
@@ -2513,7 +2513,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_iv_bounds.rs"
-notes = "Plan id bayesian.iv_bounds.endpoint_bootstrap; estimator bayesian.iv_bounds.endpoint_bootstrap. The Bayesian bootstrap reweights the rows with exponential weights and reports the posterior of each endpoint with the Imbens-Manski tail rule; a draw whose law violates the instrumental inequality has no bounds and is counted, never replaced. The prior supplies no identifying premise, so the result is still an identified set. Explicitly unsupported and uncalibrated."
+notes = "Plan id bayesian.iv_bounds.endpoint_bootstrap; estimator bayesian.iv_bounds.endpoint_bootstrap. The Bayesian bootstrap reweights the rows with exponential weights and reports the posterior of each endpoint with the Imbens-Manski tail rule; a draw whose law violates the instrumental inequality has no bounds and is counted, never replaced. The prior supplies no identifying premise, so the result is still an identified set. Calibration status `not_measured`."
 
 [[route]]
 id = "association.descriptive.static"

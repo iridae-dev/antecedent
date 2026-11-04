@@ -316,7 +316,7 @@ impl super::Study {
                 diagnostics.extend(short_series_warning(s.block.effective_rows, block.family));
             }
             _ => diagnostics.push(Diagnostic::new(
-                "estimate.temporal_class.mediation.uncertainty_withheld",
+                "estimate.temporal_class.mediation.no_uncertainty_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 if block.replicates_requested {

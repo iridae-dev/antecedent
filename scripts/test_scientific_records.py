@@ -188,5 +188,49 @@ class RecordTests(Fixture):
         self.assertEqual(sr.locate(self.root, row)["selector"], "tests/test_a.py::test_a")
 
 
+class OneScientificEntryPoint(unittest.TestCase):
+    """Scientific assertions run in one place; the lanes and gates do not duplicate it."""
+
+    root = Path(__file__).resolve().parents[1]
+
+    def read(self, relative: str) -> str:
+        return (self.root / relative).read_text(encoding="utf-8")
+
+    def test_the_runner_batches_rust_and_python_and_uses_the_optimized_profile(self):
+        runner = self.read("scripts/run_evidence_rows.py")
+        self.assertEqual(runner.count('"nextest"'), 1, "all Rust rows run in one nextest invocation")
+        self.assertIn("--ignore-default-filter", runner)
+        records = self.read("scripts/scientific_records.py")
+        self.assertIn("CARGO_PROFILE_TEST_OPT_LEVEL", records)
+        self.assertIn("CARGO_PROFILE_TEST_DEBUG", records)
+        self.assertNotIn("GateSession", records)
+
+    def test_workspace_features_match_the_engineering_lane(self):
+        from _repo import WORKSPACE_TEST_FEATURES
+
+        runner = self.read("scripts/test.sh")
+        line = next(ln for ln in runner.splitlines() if ln.startswith("workspace=("))
+        declared = line.split("--features ", 1)[1].rstrip(")").split(",")
+        self.assertEqual(sorted(declared), sorted(WORKSPACE_TEST_FEATURES))
+
+    def test_evidence_audit_has_no_second_runner(self):
+        self.assertNotIn("run-scientific", self.read("scripts/evidence_audit.py"))
+        self.assertIn("scientific_records.py\" run", self.read("scripts/test.sh"))
+
+    def test_no_registry_row_selects_tests_by_substring(self):
+        for path in sorted((self.root / "parity").rglob("*.toml")):
+            self.assertNotIn("composition_filter", path.read_text(encoding="utf-8"), path.as_posix())
+
+    def test_ledger_wrappers_only_resolve_their_rows(self):
+        for name in ("capability_records", "checked_execution", "composition", "transport", "gcm_conformance"):
+            text = self.read(f"scripts/gate_{name}.sh")
+            for line in text.splitlines():
+                if "run_evidence_rows.py" in line and not line.lstrip().startswith("#"):
+                    if name == "composition" and '"${@:3}"' in line:
+                        continue  # run_rows: the self-test runs the executing runner on a throwaway workspace
+                    self.assertIn("--static", line, f"gate_{name}.sh executes rows itself: {line}")
+        self.assertNotIn("cargo test", self.read("scripts/gate_gcm_conformance.sh").replace("cargo bench", ""))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -996,7 +996,7 @@ pub struct VarianceComponent {
 /// A corrected functional bound to the model that produced it.
 ///
 /// No interval is carried: coverage of the whole measurement-plus-estimation
-/// method is unmeasured, so the interval route stays closed.
+/// method is unmeasured, so the interval route is not supported.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CorrectedFunctionalRecord {
     /// Model identity the result is bound to.
@@ -1025,7 +1025,7 @@ pub struct CorrectedFunctionalRecord {
 
 impl CorrectedFunctionalRecord {
     /// Whether the record carries an interval. Always false: the interval
-    /// route is closed until the whole method has a measured coverage record.
+    /// route is not supported until the whole method has a measured coverage record.
     #[must_use]
     pub const fn has_interval(&self) -> bool {
         false

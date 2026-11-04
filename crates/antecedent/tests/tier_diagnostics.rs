@@ -106,7 +106,7 @@ fn oracle_point_evalue(data: &TabularData, effect: f64) -> f64 {
 fn assert_interval_withheld(diagnostics: &TierDiagnostics) {
     let interval = &diagnostics.evalue.interval;
     assert_eq!(interval.code, "diagnostic_not_available");
-    assert_eq!(interval.detail, "tier_diagnostics.evalue_interval_withheld");
+    assert_eq!(interval.detail, "tier_diagnostics.no_evalue_interval_method");
 }
 
 #[test]

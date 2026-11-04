@@ -24,7 +24,7 @@
 //!
 //! Scope. Pointwise intervals are normal intervals around the smoother's level,
 //! derivative or contrast with calibration unmeasured: no coverage claim is made.
-//! Without a declared curvature bound the simultaneous band is closed and a stored band
+//! Without a declared curvature bound the simultaneous band is not supported and a stored band
 //! marker other than `closed` is refused. A request that declares `bias_aware` (a bound on
 //! the absolute third derivative of the dose response, the multiplier replicates and the
 //! band's seed) requires `dose_grid_bias_aware_band_v1` and stores, beside the unchanged
@@ -978,7 +978,7 @@ impl DoseGridArtifactWire {
             || (self.request.claims.simultaneous_band && !band_open)
         {
             return Err(unsupported(
-                "the simultaneous band is closed without a declared curvature bound",
+                "the simultaneous band is not supported without a declared curvature bound",
             ));
         }
         if self.request.dose.len() != self.request.outcome.len() {

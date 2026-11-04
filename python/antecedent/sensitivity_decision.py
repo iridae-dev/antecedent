@@ -461,7 +461,7 @@ def _switch_text(switch: DecisionSwitch) -> str:
 class SamplingReport:
     """Sampling uncertainty reported next to the decision; ``composed`` is always ``False``."""
 
-    status: Literal["withheld", "separate_not_composed"]
+    status: Literal["no_interval_method", "separate_not_composed"]
     reason_code: str | None = None
     detail: str | None = None
     quantity: str | None = None
@@ -829,7 +829,7 @@ class SensitivityDecision(ScientificResult):
     def sampling(self) -> SamplingReport:
         wire = self._body["sampling"]
         if "withheld" in wire:
-            return SamplingReport("withheld", **wire["withheld"])
+            return SamplingReport("no_interval_method", **wire["withheld"])
         body = wire["separate_not_composed"]
         return SamplingReport(
             "separate_not_composed",

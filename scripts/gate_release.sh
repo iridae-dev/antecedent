@@ -1,317 +1,162 @@
 #!/usr/bin/env bash
-# PR inventory / composition umbrella (also run in CI on every PR via `gates`).
+# The pull-request gate, in the order CI runs it. Cheap checks first, so a failure
+# is reported before an expensive step starts:
 #
-# This script is not a release candidate. Cut with
-# `scripts/gate_release_candidate.sh` (a green CI run on the SHA via CI_RUN_ID,
-# calibration-surface identity, this inventory, Python lint/pytest, the Python
-# suite against one locally built wheel). The CI `python-wheels` matrix is
-# required on the candidate SHA through CI_RUN_ID.
+#   tier 0  static         source reading only, seconds, no build        (section: static)
+#   tier 1  builds         compile, list or lint; run no test            (sections: public-api,
+#                                                                         cited-tests, benches, deny)
+#   tier 2  engineering    tests of the software, no scientific claim    (sections: python-lint,
+#                                                                         engineering, development)
+#   tier 3  scientific     only the scientific assertions whose evidence (section: scientific)
+#                          changed since their recorded pass
 #
-# `gate_calibration.sh` is NOT invoked from here, nor anywhere in CI: the
-# statistical measurement is made on a development machine before upload
-# (scripts/measure_calibration.sh). Calibration status is an annotation
-# (scripts/calibration_status.py) that never fails a code change.
-#   CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh
+# A calibration status is an annotation printed by tier 0; it never fails a change
+# (scripts/calibration_status.py). The statistical measurement is made on a
+# development machine (scripts/measure_calibration.sh), never here.
 #
-# Invokes prior feature gates unless SKIP_PRIOR_GATES=1 (a local shortcut; the
-# release-candidate gate refuses it).
+# Tier 4 is the release candidate (scripts/gate_release_candidate.sh): this gate, then the
+# CI-run check, every scientific assertion re-run, scale cases and the installed wheel.
+#
+#   bash scripts/gate_release.sh                    # every section, in tier order
+#   bash scripts/gate_release.sh --section NAME     # one section (CI runs them as parallel jobs)
+#
 # cargo deny check runs when cargo-deny is on PATH and is mandatory with
 # REQUIRE_CARGO_DENY=1 (set by the release-candidate gate; CI has its own job).
-# Every Python smoke requires `uv` and fails rather than skips, unless
-# ALLOW_SKIP_PYTHON_SMOKE=1 is given for a local run.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# CI runs these independent sections in parallel. With no argument the local
-# release-candidate gate still runs every check in this file.
+SECTIONS="static public-api cited-tests cited-tests-0..7 benches deny python-lint engineering development scientific"
 section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--section inventory|capability|capability-python|capability-facade-0|capability-facade-1|capability-estimate|capability-identify|capability-other|support|graphless|matrix|matrix-0..7|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches]" >&2
+  echo "usage: $0 [--section ${SECTIONS// /|}]" >&2
   exit 2
 fi
-case "$section" in all|inventory|capability|capability-python|capability-facade-0|capability-facade-1|capability-estimate|capability-identify|capability-other|support|graphless|matrix|matrix-[0-7]|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches) ;; *)
-  echo "unknown release-gate section: $section" >&2; exit 2 ;;
+case "$section" in all|static|public-api|cited-tests|cited-tests-[0-7]|benches|deny|python-lint|engineering|development|scientific) ;; *)
+  echo "unknown gate section: $section" >&2; exit 2 ;;
 esac
-section_start() {
-  printf -v "section_since_${1//-/_}" '%s' "$SECONDS"
-  echo "== $1 started $(date -u +%FT%TZ) =="
-}
-section_end() {
-  local since="section_since_${1//-/_}"
-  echo "== $1 finished in $((SECONDS - ${!since}))s =="
-}
+wanted() { [[ "$section" == all || "$section" == "$1" ]]; }
+section_since=0
+section_start() { section_since=$SECONDS; echo "== $1 started $(date -u +%FT%TZ) =="; }
+section_end() { echo "== $1 finished in $((SECONDS - section_since))s =="; }
 
-if [[ "$section" == all || "$section" == inventory ]]; then
-section_start inventory
+# ---------------------------------------------------------------------------------------
+# Tier 0: static. One job, no build, no test execution.
+# ---------------------------------------------------------------------------------------
+if wanted static; then
+section_start static
+
+echo "== format, lint allows, test targets, crate ownership =="
+bash scripts/gate_rustfmt.sh
+bash scripts/gate_lint_allows.sh
+python3 scripts/check_test_targets.py
 python3 scripts/check_architecture.py
+python3 scripts/test_check_architecture.py
+python3 scripts/check_rust_ci_feature_parity.py
 
-# Runs unconditionally: the inventory honesty pass below reads `status` with a
-# regex default, so a row missing the key would sail through it. SKIP_PRIOR_GATES
-# must not skip the schema contract that pass depends on.
-echo "== parity manifest schema =="
+echo "== test registry, lanes and ignored tests =="
+python3 scripts/check_v3_test_registry.py
+python3 scripts/evidence_audit.py rust-engineering-filter --check
+python3 scripts/check_ignored_tests.py
+python3 scripts/check_child_test_selectors.py
+
+echo "== parity schema, inventories and provenance =="
 bash scripts/gate_parity_schema.sh
-
-# The gates' self-tests (each gate must fail on deliberately broken input) are not
-# run here: every case rebuilds a repo overlay and runs a whole gate, which roughly
-# doubled this script's runtime. They run on demand: scripts/gate_selftests.sh.
-
-echo "== algorithm provenance schema and paths =="
+python3 scripts/check_parity_inventories.py
 bash scripts/gate_provenance_schema.sh
-
-# Also unconditional: cross-file metadata drift is exactly the class of failure
-# that survives when a check is skippable.
-echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
-
-echo "== capability evidence inventory =="
+bash scripts/gate_evidence_reachability.sh
+bash scripts/gate_upstream_names.sh
+bash scripts/gate_hot_path_baselines.sh
 python3 scripts/release_evidence_report.py
 
-echo "== inherited calibration debt and current inference contract inventory =="
-python3 scripts/generate_calibration_plan.py --check
-
-echo "== hot-path baseline metadata =="
-bash scripts/gate_hot_path_baselines.sh
-
-# Every published crate's public surface matches parity/public_api/*.txt, so an
-# API change is a reviewed snapshot diff, not a side effect.
-echo "== public API snapshots =="
-bash scripts/gate_public_api.sh
-fi
-
-if [[ "$section" == all || "$section" == capability ]]; then
-section_start capability
-# Frozen or carried-forward cells remain closed until their cited evidence executes.
-echo "== capability records =="
+echo "== capability records, composition, transport, checked execution, conformance =="
 bash scripts/gate_capability_records.sh
-section_end capability
-fi
-
-if [[ "$section" == capability-* ]]; then
-section_start "$section"
-bash scripts/gate_capability_records.sh --evidence-group "${section#capability-}"
-section_end "$section"
-fi
-
-if [[ "$section" == all || "$section" == support || "$section" == graphless ]]; then
-section_start graphless
-echo "== graphless support evidence =="
-bash scripts/gate_support_matrix.sh --graphless-only
-section_end graphless
-fi
-
-if [[ "$section" == all || "$section" == support || "$section" == matrix ]]; then
-section_start matrix
-echo "== public support matrix =="
-bash scripts/gate_support_matrix.sh --matrix-only
-section_end matrix
-fi
-
-if [[ "$section" == matrix-* ]]; then
-section_start "$section"
-echo "== public support matrix cited tests ${section#matrix-}/8 =="
-bash scripts/gate_support_matrix.sh "--matrix-shard-${section#matrix-}"
-section_end "$section"
-fi
-
-if [[ "$section" == all || "$section" == support || "$section" == transport-contracts ]]; then
-section_start transport_contracts
-echo "== transport support contracts =="
-bash scripts/gate_support_matrix.sh --transport-only
-section_end transport_contracts
-fi
-
-if [[ "$section" == all || "$section" == support || "$section" == checked ]]; then
-section_start checked
-
-# Every supported cell executes each supported estimator from a retained checked
-# operation with no builder alive: the checked_execution citations on
-# parity/support_cells.toml run here, grouped by test target.
-echo "== checked execution evidence =="
+bash scripts/gate_composition.sh --evidence-only
+bash scripts/gate_transport.sh
 bash scripts/gate_checked_execution.sh
-section_end checked
-fi
+bash scripts/gate_gcm_conformance.sh --tests-only
 
-if [[ "$section" == checked-* ]]; then
-section_start "$section"
-echo "== checked execution evidence ${section#checked-}/4 =="
-bash scripts/gate_checked_execution.sh --shard "${section#checked-}/4"
-section_end "$section"
-fi
-
-if [[ "$section" == all || "$section" == inventory ]]; then
-echo "== 3.0 test registry =="
-python3 scripts/check_v3_test_registry.py
-
-echo "== docs vs support matrix =="
+echo "== support: the one count, the matrix, the graphless supports, the transport stages =="
+python3 scripts/gate_support.py
+python3 scripts/gate_not_supported_sites.py
 bash scripts/gate_docs_support_matrix.sh
 
-echo "== acceptance manifest: every case bound to a live test =="
-python3 scripts/check_acceptance_manifest.py --require-bound
-echo "== counterpart inventory: every method records all four quadrants =="
-python3 scripts/check_counterparts.py
-echo "== release scope: every row matched to its route, owner, fixtures and consumer =="
-python3 scripts/reconcile_release_scope.py --check
-echo "== method children: every leaf names a registered fixture and a reading consumer =="
-python3 scripts/check_method_children.py
-echo "== route manifest: every method verified against its implementation =="
-python3 scripts/route_methods.py --check
-echo "== method specifications reconciled with the executing routes =="
-python3 scripts/reconcile_method_specs.py --check
-echo "== closure audit report is current =="
-python3 scripts/closure_audit.py --check
-echo "== scope-and-interfaces milestone readiness derived from evidence =="
-python3 scripts/derive_milestone_readiness.py --check
-echo "== published docs links resolve =="
-python3 scripts/check_doc_links.py
+echo "== release inventory =="
+python3 scripts/check_release_inventory.py
+python3 scripts/check_residual_limitations.py
+python3 scripts/check_missing_policy_support.py
 
-# Release closure: declared bounds agree across records, docs, Rust constants and Python
-# docstrings; the release notes describe each cell with exactly its record's claim word.
-echo "== limits agreement (records, docs, Rust constants, Python) =="
+echo "== bounds, release claims, links, conformance references =="
 python3 scripts/check_limits_agreement.py
-
-echo "== interval ownership and measurement wiring =="
-python3 scripts/check_interval_coordinates.py
-
-echo "== release notes claim vocabulary =="
 python3 scripts/check_release_claims.py
-
-# The calibration inventories are generated; a stale checked-in copy fails here.
-echo "== calibration backlog and readiness inventories are current =="
-python3 scripts/generate_calibration_backlog.py --check
-python3 scripts/calibration_readiness.py --check
-
-echo "== conformance reference generators =="
+python3 scripts/check_doc_links.py
 python3 scripts/check_conformance_references.py
 
-echo "== lint allows: no file-wide allow of lossy casts or exact float compares in library code =="
-bash scripts/gate_lint_allows.sh
-
-echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
-bash scripts/gate_evidence_reachability.sh
-
-echo "== coverage citations name existing test fns; coverage figures cite records =="
-bash scripts/gate_coverage_citations.sh
-
-echo "== calibration status (informational) =="
-python3 scripts/calibration_status.py status || echo "calibration status unavailable"
-fi
-
-if [[ "$section" == all || "$section" == features || "$section" == feature-core ]]; then
-section_start feature_core
-if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  echo "== prior feature gates =="
-  bash scripts/gate_estimate_ci.sh
-  bash scripts/gate_bayesian.sh
-  bash scripts/gate_gcm.sh
-  bash scripts/gate_pag.sh
-  bash scripts/gate_context.sh
-  bash scripts/gate_attribution.sh
-  bash scripts/gate_design_state.sh
-  bash scripts/gate_upstream_names.sh
-  # gate_response_calibration.sh and gate_estimate_reuse.sh only re-run tests
-  # from `cargo test --workspace`; scripts/gate_named_tests.sh in the Rust job
-  # checks their filters still select tests. The calibration script stays on
-  # the measurement surface; this job does not invoke it.
-  bash scripts/gate_causal_artifacts.sh
-fi
-section_end feature_core
-fi
-
-if [[ "$section" == all || "$section" == features || "$section" == feature-composition ]]; then
-section_start feature_composition
-if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  if [[ "$section" == feature-composition ]]; then
-    # Inventory already runs the common schema and reachability checks in CI.
-    bash scripts/gate_composition.sh --evidence-only
-  else
-    bash scripts/gate_composition.sh
-  fi
-fi
-section_end feature_composition
-fi
-
-if [[ "$section" == all || "$section" == features || "$section" == feature-transport ]]; then
-section_start feature_transport
-if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  bash scripts/gate_transport.sh
-fi
-section_end feature_transport
-fi
-
-if [[ "$section" == all || "$section" == features || "$section" == feature-conformance ]]; then
-section_start feature_conformance
-if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  # Conformance of programmable interventions, mechanism selection, graph falsification, noise
-  # replay and intrinsic influence. The benches section smokes every bench target, including the
-  # three this gate registers, so the tests run here without repeating them.
-  bash scripts/gate_gcm_conformance.sh --tests-only
-fi
-section_end feature_conformance
-fi
-
-if [[ "$section" == all || "$section" == features || "$section" == feature-exits ]]; then
-section_start feature_exits
-if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  # Composition exit: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
-  # check. PENDING_CALIBRATION (story 3 / multi-source coverage records unmeasured) exits 0 here;
-  # the release-candidate gate adds --require-calibrated.
-  echo "== composition exit stories =="
-  bash scripts/gate_composition_exit.sh
-  # Decision exit scaffold: per-story table (PENDING_IMPLEMENTATION until a story registers its
-  # tests in scripts/decision_exit_report.py) plus the interval check over every record. The
-  # release-candidate gate runs it with --release.
-  echo "== decision exit stories =="
-  bash scripts/gate_decision_exit.sh
-fi
-section_end feature_exits
-fi
-
-if [[ "$section" == all || "$section" == inventory ]]; then
-
-python3 "$ROOT/scripts/gate_release.py"
-
-echo "== regenerate conformance docs (must be clean) =="
+echo "== generated files are current =="
 python3 scripts/generate_conformance_docs.py
 if ! git diff --exit-code -- docs/conformance >/dev/null; then
   echo "docs/conformance is stale; commit regenerated output"
   git diff --stat -- docs/conformance
   exit 1
 fi
-
-echo "== regenerate support-matrix docs (must be clean) =="
 python3 scripts/generate_support_matrix_docs.py
 VERSION="$(python3 "$ROOT/scripts/release_notes_version.py")"
-if ! git diff --exit-code -- docs/support-matrix.md \
-    crates/antecedent/data/support_matrix.json \
-    crates/antecedent-io-core/data/coverage_records.json \
-    "docs/release-notes/v${VERSION}.md" >/dev/null; then
+generated=(docs/support-matrix.md crates/antecedent/data/support_matrix.json
+  crates/antecedent-io-core/data/coverage_records.json crates/antecedent-core/src/reason_codes_data.rs
+  "docs/release-notes/v${VERSION}.md")
+if ! git diff --exit-code -- "${generated[@]}" >/dev/null; then
   echo "support-matrix generated files are stale; commit regenerated output"
-  git diff --stat -- docs/support-matrix.md crates/antecedent/data/support_matrix.json \
-    crates/antecedent-io-core/data/coverage_records.json \
-    "docs/release-notes/v${VERSION}.md"
+  git diff --stat -- "${generated[@]}"
   exit 1
 fi
-if ! git diff --exit-code -- docs/release-notes/ \
-    ":!docs/release-notes/v${VERSION}.md" >/dev/null; then
-  echo "generator rewrote historical release notes; freeze those supported blocks"
+if ! git diff --exit-code -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md" >/dev/null; then
+  echo "generator rewrote historical release notes; leave those supported blocks as they were"
   git diff --stat -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md"
   exit 1
 fi
-
-echo "== host-integration schema (must match its generator) =="
 python3 scripts/generate_host_schema.py --check
 
+echo "== calibration and scientific records (annotations; never fail a change) =="
+python3 scripts/calibration_status.py --check
+python3 scripts/calibration_status.py status || echo "calibration status unavailable"
+python3 scripts/scientific_records.py status || echo "scientific record status unavailable"
+section_end static
 fi
 
-if [[ "$section" == all || "$section" == benches ]]; then
+# ---------------------------------------------------------------------------------------
+# Tier 1: builds. Compile, list or lint; no test runs.
+# ---------------------------------------------------------------------------------------
+if wanted public-api; then
+section_start public-api
+# Every published crate's public surface matches parity/public_api/*.txt, so an
+# API change is a reviewed snapshot diff, not a side effect.
+bash scripts/gate_public_api.sh
+section_end public-api
+fi
+
+# Every cited test of the support matrix, the graphless supports and the transport stages is
+# listed by cargo as a compiled, non-ignored test. `cited-tests` is the unsplit form; CI runs
+# the eight shards in parallel.
+if wanted cited-tests; then
+section_start cited-tests
+python3 scripts/gate_support.py --cited-tests
+section_end cited-tests
+fi
+if [[ "$section" == cited-tests-* ]]; then
+section_start "$section"
+python3 scripts/gate_support.py --cited-tests --matrix-shard "${section#cited-tests-}"
+section_end "$section"
+fi
+
+if wanted benches; then
 section_start benches
 # One cargo invocation, so a bench added to a manifest cannot ship unexecuted.
 # Pull requests skip it unless they touch a bench file or a [[bench]] entry;
-# main and a local release run always smoke. The extension module and the
-# optional Burn provider have no bench targets.
+# main and a local run always smoke. The extension module and the optional Burn
+# provider have no bench targets.
 run_criterion_smoke=1
 if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
   base="${PR_BASE_SHA:-}"
@@ -340,23 +185,75 @@ if [[ "$run_criterion_smoke" -eq 1 ]]; then
   # also run every library's unit tests under the bench profile (lib is bench = true).
   cargo bench --workspace --exclude antecedent-py --exclude antecedent-learn-burn \
     --bench '*' -- --test
+  # The conformance benchmarks run in Criterion's smoke mode, which executes their in-process
+  # regression and reuse assertions.
+  while IFS=' ' read -r package bench; do
+    cargo bench -p "$package" --bench "$bench" -- --test
+  done < <(python3 - <<'PY'
+import tomllib
+
+for row in tomllib.load(open("parity/gcm_conformance.toml", "rb"))["performance"]:
+    print(row["package"], row["bench"])
+PY
+  )
 fi
 section_end benches
 fi
 
-if [[ "$section" == all || "$section" == inventory ]]; then
-
+if wanted deny; then
+section_start deny
 if command -v cargo-deny >/dev/null 2>&1; then
-  echo "== cargo deny check =="
   cargo deny check
 elif [[ "${REQUIRE_CARGO_DENY:-0}" == "1" ]]; then
   echo "FAIL: cargo-deny is required (REQUIRE_CARGO_DENY=1) and is not installed" >&2
   exit 1
 else
-  echo "WARN: cargo-deny not installed; skipping deny check (the CI deny job and the RC gate enforce it)."
+  echo "WARN: cargo-deny not installed; skipping deny check (the CI deny job and the release-candidate gate enforce it)."
+fi
+section_end deny
 fi
 
-echo "PR inventory / composition gate PASSED (not an RC)."
-echo "Cut with: CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh"
-section_end inventory
+# ---------------------------------------------------------------------------------------
+# Tier 2: engineering tests. No scientific assertion, no calibration.
+# ---------------------------------------------------------------------------------------
+if wanted python-lint; then
+section_start python-lint
+bash scripts/gate_python_lint.sh
+section_end python-lint
+fi
+
+if wanted engineering; then
+section_start engineering
+# Script tests, Rust tests and doctests, optional-feature tests, Python tests.
+bash scripts/test.sh engineering
+section_end engineering
+fi
+
+if wanted development; then
+section_start development
+# The development build runs `not_supported` routes and lists `would_refuse`.
+cargo nextest run -P development -p antecedent --features development --test development_build
+cargo nextest run -P development -p antecedent-core --features development --lib
+section_end development
+fi
+
+# ---------------------------------------------------------------------------------------
+# Tier 3: scientific assertions owed since their recorded pass.
+# ---------------------------------------------------------------------------------------
+if wanted scientific; then
+section_start scientific
+bash scripts/test.sh scientific
+# A change whose evidence moved owes new records. In CI they must already be committed, so
+# the run leaves the ledger as the change delivered it.
+if [[ "${CI:-}" == "true" ]] && ! git diff --exit-code -- parity/scientific_records.toml >/dev/null; then
+  echo "parity/scientific_records.toml changed: commit the records this change owes"
+  git diff --stat -- parity/scientific_records.toml
+  exit 1
+fi
+section_end scientific
+fi
+
+if [[ "$section" == all ]]; then
+  echo "Pull-request gate PASSED (not a release candidate)."
+  echo "Cut with: CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh"
 fi

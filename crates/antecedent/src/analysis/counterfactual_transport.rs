@@ -440,7 +440,7 @@ impl PreparedCounterfactualTransport {
     /// without changing this value.
     ///
     /// # Errors
-    /// `not_supported` (`counterfactual_transport.sampled_inference_closed`)
+    /// `not_supported` (`counterfactual_transport.no_sampled_inference`)
     /// for a counted, empirical or posterior law; `invalid_argument`
     /// (`counterfactual_transport.invalid_evidence`) for a law whose population,
     /// regime, axes or levels do not match the catalog and declared levels;

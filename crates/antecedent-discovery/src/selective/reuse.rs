@@ -110,7 +110,7 @@
 //! * **Not a coverage claim.** The route removes a dependence; it does not measure error.
 //!   No interval produced downstream of it is labelled calibrated for the whole method. The
 //!   calibration design is recorded below, to be measured, and the calibration lookup for any
-//!   such interval stays unmeasured until a record exists for this coordinate.
+//!   such interval reports `not_measured` until a record exists for this coordinate.
 //! * **Not for dependent rows.** A random row partition of temporal, panel, clustered or
 //!   otherwise dependent rows leaves dependence between the parts, so the independence the
 //!   derivation uses does not hold. The route is for rows declared exchangeable; a

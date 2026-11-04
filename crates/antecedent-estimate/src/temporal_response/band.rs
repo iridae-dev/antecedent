@@ -26,11 +26,11 @@ pub const SIMULTANEOUS_BAND_UPPER: &str = "response.simultaneous_band.upper";
 pub const SIMULTANEOUS_BAND_CRITICAL: &str = "response.simultaneous_band.critical";
 
 /// Warning code when a simultaneous band is not published.
-pub(crate) const SIMULTANEOUS_BAND_WITHHELD: &str = "response.simultaneous_band_withheld";
+pub(crate) const SIMULTANEOUS_BAND_WITHHELD: &str = "response.no_simultaneous_band_method";
 
 /// Warning code: a Frequentist temporal response published no band because no
 /// dependence-preserving replicates were available.
-pub const TEMPORAL_RESPONSE_BAND_WITHHELD: &str = "estimate.temporal_response.band_withheld";
+pub const TEMPORAL_RESPONSE_BAND_WITHHELD: &str = "estimate.temporal_response.no_band_method";
 
 /// Fewest joint replicates / draws from which a simultaneous band is published.
 ///

@@ -122,7 +122,7 @@ fn result_json(result: &JointMechanismSensitivityResult) -> serde_json::Value {
             "unevaluated": result.receipt.unevaluated,
         },
         "uncertainty": {
-            "status": "withheld",
+            "status": "no_interval_method",
             "method": result.uncertainty.method,
             "coverage_target": result.uncertainty.coverage_target,
             "reason_code": result.uncertainty.reason_code,

@@ -1,6 +1,6 @@
 # Frozen backlog: staged supported rows that predate the evidence_test rule.
 #
-# scripts/gate_support_matrix.sh requires every staged row of
+# scripts/gate_support.py requires every staged row of
 # parity/support_cells.toml to name its executing evidence
 # (evidence_test + evidence_assertion). Rows listed here were supported before
 # that rule (1.9, R-13) and are exempt until someone names their test. The list

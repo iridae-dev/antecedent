@@ -2258,7 +2258,7 @@ class _PrepareRoute:
             )
         if isinstance(query, NestedCounterfactual) and self.bootstrap:
             raise CausalUnsupportedError(
-                "NestedCounterfactualEffect is point-only until its interval route is calibrated",
+                "NestedCounterfactualEffect has no bootstrap interval method; its result is point-only",
                 reason_code="not_supported",
             )
         native = _NativePreparedAnalysis.prepare_static_kind(

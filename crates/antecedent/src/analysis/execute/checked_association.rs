@@ -287,7 +287,7 @@ fn disclosure(estimate: &AssociationEstimate, refused_after: Option<&str>) -> Di
         format!(
             "a noncausal description of the observed law: the {} picked by the {} for a {} \
              outcome on {} ({}) is not the effect of changing any variable and ranks no action{follows}; \
-             its standard errors, spreads and posteriors are unsupported and uncalibrated, and no \
+             its standard errors, spreads and posteriors are reported with calibration status `not_measured`, and no \
              coverage record names them",
             estimate.selection.analysis.as_str(),
             estimate.selection.rule,

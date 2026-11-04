@@ -1,5 +1,5 @@
 //! Bayesian panel difference-in-differences, synthetic-control and local-ratio routes through
-//! the public study facade. The routes are explicitly unsupported and uncalibrated: the checks
+//! the public study facade. The routes are reported with calibration status `not_measured`: the checks
 //! below compare each posterior with an independent closed form or known truth, read the
 //! retained artifact with an independent loader, and refuse every boundary with its next attempt.
 //!

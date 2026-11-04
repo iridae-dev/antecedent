@@ -66,7 +66,7 @@ route = "transport.general_uncertainty"
 stage = "uncertainty"
 status = "closed"
 reason_code = "transport_unsupported_evaluator"
-notes = "Unbounded multi-regime uncertainty stays closed. Supported cells are the empirical-table plug-in and its IID outer bootstrap only. Trial-IPW remains separately supported in support_cells.toml."
+notes = "Unbounded multi-regime uncertainty is not supported. Supported cells are the empirical-table plug-in and its IID outer bootstrap only. Trial-IPW remains separately supported in support_cells.toml."
 
 [[routes]]
 route = "antecedent.transport.prepare_statistical"
@@ -575,7 +575,7 @@ role = "positive"
 evidence_class = "internal_cross_check"
 evidence_test = "python/tests/test_transport_exact.py"
 evidence_assertion = "test_catalog_search_uses_available_source_when_target_formula_cannot_bind"
-limits = "Bounded catalog alternatives; arbitrary finite-catalog completeness stays closed."
+limits = "Bounded catalog alternatives; arbitrary finite-catalog completeness is not supported."
 
 [[fixture_evidence]]
 id = "transport_catalog_binding.counterexample"
@@ -584,7 +584,7 @@ role = "counterexample"
 evidence_class = "internal_cross_check"
 evidence_test = "python/tests/test_transport_meta_grid.py"
 evidence_assertion = "test_joint_regimes_do_not_come_from_separate_experiments"
-limits = "Bounded catalog alternatives; arbitrary finite-catalog completeness stays closed."
+limits = "Bounded catalog alternatives; arbitrary finite-catalog completeness is not supported."
 
 [[fixture_evidence]]
 id = "transport_complementary_sources.positive"
@@ -647,7 +647,7 @@ role = "positive"
 evidence_class = "inferential_plumbing"
 evidence_test = "python/tests/test_transport_meta_grid.py"
 evidence_assertion = "test_bounded_multisource_calibration_fixture"
-limits = "One seed and 19 replicates: reproducibility and interval-ordering plumbing only, no empirical coverage. General multi-source coverage remains closed (transport.multi_source_calibrated_coverage)."
+limits = "One seed and 19 replicates: reproducibility and interval-ordering plumbing only, no empirical coverage. General multi-source coverage is not supported (transport.multi_source_calibrated_coverage)."
 
 [[fixture_evidence]]
 id = "transport_multisample_inference.counterexample"
@@ -656,7 +656,7 @@ role = "counterexample"
 evidence_class = "resampling_property"
 evidence_test = "crates/antecedent/tests/statistical_transport_numeric.rs"
 evidence_assertion = "holding_target_fixed_narrows_the_joint_bootstrap"
-limits = "Bounded named designs only; general multi-source coverage remains closed (transport.multi_source_calibrated_coverage)."
+limits = "Bounded named designs only; general multi-source coverage is not supported (transport.multi_source_calibrated_coverage)."
 
 [[fixture_evidence]]
 id = "transport_prepared_lifecycle.positive"
@@ -1009,7 +1009,7 @@ notes = "A CPDAG or PAG in place of an explicit scenario list refuses (detail sc
 # Learned continuous trial transport (parity/capability_records.toml,
 # transport.learned_continuous_trial). The estimator menu and the point routes
 # are supported; the analytic influence interval passed its six-point coverage grid.
-# The old joint outer bootstrap remains closed after failing coverage.
+# The old joint outer bootstrap is not supported after failing coverage.
 [[routes]]
 route = "antecedent_estimate.transport_estimator_menu"
 stage = "representation"
@@ -1213,7 +1213,7 @@ evidence_assertion = "test_the_analytic_interval_replays_and_the_legacy_bootstra
 
 # Two-step temporal transport (parity/capability_records.toml, transport.two_step_temporal).
 # Point routes are supported point-only with executed checked-execution evidence; temporal
-# uncertainty stays closed with its executed refusal test.
+# uncertainty is not supported with its executed refusal test.
 [[routes]]
 route = "antecedent_identify.decide_temporal_transport_sequence"
 stage = "identify"
@@ -1687,7 +1687,7 @@ notes = "Counted laws have no sampling theory on the searched-formula route (no 
 
 # Multi-source limited-experiment transport (parity/capability_records.toml,
 # transport.multi_source_limited_experiment). Point routes are supported point-only;
-# the joint-bootstrap interval route stays closed until its two coverage records
+# the joint-bootstrap interval route is not supported until its two coverage records
 # (multi_source_mz_independent_studies, multi_source_mz_shared_units) are measured.
 [[routes]]
 route = "antecedent_identify.decide_mz_transport"
@@ -1845,7 +1845,7 @@ evidence = "counted_laws_bound_to_the_frozen_catalog"
 functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
 observation = "empirical_plugin_joint_tables"
 guarantee = "checked_prepared_route_reports_the_interval_with_its_calibration_status"
-limits = "Every law carries counts (transport_missing_provider, mz_transport.empirical_counts_required otherwise). The point is the empirical plug-in; the interval is withheld as not_supported."
+limits = "Every law carries counts (transport_missing_provider, mz_transport.empirical_counts_required otherwise). The point is the empirical plug-in; the interval has no method as not_supported."
 evidence_test = "python/tests/test_transport_multi_source.py"
 evidence_assertion = "test_prepare_empirical_compiles_a_counted_plan_after_builder_disposal"
 
@@ -1895,7 +1895,7 @@ evidence = "embedded_catalog_laws_requests_points_and_contrasts"
 functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
 guarantee = "independently_re_decided_re_bound_and_bit_exact_recomputed"
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
-limits = "Python surface of antecedent.consume_mz_transport_artifact; the frame's names must equal the verified name mapping; the stored interval seed is reported as stored (none while the route is closed)."
+limits = "Python surface of antecedent.consume_mz_transport_artifact; the frame's names must equal the verified name mapping; the stored interval seed is reported as stored (none while the route is not supported)."
 evidence_test = "python/tests/test_transport_multi_source.py"
 evidence_assertion = "test_consumer_recomputes_points_and_contrasts_after_builder_disposal"
 
@@ -2016,7 +2016,7 @@ notes = "A query shape outside the two-world contract (another number of worlds,
 # ADMG conditional transport (parity/capability_records.toml,
 # transport.admg_conditional). Point routes are supported point_only / none
 # (sound_incomplete: no completeness theorem is used; an obstruction is proven only
-# by an exactly verified two-model witness); counted laws stay closed as
+# by an exactly verified two-model witness); counted laws are not supported as
 # not_supported.
 [[routes]]
 route = "antecedent_identify.decide_admg_conditional_transport"
@@ -2425,7 +2425,7 @@ guarantee = "point_only_exact_laws"
 reference = "https://arxiv.org/abs/2004.04872"
 limits = "Evaluates the checked formula cell by cell with the shared compiled evaluator; refuses sampled laws (not_supported), tables that are not the named law or break the proxy model or do not normalize, and zero complete-case cells. The result is a derived law: its descriptor carries LawOrigin::Recovered provenance and its exact table's snapshot identity is recovered:<derivation identity>, never the observed snapshot."
 evidence_test = "crates/antecedent-estimate/tests/observation_recovery_execution.rs"
-evidence_assertion = "k1_recovery_matches_the_enumerated_truth"
+evidence_assertion = "single_censoring_recovery_matches_the_enumerated_truth"
 
 [[routes]]
 route = "antecedent_estimate.evaluate_recovered_effect"
@@ -2579,7 +2579,7 @@ notes = "Counted laws have no sampling theory on the recovery route; exact laws 
 
 # Smoothed dose-response transport grid (parity/capability_records.toml,
 # transport.smoothed_dose_response). Point routes supported point-only; the pointwise
-# joint outer bootstrap interval stays closed until its two coverage records are measured.
+# joint outer bootstrap interval is not supported until its two coverage records are measured.
 [[routes]]
 route = "antecedent_estimate.smoothed_dose_estimator_menu"
 stage = "representation"
@@ -2641,7 +2641,7 @@ evidence = "randomized_continuous_dose_known_density_and_iid_trial_and_target_ro
 functional = "fixed_bandwidth_smoothed_dose_response_grid"
 guarantee = "model_double_robust_cross_fitted_inverse_odds_inverse_density_point"
 reference = "https://arxiv.org/abs/1507.00747"
-limits = "Cross-fits mu(t, x) over the dose basis and membership with portable fold models; refuses membership overlap below the threshold on any source or target row (dose_response.membership_overlap) and, for a fit that is not piecewise polynomial in the dose, a largest target-row quadrature disagreement above the tolerance (dose_response.quadrature_tolerance); records the estimated quadrature error and the plug-in smoothing-bias diagnostic apart from the point. Reports the interval withheld; never attaches one."
+limits = "Cross-fits mu(t, x) over the dose basis and membership with portable fold models; refuses membership overlap below the threshold on any source or target row (dose_response.membership_overlap) and, for a fit that is not piecewise polynomial in the dose, a largest target-row quadrature disagreement above the tolerance (dose_response.quadrature_tolerance); records the estimated quadrature error and the plug-in smoothing-bias diagnostic apart from the point. Reports the no interval method; never attaches one."
 evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs"
 evidence_assertion = "known_truth_curve_under_both_designs"
 
@@ -3045,7 +3045,7 @@ route = "antecedent.counterfactual_id.path_specific_admg"
 stage = "identify"
 status = "closed"
 reason_code = "route_not_supported"
-notes = "Path-specific and recanting-district effects on ADMGs (worlds that route edges) are not supported (detail counterfactual_id.path_specific_deferred)."
+notes = "Path-specific and recanting-district effects on ADMGs (worlds that route edges) are not supported (detail counterfactual_id.path_specific_not_supported)."
 
 [[routes]]
 route = "antecedent.counterfactual_id.not_identified_by_id_star"
@@ -3055,7 +3055,7 @@ reason_code = "route_not_supported"
 notes = "A conflicting-subscript district or an ID hedge on a district term, with no binary consistency complement answering, refuses route_not_supported with a checkable obstruction (details counterfactual_id.conflicting_subscripts, counterfactual_id.counterfactual_hedge): not identified by ID*, NOT a proof of non-identifiability."
 
 # Matched case-control conditional odds ratio (parity/capability_records.toml,
-# estimate.matched_case_control_odds_ratio). Conditional odds ratio with an optional Wald interval; risk-scale estimands closed.
+# estimate.matched_case_control_odds_ratio). Conditional odds ratio with an optional Wald interval; risk-scale estimands are not supported.
 
 [[routes]]
 route = "antecedent_estimate.conditional_odds_ratio"
@@ -3474,7 +3474,7 @@ reason_code = "route_not_supported"
 notes = "A cluster option in estimator_config for dml, dr.learner or causal.forest raises a typed error with the route_not_supported reason code."
 
 # Descriptive raw-versus-adjusted comparison, reporting-scale transform and tier diagnostics
-# (parity/capability_records.toml: estimate.descriptive_comparison, estimate.tier_diagnostics). Point-only; intervals closed.
+# (parity/capability_records.toml: estimate.descriptive_comparison, estimate.tier_diagnostics). Point-only; intervals are not supported.
 
 [[routes]]
 route = "antecedent_estimate.raw_contrast"
@@ -3634,7 +3634,7 @@ status = "closed"
 reason_code = "invalid_argument"
 notes = "A result that is not a single-treatment tiered average-effect result is refused."
 
-# Factorized joint cells and derived treatments (parity/capability_records.toml, estimate.factorized_joint_cells). Point-only; intervals and covariance closed; a declared learner nuisance runs point-only.
+# Factorized joint cells and derived treatments (parity/capability_records.toml, estimate.factorized_joint_cells). Point-only; intervals and covariance are not supported; a declared learner nuisance runs point-only.
 
 [[routes]]
 route = "antecedent_estimate.fit_factorized_joint_cells"
@@ -3645,7 +3645,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are not supported; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "crates/antecedent-estimate/tests/joint_cell_factorized.rs"
 evidence_assertion = "factorized_propensities_and_means_match_the_enumerated_law"
 
@@ -3685,7 +3685,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are not supported; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "crates/antecedent/tests/derived_treatment.rs"
 evidence_assertion = "a_valid_declaration_reports_its_construction"
 
@@ -3698,7 +3698,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are not supported; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "crates/antecedent/tests/derived_treatment.rs"
 evidence_assertion = "a_declared_joint_cell_is_estimated_on_a_known_law"
 
@@ -3711,7 +3711,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are not supported; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "python/tests/test_derived_treatment.py"
 evidence_assertion = "test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_named"
 
@@ -3724,7 +3724,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are not supported; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "python/tests/test_derived_treatment.py"
 evidence_assertion = "test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction"
 
@@ -4080,7 +4080,7 @@ route = "antecedent.cross_world.transported_path_specific"
 stage = "identify"
 status = "closed"
 reason_code = "transport_missing_evidence"
-notes = "Transported path-specific counterfactual in the temporal, continuous and non-finite scope is carried forward closed: the joint cross-world transport theorem is not derived and the prerequisite gates (transport support, fixed-population cross-world support, cross-population assumptions) are not met. The route evaluates nothing and reports the exact missing gates (route_frozen, offending = first missing gate), factor_missing only when all gates pass; its refusal remedy names antecedent.transport.advanced.identify_counterfactual, the supported route for the finite discrete, static, acyclic semi-Markovian scope (counterfactual.transport_general), and never delegates to it. Evidence: python/tests/test_temporal_counterfactual.py::test_transported_route_is_closed_with_every_missing_gate."
+notes = "Transported path-specific counterfactual in the temporal, continuous and non-finite scope is not supported: the joint cross-world transport theorem is not derived and the prerequisite gates (transport support, fixed-population cross-world support, cross-population assumptions) are not met. The route evaluates nothing and reports the exact missing gates (route_frozen, offending = first missing gate), factor_missing only when all gates pass; its refusal remedy names antecedent.transport.advanced.identify_counterfactual, the supported route for the finite discrete, static, acyclic semi-Markovian scope (counterfactual.transport_general), and never delegates to it. Evidence: python/tests/test_temporal_counterfactual.py::test_transported_route_is_not_supported_with_every_missing_gate."
 
 [[routes]]
 route = "antecedent.transport.sampled_observation_recovery"
@@ -4391,8 +4391,8 @@ status = "supported"
 graph = "randomized_dose_attested_by_the_caller_empty_adjustment_set_observational_dose_refused"
 evidence = "aligned_finite_dose_outcome_rows_independent_no_external_law"
 functional = "one_named_functional_per_call_level_derivative_or_contrast_of_the_gaussian_local_quadratic_dose_response_with_per_dose_support"
-guarantee = "randomized_dose_gaussian_local_quadratic_named_functional_point_values_with_per_dose_support_pointwise_calibration_unmeasured_band_closed"
-limits = "Point values are the claim. Pointwise intervals and standard errors have calibration unmeasured, the smoothing bias is not included and the simultaneous band is closed. Fixed caller-declared bandwidth; a dose outside the observed support or with thin local weight is refused, never extrapolated. Independent rows only."
+guarantee = "randomized_dose_gaussian_local_quadratic_named_functional_point_values_with_per_dose_support_pointwise_calibration_unmeasured_no_band_method"
+limits = "Point values are the claim. Pointwise intervals and standard errors have calibration unmeasured, the smoothing bias is not included and the simultaneous band is not supported. Fixed caller-declared bandwidth; a dose outside the observed support or with thin local weight is refused, never extrapolated. Independent rows only."
 evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs"
 evidence_assertion = "level_recovers_closed_form_exactly_without_noise"
 notes = "Dose-grid functional row; point_only."
@@ -4405,7 +4405,7 @@ graph = "two_variable_binary_m_graph_with_exactly_one_response_edge_r_h_to_r_t_a
 evidence = "exact_nine_cell_observed_pattern_law_over_the_deterministic_proxy_model"
 functional = "ordered_response_recovery_of_p_x1_x2_or_a_verified_two_model_nonrecoverability_witness_for_self_censoring"
 guarantee = "sound_incomplete"
-limits = "Sound inside the stated class only: a self-censoring edge is refused with an integer-verified two-model witness over 60^4, and every other graph is route_not_supported, never nonrecoverable. Exact laws only; any sampled provider and its intervals are closed with calibration unmeasured (cov.recovery.chain_mgraph.frequentist.l95.sampled_whole_method allocated, not collected). Positivity is required."
+limits = "Sound inside the stated class only: a self-censoring edge is refused with an integer-verified two-model witness over 60^4, and every other graph is route_not_supported, never nonrecoverable. Exact laws only; any sampled provider and its intervals carry calibration status not_measured (cov.recovery.chain_mgraph.frequentist.l95.sampled_whole_method allocated, not collected). Positivity is required."
 evidence_test = "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs"
 evidence_assertion = "chain_formula_equals_the_enumerated_truth_for_every_chain_shape"
 notes = "Second row: ordered-response recovery; point_only."
@@ -4956,8 +4956,8 @@ status = "supported"
 graph = "no_graph_identified_finite_strata_with_exact_masses_propensities_and_outcome_laws"
 evidence = "two_strata_masses_0_5_0_5_propensities_0_5_0_25_treated_rates_0_8_0_5_control_rates_0_4_0_3_identified_ate_0_3"
 functional = "sharp_ate_bounds_under_the_marginal_sensitivity_model_by_fractional_knapsack_with_exact_expected_rho_one_normalization_and_bisection_tipping_lambda"
-guarantee = "msm_sharp_assumption_range_exact_population_inputs_lambda_one_identified_sampling_interval_withheld_point_only"
-limits = "Exact population inputs and a binary treatment over finite strata only: nothing is estimated, so the range is an assumption range (never a confidence interval) and the sampling interval is withheld (sampling interval: not reported; a requested composition refuses with not_supported). One Lambda is shared by all strata and both arms; the exact E[rho] = 1 normalization is not the Hajek renormalization. Hand anchors: identified 0.3 and bounds [0.04375, 0.4875] at Lambda 2; calibration unmeasured."
+guarantee = "msm_sharp_assumption_range_exact_population_inputs_lambda_one_identified_no_sampling_interval_method_point_only"
+limits = "Exact population inputs and a binary treatment over finite strata only: nothing is estimated, so the range is an assumption range (never a confidence interval) and the sampling interval has no method (sampling interval: not reported; a requested composition refuses with not_supported). One Lambda is shared by all strata and both arms; the exact E[rho] = 1 normalization is not the Hajek renormalization. Hand anchors: identified 0.3 and bounds [0.04375, 0.4875] at Lambda 2; calibration unmeasured."
 evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs"
 evidence_assertion = "msm_sharp_bounds_at_lambda_two_match_the_hand_derivation"
 notes = "Marginal sensitivity model bounds and tipping point; point-only."
@@ -4969,8 +4969,8 @@ status = "supported"
 graph = "no_graph_identified_the_surface_is_the_lambda_grid_of_the_sharp_ate_bounds"
 evidence = "two_strata_lambda_grid_1_to_3_adapted_into_the_sensitivity_artifact_with_distinct_assumption_range_and_withheld_sampling"
 functional = "adapt_a_marginal_sensitivity_result_into_the_sensitivity_artifact_over_the_lambda_coordinate_odds_ratio_bound"
-guarantee = "msm_sensitivity_artifact_lambda_surface_with_withheld_sampling_decision_replay_point_only"
-limits = "The artifact carries the assumption range of the ATE bounds per grid Lambda, no identified bound and a withheld sampling descriptor; the sensitivity decision composition classifies actions over the declared Lambda range only (invariant action, assumption-dependent switch or no robust action) and never as a probability. A composed sampling interval is refused; the artifact refusals belong to the sensitivity-artifact namespace."
+guarantee = "msm_sensitivity_artifact_lambda_surface_with_no_sampling_interval_method_decision_replay_point_only"
+limits = "The artifact carries the assumption range of the ATE bounds per grid Lambda, no identified bound and a sampling descriptor (status no_interval_method); the sensitivity decision composition classifies actions over the declared Lambda range only (invariant action, assumption-dependent switch or no robust action) and never as a probability. A composed sampling interval is refused; the artifact refusals belong to the sensitivity-artifact namespace."
 evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs"
 evidence_assertion = "msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds"
 notes = "Marginal sensitivity model adapter into the sensitivity artifact; point-only."
@@ -5035,9 +5035,9 @@ graph = "static_fully_observed_markovian_dag_with_affine_additive_noise_mechanis
 evidence = "supplied_source_structural_fit_finite_support_source_and_target_covariate_laws_selection_diagram_regime_evidence_and_declared_premises"
 functional = "target_path_specific_edge_intervention_mean_contrast_as_sum_over_target_covariate_law_of_the_source_equation_contrast"
 guarantee = "affine_additive_markovian_class_target_contrast_sum_over_target_covariate_law_declared_noise_premises_point_only"
-limits = "Linear-affine class only. Additive noise, shared noise laws, the unit-level cross-world coupling and that the source fit equals the structural equations are declared, not verified; nonparametric identification from data is not claimed. Overlap is exact-point matching on finite support and the affine form is never extrapolated. Selection on a mediator or outcome mechanism refuses (with a two-model witness when the contrast is sensitive to it). Point-only: no interval, calibration unmeasured. The general class stays closed in counterfactual.transported_path_specific."
+limits = "Linear-affine class only. Additive noise, shared noise laws, the unit-level cross-world coupling and that the source fit equals the structural equations are declared, not verified; nonparametric identification from data is not claimed. Overlap is exact-point matching on finite support and the affine form is never extrapolated. Selection on a mediator or outcome mechanism refuses (with a two-model witness when the contrast is sensitive to it). Point-only: no interval, calibration unmeasured. The general class is not supported in counterfactual.transported_path_specific."
 evidence_test = "crates/antecedent/tests/transported_counterfactual_facade.rs"
-evidence_assertion = "x8t_facade_export_and_consume_replay_the_answer_and_bind_the_identity"
+evidence_assertion = "facade_export_and_consume_replay_the_answer_and_bind_the_identity"
 notes = "Transported path-specific counterfactual for the narrow affine additive-noise class: theorem in the module documentation of the core evaluator, sealed artifact with identity-bound replay; point-only."
 
 [[routes]]
@@ -5733,7 +5733,7 @@ graph = "original_source_scientific_scope_only_no_new_identification"
 evidence = "Supplemental8-row binary sample: control outcomes(0,0,0,1),treated(0,1,1,1); original retained checked AverageEffect query"
 functional = "public_typed_adapter_preserves_original_native_or_empirical_input_semantics"
 guarantee = "point_only_no_new_inference_or_population_coverage"
-limits = "Supplemental sample is explicit and separately hashed; original result does not retain per-stratum laws or certify the supplemental snapshot. Bounds are sharp only for the empirical distribution and estimate population bounds with sampling uncertainty withheld. Max 1,000,000 sample rows, 4096 finite strata, 256 distinct outcomes per arm/stratum; both arms must occur in every stratum. No percentile bootstrap, population coverage, source-sample equality or new inference support."
+limits = "Supplemental sample is explicit and separately hashed; original result does not retain per-stratum laws or certify the supplemental snapshot. Bounds are sharp only for the empirical distribution and estimate population bounds with sampling uncertainty not supported. Max 1,000,000 sample rows, 4096 finite strata, 256 distinct outcomes per arm/stratum; both arms must occur in every stratum. No percentile bootstrap, population coverage, source-sample equality or new inference support."
 evidence_test = "python/tests/test_decision_flow_bridge.py"
 evidence_assertion = "test_empirical_msm_function_keeps_supplemental_sample_identity"
 notes = "Additive public API adaptation; original algorithms, conditional claims and uncertainty boundaries preserved."
@@ -5746,7 +5746,7 @@ graph = "original_source_scientific_scope_only_no_new_identification"
 evidence = "Supplemental8-row binary sample: control outcomes(0,0,0,1),treated(0,1,1,1); original retained checked AverageEffect query"
 functional = "public_typed_adapter_preserves_original_native_or_empirical_input_semantics"
 guarantee = "point_only_no_new_inference_or_population_coverage"
-limits = "Supplemental sample is explicit and separately hashed; original result does not retain per-stratum laws or certify the supplemental snapshot. Bounds are sharp only for the empirical distribution and estimate population bounds with sampling uncertainty withheld. Max 1,000,000 sample rows, 4096 finite strata, 256 distinct outcomes per arm/stratum; both arms must occur in every stratum. No percentile bootstrap, population coverage, source-sample equality or new inference support."
+limits = "Supplemental sample is explicit and separately hashed; original result does not retain per-stratum laws or certify the supplemental snapshot. Bounds are sharp only for the empirical distribution and estimate population bounds with sampling uncertainty not supported. Max 1,000,000 sample rows, 4096 finite strata, 256 distinct outcomes per arm/stratum; both arms must occur in every stratum. No percentile bootstrap, population coverage, source-sample equality or new inference support."
 evidence_test = "python/tests/test_decision_flow_bridge.py"
 evidence_assertion = "test_empirical_msm_result_handoff_keeps_sample_bounds_distinct"
 notes = "Additive public API adaptation; original algorithms, conditional claims and uncertainty boundaries preserved."
@@ -6334,14 +6334,14 @@ route = "antecedent_estimate.measurement.classical_continuous_error.differential
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.classical_continuous_error.differential_by_time"
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.classical_continuous_error.other_population"
@@ -6380,14 +6380,14 @@ route = "antecedent_estimate.measurement.repeated_measurements.differential_by_p
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.repeated_measurements.differential_by_time"
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.repeated_measurements.other_population"
@@ -6438,14 +6438,14 @@ route = "antecedent_estimate.measurement.binary_misclassification.differential_b
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.binary_misclassification.differential_by_time"
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.binary_misclassification.other_population"
@@ -6484,14 +6484,14 @@ route = "antecedent_estimate.measurement.probabilistic_categorical.differential_
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_time"
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.probabilistic_categorical.other_population"
@@ -6530,14 +6530,14 @@ route = "antecedent_estimate.measurement.external_latent_posterior.differential_
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.external_latent_posterior.differential_by_time"
 stage = "evaluate"
 status = "closed"
 reason_code = "differential_error_not_pooled"
-notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
+notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
 route = "antecedent_estimate.measurement.external_latent_posterior.other_population"
@@ -6695,12 +6695,12 @@ evidence_assertion = "lowering_tags_every_leaf_with_its_population_and_regime"
 route = "antecedent.counterfactual_transport.uncertainty"
 stage = "uncertainty"
 status = "supported"
-notes = "Point only. A counted, empirical or posterior law refuses (detail counterfactual_transport.sampled_inference_closed); sampled counterfactual transport, with its interval, is a separate route."
+notes = "Point only. A counted, empirical or posterior law refuses (detail counterfactual_transport.no_sampled_inference); sampled counterfactual transport, with its interval, is a separate route."
 
 
 # Sampled counterfactual transport (records counterfactual.transport_sampled and
 # counterfactual.transport_sampled_interval). Count-table plug-in of the stored
-# derivation; no public facade or Python route yet, so every route is closed.
+# derivation; no public facade or Python route yet, so every route is not supported.
 [[routes]]
 route = "antecedent_estimate.estimate_sampled_counterfactual_transport"
 stage = "evaluate"
@@ -6708,7 +6708,7 @@ status = "supported"
 graph = "static_finite_discrete_acyclic_semi_markovian_admg_at_most_8_variables_4_levels_with_one_selection_diagram_per_source"
 evidence = "sampled_count_tables_with_declared_overlap_and_unseen_cell_rule"
 functional = "plug_in_probability_of_the_stored_derivation_with_uncalibrated_standard_error"
-guarantee = "plug_in_point_estimate_standard_error_uncalibrated_interval_closed"
+guarantee = "plug_in_point_estimate_standard_error_uncalibrated_interval_not_supported"
 reference = "provenance/counterfactual.transport_sampled.toml"
 limits = "Plug-in of a stored derivation on count tables; a refused table, undeclared overlap or zero conditioning mass is a typed refusal, an unseen cell is refused, smoothed under a declared pseudo-count or enveloped, never zero-filled. The standard error is labelled uncalibrated and no interval is published."
 evidence_test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs"
@@ -6777,7 +6777,7 @@ evidence = "exact_finite_laws_bound_to_population_regime_and_snapshot"
 functional = "exact_probability_of_the_counterfactual_event_given_the_conditioning_event_in_the_target"
 guarantee = "exact_point_of_the_checked_derivation_point_only"
 reference = "provenance/counterfactual.transport_general.toml"
-limits = "Evaluates the frozen derivation on supplied laws without searching again and without changing the derivation; deterministic and invariant to the order of supplied laws. Counted and empirical laws refuse with route_not_supported (counterfactual_transport.sampled_inference_closed); a withheld law is transport_missing_provider and a conditioning event of zero mass is transport_support_failure. Point only."
+limits = "Evaluates the frozen derivation on supplied laws without searching again and without changing the derivation; deterministic and invariant to the order of supplied laws. Counted and empirical laws refuse with route_not_supported (counterfactual_transport.no_sampled_inference); a withheld law is transport_missing_provider and a conditioning event of zero mass is transport_support_failure. Point only."
 evidence_test = "python/tests/test_transport_counterfactual.py"
 evidence_assertion = "test_evaluate_runs_the_retained_plan_without_searching_again_after_builder_disposal"
 
@@ -6840,9 +6840,9 @@ status = "supported"
 graph = "static_finite_discrete_acyclic_semi_markovian_admg_at_most_8_variables_4_levels_with_one_selection_diagram_per_source"
 evidence = "sampled_count_tables_with_declared_overlap_and_unseen_cell_rule"
 functional = "plug_in_probability_of_the_stored_derivation_with_uncalibrated_standard_error"
-guarantee = "plug_in_point_estimate_standard_error_uncalibrated_interval_closed"
+guarantee = "plug_in_point_estimate_standard_error_uncalibrated_interval_not_supported"
 reference = "provenance/counterfactual.transport_sampled.toml"
-limits = "Python surface of antecedent_estimate.estimate_sampled_counterfactual_transport: evaluates the stored derivation without searching again. Point only; the interval is withheld as not_supported."
+limits = "Python surface of antecedent_estimate.estimate_sampled_counterfactual_transport: evaluates the stored derivation without searching again. Point only; the interval has no method as not_supported."
 evidence_test = "python/tests/test_transport_counterfactual.py"
 evidence_assertion = "test_estimate_sampled_runs_the_retained_plan_after_builder_disposal"
 
@@ -7258,9 +7258,9 @@ status = "supported"
 graph = "not_applicable_no_graph"
 evidence = "finite_candidate_set_of_draws_and_measured_coverage_record_attesting"
 functional = "published_ranking_probability_confidence_set_and_utility_interval"
-guarantee = "published_probability_and_interval_routes_resolved_from_current_coverage_record_at_the_coordinate_refused_elsewhere"
+guarantee = "published_probability_and_interval_routes_carry_the_calibration_slot_resolved_from_the_coverage_record_at_the_coordinate"
 evidence_test = "crates/antecedent-design/tests/decision_reliability.rs"
-evidence_assertion = "measured_routes_respect_current_attestation_and_report_their_closures"
+evidence_assertion = "measured_routes_respect_current_attestation_in_their_calibration_status"
 notes = "A ranking probability, optimality confidence set, utility interval or selection-corrected interval is published only where a current attesting coverage record measured it at its candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; every other coordinate refuses not_supported."
 
 [[routes]]
@@ -8111,7 +8111,7 @@ evidence_assertion = "the_matrix_lists_every_combination_once_and_classifies_eac
 notes = "Total over the product of the four axes; the registry table agrees cell by cell."
 
 [[routes]]
-route = "antecedent_contract.adaptive_design.cell.carried_forward"
+route = "antecedent_contract.adaptive_design.cell.not_delivered"
 stage = "evaluate"
 status = "closed"
 reason_code = "route_not_supported"
@@ -8148,7 +8148,7 @@ functional = "beta_bernoulli_posterior_probability_best_expected_loss"
 guarantee = "exact_posterior_given_declared_prior_point_only"
 evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
 evidence_assertion = "the_posterior_is_conjugate_and_carries_its_premise_and_a_closed_guarantee"
-notes = "Point-only; the credible interval is closed."
+notes = "Point-only; the credible interval is not supported."
 
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.bayesian_posterior.credible_interval"
@@ -8235,7 +8235,7 @@ functional = "uncalibrated_confidence_sequence_of_arm_means"
 guarantee = "time_uniform_sequence_theorem_unmeasured_as_a_procedure"
 evidence_test = "crates/antecedent-estimate/tests/adaptive_inference.rs"
 evidence_assertion = "confidence_sequences_match_the_closed_form_and_union_bound_a_contrast"
-notes = "Sequence numbers labelled uncalibrated; the whole-procedure guarantee is closed."
+notes = "Sequence numbers labelled uncalibrated; the whole-procedure guarantee is not supported."
 
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences.guarantee"
@@ -8296,7 +8296,7 @@ status = "supported"
 graph = "as_the_adaptive_inference_records"
 evidence = "adaptive_procedure_result_and_measured_coverage_record_attesting"
 functional = "thompson_credible_interval_weighted_contrast_and_confidence_sequence"
-guarantee = "measured_interval_for_three_procedure_cells_fixed_sample_and_stopped_wald_closed"
+guarantee = "measured_interval_for_three_procedure_cells_fixed_sample_and_stopped_wald_not_supported"
 evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs"
 evidence_assertion = "a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record"
 notes = "Measured adaptive intervals (Thompson credible interval of the second arm, epsilon-greedy repeated-measures weighted contrast, epsilon-greedy confidence sequence) bound to a currently attesting coverage record; every other procedure refuses not_supported."
@@ -8308,10 +8308,10 @@ status = "supported"
 graph = "not_applicable_no_graph"
 evidence = "standardized_statistics_at_performed_looks_and_measured_coverage_record_attesting"
 functional = "repeated_confidence_interval_of_a_fixed_randomization_group_sequential_trial"
-guarantee = "alpha_spending_boundaries_point_and_repeated_confidence_interval_measured_stagewise_adjustment_closed"
+guarantee = "alpha_spending_boundaries_point_and_repeated_confidence_interval_measured_stagewise_adjustment_not_supported"
 evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs"
 evidence_assertion = "a_group_sequential_repeated_interval_is_bound_to_its_record"
-notes = "Measured repeated confidence interval of a fixed-randomization group-sequential trial bound to a currently attesting coverage record; stagewise-adjusted inference stays closed."
+notes = "Measured repeated confidence interval of a fixed-randomization group-sequential trial bound to a currently attesting coverage record; stagewise-adjusted inference is not supported."
 
 [[routes]]
 route = "antecedent.cross_world_execution.measured_interval"
@@ -8320,10 +8320,10 @@ status = "supported"
 graph = "finite_markovian_scm"
 evidence = "executed_finite_markovian_row_declared_unit_sampling_and_measured_coverage_record_attesting"
 functional = "whole_path_interval_of_the_executed_row_under_the_declared_model"
-guarantee = "measured_interval_under_the_declared_model_from_60_units_posterior_and_sampled_abduction_closed"
+guarantee = "measured_interval_under_the_declared_model_from_60_units_posterior_and_sampled_abduction_not_supported"
 evidence_test = "python/tests/test_cross_world_execution.py"
 evidence_assertion = "test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record"
-notes = "Measured whole-path interval of an executed finite Markovian row under a declared unit sampling, bound to a currently attesting coverage record and conditional on the declared model; a posterior and a sampled abduction stay closed."
+notes = "Measured whole-path interval of an executed finite Markovian row under a declared unit sampling, bound to a currently attesting coverage record and conditional on the declared model; a posterior and a sampled abduction are not supported."
 
 [[routes]]
 route = "antecedent.decision_reliability.rank"
@@ -8590,7 +8590,7 @@ evidence_assertion = "test_the_native_consume_entry_returns_the_replayed_summary
 notes = "Python surface route; point-only or accounting, no interval."
 
 [[routes]]
-route = "antecedent._native.observation_query_closed"
+route = "antecedent._native.observation_query_unsupported"
 stage = "uncertainty"
 status = "closed"
 reason_code = "uncertainty_representation_insufficient"
@@ -9440,7 +9440,7 @@ reason_code = "uncertainty_representation_insufficient"
 notes = "Moments or marginals of inputs do not determine the law of a composed quantity: an interval or posterior needs the joint law (dependence) of the inputs, which the claim does not carry."
 
 [[routes]]
-route = "antecedent._native.joint_law_closed_reading"
+route = "antecedent._native.joint_law_unsupported_reading"
 stage = "uncertainty"
 status = "closed"
 reason_code = "uncertainty_representation_insufficient"
@@ -9546,14 +9546,14 @@ route = "antecedent_counterfactual.selective.transported_cross_world"
 stage = "prepare"
 status = "closed"
 reason_code = "route_not_supported"
-notes = "A target population other than the declared one refuses with route_not_supported (detail cross_world_execution.transported_row_closed) and names the missing prerequisites."
+notes = "A target population other than the declared one refuses with route_not_supported (detail cross_world_execution.no_transported_row_derivation) and names the missing prerequisites."
 
 [[routes]]
 route = "antecedent_counterfactual.selective.matrix.transported_prerequisites"
 stage = "prepare"
 status = "closed"
 reason_code = "route_not_supported"
-notes = "A target population other than the declared one refuses with route_not_supported (detail cross_world_execution.transported_row_closed) and names the missing prerequisites."
+notes = "A target population other than the declared one refuses with route_not_supported (detail cross_world_execution.no_transported_row_derivation) and names the missing prerequisites."
 
 [[routes]]
 route = "antecedent_counterfactual.selective.sampled_abduction"
@@ -9567,7 +9567,7 @@ route = "antecedent.cross_world_execution.interval_posterior"
 stage = "prepare"
 status = "closed"
 reason_code = "uncertainty_representation_insufficient"
-notes = "A posterior statement refuses with uncertainty_representation_insufficient and an unqualified interval with sampling_dependence_unknown (detail cross_world_execution.posterior_route_closed and cross_world_execution.interval_route_closed); the interval of a declared unit sampling is antecedent.cross_world_execution.measured_interval."
+notes = "A posterior statement refuses with uncertainty_representation_insufficient and an unqualified interval with sampling_dependence_unknown (detail cross_world_execution.no_posterior_method and cross_world_execution.no_interval_method); the interval of a declared unit sampling is antecedent.cross_world_execution.measured_interval."
 
 [[routes]]
 route = "antecedent.provider_callback.negotiate_operation"
@@ -10090,7 +10090,7 @@ notes = "The pooled interval of the release-boundary scenario is reported with i
 
 # Library-level transport, composition and uncertainty routes of the transported-evidence work.
 # A supported row is a non-uncertainty point_only or none route of an in_progress record with executed
-# positive, negative and artifact evidence; every other route is a typed closed row.
+# positive, negative and artifact evidence; every other route is a typed unsupported row.
 
 [[routes]]
 route = "antecedent_learn.transported_effect.transport_cohort_effect"
@@ -10805,7 +10805,7 @@ functional = "exact_law_of_terminal_state_of_the_adaptive_procedure"
 guarantee = "exact_finite_law_under_the_stated_model_no_interval_or_coverage_support"
 evidence_test = "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs"
 evidence_assertion = "fixed_design_law_matches_the_binomial_mixture"
-notes = "Derived, unmeasured; interval and guarantee routes stay closed."
+notes = "Derived, unmeasured; interval and guarantee routes are not supported."
 
 [[routes]]
 route = "antecedent_stats.adaptive_inference.procedure_contract.validate"
@@ -11093,7 +11093,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_candidate_utility_draws_with_declared_dependence"
 functional = "wald_and_wilson_numerical_intervals_at_the_effective_sample_size"
-guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_closed"
+guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_not_supported"
 evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs"
 evidence_assertion = "wilson_interval_at_the_effective_sample_size_matches_hand_arithmetic"
 notes = "The derived object carries standing derived_unmeasured; publish refuses not_supported."
@@ -11105,7 +11105,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_candidate_utility_draws_with_declared_dependence"
 functional = "wald_and_wilson_numerical_intervals_at_the_effective_sample_size"
-guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_closed"
+guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_not_supported"
 evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs"
 evidence_assertion = "derived_components_match_the_enumerated_law_and_stay_separate"
 
@@ -11116,7 +11116,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_candidate_utility_draws_with_declared_dependence"
 functional = "wald_and_wilson_numerical_intervals_at_the_effective_sample_size"
-guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_closed"
+guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_not_supported"
 evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs"
 evidence_assertion = "a_fresh_consumer_rederives_from_the_carried_draws"
 
@@ -11127,7 +11127,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_candidate_utility_draws_with_declared_dependence"
 functional = "wald_and_wilson_numerical_intervals_at_the_effective_sample_size"
-guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_closed"
+guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_not_supported"
 evidence_test = "crates/antecedent/tests/decision_reliability_derived_facade.rs"
 evidence_assertion = "the_coverage_design_is_data_and_measures_nothing"
 
@@ -11138,7 +11138,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_candidate_utility_draws_with_declared_dependence"
 functional = "wald_and_wilson_numerical_intervals_at_the_effective_sample_size"
-guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_closed"
+guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_not_supported"
 evidence_test = "python/tests/test_decision_reliability_derived.py"
 evidence_assertion = "test_three_components_match_the_enumerated_law"
 
@@ -11149,7 +11149,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_candidate_utility_draws_with_declared_dependence"
 functional = "wald_and_wilson_numerical_intervals_at_the_effective_sample_size"
-guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_closed"
+guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_not_supported"
 evidence_test = "python/tests/test_decision_reliability_derived.py"
 evidence_assertion = "test_a_fresh_consumer_rederives_and_refuses_an_edited_derivation"
 
@@ -11160,7 +11160,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_candidate_utility_draws_with_declared_dependence"
 functional = "wald_and_wilson_numerical_intervals_at_the_effective_sample_size"
-guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_closed"
+guarantee = "normal_monte_carlo_error_at_the_reported_effective_sample_size_derived_unmeasured_publication_not_supported"
 evidence_test = "python/tests/test_decision_reliability_derived.py"
 evidence_assertion = "test_coverage_design_is_inspectable_data_that_measures_nothing"
 [[routes]]
@@ -11170,7 +11170,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_retained_candidate_utility_draws_with_declared_dependence"
 functional = "confidence_set_for_the_best_retained_candidate"
-guarantee = "multiple_comparisons_with_the_best_conditional_on_retention_derived_unmeasured_publication_closed"
+guarantee = "multiple_comparisons_with_the_best_conditional_on_retention_derived_unmeasured_publication_not_supported"
 evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs"
 evidence_assertion = "confidence_set_excludes_the_clearly_worse_candidate_with_the_paired_critical_value"
 
@@ -11181,7 +11181,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_retained_candidate_utility_draws_with_declared_dependence"
 functional = "confidence_set_for_the_best_retained_candidate"
-guarantee = "multiple_comparisons_with_the_best_conditional_on_retention_derived_unmeasured_publication_closed"
+guarantee = "multiple_comparisons_with_the_best_conditional_on_retention_derived_unmeasured_publication_not_supported"
 evidence_test = "python/tests/test_decision_reliability_derived.py"
 evidence_assertion = "test_selection_component_is_a_confidence_set_and_a_corrected_interval"
 [[routes]]
@@ -11191,7 +11191,7 @@ status = "supported"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "retained_candidate_utility_draws_search_record_and_validation_stream"
 functional = "selection_corrected_interval_of_the_selected_candidates_value"
-guarantee = "bonferroni_over_considered_candidates_conditional_on_retention_derived_unmeasured_publication_closed"
+guarantee = "bonferroni_over_considered_candidates_conditional_on_retention_derived_unmeasured_publication_not_supported"
 evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs"
 evidence_assertion = "selection_corrected_interval_reports_the_extra_width_the_selection_costs"
 
@@ -11392,7 +11392,7 @@ status = "supported"
 graph = "not_applicable_aligned_joint_law"
 evidence = "aligned_draws_of_a_composed_quantity_and_a_cutoff"
 functional = "exceedance_probability_with_agresti_coull_band_and_verdict"
-guarantee = "verdict_concerns_monte_carlo_error_only_posterior_reading_closed"
+guarantee = "verdict_concerns_monte_carlo_error_only_posterior_reading_not_supported"
 evidence_test = "crates/antecedent-stats/src/joint_law.rs"
 evidence_assertion = "exceedance_decisions_report_the_monte_carlo_band"
 notes = "Cutoffs 0.5, 0.9, 0.99 and the p = 1 boundary probe (nonzero band)."
@@ -11459,7 +11459,7 @@ status = "supported"
 graph = "not_applicable_declared_bounded_premise_violation"
 evidence = "assumption_range_and_a_reference_action_value"
 functional = "sensitivity_decision_artifact_of_act_on_the_transported_quantity_or_keep_the_reference"
-guarantee = "decision_outcome_recomputed_by_the_consumer_sampling_withheld"
+guarantee = "decision_outcome_recomputed_by_the_consumer_no_sampling_interval_method"
 evidence_test = "crates/antecedent-design/tests/transport_sensitivity.rs"
 evidence_assertion = "artifact_keeps_the_acting_decision_when_the_range_never_reaches_the_reference"
 notes = "Uses the existing sensitivity_decision_v1 surface."
@@ -11795,8 +11795,8 @@ stage = "evaluate"
 status = "supported"
 graph = "not_applicable"
 evidence = "route_and_paradigm"
-functional = "supported_statement_or_a_typed_closed_row_with_its_reason"
-guarantee = "every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row"
+functional = "supported_statement_or_a_typed_unsupported_row_with_its_reason"
+guarantee = "every_route_has_a_row_and_every_missing_paradigm_is_a_typed_unsupported_row"
 evidence_test = "crates/antecedent-model/tests/discretized_scm.rs"
 evidence_assertion = "every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row"
 notes = "Supported never implies an interval or a calibration."
@@ -11899,7 +11899,7 @@ functional = "whole_path_account_bound_to_its_execution_with_verify_against"
 guarantee = "sealed_sibling_re_derived_by_a_consumer_an_account_of_other_units_is_refused"
 evidence_test = "crates/antecedent/tests/whole_path_account_facade.rs"
 evidence_assertion = "the_account_is_the_enumerated_spread_bound_to_its_execution"
-notes = "Interval and posterior routes stay closed (cross_world_execution.interval_route_closed, posterior_route_closed)."
+notes = "Interval and posterior routes are not supported (cross_world_execution.no_interval_method, posterior_route_closed)."
 
 [[routes]]
 route = "antecedent_counterfactual.selective.whole_path_uncertainty.sampled_or_transported_path"
@@ -12037,7 +12037,7 @@ status = "supported"
 graph = "as_the_joint_law_propagation_records"
 evidence = "composed_claim_with_declared_dependence_and_measured_coverage_record_attesting"
 functional = "normal_approximation_interval_of_a_linear_composed_contrast_or_sum"
-guarantee = "linear_moment_composed_interval_measured_from_200_observations_posterior_and_other_operations_closed"
+guarantee = "linear_moment_composed_interval_measured_from_200_observations_posterior_and_other_operations_not_supported"
 evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs"
 evidence_assertion = "a_composed_interval_is_reported_with_its_calibration_at_its_coordinate"
 notes = "Measured normal-approximation interval of a linear composed contrast or sum, resolved against a currently attesting coverage record of its coordinate and declared evidence size; every other coordinate refuses not_supported."
@@ -12266,7 +12266,7 @@ route = "antecedent.python.cross_world_execution.finite_markovian_scm.interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "sampling_dependence_unknown"
-notes = "An interval requested without a declared unit sampling refuses with sampling_dependence_unknown (detail cross_world_execution.interval_route_closed): the quantity is an exact function of a fully declared finite model, and a sampling distribution exists only under a declared unit sampling. The interval of a declared unit sampling is measured_interval."
+notes = "An interval requested without a declared unit sampling refuses with sampling_dependence_unknown (detail cross_world_execution.no_interval_method): the quantity is an exact function of a fully declared finite model, and a sampling distribution exists only under a declared unit sampling. The interval of a declared unit sampling is measured_interval."
 
 # Python surface of routes that were library-level: discovered-structure transport, tier
 # diagnostics, the template unrolling and the transported-value verifiers.
@@ -12760,7 +12760,7 @@ status = "supported"
 graph = "no_graph_identified_treatment_assignment_taken_as_ignorable_only_the_outcome_missingness_mechanism_is_varied"
 evidence = "treated_outcomes_1_to_6_observed_4_missing_control_outcomes_0_to_4_observed_5_missing_mar_effect_1_5"
 functional = "arm_mean_contrast_re_run_over_a_bounded_departure_grid_by_pattern_mixture_shift_or_exponential_tilting_selection_model_with_sub_cell_scanned_bisection_tipping_points"
-guarantee = "mnar_departure_assumption_range_untestable_assumption_sampling_interval_withheld_point_only"
+guarantee = "mnar_departure_assumption_range_untestable_assumption_no_sampling_interval_method_point_only"
 limits = "Binary 0/1 treatment and an outcome with missing entries; the departure is one declared parameter with a per-arm loading, bounded and containing zero (missing at random). The range is an assumption range (never a confidence interval, never empirically established); the departure is an untestable assumption; the per-point sampling interval and interval-derived tipping are withheld (not_supported) and are never composed with the range. Estimators: difference in means, regression adjustment, inverse-propensity weighting and augmented weighting; others refuse. At most 67108864 rows, 64 covariates, 4096 grid points, 5000 bootstrap replicates and 64 decisions. Calibration of the sampling interval is unmeasured."
 evidence_test = "crates/antecedent-validate/tests/mnar_sensitivity.rs"
 evidence_assertion = "mnar_shift_tipping_points_match_the_closed_form"
@@ -12773,7 +12773,7 @@ status = "supported"
 graph = "no_graph_identified_treatment_assignment_taken_as_ignorable_only_the_outcome_missingness_mechanism_is_varied"
 evidence = "treated_outcomes_1_to_6_observed_4_missing_control_outcomes_0_to_4_observed_5_missing_mar_effect_1_5"
 functional = "arm_mean_contrast_re_run_over_a_bounded_departure_grid_by_pattern_mixture_shift_or_exponential_tilting_selection_model_with_sub_cell_scanned_bisection_tipping_points"
-guarantee = "mnar_departure_assumption_range_untestable_assumption_sampling_interval_withheld_point_only"
+guarantee = "mnar_departure_assumption_range_untestable_assumption_no_sampling_interval_method_point_only"
 limits = "Binary 0/1 treatment and an outcome with missing entries; the departure is one declared parameter with a per-arm loading, bounded and containing zero (missing at random). The range is an assumption range (never a confidence interval, never empirically established); the departure is an untestable assumption; the per-point sampling interval and interval-derived tipping are withheld (not_supported) and are never composed with the range. Estimators: difference in means, regression adjustment, inverse-propensity weighting and augmented weighting; others refuse. At most 67108864 rows, 64 covariates, 4096 grid points, 5000 bootstrap replicates and 64 decisions. Calibration of the sampling interval is unmeasured."
 evidence_test = "python/tests/test_mnar_sensitivity.py"
 evidence_assertion = "test_from_analysis_uses_the_checked_query_and_rejects_a_foreign_result"
@@ -12786,7 +12786,7 @@ status = "supported"
 graph = "no_graph_identified_treatment_assignment_taken_as_ignorable_only_the_outcome_missingness_mechanism_is_varied"
 evidence = "treated_outcomes_1_to_6_observed_4_missing_control_outcomes_0_to_4_observed_5_missing_mar_effect_1_5"
 functional = "arm_mean_contrast_re_run_over_a_bounded_departure_grid_by_pattern_mixture_shift_or_exponential_tilting_selection_model_with_sub_cell_scanned_bisection_tipping_points"
-guarantee = "mnar_departure_assumption_range_untestable_assumption_sampling_interval_withheld_point_only"
+guarantee = "mnar_departure_assumption_range_untestable_assumption_no_sampling_interval_method_point_only"
 limits = "Binary 0/1 treatment and an outcome with missing entries; the departure is one declared parameter with a per-arm loading, bounded and containing zero (missing at random). The range is an assumption range (never a confidence interval, never empirically established); the departure is an untestable assumption; the per-point sampling interval and interval-derived tipping are withheld (not_supported) and are never composed with the range. Estimators: difference in means, regression adjustment, inverse-propensity weighting and augmented weighting; others refuse. At most 67108864 rows, 64 covariates, 4096 grid points, 5000 bootstrap replicates and 64 decisions. Calibration of the sampling interval is unmeasured."
 evidence_test = "python/tests/test_mnar_sensitivity.py"
 evidence_assertion = "test_mnar_result_api_requests_the_sensitivity_of_the_analysed_effect"
@@ -12908,7 +12908,7 @@ graph = "retained_graph_and_rederived_transport_certificate"
 evidence = "existing_posterior_artifact_semantic_replay_fixture"
 functional = "rederive_certificate_and_replay_retained_posterior"
 guarantee = "artifact_semantic_replay_only_no_posterior_or_interval_support"
-limits = "The consumed posterior remains unsupported with calibration unmeasured. This consumer does not support an interval for the distinct point estimate; that interval route remains closed."
+limits = "The consumed posterior remains unsupported with calibration unmeasured. This consumer does not support an interval for the distinct point estimate; that interval route is not supported."
 evidence_test = "python/tests/test_smoothed_dose_transport.py"
 evidence_assertion = "test_posterior_artifact_is_consumed_independently_and_refuses_changes"
 

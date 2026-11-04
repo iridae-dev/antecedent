@@ -277,7 +277,7 @@ fn mediation_artifact_seal_refuses_confounding_and_interventional_estimands() {
     let mut interventional = request(0);
     interventional.config.estimand = "interventional_effects".into();
     let error = NonlinearMediationArtifact::seal(&interventional).unwrap_err();
-    assert_eq!(refusal_detail(&error), "nonlinear_mediation.interventional_effects_closed");
+    assert_eq!(refusal_detail(&error), "nonlinear_mediation.interventional_effects_not_supported");
 }
 
 #[test]

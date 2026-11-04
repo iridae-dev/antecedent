@@ -133,7 +133,7 @@ def identify_multi_source_z_transport(
     or a sequence of them: every request is evaluated from the same frozen proof
     and each request's outcome means are contrasted with request 0 (points
     always). Counted laws return the point with the interval withheld as
-    ``not_supported``: the multi-source interval route stays closed until its
+    ``not_supported``: the multi-source interval route is not supported until its
     coverage records are measured, so ``interval["available"]`` is ``False``.
     The search memory bound is never absent: ``memory_bytes`` (default ``None``)
     tightens the 512 MiB default cap, it cannot remove it, and the live-state
@@ -204,7 +204,7 @@ def consume_multi_source_z_transport_artifact(
     are bound by the premises digest and the snapshot ids by the data-identity
     digest; relabelled names or any other edit is refused. An artifact that
     carries an interval is refused with ``not_supported`` while the interval
-    route is closed. Nothing the artifact recorded raises the consumer's limits.
+    route is not supported. Nothing the artifact recorded raises the consumer's limits.
     """
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):

@@ -298,7 +298,7 @@ fn mediation_confounding_and_cross_world_premises_are_refused() {
         &NonlinearMediationPremises::sequentially_ignorable(),
         &interventional,
     ));
-    assert!(msg.contains("nonlinear_mediation.interventional_effects_closed"), "{msg}");
+    assert!(msg.contains("nonlinear_mediation.interventional_effects_not_supported"), "{msg}");
 }
 
 #[test]
@@ -385,7 +385,7 @@ fn mediation_linear_g_matches_product_of_coefficients_cross_check() {
     clippy::cast_possible_truncation,
     reason = "the reference fixture preserves its exact values and bounded inputs"
 )]
-fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
+fn mediation_bootstrap_is_deterministic_and_has_no_intervals() {
     let g = grid(&base_scm());
     let ignorable = NonlinearMediationPremises::sequentially_ignorable();
     let cfg = NonlinearMediationConfig { bootstrap_replicates: 30, seed: 7, ..config(8) };

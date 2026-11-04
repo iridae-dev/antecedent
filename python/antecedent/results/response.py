@@ -552,9 +552,9 @@ class CausalResponseView(ResultModel, ResultAPI):
         """Band over the whole response grid published next to the pointwise band.
 
         ``None`` when no such band was published: a Frequentist temporal surface
-        run with ``bootstrap=0`` (see the ``estimate.temporal_response.band_withheld``
+        run with ``bootstrap=0`` (see the ``estimate.temporal_response.no_band_method``
         warning), too few surviving replicates
-        (``response.simultaneous_band_withheld``), or a response whose
+        (``response.no_simultaneous_band_method``), or a response whose
         ``uncertainty.kind`` is already ``"simultaneous"`` (the static Kennedy-DR
         multiplier band) and so needs no second band.
         """

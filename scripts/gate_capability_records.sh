@@ -1,21 +1,13 @@
 #!/usr/bin/env bash
-# Capability gate: versioned registries freeze each release cell before
-# implementation, supports a route only with its record's evidence, and rejects a
-# capability that executes without its proof, refusal and artifact evidence.
+# Capability gate: a route is supported only with its record's evidence, and a
+# capability that executes without its proof, refusal and artifact evidence is rejected.
 #
-#   bash scripts/gate_capability_records.sh              # static contract, then execute cited evidence
+#   bash scripts/gate_capability_records.sh              # static contract, cited evidence resolved by source reading
+#   bash scripts/gate_capability_records.sh --resolve    # the same, with cited tests listed by cargo (builds, runs nothing)
 #   bash scripts/gate_capability_records.sh --self-test  # broken registries must fail
 #   bash scripts/gate_capability_records.sh --mutation-check  # manual: every rule has a live case
 set -euo pipefail
 
-# Scientific rows with a current recorded pass (parity/scientific_records.toml)
-# are carried forward, not rerun. --all or ANTECEDENT_SCIENTIFIC_ALL=1 runs and
-# re-records every row (release candidate). See scripts/scientific_records.py.
-_args=()
-for _a in "$@"; do
-  if [[ "$_a" == --all ]]; then export ANTECEDENT_SCIENTIFIC_ALL=1; else _args+=("$_a"); fi
-done
-set -- "${_args[@]+"${_args[@]}"}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -56,46 +48,34 @@ for override in CAPABILITY_TRANSPORT_STAGES CAPABILITY_SUPPORT_CELLS \
   fi
 done
 
-group=all
-if [[ "${1:-}" == "--evidence-group" && $# -eq 2 ]]; then
-  group="$2"
+resolve=0
+if [[ "${1:-}" == "--resolve" && $# -eq 1 ]]; then
+  resolve=1
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--self-test|--mutation-check|--evidence-group GROUP]" >&2
+  echo "usage: $0 [--self-test|--mutation-check|--resolve]" >&2
   exit 2
 fi
 
 EVIDENCE="$(mktemp)"
-SELECTED="$(mktemp)"
-trap 'rm -f "$EVIDENCE" "$SELECTED"' EXIT
+trap 'rm -f "$EVIDENCE"' EXIT
 python3 scripts/check_prerequisites.py
 python3 scripts/check_evidence_ledger.py
 for registry in parity/capability_records.toml; do
   echo "== capability records =="
   : > "$EVIDENCE"
-  if [[ "$group" == all ]]; then
+  if [[ "$resolve" -eq 1 ]]; then
+    # Release candidate: every cited test is listed by cargo (compiled, non-ignored).
     python3 scripts/check_capability_records.py "$registry" --emit-evidence "$EVIDENCE"
   else
-    # Shards validate every registry, then execute only their assigned rows.
     python3 scripts/check_capability_records.py "$registry" --static-evidence --emit-evidence "$EVIDENCE"
   fi
   if [[ ! -s "$EVIDENCE" ]]; then
-    echo "no capability fixture cites evidence yet; nothing to execute"
+    echo "no capability fixture cites evidence yet; nothing to resolve"
     continue
   fi
-  selected="$EVIDENCE"
-  if [[ "$group" != all ]]; then
-    python3 scripts/partition_capability_evidence.py "$EVIDENCE" "$SELECTED" "$group"
-    selected="$SELECTED"
-  fi
-  if [[ ! -s "$selected" ]]; then
-    echo "no capability evidence in $group shard"
-    continue
-  fi
-  if [[ "$group" == all || "$group" == python ]] && ! command -v uv >/dev/null 2>&1; then
-    echo "FAIL: uv is required; unexecuted Python rows are not capability evidence"
-    exit 1
-  fi
-  echo "== capability evidence: executing cited fixtures and refusals =="
-  python3 scripts/run_evidence_rows.py "$ROOT" "$selected" "$ROOT" fixture_evidence gate_capability_records
+  # Resolution only: the cited tests run in the engineering lane, and the cited
+  # scientific ones through scripts/scientific_records.py run (owed only).
+  echo "== capability evidence: cited fixtures and refusals resolve to exact tests =="
+  python3 scripts/run_evidence_rows.py "$ROOT" "$EVIDENCE" "$ROOT" fixture_evidence gate_capability_records --static
 done
 echo "gate_capability_records: ok"

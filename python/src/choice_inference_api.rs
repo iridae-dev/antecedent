@@ -76,7 +76,7 @@ fn consumed_handle(
     let summary = json!({
         "identity": consumed.identity(), "procedure": consumed.procedure().identifier(),
         "paradigm": result.paradigm.as_str(), "method": result.method, "values": result.values,
-        "closed_claim": result.closed_claim, "contract_identity": consumed.contract().identity().to_hex(),
+        "unsupported_claim": result.unsupported_claim, "contract_identity": consumed.contract().identity().to_hex(),
     });
     ConsumedChoiceResultHandle { summary: summary.to_string() }
 }
@@ -137,7 +137,7 @@ impl ChoiceInferenceHandle {
                         "procedure": outcome.procedure.identifier(),
                         "method": outcome.result.method,
                         "values": outcome.result.values,
-                        "closed_claim": outcome.result.closed_claim,
+                        "unsupported_claim": outcome.result.unsupported_claim,
                         "contract_identity": outcome.contract_identity,
                         "look": outcome.request.look(),
                     })

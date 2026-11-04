@@ -193,7 +193,7 @@ The discretized value is point-only: no interval, posterior or calibration, and 
 | Non-Gaussian, finite, mixed or bounded-support mechanism | `discretized_scm.non_gaussian_mechanism`, `support_not_real_line` | Use the route native to that family |
 | Mechanism loading on a shared latent cause | `discretized_scm.latent_confounding` | Use a Markovian composition |
 | Interval or posterior on the discretized value | `discretized_scm.point_only` | Use the point and its bound |
-| A paradigm the route is closed to | `paradigm_parity.paradigm_closed` | Use the paradigm the parity row names |
+| A paradigm the route is closed to | `paradigm_parity.paradigm_not_supported` | Use the paradigm the parity row names |
 | Bytes that are truncated, of another version, or whose premises or claimed numbers no longer re-derive | `discretized_scm_artifact.malformed`, `version_unsupported`, `rederivation_refused`, `claimed_numbers_differ`, `identity_mismatch` | Export again from the producing composition |
 | A finite-table or non-linear-Gaussian composition exported | `discretized_scm_artifact.not_exportable` | Export from a linear-Gaussian composition |
 

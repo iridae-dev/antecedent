@@ -222,7 +222,7 @@ pub fn route_card(route: MeasurementRoute) -> MeasurementRouteCard {
                 "sensitivity and specificity known, or estimated from an independent validation sample",
                 "Youden index above the declared minimum",
                 "non-differential error, or an explicit per-arm differential declaration",
-                "misclassification of the outcome; exposure misclassification is a separate closed route",
+                "misclassification of the outcome; exposure misclassification is a separate unsupported route",
             ],
             allowed: &[
                 MeasurementOperation::LatentPrevalence,

@@ -467,7 +467,8 @@ fn levels_outside_the_derived_range_and_undeclared_dependence_are_refused() {
 }
 
 #[test]
-fn a_derivation_is_unmeasured_but_every_route_is_published_and_the_combined_number_stays_closed() {
+fn a_derivation_is_unmeasured_but_every_route_is_published_and_the_combined_number_is_not_supported()
+ {
     let derived = derive_uncertainty(
         &three(100),
         None,

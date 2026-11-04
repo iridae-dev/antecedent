@@ -24,7 +24,7 @@ use super::cell::{
 /// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
 /// studies, which have no geometric cell to support and run only against a supplied static DAG;
 /// structure discovery, attribution and simulation on a fitted model, which execute through the
-/// compiler and stay unsupported until a coverage record supports them; and the graphless designs,
+/// compiler with calibration status `not_measured`; and the graphless designs,
 /// which are supported by their own design key rather than a graph class.
 ///
 /// This is the closed allow-list for "no cell": every other query kind must classify onto the

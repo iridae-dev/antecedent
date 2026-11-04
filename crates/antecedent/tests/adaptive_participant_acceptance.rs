@@ -493,7 +493,7 @@ fn adaptive_borrowing_frozen_before_recruitment() {
     for looks in [1, performed] {
         let frozen = refused(p.amend_borrowing(&other, looks));
         assert_eq!(frozen.code, "adaptive_assumption_violated");
-        assert_eq!(frozen.detail, "adaptive_inference.borrowing_frozen");
+        assert_eq!(frozen.detail, "adaptive_inference.borrowing_fixed_after_first_look");
         assert!(frozen.message.contains("frozen"), "{}", frozen.message);
     }
     // Re-declaring the same plan is no change.

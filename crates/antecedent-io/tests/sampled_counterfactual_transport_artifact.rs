@@ -505,9 +505,9 @@ fn a_measured_construction_reports_an_interval_bound_to_its_coverage_record() {
 }
 
 #[test]
-fn an_unmeasured_sample_size_or_unseen_rule_refuses_not_supported() {
-    // Name kept for the capability record that cites it: calibration annotates and never
-    // withholds, so the interval is reported and its slot says it is not calibrated.
+fn an_unmeasured_sample_size_or_unseen_rule_is_reported_as_not_calibrated() {
+    // Calibration annotates and never withholds, so the interval is reported and its slot says
+    // it is not calibrated.
     let above = measure_at(20_000, UnseenCellRule::Refuse)
         .expect("an interval above the measured sample sizes is reported");
     assert_eq!(above.report().calibration, "outside_measured_scope");

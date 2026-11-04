@@ -203,7 +203,7 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
     with pytest.raises(R) as error:
         claim.interval()
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+    assert error.value.detail == "joint_law_propagation.no_interval_construction"
     with pytest.raises(TypeError, match="evidence_rows"):
         require_success(claim.check_composed_interval("normal_approximation"))  # type: ignore[call-arg]
 
@@ -234,7 +234,7 @@ def test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_r
     with pytest.raises(R) as error:
         claim.interval()
     assert error.value.reason_code == "uncertainty_representation_insufficient"
-    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+    assert error.value.detail == "joint_law_propagation.no_interval_construction"
 
 
 def test_an_envelope_has_no_composed_interval() -> None:

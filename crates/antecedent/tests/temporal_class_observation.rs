@@ -414,7 +414,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         "two-completion identified set withholds the class observation band"
     );
     assert!(incomplete.diagnostics.iter().any(|d| {
-        d.code.as_ref() == "estimate.temporal_class.observation_class_band_withheld"
+        d.code.as_ref() == "estimate.temporal_class.no_observation_class_band_method"
             || d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band"
     }));
     let structural = incomplete.structural_response.as_ref().unwrap();
@@ -487,7 +487,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         // temporal_response.rs) only warns "few replicates" below
         // `SIMULTANEOUS_BAND_MIN_REPLICATES` on the very same completed-replicate count —
         // both constants are 40, so a banded response can never also carry that warning.
-        !warns(response, "estimate.temporal_response.band_withheld")
+        !warns(response, "estimate.temporal_response.no_band_method")
             && warns(response, "response.temporal.block.persistence_boundary")
             && response
                 .support
@@ -510,7 +510,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         .collect();
     assert!(!atom_responses.is_empty(), "atoms carry the outer circular-block band");
     assert!(atom_responses.iter().all(|r| tuple_band_disclosed(r)));
-    assert!(!warns(incomplete.response().unwrap(), "estimate.temporal_response.band_withheld"));
+    assert!(!warns(incomplete.response().unwrap(), "estimate.temporal_response.no_band_method"));
     assert!(banded(response), "the one-completion class publishes the outer band");
     assert!(tuple_band_disclosed(response));
     let note = oriented

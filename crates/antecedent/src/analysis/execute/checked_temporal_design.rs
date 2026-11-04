@@ -281,7 +281,7 @@ impl CheckedTemporalDesignOperation {
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 format!(
-                    "unsupported and uncalibrated route ({} design, {}): the identifying premises \
+                    "route with calibration status `not_measured` ({} design, {}): the identifying premises \
                      are declared and not checked, and no repeated-sampling calibration of the \
                      reported uncertainty has been measured",
                     payload.design, payload.uncertainty

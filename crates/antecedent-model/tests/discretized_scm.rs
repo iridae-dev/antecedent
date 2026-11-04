@@ -28,7 +28,7 @@ use antecedent_model::discretized_scm::{
     BRIDGE_CALIBRATION, BRIDGE_INFERENCE, DETAIL_CANCELLED, DETAIL_COMPOSITION_INCOHERENT,
     DETAIL_DEGENERATE_MARGINAL, DETAIL_INTERVENTION_INVALID, DETAIL_LATENT_CONFOUNDING,
     DETAIL_LEVELS_OUT_OF_RANGE, DETAIL_LEVELS_UNDECLARED, DETAIL_NON_GAUSSIAN, DETAIL_NUMERICAL,
-    DETAIL_PARADIGM_CLOSED, DETAIL_POINT_ONLY, DETAIL_STATE_SPACE_TOO_LARGE,
+    DETAIL_PARADIGM_NOT_SUPPORTED, DETAIL_POINT_ONLY, DETAIL_STATE_SPACE_TOO_LARGE,
     DETAIL_SUPPORT_NOT_REAL, DETAIL_UNKNOWN_VARIABLE, DiscreteArm, DiscreteContrast,
     DiscretizationMethod, DiscretizationPlan, DiscretizedLinearGaussian, InferenceParadigm,
     MAX_BRIDGE_LEVELS, PARITY_TABLE, ParadigmCell, ParityRoute, parity_row, require_paradigm,
@@ -466,7 +466,7 @@ fn an_interval_or_posterior_request_of_a_discretized_value_is_refused_by_both_pa
 }
 
 #[test]
-fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row() {
+fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_unsupported_row() {
     assert_eq!(PARITY_TABLE.len(), ParityRoute::ALL.len());
     let mut neither = Vec::new();
     for route in ParityRoute::ALL {
@@ -487,7 +487,7 @@ fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row() {
                     assert!(!reason.is_empty());
                     let refusal = require_paradigm(route, paradigm).unwrap_err();
                     assert_eq!(refusal.reason_code, "route_not_supported");
-                    assert_eq!(refusal.detail, DETAIL_PARADIGM_CLOSED);
+                    assert_eq!(refusal.detail, DETAIL_PARADIGM_NOT_SUPPORTED);
                     assert_eq!(refusal.remedy, reason);
                     assert_eq!(
                         refusal.subject,
@@ -502,7 +502,7 @@ fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row() {
     }
     // Only the structural envelope has no inferential paradigm.
     assert_eq!(neither, vec![ParityRoute::DiscoveredStructureTransport]);
-    // The bridge is Frequentist point-only; its Bayesian request is closed.
+    // The bridge is Frequentist point-only; its Bayesian request is not supported.
     assert!(
         require_paradigm(ParityRoute::DiscretizationBridge, InferenceParadigm::Frequentist).is_ok()
     );
@@ -510,6 +510,6 @@ fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row() {
         require_paradigm(ParityRoute::DiscretizationBridge, InferenceParadigm::Bayesian)
             .unwrap_err()
             .detail,
-        DETAIL_PARADIGM_CLOSED
+        DETAIL_PARADIGM_NOT_SUPPORTED
     );
 }

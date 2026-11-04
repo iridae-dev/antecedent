@@ -46,7 +46,7 @@ provides the build baseline:
 | --- | ---: |
 | Native extension builds across 16 jobs | 9,203 runner-seconds, or 153.4 runner-minutes |
 | One native extension build | 428–669 s; median 589 s |
-| Slowest job, Domain transport-contracts | 1,543 s, including 665 s native build and 803 s gate execution |
+| Slowest job, transport-contracts (a former gate section) | 1,543 s, including 665 s native build and 803 s gate execution |
 | Ubuntu Rust remaining packages | 615 s in the test step, including build, tests and doctests |
 | Ubuntu Rust facade | 705 s in the test step, including build, tests and doctests |
 | Python coverage job | 539 s native build and 275 s pytest |
@@ -62,14 +62,14 @@ for another, and an empty selection fails.
 
 | Mode | Selects |
 | --- | --- |
-| `rust` (default), `docs`, `dev` | Workspace nextest run, doctests, or a focused selection. Ordinary nextest runs exclude registered measured-record acceptance assertions. |
-| `rust-software` | Ordinary workspace assertions with registered measured-record acceptance assertions explicitly deselected (they await calibration). |
+| `engineering` (default) | Script tests, workspace nextest run, doctests, optional-feature suites and the Python suite, excluding registered scientific assertions and calibration tests. |
+| `rust`, `docs`, `dev` | Workspace nextest run, doctests, or a focused selection. The nextest default filter (`python3 scripts/evidence_audit.py rust-engineering-filter --check`) excludes registered scientific assertions and calibration tests. |
+| `all` | `engineering`, then `scientific` (owed only). Never calibration. |
 | `rust-calibration-acceptance` | Only those retained acceptance assertions; no calibration is performed. |
 | `integration` | Integration targets, without library unit tests. |
-| `scientific` | Exact scientific assertions cited by the evidence registries: one workspace nextest run of the cited Rust tests (`scripts/evidence_audit.py scientific-filter`), then the cited Python ones (`run-scientific --python-only`). |
+| `scientific` | Exact scientific assertions cited by the evidence registries whose evidence changed since their recorded pass: one nextest run of the owed Rust tests and one pytest batch of the owed Python ones (`scripts/scientific_records.py run`); `--all` reruns every one. |
 | `scripts` | Discovered script unit tests in their locked environment; skips, empty discovery and failures fail. |
-| `python`, `python-test` | pytest without measured-record acceptance assertions (with or without sync and native rebuild). |
-| `python-software` | pytest with `-m 'not requires_calibration'`. |
+| `python`, `python-test` | pytest without scientific, measured-record acceptance and calibration-simulation assertions (with or without sync and native rebuild). |
 | `python-calibration-acceptance` | pytest with `-m requires_calibration`, after branch calibration. |
 
 The pytest modes first check the native extension identity
@@ -98,8 +98,8 @@ ordinary test is in the software lane, so none falls between lanes.
 
 | Lane | Command | Selected | Contents |
 | --- | --- | ---: | --- |
-| Software | `bash scripts/test.sh rust-software` | 13,485 Rust tests; 8,083 pytest tests (`python-software`); 550 script tests (`scripts`) | Every non-ignored workspace test except the registered measured-record acceptance assertions. |
-| Scientific evidence | `bash scripts/test.sh scientific` | 207 Rust tests plus 1 Python test | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; each test is also in the software lane. |
+| Engineering | `bash scripts/test.sh` | Rust tests (`rust`); pytest tests (`python`); script tests (`scripts`) | Every non-ignored workspace test except the registered scientific assertions and the registered calibration tests. |
+| Scientific evidence | `bash scripts/test.sh scientific` | 207 Rust tests plus 1 Python test | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; no other lane runs them. |
 | Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance` | 13 Rust tests; 39 pytest tests (`python-calibration-acceptance`) | Tests registered under `calibration_acceptance_assertions` in `parity/v3_test_registry.toml`, or marked `requires_calibration`. They need the frozen branch's attesting coverage records and fail until `scripts/measure_calibration.sh` has produced them. |
 | Calibration measurement | `bash scripts/measure_calibration.sh` | 803 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and measurement diagnostics. No ordinary lane runs them. |
 | Slow correctness | `bash scripts/test.sh slow` | 9 `#[ignore]` Rust tests | Exhaustive enumerations and heavy acceptance fits that are too slow for the ordinary lanes (for example `mag_id_bruteforce::exhaustive_four_observed_two_latent` and the ring-with-triangles sampler references in `graph_posterior_wide`). Selected by exact name from `parity/slow_correctness_tests.toml`, which gives each a reason and an expected runtime. Manual or nightly; not part of ordinary CI. Twelve sweeps that take 4 s or less at the test profile (the 100,000-row `antecedent-io` fits, the matching and neighbourhood-sensitivity 100,000-row tests, the `p = 667` joint identification and the optional-estimator closure) are ordinary tests, not in this lane. |
@@ -128,8 +128,8 @@ test is gone or no longer ignored, is a failure, so nothing falls out of every l
 runs the selection with `--run-ignored only`; run it before a release or nightly.
 
 The scientific lane builds with the workspace feature set, so it shares its
-build with `rust-software`. Doctests (`docs`) and the optional learner and
-Gaussian-process feature suites (`all`) are separate runs outside these lanes.
+build with `rust`. Doctests (`docs`) and the optional learner and
+Gaussian-process feature suites run in `engineering`.
 
 ## Critical path of the Rust suite
 
@@ -226,7 +226,7 @@ From the repository root:
 # Workspace Rust unit and integration tests, including CI calibration features.
 bash scripts/test.sh
 
-# Include doctests, optional learner/GP features and the Python suite.
+# Engineering tests plus the scientific assertions whose evidence changed.
 bash scripts/test.sh all
 
 # Reuse the same runner settings for a focused development loop.
@@ -276,9 +276,9 @@ measured coverage records.
 ## CI build strategy
 
 The `python-native` job builds one release extension for Linux x86_64 and
-CPython 3.12 after the calibration attestation. Sixteen Python domain sections
-and the coverage/lint job consume this run's artifact. Rust-only domain
-sections start independently while the extension builds.
+CPython 3.12. The `cited-tests` shards, the `scientific` job and the coverage/lint job
+consume this run's artifact. The static, public-API, bench and `rust` jobs start
+independently while the extension builds.
 
 Consumers verify the commit, Python ABI, operating system, architecture,
 package version, filename and checksum. The helper installs the extension in
@@ -287,17 +287,19 @@ It then verifies the exact native import path in a fresh interpreter outside
 the checkout, matching tests that launch child processes from temporary
 directories. Python source coverage still covers the checkout package.
 
-All 27 domain section names (16 Python, 11 Rust-only) and the required `Domain gates` check remain.
-The aggregate check requires both the Python and Rust domain matrices to
-succeed. The 16 platform/interpreter wheel combinations still build and test
+Every CI job is one section of `scripts/gate_release.sh`, in four tiers: `static` (source
+reading only, seconds), the build jobs (`public-api`, `cited-tests`, `benches`, `features`,
+`python-native`, `deny`), the engineering tests (`rust`, `development`, `python-lint`,
+`python-wheels`) and one `scientific` job. A registered scientific assertion runs only in the
+`scientific` job, and only when its evidence changed since its recorded pass
+(`parity/scientific_records.toml`); the engineering jobs deselect it, so no test runs twice. The
+16 platform/interpreter wheel combinations still build and test
 their own installed wheels. Sharing the Linux source-tree extension does not
 replace packaged-wheel testing. Wheel test environments and the local release
 candidate environment also install mypy, which the two typing tests require.
 
-Domain Rust tests now use the same test optimization and debug-info settings
-as the main Rust jobs. The named-test facade listing includes
-`calibration-internal`, matching the preceding facade test build and avoiding
-another feature-specific set of binaries. Compiler caches remain enabled on
+The cited-tests and scientific jobs use the same test optimization and debug-info settings
+as the main Rust jobs. Compiler caches remain enabled on
 the jobs that already use them; cache hits do not replace same-run artifact
 reuse.
 
@@ -392,15 +394,15 @@ estimate; interactive applications shared the host; and the earlier revision had
 12 failing tests (and 13 fewer tests) that the later one does not. The current
 run has far more tests and binaries, so it shows growth, not an improvement. Its
 13 failures are the calibration-pending measured-record tests that
-`rust-software` deselects. The comparison is not called controlled: the
+the default filter deselects. The comparison is not called controlled: the
 checkouts differ by design.
 
 CI runs these controls in the `script unit tests` and `Test-suite controls`
 steps of the Python lint job (`scripts/test_evidence_audit.py` and
 `scripts/test_cost_report.py` through script discovery; the assertion scan and
 registry self-tests, and the source-only evidence audit report, directly). The
-Domain `inventory` section runs the registry check itself, and the provenance
-schema gate runs in every release-gate section. The required checks fail, with
+`static` job runs the registry check itself, and the provenance
+schema gate runs in it. The required checks fail, with
 fault controls in `scripts/test_evidence_audit.py` and
 `scripts/test_cost_report.py`, for: a stale native extension, a deleted one
 with a fresh stamp, or one built for another interpreter ABI,

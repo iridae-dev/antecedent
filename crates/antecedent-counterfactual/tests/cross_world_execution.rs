@@ -210,9 +210,9 @@ fn tolerated_exogenous_simplex_slack_is_normalized_for_abduction() {
 }
 
 // Marginal means need no coupling: E[Y_{x1}] - E[Y_{x0}] = (0.5+0.2) - (0.1+0.2)
-// = 0.4 for an undeclared coupling, but an interval reading is closed.
+// = 0.4 for an undeclared coupling, but an interval reading is not supported.
 #[test]
-fn marginal_contrasts_need_no_coupling_and_interval_readings_are_closed() {
+fn marginal_contrasts_need_no_coupling_and_interval_readings_are_not_supported() {
     let base = FiniteExecutionRequest {
         coupling: NoiseCoupling::Undeclared,
         ..request(
@@ -556,13 +556,16 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     );
     let mut exec = FiniteScmExecutor::new();
 
-    // A different target population: the transported row is closed and names
+    // A different target population: the transported row is unsupported and names
     // its prerequisites.
     let transported =
         FiniteExecutionRequest { target_population: Some("pop-b".to_owned()), ..base.clone() };
     let err = exec.execute(&transported, &ctx()).expect_err("closed");
     assert_eq!(err.refusal().unwrap().code, "route_not_supported");
-    assert_eq!(err.refusal().unwrap().detail, "cross_world_execution.transported_row_closed");
+    assert_eq!(
+        err.refusal().unwrap().detail,
+        "cross_world_execution.no_transported_row_derivation"
+    );
     assert!(err.missing().iter().any(|m| m == "transport_support_missing"));
     assert!(err.missing().iter().any(|m| m == "target_population_abduction_receipt"));
     assert!(err.refusal().unwrap().remedy.is_some());

@@ -277,10 +277,10 @@ def test_envelope_is_never_a_point_or_an_interval_and_ranges_are_labelled() -> N
         assert error.value.reason_code == "uncertainty_representation_insufficient"
     with pytest.raises(R) as error:
         claim.interval()
-    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+    assert error.value.detail == "joint_law_propagation.no_interval_construction"
     with pytest.raises(R) as error:
         require_success(claim.posterior())
-    assert error.value.detail == "joint_law_propagation.posterior_route_closed"
+    assert error.value.detail == "joint_law_propagation.no_posterior_for_fixed_law_inputs"
     # A value function without a verified sign structure is refused.
     bad = jl.PropagationDraws.independent_marginal("x", [-1.0, 1.0, 2.0], evidence_id="s1")
     other = jl.PropagationDraws.independent_marginal("y", [-1.0, 1.0, 2.0], evidence_id="s2")

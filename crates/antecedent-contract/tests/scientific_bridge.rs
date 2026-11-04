@@ -824,7 +824,7 @@ fn an_associational_claim_is_never_a_bridge_source() {
 }
 
 #[test]
-fn predictive_importance_and_model_scores_are_closed_whatever_is_declared() {
+fn predictive_importance_and_model_scores_are_not_supported_whatever_is_declared() {
     let everything = vec![
         assumption("backdoor", AssumptionKind::Identification, Some("identification:any")),
         assumption("linkage", AssumptionKind::BehavioralLinkage, Some("study")),

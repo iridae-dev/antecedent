@@ -311,7 +311,7 @@ whether it runs.
 | Supported (matrix units) | {units["matrix"]} | Staged path plus the row's recorded evidence contract and limitations; passes the support rule |
 | Not supported — listed cell fails the support rule | {listed_failing} | Must stay 0; `scripts/gate_support.py` names the missing provenance or independent check |
 | Not supported — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in `support_refusal_reasons.toml` |
-| Not supported — no reason on file | {unreasoned_refused_count} | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_refusal_reasons.toml` rule |
+| Not supported — no reason on file | {unreasoned_refused_count} | Must stay 0; `gate_support.py` fails if a refused cell has no `support_refusal_reasons.toml` rule |
 
 Do not read "{units["matrix"]} / {cartesian}" as coverage. Read: **{units["matrix"]} matrix
 units carry a provenance record and an executed independent check**; the rest are n/a or
@@ -321,7 +321,7 @@ Every supported cell also executes each of its supported estimators from a
 retained checked operation with no builder alive: its `checked_execution`
 entries in `parity/support_cells.toml` cite, per estimator, the executing
 test that drops its builder, executes the retained plan, and inspects it.
-`scripts/gate_support_matrix.sh` resolves those citations and
+`scripts/gate_support.py --cited-tests` resolves those citations and
 `scripts/gate_checked_execution.sh` runs them.
 
 {calibration_md}

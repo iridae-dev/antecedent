@@ -702,16 +702,16 @@ pub(super) fn authorize_cell(
                 ));
             }
         }
-        CellStatus::ClosedIncoherent { reason } => {
+        CellStatus::Incoherent { reason } => {
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
-                "adaptive_inference.cell_closed",
+                "adaptive_inference.cell_incoherent",
             )
             .with_supplied(cell.identifier())
             .with_expected(reason));
         }
-        CellStatus::ClosedPairing { reason } => {
+        CellStatus::PairingNotSupported { reason } => {
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
@@ -720,11 +720,11 @@ pub(super) fn authorize_cell(
             .with_supplied(cell.identifier())
             .with_expected(reason));
         }
-        CellStatus::CarriedForward { owner, reason } => {
+        CellStatus::NotDelivered { owner, reason } => {
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
-                "adaptive_inference.cell_carried_forward",
+                "adaptive_inference.cell_not_delivered",
             )
             .with_supplied(cell.identifier())
             .with_offending(owner)

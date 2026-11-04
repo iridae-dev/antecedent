@@ -2147,7 +2147,6 @@ id = "decision-reliability"
 crate = "antecedent-design"
 cargo_target = "suite_01"
 path = "crates/antecedent-design/tests/decision_reliability.rs"
-calibration_acceptance_assertions = ["measured_routes_respect_current_attestation_and_report_their_closures"]
 suite_map_line = "suite_01: artifact_compat_inherited, artifact_compat_sequential_reliability_golden, cohort_decision_input, composition_boundary, composition_bridge_nodes, composition_bundle, composition_verifiers, coordinate_parity, cross_surface_bundle, cross_surface_decision, decision_acceptance, decision_adapters, decision_artifact, decision_contract_eval, decision_mean_source, decision_reliability, decision_reliability_candidate_counts, decision_reliability_intervals, decision_reliability_producers, decision_robust_artifact, decision_robustness, decision_structural, decision_structural_artifact, decision_transported_source, design_oracle, design_ranking, design_ranking_artifact, evsi, identity_properties_decision_contract, inverse_forward_source, inverse_observational_scenarios, inverse_query"
 gates = ["inventory", "named"]
 
@@ -2178,7 +2177,6 @@ id = "decision-reliability-intervals"
 crate = "antecedent-design"
 cargo_target = "suite_01"
 path = "crates/antecedent-design/tests/decision_reliability_intervals.rs"
-calibration_acceptance_assertions = ["a_derivation_is_published_inside_a_measured_record_and_refused_outside_it"]
 suite_map_line = "suite_01: artifact_compat_inherited, artifact_compat_sequential_reliability_golden, cohort_decision_input, composition_boundary, composition_bridge_nodes, composition_bundle, composition_verifiers, coordinate_parity, cross_surface_bundle, cross_surface_decision, decision_acceptance, decision_adapters, decision_artifact, decision_contract_eval, decision_mean_source, decision_reliability, decision_reliability_candidate_counts, decision_reliability_intervals, decision_reliability_producers, decision_robust_artifact, decision_robustness, decision_structural, decision_structural_artifact, decision_transported_source, design_oracle, design_ranking, design_ranking_artifact, evsi, identity_properties_decision_contract, inverse_forward_source, inverse_observational_scenarios, inverse_query"
 gates = ["inventory", "named"]
 
@@ -10683,13 +10681,6 @@ path = "scripts/test_check_acceptance_manifest.py"
 gates = ["inventory"]
 
 [[test]]
-id = "check-predictive-score-scope-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_check_predictive_score_scope.py"
-gates = ["inventory"]
-
-[[test]]
 id = "check-release-closure-script"
 crate = "scripts"
 cargo_target = "script"
@@ -10760,24 +10751,10 @@ path = "scripts/test_evidence_selftest.py"
 gates = ["inventory"]
 
 [[test]]
-id = "generate-calibration-backlog-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_generate_calibration_backlog.py"
-gates = ["inventory"]
-
-[[test]]
 id = "interval-attestation-cache-script"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_interval_attestation_cache.py"
-gates = ["inventory"]
-
-[[test]]
-id = "interval-coordinate-emission-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_interval_coordinate_emission.py"
 gates = ["inventory"]
 
 [[test]]
@@ -20720,31 +20697,10 @@ path = "scripts/test_collect_decision_required.py"
 gates = ["inventory"]
 
 [[test]]
-id = "audit-inventory-scripts-test-coverage-citation-module-resolution-py"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_coverage_citation_module_resolution.py"
-gates = ["inventory"]
-
-[[test]]
-id = "audit-inventory-scripts-test-coverage-citations-ratchet-py"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_coverage_citations_ratchet.py"
-gates = ["inventory"]
-
-[[test]]
 id = "audit-inventory-scripts-test-coverage-duplicate-records-py"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_coverage_duplicate_records.py"
-gates = ["inventory"]
-
-[[test]]
-id = "audit-inventory-scripts-test-coverage-figure-checks-py"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_coverage_figure_checks.py"
 gates = ["inventory"]
 
 [[test]]

@@ -18,7 +18,7 @@
 //!
 //! Intervals are reported by the measured-interval layer with a calibration annotation. The
 //! claims that stay closed (the error rate of a stopping rule, operating characteristics for
-//! any other truth) are [`ClosedClaim`]s that refuse. The numerics are in
+//! any other truth) are [`UnsupportedClaim`]s that refuse. The numerics are in
 //! [`antecedent_stats::adaptive_inference`]; the posterior is a statement about choices in the
 //! declared choice set, and stated choices do not identify behaviour or a causal effect.
 //!
@@ -28,7 +28,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference as numerics;
 
 use crate::adaptive_inference::{
-    AdaptiveInferenceError, ClosedClaim, numeric_error, refuse_if_interrupted,
+    AdaptiveInferenceError, UnsupportedClaim, numeric_error, refuse_if_interrupted,
 };
 
 pub use antecedent_stats::adaptive_inference::{
@@ -236,8 +236,8 @@ pub struct ChoiceStoppingDecision {
     pub expected_loss: f64,
     /// Whether the rule says stop.
     pub stop: bool,
-    /// The closed claim about the rule's error rates.
-    pub guarantee: ClosedClaim,
+    /// The unsupported claim about the rule's error rates.
+    pub guarantee: UnsupportedClaim,
 }
 
 fn decide(
@@ -262,7 +262,7 @@ fn decide(
         probability_best: p,
         expected_loss: expected_loss[best_option],
         stop: rule.assess(observed, probability_best, expected_loss).is_some(),
-        guarantee: ClosedClaim::mismatch("choice_inference.stopping_reliability_closed"),
+        guarantee: UnsupportedClaim::mismatch("choice_inference.no_stopping_reliability_procedure"),
     })
 }
 
@@ -513,8 +513,8 @@ pub struct ChoiceOperatingCharacteristics {
     pub work_units: u64,
     /// What these probabilities are.
     pub statement: &'static str,
-    /// The closed claim that these are error rates of the procedure for any other truth.
-    pub guarantee: ClosedClaim,
+    /// The unsupported claim that these are error rates of the procedure for any other truth.
+    pub guarantee: UnsupportedClaim,
 }
 
 /// What an operating characteristic is.
@@ -543,7 +543,9 @@ pub fn choice_operating_characteristics(
         horizon_probability: law.horizon_probability(),
         work_units: law.work_units,
         statement: OPERATING_CHARACTERISTICS_STATEMENT,
-        guarantee: ClosedClaim::closed("choice_inference.operating_characteristics_conditional"),
+        guarantee: UnsupportedClaim::unsupported(
+            "choice_inference.operating_characteristics_conditional",
+        ),
     })
 }
 
@@ -709,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn operating_characteristics_are_the_stats_law_with_the_guarantee_closed() {
+    fn operating_characteristics_are_the_stats_law_with_the_guarantee_unsupported() {
         let spec = ChoiceProcedureSpec {
             prior: vec![1.0; 2],
             batches: vec![4; 4],

@@ -1052,6 +1052,6 @@ fn class_posterior_does_not_publish_largest_atom_posterior_as_aggregate() {
         result
             .diagnostics
             .iter()
-            .any(|d| d.code.as_ref() == "estimate.graph_posterior.posterior_withheld")
+            .any(|d| d.code.as_ref() == "estimate.graph_posterior.no_posterior_method")
     );
 }

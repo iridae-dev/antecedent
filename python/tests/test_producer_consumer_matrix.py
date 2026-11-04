@@ -2100,7 +2100,7 @@ def _declared_measurement(o: Objs) -> Declared:
     with pytest.raises(MeasurementModelRefusal) as interval:
         o.measurement_prepared.interval()
     assert interval.value.reason_code == "uncertainty_representation_insufficient"
-    assert interval.value.detail == "measurement_model.interval_closed"
+    assert interval.value.detail == "measurement_model.interval_requires_estimate"
     quantity = _declared_quantity(
         "construct:latent", "observational", units="unit", population="cohort"
     )
@@ -2652,7 +2652,7 @@ def _declared_observation(o: Objs) -> Declared:
     assert closed.value.detail == "observation_query.declared_model_has_no_sampling_interval"
     with pytest.raises(oq.ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
-    assert calibrated.value.detail == "observation_query.calibrated_probability_closed"
+    assert calibrated.value.detail == "observation_query.no_calibrated_probability"
     observed_q = _declared_quantity("Y", "observed(S=1)", units="probability", population="pop")
     set_q = _declared_quantity("Y", "do(S=1)", units="probability", population="pop")
     return Declared(

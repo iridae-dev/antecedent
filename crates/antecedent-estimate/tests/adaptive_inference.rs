@@ -70,7 +70,7 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
         expected_loss_stopping(&posterior, PosteriorRule::ExpectedLoss { loss_threshold: 1e-6 })
             .unwrap();
     assert!(!loss.stop, "the expected loss of the best arm is not below one in a million");
-    assert_eq!(stop.guarantee.detail, "adaptive_inference.stopping_reliability_closed");
+    assert_eq!(stop.guarantee.detail, "adaptive_inference.no_stopping_reliability_procedure");
     assert_eq!(stop.guarantee.code, "estimator_inference_mismatch");
     {
         let error =
@@ -209,7 +209,7 @@ fn group_sequential_boundaries_and_decisions_follow_the_published_values() {
     assert_eq!(none.stopped_at, None);
     let last = group_sequential_decision(&plan(), &[1.0, 2.0, 2.0], &ctx()).unwrap();
     assert_eq!(last.stopped_at, Some(2));
-    assert_eq!(last.guarantee.detail, "adaptive_inference.stagewise_adjustment_closed");
+    assert_eq!(last.guarantee.detail, "adaptive_inference.no_stagewise_adjustment_procedure");
     assert_eq!(last.guarantee.code, "route_not_supported");
     // More looks than planned, and a non-finite statistic.
     {

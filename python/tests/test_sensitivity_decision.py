@@ -204,7 +204,7 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
     assert with_interval.outcome == without.outcome
     assert len(with_interval.atoms) == len(without.atoms)
     assert plain.identity["digest"] != reported.identity["digest"]
-    assert without.sampling.status == "withheld"
+    assert without.sampling.status == "no_interval_method"
     report = with_interval.sampling
     assert report.status == "separate_not_composed"
     assert not report.composed

@@ -12,6 +12,11 @@ a leaf-crate edit owes only the assertions whose dependency closure contains
 that crate. `--all` or ANTECEDENT_SCIENTIFIC_ALL=1 (a release candidate) runs
 and re-records everything.
 
+`run` executes the owed Rust assertions in one `cargo nextest run` (optimized
+test profile, as scripts/test.sh) and the owed Python assertions in one pytest
+batch, through scripts/run_evidence_rows.py, then records the passes. The
+default engineering lanes exclude these assertions, so nothing else runs them.
+
 A recorded pass is evidence for support only. It is not a calibration
 measurement and no coverage or support claim reads it as one.
 
@@ -44,8 +49,8 @@ RECORDS = "parity/scientific_records.toml"
 HEADER = """# Recorded passes of the scientific assertions (see scripts/scientific_records.py).
 #
 # One [[record]] per scientific assertion that passed, written by
-# `python3 scripts/scientific_records.py run` and by the gates that execute
-# scientific rows. A record is current while its fingerprint matches; an owed
+# `python3 scripts/scientific_records.py run`, the one place scientific assertions
+# run. A record is current while its fingerprint matches; an owed
 # assertion reruns, a current one carries forward. A recorded pass is evidence for
 # support only. It is never a calibration measurement or a coverage claim.
 #
@@ -133,40 +138,6 @@ def all_scientific_rows(root: Path) -> list[dict]:
     return evidence_audit.scientific_rows(evidence_audit.build_report(root)["claims"])
 
 
-class GateSession:
-    """What run_evidence_rows.py uses: carry current scientific rows, record new passes."""
-
-    def __init__(self, root: Path, metadata: dict | None = None):
-        self.root = root
-        self.rows = {(r["evidence_test"], r["evidence_assertion"]): r for r in all_scientific_rows(root)}
-        self.fp = Fingerprinter(root, metadata)
-        self.records = load_records(root)
-        self.annotated: dict[tuple[str, str], dict] = {}
-
-    def annotate(self, row: dict) -> dict | None:
-        """The scientific row this registry row cites, or None when it is not carryable."""
-        key = (row.get("evidence_test"), row.get("evidence_assertion"))
-        if key not in self.rows or row.get("composition_filter"):
-            return None
-        if key not in self.annotated:
-            item = self.rows[key]
-            info = locate(self.root, item)
-            self.annotated[key] = {**item, "selector": info["selector"], "fingerprint": self.fp.fingerprint(item)}
-        return self.annotated[key]
-
-    def current(self, row: dict) -> bool:
-        item = self.annotate(row)
-        return bool(item and is_current(self.records, item["selector"], item["fingerprint"]))
-
-    def record(self, rows: list[dict]) -> int:
-        items = {}
-        for row in rows:
-            item = self.annotate(row)
-            if item:
-                items[item["selector"]] = item
-        return record_passes(self.root, list(items.values()))
-
-
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
@@ -221,8 +192,9 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
         )
         env = {
             **os.environ,
-            "ANTECEDENT_SCIENTIFIC_ALL": "1",  # run exactly what was selected
-            "ANTECEDENT_SCIENTIFIC_RECORD": "0",  # this command records, from the proven ids
+            # The optimized test profile of scripts/test.sh, unless the caller chose one.
+            "CARGO_PROFILE_TEST_OPT_LEVEL": os.environ.get("CARGO_PROFILE_TEST_OPT_LEVEL", "2"),
+            "CARGO_PROFILE_TEST_DEBUG": os.environ.get("CARGO_PROFILE_TEST_DEBUG", "line-tables-only"),
             "ANTECEDENT_EVIDENCE_PASSED_OUT": str(passed_out),
         }
         code = subprocess.run(

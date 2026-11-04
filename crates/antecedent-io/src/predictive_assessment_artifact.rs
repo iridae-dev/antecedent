@@ -33,7 +33,7 @@
 //! `predictive_assessment.report_replay_mismatch` for a stored value that does not recompute.
 //!
 //! What this does **not** say: no interval or significance level for a score or
-//! a score difference (closed: `not_supported`), no calibration guarantee
+//! a score difference (not supported: `not_supported`), no calibration guarantee
 //! (diagnostics are labelled and `unmeasured`), no causal validity (a score is
 //! not a causal claim) and no probability that a claim holds.
 //!
@@ -58,7 +58,7 @@ pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 2;
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE: &str = "predictive_assessment_v1";
 /// Calibration status: diagnostics of this route have no measured calibration.
 pub const PREDICTIVE_ASSESSMENT_CALIBRATION: &str = "unmeasured";
-/// Interval status: a score or score-difference interval is closed.
+/// Interval status: a score or score-difference interval is not supported.
 pub const PREDICTIVE_ASSESSMENT_INTERVAL: &str = "not_reported";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;

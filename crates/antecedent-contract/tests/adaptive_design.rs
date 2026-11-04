@@ -136,15 +136,15 @@ fn the_matrix_lists_every_combination_once_and_classifies_each() {
                 assert!(!paradigms.is_empty());
                 supported += 1;
             }
-            CellStatus::ClosedIncoherent { reason } => {
+            CellStatus::Incoherent { reason } => {
                 assert!(!reason.is_empty());
                 incoherent += 1;
             }
-            CellStatus::ClosedPairing { reason } => {
+            CellStatus::PairingNotSupported { reason } => {
                 assert!(reason.contains("pairing"));
                 pairing += 1;
             }
-            CellStatus::CarriedForward { owner, reason } => {
+            CellStatus::NotDelivered { owner, reason } => {
                 assert!(owner.starts_with("adaptive_inference/"));
                 assert!(!reason.is_empty());
                 carried += 1;
@@ -266,7 +266,7 @@ fn exactly_the_delivered_cells_are_supported_with_their_own_paradigms() {
         cell(A::FixedRandomization, O::RepeatedChoice, M::FixedInterimLooks, S::Efficacy),
     ] {
         assert!(
-            matches!(procedure_status(&pairing), CellStatus::ClosedPairing { .. }),
+            matches!(procedure_status(&pairing), CellStatus::PairingNotSupported { .. }),
             "{}",
             pairing.identifier()
         );
@@ -313,12 +313,14 @@ fn the_registry_table_and_the_executable_matrix_agree_cell_by_cell() {
                 let names: Vec<&str> = paradigms.iter().map(|p| p.as_str()).collect();
                 assert_eq!(row.3, names, "{}", row.0);
             }
-            CellStatus::ClosedIncoherent { .. } => {
-                assert_eq!(row.1, "closed_incoherent", "{}", row.0)
+            CellStatus::Incoherent { .. } => {
+                assert_eq!(row.1, "incoherent", "{}", row.0)
             }
-            CellStatus::ClosedPairing { .. } => assert_eq!(row.1, "closed_pairing", "{}", row.0),
-            CellStatus::CarriedForward { owner, .. } => {
-                assert_eq!(row.1, "carried_forward", "{}", row.0);
+            CellStatus::PairingNotSupported { .. } => {
+                assert_eq!(row.1, "pairing_not_supported", "{}", row.0)
+            }
+            CellStatus::NotDelivered { owner, .. } => {
+                assert_eq!(row.1, "not_delivered", "{}", row.0);
                 assert_eq!(row.2.as_deref(), Some(owner), "{}", row.0);
             }
             _ => panic!("an unclassified cell"),
@@ -337,7 +339,7 @@ fn a_choice_outcome_has_no_assignment_among_arms() {
             MonitoringStrategy::FinalAnalysisOnly,
             StoppingRuleKind::NoStopping,
         );
-        assert!(matches!(procedure_status(&cell), CellStatus::ClosedIncoherent { .. }));
+        assert!(matches!(procedure_status(&cell), CellStatus::Incoherent { .. }));
     }
     let mut d = declaration(cell(
         AssignmentFamily::FixedRandomization,
@@ -409,7 +411,7 @@ fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_ide
     }
     // Futility boundaries (error rates) stay carried forward with their owner.
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
+    assert_eq!(refusal.detail, "adaptive_inference.cell_not_delivered");
 }
 
 // -- completeness ---------------------------------------------------------------------------
@@ -600,7 +602,7 @@ fn a_paradigm_never_transfers_to_a_cell_it_is_not_supported_for() {
 }
 
 #[test]
-fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
+fn incoherent_undelivered_and_unpaired_cells_are_refused_with_their_own_details() {
     use AssignmentFamily as A;
     use MonitoringStrategy as M;
     use OutcomeStructure as O;
@@ -611,7 +613,7 @@ fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
     };
     let carried =
         refused(cell(A::UpperConfidenceBound, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy));
-    assert_eq!(carried.detail, "adaptive_inference.cell_carried_forward");
+    assert_eq!(carried.detail, "adaptive_inference.cell_not_delivered");
     assert_eq!(carried.offending.as_deref(), Some("adaptive_inference/upper_confidence_bound"));
     let paired =
         refused(cell(A::ThompsonBetaBernoulli, O::SingleOutcome, M::GroupSequential, S::Efficacy));
@@ -622,7 +624,7 @@ fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
         M::FinalAnalysisOnly,
         S::Efficacy,
     ));
-    assert_eq!(closed.detail, "adaptive_inference.cell_closed");
+    assert_eq!(closed.detail, "adaptive_inference.cell_incoherent");
     for refusal in [&carried, &paired, &closed] {
         assert_eq!(refusal.code, "route_not_supported");
     }

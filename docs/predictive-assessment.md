@@ -102,9 +102,7 @@ A case count is supported only inside the last column: the range the gated recor
 in the shipped coverage table measured. The measurement design column is the
 range the calibration designs cover; a range of it that no shipped record has
 measured yet is not supported, and a count there refuses like any other count
-outside the shipped records. `scripts/check_predictive_score_scope.py` fails
-when this table, the designs, the records, the Python documentation and the
-release notes disagree.
+outside the shipped records.
 
 The iid interval is a Student-t interval of a mean of independent case scores,
 whose validity grows with the case count, and 102,400 cases is the upper limit

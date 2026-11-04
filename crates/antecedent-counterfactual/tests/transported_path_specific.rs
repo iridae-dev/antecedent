@@ -148,7 +148,7 @@ fn close(a: f64, b: f64) {
 }
 
 #[test]
-fn x8t_hand_values_nde_nie_total() {
+fn hand_values_nde_nie_total() {
     let nde_result = run(&nde(), &target()).unwrap();
     close(nde_result.target_contrast, 4.5 + 1.125 * 0.75);
     close(nde_result.target_contrast, 5.34375);
@@ -170,7 +170,7 @@ fn x8t_hand_values_nde_nie_total() {
 /// Independent oracle: enumerate the exogenous space `(z, u_M, u_Y)` of the target
 /// population with its own nested counterfactual code, not the evaluator's.
 #[test]
-fn x8t_enumeration_over_the_noise_space_matches_and_noise_cancels() {
+fn enumeration_over_the_noise_space_matches_and_noise_cancels() {
     let m_fn = |z: f64, a: f64, u: f64| 0.5 * z + (2.0 - 0.5 * z) * a + u;
     let y_fn = |z: f64, a: f64, m: f64, u: f64| (3.0 + 0.75 * z) * a + 4.0 * m + 1.5 * z + u;
     let (a1, a0) = (2.0, 0.5);
@@ -190,7 +190,7 @@ fn x8t_enumeration_over_the_noise_space_matches_and_noise_cancels() {
 }
 
 #[test]
-fn x8t_target_law_change_moves_the_answer_by_exactly_the_hand_amount() {
+fn target_law_change_moves_the_answer_by_exactly_the_hand_amount() {
     let base = run(&nde(), &target()).unwrap().target_contrast;
     // Move mass from z=1 to z=0: E z goes 0.75 -> 0.5, NDE slope is 1.125.
     let moved = run(&nde(), &law(&[(0.0, 0.5), (1.0, 0.5)])).unwrap().target_contrast;
@@ -203,7 +203,7 @@ fn x8t_target_law_change_moves_the_answer_by_exactly_the_hand_amount() {
 }
 
 #[test]
-fn x8t_source_only_answer_differs_from_the_target_answer() {
+fn source_only_answer_differs_from_the_target_answer() {
     let result = run(&nde(), &target()).unwrap();
     close(result.source_contrast, 5.4);
     close(result.target_contrast, 5.34375);
@@ -211,7 +211,7 @@ fn x8t_source_only_answer_differs_from_the_target_answer() {
 }
 
 #[test]
-fn x8t_selection_on_covariate_or_treatment_is_allowed() {
+fn selection_on_covariate_or_treatment_is_allowed() {
     let diagram = PathSpecificSelectionDiagram {
         selections: vec![
             SelectionNode { label: "S1".to_owned(), target: "z".to_owned() },
@@ -224,7 +224,7 @@ fn x8t_selection_on_covariate_or_treatment_is_allowed() {
 }
 
 #[test]
-fn x8t_selection_on_outcome_mechanism_refuses_with_a_two_model_witness() {
+fn selection_on_outcome_mechanism_refuses_with_a_two_model_witness() {
     let diagram = selection("S", "y");
     let refusal = refusal_of(run_full(
         &model(),
@@ -256,7 +256,7 @@ fn x8t_selection_on_outcome_mechanism_refuses_with_a_two_model_witness() {
 }
 
 #[test]
-fn x8t_selection_on_mediator_is_witnessed_only_when_the_contrast_depends_on_it() {
+fn selection_on_mediator_is_witnessed_only_when_the_contrast_depends_on_it() {
     let diagram = selection("S", "m");
     // The NDE does not depend on the mediator's equation: refused, no impossibility claimed.
     let refusal = refusal_of(run_full(
@@ -292,7 +292,7 @@ fn x8t_selection_on_mediator_is_witnessed_only_when_the_contrast_depends_on_it()
 }
 
 #[test]
-fn x8t_undeclared_premises_refuse_each_with_its_own_detail() {
+fn undeclared_premises_refuse_each_with_its_own_detail() {
     let go = |assumptions| {
         refusal_of(run_full(
             &model(),
@@ -318,7 +318,7 @@ fn x8t_undeclared_premises_refuse_each_with_its_own_detail() {
 }
 
 #[test]
-fn x8t_target_outside_source_support_is_an_overlap_failure() {
+fn target_outside_source_support_is_an_overlap_failure() {
     let outside = law(&[(0.0, 0.5), (3.0, 0.5)]);
     let r = refusal_of(run(&nde(), &outside));
     assert_eq!(r.refusal.code, "transport_support_failure");
@@ -328,7 +328,7 @@ fn x8t_target_outside_source_support_is_an_overlap_failure() {
 }
 
 #[test]
-fn x8t_absent_regime_factor_is_factor_missing() {
+fn absent_regime_factor_is_factor_missing() {
     let mut factors = evidence();
     factors.remove(&factor(PopulationRole::Target));
     let r = refusal_of(run_full(
@@ -347,7 +347,7 @@ fn x8t_absent_regime_factor_is_factor_missing() {
 }
 
 #[test]
-fn x8t_malformed_inputs_are_invalid_arguments() {
+fn malformed_inputs_are_invalid_arguments() {
     let mut cyclic = model();
     cyclic.mechanisms[0].1.parents.push(("y".to_owned(), aff(1.0, &[])));
     let r = refusal_of(run_full(
@@ -379,7 +379,7 @@ fn x8t_malformed_inputs_are_invalid_arguments() {
 }
 
 #[test]
-fn x8t_variable_order_does_not_change_the_answer() {
+fn variable_order_does_not_change_the_answer() {
     let base = model();
     let mut shuffled = model();
     shuffled.mechanisms.reverse();

@@ -5,7 +5,7 @@ conditional law, the log-odds ratio of a two-by-two table, and the Pearson corre
 symmetric quadratic. The selection rule is a deterministic function of the outcome scale and the
 functional, a series resamples circular blocks under the declared dependent-series design, and
 every result is associational: identification not claimed, never an intervention effect, ranking
-no action, unsupported and uncalibrated.
+no action, calibration status `not_measured`.
 """
 
 from __future__ import annotations

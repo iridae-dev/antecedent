@@ -451,7 +451,7 @@ fn a_refreshed_composition_gives_a_new_claim_and_leaves_the_earlier_one_unchange
 }
 
 #[test]
-fn closed_interval_and_calibration_routes_refuse() {
+fn unsupported_interval_and_calibration_routes_refuse() {
     let prepared = confounded();
     let claim = prepared.condition_on("Y", &[direct("S", "1")], &ctx()).unwrap();
     let interval = claim.interval().unwrap_err();
@@ -463,7 +463,7 @@ fn closed_interval_and_calibration_routes_refuse() {
     assert!(interval.refusals[0].remedy.is_some());
     let calibrated = claim.calibrated_probability().unwrap_err();
     assert_eq!(calibrated.code(), "uncertainty_representation_insufficient");
-    assert_eq!(refusal_details(&calibrated), ["observation_query.calibrated_probability_closed"]);
+    assert_eq!(refusal_details(&calibrated), ["observation_query.no_calibrated_probability"]);
 
     // The same posterior read from a fitted model is a labelled point value and
     // is still refused an interval or calibration.

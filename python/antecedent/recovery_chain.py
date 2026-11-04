@@ -24,7 +24,7 @@ the m-graph that agree on all nine observed cells and differ on the target. The 
 are degenerate, so nothing is claimed under faithful or generic parameters. An edge outside the
 row is ``route_not_supported`` (neither recoverable nor nonrecoverable is claimed); a missing
 cell is ``transport_support_failure``. Exact laws only: a sampled provider composed on this row
-is calibrated separately, and that calibration is unmeasured and closed.
+is calibrated separately, and that calibration is unmeasured and not supported.
 
 :meth:`RecoveredChain.export` writes an artifact; :func:`consume_recovery_chain_artifact`
 re-decides, re-evaluates and re-verifies the witness and refuses any change, even one resealed

@@ -367,7 +367,7 @@ pub fn corrected_functional_interval(
 pub fn interval_not_supported() -> MeasurementError {
     MeasurementError::new(
         antecedent_core::reason_code!("route_not_supported"),
-        "measurement_model.interval_closed",
+        "measurement_model.interval_requires_estimate",
         "no variance of the whole measurement-plus-estimation method is derived for this route; the point and an uncalibrated standard error are the result",
     )
 }

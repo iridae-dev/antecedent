@@ -899,7 +899,7 @@ pub(in crate::contract_section) fn verify_checked_iv(
     let expected_weak_uncertainty = match lowering.se_kind.as_str() {
         "homoskedastic" => "anderson_rubin_if_weak",
         "hc0" | "hc1" | "hc2" | "hc3" | "cluster" | "multiway" | "newey_west"
-        | "panel_cluster_hac" => "withheld_non_homoskedastic",
+        | "panel_cluster_hac" => "robust_se_without_weak_instrument_interval",
         _ => return false,
     };
     let Ok(mut arena) = crate::expr_arena_from_wire(&product.arena) else {

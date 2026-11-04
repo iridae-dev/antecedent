@@ -260,7 +260,7 @@ class SmoothedDoseEstimate(ScientificResult):
     """The grid with provenance, diagnostics and the interval status.
 
     ``uncertainty`` is ``point_only`` when no interval was requested and ``bootstrap_interval_requested`` for a request of two or more replicates and
-    ``withheld`` below the floor; ``interval`` is always ``None`` on the estimate.
+    ``too_few_replicates`` below the floor; ``interval`` is always ``None`` on the estimate.
     """
 
     grid: tuple[SmoothedDoseGridPoint, ...]

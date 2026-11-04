@@ -447,7 +447,7 @@ impl ObservationClaim {
     ///
     /// # Errors
     /// Always `uncertainty_representation_insufficient` with
-    /// `observation_query.calibrated_probability_closed`: no measured
+    /// `observation_query.no_calibrated_probability`: no measured
     /// whole-method record exists at any query's coordinate.
     pub fn calibrated_probability(
         &self,
@@ -536,7 +536,7 @@ impl ObservationClaim {
     /// The interval of one redrawn quantity, supported only by a currently
     /// attesting coverage record the registry holds for exactly this composed
     /// coordinate, construction, nominal level and evidence size. The caller
-    /// supplies no record. Without one the interval is closed with the typed
+    /// supplies no record. Without one the interval is not supported with the typed
     /// refusal and the spread of the draws is the labelled
     /// `uncalibrated_spread` ([`PosteriorDraws::spread`]).
     ///

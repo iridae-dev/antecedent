@@ -8,8 +8,8 @@
 //! freedom (frequentist) or stacked into one equal-weight posterior (Bayesian). The pooled
 //! result keeps the first completed table's plan, identification and diagnostics, carries
 //! the pooled estimate and variance, and its missing-data report names every completed
-//! table's estimate and the variance components. No interval is published until a coverage
-//! record measures the whole procedure.
+//! table's estimate and the variance components. No interval is published: the
+//! pooled construction has no interval method.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -443,7 +443,7 @@ where
         _ => return Err(refused("the pooling rule is not one this route reports")),
     };
     // The interval of the first completed table does not describe the pooled estimate, and
-    // the pooled construction has no coverage record yet.
+    // the pooled construction has no interval method.
     result.extras.interval = None;
     result.executed_contract = None;
     let variables: Vec<VariableId> = analysed_variables(&result);

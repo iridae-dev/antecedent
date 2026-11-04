@@ -646,11 +646,9 @@ pub struct PosteriorContrastWire {
     /// Posterior standard deviation; absent when the degrees of freedom are at most two.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard_deviation: Option<f64>,
-    /// Equal-tailed credible interval at the declared level. Artifacts written before it was
-    /// published omit it; the consumer verifies a stored interval against the replay and fills
-    /// an absent one from the replay.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub interval: Option<[f64; 2]>,
+    /// Equal-tailed credible interval at the declared level; the consumer verifies it against
+    /// the replay, and an artifact without it is malformed.
+    pub interval: [f64; 2],
     /// Posterior probability that the contrast is positive.
     pub probability_positive: f64,
 }
@@ -709,7 +707,7 @@ fn contrast_wire(c: &ContrastPosterior) -> PosteriorContrastWire {
         degrees_of_freedom: c.posterior.degrees_of_freedom,
         mean: c.mean,
         standard_deviation: c.standard_deviation.is_finite().then_some(c.standard_deviation),
-        interval: Some(c.interval),
+        interval: c.interval,
         probability_positive: c.probability_positive,
     }
 }
@@ -1853,7 +1851,7 @@ impl CategoricalTreatmentArtifact {
         ctx: &ExecutionContext,
         max_replay_operations: usize,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
-        let (mut meta, raw) = decode_parts_impl(bytes)?;
+        let (meta, raw) = decode_parts_impl(bytes)?;
         crate::artifact_codec::require_semantics::<CategoricalTreatmentArtifactError>(
             meta.feature == CATEGORICAL_TREATMENT_ARTIFACT_FEATURE,
             "feature marker",
@@ -1910,21 +1908,10 @@ impl CategoricalTreatmentArtifact {
                 return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });
             }
         }
-        if let Some(stored) = &mut meta.posterior {
+        if let Some(stored) = &meta.posterior {
             reject_posterior_of_declared_rows(&decl)?;
             let replayed = posterior_wire(&decl, &replay, &stored.declaration)?;
-            // An artifact written before the interval was published omits it; a stored
-            // interval must equal the independently replayed Student-t quantile exactly.
-            for (saved, checked) in stored
-                .level_contrasts
-                .iter_mut()
-                .zip(&replayed.level_contrasts)
-                .chain(stored.pairwise.iter_mut().zip(&replayed.pairwise))
-            {
-                if saved.interval.is_none() {
-                    saved.interval = checked.interval;
-                }
-            }
+            // A stored interval must equal the independently replayed Student-t quantile exactly.
             if *stored != replayed {
                 return Err(CategoricalTreatmentArtifactError::ResultMismatch(
                     "posterior contrasts, moments or monotonicity bounds",

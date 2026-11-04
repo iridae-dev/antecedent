@@ -1626,7 +1626,7 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
 consumer = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"
-notes = "Executes unsupported and uncalibrated; the prior supplies no identifying premise. Serial dependence within a block is kept and ignored across block boundaries."
+notes = "Executes calibration status `not_measured`; the prior supplies no identifying premise. Serial dependence within a block is kept and ignored across block boundaries."
 
 [[child]]
 id = "P11.local_ratio.static.frequentist"
@@ -1682,7 +1682,7 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
 consumer = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"
-notes = "Executes unsupported and uncalibrated; the prior supplies no identifying premise (test_bayesian_temporal_fuzzy_rd_widens_beyond_the_independent_row_error)."
+notes = "Executes calibration status `not_measured`; the prior supplies no identifying premise (test_bayesian_temporal_fuzzy_rd_widens_beyond_the_independent_row_error)."
 
 [[child]]
 id = "P12.intervention.static.frequentist"

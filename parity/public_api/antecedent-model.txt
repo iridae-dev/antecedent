@@ -3864,7 +3864,7 @@ pub const antecedent_model::discretized_scm::DETAIL_LEVELS_OUT_OF_RANGE: &str
 pub const antecedent_model::discretized_scm::DETAIL_LEVELS_UNDECLARED: &str
 pub const antecedent_model::discretized_scm::DETAIL_NON_GAUSSIAN: &str
 pub const antecedent_model::discretized_scm::DETAIL_NUMERICAL: &str
-pub const antecedent_model::discretized_scm::DETAIL_PARADIGM_CLOSED: &str
+pub const antecedent_model::discretized_scm::DETAIL_PARADIGM_NOT_SUPPORTED: &str
 pub const antecedent_model::discretized_scm::DETAIL_POINT_ONLY: &str
 pub const antecedent_model::discretized_scm::DETAIL_STATE_SPACE_TOO_LARGE: &str
 pub const antecedent_model::discretized_scm::DETAIL_SUPPORT_NOT_REAL: &str

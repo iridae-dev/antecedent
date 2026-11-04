@@ -3,7 +3,7 @@
 //! draws, diagnostics, identification, calibration `unmeasured`) replays independently.
 //!
 //! The oracle is closed-form Gauss-Jordan algebra on the posterior precision and never
-//! calls the code under test. The public interval route stays closed; nothing here
+//! calls the code under test. The public interval route is not supported; nothing here
 //! asserts coverage.
 #![allow(
     clippy::cast_precision_loss,

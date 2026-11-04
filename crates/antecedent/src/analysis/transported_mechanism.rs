@@ -27,7 +27,7 @@
 //! The selection diagram and invariance declarations are premises, never tested. The
 //! parameter covariance of a carried mechanism is that of its source fit; the transport
 //! assumption adds no variance term and the result says so ([`UNCERTAINTY_SCOPE`]). The
-//! variance is first-order and uncalibrated and the interval route stays closed
+//! variance is first-order and uncalibrated and the interval route is not supported
 //! ([`TransportedMechanismComposition::interval`]). The receipt's inference label is
 //! `point_only`, its support label is `extrapolative`. The route executes fitted
 //! additive-noise linear-Gaussian mechanisms only; a finite table is decided by the finite
@@ -411,7 +411,7 @@ impl TransportedMechanismComposition {
 
     /// The standing this composition states as a claim in a composition graph:
     /// built from mechanisms the library composed, so no provider trust; the
-    /// interval route is closed ([`Self::interval`]), so no calibration record is
+    /// interval route is not supported ([`Self::interval`]), so no calibration record is
     /// claimed; support `extrapolative` ([`MECHANISM_TRANSPORT_SUPPORT`]).
     #[must_use]
     pub fn claim_standing(&self) -> super::composition_verification::ClaimStanding {

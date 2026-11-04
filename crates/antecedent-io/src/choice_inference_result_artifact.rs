@@ -7,7 +7,7 @@
 //!   sources with their discounts and transfer reasons, looks, stopping rule, procedure cell);
 //! * the request: which look, which route and its prior parameters; and
 //! * the stored values, the method, the point-only claim, the **unmeasured** calibration status
-//!   and the closed claim (a stopping rule's error rate), if any.
+//!   and the unsupported claim (a stopping rule's error rate), if any.
 //!
 //! A consumer trusts none of the stored values. It rebuilds the contract from the declaration
 //! (so a missing element, a source on rows the respondents also contribute, a source of another
@@ -17,7 +17,7 @@
 //! stored value is refused, and a consumer that retained the identity independently refuses a
 //! consistently resealed result of another study.
 //!
-//! What this does **not** say: no interval, credible interval or coverage statement (closed:
+//! What this does **not** say: no interval, credible interval or coverage statement (not supported:
 //! `not_supported`), no frequentist error rate for the stopping rule, and no claim that
 //! stated choices identify behaviour or a causal effect.
 //!
@@ -159,7 +159,7 @@ pub struct ChoiceResult {
     pub values: Vec<f64>,
     /// The claim with no construction that goes with the values (an error rate of a stopping
     /// rule); `None` when every claim of the result is reported through an interval route.
-    pub closed_claim: Option<&'static str>,
+    pub unsupported_claim: Option<&'static str>,
 }
 
 /// A refusal to compute a result.
@@ -293,7 +293,7 @@ pub fn compute_choice_result(
                         decision.expected_loss,
                         f64::from(u8::from(decision.stop)),
                     ],
-                    closed_claim: Some("choice_inference.stopping_reliability_closed"),
+                    unsupported_claim: Some("choice_inference.no_stopping_reliability_procedure"),
                 });
             }
             let mut values: Vec<f64> = (0..posterior.alpha.len())
@@ -320,7 +320,7 @@ pub fn compute_choice_result(
                 paradigm,
                 method: "dirichlet_multinomial_conjugate_posterior",
                 values,
-                closed_claim: None,
+                unsupported_claim: None,
             })
         }
         ChoiceResultSpec::Hierarchical {
@@ -355,7 +355,7 @@ pub fn compute_choice_result(
                         decision.expected_loss,
                         f64::from(u8::from(decision.stop)),
                     ],
-                    closed_claim: Some("choice_inference.stopping_reliability_closed"),
+                    unsupported_claim: Some("choice_inference.no_stopping_reliability_procedure"),
                 });
             }
             let s = &result.summary;
@@ -372,7 +372,7 @@ pub fn compute_choice_result(
                 paradigm,
                 method: "hierarchical_dirichlet_multinomial_posterior",
                 values,
-                closed_claim: None,
+                unsupported_claim: None,
             })
         }
     }
@@ -487,7 +487,7 @@ pub struct ChoiceResultMeta {
     /// Calibration status: always `unmeasured`.
     pub calibration: String,
     /// The claim with no construction, when the result has one.
-    pub closed_claim: Option<String>,
+    pub unsupported_claim: Option<String>,
     /// BLAKE3 identity (hex) of everything above.
     pub identity: String,
 }
@@ -679,7 +679,7 @@ fn compute_identity(meta: &ChoiceResultMeta) -> String {
     writer
         .text(&meta.claim)
         .text(&meta.calibration)
-        .text(meta.closed_claim.as_deref().unwrap_or(""));
+        .text(meta.unsupported_claim.as_deref().unwrap_or(""));
     writer.finish_hex()
 }
 
@@ -725,9 +725,9 @@ fn check(
     let recomputed =
         compute_choice_result(&contract, &spec, ctx).map_err(|error| result_refusal(&error))?;
     if recomputed.method != meta.method
-        || recomputed.closed_claim.map(str::to_owned) != meta.closed_claim
+        || recomputed.unsupported_claim.map(str::to_owned) != meta.unsupported_claim
     {
-        return Err(Error::ResultMismatch("method or closed claim"));
+        return Err(Error::ResultMismatch("method or unsupported claim"));
     }
     let stored: Vec<f64> = meta.value_bits.iter().map(|b| f64::from_bits(*b)).collect();
     if stored.len() != recomputed.values.len()
@@ -964,7 +964,7 @@ impl ChoiceInferenceResultArtifact {
             value_bits: bits(&result.values),
             claim: "point_only".to_owned(),
             calibration: CHOICE_INFERENCE_CALIBRATION.to_owned(),
-            closed_claim: result.closed_claim.map(str::to_owned),
+            unsupported_claim: result.unsupported_claim.map(str::to_owned),
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta);

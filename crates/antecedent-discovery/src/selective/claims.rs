@@ -80,7 +80,7 @@ pub fn request_downstream_interval(
 pub fn request_score_search_reuse() -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("route_not_supported"),
-        "selective_discovery.score_search_closed",
+        "selective_discovery.score_search_not_supported",
         "selective reuse covers constraint-based discovery (PC, FCI, PCMCI, PCMCI+). \
          Score-based search recomputes its local scores each run; use PC with a retained \
          statistic store, or run the score-based algorithm directly",

@@ -638,7 +638,7 @@ impl ExperimentalRecoveryFit {
     }
 
     /// Every unresolved direction: uncovered rows first, then the null directions
-    /// of rank-deficient blocks. Empty only when the recovery goal is closed.
+    /// of rank-deficient blocks. Empty only when the recovery goal is not supported.
     #[must_use]
     pub fn unresolved(&self) -> &[UnresolvedDirection] {
         &self.unresolved

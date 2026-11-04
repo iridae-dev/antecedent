@@ -1,6 +1,6 @@
 //! Result sections of the observational sequential contrast and the within-period history match.
 //!
-//! Both are unsupported and uncalibrated: the sections carry no support status, the retained scores
+//! Both are reported with calibration status `not_measured`: the sections carry no support status, the retained scores
 //! or matched pairs a consumer recomputes from, and the standing of the reported uncertainty.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

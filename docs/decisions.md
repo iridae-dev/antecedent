@@ -473,7 +473,7 @@ diagnostics with calibration unmeasured, not supported claims.
 For the dose grid the pointwise normal intervals and standard errors are
 diagnostics with calibration unmeasured, the smoothing bias is not included, and
 a simultaneous band is a separate claim and is refused (`route_not_supported`,
-`dose_grid.simultaneous_band_closed`): without a smoothing-bias bound it would
+`dose_grid.no_simultaneous_band_method`): without a smoothing-bias bound it would
 exclude the bias. The bias-aware route (`estimate_dose_grid_bias_aware`, or a
 request that declares a curvature bound) builds the bias-aware intervals and
 band. A sampled provider composed on chain recovery is not part of the route;

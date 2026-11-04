@@ -89,7 +89,7 @@ pub struct WorkUnits {
     /// Edge orientations applied.
     pub orientations_applied: u64,
     /// Score evaluations. Always zero: the delivered routes are constraint based and
-    /// score-based search is a closed route (see the module documentation of
+    /// score-based search is a unsupported route (see the module documentation of
     /// [`crate::selective`]).
     pub score_evaluations: u64,
     /// Times the discovery algorithm was entered. A wrapper-level count, not a work unit.

@@ -883,7 +883,7 @@ pub const POSTERIOR_ROW_UNCERTAINTY: &str = "posterior";
 pub const POSTERIOR_ROW_CALIBRATION: &str = "unmeasured";
 
 impl PosteriorRowWire {
-    /// An empty posterior of `estimator` over `coordinates`, unsupported and uncalibrated.
+    /// An empty posterior of `estimator` over `coordinates`, calibration status `not_measured`.
     #[must_use]
     pub fn new(estimator: &str, target: String, coordinates: Vec<String>, draws: usize) -> Self {
         Self {

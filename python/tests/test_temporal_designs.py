@@ -2,7 +2,7 @@
 
 A two-arm micro-randomized panel with a known excursion effect, its Bayesian counterpart, a
 dose grid with a declared curvature bound, and the typed refusals of options a design does
-not read. Every result is unsupported and uncalibrated.
+not read. Every result is reported with calibration status `not_measured`.
 """
 
 from __future__ import annotations

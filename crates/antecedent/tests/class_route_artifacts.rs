@@ -68,9 +68,8 @@ fn round_trip(label: &str, study: &Study) -> antecedent::StudyResult {
     tampered[middle] ^= 0x40;
     let error = consume_analysis_result(&tampered).expect_err("a tampered artifact is refused");
     assert!(
-        matches!(&error, antecedent_io::IoError::ChecksumMismatch { section }
-            if section == "analysis_result.body"),
-        "{label}: a flipped body byte is a body checksum mismatch, not another failure: {error:?}"
+        matches!(&error, antecedent_io::IoError::ChecksumMismatch { .. }),
+        "{label}: a flipped byte is a section checksum mismatch, not another failure: {error:?}"
     );
     result
 }

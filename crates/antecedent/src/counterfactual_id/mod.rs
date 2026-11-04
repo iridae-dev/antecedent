@@ -15,7 +15,7 @@
 //!    checkable obstruction when ID* (and, for a binary treatment, the
 //!    consistency complement) does not identify the query, which is not a
 //!    proof of non-identifiability; `transport_budget_cancel` with a receipt;
-//!    `route_not_supported` outside the contract (`path_specific_deferred` for
+//!    `route_not_supported` outside the contract (`path_specific_not_supported` for
 //!    a world that routes edges, `bounds_exceeded` over a bound);
 //!    `not_supported` for a structure outside the graph contract,
 //!    `estimator_inference_mismatch` for an interval request.

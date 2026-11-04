@@ -3,7 +3,7 @@
 
     python3 scripts/selftest_cases.py docs     # gate_docs_support_matrix.sh --self-test
     python3 scripts/selftest_cases.py schema   # gate_parity_schema.sh --self-test
-    python3 scripts/selftest_cases.py citations  # gate_coverage_citations.sh --self-test
+    python3 scripts/selftest_cases.py calibration  # calibration_status.py --check
     python3 scripts/selftest_cases.py reachability  # gate_evidence_reachability.sh --self-test
     python3 scripts/selftest_cases.py metadata  # gate_metadata_consistency.sh --self-test
 
@@ -23,7 +23,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
@@ -75,8 +74,10 @@ def materialize(ov: Path, rel: str) -> Path:
 
 
 def run_gate(ov: Path, script: str) -> tuple[int, str]:
+    name, *args = script.split()
+    runner = [sys.executable] if name.endswith(".py") else ["bash"]
     proc = subprocess.run(
-        ["bash", str(ov / "scripts" / script)],
+        [*runner, str(ov / "scripts" / name), *args],
         cwd=ov,
         capture_output=True,
         text=True,
@@ -134,19 +135,6 @@ def replace(old: str, new: str) -> Mutation:
         if old not in text:
             raise SystemExit(f"self-test fixture drift: {old!r} not found")
         return text.replace(old, new, 1)
-
-    return apply
-
-
-def drop_calibration_pair() -> Mutation:
-    """Remove a row's `calibration` / `calibration_reason` line, whichever the
-    collector last wrote: the row's state follows the coverage registry."""
-
-    def apply(text: str) -> str:
-        kept = re.sub(r"(?m)^calibration(?:_reason)? = .*\n", "", text)
-        if kept == text:
-            raise SystemExit("self-test fixture drift: no calibration pair in the block")
-        return kept
 
     return apply
 
@@ -252,16 +240,6 @@ def docs_cases() -> list[bool]:
     ]
 
 
-NEW_ESTIMATOR_ROW = """
-[[capabilities]]
-id = "estimate.selftest_estimator"
-group = "estimation"
-description = "A new estimator row that states no calibration"
-owner = "estimate"
-status = "pending"
-"""
-
-
 def gridded_record(
     grid: list[tuple[int, float, bool]],
     boundary: bool,
@@ -339,40 +317,6 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "estimator_row_without_calibration",
-            {
-                "parity/estimate.toml": in_block(
-                    "capabilities",
-                    "estimate.linear_regression",
-                    drop_calibration_pair(),
-                )
-            },
-            ["estimate.linear_regression: exactly one of calibration / calibration_reason"],
-        ),
-        case(
-            g,
-            "new_estimation_group_row_is_obligated",
-            {"parity/estimate.toml": append(NEW_ESTIMATOR_ROW.strip())},
-            ["estimate.selftest_estimator: exactly one of calibration / calibration_reason"],
-        ),
-        case(
-            g,
-            "calibration_on_non_estimation_row",
-            {
-                "parity/estimate.toml": in_block(
-                    "capabilities",
-                    "estimate.refute.placebo",
-                    replace(
-                        'group = "refutation_and_sensitivity"\n',
-                        'group = "refutation_and_sensitivity"\n'
-                        'calibration_reason = "estimator_grid_not_measured"\n',
-                    ),
-                )
-            },
-            ['estimate.refute.placebo: calibration fields only on group = "estimation" rows'],
-        ),
-        case(
-            g,
             "no_interval_reported_out_of_scope",
             {
                 "parity/reason_codes.toml": in_block(
@@ -397,10 +341,8 @@ def schema_cases() -> list[bool]:
             "required_job_not_a_job",
             {
                 "parity/release.toml": replace(
-                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
-                    '"python-wheels"]',
-                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
-                    '"python-wheels", "pull_request"]',
+                    '"development", "python-lint", "scientific", "python-wheels"]',
+                    '"development", "python-lint", "scientific", "python-wheels", "pull_request"]',
                 )
             },
             ["required job 'pull_request' missing from ci.yml"],
@@ -474,6 +416,27 @@ def schema_cases() -> list[bool]:
             },
             ["reason_codes_data.rs is stale against"],
         ),
+        # A confirmed passing range: the failing point stays, the range is derived.
+        # One-sided role: a floor at the level, no upper band, and a stated side and target.
+        case(
+            g,
+            "raw_reason_literal",
+            {
+                # Before any `#[cfg(test)]`: production code, not a test fixture.
+                "crates/antecedent/src/analysis/prepared/mod.rs": replace(
+                    "\n#[cfg(test)]\nmod tests;",
+                    '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\n\n#[cfg(test)]\nmod tests;',
+                )
+            },
+            ['raw "reason=..." literal'],
+        ),
+    ]
+
+
+def calibration_cases() -> list[bool]:
+    g = "calibration_status.py --check"
+    return [
+        case(g, "control", {}, [], must_fail=False),
         case(
             g,
             "record_grid_missing_a_point",
@@ -508,7 +471,6 @@ def schema_cases() -> list[bool]:
             },
             ["grid sample sizes must strictly increase point to point"],
         ),
-        # A confirmed passing range: the failing point stays, the range is derived.
         case(
             g,
             "confirmed_passing_range_of_a_boundary_record",
@@ -585,7 +547,6 @@ def schema_cases() -> list[bool]:
             },
             ["conservative_point requires the Gaussian study-mean theorem and target"],
         ),
-        # One-sided role: a floor at the level, no upper band, and a stated side and target.
         case(
             g,
             "one_sided_record_without_side_and_target",
@@ -602,21 +563,6 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "one_sided_point_below_its_floor",
-            {
-                "parity/coverage_records.toml": append(
-                    gridded_record(
-                        [(150, 0.99, False), (300, 0.9, False), (600, 1.0, False)],
-                        False,
-                        role="one_sided",
-                        one_sided='{ side = "upper", target = "true upper extremal bound" }',
-                    )
-                )
-            },
-            ["one-sided coverage 0.9 is below the 0.95 floor"],
-        ),
-        case(
-            g,
             "one_sided_statement_on_a_gated_record",
             {
                 "parity/coverage_records.toml": append(
@@ -629,119 +575,6 @@ def schema_cases() -> list[bool]:
             },
             ["one_sided on a gated record"],
         ),
-        case(
-            g,
-            "raw_reason_literal",
-            {
-                # Before any `#[cfg(test)]`: production code, not a test fixture.
-                "crates/antecedent/src/analysis/prepared/mod.rs": replace(
-                    "\n#[cfg(test)]\nmod tests;",
-                    '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\n\n#[cfg(test)]\nmod tests;',
-                )
-            },
-            ['raw "reason=..." literal'],
-        ),
-    ]
-
-
-def _live_citation(boundary: bool) -> tuple[str, str, float]:
-    """A coverage figure the supported prose cites today, as `(text, figure, observed)`.
-
-    The fixtures below mutate this text, so it is read from the committed prose and
-    registry rather than written here: a hard-coded figure fails the self-test at the
-    next collection, before any of its cases runs."""
-    records = {
-        rec["id"]: rec
-        for rec in tomllib.loads(
-            (ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8")
-        )["record"]
-    }
-    prose = (ROOT / "parity/support_cells.toml").read_text(encoding="utf-8")
-    for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
-        rec = records.get(m.group(3))
-        if rec is None or bool(m.group(2)) != boundary or bool(rec["boundary"]) != boundary:
-            continue
-        if boundary:
-            # The undisclosed-boundary case strips the words `boundary record`; the
-            # sentence must not name the boundary another way, or nothing is undisclosed.
-            from coverage_citations import BOUNDARY_DISCLOSURE_RE
-
-            head = prose[: m.start()]
-            sentence = head[max(head.rfind(". "), head.rfind("\\n")) + 1 :]
-            if BOUNDARY_DISCLOSURE_RE.search(sentence):
-                continue
-        if abs(float(rec["observed"]) - float(m.group(1))) <= 0.0005 + 1e-9:
-            return m.group(0), m.group(1), float(rec["observed"])
-    raise SystemExit(
-        f"no live {'boundary ' if boundary else ''}l90 citation to build a fixture from"
-    )
-
-
-COND_DAG_BAYES, COND_FIG, COND_OBSERVED = _live_citation(boundary=False)
-BOUNDARY_CITE, _, _ = _live_citation(boundary=True)
-# A figure that differs from the cited record's by far more than the gate's tolerance.
-OTHER_FIG = "0.931" if abs(COND_OBSERVED - 0.931) > 0.01 else "0.812"
-
-
-def citation_cases() -> list[bool]:
-    g = "gate_coverage_citations.sh"
-    lic = "parity/support_cells.toml"
-    return [
-        case(g, "control", {}, [], must_fail=False),
-        case(
-            g,
-            "coverage_figure_unattributed",
-            {lic: replace(COND_DAG_BAYES, COND_FIG)},
-            [f"coverage figure {COND_FIG} has no record citation"],
-        ),
-        case(
-            g,
-            "coverage_figure_disagrees_with_record",
-            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace(COND_FIG, OTHER_FIG))},
-            [
-                f"coverage figure {OTHER_FIG} does not match its cited record(s) "
-                f"({COND_OBSERVED:.4f})"
-            ],
-        ),
-        case(
-            g,
-            "unknown_record_cited",
-            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("l90.", "l80."))},
-            ["cites unknown coverage record"],
-        ),
-        case(
-            g,
-            "attribution_for_a_later_clause_does_not_cover",
-            {
-                lic: replace(
-                    COND_DAG_BAYES,
-                    f"{COND_FIG}; the probe measured 0.180 (not a registry value)",
-                )
-            },
-            [f"coverage figure {COND_FIG} has no record citation"],
-        ),
-        case(
-            g,
-            "boundary_record_undisclosed",
-            {lic: replace(BOUNDARY_CITE, BOUNDARY_CITE.replace("boundary record", "record"))},
-            ["cites a boundary record without naming it a boundary"],
-        ),
-        # Known-truth values, SEs, locations and disclosed probe figures are never rejected.
-        case(
-            g,
-            "known_truth_and_disclosures_allowed",
-            {
-                lic: replace(
-                    COND_DAG_BAYES,
-                    COND_DAG_BAYES
-                    + "; P(Y=1|do(T=1)) = 0.625, mean SE 0.0416 vs Monte Carlo SD 0.0410, "
-                    "total 0.356; a skewed-treatment probe covered 0.180 (not a registry value "
-                    "(probe latency_tiers::interactive_vs_standard_records_mode_and_effort))",
-                )
-            },
-            [],
-            must_fail=False,
-        ),
     ]
 
 
@@ -751,7 +584,7 @@ def reachability_cases() -> list[bool]:
     return [
         case(g, "control", {}, [], must_fail=False),
         # The only consuming test stops reading the fixture; its path survives in a
-        # comment, in gate_bayesian.sh's file list and in non-test library source.
+        # comment, in a gate script's file list and in non-test library source.
         case(
             g,
             "named_only_in_comment_gate_script_and_source",
@@ -854,7 +687,7 @@ def main(argv: list[str]) -> int:
     suites = {
         "docs": docs_cases,
         "schema": schema_cases,
-        "citations": citation_cases,
+        "calibration": calibration_cases,
         "reachability": reachability_cases,
         "metadata": metadata_cases,
     }

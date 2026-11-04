@@ -1,7 +1,7 @@
 //! `dependent_temporal_interval`: the internal interval artifact replays the whole
 //! unit resampling from its embedded panel and refuses every resealed mutation of a unit,
 //! time id, value, snapshot, design, estimator or stored replicate. The public interval
-//! route stays closed; this artifact is internal and records calibration `unmeasured`.
+//! route is not supported; this artifact is internal and records calibration `unmeasured`.
 #![allow(
     clippy::cast_precision_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"

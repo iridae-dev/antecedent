@@ -54,22 +54,22 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_facade.rs",
-          "sha256": "1c170166367808bcd15716ccd3199bc3a77e8fa4e34a41ec13d2e8ee0b866698"
+          "sha256": "c31118ffbd6fd46f32951dfd37cb1df060afc9186539008ddaea47f0e7dd3de1"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "aeca69769283c02533c492645332e03c3ce664740a7cdbba7504f16bd2de7155"
+          "sha256": "0403758f56684fdf88399c8d98a515c6f10da46262c9d42ab99b03a93db2b060"
         },
         {
           "role": "input_fixture",
           "path": "conformance/response/two_point_curve_average_effect/expected.json",
-          "sha256": "2a294e7d5d9e0e24a291a3b54e20701f010e97002aaa7cb8be2d25a39fbe18f5"
+          "sha256": "83936e23c61a0efad00d0efcdf253027076ab4586170c42beeefa7058a071759"
         },
         {
           "role": "input_fixture",
           "path": "conformance/response/temporal_dose_horizon/expected.json",
-          "sha256": "420d52649c0a8c40c607128cef0a6859a3baba3cc504cc192926406bf8f03d1b"
+          "sha256": "9079f061ada2a0b798b0f12c9613d4649bc4d9e9468161bb975d3a70c6b4cfdd"
         }
       ],
       "fixture_payload_sha256": "ae3e0167465bd27441c5cfb3acc76c05fe22d477a2fefe773018b2b10e77b828"

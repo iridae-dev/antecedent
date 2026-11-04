@@ -126,5 +126,61 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(data["counts"][status.CURRENT], 1)
 
 
+class IntervalStateTests(unittest.TestCase):
+    def state(self, allocated, records):
+        return status.interval_state(allocated, {r["id"]: r for r in records})
+
+    def test_no_allocated_record_present_is_not_measured(self):
+        self.assertEqual(self.state([], []), status.NOT_MEASURED)
+        self.assertEqual(self.state(["a"], [{"id": "b"}]), status.NOT_MEASURED)
+
+    def test_every_record_present_and_passing_is_calibrated(self):
+        self.assertEqual(self.state(["a", "b"], [{"id": "a"}, {"id": "b"}]), status.CALIBRATED)
+
+    def test_a_missing_allocated_record_is_outside_the_measured_scope(self):
+        self.assertEqual(self.state(["a", "b"], [{"id": "a"}]), status.OUTSIDE_MEASURED_SCOPE)
+
+    def test_a_boundary_record_is_measured_below_nominal(self):
+        self.assertEqual(
+            self.state(["a", "b"], [{"id": "a", "boundary": True}, {"id": "b"}]),
+            status.MEASURED_BELOW_NOMINAL,
+        )
+
+    def test_only_supported_interval_routes_are_annotated(self):
+        capability = [
+            {
+                "id": "r",
+                "inference_claim": "interval",
+                "coverage_records": ["a"],
+                "routes": [
+                    {"name": "est", "status": "supported"},
+                    {"name": "closed", "status": "closed"},
+                    {"name": "point", "status": "supported", "claim": "point_only"},
+                ],
+            }
+        ]
+        rows = status.interval_routes(capability, [{"id": "a"}])
+        self.assertEqual([(r["route"], r["state"]) for r in rows], [("est", status.CALIBRATED)])
+
+
+class ShapeTests(unittest.TestCase):
+    def test_the_shipped_records_are_well_formed(self):
+        self.assertEqual(status.shape_problems(), [])
+
+    def test_a_malformed_record_is_reported_and_exit_is_nonzero(self):
+        out = io.StringIO()
+        with (
+            patch.object(status, "shape_problems", return_value=["coverage_records.toml x: bad"]),
+            redirect_stdout(out),
+        ):
+            self.assertEqual(status.main(["--check"]), 1)
+        self.assertIn("bad", out.getvalue())
+
+    def test_informational_subcommands_exit_zero(self):
+        for command in ("intervals", "backlog", "plan"):
+            with self.subTest(command=command), redirect_stdout(io.StringIO()):
+                self.assertEqual(status.main([command]), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

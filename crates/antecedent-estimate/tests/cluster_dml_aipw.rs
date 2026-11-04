@@ -833,7 +833,7 @@ fn the_two_way_route_reduces_to_the_one_way_route_for_a_trivial_second_dimension
 /// share a second endpoint) and an entity in both endpoint roles stay closed with
 /// `dyadic_dependence_not_supported`, before any fit.
 #[test]
-fn unsupported_dyadic_structures_stay_closed() {
+fn unsupported_dyadic_structures_are_refused() {
     let (blocks, na, nb) = (30usize, 3usize, 4usize);
     let raw = draw_two_way(blocks, na, nb, 5);
     let ok = run(&declared_two_way(&raw, 20, 4), &raw, 1);
@@ -924,7 +924,7 @@ fn flexible_learner_estimators_refuse_a_cluster_option_with_a_typed_reason() {
                 "{error}"
             );
             let text = error.to_string();
-            assert!(text.contains("cluster_dml.flexible_learner_closed"), "{text}");
+            assert!(text.contains("cluster_dml.flexible_learner_not_supported"), "{text}");
             assert!(text.contains(estimator) && text.contains(option), "{text}");
         }
     }

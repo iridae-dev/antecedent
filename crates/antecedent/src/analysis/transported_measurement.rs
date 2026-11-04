@@ -28,7 +28,7 @@
 //! The invariance premise is declared, never tested. Only the parameter estimation
 //! uncertainty the correction already propagates is reported; the uncertainty of the
 //! premise itself is not propagated, the standard error is conditional on the premise
-//! and uncalibrated, and the interval route stays closed
+//! and uncalibrated, and the interval route is not supported
 //! ([`TransportedMeasurementEstimate::interval`]).
 //!
 //! # Export and consumption
@@ -247,7 +247,7 @@ impl TransportedMeasurementEstimate {
     /// graph.
     ///
     /// A corrected value is a point with an uncalibrated standard error at most:
-    /// the interval route is closed ([`Self::interval`]), so no calibration
+    /// the interval route is not supported ([`Self::interval`]), so no calibration
     /// record is claimed. Trust follows the provenance of the route: a
     /// model-based route rests on no provider (not applicable); an external
     /// latent posterior rests on its provider at the trust it was admitted at

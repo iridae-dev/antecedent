@@ -14,8 +14,8 @@
 //! `theta(a, a') = mean_x ∫ E[Y | a, m, x] dN(m; mu_M(a', x), sigma^2)`.
 //!
 //! The interventional (randomized-draw) direct and indirect effects, which drop the
-//! cross-world assumption and tolerate treatment-induced confounders, are a closed route: asking
-//! for them is refused with `nonlinear_mediation.interventional_effects_closed`.
+//! cross-world assumption and tolerate treatment-induced confounders, are a unsupported route: asking
+//! for them is refused with `nonlinear_mediation.interventional_effects_not_supported`.
 //!
 //! Models: the mediator is linear-Gaussian in `(A, X)` with a homoscedastic normal residual;
 //! the outcome is a polynomial of declared degree in the standardized mediator with treatment
@@ -64,7 +64,7 @@ pub enum NonlinearMediationEstimand {
     /// Natural direct and indirect effects (cross-world independence + sequential
     /// ignorability). The one open route.
     NaturalEffects,
-    /// Interventional (randomized-draw) effects. Closed: refused.
+    /// Interventional (randomized-draw) effects. Not supported: refused.
     InterventionalEffects,
 }
 
@@ -299,7 +299,7 @@ fn check_premises(
     if config.estimand == NonlinearMediationEstimand::InterventionalEffects {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "nonlinear_mediation.interventional_effects_closed",
+            "nonlinear_mediation.interventional_effects_not_supported",
             "only natural direct and indirect effects are open for the nonlinear continuous mediator",
         ));
     }
@@ -940,7 +940,7 @@ impl NonlinearMediationEstimate {
 /// Refuses with `nonlinear_mediation.confounding`,
 /// `nonlinear_mediation.treatment_induced_confounding`,
 /// `nonlinear_mediation.cross_world_independence_not_declared`,
-/// `nonlinear_mediation.interventional_effects_closed`, `nonlinear_mediation.overlap`,
+/// `nonlinear_mediation.interventional_effects_not_supported`, `nonlinear_mediation.overlap`,
 /// `nonlinear_mediation.integration_error`, `nonlinear_mediation.identity_violation`,
 /// `nonlinear_mediation.rank_deficient` or an input-validation detail, or with
 /// `nonlinear_mediation.cancelled` when `ctx` is cancelled before the estimate completes.

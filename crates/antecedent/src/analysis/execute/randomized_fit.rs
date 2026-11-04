@@ -307,7 +307,7 @@ impl TrialFit {
         }
     }
 
-    /// The fit with every interval withheld: a handled missingness has no coverage record.
+    /// The fit with every interval dropped: a handled missingness has no interval method.
     pub(super) fn closed(mut self) -> Self {
         self.interval_95 = None;
         self.interval_standard_error = None;
@@ -514,8 +514,8 @@ fn fit_design_with_missing_outcomes(
 /// large enough to publish one.
 ///
 /// The HC2 Student construction is valid for any covariate count; its coverage is measured only
-/// up to two covariates, which the published label and diagnostic say (it is an uncalibrated
-/// construction until a coverage record covers it).
+/// up to two covariates, which the published label and diagnostic say (its calibration status is
+/// `not_measured` beyond that envelope).
 fn small_arm_interval(
     query: &RandomizedEffectQuery,
     outcomes: &[f64],

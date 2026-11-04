@@ -350,7 +350,9 @@ impl RepeatedMeasuresPosteriorReport {
         }
         if self.supported || self.calibration_measured || self.calibration != UNCALIBRATED_STANDING
         {
-            return Err(invalid("a repeated-measures posterior is unsupported and uncalibrated"));
+            return Err(invalid(
+                "a repeated-measures posterior report carries calibration status `not_measured` and no support claim",
+            ));
         }
         if self.procedure_identity != procedure.identity() {
             return Err(invalid("the report was computed under a different declared procedure"));

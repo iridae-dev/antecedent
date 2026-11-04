@@ -347,7 +347,7 @@ GATES = (
 )
 
 
-def test_transported_route_is_closed_with_every_missing_gate() -> None:
+def test_transported_route_is_not_supported_with_every_missing_gate() -> None:
     error = transported(required_factors=["source:rct", "target:field"])
     assert error.reason_code == "transport_missing_evidence"
     assert error.detail == "transported_counterfactual.prerequisite_missing"
@@ -421,7 +421,7 @@ def test_transported_route_names_the_missing_regime_factor() -> None:
     assert error.missing_gates == ()
 
 
-def test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present() -> None:
+def test_transported_route_is_not_supported_even_when_every_gate_and_factor_is_present() -> None:
     error = transported(
         prerequisites=ALL_PASSED,
         required_factors=["source:rct", "target:field"],

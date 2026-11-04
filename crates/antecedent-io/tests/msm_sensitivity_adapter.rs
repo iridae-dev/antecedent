@@ -110,7 +110,7 @@ fn msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds() {
         panic!("the sampling interval must be withheld");
     };
     assert_eq!(reason_code, "uncertainty_representation_insufficient");
-    assert_eq!(detail, "msm_sensitivity.interval_withheld");
+    assert_eq!(detail, "msm_sensitivity.no_interval_method");
     let provenance = built.provenance();
     assert_eq!(provenance.source_kind, MSM_SOURCE_KIND);
     assert_eq!(provenance.decision_threshold, Some(0.0));

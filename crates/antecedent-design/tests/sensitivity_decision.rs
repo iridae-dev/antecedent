@@ -68,7 +68,7 @@ fn withheld() -> UncertaintyRelationship {
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
             reason_code: "uncertainty_representation_insufficient".into(),
-            detail: "joint_sensitivity.interval_withheld".into(),
+            detail: "joint_sensitivity.no_interval_method".into(),
         },
     }
 }
@@ -501,7 +501,7 @@ fn joint_result(
         interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval".into(),
         sampling: None,
         withheld_reason_code: "uncertainty_representation_insufficient".into(),
-        withheld_detail: "joint_sensitivity.interval_withheld".into(),
+        withheld_detail: "joint_sensitivity.no_interval_method".into(),
         query_binding: "binding-1".into(),
         provider_snapshot: "snapshot-1".into(),
         source_regime: 1,

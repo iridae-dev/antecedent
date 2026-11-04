@@ -306,7 +306,7 @@ def test_counted_laws_report_the_interval_with_its_calibration_annotation():
     undeclared = identified_stage().prepare_empirical(laws(sample_size=40_000), {"x": 1.0})
     withheld = json.loads(require_success(undeclared.estimate()))
     assert withheld["interval"]["available"] is False
-    assert withheld["interval"]["status"] == "withheld"
+    assert withheld["interval"]["status"] == "no_interval_method"
     assert withheld["interval"]["reason"] == "sampling_dependence_unknown"
     assert risk(withheld) == pytest.approx(risk(result))
     # No public Python route builds or yields an interval.

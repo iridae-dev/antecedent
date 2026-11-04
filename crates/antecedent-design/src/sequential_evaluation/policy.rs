@@ -242,7 +242,7 @@ impl ContingentPolicy {
 /// What a caller offers as the policy of an evaluation.
 ///
 /// Only a fixed [`ContingentPolicy`] is evaluated. The other variants exist so
-/// the closed routes are reachable, executed refusals rather than absences.
+/// the unsupported routes are reachable, executed refusals rather than absences.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PolicySpec {
     /// A fixed contingent policy: evaluated.

@@ -127,7 +127,7 @@ fn refusal_of(
 }
 
 #[test]
-fn x8t_artifact_hand_values_survive_the_container_round_trip() {
+fn artifact_hand_values_survive_the_container_round_trip() {
     let sealed = seal(&request());
     close(sealed.result().target_contrast, 5.34375);
     close(sealed.result().source_contrast, 5.4);
@@ -144,7 +144,7 @@ fn x8t_artifact_hand_values_survive_the_container_round_trip() {
             .iter()
             .any(|c| c == "no_selection_on_mediator_or_outcome")
     );
-    let bytes = sealed.to_bytes("x8t-artifact").unwrap();
+    let bytes = sealed.to_bytes("artifact").unwrap();
     let consumed = TransportedCounterfactualArtifact::from_bytes(&bytes, Some(sealed.identity()))
         .expect("replays");
     assert_eq!(consumed.result(), sealed.result());
@@ -158,7 +158,7 @@ fn x8t_artifact_hand_values_survive_the_container_round_trip() {
 }
 
 #[test]
-fn x8t_artifact_identity_and_answer_do_not_depend_on_supply_order() {
+fn artifact_identity_and_answer_do_not_depend_on_supply_order() {
     let base = seal(&request());
     let mut shuffled = request();
     shuffled.model.mechanisms.reverse();
@@ -176,7 +176,7 @@ fn x8t_artifact_identity_and_answer_do_not_depend_on_supply_order() {
 }
 
 #[test]
-fn x8t_artifact_resealed_changes_are_refused_against_the_retained_identity() {
+fn artifact_resealed_changes_are_refused_against_the_retained_identity() {
     let retained = seal(&request()).identity().clone();
     let mut by_field: Vec<(&str, TransportedCounterfactualRequestWire)> = Vec::new();
     // A coefficient: the A coefficient of M.
@@ -221,7 +221,7 @@ fn x8t_artifact_resealed_changes_are_refused_against_the_retained_identity() {
 }
 
 #[test]
-fn x8t_artifact_stale_identity_after_an_unresealed_edit_is_refused() {
+fn artifact_stale_identity_after_an_unresealed_edit_is_refused() {
     let sealed = seal(&request());
     let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
     // Edit a coefficient and a law in place without updating the stored identity or result.
@@ -246,7 +246,7 @@ fn x8t_artifact_stale_identity_after_an_unresealed_edit_is_refused() {
 }
 
 #[test]
-fn x8t_artifact_false_labelled_premises_are_refused_even_when_resealed() {
+fn artifact_false_labelled_premises_are_refused_even_when_resealed() {
     let sealed = seal(&request());
     for (flip, detail) in [
         (0, "transported_counterfactual.nonadditive_mechanism"),
@@ -273,7 +273,7 @@ fn x8t_artifact_false_labelled_premises_are_refused_even_when_resealed() {
 }
 
 #[test]
-fn x8t_artifact_a_selection_resealed_onto_a_mechanism_is_refused_with_its_witness() {
+fn artifact_a_selection_resealed_onto_a_mechanism_is_refused_with_its_witness() {
     let sealed = seal(&request());
     let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
     meta.request.selections = selection("y");
@@ -289,7 +289,7 @@ fn x8t_artifact_a_selection_resealed_onto_a_mechanism_is_refused_with_its_witnes
 }
 
 #[test]
-fn x8t_artifact_a_tampered_stored_answer_does_not_replay() {
+fn artifact_a_tampered_stored_answer_does_not_replay() {
     let sealed = seal(&request());
     let tampered = |edit: &dyn Fn(&mut TransportedCounterfactualMeta)| {
         let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
@@ -316,7 +316,7 @@ fn x8t_artifact_a_tampered_stored_answer_does_not_replay() {
 }
 
 #[test]
-fn x8t_artifact_a_changed_stored_identity_field_is_named() {
+fn artifact_a_changed_stored_identity_field_is_named() {
     let sealed = seal(&request());
     let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
     meta.identity.premises_digest = "0".repeat(64);
@@ -330,7 +330,7 @@ fn x8t_artifact_a_changed_stored_identity_field_is_named() {
 }
 
 #[test]
-fn x8t_artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
+fn artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
     let mut on_outcome = request();
     on_outcome.selections = selection("y");
     let refusal = refusal_of(&on_outcome);
@@ -374,7 +374,7 @@ fn x8t_artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
 }
 
 #[test]
-fn x8t_artifact_unknown_versions_features_and_corruption_are_refused() {
+fn artifact_unknown_versions_features_and_corruption_are_refused() {
     let sealed = seal(&request());
     let bytes = sealed.to_bytes("x").unwrap();
     let mut meta = decode_parts(&bytes).unwrap();
@@ -417,7 +417,7 @@ fn x8t_artifact_unknown_versions_features_and_corruption_are_refused() {
 }
 
 #[test]
-fn x8t_artifact_bounds_are_enforced_on_the_request() {
+fn artifact_bounds_are_enforced_on_the_request() {
     // There is no covariate-count cap: a wide model is refused for what it declares, never for
     // how many covariates it names.
     let mut wide = request();

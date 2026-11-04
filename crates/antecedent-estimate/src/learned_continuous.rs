@@ -83,7 +83,7 @@ pub(crate) const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
 /// Point-only status: no interval was requested.
 pub(crate) const CONTINUOUS_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub(crate) const CONTINUOUS_WITHHELD: &str = "withheld";
+pub(crate) const CONTINUOUS_WITHHELD: &str = "too_few_replicates";
 /// A bootstrap interval was requested; `learned_continuous_interval_internal` forms it and
 /// its calibration annotation carries the status.
 pub(crate) const CONTINUOUS_BOOTSTRAP_INTERVAL: &str = "bootstrap_interval_requested";
@@ -168,7 +168,7 @@ impl LearnedContinuousUncertainty {
             replicates_requested: 0,
         }
     }
-    /// The status of a request for `bootstrap` replicates on the closed route.
+    /// The status of a request for `bootstrap` replicates on the unsupported route.
     #[must_use]
     pub fn for_request(bootstrap: u32) -> Self {
         let (status, reason, detail) = if bootstrap == 0 {

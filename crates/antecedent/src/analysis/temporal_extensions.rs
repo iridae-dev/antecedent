@@ -1,5 +1,5 @@
 //! Temporal extensions of the finite two-step sequence: the uncertain
-//! pre-action state, the new-period refresh, and the closed dependent interval.
+//! pre-action state, the new-period refresh, and the unsupported dependent interval.
 //!
 //! * **Initial state** (`antecedent.transport.temporal_initial_state`, point only,
 //!   supported): the target two-step mean marginalized over a finite **target**

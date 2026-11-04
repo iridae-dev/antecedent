@@ -4,7 +4,7 @@
 //! the retained assignment history. None of them analyses the final sample as
 //! if the design had been fixed, and none reports a calibrated interval: every
 //! interval-like number is labelled uncalibrated by its caller and the
-//! interval route stays closed until whole-procedure coverage is measured.
+//! interval route is not supported.
 //!
 //! * [`beta_bernoulli`]: the conjugate posterior of Bernoulli arms, the
 //!   posterior probability that an arm is best and the posterior expected loss

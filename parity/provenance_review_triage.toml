@@ -3959,7 +3959,7 @@ shares_primary_source_with = 0
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
-id = "provider_callback.closed_claims"
+id = "provider_callback.unsupported_claims"
 class = "justified_non_algorithm"
 priority = 0
 admitted_specs = 0

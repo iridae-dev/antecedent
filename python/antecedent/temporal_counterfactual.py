@@ -1,4 +1,4 @@
-"""Fixed-population temporal counterfactual and the closed transported route.
+"""Fixed-population temporal counterfactual and the unsupported transported route.
 
 The graph is one fixed, fully observed, Markovian two-slice DAG over the nodes
 ``covariate_0 -> action_0 -> covariate_1 -> action_1 -> outcome`` (a covariate and an action
@@ -913,7 +913,7 @@ def transported_path_specific(
     supplied_factors: Mapping[str | tuple[str, str], str] | None = None,
     prerequisites: TransportedPrerequisites | None = None,
 ) -> NoReturn:
-    """The closed transported path-specific counterfactual route: always a typed refusal.
+    """The unsupported transported path-specific counterfactual route: always a typed refusal.
 
     Transporting a counterfactual needs both an identified target transport functional and a
     fixed-population cross-world theorem for the same quantity; neither a transported mean

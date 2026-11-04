@@ -22,7 +22,7 @@
 //!   the request's population, regime and arm;
 //! - a level that no admissible evidence reaches, stating the most extreme
 //!   value that is reachable;
-//! - an interval or a calibrated-probability claim, both closed.
+//! - an interval or a calibrated-probability claim, both not supported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -648,7 +648,7 @@ fn categorical_likelihood(
         .collect())
 }
 
-// ------------------------------------------------------------ closed routes
+// ------------------------------------------------------------ unsupported routes
 
 /// The refusal of a sampling interval for the value of a declared model: its posterior
 /// probability is an exact number with no sampling distribution. A probability computed
@@ -671,7 +671,7 @@ pub fn calibration_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         OBSERVATION_QUERY_STAGE,
-        "observation_query.calibrated_probability_closed",
+        "observation_query.no_calibrated_probability",
     )
     .with_remedy(
         "a declared model's probability is an exact number and makes no claim about how often it is right; a probability computed from tables fitted to counts is reported with posterior quantiles only through the count-fitted interval, bound to a currently attesting whole-method coverage record",
@@ -1117,7 +1117,7 @@ mod tests {
     }
 
     #[test]
-    fn closed_routes_and_unreachable_levels_carry_registered_codes_and_remedies() {
+    fn unsupported_routes_and_unreachable_levels_carry_registered_codes_and_remedies() {
         for refusal in [
             interval_refusal(),
             calibration_refusal(),
@@ -1133,7 +1133,7 @@ mod tests {
         assert_eq!(unreachable.supplied.as_deref(), Some("0.78"));
         assert_eq!(interval_refusal().code, "uncertainty_representation_insufficient");
         assert_eq!(calibration_refusal().code, "uncertainty_representation_insufficient");
-        assert_eq!(calibration_refusal().detail, "observation_query.calibrated_probability_closed");
+        assert_eq!(calibration_refusal().detail, "observation_query.no_calibrated_probability");
     }
 
     #[test]

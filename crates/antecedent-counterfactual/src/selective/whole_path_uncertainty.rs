@@ -14,7 +14,7 @@
 //!   a premise of the row, not a quantity this row can propagate; no
 //!   mechanism-parameter uncertainty exists because nothing is fitted
 //!   (`mechanism_fits` is zero). A fitted or sampled mechanism is a different
-//!   row with its own posterior input and is closed here.
+//!   row with its own posterior input and is not supported here.
 //! * **Posterior.** The exogenous posterior of a unit given its factual
 //!   evidence is enumerated exactly, so the abduction has no estimation error.
 //!   What remains is the *predictive* variance of the unit's counterfactual
@@ -52,7 +52,7 @@
 //!
 //! Every spread carries the label `uncalibrated_spread`: there is no measured
 //! coverage record for the abduction-action-prediction path, so an interval or
-//! posterior reading is closed.
+//! posterior reading is not supported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -267,7 +267,7 @@ pub fn derive_whole_path_uncertainty(
     if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
         return Err(refuse(
             antecedent_core::reason_code!("transport_not_certified"),
-            "cross_world_uncertainty.transported_path_closed",
+            "cross_world_uncertainty.no_transported_path_derivation",
             request.target_population.clone(),
             "the uncertainty of a transported cross-world quantity composes the transport \
              identification with a target-population abduction, for which no derivation exists; \

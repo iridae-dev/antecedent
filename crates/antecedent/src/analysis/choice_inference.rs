@@ -11,8 +11,9 @@
 //!    rule. A missing or inconsistent element is a typed refusal and nothing is defaulted.
 //! 2. **Analyse** ([`ChoiceInferenceSession::analyse`]) authorizes one paradigm for the cell and
 //!    runs it: the pooled Dirichlet posterior, the hierarchical posterior of repeated choices,
-//!    or the contract's stopping decision on either. Every result is point-only; interval and
-//!    guarantee routes refuse with `not_supported` until coverage is measured.
+//!    or the contract's stopping decision on either. Every result is point-only; a guarantee route
+//!    with no construction refuses with `not_supported`, and an interval is reported with its
+//!    calibration status.
 //! 3. **Operating characteristics** ([`ChoiceInferenceSession::operating_characteristics`]) is
 //!    the exact law of the contract's sequential procedure under a declared kernel.
 //! 4. **Export / consume** write and replay `choice_inference_result_v1`, recomputing every
@@ -439,7 +440,7 @@ impl ChoiceInferenceSession {
     pub fn interval(&self) -> Result<(), ChoiceInferenceRefusal> {
         Err(ChoiceInferenceRefusal {
             code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
-            detail: "choice_inference.interval_closed".to_owned(),
+            detail: "choice_inference.interval_names_no_quantity".to_owned(),
             message: format!(
                 "an interval or coverage statement of the choice procedure {} as an unqualified request names no scientific quantity; request the interval of a result with measured_interval, which reports it with its calibration status",
                 self.contract.cell().identifier()
@@ -464,7 +465,7 @@ impl ChoiceInferenceSession {
             antecedent_io::IoError::Refused { code, message } => {
                 let (detail, text) = message
                     .split_once(": ")
-                    .unwrap_or(("choice_inference.interval_closed", message.as_str()));
+                    .unwrap_or(("choice_inference.interval_names_no_quantity", message.as_str()));
                 ChoiceInferenceRefusal { code, detail: detail.to_owned(), message: text.to_owned() }
             }
             other => ChoiceInferenceRefusal {

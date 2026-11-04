@@ -620,7 +620,7 @@ impl ParticipantSpec {
     /// the prior. `looks_performed` is the number of looks already made.
     ///
     /// # Errors
-    /// [`Error::PremiseFailed`] with `adaptive_inference.borrowing_frozen`
+    /// [`Error::PremiseFailed`] with `adaptive_inference.borrowing_fixed_after_first_look`
     /// when a different plan is proposed after the first look; an invalid
     /// proposal.
     pub fn amend_borrowing(
@@ -633,7 +633,7 @@ impl ParticipantSpec {
         }
         if looks_performed > 0 {
             return Err(Error::PremiseFailed {
-                detail: "adaptive_inference.borrowing_frozen",
+                detail: "adaptive_inference.borrowing_fixed_after_first_look",
                 message: "historical borrowing is part of the declared procedure and is frozen before recruitment; a change after the first look would let the data choose the prior",
             });
         }

@@ -19,7 +19,7 @@ use crate::{CausalExprArena, DerivationMeta, ExprId, ExprNode, VarSetId};
 /// contain every variable in `variables`. If any bound variable is absent, the node
 /// is malformed: that variable contributes a bare `|support(v)|` factor (`SumOut`)
 /// or an unweighted integration measure (`IntegralOut`). Rather than guess,
-/// `simplify` fails closed and reports the offending variables. The check runs
+/// `simplify` fails unsupported and reports the offending variables. The check runs
 /// before nested binders are merged, so merging can never launder a dead binder.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]

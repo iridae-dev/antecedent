@@ -610,8 +610,8 @@ assertion_scopes = ["test_a_family_with_one_unsupported_cell_keeps_the_rest"]
 dimensions = ["branch"]
 assertion_contract = "An empty cell is refused arm_not_populated with joint_cells.cell_empty while the supported cells and contrasts are retained."
 [[capability.evidence]]
-test = "python/tests/test_derived_treatment.py::test_intervals_machine_learning_nuisance_and_lasso_are_closed"
-assertion_scopes = ["test_intervals_machine_learning_nuisance_and_lasso_are_closed", "refusal"]
+test = "python/tests/test_derived_treatment.py::test_intervals_machine_learning_nuisance_and_lasso_are_not_supported"
+assertion_scopes = ["test_intervals_machine_learning_nuisance_and_lasso_are_not_supported", "refusal"]
 dimensions = ["refusal", "controls"]
 assertion_contract = "Intervals and ML nuisances refuse with penalized_interval_not_supported and ml_nuisance_not_supported."
 [[capability.evidence]]
@@ -1591,7 +1591,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
 assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.no_interval_method; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.cross_world_interval.whole_path_interval_basis"
@@ -1608,7 +1608,7 @@ deferred_dimensions = ["success"]
 test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
 assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.no_interval_method; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.decision_claims.atom_leaders"
@@ -3441,7 +3441,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"
 assertion_scopes = ["test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"]
 dimensions = ["success", "artifact", "inspection"]
-assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (uncertainty_representation_insufficient, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
+assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (uncertainty_representation_insufficient, msm_sensitivity.no_interval_method) and the sealed source kind marginal_sensitivity_model."
 [[capability.evidence]]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_round_trips_and_refuses_a_foreign_identity"
 assertion_scopes = ["test_msm_artifact_round_trips_and_refuses_a_foreign_identity"]
@@ -3466,7 +3466,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"
 assertion_scopes = ["test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"]
 dimensions = ["success", "artifact", "inspection"]
-assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (uncertainty_representation_insufficient, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
+assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (uncertainty_representation_insufficient, msm_sensitivity.no_interval_method) and the sealed source kind marginal_sensitivity_model."
 [[capability.evidence]]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_round_trips_and_refuses_a_foreign_identity"
 assertion_scopes = ["test_msm_artifact_round_trips_and_refuses_a_foreign_identity"]
@@ -3640,8 +3640,8 @@ assertion_scopes = ["test_input_errors_are_typed_not_refusals"]
 dimensions = ["controls"]
 assertion_contract = "A negative success count raises CausalTypeError rather than a refusal."
 [[capability.evidence]]
-test = "python/tests/test_observation_query.py::test_interval_and_calibrated_probability_are_closed"
-assertion_scopes = ["test_interval_and_calibrated_probability_are_closed"]
+test = "python/tests/test_observation_query.py::test_interval_and_calibrated_probability_are_not_supported"
+assertion_scopes = ["test_interval_and_calibrated_probability_are_not_supported"]
 dimensions = ["refusal"]
 assertion_contract = "A sample-fitted conjugate posterior refuses calibrated_probability with ObservationQueryRefusal."
 
@@ -3864,8 +3864,8 @@ behavior = "antecedent::analysis::provider_callbacks::refuse_identification_evid
 python = "antecedent.provider_callbacks.refuse_identification_evidence"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
-assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
+test = "python/tests/test_provider_callbacks.py::test_unsupported_routes_refuse_with_registered_codes_and_remedies"
+assertion_scopes = ["test_unsupported_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
 assertion_contract = "refuse_identification_evidence raises a CallbackRefusal with the registered code callback_protocol_invalid, detail callback_protocol.identification_not_conferred and a remedy; a native trust level is not declarable."
 
@@ -3878,8 +3878,8 @@ behavior = "antecedent::analysis::provider_callbacks::refuse_interval: public fn
 python = "antecedent.provider_callbacks.refuse_interval"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
-assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
+test = "python/tests/test_provider_callbacks.py::test_unsupported_routes_refuse_with_registered_codes_and_remedies"
+assertion_scopes = ["test_unsupported_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
 assertion_contract = "refuse_interval raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.interval_not_supported and a remedy; a native trust level is not declarable."
 
@@ -3892,8 +3892,8 @@ behavior = "antecedent::analysis::provider_callbacks::refuse_joint_law: public f
 python = "antecedent.provider_callbacks.refuse_joint_law"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
-assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
+test = "python/tests/test_provider_callbacks.py::test_unsupported_routes_refuse_with_registered_codes_and_remedies"
+assertion_scopes = ["test_unsupported_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
 assertion_contract = "refuse_joint_law raises a CallbackRefusal with the registered code joint_law_required, detail callback_protocol.joint_law_not_conferred and a remedy; a native trust level is not declarable."
 
@@ -3906,8 +3906,8 @@ behavior = "antecedent::analysis::provider_callbacks::refuse_native_trust: publi
 python = "antecedent.provider_callbacks.refuse_native_trust"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
-assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
+test = "python/tests/test_provider_callbacks.py::test_unsupported_routes_refuse_with_registered_codes_and_remedies"
+assertion_scopes = ["test_unsupported_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
 assertion_contract = "refuse_native_trust raises a CallbackRefusal with the registered code callback_protocol_invalid, detail callback_protocol.native_trust_not_conferred and a remedy; a native trust level is not declarable."
 
@@ -3920,8 +3920,8 @@ behavior = "antecedent::analysis::provider_callbacks::refuse_posterior_guarantee
 python = "antecedent.provider_callbacks.refuse_posterior_guarantee"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
-assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
+test = "python/tests/test_provider_callbacks.py::test_unsupported_routes_refuse_with_registered_codes_and_remedies"
+assertion_scopes = ["test_unsupported_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
 assertion_contract = "refuse_posterior_guarantee raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.posterior_guarantee_not_supported and a remedy; a native trust level is not declarable."
 
@@ -5236,8 +5236,8 @@ behavior = "antecedent::analysis::temporal_counterfactual::transported_path_spec
 python = "antecedent.temporal_counterfactual.transported_path_specific"
 required_dimensions = ["refusal", "inspection", "branch"]
 [[capability.evidence]]
-test = "python/tests/test_temporal_counterfactual.py::test_transported_route_is_closed_with_every_missing_gate"
-assertion_scopes = ["test_transported_route_is_closed_with_every_missing_gate"]
+test = "python/tests/test_temporal_counterfactual.py::test_transported_route_is_not_supported_with_every_missing_gate"
+assertion_scopes = ["test_transported_route_is_not_supported_with_every_missing_gate"]
 dimensions = ["refusal", "inspection"]
 assertion_contract = "With every gate missing the route refuses transport_missing_evidence transported_counterfactual.prerequisite_missing, offending transport_support_missing, retains all three missing gates and both missing factors, stage identify, with a remedy."
 [[capability.evidence]]
@@ -5251,8 +5251,8 @@ assertion_scopes = ["test_transported_route_names_the_missing_regime_factor"]
 dimensions = ["refusal", "branch"]
 assertion_contract = "With every gate passed and a factor absent the refusal is transport_missing_evidence factor_missing offending source:rct."
 [[capability.evidence]]
-test = "python/tests/test_temporal_counterfactual.py::test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present"
-assertion_scopes = ["test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present"]
+test = "python/tests/test_temporal_counterfactual.py::test_transported_route_is_not_supported_even_when_every_gate_and_factor_is_present"
+assertion_scopes = ["test_transported_route_is_not_supported_even_when_every_gate_and_factor_is_present"]
 dimensions = ["refusal", "branch"]
 assertion_contract = "With every gate and factor present the route still refuses route_not_supported transported_counterfactual.joint_theorem_not_derived with no offending gate."
 [[capability.evidence]]
@@ -12161,8 +12161,8 @@ assertion_scopes = ["test_continuous_evidence_refusals_are_typed_with_remedies"]
 dimensions = ["refusal"]
 assertion_contract = "Levels for a continuous model, conditioning and intervening on one variable, and real values for a finite model each refuse with their own observation_query detail."
 [[capability.evidence]]
-test = "python/tests/test_observation_query.py::test_interval_and_calibrated_probability_are_closed"
-assertion_scopes = ["test_interval_and_calibrated_probability_are_closed"]
+test = "python/tests/test_observation_query.py::test_interval_and_calibrated_probability_are_not_supported"
+assertion_scopes = ["test_interval_and_calibrated_probability_are_not_supported"]
 dimensions = ["refusal"]
 assertion_contract = "A declared-model claim refuses interval and calibrated-probability readings with not_supported and their closed details."
 
@@ -12381,7 +12381,7 @@ required_dimensions = ["success", "refusal", "branch", "inspection"]
 test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
 assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
 dimensions = ["refusal", "controls", "branch"]
-assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused not_supported cross_world_execution.no_interval_method; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.stage.progressive_events"
@@ -12578,10 +12578,10 @@ assertion_scopes = ["test_contrast_between_named_doses_matches_closed_form"]
 dimensions = ["success", "inspection"]
 assertion_contract = "The contrast between doses 1 and 3 is 3.0 exactly and within 0.05 with noise, with positive standard error and a support table of two doses."
 [[capability.evidence]]
-test = "python/tests/test_dose_grid.py::test_claims_are_separate_and_the_simultaneous_band_refuses_closed"
-assertion_scopes = ["test_claims_are_separate_and_the_simultaneous_band_refuses_closed"]
+test = "python/tests/test_dose_grid.py::test_claims_are_separate_and_the_simultaneous_band_is_refused"
+assertion_scopes = ["test_claims_are_separate_and_the_simultaneous_band_is_refused"]
 dimensions = ["refusal", "controls"]
-assertion_contract = "The simultaneous band refuses dose_grid.simultaneous_band_closed and a derivative without its claim refuses option_not_applicable."
+assertion_contract = "The simultaneous band refuses dose_grid.no_simultaneous_band_method and a derivative without its claim refuses option_not_applicable."
 [[capability.evidence]]
 test = "python/tests/test_dose_grid.py::test_unsupported_doses_refuse_and_the_support_table_labels_them"
 assertion_scopes = ["test_unsupported_doses_refuse_and_the_support_table_labels_them"]
@@ -13560,23 +13560,23 @@ behavior = "Transport a static path-specific counterfactual of an additive-noise
 python = "antecedent.transported_counterfactual.transported_path_specific_effect"
 required_dimensions = ["success", "refusal", "artifact", "controls"]
 [[capability.evidence]]
-test = "python/tests/test_transported_counterfactual.py::test_x8t_hand_values_nde_nie_total"
-assertion_scopes = ["test_x8t_hand_values_nde_nie_total"]
+test = "python/tests/test_transported_counterfactual.py::test_hand_values_nde_nie_total"
+assertion_scopes = ["test_hand_values_nde_nie_total"]
 dimensions = ["success", "inspection"]
 assertion_contract = "The target NDE is 5.34375, NIE 9.75 and total 15.09375 from the hand calculation, the total is NDE + NIE, per-unit contrasts are 4.5 and 5.625 with unit weights summing to 1, and the claim is point_only."
 [[capability.evidence]]
-test = "python/tests/test_transported_counterfactual.py::test_x8t_the_target_law_moves_the_answer_by_exactly_the_hand_amount"
-assertion_scopes = ["test_x8t_the_target_law_moves_the_answer_by_exactly_the_hand_amount"]
+test = "python/tests/test_transported_counterfactual.py::test_the_target_law_moves_the_answer_by_exactly_the_hand_amount"
+assertion_scopes = ["test_the_target_law_moves_the_answer_by_exactly_the_hand_amount"]
 dimensions = ["controls"]
 assertion_contract = "Moving target mass from z=1 to z=0 changes the NDE by exactly -0.28125 and the source contrast stays 5.4."
 [[capability.evidence]]
-test = "python/tests/test_transported_counterfactual.py::test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail"
-assertion_scopes = ["test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail"]
+test = "python/tests/test_transported_counterfactual.py::test_premises_default_to_undeclared_and_each_refuses_with_its_own_detail"
+assertion_scopes = ["test_premises_default_to_undeclared_and_each_refuses_with_its_own_detail"]
 dimensions = ["refusal"]
 assertion_contract = "Each undeclared premise is refused as not_supported with its own detail (nonadditive_mechanism, noise_law_not_shared, cross_world_independence_missing)."
 [[capability.evidence]]
-test = "python/tests/test_transported_counterfactual.py::test_x8t_artifact_round_trips_and_replays"
-assertion_scopes = ["test_x8t_artifact_round_trips_and_replays"]
+test = "python/tests/test_transported_counterfactual.py::test_artifact_round_trips_and_replays"
+assertion_scopes = ["test_artifact_round_trips_and_replays"]
 dimensions = ["artifact"]
 assertion_contract = "The exported artifact replays to the same target and source contrasts, unit contrasts, derivation and identity, and consume returns 9.75."
 

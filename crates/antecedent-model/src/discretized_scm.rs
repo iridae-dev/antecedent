@@ -126,8 +126,8 @@ pub const DETAIL_POINT_ONLY: &str = "discretized_scm.point_only";
 pub const DETAIL_CANCELLED: &str = "discretized_scm.cancelled";
 /// A numerical failure in the discretization.
 pub const DETAIL_NUMERICAL: &str = "discretized_scm.numerical";
-/// A route's inferential paradigm is closed.
-pub const DETAIL_PARADIGM_CLOSED: &str = "paradigm_parity.paradigm_closed";
+/// A route's inferential paradigm is not supported.
+pub const DETAIL_PARADIGM_NOT_SUPPORTED: &str = "paradigm_parity.paradigm_not_supported";
 
 const TAG_IDENTITY: &str = "antecedent.model.discretized_scm.complete_premises.v2";
 
@@ -1109,7 +1109,7 @@ impl ParityRoute {
 pub enum ParadigmCell {
     /// The route executes this paradigm; the text says what the result is.
     Supported(&'static str),
-    /// The route is closed to this paradigm; the text says why.
+    /// The route is not supported for this paradigm; the text says why.
     Closed(&'static str),
 }
 
@@ -1125,7 +1125,7 @@ pub struct ParityRow {
 }
 
 /// The parity table: every route has a row and every missing paradigm is a
-/// closed cell with its reason.
+/// unsupported cell with its reason.
 pub const PARITY_TABLE: [ParityRow; 15] = [
     ParityRow {
         route: ParityRoute::TransportedCohortDecision,
@@ -1232,7 +1232,7 @@ pub const PARITY_TABLE: [ParityRow; 15] = [
             "structural, exogenous-posterior predictive, sampling and numerical components as an uncalibrated spread",
         ),
         bayesian: ParadigmCell::Closed(
-            "nothing is fitted on this row, so there is no parameter posterior; a fitted or sampled mechanism row is a different, closed route",
+            "nothing is fitted on this row, so there is no parameter posterior; a fitted or sampled mechanism row is a different, unsupported route",
         ),
     },
     ParityRow {
@@ -1270,11 +1270,11 @@ pub fn parity_row(route: ParityRoute) -> &'static ParityRow {
     PARITY_TABLE.iter().find(|row| row.route == route).unwrap_or(&PARITY_TABLE[0])
 }
 
-/// Admit a paradigm request on a route, or refuse it by its typed closed row.
+/// Admit a paradigm request on a route, or refuse it by its typed unsupported row.
 ///
 /// # Errors
-/// [`BridgeRefusal`] with `route_not_supported`, [`DETAIL_PARADIGM_CLOSED`] and
-/// the row's reason as the remedy when the route is closed to the paradigm.
+/// [`BridgeRefusal`] with `route_not_supported`, [`DETAIL_PARADIGM_NOT_SUPPORTED`] and
+/// the row's reason as the remedy when the route is not supported to the paradigm.
 pub fn require_paradigm(
     route: ParityRoute,
     paradigm: InferenceParadigm,
@@ -1288,7 +1288,7 @@ pub fn require_paradigm(
         ParadigmCell::Supported(what) => Ok(what),
         ParadigmCell::Closed(reason) => Err(BridgeRefusal::new(
             antecedent_core::reason_code!("route_not_supported"),
-            DETAIL_PARADIGM_CLOSED,
+            DETAIL_PARADIGM_NOT_SUPPORTED,
             format!("{}:{}", route.as_str(), paradigm.as_str()),
             reason,
         )),

@@ -116,7 +116,7 @@ pub const MSM_ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// The statement of the withheld sampling interval.
 pub const MSM_SAMPLING_STATEMENT: &str = "sampling interval: not reported";
 /// Detail of the withheld sampling interval.
-pub const MSM_INTERVAL_WITHHELD: &str = "msm_sensitivity.interval_withheld";
+pub const MSM_INTERVAL_WITHHELD: &str = "msm_sensitivity.no_interval_method";
 
 /// A finite-support outcome law (values and probabilities, any order).
 #[derive(Clone, Debug, PartialEq)]

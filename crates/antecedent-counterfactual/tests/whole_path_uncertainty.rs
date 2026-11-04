@@ -282,7 +282,7 @@ fn undeclared_unit_sampling_sampled_or_transported_paths_are_refused() {
         &ctx(),
     ));
     assert_eq!(code, "transport_not_certified");
-    assert_eq!(detail, "cross_world_uncertainty.transported_path_closed");
+    assert_eq!(detail, "cross_world_uncertainty.no_transported_path_derivation");
 }
 
 // A result is never annotated for a different request: the mechanism table at

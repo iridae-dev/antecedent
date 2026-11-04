@@ -212,10 +212,10 @@ def test_mediation_treatment_induced_confounder_and_cross_world_refuse() -> None
     assert_registered_refusal(caught.value)
 
 
-def test_mediation_interventional_estimand_is_closed() -> None:
+def test_mediation_interventional_estimand_is_not_supported() -> None:
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), estimand=MediationEstimand.INTERVENTIONAL_EFFECTS)
-    assert caught.value.detail == "nonlinear_mediation.interventional_effects_closed"
+    assert caught.value.detail == "nonlinear_mediation.interventional_effects_not_supported"
     assert caught.value.reason_code == "route_not_supported"
     assert_registered_refusal(caught.value)
     with pytest.raises(MediationRefusal):

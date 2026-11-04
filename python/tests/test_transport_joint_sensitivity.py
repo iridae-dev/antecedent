@@ -109,7 +109,7 @@ def test_joint_sensitivity_executes_the_retained_plan_after_builder_disposal():
     assert joint["baseline"] == pytest.approx(0.65 * 0.3 + 0.35 * 0.5, abs=1e-12)
     assert joint["inference_claim"] == "assumption_range"
     assert "not a confidence interval" in joint["interpretation"]
-    assert joint["uncertainty"]["status"] == "withheld"
+    assert joint["uncertainty"]["status"] == "no_interval_method"
     assert joint["uncertainty"]["reason_code"] == "uncertainty_representation_insufficient"
     assert [f["factor"] for f in joint["factors"]] == ["outcome_kernel", "shared_parent_marginal"]
     assert len(joint["frontier"]) == 9
@@ -152,7 +152,7 @@ def test_consume_joint_sensitivity_artifact_replays_the_retained_plan():
     ]
     assert consumed["inference_claim"] == "assumption_range"
     assert consumed["sampling"]["interval"] is None
-    assert consumed["sampling"]["status"] == "withheld"
+    assert consumed["sampling"]["status"] == "no_interval_method"
     assert consumed["receipt"]["operations_consumed"] == live["receipt"]["operations_consumed"]
 
 

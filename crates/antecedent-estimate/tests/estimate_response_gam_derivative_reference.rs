@@ -137,7 +137,7 @@ fn the_plug_in_gradient_level_and_scales_match_the_exact_fits() {
                     .support
                     .warnings
                     .iter()
-                    .any(|w| w.code.as_ref() == "response.derivative_interval_withheld");
+                    .any(|w| w.code.as_ref() == "response.no_derivative_interval_method");
                 if scale == DerivativeScale::Identity {
                     // The identity-scale Jacobian reports its coefficient-sandwich band around
                     // the pinned point.

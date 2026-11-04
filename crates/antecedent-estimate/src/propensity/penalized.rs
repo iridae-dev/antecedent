@@ -358,7 +358,7 @@ impl PropensityNuisance {
     pub fn lasso_not_cross_fitted() -> EstimationError {
         refuse(
             antecedent_core::reason_code!("selection_inference_not_supported"),
-            "penalized_propensity.selection_closed",
+            "penalized_propensity.selection_not_supported",
             "a lasso propensity is supported only inside the cross-fitted untrimmed AllObserved \
              mean ATE, where the support is selected on training rows only; a full-sample \
              lasso selects covariates on the rows it scores, so no interval is valid after \
@@ -391,7 +391,7 @@ impl PropensityNuisance {
         let fields = error.refusal_fields().map(std::borrow::Cow::into_owned);
         EstimationError::refused_detail_with_fields(
             antecedent_core::reason_code!("nuisance_fallback_not_supported"),
-            "penalized_propensity.fallback_closed",
+            "penalized_propensity.fallback_not_supported",
             format!(
                 "the primary nuisance fit failed ({error}); {tail}, so the failed fit is \
                  reported and no fallback result is produced"

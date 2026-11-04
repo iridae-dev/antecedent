@@ -947,7 +947,7 @@ fn bayesian_temporal_mediation_keeps_partial_mass_posterior_conditional() {
         result
             .diagnostics
             .iter()
-            .any(|d| d.code.as_ref() == "estimate.graph_posterior.posterior_withheld")
+            .any(|d| d.code.as_ref() == "estimate.graph_posterior.no_posterior_method")
     );
 }
 

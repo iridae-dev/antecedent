@@ -430,7 +430,7 @@ impl super::Study {
         }
         if weighted.len() > 1 {
             diagnostics.push(Diagnostic::new(
-                "estimate.response.dbn_posterior.uncertainty_withheld",
+                "estimate.response.dbn_posterior.no_uncertainty_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 if self.settings.inference.is_bayesian() {

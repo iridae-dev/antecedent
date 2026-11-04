@@ -6,8 +6,8 @@
 //! ignorability (no unmeasured treatment-outcome, treatment-mediator or mediator-outcome
 //! confounding and no treatment-induced mediator-outcome confounder); a declared violation
 //! refuses (`effect_not_identified` / `cross_world_not_identified`). The interventional
-//! (randomized-draw) effects are closed:
-//! `nonlinear_mediation.interventional_effects_closed`.
+//! (randomized-draw) effects are not supported:
+//! `nonlinear_mediation.interventional_effects_not_supported`.
 //!
 //! The integral over the cross-world mediator law is a deterministic Gauss-Hermite rule; the
 //! estimate is evaluated at `n` and `2n` nodes and the disagreement is the reported integration

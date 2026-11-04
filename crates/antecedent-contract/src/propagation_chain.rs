@@ -388,7 +388,7 @@ pub enum ChainReading {
     Posterior,
     /// The enclosure of the declared intervals.
     Enclosure,
-    /// An interval of the composed quantity. Closed without a measured
+    /// An interval of the composed quantity. Not constructed without a measured
     /// coverage record at the composed coordinate.
     Interval,
 }

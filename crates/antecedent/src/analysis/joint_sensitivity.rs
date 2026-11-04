@@ -409,7 +409,7 @@ impl JointSensitivityArtifactWire {
             sampling: JointSamplingWire {
                 method: result.uncertainty.method.to_owned(),
                 coverage_target: result.uncertainty.coverage_target.to_owned(),
-                status: "withheld".into(),
+                status: "no_interval_method".into(),
                 reason_code: result.uncertainty.reason_code.to_owned(),
                 interval: None,
             },
@@ -543,7 +543,7 @@ impl JointSensitivityArtifactWire {
         if wire.body.sampling.interval.is_some() {
             return Err(IoError::Refused {
                 code: reason_code!("route_not_supported"),
-                message: "joint_sensitivity.interval_withheld: an artifact carrying a sampling interval is refused; the interval route is not supported".into(),
+                message: "joint_sensitivity.no_interval_method: an artifact carrying a sampling interval is refused; the interval route is not supported".into(),
             });
         }
         if wire.body.inference_claim

@@ -1,6 +1,6 @@
 //! Result section of the sequentially randomized unit-period designs and regime survival.
 //!
-//! The section is unsupported and uncalibrated: it carries every named coordinate with its
+//! The section is reported with calibration status `not_measured`: it carries every named coordinate with its
 //! estimate (or posterior mean), standard error (or posterior standard deviation), pointwise
 //! interval, the simultaneous band and Holm family when the design has them, the worst-case
 //! smoothing bias of a dose grid, and the standing of the reported uncertainty.

@@ -930,7 +930,7 @@ def test_multi_covariate_ancova_refuses_collinear_and_missing_covariates():
 
 # ------------------------------------------------------------------ Bayesian arm contrasts
 #
-# The Bayesian routes are explicitly unsupported and uncalibrated. References are computed here,
+# The Bayesian routes are reported with calibration status `not_measured`. References are computed here,
 # independently of the library: the exact finite-population law by enumeration of the two
 # Beta-Binomial missing-count laws, and the closed-form Beta moments of the superpopulation arms.
 

@@ -885,7 +885,7 @@ class DirectionalDerivative:
     The additive-GAM plug-in gradient dotted with
     ``direction``. A Frequentist result reports the coefficient-sandwich band on the identity
     scale; for a collinear design the point stands alone and the warning
-    ``response.derivative_interval_withheld`` says why. Bayesian inference publishes a pointwise
+    ``response.no_derivative_interval_method`` says why. Bayesian inference publishes a pointwise
     credible band.
     """
 
@@ -921,7 +921,7 @@ class ResponseJacobian:
     Row-major outcomes x treatments from the additive-GAM plug-in gradient.
     A Frequentist result reports the coefficient-sandwich band on the
     identity scale; for a collinear design or a transformed scale the point stands alone and
-    the warning ``response.derivative_interval_withheld`` says why. Bayesian inference
+    the warning ``response.no_derivative_interval_method`` says why. Bayesian inference
     publishes a pointwise credible band. The scalar :class:`Elasticity` query is a different
     estimator and publishes a Frequentist Fieller interval.
     """

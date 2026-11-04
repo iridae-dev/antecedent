@@ -6,16 +6,14 @@ story tests of their cell (Rust integration-test targets and Python test files, 
 pass from clean preparation through independent artifact consumption). Each story is registered
 in `crates/antecedent/tests/decision_exit_gate.rs`; a story is still PENDING_IMPLEMENTATION while
 its record is `not_supported`, and PASS only once it is `supported` with its stories
-passing (a measured-coverage reading is reported as an annotation).
+passing. Calibration is an annotation (scripts/calibration_status.py) and is never read here.
 
     python3 scripts/decision_exit_report.py --list-tests                      # TSV of tests to run
-    python3 scripts/decision_exit_report.py --runs runs.tsv --intervals iv.json \\
-        [--require-calibrated] [--require-implemented] [--release]
+    python3 scripts/decision_exit_report.py --runs runs.tsv [--require-implemented]
     python3 scripts/decision_exit_report.py --self-test
 
 `runs.tsv` has one line per executed test target: `kind<TAB>package<TAB>target<TAB>rc<TAB>log`
-(kind is `rust` or `python`; `log` is a file holding the captured output). `iv.json` is the output
-of `scripts/check_interval_coordinates.py --json`; its `calibration` table is keyed by record id.
+(kind is `rust` or `python`; `log` is a file holding the captured output).
 
 STORY RULES (strict, deterministic):
   * a story reads PASS only if its `DECISION_STORIES` entry registers story files (non-empty `rust` or
@@ -25,9 +23,7 @@ STORY RULES (strict, deterministic):
     `evidence_assertion`, or a route's `refusal_test` with `refusal_assertion`);
   * at least one evidence name must live in a story file, and every one that does must appear as
     passed in that story's run log (`test <name> ... ok` for Rust; `PASSED ...::<name>` for pytest -rA),
-    so a green run of unrelated tests proves nothing;
-  * a `supported` package one of whose records allocates coverage ids reports a missing or pending
-    calibration reading as PENDING_CALIBRATION (an annotation; only `--require-calibrated` fails it).
+    so a green run of unrelated tests proves nothing.
 
 Registered stories (one line each; owners register these in `DECISION_STORIES`):
   admg_conditional_transport  prepare latent-confounded selection ADMG + conditional query ->
@@ -49,22 +45,17 @@ Registered stories (one line each; owners register these in `DECISION_STORIES`):
 
 Per-story status:
   PASS                   record `supported`, stories registered with evidence, every registered story
-                         target ran and passed, evidence passed, and any allocated coverage is
-                         measured and attested
-  FAIL                   a registered story failed, did not run or ran zero tests; or the record's
-                         interval state is FAIL
+                         target ran and passed, and evidence passed
+  FAIL                   a registered story failed, did not run or ran zero tests
   PENDING_IMPLEMENTATION no record yet, record `not_supported`, or no story tests registered
-  PENDING_CALIBRATION    stories pass but an allocated coverage record is absent (annotation)
 
-Exit status: 1 on any FAIL. PENDING_CALIBRATION is nonzero only with `--require-calibrated`,
-PENDING_IMPLEMENTATION only with `--require-implemented`; `--release` is both.
+Exit status: 1 on any FAIL. PENDING_IMPLEMENTATION is nonzero only with `--require-implemented`.
 Environment: DECISION_EXIT_ROOT (tree to read, default the repo).
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import sys
@@ -300,20 +291,13 @@ def story_state(
     return "PASS", f"{total} story test(s) passed"
 
 
-def _allocated(rec: dict) -> list[str]:
-    return list(rec.get("coverage_records") or [])
-
-
 def evaluate(
     records: dict[str, dict | list[dict]],
     runs: dict,
-    intervals: dict,
     *,
-    require_calibrated: bool,
     require_implemented: bool,
     root: Path | None = None,
 ) -> tuple[list[str], int]:
-    calibration = intervals.get("calibration", {})
     rows: list[tuple[str, str, str]] = []
     by_pkg: dict[str, list[dict]] = {
         k: (v if isinstance(v, list) else [v]) for k, v in records.items()
@@ -330,10 +314,9 @@ def evaluate(
                 )
             )
             continue
-        live = recs
         # Every record of the story must be supported for a PASS: a story whose
         # record (or sibling record) is not_supported is not finished.
-        unsupported = [r for r in live if r.get("status") != "supported"]
+        unsupported = [r for r in recs if r.get("status") != "supported"]
         if unsupported:
             ids = ", ".join(r["id"] for r in unsupported)
             rows.append((label, "PENDING_IMPLEMENTATION", f"record not_supported ({ids})"))
@@ -341,57 +324,23 @@ def evaluate(
         state, detail = story_state(pkg, entry, runs, recs, root)
         if state == "FAIL":
             rows.append((label, "FAIL", detail))
-            continue
-        if state == "NONE":
+        elif state == "NONE":
             rows.append((label, "PENDING_IMPLEMENTATION", f"record supported; {detail}"))
-            continue
-        cal_fail = cal_pending = None
-        for r in live:
-            cal = calibration.get(r["id"])
-            if cal is not None and cal["status"] == "FAIL":
-                cal_fail = cal["detail"]
-            elif cal is not None and cal["status"] == "PENDING_CALIBRATION":
-                cal_pending = cal["detail"]
-            elif cal is None and _allocated(r):
-                # allocated coverage ids with no reading at all never pass silently
-                cal_pending = (
-                    f"{r['id']}: {len(_allocated(r))} allocated coverage id(s) have no calibration "
-                    "reading"
-                )
-        if cal_fail is not None:
-            rows.append((label, "FAIL", f"interval calibration: {cal_fail}"))
-        elif cal_pending is not None:
-            rows.append((label, "PENDING_CALIBRATION", f"{detail}; {cal_pending}"))
         else:
             rows.append((label, "PASS", detail))
-    rows.append(
-        (
-            "intervals",
-            intervals.get("intervals", "FAIL"),
-            "zero newly introduced unmeasured interval coordinates (all records)",
-        )
-    )
     width = max(len(r[0]) for r in rows)
     lines = ["decision exit", ""]
     lines += [f"{item:<{width}}  {status:<22}  {detail}" for item, status, detail in rows]
-    for error in intervals.get("errors", []):
-        lines.append(f"  interval check: {error}")
     statuses = {r[1] for r in rows}
     lines.append("")
     if "FAIL" in statuses:
         lines.append("verdict: FAIL")
         return lines, 1
-    bad = []
-    if "PENDING_CALIBRATION" in statuses and require_calibrated:
-        bad.append("PENDING_CALIBRATION")
     if "PENDING_IMPLEMENTATION" in statuses and require_implemented:
-        bad.append("PENDING_IMPLEMENTATION")
-    if bad:
-        lines.append(f"verdict: {' + '.join(bad)} (required flags: not accepted)")
+        lines.append("verdict: PENDING_IMPLEMENTATION (--require-implemented: not accepted)")
         return lines, 1
-    if "PENDING_CALIBRATION" in statuses or "PENDING_IMPLEMENTATION" in statuses:
-        pend = sorted(s for s in statuses if s.startswith("PENDING"))
-        lines.append(f"verdict: {' + '.join(pend)} (scaffold: nothing failed)")
+    if "PENDING_IMPLEMENTATION" in statuses:
+        lines.append("verdict: PENDING_IMPLEMENTATION (scaffold: nothing failed)")
         return lines, 0
     lines.append("verdict: PASS")
     return lines, 0
@@ -472,25 +421,10 @@ def self_test() -> int:
                     lines.append(f"python\t{P1}\ttests/test_synth_exit_gate.py\t{rc_py}\t{py}")
                 return parse_runs("\n".join(lines))
 
-            iv_ok = {"intervals": "PASS", "calibration": {}, "errors": []}
-            iv_pending = {
-                "intervals": "PASS",
-                "calibration": {
-                    RECORD_IDS[P1]: {
-                        "status": "PENDING_CALIBRATION",
-                        "detail": "2 of 2 absent",
-                    }
-                },
-                "errors": [],
-            }
-            iv_fail = {"intervals": "FAIL", "calibration": {}, "errors": ["x"]}
-
-            def expect(label, records, rn, iv, code, verdict, cal=False, impl=False):
+            def expect(label, records, rn, code, verdict, impl=False):
                 lines, rc = evaluate(
                     records,
                     rn,
-                    iv,
-                    require_calibrated=cal,
                     require_implemented=impl,
                     root=root,
                 )
@@ -531,10 +465,8 @@ def self_test() -> int:
                 "all supported and passing",
                 full,
                 parse_runs("\n".join(lines_all)),
-                iv_ok,
                 0,
                 "verdict: PASS",
-                True,
                 True,
             )
             for p in list(DECISION_STORIES):
@@ -545,7 +477,6 @@ def self_test() -> int:
                 "scaffold: nothing registered is pending, exit 0",
                 {},
                 {},
-                iv_ok,
                 0,
                 "scaffold: nothing failed",
             )
@@ -553,17 +484,14 @@ def self_test() -> int:
                 "pending implementation fails --require-implemented",
                 {},
                 {},
-                iv_ok,
                 1,
                 "not accepted",
-                False,
                 True,
             )
             expect(
                 "not_supported record is pending implementation",
                 {P1: rec(P1, "not_supported")},
                 {},
-                iv_ok,
                 0,
                 "record not_supported",
             )
@@ -571,7 +499,6 @@ def self_test() -> int:
                 "registered stories + evidence, supported: the first story passes",
                 {P1: rec(P1, "supported")},
                 runs(),
-                iv_ok,
                 0,
                 f"ROW:{P1}:PASS",
             )
@@ -579,7 +506,6 @@ def self_test() -> int:
                 "a failed Rust story fails",
                 {P1: rec(P1, "supported")},
                 runs(rc_rust=101),
-                iv_ok,
                 1,
                 "verdict: FAIL",
             )
@@ -587,7 +513,6 @@ def self_test() -> int:
                 "a failed Python story fails",
                 {P1: rec(P1, "supported")},
                 runs(py=bad_py),
-                iv_ok,
                 1,
                 "verdict: FAIL",
             )
@@ -595,7 +520,6 @@ def self_test() -> int:
                 "a nonzero Python rc fails",
                 {P1: rec(P1, "supported")},
                 runs(rc_py=1),
-                iv_ok,
                 1,
                 "verdict: FAIL",
             )
@@ -603,7 +527,6 @@ def self_test() -> int:
                 "zero tests run fails",
                 {P1: rec(P1, "supported")},
                 runs(rust=zero),
-                iv_ok,
                 1,
                 "ran zero tests",
             )
@@ -611,40 +534,13 @@ def self_test() -> int:
                 "a story that never ran fails",
                 {P1: rec(P1, "supported")},
                 runs(skip_py=True),
-                iv_ok,
                 1,
                 "did not run",
-            )
-            expect(
-                "pending calibration exits 0 by default",
-                {P1: rec(P1, "supported", "interval")},
-                runs(),
-                iv_pending,
-                0,
-                "PENDING_CALIBRATION",
-            )
-            expect(
-                "pending calibration fails --require-calibrated",
-                {P1: rec(P1, "supported", "interval")},
-                runs(),
-                iv_pending,
-                1,
-                "not accepted",
-                True,
-            )
-            expect(
-                "a failed story outranks pending calibration",
-                {P1: rec(P1, "supported", "interval")},
-                runs(rc_rust=1),
-                iv_pending,
-                1,
-                "verdict: FAIL",
             )
             expect(
                 "record with no registered story is pending",
                 {P2: rec(P2, "supported")},
                 runs(),
-                iv_ok,
                 0,
                 "no story test registered",
             )
@@ -654,7 +550,6 @@ def self_test() -> int:
                 "a supported record with a not_supported sibling is pending, not a pass",
                 {P1: sibling},
                 runs(),
-                iv_ok,
                 0,
                 "record not_supported (synth.sibling)",
             )
@@ -662,13 +557,10 @@ def self_test() -> int:
                 "... and fails --require-implemented",
                 {P1: sibling},
                 runs(),
-                iv_ok,
                 1,
                 "not accepted",
-                False,
                 True,
             )
-            expect("interval violation fails", {}, {}, iv_fail, 1, "verdict: FAIL")
 
             # ---- D4: evidence rules. A green story run is not enough.
             supported = {P1: rec(P1, "supported")}
@@ -676,7 +568,6 @@ def self_test() -> int:
                 "a story whose run log lacks the evidence tests fails",
                 supported,
                 runs(rust=rust_no_ev),
-                iv_ok,
                 1,
                 f"evidence test {ev} is in story",
             )
@@ -684,7 +575,6 @@ def self_test() -> int:
                 "a python evidence test that did not pass fails",
                 supported,
                 runs(py=py_unrelated),
-                iv_ok,
                 1,
                 "did not pass in its run log",
             )
@@ -693,7 +583,6 @@ def self_test() -> int:
                 "stories registered with no evidence list fail",
                 supported,
                 runs(),
-                iv_ok,
                 1,
                 "lists no `evidence`",
             )
@@ -702,7 +591,6 @@ def self_test() -> int:
                 "an evidence name defined nowhere fails",
                 supported,
                 runs(),
-                iv_ok,
                 1,
                 "ghost_test is neither",
             )
@@ -718,7 +606,6 @@ def self_test() -> int:
                 "evidence only in a cited fixture is not a story",
                 {P1: fixture_rec},
                 runs(),
-                iv_ok,
                 1,
                 "no evidence test lives in a registered story file",
             )
@@ -727,44 +614,10 @@ def self_test() -> int:
                 "evidence in a story file plus a cited fixture passes",
                 {P1: fixture_rec},
                 runs(),
-                iv_ok,
                 0,
                 f"ROW:{P1}:PASS",
             )
             DECISION_STORIES[P1]["evidence"] = [ev, ev2]
-
-            # ---- D3: allocated coverage ids never pass without a calibration reading
-            ids = ["cov.x.l95.a"]
-            expect(
-                "supported with allocated ids and no calibration reading is pending",
-                {P1: rec(P1, "supported", "assumption_range", ids)},
-                runs(),
-                iv_ok,
-                0,
-                "PENDING_CALIBRATION",
-            )
-            expect(
-                "... and fails --require-calibrated",
-                {P1: rec(P1, "supported", "assumption_range", ids)},
-                runs(),
-                iv_ok,
-                1,
-                "not accepted",
-                True,
-            )
-            iv_pass = {
-                "intervals": "PASS",
-                "calibration": {RECORD_IDS[P1]: {"status": "PASS", "detail": "ok"}},
-                "errors": [],
-            }
-            expect(
-                "supported with allocated ids and a passing reading passes",
-                {P1: rec(P1, "supported", "interval", ids)},
-                runs(),
-                iv_pass,
-                0,
-                f"ROW:{P1}:PASS",
-            )
         finally:
             DECISION_STORIES.clear()
             DECISION_STORIES.update(saved)
@@ -781,12 +634,10 @@ def main(argv: list[str]) -> int:
     for flag in (
         "--self-test",
         "--list-tests",
-        "--release",
-        "--require-calibrated",
         "--require-implemented",
     ):
         parser.add_argument(flag, action="store_true")
-    for flag in ("--runs", "--intervals", "--capability"):
+    for flag in ("--runs", "--capability"):
         parser.add_argument(flag)
     parser.parse_args(argv)  # Reject unknown flags, bare arguments and missing values.
     registry = "parity/capability_records.toml"
@@ -806,24 +657,14 @@ def main(argv: list[str]) -> int:
         print("\n".join(list_tests()))
         return 0
     args = {}
-    it = iter(
-        a for a in argv if a not in ("--require-calibrated", "--require-implemented", "--release")
-    )
+    it = iter(a for a in argv if a != "--require-implemented")
     for k in it:
         args[k] = next(it, "")
     runs = parse_runs(Path(args["--runs"]).read_text(encoding="utf-8")) if "--runs" in args else {}
-    intervals = (
-        json.loads(Path(args["--intervals"]).read_text(encoding="utf-8"))
-        if "--intervals" in args
-        else {}
-    )
-    release = "--release" in argv
     lines, code = evaluate(
         story_records(ROOT, registry),
         runs,
-        intervals,
-        require_calibrated=release or "--require-calibrated" in argv,
-        require_implemented=release or "--require-implemented" in argv,
+        require_implemented="--require-implemented" in argv,
     )
     print("\n".join(lines))
     return code

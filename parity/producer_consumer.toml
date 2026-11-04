@@ -1311,7 +1311,7 @@ where = "`design.consume` under a different cost map"
 
 [[refusal]]
 code = "`route_not_supported`"
-detail = "`measurement_model.interval_closed`"
+detail = "`measurement_model.interval_requires_estimate`"
 where = "`MeasurementEstimate.interval` and `PreparedMeasurementModel.interval`"
 
 [[refusal]]
@@ -1389,7 +1389,7 @@ where = "`ObservationClaim.interval` (an interval for an observation-conditioned
 
 [[refusal]]
 code = "`not_supported`"
-detail = "`observation_query.calibrated_probability_closed`"
+detail = "`observation_query.no_calibrated_probability`"
 where = "`ObservationClaim.calibrated_probability` (a calibration claim for a posterior or decision probability)"
 
 [[refusal]]
@@ -1414,7 +1414,7 @@ where = "`observation_query.condition_on` with level strings on a linear-Gaussia
 
 [[refusal]]
 code = "`not_supported`"
-detail = "`joint_law_propagation.interval_route_closed`"
+detail = "`joint_law_propagation.no_interval_construction`"
 where = "`ObservationClaim.parameter_interval` for redrawn parameters without a currently attesting coverage record at the composed coordinate (the spread of the draws is the labelled `uncalibrated_spread`)"
 
 [[refusal]]
@@ -2089,7 +2089,7 @@ detail = "`stage_identity(Stage.EVIDENCE, discretized.identity)` declared by the
 producer = "whole_path_account"
 consumer = "decision"
 status = "REFUSED"
-detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (an uncalibrated spread is not an interval or posterior: `not_supported` `cross_world_execution.interval_route_closed`)"
+detail = "a whole-path account is a labelled uncalibrated spread of unit values, not a joint law, a claim or a response; the entry points of this consumer reject it (`CausalTypeError`) (an uncalibrated spread is not an interval or posterior: `not_supported` `cross_world_execution.no_interval_method`)"
 
 [[cell]]
 producer = "whole_path_account"
@@ -2322,7 +2322,7 @@ evidence_assertion = "a_discretized_contrast_carries_its_closed_form_and_a_compu
 producer = "whole_path_account"
 consumer = "decision"
 status = "REFUSED"
-detail = "an uncalibrated spread is not an interval or posterior: `not_supported` `cross_world_execution.interval_route_closed` and `cross_world_execution.posterior_route_closed`"
+detail = "an uncalibrated spread is not an interval or posterior: `not_supported` `cross_world_execution.no_interval_method` and `cross_world_execution.no_posterior_method`"
 evidence_test = "crates/antecedent/tests/whole_path_account_facade.rs"
 evidence_assertion = "the_account_is_the_enumerated_spread_bound_to_its_execution"
 
@@ -2497,7 +2497,7 @@ evidence_assertion = "the_sealed_artifact_is_the_existing_one_and_replays_to_the
 producer = "transported_mechanism_composition"
 consumer = "published_route"
 status = "REFUSED"
-detail = "the variance is parameter-only and scoped, and an interval of the carried contrast is closed `not_supported`"
+detail = "the variance is parameter-only and scoped, and an interval of the carried contrast refuses with `not_supported`"
 evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs"
 evidence_assertion = "the_variance_is_parameter_only_scoped_and_the_interval_is_closed"
 

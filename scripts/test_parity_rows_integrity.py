@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import gate_release as release
+import check_parity_inventories as release
 import parity_rows as gate
 
 

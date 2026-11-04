@@ -50,7 +50,6 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/plan_view.rs"
 evidence_assertion = "a_compiled_plan_views_every_layer_without_doing_work"
-composition_filter = "plan_view|views_|a_graph_posterior_is_one_mixture|inspect_stays_the_non_identifying"
 limitations = "Structural agreement and zero-work evidence only; no numerical truth backs a view. Byte counts are planner estimates, not measurements."
 notes = "Study::plan_view compiles (identification retained at compile runs once); PreparedStudy::plan_view and PhysicalExecutionPlan::plan_view read only. Study::inspect stays non-identifying (compiler.inspect_does_not_identify). Per-cell agreement runs in each family's lowering coverage test and in supported_compiler consume_setup."
 
@@ -76,7 +75,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent-io-core/src/analysis_result_artifact/tests.rs"
 evidence_assertion = "validate_result_refuses_wrong_query_ids_and_keeps_the_valid_counterpart"
 limitations = "Implementation-exists evidence: the cited assertion validate_result_refuses_wrong_query_ids_and_keeps_the_valid_counterpart shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "validate_result_"
 notes = "Also: validate_result_refuses_changed_horizon_*, *_inconsistent_atom_totals_*, *_inconsistent_masses_*. Mapped temporal IDs skip raw equality. Parent: release.artifact_schema."
 
 [[capabilities]]
@@ -89,7 +87,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "claim_handoff_sender_restricted_forward_preserves_losses"
 limitations = "Implementation-exists evidence: the cited assertion claim_handoff_sender_restricted_forward_preserves_losses shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "claim_handoff_|derived_claim_"
 notes = "Semantic acceptance is distinct from storage/forwarding. Lossy scalar views cannot recover meaning."
 
 [[capabilities]]
@@ -162,7 +159,6 @@ limitations = "The between-unit t_(N-1) pointwise band has not been compared wit
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_response_curve_uses_unit_cluster_bands"
-composition_filter = "panel_response_curve_uses_unit_cluster_bands|bayesian_panel_response_uses_unit_cluster_bands|panel_class_response_uses_completion_surfaces|panel_response_band_is_the_between_unit_t_interval|panel_response_support_and_assumptions_describe_every_unit"
 notes = "Per-unit TemporalResponseEstimator surfaces, equal-weight average, between-unit t_(N-1) pointwise bands, support and assumptions merged over units. Simultaneous band withheld; requested bootstrap replicates unused."
 
 [[capabilities]]
@@ -175,7 +171,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_class_pulse_uses_completion_masses"
 limitations = "The tests check that completion masses are published, that the point estimate lands within 0.08 of the simulated effect 0.8 on one seeded panel, and that the unit bootstrap resamples fresh clusters. No coverage record measures the cluster-by-unit SE, its G-1 df interval or the unit cluster bootstrap."
-composition_filter = "panel_class_pulse_uses_completion_masses|bayesian_panel_class_pulse_uses_completion_masses|panel_class_multi_step_sustained_uses_completion_masses|panel_class_pulse_unit_bootstrap_resamples_fresh_clusters"
 notes = "Per-completion pooled panel fit with the Arellano cluster-by-unit SE at G-1 df and a unit cluster bootstrap, mixed by class mass. Does not complete the class onto the DAG executor."
 
 [[capabilities]]
@@ -247,7 +242,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent-io-core/src/contract_section/tests.rs"
 evidence_assertion = "contracted_artifact_without_checked_estimator_is_readable_from_bytes_alone"
 limitations = "Implementation-exists evidence: the cited assertion contracted_artifact_without_checked_estimator_is_readable_from_bytes_alone shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "contract_section"
 notes = "Lib tests under contract_section."
 
 [[capabilities]]
@@ -284,7 +278,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
 limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = ""
 notes = "Whole-file composition enrollment."
 
 [[capabilities]]
@@ -297,7 +290,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
 limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "supported_family_"
 notes = "Family prefix enrollment."
 
 [[capabilities]]
@@ -321,7 +313,6 @@ evidence_kind = "internal_cross_check"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "prepared_reestimate_matches_fresh_analyze"
-composition_filter = "prepared_reestimate_matches_fresh_analyze|prepared_conditional_effect_reestimate_matches_fresh|prepared_conditional_bayesian_records_bayesian_estimator|prepared_path_specific_reestimate_matches_fresh|test_interventional_distribution_dag_explicit_frequentist_none_executes_checked_program|prepare_accepts_temporal_effect_query_and_reuses_identification"
 limitations = "Agreement is between Antecedent prepared and fresh paths."
 notes = "Family prepared contracts."
 
@@ -395,7 +386,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "failed_series_refresh_then_estimate_on_old_data"
 limitations = "Implementation-exists evidence: the cited assertion failed_series_refresh_then_estimate_on_old_data shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "failed_series_refresh_then_estimate_on_old_data|temporal_state_events_keep_lineage_and_refuse_stale_publish"
 notes = "Series/state reuse."
 
 [[capabilities]]
@@ -408,7 +398,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/numeric_pins.rs"
 evidence_assertion = "prepared_batch_shares_fold_object_and_covariate_design"
 limitations = "Implementation-exists evidence: the cited assertion prepared_batch_shares_fold_object_and_covariate_design shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "prepared_batch_shares_fold_object_and_covariate_design|replacement_data_changes_score_reuse_not_identification"
 notes = "Score/batch reuse keys."
 
 [[capabilities]]
@@ -421,7 +410,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent-contract/src/capability.rs"
 evidence_assertion = "cancel_is_not_scientific_impossibility"
 limitations = "Implementation-exists evidence: the cited assertion cancel_is_not_scientific_impossibility shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "capability"
 notes = "Core capability reports."
 
 [[capabilities]]
@@ -446,7 +434,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
 limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "capability_"
 notes = "Capability prefix enrollment."
 
 [[capabilities]]
@@ -459,7 +446,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent-contract/src/claim.rs"
 evidence_assertion = "chained_receipts_accumulate_losses"
 limitations = "Implementation-exists evidence: the cited assertion chained_receipts_accumulate_losses shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "claim"
 notes = "Core claim module."
 
 [[capabilities]]
@@ -472,7 +458,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
 limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "design_rank_"
 notes = "Design ranking prefix."
 
 [[capabilities]]
@@ -485,7 +470,6 @@ owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "composition_inspect_and_metadata_read_do_not_identify"
 limitations = "Implementation-exists evidence: the cited assertion composition_inspect_and_metadata_read_do_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
-composition_filter = "composition_"
 notes = "Composition prefix enrollment."
 
 [[capabilities]]

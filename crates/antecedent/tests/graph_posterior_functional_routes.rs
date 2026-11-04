@@ -608,7 +608,7 @@ fn a_derivative_mixture_is_the_weighted_sum_of_the_explicit_atoms() {
         );
         let (e1, e2) = (coordinates(&plain)[0], coordinates(&confounded)[0]);
         // The linear fixture has slope 2 in `a`; the adjustment sets differ only in whether the
-        // back door through `b` is closed.
+        // back door through `b` is not supported.
         assert!((e2 - 2.0).abs() < 0.3, "{e2}");
         let expected = (0.5 * e1 + 0.3 * e2) / 0.8;
 
@@ -661,7 +661,7 @@ fn a_derivative_mixture_is_the_weighted_sum_of_the_explicit_atoms() {
         // The derivative atoms report no row influence, so with no replicates requested the
         // mixture of several atoms withholds its interval and says why.
         assert!(matches!(both.response().unwrap().uncertainty, ResponseUncertainty::None));
-        assert!(has(&both, "estimate.graph_posterior.uncertainty_withheld"));
+        assert!(has(&both, "estimate.graph_posterior.no_uncertainty_method"));
 
         // With replicates requested the atoms are re-run on shared resampled tables and the
         // interval is the spread of the draw-wise mixture.

@@ -147,14 +147,14 @@ def test_contrast_between_named_doses_matches_closed_form() -> None:
     assert [s.dose for s in noisy.support_table] == [1.0, 3.0]
 
 
-def test_claims_are_separate_and_the_simultaneous_band_refuses_closed() -> None:
+def test_claims_are_separate_and_the_simultaneous_band_is_refused() -> None:
     level = run("level", noise=0.1)
     assert level.simultaneous_band == "closed"
     assert level.derivatives == ()
     band = DoseClaims(pointwise_level=True, simultaneous_band=True)
     refused(
         lambda: run("level", noise=0.1, claims=band),
-        "dose_grid.simultaneous_band_closed",
+        "dose_grid.no_simultaneous_band_method",
         "route_not_supported",
     )
     # A level claim does not support a derivative, nor a derivative claim a level.
@@ -319,7 +319,7 @@ def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -
             bandwidth_range=(0.1, 1.0),
             claims=DoseClaims(pointwise_level=True, simultaneous_band=True),
         ),
-        "dose_grid.simultaneous_band_closed",
+        "dose_grid.no_simultaneous_band_method",
         "route_not_supported",
     )
 

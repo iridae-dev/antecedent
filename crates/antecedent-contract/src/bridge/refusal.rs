@@ -231,7 +231,7 @@ pub(super) fn predictive_importance_as_causal_effect() -> BridgeRefusal {
     .with_expected(QuantityClass::CausalQuantity.as_str())
 }
 
-/// A model score offered as a probability. Closed in this release.
+/// A model score offered as a probability. Not supported..
 pub(super) fn model_score_as_probability() -> BridgeRefusal {
     substitution(
         "scientific_bridge.model_score_as_probability",

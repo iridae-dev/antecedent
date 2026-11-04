@@ -135,7 +135,7 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
   `cluster_ids` (aligned with the table rows), and a table or plan without them keeps the
   iid retarget unavailable. The iid max-t score inference is unavailable.
 - A requested bootstrap (which would resample rows and split clusters) or a non-default
-  `se_kind` is refused with `cluster_interval_not_supported` (`cluster_dml.interval_withheld`):
+  `se_kind` is refused with `cluster_interval_not_supported` (`cluster_dml.no_interval_method`):
   the route reports its own sandwich standard error rather than ignoring the request.
 - **Calibration.** The calibration harness is wired and runnable:
   `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
@@ -184,7 +184,7 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
   also respected by the learners. `CausalForest` declares its unit with `cluster=` (see
   [cluster inference](#clusters-for-propensity-weighting-stratification-and-the-causal-forest)); a bare `cluster_ids` or `multiway_ids` on
   these estimators, `cluster_dml` on the forest, and `cluster_dml` on a score-less route are refused with
-  `route_not_supported` (`cluster_dml.flexible_learner_closed`) rather than reported as an
+  `route_not_supported` (`cluster_dml.flexible_learner_not_supported`) rather than reported as an
   unknown key or ignored; the refusal is raised by `flexible_learner_dependence_refusal`.
 - **Named unit columns.** `ClusterDml(cluster="site")` (and `second_cluster="..."` for a dyad)
   names the data columns of the unit labels instead of `cluster_ids`. The labels are encoded

@@ -39,6 +39,7 @@ import _py_closure
 import _rust_source as _rust
 from _repo import REPO_ROOT as ROOT
 from _repo import cargo_target_feature_args
+from _repo import test_target as cargo_test_target
 from _source_cache import source_cache
 from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
@@ -213,9 +214,25 @@ def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
     return masked, tuple(items)
 
 
-def _disabling_cfg(attrs: list[str]) -> str | None:
+_FEATURE_ONLY_CFG = re.compile(
+    r'#\[cfg\((?:feature="[^"]+"|all\(feature="[^"]+"(?:,feature="[^"]+")*\))\)\]'
+)
+
+
+def _cfg_features(attr: str) -> list[str]:
+    return re.findall(r'feature="([^"]+)"', re.sub(r"\s+", "", attr))
+
+
+def _disabling_cfg(attrs: list[str], features: bool = False) -> str | None:
+    """The first attribute that may compile the item out.
+
+    With `features`, a `cfg` that is only a conjunction of `feature = "..."`
+    does not disable: a run that enables those features compiles the item.
+    """
     for attr in attrs:
         inner = re.sub(r"\s+", "", attr)
+        if features and _FEATURE_ONLY_CFG.fullmatch(inner):
+            continue
         if inner.startswith("#[cfg(") and inner != "#[cfg(test)]":
             return attr
         if inner.startswith("#[cfg_attr(") and "ignore" in inner:
@@ -375,8 +392,26 @@ class StaticTest:
 
 
 @source_cache
-def rust_test_declaration_problems(path: Path, name: str) -> list[str]:
-    """Declaration checks shared by inventories; no execution claim."""
+def rust_test_features(path: Path, name: str) -> list[str]:
+    """Cargo features a feature-gated test needs (on the fn or an enclosing module)."""
+    _, items = rust_items(path)
+    fns = [it for it in items if it.kind == "fn" and it.name == name]
+    if not fns:
+        return []
+    found = {f for a in fns[0].attrs for f in _cfg_features(a) if _FEATURE_ONLY_CFG.fullmatch(re.sub(r"\s+", "", a))}
+    for block in (it for it in items if it.kind == "mod"):
+        if block.body[0] < fns[0].start < block.body[1]:
+            found |= {f for a in block.attrs for f in _cfg_features(a)
+                      if _FEATURE_ONLY_CFG.fullmatch(re.sub(r"\s+", "", a))}
+    return sorted(found)
+
+
+@source_cache
+def rust_test_declaration_problems(path: Path, name: str, features: bool = False) -> list[str]:
+    """Declaration checks shared by inventories; no execution claim.
+
+    `features=True` accepts a test gated only on Cargo features; the caller
+    must then enable `rust_test_features(path, name)` when it runs the test."""
     problems: list[str] = []
     if not path.is_file():
         return [f"{path} does not exist"]
@@ -392,10 +427,10 @@ def rust_test_declaration_problems(path: Path, name: str) -> list[str]:
         problems.append(f"fn {name} has no #[test] attribute")
     if any(a.startswith("#[ignore") for a in attrs):
         problems.append(f"fn {name} is #[ignore]d")
-    if (cfg := _disabling_cfg(item.attrs)) is not None:
+    if (cfg := _disabling_cfg(item.attrs, features)) is not None:
         problems.append(f"fn {name} is compiled only under {cfg.strip()}")
     for block in (it for it in items if it.kind == "mod"):
-        if block.body[0] < item.start < block.body[1] and (cfg := _disabling_cfg(block.attrs)):
+        if block.body[0] < item.start < block.body[1] and (cfg := _disabling_cfg(block.attrs, features)):
             problems.append(f"fn {name} sits in mod {block.name} under {cfg.strip()}")
     if _file_cfg_disabled(masked):
         problems.append(f"{path} is compiled out by an inner #![cfg(...)]")
@@ -603,26 +638,52 @@ def _registered_calibration_assertions(root: Path, field: str) -> list[dict]:
     return found
 
 
-def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) -> list[dict]:
-    """Exact libtest identity of each cited Rust assertion, from the test registry.
+def _unregistered_target(path_text: str, root: Path) -> dict | None:
+    """Crate and cargo target of a cited file with no registry row, from the manifest."""
+    m = re.fullmatch(r"crates/([^/]+)/(tests|src)/(.+)\.rs", path_text)
+    if not m or not (root / path_text).is_file():
+        return None
+    crate, kind, stem = m.groups()
+    if kind == "src":
+        return {"crate": crate, "cargo_target": "lib"}
+    name, _ = cargo_test_target(crate, stem.split("/")[0], root)
+    return {"crate": crate, "cargo_target": name}
 
-    Each `(path, name)` must lie in a registered cargo target of its crate and
-    declare exactly one runnable test `name`; anything else raises. The result
-    has the shape `calibration_discovery_problems` and `nextest_selection`
-    consume, so a lane built from these rows is discovered and run the same way
-    as the calibration-acceptance lane.
-    """
+
+@functools.lru_cache(maxsize=4)
+def _registry_rows_at(root: Path, stamp: tuple[int, int]) -> dict[str, dict]:
     registry = root / "parity/v3_test_registry.toml"
-    by_path = {
-        row["path"]: row for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
-    }
+    return {row["path"]: row for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])}
+
+
+def _registry_rows(root: Path) -> dict[str, dict]:
+    registry = root / "parity/v3_test_registry.toml"
+    if not registry.is_file():
+        return {}
+    stat = registry.stat()
+    return _registry_rows_at(root, (stat.st_mtime_ns, stat.st_size))
+
+
+def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) -> list[dict]:
+    """Exact libtest identity of each cited Rust assertion.
+
+    The cargo target comes from the test registry row of the file, or from the
+    crate manifest when the file has no row. Each `(path, name)` must lie in the
+    target's compiled files and declare exactly one runnable test `name`
+    (a test gated only on Cargo features is accepted and names them in
+    `features`); anything else raises. The result has the shape
+    `calibration_discovery_problems` and `nextest_selection` consume, so a lane
+    built from these rows is discovered and run the same way as the
+    calibration-acceptance lane.
+    """
+    by_path = _registry_rows(root)
     manifests: dict[str, dict] = {}
     found, seen, problems = [], set(), []
     for path_text, name in cited:
         if (path_text, name) in seen:
             continue
         seen.add((path_text, name))
-        row = by_path.get(path_text)
+        row = by_path.get(path_text) or _unregistered_target(path_text, root)
         if row is None:
             problems.append(f"{path_text}::{name}: file is not in parity/v3_test_registry.toml")
             continue
@@ -639,15 +700,21 @@ def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) 
         path = root / path_text
         target_source = crate / source
         if path.resolve() not in target_files(target_source.resolve(), crate.resolve()):
-            problems.append(f"{path_text}::{name}: outside its registered target {target}")
+            problems.append(
+                f"{path_text}::{name}: file is not in parity/v3_test_registry.toml for target {target} "
+                f"(outside its registered target)"
+                if path_text not in by_path
+                else f"{path_text}::{name}: outside its registered target {target}"
+            )
             continue
-        declaration = rust_test_declaration_problems(path, name)
+        declaration = rust_test_declaration_problems(path, name, True)
         if declaration:
             problems.append(f"{path_text}::{name}: {declaration}")
             continue
         found.append({"evidence_test": path_text, "evidence_assertion": name,
                       "crate": row["crate"], "cargo_target": target,
-                      "libtest_name": libtest_name(path, name, target_source)})
+                      "libtest_name": libtest_name(path, name, target_source),
+                      "features": rust_test_features(path, name)})
     if problems:
         raise ValueError("unresolvable cited Rust assertions:\n" + "\n".join(problems))
     return found

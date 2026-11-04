@@ -10,10 +10,54 @@ session fails.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
 import pytest
 
 from _repo_text import REPO_ROOT
+
+
+def _scientific_nodes() -> set[tuple[str, str]]:
+    """(path relative to the repository, test name) of every registered scientific assertion.
+
+    Derived from the same registries as `scripts/evidence_audit.py scientific_rows`;
+    a checkout without `scripts/` has no registry and marks nothing."""
+    audit = REPO_ROOT / "scripts" / "evidence_audit.py"
+    if not audit.is_file():
+        return set()
+    done = subprocess.run(
+        [sys.executable, str(audit), "scientific-python-nodes"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if done.returncode:
+        raise pytest.UsageError(
+            "cannot derive scientific assertions from the registries:\n" + done.stderr[-2000:]
+        )
+    return {tuple(line.split("::", 1)) for line in done.stdout.splitlines() if "::" in line}
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Mark registered scientific assertions so the default lane deselects them.
+
+    Marking happens before `-m` deselection runs (this hook is registered first)."""
+    if not items:
+        return
+    scientific = _scientific_nodes()
+    for item in items:
+        path = getattr(item, "path", None)
+        if path is None:
+            continue
+        try:
+            relative = path.resolve().relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            continue
+        if (relative, getattr(item, "originalname", item.name)) in scientific:
+            item.add_marker(pytest.mark.scientific)
 
 
 @pytest.fixture

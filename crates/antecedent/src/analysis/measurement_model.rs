@@ -621,7 +621,7 @@ impl PreparedMeasurementModel {
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
         Err(MeasurementModelRefusal {
             code: antecedent_core::reason_code!("uncertainty_representation_insufficient"),
-            detail: "measurement_model.interval_closed".to_owned(),
+            detail: "measurement_model.interval_requires_estimate".to_owned(),
             message: "a prepared measurement model carries no corrected functional; request the interval from the estimate".to_owned(),
             remedy: None,
         })

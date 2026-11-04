@@ -41,7 +41,7 @@ the estimate did not use.
   does not support the `Cheap` suite at all, so that branch applies to a result whose
   estimate carries a mirrored refuter value.
 * **No E-value interval.** `evalue.interval` is always the typed reason
-  (`diagnostic_not_available`, `tier_diagnostics.evalue_interval_withheld`): the converted
+  (`diagnostic_not_available`, `tier_diagnostics.no_evalue_interval_method`): the converted
   effect-interval endpoint is an approximation whose own uncertainty is excluded, and no coverage
   record measures the converted endpoint.
 

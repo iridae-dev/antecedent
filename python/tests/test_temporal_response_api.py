@@ -256,7 +256,7 @@ _SURFACE_QUERY = antecedent.ResponseCurve(
     policy="pulse",
     treatment_lag=1,
 )
-_BAND_WITHHELD = "estimate.temporal_response.band_withheld"
+_BAND_WITHHELD = "estimate.temporal_response.no_band_method"
 
 
 def _column(rows: Any) -> np.ndarray:

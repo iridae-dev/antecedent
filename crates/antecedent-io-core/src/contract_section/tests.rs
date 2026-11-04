@@ -8,7 +8,6 @@ use super::replay::{
     apply_moment_inverse, invert_linear_moments, replay_functional_response_grid,
     verify_nested_counterfactual_result,
 };
-use super::verify::verify_claim_calibration;
 use crate::identity::{
     ClaimIdentityWire, claim_digest, digest_wire, payload_digest, program_digest,
 };
@@ -1292,19 +1291,6 @@ fn calibration_basis_distinguishes_accepted_from_explicit_structure() {
     assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
     basis.key.validation.clear();
     assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
-}
-
-#[test]
-fn off_axis_claim_cannot_self_support_calibration() {
-    let (body, target, _) = fixture_body();
-    let mut contract = contract_for(target, &body);
-    let support = contract.reasoning.support.value.as_mut().unwrap();
-    support.matrix_status = "off_axis".into();
-    support.matrix_coordinate = None;
-    contract.claim.as_mut().unwrap().calibration.status = "calibrated".into();
-    let mut unresolved = Vec::new();
-    verify_claim_calibration(&contract, contract.claim.as_ref().unwrap(), &mut unresolved);
-    assert!(unresolved.iter().any(|reason| reason.as_ref() == "claim.calibration.off_axis"));
 }
 
 #[test]

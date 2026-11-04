@@ -1089,7 +1089,7 @@ impl MechanismCompositionPlan {
     /// What a parameter-uncertainty claim over this composition needs.
     ///
     /// Unknown dependence is never converted into independence: with more than
-    /// one mechanism it is a closed route stating the joint law required.
+    /// one mechanism it is a unsupported route stating the joint law required.
     #[must_use]
     pub fn uncertainty_route(&self) -> UncertaintyRoute {
         if self.mechanisms.len() <= 1 {

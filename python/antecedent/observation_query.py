@@ -623,17 +623,17 @@ class ObservationClaim(ScientificResult):
             ObservationQueryRefusal: ``uncertainty_representation_insufficient`` with
                 ``observation_query.declared_model_has_no_sampling_interval``.
         """
-        raise_refusal(_native.observation_query_closed("interval"), ObservationQueryRefusal)
+        raise_refusal(_native.observation_query_unsupported("interval"), ObservationQueryRefusal)
 
     def calibrated_probability(self) -> None:
         """A calibration claim for a posterior or decision probability. Always refused.
 
         Raises:
             ObservationQueryRefusal: ``uncertainty_representation_insufficient`` with
-                ``observation_query.calibrated_probability_closed``.
+                ``observation_query.no_calibrated_probability``.
         """
         raise_refusal(
-            _native.observation_query_closed("calibrated_probability"), ObservationQueryRefusal
+            _native.observation_query_unsupported("calibrated_probability"), ObservationQueryRefusal
         )
 
 

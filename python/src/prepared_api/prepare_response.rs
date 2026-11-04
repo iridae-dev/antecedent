@@ -115,7 +115,7 @@ impl PyPreparedAnalysis {
     /// Series columns, or a panel / multi-environment / event `frame` of the
     /// same schema. Frequentist omitted `bootstrap` is the builder's replicate
     /// count behind the joint circular-block bands; `0` publishes no band and
-    /// warns `estimate.temporal_response.band_withheld`.
+    /// warns `estimate.temporal_response.no_band_method`.
     #[staticmethod]
     #[pyo3(signature = (
         names,

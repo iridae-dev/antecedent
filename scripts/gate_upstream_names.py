@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when upstream package names appear outside the parity allowlist.
+"""Fail when upstream package names appear outside the permitted files.
 
 Scans code and TOML only. Hand-written markdown is not read, so rewording
 CONTRIBUTING, ROADMAP, SECURITY, or a file under docs/guides cannot fail
@@ -13,8 +13,8 @@ import tomllib
 from pathlib import Path
 
 root = Path(".")
-allowlist_path = root / "parity/upstream_name_allowlist.toml"
-# Prose suffixes are refused even if the allowlist lists them. This gate must
+permitted_path = root / "parity/permitted_upstream_name_files.toml"
+# Prose suffixes are refused even if the permitted files list them. This gate must
 # not extract facts from hand-written markdown.
 PROSE_SUFFIXES = {".md", ".markdown", ".rst", ".txt"}
 MATCH_KEYS = {
@@ -49,40 +49,40 @@ def fail(message: str) -> None:
 def string_list(data: dict, key: str, *, required: bool) -> list[str]:
     if key not in data:
         if required:
-            fail(f"upstream-name allowlist: {allowlist_path} missing `{key}`")
+            fail(f"upstream-name permitted files: {permitted_path} missing `{key}`")
         return []
     value = data[key]
     if not isinstance(value, list) or not all(
         isinstance(item, str) and item.strip() for item in value
     ):
-        fail(f"upstream-name allowlist: `{key}` must be a list of non-empty strings")
+        fail(f"upstream-name permitted files: `{key}` must be a list of non-empty strings")
     return value
 
 
-def load_allowlist(path: Path) -> dict:
+def load_permitted_files(path: Path) -> dict:
     if not path.is_file():
-        fail(f"upstream-name allowlist: missing {path}")
+        fail(f"upstream-name permitted files: missing {path}")
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        fail(f"upstream-name allowlist: {path} is not valid TOML: {exc}")
+        fail(f"upstream-name permitted files: {path} is not valid TOML: {exc}")
     names = string_list(data, "names", required=True)
     suffixes = [item.lower() for item in string_list(data, "scan_suffixes", required=True)]
     prose = sorted(set(suffixes) & PROSE_SUFFIXES)
     if prose:
         fail(
-            "upstream-name allowlist: refusing prose scan suffixes "
+            "upstream-name permitted files: refusing prose scan suffixes "
             f"{prose}; this gate reads code and TOML only"
         )
     rules = data.get("match", [])
     if not isinstance(rules, list):
-        fail("upstream-name allowlist: `match` must be an array of tables")
+        fail("upstream-name permitted files: `match` must be an array of tables")
     for i, rule in enumerate(rules, 1):
         if not isinstance(rule, dict) or not rule:
-            fail(f"upstream-name allowlist: match #{i} must be a non-empty table")
+            fail(f"upstream-name permitted files: match #{i} must be a non-empty table")
         unknown = sorted(set(rule) - MATCH_KEYS)
         if unknown:
-            fail(f"upstream-name allowlist: match #{i} has unknown keys {unknown}")
+            fail(f"upstream-name permitted files: match #{i} has unknown keys {unknown}")
         any_of = rule.get("path_contains_any")
         if any_of is not None and (
             not isinstance(any_of, list)
@@ -90,11 +90,11 @@ def load_allowlist(path: Path) -> dict:
             or not all(isinstance(item, str) and item for item in any_of)
         ):
             fail(
-                f"upstream-name allowlist: match #{i} path_contains_any must be a non-empty string list"
+                f"upstream-name permitted files: match #{i} path_contains_any must be a non-empty string list"
             )
         for key in ("prefix", "suffix", "contains", "name_contains", "path_contains"):
             if key in rule and (not isinstance(rule[key], str) or not rule[key]):
-                fail(f"upstream-name allowlist: match #{i} `{key}` must be a non-empty string")
+                fail(f"upstream-name permitted files: match #{i} `{key}` must be a non-empty string")
     return {
         "names": names,
         "suffixes": set(suffixes),
@@ -128,7 +128,7 @@ def allowed(path: Path, spec: dict) -> bool:
     return any(rule_matches(text, path.name, rule) for rule in spec["match"])
 
 
-spec = load_allowlist(allowlist_path)
+spec = load_permitted_files(permitted_path)
 pat = re.compile("|".join(re.escape(name) for name in spec["names"]), re.IGNORECASE)
 
 hits = []
@@ -158,7 +158,7 @@ for raw_path in tracked:
     except OSError:
         continue
     if pat.search(text):
-        # Ignore lines that only cite allowlisted baseline pin paths.
+        # Ignore lines that only cite permitted baseline pin paths.
         lines = []
         for i, line in enumerate(text.splitlines(), 1):
             if not pat.search(line):
@@ -172,7 +172,7 @@ for raw_path in tracked:
             hits.append((path.as_posix(), lines))
 
 if hits:
-    print(f"upstream-name allowlist violations ({len(hits)} files):")
+    print(f"upstream-name permitted files violations ({len(hits)} files):")
     for path, lines in hits[:60]:
         print(f"- {path}")
         for ln in lines:
@@ -180,4 +180,4 @@ if hits:
     if len(hits) > 60:
         print(f"... and {len(hits) - 60} more")
     sys.exit(1)
-print("upstream-name allowlist: ok")
+print("upstream-name permitted files: ok")

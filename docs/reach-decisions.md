@@ -126,7 +126,7 @@ observing-versus-intervening comparison is DIRECT inside it.
 | threshold crossing | exact finite | ADAPTER (a declared probability) | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED | NO ROUTE | REFUSED | NO ROUTE |
 | posterior update (finite space, Beta-Bernoulli) | exact finite | ADAPTER (posterior or predictive mean) | ADAPTER | REFUSED | REFUSED (a posterior of this route is not a `StatePrior`) | NO ROUTE | NO ROUTE (no population coordinate beyond the declaration) | NO ROUTE | REFUSED | NO ROUTE (closed form: no draws) |
 | evidence required (Bayes factor, observations) | exact finite | NO ROUTE (a count or a factor is not a decision source) | NO ROUTE | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | NO ROUTE |
-| interval or calibrated probability | closed interval | REFUSED `observation_query.declared_model_has_no_sampling_interval`, `observation_query.calibrated_probability_closed` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or calibrated probability | closed interval | REFUSED `observation_query.declared_model_has_no_sampling_interval`, `observation_query.no_calibrated_probability` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 An assigned or hypothetical value in a conditioning slot is
 `observation_query.intervention_in_conditioning_slot`; a recorded indicator
@@ -191,7 +191,7 @@ as a fixed sample. Every route is point-only or a labelled diagnostic.
 | frequentist adaptive weighting | point-only, martingale plug-in variance, uncalibrated | ADAPTER (executed: arm mean 51/112 of a four-unit epsilon-greedy history) | ADAPTER | REFUSED | REFUSED | NO ROUTE | NO ROUTE (decision recorded below) | NO ROUTE | REFUSED | NO ROUTE (analytic variance: no draws) |
 | frequentist group sequential | diagnostic (boundaries and first crossing, fixed randomization) | NO ROUTE (no estimand value) | NO ROUTE | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | NO ROUTE |
 | anytime-valid confidence sequence | diagnostic (time-uniform sequence for bounded outcomes, uncalibrated as a whole procedure) | NO ROUTE | NO ROUTE | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | NO ROUTE |
-| interval or guarantee of an adaptive procedure | closed interval | REFUSED `adaptive_inference.interval_closed` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or guarantee of an adaptive procedure | closed interval | REFUSED `adaptive_inference.interval_names_no_quantity` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 The monitoring contract (`adaptive_monitoring_contract_v1`) is a design record,
 not a value: it reaches `decision` and `inverse query` as REFUSED
@@ -199,8 +199,8 @@ not a value: it reaches `decision` and `inverse query` as REFUSED
 [the carryover disposition](https://github.com/iridae-dev/antecedent/blob/main/parity/carryover_disposition.md)),
 and a recalculation plan only by a caller-declared digest. A cell of the
 procedure matrix that describes no procedure, or that has no method yet, refuses
-`route_not_supported` with `adaptive_inference.cell_closed` or
-`adaptive_inference.cell_carried_forward`;
+`route_not_supported` with `adaptive_inference.cell_incoherent` or
+`adaptive_inference.cell_not_delivered`;
 a paradigm with no route for a supported cell is
 `adaptive_inference.paradigm_not_supported_for_cell`.
 

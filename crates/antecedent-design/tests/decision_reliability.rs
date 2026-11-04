@@ -732,7 +732,7 @@ fn validation_must_be_independent_of_the_selection_draws() {
     assert!(split_draws(&chain, 0.5, 20).is_ok());
 }
 
-// ---- the three components stay separate; closed routes ------------------------------
+// ---- the three components stay separate; unsupported routes ------------------------------
 
 #[test]
 fn the_three_components_are_separate_fields_and_a_combined_number_is_refused() {

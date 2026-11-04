@@ -198,7 +198,7 @@ impl CheckedSequentialContrastOperation {
                 "estimate.sequential_contrast.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "unsupported and uncalibrated route: sequential exchangeability given the \
+                "route with calibration status `not_measured`: sequential exchangeability given the \
                  measured history is declared and not checked, the nuisance fits are held fixed \
                  in each score, and no repeated-sampling calibration of the reported uncertainty \
                  has been measured",

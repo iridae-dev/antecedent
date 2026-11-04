@@ -513,6 +513,7 @@ if _TYPE_CHECKING:
     from . import adaptive_policy as adaptive_policy
     from . import categorical_treatment as categorical_treatment
     from . import choice_inference as choice_inference
+    from . import citations as citations
     from . import cohort_decision as cohort_decision
     from . import compact_export as compact_export
     from . import composition as composition

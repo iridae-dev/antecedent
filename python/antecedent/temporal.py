@@ -115,14 +115,14 @@ class TemporalRefusal(StructuredRefusal):
     namespaced ``family.slot`` slot (for example ``effect_constancy.incompatible_partitions``
     or ``temporal_counterfactual.unpaired_histories``). ``witness`` is the refusing witness
     the evaluator retained (unit, history, world, node, residual, bound) and
-    ``missing_gates`` / ``missing_factors`` list what a closed transported route lacks.
+    ``missing_gates`` / ``missing_factors`` list what a unsupported transported route lacks.
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         super().__init__(refusal)
         #: The refusing witness as a mapping, when the evaluator retained one.
         self.witness: Mapping[str, Any] | None = refusal.get("witness")
-        #: Prerequisite gates a closed route lacks, in a fixed order.
+        #: Prerequisite gates a unsupported route lacks, in a fixed order.
         self.missing_gates: tuple[str, ...] = tuple(refusal.get("missing_gates", ()))
         #: Regime factors (``source:<regime>`` / ``target:<regime>``) the evidence map lacks.
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
