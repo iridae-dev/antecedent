@@ -297,19 +297,19 @@ status = "bound"
 python = "native:python/src/interface_contract_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::scope_refusals::joint_bayesian_transport_refusal"
+rust = "antecedent::analysis::scope_refusals::joint_bayesian_transport_scope_refusal"
 kind = "fn"
 status = "bound"
 python = "native:python/src/scope_refusal_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::scope_refusals::nested_markov_refusal"
+rust = "antecedent::analysis::scope_refusals::nested_markov_scope_refusal"
 kind = "fn"
 status = "bound"
 python = "native:python/src/scope_refusal_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::scope_refusals::sampled_recovery_refusal"
+rust = "antecedent::analysis::scope_refusals::sampled_recovery_scope_refusal"
 kind = "fn"
 status = "bound"
 python = "native:python/src/scope_refusal_api.rs"
@@ -974,7 +974,7 @@ status = "bound"
 python = "native:python/src/joint_law_propagation_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::learned_joint_scope::learned_joint_transport_refusal"
+rust = "antecedent::analysis::learned_joint_scope::learned_joint_transport_scope_refusal"
 kind = "fn"
 status = "bound"
 python = "native:python/src/learned_joint_api.rs"
@@ -2427,7 +2427,6 @@ kind = "fn"
 status = "bound"
 python = "native:python/src/forward_source_api.rs"
 
-
 [[entry]]
 rust = "antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport"
 kind = "fn"
@@ -2881,14 +2880,14 @@ python = "native:python/src/mnar_sensitivity_api.rs"
 [[entry]]
 rust = "antecedent::analysis::mnar_sensitivity::mnar_sensitivity_for_table"
 kind = "fn"
-status = "internal"
-reason = "reached through antecedent.mnar_sensitivity.mnar_ate_sensitivity, which reads the columns in Python and calls the native analysis"
+status = "missing"
+reason = "Rust convenience that reads the treatment, outcome and covariate columns of a table; Python passes the columns to the column-based run directly and has no table reader of its own."
 
 [[entry]]
 rust = "antecedent::analysis::mnar_sensitivity::mnar_sensitivity_for_study"
 kind = "fn"
-status = "internal"
-reason = "reached through antecedent.mnar_sensitivity.from_analysis and ResultAPI.mnar_sensitivity, which take the query and adjustment set from the analysis result"
+status = "missing"
+reason = "Rust convenience that reads the query and adjustment set from a built study; Python reads them from the analysis result in antecedent.mnar_sensitivity.from_analysis and calls the column-based run, so this study reader has no Python call of its own."
 
 [[entry]]
 rust = "antecedent::analysis::api::estimate_with_graph_selection_per_imputation"
@@ -3005,8 +3004,8 @@ python = "antecedent.decision_evidence.JointEvidence.from_cluster_totals"
 [[entry]]
 rust = "antecedent::analysis::joint_panel::designs::replay_native_joint_design_execution"
 kind = "fn"
-status = "internal"
-reason = "Python replays and retains native compiler sources inside decision-evidence consumers."
+status = "bound"
+python = "native:python/src/decision_evidence_api.rs"
 
 [[entry]]
 rust = "antecedent::decision_evidence::compile_and_evidence_from_cluster"
@@ -3047,8 +3046,8 @@ python = "antecedent.decision_evidence.JointEvidence.from_experimental_design"
 [[entry]]
 rust = "antecedent::decision_evidence::compiled_decision_refusal"
 kind = "fn"
-status = "internal"
-reason = "The native bridge preserves resource and cancellation refusals during Python execution."
+status = "bound"
+python = "native:python/src/decision_evidence_api.rs"
 
 [[entry]]
 rust = "antecedent::decision_evidence::compiled_excursion_quantity"
@@ -3077,26 +3076,26 @@ reason = "computed inside PanelResult.condition_joint_excursion from the retaine
 [[entry]]
 rust = "antecedent::decision_evidence::evidence_from_compiled_cluster"
 kind = "fn"
-status = "internal"
-reason = "Python rebinds compiled cluster evidence during artifact replay."
+status = "bound"
+python = "native:python/src/decision_evidence_api.rs"
 
 [[entry]]
 rust = "antecedent::decision_evidence::evidence_from_compiled_excursion"
 kind = "fn"
-status = "internal"
-reason = "Python rebinds compiled excursion evidence during artifact replay."
+status = "bound"
+python = "native:python/src/decision_evidence_api.rs"
 
 [[entry]]
 rust = "antecedent::decision_evidence::evidence_from_compiled_experiment"
 kind = "fn"
-status = "internal"
-reason = "Python rebinds compiled matched-pair and switchback evidence during artifact replay."
+status = "bound"
+python = "native:python/src/decision_evidence_api.rs"
 
 [[entry]]
 rust = "antecedent::decision_evidence::evidence_from_compiled_static_regime"
 kind = "fn"
-status = "internal"
-reason = "Python rebinds compiled static-regime evidence during artifact replay."
+status = "bound"
+python = "native:python/src/decision_evidence_api.rs"
 
 [[entry]]
 rust = "antecedent::decision_evidence::compile_and_evidence_from_adaptive_regime"
@@ -3107,8 +3106,8 @@ python = "antecedent.decision_evidence.JointEvidence.from_adaptive_regime"
 [[entry]]
 rust = "antecedent::decision_evidence::evidence_from_compiled_adaptive_regime"
 kind = "fn"
-status = "internal"
-reason = "Python rebinds adaptive-regime evidence to its native source during artifact replay."
+status = "bound"
+python = "native:python/src/decision_evidence_api.rs"
 
 [[entry]]
 rust = "antecedent::analysis::api::consume_choice_inference_result_artifact"
@@ -3129,101 +3128,10 @@ status = "bound"
 python = "antecedent.choice_inference.RetainedSource.from_result"
 
 [[entry]]
-rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::compile"
-kind = "fn"
-status = "bound"
-python = "antecedent.missing.PreparedGraphImputation"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::execute"
-kind = "fn"
-status = "bound"
-python = "antecedent.missing.PreparedGraphImputation.execute"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::export"
-kind = "fn"
-status = "bound"
-python = "antecedent.missing.PreparedGraphImputation.export"
-
-[[entry]]
 rust = "antecedent::analysis::graph_imputation::consume"
 kind = "fn"
 status = "bound"
 python = "antecedent.missing.consume_compiled_graph_imputation"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationPoint::interval"
-kind = "fn"
-status = "bound"
-python = "antecedent.missing.CompiledGraphImputationResult.interval"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationPoint::measured"
-kind = "fn"
-status = "bound"
-python = "antecedent.missing.CompiledGraphImputationResult.measured"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation"
-kind = "type"
-status = "bound"
-python = "antecedent.missing.PreparedGraphImputation"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationSpec"
-kind = "type"
-status = "bound"
-python = "antecedent.missing.PreparedGraphImputation"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationPoint"
-kind = "type"
-status = "bound"
-python = "antecedent.missing.CompiledGraphImputationResult"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationArtifact"
-kind = "type"
-status = "bound"
-python = "antecedent.missing.CompiledGraphImputationArtifact"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationExpectation"
-kind = "type"
-status = "bound"
-python = "antecedent.missing.CompiledGraphImputationArtifact"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationError"
-kind = "type"
-status = "bound"
-python = "antecedent.missing.GraphSelectionImputationRefusal"
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::replay"
-kind = "fn"
-status = "internal"
-reason = "Python independently recompiles and replays through consume_compiled_graph_imputation using separately retained identities."
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::graph_imputation_calibration_candidate"
-kind = "fn"
-status = "internal"
-reason = "Feature-gated calibration harness entry; no Python interval authority or public calibrated claim."
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::GraphImputationSupport"
-kind = "type"
-status = "bound"
-python = "antecedent.missing.PreparedGraphImputation"
-reason = "The mandatory graph_support keyword explicitly declares either treatment-root direct-effect or treatment direct-effect support."
-
-[[entry]]
-rust = "antecedent::analysis::graph_imputation::graph_imputation_prior_predictive_calibration_candidate"
-kind = "fn"
-status = "internal"
-reason = "Feature-gated prior-predictive calibration harness entry; it issues no public interval authority."
 
 [[entry]]
 rust = "antecedent::analysis::categorical_posterior_candidate::prepare"
@@ -3238,64 +3146,16 @@ status = "bound"
 python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.consume_source"
 
 [[entry]]
-rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::export_source"
-kind = "fn"
-status = "bound"
-python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.export_source"
-
-[[entry]]
-rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::interval"
-kind = "fn"
-status = "bound"
-python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.interval"
-
-[[entry]]
 rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate"
 kind = "type"
 status = "bound"
 python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate"
 
 [[entry]]
-rust = "antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCandidateRequest"
-kind = "type"
-status = "bound"
-python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate"
-
-[[entry]]
-rust = "antecedent::analysis::categorical_posterior_candidate::CategoricalSamplingPremise"
-kind = "type"
-status = "bound"
-python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate"
-
-[[entry]]
-rust = "antecedent::analysis::categorical_posterior_candidate::CategoricalPosteriorCompileReceipt"
-kind = "type"
-status = "bound"
-python = "antecedent.categorical_treatment.CategoricalPosteriorCandidateSource"
-
-[[entry]]
 rust = "antecedent::analysis::categorical_posterior_candidate::replay"
 kind = "fn"
-status = "internal"
-reason = "Python recompiles original source through consume_source with a separately retained expectation."
-
-[[entry]]
-rust = "antecedent::analysis::categorical_posterior_candidate::replay_calibration_candidate"
-kind = "fn"
-status = "internal"
-reason = "The interval candidate and its execution receipt are compiled only for the explicit calibration harness."
-
-[[entry]]
-rust = "antecedent_io::measured_inference::categorical_candidate::measure_source"
-kind = "fn"
-status = "internal"
-reason = "The fixed IO adapter is internal to the prepared candidate measured interval facade and remains scientifically closed."
-
-[[entry]]
-rust = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::measured_interval"
-kind = "fn"
-status = "bound"
-python = "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.measured_interval"
+status = "missing"
+reason = "Rust replays a request against an expected receipt; Python recompiles the original source through consume_source with a separately retained expectation and has no replay call of its own."
 
 [[entry]]
 rust = "antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift"
@@ -3304,13 +3164,37 @@ status = "bound"
 python = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift"
 
 [[entry]]
-rust = "antecedent_io::measured_inference::mnar_candidate::measure_source"
+rust = "antecedent::analysis::joint_law_composed_basis::slot"
 kind = "fn"
 status = "internal"
-reason = "The source-bound measured adapter remains closed until independent method review and applicable coverage."
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent_io::measured_inference::graph_candidate::measure_source"
+rust = "antecedent::strategy_table::estimator_targets"
 kind = "fn"
 status = "internal"
-reason = "The fixed IO adapter is internal to the point measured and interval facade and remains scientifically closed."
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::estimator_targets_cell"
+kind = "fn"
+status = "missing"
+reason = "Reads an estimator declaration against a support-matrix cell for the under-support inventory; Python reaches the same declaration only through analysis preparation and exposes no per-cell reader."
+
+[[entry]]
+rust = "antecedent::strategy_table::estimator_validation"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::inference_mismatch"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::refuse_if_not_applicable_in"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
