@@ -2477,7 +2477,7 @@ pub const antecedent_validate::predictive_assessment::detail::HORIZON_MISMATCH: 
 pub const antecedent_validate::predictive_assessment::detail::IID_NOT_SUPPORTED: &str
 pub const antecedent_validate::predictive_assessment::detail::INTERVAL_DEPENDENCE_UNDECLARED: &str
 pub const antecedent_validate::predictive_assessment::detail::INTERVAL_NOT_SUPPORTED: &str
-pub const antecedent_validate::predictive_assessment::detail::INTERVAL_SCOPE_OUTSIDE_MEASURED: &str
+pub const antecedent_validate::predictive_assessment::detail::INTERVAL_REQUEST_INVALID: &str
 pub const antecedent_validate::predictive_assessment::detail::INVALID_LAW: &str
 pub const antecedent_validate::predictive_assessment::detail::INVALID_OBSERVATIONS: &str
 pub const antecedent_validate::predictive_assessment::detail::IN_SAMPLE: &str

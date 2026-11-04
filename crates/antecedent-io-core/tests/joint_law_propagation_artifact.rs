@@ -704,7 +704,7 @@ fn spread_of_unpaired_marginals_or_an_envelope_dependence_is_refused() {
     assert_eq!(
         details(&error),
         vec![(
-            "not_supported".to_owned(),
+            "uncertainty_representation_insufficient".to_owned(),
             "joint_law_propagation.spread_needs_supported_dependence".to_owned()
         )]
     );

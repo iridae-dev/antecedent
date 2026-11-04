@@ -665,7 +665,7 @@ meaning = "A held-out evaluation of the selected policy was required but the stu
 [[code]]
 id = "adaptive_assumption_violated"
 applies_to = ["runtime_refusal"]
-meaning = "An assumption an adaptive-experiment route rests on fails in the retained history: units received an arm other than the one assigned, outcome availability depends on the outcome, or an estimand arm had assignment probability below the declared floor. Nothing is clipped, dropped or imputed; the refusal names the declaration or model that would support the request."
+meaning = "An assumption an adaptive-experiment route rests on fails in the retained history: units received an arm other than the one assigned, outcome availability depends on the outcome, an estimand arm had assignment probability below the declared floor, or the declared design (assignment, stopping rule, delay mechanism, dependence between measurements) violates the premise of the requested inference construction. Nothing is clipped, dropped or imputed; the refusal names the declaration or model that would support the request."
 
 # Scientific interface contracts (capability records: interface_contract.* in parity/capability_records.toml).
 [[code]]
@@ -693,9 +693,7 @@ id = "interface_contract_uncertainty_mismatch"
 applies_to = ["runtime_refusal"]
 meaning = "The producer's interval, posterior, law or draws does not mean what the consumer requires: no uncertainty meaning is declared, the paradigm differs (a posterior is not a sampling distribution, and neither is a bootstrap or an empirical distribution), or the object differs within a paradigm (a posterior over parameters is not a posterior over a causal functional or an outcome). The refusal names the required and declared meanings."
 
-[[code]]
-id = "interface_contract_calibration_not_held"
-applies_to = ["runtime_refusal"]
+["runtime_refusal"]
 meaning = "A consumer relies on measured calibration of its input, or a producer declares its output's calibration inherited from an input, and the calibration is not held: the producer's label is none, point-only or unmeasured, an inherited calibration cannot be resolved from the pair alone, the input it is inherited from is not connected, or the upstream producer does not hold a measured record. Calibration of a component is not calibration of a composition; the refusal names what holds and what would support the reliance."
 
 [[code]]
@@ -719,7 +717,7 @@ meaning = "A claim rests on an upstream object whose support no longer holds: an
 [[code]]
 id = "callback_protocol_invalid"
 applies_to = ["runtime_refusal"]
-meaning = "A callback declaration is not well formed: a blank provider, object, version, snapshot or request identity, an operation the callback kind does not answer, a meaning that does not belong to the kind, a posterior update without its candidate, prior and observation or without the observation law, a seeded callback without a semantic stream identity, an idempotent retry without an attempt bound, a nested callback with no callback input, or a trust level metadata cannot confer (native support). The refusal names the declaration that would make the callback well formed."
+meaning = "A callback declaration is not well formed: a blank provider, object, version, snapshot or request identity, an operation the callback kind does not answer, a meaning that does not belong to the kind, a posterior update without its candidate, prior and observation or without the observation law, a seeded callback without a semantic stream identity, an idempotent retry without an attempt bound, a nested callback with no callback input, or a trust level metadata cannot confer (native support) or identification evidence a declaration cannot mint. The refusal names the declaration that would make the callback well formed."
 
 [[code]]
 id = "callback_reuse_ineligible"

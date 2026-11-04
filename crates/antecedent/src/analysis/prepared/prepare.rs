@@ -495,12 +495,12 @@ impl Study {
             _ => {
                 // `ensure_prepared_supported` already refuses this coordinate; a
                 // library must still answer with a typed refusal, never a panic.
-                return Err(CausalError::Support {
-                    id: crate::support::SupportRefusal::NotSupported,
-                    message: "graph_posterior on the prepared handle is supported only for \
-                        tabular AverageEffect/Response/ConditionalEffect and series \
-                        TemporalEffect, TemporalMediationEffect, or TemporalDag Response",
-                });
+                return Err(crate::unsupported_reason!(
+                    "data_modality_not_supported",
+                    "graph_posterior on the prepared handle is supported only for \
+                     tabular AverageEffect/Response/ConditionalEffect and series \
+                     TemporalEffect, TemporalMediationEffect, or TemporalDag Response"
+                ));
             }
         }
         Ok(())

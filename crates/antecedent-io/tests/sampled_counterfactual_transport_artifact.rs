@@ -184,11 +184,11 @@ fn fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit() {
     assert_eq!(produced, consumed.estimate);
     assert_eq!(consumed.wire, wire);
 
-    // Four distinct claims and no interval anywhere in the artifact.
+    // Four distinct claims; the interval is computable, and the artifact stores no interval value.
     assert_eq!(wire.estimate.structural_identification, "identified_by_stored_derivation");
     assert_eq!(wire.estimate.point_estimate, "plug_in_point_estimate");
-    assert_eq!(wire.estimate.statistical_inference, "withheld_not_supported");
-    assert_eq!(wire.estimate.interval_code, "not_supported");
+    assert_eq!(wire.estimate.statistical_inference, "delta_wald_interval_calibration_annotated");
+    assert_eq!(wire.estimate.interval_absence, None);
     assert_eq!(wire.estimate.standard_error.as_ref().unwrap().label, "uncalibrated_standard_error");
     assert_eq!(wire.overlap.default, "independent");
     assert_eq!(wire.unseen_rule.name, "refuse");
@@ -303,9 +303,9 @@ fn resealed_semantic_mutations_are_refused() {
         "{error:?}"
     );
 
-    // An interval smuggled in as an inference claim never seals.
+    // An inference label that contradicts the stored interval status never seals.
     let mut smuggled = wire.clone();
-    smuggled.estimate.interval_code = "nominal_interval".into();
+    smuggled.estimate.statistical_inference = "interval_not_computable".into();
     assert!(smuggled.sealed().is_err());
 
     // The unseen-cell rule changed and resealed: the labels and tables differ.

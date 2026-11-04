@@ -96,7 +96,7 @@
 //!   ([`NonRecoverableWitness`]: same source model, two target models that differ in
 //!   that one coefficient, contrasts verified by arithmetic) and the code
 //!   `transport_proven_non_transportable`; otherwise the refusal is
-//!   `not_supported` with no witness (the class excludes it, no impossibility
+//!   `route_not_supported` with no witness (the class excludes it, no impossibility
 //!   is claimed).
 //! * The claim is point-only; calibration is unmeasured.
 //!
@@ -653,7 +653,7 @@ fn check_diagram(
     let code = if witness.is_some() {
         antecedent_core::reason_code!("transport_proven_non_transportable")
     } else {
-        antecedent_core::reason_code!("not_supported")
+        antecedent_core::reason_code!("route_not_supported")
     };
     let mut refusal = refuse_with(
         code,
@@ -679,7 +679,7 @@ fn check_assumptions(
         return Ok(());
     };
     Err(refuse_with(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("route_not_supported"),
         detail,
         Some(premise.to_owned()),
         "declare the additive-noise, shared-noise-law and cross-world independence premises, \

@@ -470,7 +470,7 @@ impl FiniteScmExecutor {
         }
         if request.reading == RequestedReading::Envelope {
             return Err(refuse(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("route_not_supported"),
                 "cross_world_execution.envelope_needs_parameter_set",
                 Some("envelope".to_owned()),
                 "an envelope is the range over a declared set of parameterisations; declare the \
@@ -799,7 +799,7 @@ impl FiniteScmExecutor {
         let spread_requested = request.reading == RequestedReading::Spread;
         if spread_requested && matches!(request.quantity, FiniteQuantity::MeanContrast { .. }) {
             return Err(refuse(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("route_not_supported"),
                 "cross_world_execution.spread_needs_enumeration",
                 Some("variable_elimination".to_owned()),
                 "elimination computes the first moment of the quantity only; the spread of a \

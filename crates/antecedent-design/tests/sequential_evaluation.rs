@@ -761,7 +761,7 @@ fn transport_and_intervals_are_typed_refusals() {
     assert_eq!(err.detail, "sequential_evaluation.temporal_transport_contract_missing");
 
     let err = request_interval().unwrap_err();
-    assert_eq!(err.code, "not_supported");
+    assert_eq!(err.code, "uncertainty_representation_insufficient");
     assert_eq!(err.detail, "sequential_evaluation.interval_not_supported");
 }
 
@@ -1347,6 +1347,13 @@ fn off_policy_weighting_recovers_the_enumerated_value_and_the_log_is_counted_onc
     assert!((estimate.effective_sample_size - LOG_SIZE / 8.0).abs() < 1e-6);
     assert_eq!(estimate.inference, "point_only");
     assert!(estimate.uncalibrated_standard_error.unwrap() > 0.0);
+    let interval = estimate.interval.as_ref().expect("an interval above one trajectory");
+    assert_eq!(interval.level, 0.95);
+    assert!(interval.lower < estimate.ordinary && estimate.ordinary < interval.upper);
+    assert_eq!(
+        interval.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::NotMeasured
+    );
     assert_eq!(estimate.trajectories, 65_536);
     assert!(!estimate.reused_recorded_log);
     assert!(estimate.records_counted > 65_536);

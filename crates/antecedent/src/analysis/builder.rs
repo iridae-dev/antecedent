@@ -156,7 +156,7 @@ pub(super) fn refuse_unsupported_transport(
     if supported {
         Ok(())
     } else {
-        Err(crate::support_reason!(
+        Err(crate::unsupported_reason!(
             "construction_not_supported",
             "TransportQuery is supported for a mean ResponseCurve on the complete, all-observed \
              static response, transported by binary trial-to-target IPW"
@@ -196,7 +196,7 @@ pub(super) fn refuse_unsupported_interference(
     if supported {
         Ok(())
     } else {
-        Err(crate::support_reason!(
+        Err(crate::unsupported_reason!(
             "construction_not_supported",
             "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, exact two-stage saturation, or supplied-propensity observational exposure with built-in neighbor mappings"
         ))

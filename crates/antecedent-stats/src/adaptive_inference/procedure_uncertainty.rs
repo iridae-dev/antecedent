@@ -105,7 +105,7 @@ pub enum EstimandStatement {
 /// Registered reason code of every premise failure raised by [`admit`].
 #[must_use]
 pub fn premise_reason_code() -> &'static str {
-    antecedent_core::reason_code!("not_supported")
+    antecedent_core::reason_code!("adaptive_assumption_violated")
 }
 
 fn premise(detail: &'static str, message: &'static str) -> Error {

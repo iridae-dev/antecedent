@@ -27,11 +27,12 @@ use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::counterfactual_transport_sampled::{
     DatasetOverlap, LABEL_ENVELOPE_ONLY, LABEL_EXACT_ON_ESTIMATED_TABLES, LABEL_IDENTIFIED,
-    LABEL_INFERENCE_WITHHELD, LABEL_PLUG_IN, LABEL_SMOOTHED_PLUG_IN, OverlapDeclaration,
-    SAMPLED_TRANSPORT_UNCERTAINTY_METHOD, STRUCTURAL_ENVELOPE_LABEL, SampledAxis,
-    SampledCounterfactualTransportEstimate, SampledRegimeCounts, SampledRegimeCountsParts,
-    SampledTransportLimits, SampledTransportRequest, SamplingDesign, UNCALIBRATED_STANDARD_ERROR,
-    UnseenCellRule, estimate_sampled_counterfactual_transport,
+    LABEL_INFERENCE_INTERVAL, LABEL_INFERENCE_NOT_COMPUTABLE, LABEL_PLUG_IN,
+    LABEL_SMOOTHED_PLUG_IN, OverlapDeclaration, SAMPLED_TRANSPORT_UNCERTAINTY_METHOD,
+    STRUCTURAL_ENVELOPE_LABEL, SampledAxis, SampledCounterfactualTransportEstimate,
+    SampledIntervalOutcome, SampledRegimeCounts, SampledRegimeCountsParts, SampledTransportLimits,
+    SampledTransportRequest, SamplingDesign, UNCALIBRATED_STANDARD_ERROR, UnseenCellRule,
+    estimate_sampled_counterfactual_transport,
 };
 use antecedent_expr::{ExactDiscreteLaw, ExactTransportData};
 use antecedent_identify::{
@@ -249,12 +250,10 @@ fn large_samples_converge_to_the_enumerated_truth_with_four_distinct_labels() {
             assert_eq!(result.labels.structural_identification, LABEL_IDENTIFIED);
             assert_eq!(result.labels.exact_finite_law_evaluation, LABEL_EXACT_ON_ESTIMATED_TABLES);
             assert_eq!(result.labels.point_estimate, LABEL_PLUG_IN);
-            assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_WITHHELD);
+            assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_INTERVAL);
             assert!(!result.point.as_ref().unwrap().smoothed);
-            // The interval route is closed; a standard error is labelled
-            // uncalibrated and is the only uncertainty number.
-            assert_eq!(result.inference.interval.code, "not_supported");
-            assert_eq!(result.inference.interval.reason, "estimator_grid_not_measured");
+            // The standard error is labelled uncalibrated and the interval exists.
+            assert_eq!(result.inference.interval, SampledIntervalOutcome::Reported);
             let se = result.inference.standard_error.as_ref().expect("a standard error");
             assert_eq!(se.label, UNCALIBRATED_STANDARD_ERROR);
             assert_eq!(se.method, SAMPLED_TRANSPORT_UNCERTAINTY_METHOD);
@@ -451,10 +450,10 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
         (point(&smoothed) - point(&structural)).abs()
             > (point(&vanishing) - point(&structural)).abs()
     );
-    assert_eq!(smoothed.inference.interval.code, "not_supported");
+    assert_eq!(smoothed.inference.interval, SampledIntervalOutcome::Reported);
 
     // Envelope: a labelled structural range over a finite family, no single
-    // standard error, never an interval.
+    // standard error, so no interval: a scientific outcome.
     let enveloped = estimate(
         &derivation,
         tables.clone(),
@@ -472,6 +471,15 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
         enveloped.inference.standard_error_withheld_reason,
         Some("partial_identification_has_no_single_standard_error")
     );
+    assert_eq!(
+        enveloped.inference.interval,
+        SampledIntervalOutcome::NotComputable {
+            code: "effect_not_identified",
+            detail: "counterfactual_transport_sampled.interval_not_computable",
+            reason: "partial_identification_has_no_single_standard_error",
+        }
+    );
+    assert_eq!(enveloped.labels.statistical_inference, LABEL_INFERENCE_NOT_COMPUTABLE);
     assert_ne!(enveloped.labels.point_estimate, LABEL_SMOOTHED_PLUG_IN);
     let _ = LABEL_ENVELOPE_ONLY;
 
@@ -719,18 +727,15 @@ fn estimates_are_deterministic_invariant_to_table_order_and_move_with_the_counts
 }
 
 #[test]
-fn an_interval_is_never_published_and_the_standard_error_is_labelled_uncalibrated() {
+fn the_interval_is_reported_and_the_standard_error_is_labelled_uncalibrated() {
     let case = case_named("effect_of_treatment_on_treated_with_selection");
     let data = laws_of(&case);
     let derivation = derive(&case, &case.targets[0]);
     let mut rng = Rng(61);
     let tables = cited_only(&derivation, &sample_laws(&data, 8_000, &mut rng));
     let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
-    let interval = &result.inference.interval;
-    assert_eq!(interval.code, "not_supported");
-    assert_eq!(interval.detail, "counterfactual_transport_sampled.interval_not_supported");
-    assert_eq!(interval.reason, "estimator_grid_not_measured");
-    assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_WITHHELD);
+    assert_eq!(result.inference.interval, SampledIntervalOutcome::Reported);
+    assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_INTERVAL);
     let se = result.inference.standard_error.as_ref().unwrap();
     // The interval is reported from the same standard error: estimate +/- z * se, clamped.
     let reported =
@@ -852,8 +857,7 @@ fn the_calibration_internal_interval_is_a_candidate_not_a_published_claim() {
     let interval = sampled_transport_wald_interval_internal(&result, 0.95).unwrap();
     assert!(interval.lower <= point(&result) && point(&result) <= interval.upper);
     assert_eq!(interval.reason, "estimator_grid_not_measured");
-    // The published result still carries no interval.
-    assert_eq!(result.inference.interval.code, "not_supported");
+    assert_eq!(result.inference.interval, SampledIntervalOutcome::Reported);
     assert!(sampled_transport_wald_interval_internal(&result, 1.5).is_err());
 }
 

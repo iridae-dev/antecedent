@@ -13,7 +13,7 @@ import json
 import re
 
 import pytest
-from antecedent import Admg
+from antecedent import Admg, build_flavor
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -326,10 +326,17 @@ def test_a_value_restricted_trial_is_excluded_not_identified_for_every_level():
         restricted.prepare_exact((), {"x": 1.0})
 
 
+@pytest.mark.skipif(
+    build_flavor() == "development",
+    reason="a development build runs the route and records would_refuse",
+)
 def test_counted_laws_are_not_supported_on_the_mixed_source_route():
     stage = decide(chain_graph(), CHAIN_STUDIES)
-    with pytest.raises(CausalUnsupportedError, match="not_supported"):
+    with pytest.raises(
+        CausalUnsupportedError, match="mixed_source.counted_laws_unsupported"
+    ) as info:
         stage.prepare_empirical(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
+    assert info.value.reason_code == "not_supported"
 
 
 def test_exported_result_is_recomputed_by_an_independent_consumer():

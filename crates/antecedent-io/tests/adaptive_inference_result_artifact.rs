@@ -229,7 +229,7 @@ fn a_paradigm_of_another_cell_is_refused_before_any_number() {
         size_weighted: false,
     };
     let error = compute_adaptive_result(&contract(thompson()), &weighting, &ctx()).unwrap_err();
-    assert_eq!(error.code, "not_supported");
+    assert_eq!(error.code, "route_not_supported");
     assert_eq!(error.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     let error = compute_adaptive_result(&contract(weighted()), &posterior(1), &ctx()).unwrap_err();
     assert_eq!(error.detail, "adaptive_inference.paradigm_not_supported_for_cell");

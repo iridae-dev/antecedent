@@ -79,7 +79,7 @@ Every route that was closed at the tag, from its stage rows and its registry. Th
 | `antecedent.cross_world.query_outside_contract` | identify | `route_not_supported` | - | `deliberate_refusal` | counterfactual_transport | - | A query shape outside the two-world contract is undecided here; the transported route admits only its own named query shapes and refuses the rest with this code. |
 | `antecedent.cross_world.recanting_witness_edge_sets` | identify | `cross_world_not_identified` | - | `deliberate_refusal` | counterfactual_transport | - | A recanting witness is a nonidentification refusal the transported route must reproduce, not bypass; the obstruction witnesses of the new work reuse it. |
 | `antecedent.cross_world.structure_outside_contract` | identify | `not_supported` | - | `deliberate_refusal` | counterfactual_transport, mechanism_composition | - | Uncertain, latent-confounded, equivalence-class, temporal or oversized structure stays outside the fixed-population contract; composition and transport check graph premises against it and refuse the same shapes. |
-| `antecedent.cross_world.transported_path_specific` | identify | `not_supported` | `2.3A.X8.transported_path_specific_counterfactual` | `reopened_under_new_record` | counterfactual_transport, sampled_counterfactual_transport | `counterfactual.transport_general` | The general bounded finite counterfactual transport work replaces this route under its own record; the inherited route keeps not_supported and its missing-gate report until that record passes theorem, provider, artifact and fresh-consumer gates. The separately supported affine-additive row does not open it. |
+| `antecedent.cross_world.transported_path_specific` | identify | `transport_missing_evidence` | `2.3A.X8.transported_path_specific_counterfactual` | `reopened_under_new_record` | counterfactual_transport, sampled_counterfactual_transport | `counterfactual.transport_general` | The general bounded finite counterfactual transport work replaces this route under its own record; the inherited route keeps not_supported and its missing-gate report until that record passes theorem, provider, artifact and fresh-consumer gates. The separately supported affine-additive row does not open it. |
 | `antecedent.cross_world.uncertainty` | uncertainty | `estimator_inference_mismatch` | - | `deliberate_refusal` | counterfactual_transport | - | The fixed-population cross-world route is point-only and has no sampling theory; transported counterfactual uncertainty is a separate sampled-transport record measured at its own coordinate, so this interval request keeps refusing. |
 | `antecedent.transport.advanced.AdmgConditionalTransportStage.prepare_empirical` | prepare | `not_supported` | - | `deliberate_refusal` | counterfactual_transport | - | Counted laws have no sampling theory on the conditional ADMG route; the new sampled route is separate and does not reopen it. |
 | `antecedent.transport.advanced.MixedSourceStage.prepare_empirical` | prepare | `not_supported` | - | `deliberate_refusal` | counterfactual_transport | - | Counted laws have no sampling theory on the mixed-source route; sampled-evidence-to-law conversion for counterfactual transport is a separate record with its own sparse-cell rules and does not reopen this route. |
@@ -96,7 +96,7 @@ Every route that was closed at the tag, from its stage rows and its registry. Th
 
 | Route | Stage | Reason code | Record |
 | --- | --- | --- | --- |
-| `antecedent.PreparedBatch.partial_family` | evaluate | `not_supported` | - |
+| `antecedent.PreparedBatch.partial_family` | evaluate | `route_not_supported` | - |
 | `antecedent.PreparedBatch.scores_unavailable` | evaluate | `score_table_unavailable` | - |
 | `antecedent.PreparedSmoothedDose.interval` | uncertainty | `not_supported` | - |
 | `antecedent.PreparedZTransport.joint_mechanism_sensitivity_interval` | uncertainty | `not_supported` | - |
@@ -113,9 +113,9 @@ Every route that was closed at the tag, from its stage rows and its registry. Th
 | `antecedent.estimators.DML.cluster_option` | evaluate | `route_not_supported` | - |
 | `antecedent.estimators.PropensityPenalty.lasso_full_sample` | evaluate | `selection_inference_not_supported` | - |
 | `antecedent.inverse.unsupported_forward` | evaluate | `not_supported` | - |
-| `antecedent.inverse.observational_scenarios` | evaluate | `not_supported` | - |
-| `antecedent.inverse.probability_target` | evaluate | `not_supported` | - |
-| `antecedent.inverse.quantile_target` | evaluate | `not_supported` | - |
+| `antecedent.inverse.observational_scenarios` | evaluate | `inverse_functional_unsupported` | - |
+| `antecedent.inverse.probability_target` | evaluate | `inverse_functional_unsupported` | - |
+| `antecedent.inverse.quantile_target` | evaluate | `inverse_functional_unsupported` | - |
 | `antecedent.matched.interval` | uncertainty | `not_supported` | - |
 | `antecedent.matched.risk_scale_estimand` | evaluate | `effect_not_identified` | - |
 | `antecedent.mediation.interventional_effects` | evaluate | `route_not_supported` | `2.3B.B4.nonlinear_mediation` |

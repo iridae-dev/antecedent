@@ -145,9 +145,19 @@ fn stopping_reliability_closed() -> ClosedClaim {
 }
 
 impl ClosedClaim {
+    /// A claim that no construction yields because the estimator does not implement that
+    /// inference mode.
+    pub(crate) fn mismatch(detail: &'static str) -> Self {
+        Self {
+            code: antecedent_core::reason_code!("estimator_inference_mismatch"),
+            detail,
+            reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
+        }
+    }
+
     pub(crate) fn closed(detail: &'static str) -> Self {
         Self {
-            code: antecedent_core::reason_code!("not_supported"),
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail,
             reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
         }
@@ -163,7 +173,7 @@ impl ClosedClaim {
             )
         } else {
             format!(
-                "{what} is not supported: whole-procedure coverage of this assignment, outcome structure, monitoring and stopping rule has not been measured; the point values and uncalibrated diagnostics are the result"
+                "{what} is not supported: no construction yields it for this assignment, outcome structure, monitoring and stopping rule; the point values and uncalibrated diagnostics are the result"
             )
         };
         AdaptiveInferenceError::new(self.code, self.detail, message)

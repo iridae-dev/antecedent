@@ -35,7 +35,7 @@ What it decides, and what it does not:
 * **Intervals only where measured.** :meth:`AdaptiveInferenceSession.interval` (an unqualified
   request) raises ``not_supported``. :meth:`AdaptiveInferenceSession.measured_interval`
   returns the interval of one result for the procedure cells whose whole-procedure coverage was
-  measured, bound to its coverage record, and refuses every other procedure.
+  measured, with its calibration status, and refuses every other procedure.
 * **A participant-level family.** :class:`ParticipantProcedure` declares three or four arms,
   participant-level randomization, three or six binary responses per participant (a
   beta-binomial count with a declared or jointly estimated intra-participant correlation), historical informative

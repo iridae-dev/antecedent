@@ -265,7 +265,7 @@ def test_refusals_carry_their_reason_codes():
     # Below the replicate floor the point is kept and the interval withheld.
     below = require_success(
         advanced.prepare_smoothed_dose(
-            query, data, options=options(bootstrap=50), execution=ac.Execution(seed=2)
+            query, data, options=options(bootstrap=1), execution=ac.Execution(seed=2)
         ).estimate()
     )
     assert below.uncertainty["detail"] == "dose_response.bootstrap_below_floor"
@@ -419,10 +419,10 @@ def test_the_interval_route_reports_the_bootstrap_interval_with_its_calibration(
         "measured_below_nominal",
         "not_measured",
     }
-    # The point remains available and reports the interval withheld, never attached.
+    # The point result records the request; the interval is formed by the interval route.
     result = require_success(study.estimate())
-    assert result.uncertainty["status"] == "withheld"
-    assert result.uncertainty["reason"] == "not_supported"
+    assert result.uncertainty["status"] == "bootstrap_interval_requested"
+    assert result.uncertainty["reason"] == "joint_outer_bootstrap"
     assert result.interval is None
     consumed = advanced.consume_smoothed_dose(bytes(result.export()))
     assert consumed.uncertainty == result.uncertainty

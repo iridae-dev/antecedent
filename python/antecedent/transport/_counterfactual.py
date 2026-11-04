@@ -963,12 +963,11 @@ class SampledCounterfactualTransportEstimate(ScientificResult):
         *,
         execution: Execution | None = None,
     ) -> MeasuredInference:
-        """The 95% delta-method Wald interval, bound to its measured coverage record.
+        """The 95% delta-method Wald interval, with its calibration status.
 
         The artifact is replayed from its counts. The interval is reported only
         for the measured construction (independent units, refused unseen cells,
-        equal table totals inside the measured sample-size range, a query with a
-        currently attesting coverage record); anything else raises
+        equal table totals, a supported query); anything else raises
         ``not_supported``. The estimate itself still carries no interval.
         """
         native = call_native(

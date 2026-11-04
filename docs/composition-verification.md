@@ -66,9 +66,9 @@ calibration are rechecked at the current coordinates.
 A record held at coordinate `c` is supported only at the claim's own
 coordinate. A record inherited from an upstream node is supported only when that
 node currently holds the same record at the same coordinate (not retired, not
-unsupported, not untrusted). Otherwise the claim is withdrawn for calibration
-(`not_supported`, `composition_verification.calibration_not_held`) and
-reports the state `lost` and that a new calibration is required. A record
+unsupported, not untrusted). Otherwise the claim is withdrawn for calibration: it
+reports the state `lost` and that a new calibration is required, and its
+interval carries that calibration status. The claim itself is not refused. A record
 established for one target population is therefore never inherited by a claim
 about another: a changed target is a changed coordinate.
 
@@ -139,7 +139,6 @@ calibration records are declarations.
 |---|---|---|
 | `claim_revalidation_required` | `composition_verification.recompute_required` | recompute from the changed upstream objects |
 | `claim_support_withdrawn` | `support_withdrawn`, `provider_trust_withdrawn`, `input_retired`, `stage_unexecutable` | restore the support named by the origin |
-| `not_supported` | `composition_verification.calibration_not_held` | establish a record at the claim's coordinate or report the point value |
 | `invalid_argument` | `graph_invalid`, `unknown_claim`, `replay_mismatch`, `ledger_mismatch` | fix the declaration or regenerate |
 | `route_not_supported` | `identity_mismatch` | supply the artifact with the retained identity |
 

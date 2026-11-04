@@ -208,7 +208,7 @@ fn declared_bounds_and_designs_refuse_with_their_details() {
         matches!(&error, EstimationError::Refused { code: "route_not_supported", message } if message.starts_with("learned_transport.cate_requested"))
     );
     // A replicate request below the floor keeps the point and withholds the interval.
-    let below = LearnedContinuousOptions { bootstrap: 50, ..options() };
+    let below = LearnedContinuousOptions { bootstrap: 1, ..options() };
     let result = prepare(Design::NestedCohort, Scenario::Good, (400, 300), below, 2)
         .unwrap()
         .estimate(&ExecutionContext::for_tests(2))
@@ -284,9 +284,13 @@ fn menu_lists_refused_estimators_with_reasons_consistent_with_the_graph() {
     assert!(tuned_entry.support_requirements[0].contains("at least 0.1 "));
     assert!(tuned_entry.support_requirements[1].contains("[0.2, 0.8]"));
     assert_eq!(tuned_entry.sampling_design, ["nested_cohort"]);
-    assert!(tuned_entry.uncertainty_status.starts_with("withheld: not_supported"));
+    assert!(
+        tuned_entry
+            .uncertainty_status
+            .starts_with("bootstrap_interval_requested: joint_outer_bootstrap")
+    );
     assert!(tuned_entry.uncertainty_status.contains("300 bootstrap replicates"));
-    let below = LearnedContinuousOptions { bootstrap: 50, ..tuned };
+    let below = LearnedContinuousOptions { bootstrap: 1, ..tuned };
     let menu_below = antecedent_estimate::transport_estimator_menu_with(
         &id,
         &query,
@@ -844,7 +848,7 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
         consume_learned_continuous_artifact(&forged, LearnedContinuousConsumeLimits::default()),
         Err(IoError::LearnedContinuous(Refusal::IntervalMismatch))
     ));
-    // The old percentile-bootstrap request remains withheld.
+    // A bootstrap request is recorded on the point result; the analytic route takes none.
     let requested = LearnedContinuousOptions { bootstrap: 199, ..options() };
     let result = prepare(Design::IndependentSamples, Scenario::Good, (400, 300), requested, 2)
         .unwrap()
@@ -853,7 +857,7 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
     let uncertainty = &result.estimate().uncertainty;
     assert_eq!(
         (uncertainty.status.as_str(), uncertainty.reason.as_str()),
-        ("withheld", "not_supported")
+        ("bootstrap_interval_requested", "joint_outer_bootstrap")
     );
     assert!(!uncertainty.available() && result.estimate().estimate.is_finite());
     let (code, message) = refused_code(
@@ -864,6 +868,17 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
     );
     assert_eq!(code, "estimator_inference_mismatch");
     assert!(message.starts_with("learned_transport.bootstrap_not_supported"));
+    // The bootstrap request is formed by the bootstrap interval route, with a calibration slot.
+    let prepared =
+        prepare(Design::IndependentSamples, Scenario::Good, (400, 300), requested, 2).unwrap();
+    assert!(prepared.bootstrap_requested());
+    let bootstrap = prepared.bootstrap_interval(&ctx).unwrap();
+    let (lower, upper) = bootstrap.interval().expect("every replicate succeeded");
+    assert!(lower <= bootstrap.point().estimate && bootstrap.point().estimate <= upper);
+    assert_eq!(bootstrap.replicates().len(), 199);
+    assert!(bootstrap.uncertainty_reason().is_none());
+    // The slot annotates; it is never a gate.
+    let _ = bootstrap.calibration().status;
 }
 
 #[test]

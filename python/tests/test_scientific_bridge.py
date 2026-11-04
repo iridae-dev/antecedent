@@ -609,7 +609,7 @@ def test_value_kinds_are_not_interchangeable():
         contract = surrogate_contract(source_value=kind, target_value=kind)
         refused(
             lambda contract=contract: sb.prepare_scientific_bridge(contract),
-            "not_supported",
+            "bridge_mapping_not_supported",
             "scientific_bridge.value_kind_not_carried",
         )
     # A consumer that requires a law from a bridged mean is refused.
@@ -670,7 +670,7 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
     law = sb.SourceClaim.declared("a-law", None, contract.source, kind="mixture")
     refused(
         lambda: require_success(bridge.derive(law)),
-        "not_supported",
+        "bridge_mapping_not_supported",
         "scientific_bridge.source_not_point",
     )
 
@@ -835,10 +835,12 @@ def test_no_interval_posterior_or_joint_law_is_supported():
     claim = require_success(
         sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
     )
-    error = refused(claim.interval, "not_supported", "scientific_bridge.interval_not_supported")
+    error = refused(
+        claim.interval, "route_not_supported", "scientific_bridge.interval_not_supported"
+    )
     assert error.stage == "scientific_bridge"
     consumed = require_success(sb.consume_scientific_bridge_artifact(bytes(claim.export("closed"))))
-    refused(consumed.interval, "not_supported", "scientific_bridge.interval_not_supported")
+    refused(consumed.interval, "route_not_supported", "scientific_bridge.interval_not_supported")
     refused(
         lambda: consumed.claim.require_value_kind("posterior"),
         "bridge_substitution_refused",
@@ -856,7 +858,7 @@ def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design
     claim = require_success(sb.prepare_scientific_bridge(contract).derive(surrogate_source()))
     refused(
         lambda: claim.interval(0.95),
-        "not_supported",
+        "required_option_missing",
         "scientific_bridge.interval_source_uncertainty_required",
     )
     # Four validation trials are below the measured 15 to 40: the interval is reported and its
@@ -888,7 +890,7 @@ def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design
     assert interval.coverage_record.startswith("cov.bridged_claim_interval.")
     assert interval.degrees_of_freedom == 18.0
     # An unscoped request is still refused.
-    refused(claim.interval, "not_supported", "scientific_bridge.interval_not_supported")
+    refused(claim.interval, "route_not_supported", "scientific_bridge.interval_not_supported")
 
 
 # --------------------------------------------------------------------------- artifact

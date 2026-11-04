@@ -72,7 +72,6 @@ Read these refusals by family:
 | `interface_contract_assumption_mismatch` | Different measurement models, a consumer that needs declared evidence the producer does not declare, or a missing provenance stage. |
 | `interface_contract_operation_unavailable` | A required operation is not offered, such as a mean where a law is needed. |
 | `interface_contract_uncertainty_mismatch` | The required uncertainty meaning is missing, of another paradigm or another object, such as a sampling interval where a posterior is needed. |
-| `interface_contract_calibration_not_held` | The consumer relies on measured calibration and the producer does not hold it. |
 | `interface_contract_invalid` | The declaration is malformed. |
 
 An accepted connection carries the producer's label and evidence unchanged. **A connection never raises a label**: a point-only producer stays point-only, an unmeasured interval stays unmeasured, and a consumer that relies on measured calibration is refused instead of being served an unmeasured interval.
@@ -244,7 +243,6 @@ A `MechanismWrapper` whose noise cannot be recovered from an observation declare
 | Request | Answer |
 | --- | --- |
 | A connection with a feedback cycle | Refused, with the cycle path. |
-| Measured calibration relied on where the upstream does not hold it | `interface_contract_calibration_not_held`. |
 | A mean offered where a law is required, or a sampling interval for a posterior | Refused as an unavailable operation or an uncertainty mismatch. |
 | An interval or posterior for a composed quantity | Not supported. No whole-method coverage has been measured at a composed coordinate, and a component interval does not cover a composition. |
 | A native-supported label on an outside result | Refused. |

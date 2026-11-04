@@ -1155,7 +1155,7 @@ pub(super) fn refuse_unestimable_transport(
         TransportIdentification::Transportable {
             formula: antecedent_identify::TransportFormula::RecursiveFactorization { .. },
             ..
-        } => Err(crate::support_reason!(
+        } => Err(crate::unsupported_reason!(
             "construction_not_supported",
             "RecursiveFactorization is identified but not estimable on the supported \
              trial-to-target IPW path"

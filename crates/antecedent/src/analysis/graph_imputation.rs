@@ -46,11 +46,10 @@ fn invalid(message: impl std::fmt::Display) -> CausalError {
     CausalError::Compile { message: format!("graph_imputation.candidate_refused: {message}") }
 }
 
-/// A refusal of the native replay, in the engine's own terms. A support refusal is the typed
-/// interval refusal, so a caller can tell an uncovered execution from a failed one.
+/// A refusal of the native replay, in the engine's own terms. Calibration never refuses: an
+/// execution no record covers is reported with its calibration status.
 fn replay_error(error: IoError) -> GraphImputationError {
     match error {
-        IoError::Refused { code: "not_supported", .. } => GraphImputationError::IntervalUnavailable,
         IoError::Refused { code: "cancelled_no_claim", .. } => {
             CausalError::Cancelled { stage: "graph imputation replay" }.into()
         }
@@ -102,8 +101,8 @@ pub enum GraphImputationError {
     /// No scientific point has been supported for this candidate.
     #[error("graph_imputation.point_unsupported: the compiled candidate is not supported")]
     PointUnavailable,
-    /// No current attesting coverage record covers this execution's construction and rows.
-    #[error("graph_imputation.interval_unsupported: no calibrated interval is available")]
+    /// The replayed execution reported no interval scalar.
+    #[error("graph_imputation.interval_unsupported: the replay reported no interval")]
     IntervalUnavailable,
     /// A graph inside declared support did not have an identified effect proof.
     #[error("graph_imputation.supported_graph_unidentified: graph mask {mask}")]

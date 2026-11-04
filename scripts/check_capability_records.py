@@ -880,10 +880,18 @@ for rec in records:
     required = {"positive", "negative", "artifact"}
     if rec.get("search") is True:
         required.add("budget")
+    # Construction evidence is required only when a supported route reports an
+    # interval (a route without its own claim inherits the record's).
+    if any(
+        r.get("status") == "supported" and (r.get("claim") or claim) == "interval"
+        for r in rec.get("routes") or []
+    ):
+        required.add("construction")
     missing = sorted(required - roles)
     if missing:
         fail("fixture_roles", f"{rid}: missing fixture roles {', '.join(missing)}")
-    # A supported record executes every role it requires.
+    # A supported record executes every role it requires: an interval claim is
+    # backed by an independent construction check, not by a coverage record.
     unevidenced = sorted(required - evidenced)
     if record_supported and unevidenced:
         fail(

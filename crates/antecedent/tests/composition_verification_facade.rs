@@ -195,7 +195,8 @@ fn a_target_change_recomputes_the_law_and_never_inherits_its_calibration() {
     assert!(law.calibration.newly_required);
     assert!(law.withdrawn_for(WithdrawalKind::Calibration));
     let refusal = verification.require_valid("law").expect_err("refused");
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "claim_revalidation_required");
+    assert_eq!(refusal.detail, "composition_verification.recompute_required");
     // the score artifact and identification do not depend on the target
     assert_eq!(verification.classify("score_fit").expect("c").class, Revalidation::StillValid);
     // the decision rests on a law that must be recomputed; its point value is not withdrawn

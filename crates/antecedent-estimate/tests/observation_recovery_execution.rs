@@ -334,7 +334,7 @@ fn observed_laws_outside_the_contract_are_refused() {
     let empirical = uniform.with_empirical_counts(counts).unwrap();
     let error = refuse(&empirical);
     assert_eq!(error.detail, RecoveryDetail::EmpiricalNotSupported);
-    assert_eq!(error.reason_code(), "not_supported");
+    assert_eq!(error.reason_code(), "route_not_supported");
     // Another snapshot than the catalog binds.
     let other = ExactDiscreteLaw::try_new(
         POPULATION,

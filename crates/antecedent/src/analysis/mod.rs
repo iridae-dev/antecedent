@@ -113,7 +113,7 @@ mod checked_class_graph_posterior_effect;
 mod checked_conditional;
 mod checked_graph_posterior;
 mod checked_propensity;
-mod checked_route_frozen;
+mod checked_sealed_procedure;
 mod checked_temporal_class_effect;
 mod checked_temporal_class_response;
 mod checked_temporal_effect;
@@ -393,7 +393,8 @@ pub use joint_sensitivity::{
 };
 pub use joint_sensitivity_uncertainty::JointSamplingWire;
 pub use learned_continuous::{
-    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+    LearnedContinuousBootstrapInterval, LearnedContinuousResult, PreparedLearnedContinuous,
+    consume_learned_continuous_artifact,
 };
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
 pub use measurement_model::{

@@ -224,7 +224,7 @@ fn correlation(
         }
         SequenceDependence::Unspecified => {
             return Err(refuse(
-                reason_code!("not_supported"),
+                reason_code!("sampling_dependence_unknown"),
                 "switchback_posterior.dependence_undeclared",
                 "a posterior over switchback effects needs a stated within-sequence dependence \
                  model; the design-based sandwich of the frequentist route has no likelihood. \
@@ -347,7 +347,7 @@ fn group_sequences<'a>(
 ) -> Result<BTreeMap<&'a str, Vec<usize>>, EstimationError> {
     if model.carryover == CarryoverDeclaration::Unrestricted {
         return Err(refuse(
-            reason_code!("not_supported"),
+            reason_code!("effect_not_identified"),
             "switchback_posterior.carryover_unrestricted",
             "unrestricted treatment carryover has no likelihood in which the direct effect is \
              identified. Next attempt: declare first-order carryover, or randomize with washout \
@@ -407,9 +407,9 @@ fn group_sequences<'a>(
 ///
 /// # Errors
 ///
-/// `not_supported` with `switchback_posterior.carryover_unrestricted` for unrestricted
-/// carryover and `switchback_posterior.dependence_undeclared` for an unspecified dependence (each
-/// names the next attempt); `invalid_argument` with `switchback_posterior.shape`,
+/// `effect_not_identified` with `switchback_posterior.carryover_unrestricted` for unrestricted
+/// carryover and `sampling_dependence_unknown` with `switchback_posterior.dependence_undeclared`
+/// for an unspecified dependence (each names the next attempt); `invalid_argument` with `switchback_posterior.shape`,
 /// `.invalid_outcome`, `.single_arm`, `.too_few_sequences`, `.unbalanced_periods`,
 /// `.too_many_periods`, `.invalid_correlation` or `.invalid_level`, and with the
 /// `gaussian_linear_posterior.*` details for an invalid prior.

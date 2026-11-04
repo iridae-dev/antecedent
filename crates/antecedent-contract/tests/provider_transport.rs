@@ -567,7 +567,8 @@ fn a_claim_without_its_identity_or_outside_the_target_is_refused() {
 }
 
 #[test]
-fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_a_callback_input() {
+fn the_connection_refuses_a_different_population_and_a_callback_input_but_serves_a_calibration_demand()
+ {
     let policy = TransportedInputPolicy::AcceptsTransported;
 
     // The consumer's input is about another population than the claim's target.
@@ -576,8 +577,8 @@ fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_
         hand_to_callback(&offer(), &elsewhere, "effect", policy).expect_err("population");
     assert!(refusals.iter().any(|r| r.code == "interface_contract_quantity_mismatch"));
 
-    // A consumer that relies on a measured calibration record is not served by
-    // a transported claim, which never holds one.
+    // A consumer that relies on a measured calibration record is served by a
+    // transported claim, which never holds one: the handoff carries that status.
     let callback = consumer_callback("target", InputSupplier::External);
     let mut contract = callback.interface_contract();
     // A measured requirement is only well formed beside an interval or posterior.
@@ -587,9 +588,14 @@ fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_
         Some(antecedent_contract::interface_contract::UncertaintyMeaning::new(
             DistributionMeaning::EstimatorSampling,
         ));
-    let refusals = hand_to_consumer(&offer(), &contract, "effect", policy)
-        .expect_err("transport supplies no measured calibration");
-    assert!(refusals.iter().any(|r| r.code == "interface_contract_calibration_not_held"));
+    // The offer must carry the interval the consumer relies on; a mean alone is refused for the
+    // missing operation, not for its calibration.
+    let mut interval_offer = offer();
+    interval_offer.operations.insert(ContractOperation::Interval);
+    interval_offer.uncertainty = Some(DistributionMeaning::EstimatorSampling);
+    let handoff = hand_to_consumer(&interval_offer, &contract, "effect", policy)
+        .expect("calibration annotates the handoff and never refuses it");
+    assert_eq!(handoff.connection().calibration, CalibrationStatus::NotMeasured);
 
     // An input another callback supplies is not a claim from outside the graph.
     let mut nested = consumer_callback(

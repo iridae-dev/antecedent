@@ -206,7 +206,7 @@ fn compiled_runtime_error(
     use antecedent_core::search::SearchStop;
     let (code, detail, message) = match error {
         GraphImputationError::PointUnavailable | GraphImputationError::IntervalUnavailable => {
-            (reason_code!("not_supported"), "graph_imputation.unsupported", error.to_string())
+            (reason_code!("route_not_supported"), "graph_imputation.unsupported", error.to_string())
         }
         GraphImputationError::SearchStopped(receipt) => {
             let code = if receipt.stop == SearchStop::Cancelled {

@@ -410,7 +410,9 @@ impl ForwardSourceRefusal {
     pub fn code(&self) -> &'static str {
         match self {
             Self::Transported(error) => error.code(),
-            Self::TransportedNotAccepted => antecedent_core::reason_code!("not_supported"),
+            Self::TransportedNotAccepted => {
+                antecedent_core::reason_code!("decision_contract_unsatisfied")
+            }
             Self::IntervalNotSupported(_) => {
                 antecedent_core::reason_code!("uncertainty_representation_insufficient")
             }

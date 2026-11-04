@@ -248,7 +248,7 @@ def test_an_envelope_has_no_composed_interval() -> None:
     )
     with pytest.raises(R) as error:
         require_success(env.check_composed_interval("normal_approximation", evidence_rows=200))
-    assert error.value.reason_code == "not_supported"
+    assert error.value.reason_code == "uncertainty_representation_insufficient"
     assert error.value.detail == "joint_law_propagation.spread_needs_supported_dependence"
     with pytest.raises(R):
         env.coordinate_id()

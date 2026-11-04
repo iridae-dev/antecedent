@@ -263,7 +263,7 @@ fn the_default_policy_does_not_accept_a_transported_claim() {
             required: SupportStatus::Supported,
         }
     );
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "decision_contract_unsatisfied");
     assert_eq!(error.detail(), DETAIL_SUPPORT_BELOW_POLICY);
 }
 
@@ -945,6 +945,6 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
         export_transported_decision(&contract, &response, &strict, "strict")
             .unwrap_err()
             .to_string(),
-        "reason=not_supported: transported_decision.transported_not_accepted: reason=not_supported: transported_decision.transported_not_accepted"
+        "reason=decision_contract_unsatisfied: transported_decision.transported_not_accepted: reason=decision_contract_unsatisfied: transported_decision.transported_not_accepted"
     );
 }

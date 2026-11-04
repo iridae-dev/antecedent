@@ -40,7 +40,6 @@ use antecedent_core::{ExecutionContext, VariableId, reason_code};
 use antecedent_estimate::{Availability, OverlapReport, Unavailable};
 
 use crate::result::StudyResult;
-use crate::support::CellStatus;
 
 /// Derivation rule of a single-treatment `CoDetermined` closure identification.
 const CLOSURE_RULE: &str = "tiered.closure";
@@ -158,8 +157,7 @@ fn unavailable(detail: &'static str, reason: &'static str) -> Unavailable {
 /// Read the tier diagnostics a supported tiered average-effect result carries.
 ///
 /// # Errors
-/// `not_supported` (`tier_diagnostics.result_not_supported`) when the result's support
-/// status is not supported; `invalid_argument` (`tier_diagnostics.not_a_tiered_average_result`)
+/// `invalid_argument` (`tier_diagnostics.not_a_tiered_average_result`)
 /// when it is not a single-treatment `CoDetermined` closure or `Unknown` two-scenario
 /// average-effect result; `cancelled_no_claim` (`tier_diagnostics.cancelled`) when `ctx` is
 /// cancelled (observed on entry, before each of the two tier reads and once per scenario),
@@ -169,13 +167,6 @@ pub fn tier_diagnostics(
     ctx: &ExecutionContext,
 ) -> Result<TierDiagnostics, TierDiagnosticsError> {
     observe(ctx)?;
-    if !matches!(result.support_status, Some(CellStatus::Supported)) {
-        return Err(refusal(
-            reason_code!("not_supported"),
-            "tier_diagnostics.result_not_supported",
-            "tier diagnostics are read only off a result of a supported support cell",
-        ));
-    }
     let derived = |rule: &str| {
         result.identification.derivation.steps.iter().any(|step| step.rule.as_ref() == rule)
     };
@@ -274,12 +265,11 @@ fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
 
 /// The always-present reason no interval-limit E-value is reported.
 fn interval_withheld() -> Unavailable {
-    Unavailable {
-        code: reason_code!("not_supported"),
-        detail: "tier_diagnostics.evalue_interval_withheld",
-        reason: "an E-value for the effect-interval limit needs that endpoint converted to a risk \
-                 ratio; the conversion (outcome-SD plug-in, RR ~ exp(0.91 d)) is an approximation \
-                 whose own uncertainty is excluded and no coverage record measures the converted \
-                 endpoint, so only the point E-value is reported",
-    }
+    unavailable(
+        "tier_diagnostics.evalue_interval_withheld",
+        "an E-value for the effect-interval limit needs that endpoint converted to a risk \
+         ratio; the conversion (outcome-SD plug-in, RR ~ exp(0.91 d)) is an approximation \
+         whose own uncertainty is excluded and no coverage record measures the converted \
+         endpoint, so only the point E-value is reported",
+    )
 }

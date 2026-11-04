@@ -192,18 +192,9 @@ fn a_fresh_consumer_replays_the_ledger_and_recomputes_the_syntheses() {
     for (value, want) in env.values.iter().zip(expected) {
         close(*value, want, "envelope");
     }
-    // the ledger labels the result an assumption range, and refuses an interval from it
+    // the ledger labels the result an assumption range
     let record = consumed.ledger().result(f.envelope).expect("result");
     assert_eq!(record.claim_class.as_str(), "assumption_range");
-    let refusal = consumed.ledger().request_interval(f.envelope).unwrap_err();
-    assert_eq!(refusal.kind, antecedent_contract::evidence_ledger::RefusalKind::NotSupported);
-    assert_eq!(refusal.code, "not_supported");
-    assert_eq!(refusal.detail, "evidence_ledger.interval_not_supported");
-    assert!(
-        refusal.message.contains("assumption_range claim"),
-        "the refusal names the result's claim class: {}",
-        refusal.message
-    );
 
     let hb = by_result(f.borrowed);
     close(hb.values[0], 56.0 / 31.0, "posterior mean");
@@ -582,15 +573,13 @@ fn repeated_observation_use_survives_export_flagged() {
 }
 
 #[test]
-fn an_exported_result_carries_no_interval_support() {
+fn an_exported_result_keeps_its_claim_class() {
     let f = fixture();
     let bytes = EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "evidence-ledger-4")
         .expect("export");
     let consumed = EvidenceLedgerArtifact::from_bytes(&bytes, None).expect("consume");
     for result in [f.pooled, f.covariance, f.envelope, f.borrowed] {
-        let error = consumed.ledger().request_interval(result).expect_err("closed");
-        assert_eq!(error.code, "not_supported");
-        assert_eq!(error.detail, "evidence_ledger.interval_not_supported");
+        assert!(consumed.ledger().result(result).is_some());
     }
     assert_eq!(
         consumed.ledger().result(f.envelope).expect("result").claim_class.as_str(),

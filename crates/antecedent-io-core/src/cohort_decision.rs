@@ -202,12 +202,12 @@ fn semantics_mismatch(
     )
 }
 
-fn unsupported(
+fn invalid_input(
     detail: &'static str,
     subject: impl Into<String>,
     remedy: &'static str,
 ) -> CohortRefusal {
-    CohortRefusal::new(antecedent_core::reason_code!("not_supported"), detail, subject, remedy)
+    CohortRefusal::new(antecedent_core::reason_code!("invalid_argument"), detail, subject, remedy)
 }
 
 fn io_refusal(error: &IoError) -> CohortRefusal {
@@ -267,7 +267,7 @@ impl LawRequest {
                  declared dependence",
             ),
             Self::Interval => CohortRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("route_not_supported"),
                 "cohort_decision.interval_not_supported",
                 "interval",
                 "a shifted cohort and a portable model are point-only: the point value (and for \
@@ -1078,7 +1078,7 @@ fn outside_refusal(shifted: bool, subject: String) -> CohortRefusal {
              on rows that cover the target population",
         )
     } else {
-        unsupported(
+        invalid_input(
             "cohort_decision.outside_support",
             subject,
             "restrict the cohort to rows inside the retained support contract (building a \
@@ -1163,7 +1163,7 @@ fn portable_predictions(
     ctx: &ExecutionContext,
 ) -> Result<Predictions, CohortRefusal> {
     let Some(contract) = &effect.support else {
-        return Err(unsupported(
+        return Err(invalid_input(
             "cohort_decision.support_contract_absent",
             "fitted_effect.support",
             "refit with a producer that retains the fitted-row support contract; row-level \
@@ -1191,7 +1191,7 @@ fn portable_predictions(
             )
         })?
         .ok_or_else(|| {
-            unsupported(
+            invalid_input(
                 "cohort_decision.support_contract_absent",
                 "fitted_effect.support",
                 "refit with a producer that retains the fitted-row support contract",
@@ -1208,7 +1208,7 @@ fn portable_predictions(
     }
     let ids: Vec<VariableId> = effect.features.iter().map(|v| VariableId::from_raw(*v)).collect();
     let row_contrasts = effect.predict(&ids, &columns, cohort.rows(), ctx).map_err(|e| {
-        unsupported(
+        invalid_input(
             "cohort_decision.prediction_refused",
             e.to_string(),
             "the retained model could not predict at these rows; check the cohort features",
@@ -1297,7 +1297,7 @@ fn compact_predictions(
     let scale: f64 =
         body.covariance.iter().step_by(width + 1).zip(&phibar).map(|(v, p)| v * p * p).sum();
     if variance < -NEGATIVE_VARIANCE_TOLERANCE * (1.0 + scale.abs()) || !variance.is_finite() {
-        return Err(unsupported(
+        return Err(invalid_input(
             "cohort_decision.negative_variance",
             "phibar_v_phibar",
             "the stored covariance is not positive semidefinite on this cohort; refit",
@@ -1409,7 +1409,7 @@ impl CohortDecisionSource {
             predictions.row_contrasts.iter().zip(&cohort.weights).map(|(v, w)| v * w),
         );
         if !mean_contrast.is_finite() {
-            return Err(unsupported(
+            return Err(invalid_input(
                 "cohort_decision.non_finite_result",
                 "mean_contrast",
                 "the cohort mean is not finite; check the model and the cohort",
@@ -1557,7 +1557,7 @@ impl CohortDecisionSource {
     pub fn interval_refusal(&self) -> CohortRefusal {
         if self.shift.is_none() && self.model.is_linear_compact() {
             return CohortRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("route_not_supported"),
                 "cohort_decision.interval_requires_native_fit",
                 "interval",
                 "an interval is issued only through the measured native-fit route, which \

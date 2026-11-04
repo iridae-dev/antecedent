@@ -145,8 +145,8 @@ pub struct ConstructedInterval {
     pub basis: CalibrationBasisWire,
 }
 
-fn interval_scope_refusal(message: String) -> PredictiveAssessmentError {
-    refuse(reason_code!("not_supported"), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED, message)
+fn interval_request_invalid(message: String) -> PredictiveAssessmentError {
+    refuse(reason_code!("invalid_argument"), detail::INTERVAL_REQUEST_INVALID, message)
 }
 
 fn interval_overlap_label(
@@ -183,7 +183,7 @@ fn interval_law_family(
     let mut families: Vec<LawKind> = Vec::new();
     for name in names {
         let predictor = spec.predictors.iter().find(|p| p.name == *name).ok_or_else(|| {
-            interval_scope_refusal(format!("predictor `{name}` is not part of this assessment"))
+            interval_request_invalid(format!("predictor `{name}` is not part of this assessment"))
         })?;
         for law in &predictor.laws {
             if !families.contains(&law.kind()) {
@@ -192,8 +192,10 @@ fn interval_law_family(
         }
     }
     if families.len() != 1 {
-        return Err(interval_scope_refusal(
-            "the laws are of more than one family; an interval is measured for one law family \
+        return Err(refuse(
+            reason_code!("route_not_supported"),
+            detail::INTERVAL_LAW_FAMILY_MIXED,
+            "the laws are of more than one family; an interval is built for one law family \
              at a time"
                 .to_owned(),
         ));
@@ -272,14 +274,14 @@ pub fn construct_expected_score_interval(
         && query.level >= SCORE_INTERVAL_MIN_LEVEL
         && query.level <= SCORE_INTERVAL_MAX_LEVEL)
     {
-        return Err(interval_scope_refusal(format!(
+        return Err(interval_request_invalid(format!(
             "level {} is outside [{SCORE_INTERVAL_MIN_LEVEL}, {SCORE_INTERVAL_MAX_LEVEL}]",
             query.level
         )));
     }
     let find = |name: &str| {
         report.predictors.iter().find(|p| p.name == name).ok_or_else(|| {
-            interval_scope_refusal(format!("predictor `{name}` is not part of this assessment"))
+            interval_request_invalid(format!("predictor `{name}` is not part of this assessment"))
         })
     };
     let candidate = find(&query.predictor)?;
@@ -291,7 +293,7 @@ pub fn construct_expected_score_interval(
             .find(|s| s.kind == query.score)
             .map(|s| s.per_case.clone())
             .ok_or_else(|| {
-                interval_scope_refusal(format!(
+                interval_request_invalid(format!(
                     "score `{}` was not computed for predictor `{}`",
                     query.score.name(),
                     assessment.name
@@ -339,7 +341,7 @@ pub fn construct_expected_score_interval(
     };
     let standard_error = variance.sqrt();
     if !(standard_error.is_finite() && standard_error > 0.0) {
-        return Err(interval_scope_refusal(
+        return Err(interval_request_invalid(
             "the case scores have no sampling variance (all equal, or one cluster dominates); \
              no interval is built"
                 .to_owned(),

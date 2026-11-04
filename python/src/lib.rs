@@ -2178,6 +2178,7 @@ mod tests {
             format!("{}data_modality_not_supported: panel", antecedent_core::reason_code::PREFIX);
         let unregistered =
             format!("{}not_a_registered_code: x", antecedent_core::reason_code::PREFIX);
+        let not_supported = SupportRefusal::NotSupported;
         let cases: Vec<(E, Option<&str>)> = vec![
             (
                 E::Graph(GraphError::UnknownVariableName { name: "a".into() }),
@@ -2204,10 +2205,7 @@ mod tests {
                 E::Support { id: SupportRefusal::NotApplicable, message: "typed-impossible" },
                 Some("cell_not_applicable"),
             ),
-            (
-                E::Support { id: SupportRefusal::NotSupported, message: "not supported" },
-                Some("not_supported"),
-            ),
+            (E::Support { id: not_supported, message: "not supported" }, Some("not_supported")),
             (E::Missing { field: "outcome" }, Some("required_option_missing")),
             (E::Conflict { what: "seed", detail: "set once" }, Some("invalid_argument")),
             // A message that names its own registered code wins over the variant default.

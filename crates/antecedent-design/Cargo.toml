@@ -65,6 +65,10 @@ name = "evsi_precision_calibration"
 path = "tests/evsi_precision_calibration.rs"
 
 [[test]]
+name = "sequential_evaluation_interval_construction"
+path = "tests/sequential_evaluation_interval_construction.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
 

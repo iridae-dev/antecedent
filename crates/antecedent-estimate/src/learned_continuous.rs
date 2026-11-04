@@ -32,7 +32,7 @@
 //! # Inference
 //!
 //! The original joint outer refit percentile bootstrap, resampled per design with
-//! a floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`], failed its sample-size coverage
+//! a floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`] replicates, failed its sample-size coverage
 //! grid; its calibration annotation reports `measured_below_nominal`, and the interval is still
 //! reported. A design-specific analytic influence interval is the second interval route for
 //! the two declared IID designs. It is a pointwise Wald interval;
@@ -58,8 +58,8 @@ use antecedent_identify::TransportIdentification;
 use antecedent_learn::{LearnerProvenance, LearnerSpec};
 use serde::{Deserialize, Serialize};
 
-/// Fewest bootstrap replicates accepted by the closed legacy interval request.
-pub const LEARNED_CONTINUOUS_MIN_BOOTSTRAP: u32 = 199;
+/// Fewest bootstrap replicates from which a percentile interval can be formed.
+pub const LEARNED_CONTINUOUS_MIN_BOOTSTRAP: u32 = 2;
 /// Largest replicate count of the measured bootstrap envelope. It is a reference point the
 /// artifact premises record, not a ceiling: the public route runs no replicates, and the
 /// internal calibration route admits its work against the execution context.
@@ -84,6 +84,9 @@ pub(crate) const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
 pub(crate) const CONTINUOUS_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
 pub(crate) const CONTINUOUS_WITHHELD: &str = "withheld";
+/// A bootstrap interval was requested; `learned_continuous_interval_internal` forms it and
+/// its calibration annotation carries the status.
+pub(crate) const CONTINUOUS_BOOTSTRAP_INTERVAL: &str = "bootstrap_interval_requested";
 /// Reason for a point-only estimate.
 pub(crate) const CONTINUOUS_NO_INTERVAL_REQUESTED: &str = "no_interval_requested";
 /// Available design-specific analytic influence interval.
@@ -142,12 +145,13 @@ impl LearnedContinuousOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LearnedContinuousUncertainty {
-    /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_WITHHELD`] or [`CONTINUOUS_AVAILABLE`].
+    /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_BOOTSTRAP_INTERVAL`], [`CONTINUOUS_WITHHELD`]
+    /// (too few replicates) or [`CONTINUOUS_AVAILABLE`].
     pub status: String,
-    /// [`CONTINUOUS_NO_INTERVAL_REQUESTED`], `estimator_inference_mismatch` or
-    /// `not_supported`.
+    /// [`CONTINUOUS_NO_INTERVAL_REQUESTED`], `joint_outer_bootstrap` or
+    /// `estimator_inference_mismatch`.
     pub reason: String,
-    /// The namespaced detail when the request was below the replicate floor.
+    /// The namespaced detail when the bootstrap request was below the replicate floor.
     pub detail: Option<String>,
     /// Bootstrap replicates the request asked for; none ran.
     pub replicates_requested: u32,
@@ -176,7 +180,7 @@ impl LearnedContinuousUncertainty {
                 Some("learned_transport.bootstrap_below_floor"),
             )
         } else {
-            (CONTINUOUS_WITHHELD, antecedent_core::reason_code!("not_supported"), None)
+            (CONTINUOUS_BOOTSTRAP_INTERVAL, "joint_outer_bootstrap", None)
         };
         Self {
             status: status.into(),
@@ -241,18 +245,6 @@ pub struct LearnedContinuousEstimate {
 
 fn support_refusal(detail: &str, message: &str) -> EstimationError {
     refuse(antecedent_core::reason_code!("transport_support_failure"), detail, message)
-}
-
-/// The legacy refusal constructor kept for callers of the old closed route.
-#[must_use]
-#[doc(hidden)]
-pub fn refuse_learned_continuous_interval() -> EstimationError {
-    refuse(
-        antecedent_core::reason_code!("not_supported"),
-        "learned_transport.interval_withheld",
-        "the learned continuous interval route is closed pending promotion of the \
-         measured analytic candidate; the point estimate is retained",
-    )
 }
 
 /// Refuse a sampling design other than the two declared IID designs.
@@ -434,7 +426,8 @@ pub fn estimate_learned_continuous_analytic_interval(
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
             "learned_transport.bootstrap_not_supported",
-            "the percentile bootstrap failed calibration; request the analytic interval with bootstrap=0",
+            "this route forms the analytic interval and takes bootstrap=0; the percentile \
+             bootstrap interval is formed by the bootstrap interval route",
         ));
     }
     let mut run = estimate_learned_continuous(id, input, options, ctx)?;
@@ -531,12 +524,16 @@ mod tests {
             (none.status.as_str(), none.reason.as_str()),
             ("point_only", "no_interval_requested")
         );
-        let low = LearnedContinuousUncertainty::for_request(50);
+        let low = LearnedContinuousUncertainty::for_request(1);
         assert_eq!(low.reason, "estimator_inference_mismatch");
         assert_eq!(low.detail.as_deref(), Some("learned_transport.bootstrap_below_floor"));
-        let closed = LearnedContinuousUncertainty::for_request(199);
-        assert_eq!((closed.status.as_str(), closed.reason.as_str()), ("withheld", "not_supported"));
-        assert!(closed.detail.is_none() && !closed.available());
+        let requested = LearnedContinuousUncertainty::for_request(199);
+        assert_eq!(
+            (requested.status.as_str(), requested.reason.as_str()),
+            ("bootstrap_interval_requested", "joint_outer_bootstrap")
+        );
+        assert_eq!(requested.detail, None);
+        assert!(!requested.available());
     }
 
     #[test]

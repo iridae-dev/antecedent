@@ -145,7 +145,7 @@ fn an_assignment_that_depends_on_an_unobserved_quantity_is_refused_with_the_next
     let mut request = spec([0.5; 5]);
     request.selection = Some(SelectionMechanism::DependsOnUnobserved);
     let refusal = fixed_procedure(2.0).posterior(&request).expect_err("refused");
-    assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
+    assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
     assert_eq!(refusal.detail, "adaptive_inference.selection_not_ignorable");
     assert!(refusal.message.contains("model the selection jointly"));
     assert!(refusal.message.contains("randomize"));
@@ -165,7 +165,7 @@ fn a_contrast_arm_without_a_unit_is_refused_because_a_prior_does_not_identify_it
     let mut request = spec([0.5; 5]);
     request.units.retain(|u| u.arm == 1);
     let refusal = fixed_procedure(2.0).posterior(&request).expect_err("refused");
-    assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
+    assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
     assert_eq!(refusal.detail, "adaptive_inference.arm_not_observed");
     assert!(refusal.message.contains("prior alone does not identify"));
 }

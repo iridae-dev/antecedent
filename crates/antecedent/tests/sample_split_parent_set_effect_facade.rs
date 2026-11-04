@@ -353,7 +353,7 @@ fn an_undirected_edge_at_the_treatment_is_refused_and_named_not_completed() {
     )
     .unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("not_supported"), "{text}");
+    assert!(text.contains("discovered_structure_unresolved"), "{text}");
     assert!(text.contains("parent_set_effect.treatment_parents_ambiguous"), "{text}");
     assert!(text.contains("h - n0"), "{text}");
     assert!(text.contains("no completion is chosen"), "{text}");

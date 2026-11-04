@@ -223,7 +223,7 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 | CausalQuery::AnomalyAttribution(_)
                 | CausalQuery::ChangeAttribution(_),
             ) => Ok(()),
-            _ => Err(crate::support_reason!(
+            _ => Err(crate::unsupported_reason!(
                 "data_modality_not_supported",
                 "graph_posterior on the prepared handle is supported only for tabular \
                  AverageEffect/Response/ConditionalEffect/Transport/Interference/Mediation/\

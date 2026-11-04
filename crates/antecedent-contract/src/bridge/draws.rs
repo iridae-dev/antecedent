@@ -894,7 +894,7 @@ impl BridgedDistributionClaim {
     /// An unscoped request for an interval of the bridged draws.
     ///
     /// # Errors
-    /// Always `not_supported` with `scientific_bridge.interval_not_supported`:
+    /// Always `route_not_supported` with `scientific_bridge.interval_not_supported`:
     /// name a level and ask for the interval through the measured-coverage gate.
     pub fn request_interval(&self) -> Result<(), BridgeRefusal> {
         Err(interval_not_supported())

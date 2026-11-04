@@ -21,8 +21,10 @@ Every cell is exactly one state. "Not considered" is not a state.
 An ADAPTER or DIRECT cell never upgrades a label. A point stays a point, an
 uncalibrated standard error stays labelled uncalibrated, an assumption range
 stays an assumption range, and no interval, posterior or coverage statement
-exists for any row below: each interval route is closed with
-`not_supported` until whole-method coverage is measured.
+exists for any row below: an interval route is supported only with an
+independent check of its construction, and without one it refuses (the code is
+named in the row). Calibration status annotates an interval that a supported
+route does report.
 
 Inference modes used below: **point-only** (one value, no law), **exact finite**
 (exact given a declared finite model, no sampling uncertainty),
@@ -89,13 +91,13 @@ snapshot.
 | Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition bundle | Decision reliability carrier |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | weighted cohort mean contrast, cohort of the model's own population | point-only, no standard error carried | DIRECT (`Contract.evaluate(source)`, affine utility only) | ADAPTER (`source.forward_claim()` as a `MeanClaim`) | REFUSED (`CausalTypeError`) | REFUSED (`CausalTypeError`, a cohort mean is neither prior nor signal) | NO ROUTE (a conditional contrast mean is not a nested counterfactual) | REFUSED `cohort_decision.shift_declaration_required` for a cohort of another population | NO ROUTE (a fitted CATE carries no time coordinate) | REFUSED (`cohort_decision_source_v1` has no node kind) | REFUSED `cohort_decision.joint_law_required` (draws of the contrast are not supplied; remedy: supply per-draw utilities from an aligned law) |
-| cohort of another population under a declared covariate shift | point-only, labelled extrapolative; every row inside the retained support contract | DIRECT | a native-only policy REFUSED `not_supported` `inverse_forward_source.transported_not_accepted`; an accepting policy ADAPTER (`cohort_forward_source`) | REFUSED | REFUSED | NO ROUTE | ADAPTER (the declared `CovariateShiftDeclaration`: a declaration with a support check, not a selection-diagram derivation) | NO ROUTE | REFUSED | REFUSED `cohort_decision.joint_law_required` |
+| cohort of another population under a declared covariate shift | point-only, labelled extrapolative; every row inside the retained support contract | DIRECT | a native-only policy REFUSED `decision_contract_unsatisfied` `inverse_forward_source.transported_not_accepted`; an accepting policy ADAPTER (`cohort_forward_source`) | REFUSED | REFUSED | NO ROUTE | ADAPTER (the declared `CovariateShiftDeclaration`: a declaration with a support check, not a selection-diagram derivation) | NO ROUTE | REFUSED | REFUSED `cohort_decision.joint_law_required` |
 | probability, quantile, nonlinear utility | closed | REFUSED `cohort_decision.law_not_supplied` (`decision_contract_unsatisfied`) | REFUSED `decision_evaluation.mean_source_insufficient` | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
-| interval of the cohort mean | measured interval (native fit) | MEASURED for a native fit, REFUSED `cohort_decision.interval_requires_native_fit` or `cohort_decision.interval_not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval of the cohort mean | measured interval (native fit) | MEASURED for a native fit, REFUSED `cohort_decision.interval_requires_native_fit` or `cohort_decision.interval_not_supported` (`route_not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Rows outside the retained support contract refuse `cohort_decision.outside_support`
 and a model with no support contract `cohort_decision.support_contract_absent`
-(both `not_supported`).
+(both `invalid_argument`).
 
 **Reliability of a cohort decision.** A cohort decision output is a point-only
 mean contrast: it has no law and no draws, so the reliability carrier has
@@ -138,10 +140,10 @@ never searched for.
 | Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition bundle | Decision reliability carrier |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | sequential g-formula (exact enumeration of histories) | exact finite, conditional on exchangeability, consistency and positivity | ADAPTER (the policy value as a declared mean) | ADAPTER | REFUSED (`CausalTypeError`) | REFUSED (`CausalTypeError`; the value of collecting evidence is produced by the ranker here, not consumed from it) | NO ROUTE (an interventional value given an information set; no cross-world quantity is formed) | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED (`sequential_evaluation_v1` has no node kind) | NO ROUTE (enumeration is exact: no numerical error) |
-| off-policy from logged trajectories | point-only, uncalibrated standard error and effective sample size | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | SCHEDULED (owner below) |
+| off-policy from logged trajectories | point value with a Wald interval (calibration `not_measured`) and effective sample size | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | SCHEDULED (owner below) |
 | rollouts on common random streams | diagnostic: Monte Carlo estimate of the enumerated value, uncalibrated standard error | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | SCHEDULED (owner below) |
 | comparison of named policies, value of collecting evidence | point-only (ordering of supplied policies; EVSI cross-check) | ADAPTER (per policy) | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED | REFUSED | REFUSED | SCHEDULED for rollout comparisons (owner below) |
-| interval or posterior of a policy value | closed interval | REFUSED `sequential_evaluation.interval_not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval or posterior of a policy value | closed interval | REFUSED `sequential_evaluation.interval_not_supported` (`uncertainty_representation_insufficient`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 A policy learned from the data under evaluation is
 `sequential_evaluation.policy_change_refused`; a static reweighted score table
@@ -196,8 +198,9 @@ not a value: it reaches `decision` and `inverse query` as REFUSED
 (`CausalTypeError`, recorded as an exception in
 [the carryover disposition](https://github.com/iridae-dev/antecedent/blob/main/parity/carryover_disposition.md)),
 and a recalculation plan only by a caller-declared digest. A cell of the
-procedure matrix that is closed or carried forward refuses
-`adaptive_inference.cell_closed` or `adaptive_inference.cell_carried_forward`;
+procedure matrix that describes no procedure, or that has no method yet, refuses
+`route_not_supported` with `adaptive_inference.cell_closed` or
+`adaptive_inference.cell_carried_forward`;
 a paradigm with no route for a supported cell is
 `adaptive_inference.paradigm_not_supported_for_cell`.
 
@@ -230,7 +233,7 @@ point diagnostics labelled uncalibrated.
 | Monte Carlo error of utility, difference, threshold probability, `CVaR`, quantile | diagnostic (standard error and effective sample size, uncalibrated) | ADAPTER (the decided candidate's expected utility as a declared mean; error and ranking are not carried) | ADAPTER | REFUSED (`CausalTypeError`) | REFUSED (`CausalTypeError`) | NO ROUTE (a diagnostic of draws forms no structural query) | NO ROUTE (the carrier records the producer label; it carries no selection diagram) | NO ROUTE (a stream identity is not a time coordinate) | REFUSED (`decision_reliability_v1` has no node kind) | DIRECT (this route: `DecisionDraws` in, report out) |
 | ranking statements (best, top-k, better than baseline) | diagnostic (Monte Carlo probability under the supplied law, uncalibrated) | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | DIRECT; REFUSED `candidate_search_record_required` for adaptively generated candidates without a search record |
 | selection-aware evaluation (bound, held-out, split) | diagnostic (expectation bound under Gaussian error; held-out point estimate) | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED | DIRECT; REFUSED `validation_stream_not_independent` for a validation stream that is not independent |
-| ranking probability, confidence set or interval for a selected decision | closed interval | REFUSED `decision_reliability.not_supported` (`not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| ranking probability, confidence set or interval for a selected decision | interval with its calibration slot | DIRECT (published with its calibration status) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 | one combined uncertainty number | closed | REFUSED `decision_reliability.combined_uncertainty` (`uncertainty_components_not_combined`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 The carrier declares dependence and does not infer it. Undeclared candidate
@@ -251,7 +254,7 @@ declaration of the source paradigm is the caller's.
 | Fitted effect model for a cohort of another population | bounded route delivered: declared covariate shift, every row inside the support contract, point-only, labelled extrapolative; a native-only inverse query policy refuses | `cohort_decision.shift_declaration_required`, `cohort_decision.shift_support_failure`, `inverse_forward_source.transported_not_accepted` | `antecedent-io-core` `cohort_decision` and `antecedent-design` `cohort_decision_input` |
 | Bridge used in another population | bounded route delivered as a declaration: a stated transportability premise, labelled transported, unresolved obligation; no selection-diagram derivation | `scientific_bridge.transport_premise_missing`, `scientific_bridge.transport_premise_mismatch` | `antecedent-contract` `bridge` |
 | Adaptive trial data as a transport source | refused: assignment depends on history, so selection is policy-driven and no selection-diagram contract states it; a fixed-design analysis of such data is refused | `adaptive_inference.fixed_sample_on_adaptive_data` (`adaptive_design_ignored`); a transport entry takes no adaptive result (`CausalTypeError`) | none; a route would need the adaptive-design contract expressed as a selection node in the transport catalog |
-| Observational-scenario inversion (`P(X | Y)` scenarios compatible with an outcome) | stays closed, permanently in this release: it is not an action and no interval or ranking of scenarios is supported | `inverse.observational_scenarios` (`not_supported`) | none |
+| Observational-scenario inversion (`P(X | Y)` scenarios compatible with an outcome) | stays closed, permanently in this release: it is not an action and no interval or ranking of scenarios is supported | `inverse.observational_scenarios` (`inverse_functional_unsupported`) | none |
 
 ## Scheduled cells and owners
 
@@ -266,8 +269,8 @@ declaration of the source paradigm is the caller's.
 - A SCHEDULED cell is not a promise of a date. It records that the consumer
   has no way to accept this output today and which module owns the adapter.
 - Frequentist and Bayesian guarantees are not supported for any row: each would
-  need a measured whole-method coverage record, and every such route is closed
-  with a typed refusal until then.
+  need an independent check of its whole-method construction, and every such
+  route refuses with a typed refusal until then.
 - The refusals named above, and their remedies, are listed in
   [refusal codes](reference/refusal-codes.md).
 - The page for each family: [scientific bridges](scientific-bridges.md),

@@ -14,9 +14,9 @@ inputs goes through it.
 | product, nonlinear functional, chained Monte Carlo transformation | an **aligned joint law**: draws that all carry one alignment identity. A covariance is not enough | `joint_law_required` (`nonlinear_needs_aligned_joint_law`, `covariance_insufficient_for_nonlinear`, `index_pairing_refused`, `alignment_mismatch`) |
 | mixture | known weights; the components need no joint law | `invalid_argument` (`mixture_weights_unknown`) |
 | transported interval, or its source-sampling, target-sampling and transport-functional pieces, composed with another claim | an aligned joint law or a supplied covariance; independence is never assumed for these pieces | `joint_law_required` (`transported_dependence_required`) |
-| functional of unpaired marginals | nothing, but the result is a labelled envelope | `not_supported` if read as a point (`envelope_is_not_a_point`) |
-| interval of a composed quantity | a currently attesting coverage record in the registry for the composed coordinate, construction and declared evidence size; the caller supplies none | `not_supported` (`interval_route_closed`, `coverage_record_unmeasured`) |
-| posterior of any composed quantity | a measured calibration; none exists | `not_supported` (`posterior_route_closed`) |
+| functional of unpaired marginals | nothing, but the result is a labelled envelope | `uncertainty_representation_insufficient` if read as a point (`envelope_is_not_a_point`) |
+| interval of a composed quantity | a named construction and the declared evidence size, read through `check_composed_interval`; the interval is reported with its calibration status | `uncertainty_representation_insufficient` (`interval_route_closed`) when no construction is named |
+| posterior of any composed quantity | no construction supplies one | `uncertainty_representation_insufficient` (`posterior_route_closed`) |
 
 Each refusal carries a registered reason code, a namespaced
 `joint_law_propagation.*` detail, the offending input and a remedy that names
@@ -87,8 +87,9 @@ quantity is read through `check_composed_interval(construction, evidence_rows)`,
 which derives the key from the sealed claim (operation, route, input roles,
 dependence declaration, construction and the declared number of observations
 behind the least-supported input) and resolves it against the shipped coverage
-records. The caller supplies no record; without a currently attesting one the
-reading is closed.
+records. The caller supplies no record. The interval is reported with the
+resulting calibration status: `calibrated` when a current record matches,
+`not_measured` when none does.
 
 The measured design (`joint_law_composed_interval_calibration.rs`): the whole
 method is the component estimators, their sampling covariance and the supported
@@ -98,7 +99,7 @@ shared evidence; the covariance is estimated from the same rows or draws.
 Linear operations on the linear-moments and aligned-joint-law routes only. A
 declaration of independence that is violated is undetectable and under-covers;
 it is a premise, not a check, and is not a record. Nonlinear operations,
-mixtures, envelopes and transported pieces have no record and stay closed.
+mixtures, envelopes and transported pieces have no record, so any such interval is `not_measured`.
 
 ## References
 

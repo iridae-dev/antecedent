@@ -739,11 +739,11 @@ mod tests {
     }
 
     #[test]
-    fn the_frozen_bounds_are_the_recorded_ones() {
+    fn the_bounds_are_the_recorded_ones() {
         let b = SMOOTHED_DOSE_BOUNDS;
         assert_eq!(
             (b.max_grid, b.quadrature_nodes, b.max_folds, b.min_bootstrap, b.max_bootstrap),
-            (16, [16, 32], 20, 199, 2000)
+            (16, [16, 32], 20, 2, 2000)
         );
         assert_eq!(
             (b.max_rows, b.max_features, b.max_basis_degree, b.max_knots),

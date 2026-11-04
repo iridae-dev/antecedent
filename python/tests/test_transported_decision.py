@@ -204,7 +204,7 @@ def test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_l
     default = refusal_of(
         lambda: require_success(contract().evaluate_transported(response, analysis=prepared))
     )
-    assert default.reason_code == "not_supported"
+    assert default.reason_code == "decision_contract_unsatisfied"
     assert default.detail == "transported_decision.transported_not_accepted"
 
     with pytest.raises(tr.TransportedResponseRefusal) as closed:

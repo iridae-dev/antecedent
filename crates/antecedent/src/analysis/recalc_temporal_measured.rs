@@ -48,12 +48,8 @@ pub struct CheckedMeasuredTemporal {
     bytes: Arc<[u8]>,
     source: Arc<[u8]>,
 }
-fn refused(message: &str) -> TemporalRunError {
-    IoError::Refused {
-        code: reason_code!("not_supported"),
-        message: format!("checked_temporal.interval_not_supported: {message}"),
-    }
-    .into()
+fn refused(code: &'static str, detail: &str, message: &str) -> TemporalRunError {
+    IoError::Refused { code, message: format!("{detail}: {message}") }.into()
 }
 // Every method uses the same complete balanced history design as its calibration.
 // Counting sixteen rows alone would admit duplicated or missing cells in basic/percentile.
@@ -129,7 +125,11 @@ fn preflight(
         .saturating_add(u64::try_from(source_bytes).unwrap_or(u64::MAX).saturating_mul(8))
         .saturating_add(4 * 1024 * 1024);
     if ctx.memory_limit_bytes().is_some_and(|limit| limit < planned) {
-        return Err(refused("planned source replay and interval receipt exceed memory budget"));
+        return Err(refused(
+            reason_code!("execution_resource_limit"),
+            "checked_temporal.resource_limit",
+            "planned source replay and interval receipt exceed memory budget",
+        ));
     }
     Ok((if effect { "effect" } else { "response" }, measured))
 }
@@ -155,7 +155,11 @@ impl CheckedMeasuredTemporal {
     ) -> Result<Self, TemporalRunError> {
         let original = session.export_result()?;
         if original.len() > limits.max_source_bytes {
-            return Err(refused("original source exceeds the declared source byte limit"));
+            return Err(refused(
+                reason_code!("execution_resource_limit"),
+                "checked_temporal.resource_limit",
+                "original source exceeds the declared source byte limit",
+            ));
         }
         let source = TemporalRecalcArtifactWire::decode(&original)?;
         let (name, measured) = preflight(&source, config, ctx, original.len())?;
@@ -233,7 +237,11 @@ impl CheckedMeasuredTemporal {
             || bundle.source.len() > limits.max_source_bytes
             || antecedent_io::to_cbor(&bundle)? != wire.source
         {
-            return Err(refused("foreign or noncanonical checked source bundle"));
+            return Err(refused(
+                reason_code!("invalid_argument"),
+                "checked_temporal.foreign_bundle",
+                "foreign or noncanonical checked source bundle",
+            ));
         }
         let original = TemporalRecalcArtifactWire::decode(&bundle.source)?;
         let config = bundle.config.to_config()?;
@@ -244,6 +252,8 @@ impl CheckedMeasuredTemporal {
         let measured = Self::produce_with_limits(&session, &config, &producing, limits)?;
         if measured.export() != bytes {
             return Err(refused(
+                reason_code!("external_verification_failed"),
+                "checked_temporal.replay_mismatch",
                 "original proof, complete interval receipt or calibrated scalar differs on independent replay",
             ));
         }

@@ -143,14 +143,20 @@ fn a_posterior_is_carried_only_by_the_draws_check() {
     let bridge = affine(ValueKind::Posterior, None, None);
     assert!(bridge.check_draws_support().is_ok());
     let refused = bridge.check_support().unwrap_err();
-    assert_eq!(code(&refused), ("not_supported", "scientific_bridge.value_kind_not_carried"));
+    assert_eq!(
+        code(&refused),
+        ("bridge_mapping_not_supported", "scientific_bridge.value_kind_not_carried")
+    );
     // A mean still goes through the point check and is not a draws bridge's business.
     let mean = affine(ValueKind::Mean, None, None);
     assert!(mean.check_support().is_ok());
     // An identified set or a joint law is carried by neither.
     for kind in [ValueKind::IdentifiedSet, ValueKind::JointOutcomeLaw] {
         let refused = affine(kind, None, None).check_draws_support().unwrap_err();
-        assert_eq!(code(&refused), ("not_supported", "scientific_bridge.value_kind_not_carried"));
+        assert_eq!(
+            code(&refused),
+            ("bridge_mapping_not_supported", "scientific_bridge.value_kind_not_carried")
+        );
     }
     // The source and target kinds still have to agree.
     let mut mixed = affine(ValueKind::Posterior, None, None);
@@ -378,7 +384,10 @@ fn only_aligned_draws_of_the_declared_kind_and_quantity_are_bridged() {
     let refused = bridge
         .plan_distribution(&source(Some(ValueKind::Posterior), ClaimKind::Associational, true), 1)
         .unwrap_err();
-    assert_eq!(code(&refused), ("not_supported", "scientific_bridge.source_not_draws"));
+    assert_eq!(
+        code(&refused),
+        ("bridge_mapping_not_supported", "scientific_bridge.source_not_draws")
+    );
     assert_eq!(refused.supplied.as_deref(), Some("associational"));
     // Draws of another meaning are neither a posterior nor a predictive law.
     let refused = bridge.plan_distribution(&source(None, ClaimKind::Mixture, true), 1).unwrap_err();

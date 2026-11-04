@@ -8,7 +8,7 @@
 //!   two-sample binomial standard error, and no credible interval: that needs a joint
 //!   likelihood the weights do not supply.
 //!
-//! Every refusal carries the registered `not_supported` code, the missing premise and the
+//! Every refusal carries a registered reason code (`route_not_supported` or `distribution_meaning_mismatch`), the missing premise and the
 //! next attempt.
 #![allow(clippy::cast_precision_loss, reason = "fixture counts are far below 2^52")]
 
@@ -23,7 +23,7 @@ use antecedent::analysis::posterior_boundaries::{
 fn unmodeled_serial_dependence_refuses_the_ordinary_curve_posterior_with_the_next_attempt() {
     let refused =
         require_ordinary_temporal_curve_posterior(SerialErrorModel::Unmodeled).unwrap_err();
-    assert_eq!(refused.reason_code(), Some("not_supported"));
+    assert_eq!(refused.reason_code(), Some("distribution_meaning_mismatch"));
     let text = refused.to_string();
     assert!(text.contains("temporal_curve.ordinary_posterior_not_supported"), "{text}");
     assert!(text.contains("next attempt") && text.contains("autoregressive innovation law"));
@@ -107,7 +107,7 @@ fn trajectory_bootstrap_interval_matches_the_binomial_standard_error() {
 fn trajectory_credible_interval_always_refuses_naming_the_missing_likelihood() {
     let data = OnePeriod::new(200);
     let refused = trajectory_hazard_credible_interval(&data.rows(), &[true], &[false]).unwrap_err();
-    assert_eq!(refused.reason_code(), Some("not_supported"));
+    assert_eq!(refused.reason_code(), Some("route_not_supported"));
     let text = refused.to_string();
     assert!(text.contains("trajectory_survival.credible_interval_not_supported"), "{text}");
     assert!(text.contains("joint likelihood") && text.contains("g-formula"), "{text}");

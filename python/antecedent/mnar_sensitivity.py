@@ -417,7 +417,7 @@ def mnar_ate_sensitivity(
 
     ``sampling_composition`` requests composing the sampling interval with the assumption range
     by a named method; no method is supported, so any value refuses
-    (``not_supported`` / ``mnar_sensitivity.composition_not_supported``).
+    (``route_not_supported`` / ``mnar_sensitivity.composition_not_supported``).
 
     Raises:
         CausalTypeError: an argument has the wrong type.

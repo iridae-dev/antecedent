@@ -286,7 +286,7 @@ fn a_fixed_sample_analysis_after_adaptive_assignment_is_refused_by_the_facade() 
         },
     ] {
         let refusal = refused(&procedure, &request);
-        assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
+        assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
         assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_design_adaptive");
         assert!(refusal.message.contains("remedy"), "{}", refusal.message);
     }
@@ -301,7 +301,7 @@ fn an_independence_assumption_for_dependent_measurements_is_refused() {
         AnalysisEstimator::PooledIndependent,
     ));
     let refusal = refused(&procedure, &derive(&[0.0, 0.0], 10));
-    assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
+    assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
     assert_eq!(
         refusal.detail,
         "adaptive_inference.independence_assumed_for_dependent_measurements"
@@ -321,7 +321,7 @@ fn a_paradigm_that_is_not_derived_for_this_cell_is_refused() {
             z: 1.96,
         },
     );
-    assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
+    assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
     assert_eq!(refusal.detail, "adaptive_inference.repeated_measures_paradigm_not_derived");
 }
 
@@ -360,7 +360,7 @@ fn a_guarantee_is_not_paired_across_cells() {
                 paradigm: paradigm.to_owned(),
             },
         );
-        assert_eq!(refusal.code, antecedent_core::reason_code!("not_supported"));
+        assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
         assert_eq!(refusal.detail, "adaptive_inference.guarantee_not_transferable", "{cell_id}");
     }
 }

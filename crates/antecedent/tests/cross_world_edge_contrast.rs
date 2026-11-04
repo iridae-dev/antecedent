@@ -697,7 +697,7 @@ fn structures_and_inference_outside_the_cell_are_refused() {
     };
     for refused in [&admg as &dyn Fn() -> _, &cpdag, &pag, &accepted] {
         let text = reason(&run(refused));
-        assert!(text.contains("reason=not_supported"), "{text}");
+        assert!(text.contains("reason=route_not_supported"), "{text}");
         assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
     }
     let interval = evaluate_cross_world_effect(
@@ -1144,7 +1144,7 @@ fn temporal_structures_are_refused_with_the_graph_contract_detail() {
     ];
     for result in errors {
         let text = reason(&result.unwrap_err());
-        assert!(text.contains("reason=not_supported"), "{text}");
+        assert!(text.contains("reason=route_not_supported"), "{text}");
         assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
     }
 }

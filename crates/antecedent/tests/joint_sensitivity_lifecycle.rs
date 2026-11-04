@@ -500,7 +500,7 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
         (
             "interval",
             Box::new(|w| w.body.sampling.interval = Some([0.1, 0.9])),
-            ("not_supported", "joint_sensitivity.interval_withheld".to_owned()),
+            ("route_not_supported", "joint_sensitivity.interval_withheld".to_owned()),
         ),
         (
             "claim",
@@ -832,13 +832,16 @@ fn the_range_artifact_refuses_a_forged_sampling_interval() {
     drop(built);
     let ctx = ExecutionContext::for_tests(1);
     let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
-    assert_eq!(result.uncertainty.reason_code, "not_supported");
+    assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
     assert_eq!(result.uncertainty.detail, "joint_sensitivity.interval_withheld");
     let mut wire = artifact();
     wire.body.sampling.interval = Some([0.0, 1.0]);
     reseal(&mut wire);
     let error = consume(&wire).unwrap_err();
-    assert_eq!(refused(&error), ("not_supported", "joint_sensitivity.interval_withheld".into()));
+    assert_eq!(
+        refused(&error),
+        ("route_not_supported", "joint_sensitivity.interval_withheld".into())
+    );
 }
 
 #[test]

@@ -85,7 +85,7 @@ coupling = "shared_abduced_exogenous"
 status = "closed"
 route = "none"
 theorem = "No joint theorem composes transport support with factual abduction in a target population; a transport identification supplies no abduction, shared-noise or per-world receipts."
-refusal_code = "not_supported"
+refusal_code = "route_not_supported"
 refusal_detail = "cross_world_execution.transported_row_closed"
 remedy = "supply transport support for the quantity, fixed-population cross-world support, and the cross-population invariance of the exogenous law with target-population factual evidence; the static additive linear case has its own theorem-scoped route"
 

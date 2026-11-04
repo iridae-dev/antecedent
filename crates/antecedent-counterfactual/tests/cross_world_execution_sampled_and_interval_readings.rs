@@ -205,7 +205,7 @@ fn envelope_reading_is_refused_before_any_work_and_spread_is_the_exact_noise_var
         assert_eq!(
             detail(&err),
             (
-                "not_supported".to_owned(),
+                "route_not_supported".to_owned(),
                 "cross_world_execution.envelope_needs_parameter_set".to_owned()
             ),
             "{name}"

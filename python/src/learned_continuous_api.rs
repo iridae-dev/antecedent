@@ -133,7 +133,7 @@ impl PreparedLearnedContinuousNative {
         Ok(payload)
     }
 
-    /// Compute the design-specific analytic influence interval.
+    /// Compute the design-specific analytic influence interval (bootstrap = 0).
     #[pyo3(signature=(cancel=None))]
     fn interval(
         slf: &Bound<'_, Self>,
@@ -149,6 +149,35 @@ impl PreparedLearnedContinuousNative {
         let payload = estimate_json(&result, &this.names);
         this.last = Some(result);
         Ok(payload)
+    }
+
+    /// Whether the prepared options request a bootstrap interval.
+    fn bootstrap_requested(&self) -> bool {
+        self.inner.bootstrap_requested()
+    }
+
+    /// The joint outer-refit percentile-bootstrap interval with its calibration slot, as JSON.
+    #[pyo3(signature=(cancel=None))]
+    fn bootstrap_interval(
+        &self,
+        py: Python<'_>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        let ctx = execution_context(self.seed, self.memory_bytes, cancel);
+        let inner = self.inner.clone();
+        crate::detach_catch(py, move || {
+            let run = inner.bootstrap_interval(&ctx).map_err(error)?;
+            Ok(serde_json::json!({
+                "scope": SCOPE,
+                "estimate": run.point().estimate,
+                "interval": run.interval().map(|(lo, hi)| [lo, hi]),
+                "reason": run.uncertainty_reason(),
+                "replicates_ok": run.replicates().len(),
+                "failures": run.point().failures,
+                "calibration": run.calibration(),
+            })
+            .to_string())
+        })
     }
 
     /// Replace the rows with a compatible snapshot; clears the last claim.

@@ -817,7 +817,7 @@ fn an_associational_claim_is_never_a_bridge_source() {
     let source = BridgeSource { claim: &association, quantity: &observational };
     let refusal = assert_refused(
         derive_bridged_claim(&associational_contract(identified), &source),
-        "not_supported",
+        "bridge_mapping_not_supported",
         "scientific_bridge.source_not_point",
     );
     assert_eq!(refusal.supplied.as_deref(), Some("associational"));
@@ -1091,7 +1091,7 @@ fn a_mean_a_law_a_posterior_a_set_and_a_joint_law_are_not_interchangeable() {
             } else if held == requested {
                 let refusal = assert_refused(
                     result,
-                    "not_supported",
+                    "bridge_mapping_not_supported",
                     "scientific_bridge.value_kind_not_carried",
                 );
                 assert_eq!(refusal.supplied.as_deref(), Some(held.as_str()));
@@ -1122,7 +1122,7 @@ fn a_mean_a_law_a_posterior_a_set_and_a_joint_law_are_not_interchangeable() {
     }
     // And no interval or posterior is reachable from it.
     let refusal = bridged.request_interval().unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "scientific_bridge.interval_not_supported");
 }
 
@@ -1320,14 +1320,14 @@ fn malformed_declarations_and_unusable_sources_are_refused() {
     let source_bad = BridgeSource { claim: &incomplete, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&surrogate_contract(4, 0.9), &source_bad),
-        "not_supported",
+        "bridge_mapping_not_supported",
         "scientific_bridge.source_not_point",
     );
     let not_finite = claim(1, f64::NAN, "mmol_per_l");
     let source_nan = BridgeSource { claim: &not_finite, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&surrogate_contract(4, 0.9), &source_nan),
-        "not_supported",
+        "bridge_mapping_not_supported",
         "scientific_bridge.source_not_point",
     );
 }

@@ -294,7 +294,7 @@ Every cell is in exactly **one of three states**: **supported** (a route with
 provenance and independent scientific checks, which runs), **n/a** (the
 coordinate does not denote — a typed impossibility), or **not supported**
 (`SupportRefusal::NotSupported`; the route refuses in release builds, and a
-later development build will run it and report `would_refuse`). Refusal is the
+development build runs it and reports `would_refuse`). Refusal is the
 *default*: any cell that is not supported and not n/a is not supported.
 `support_refusal_reasons.toml` does not close anything — it is the **reason
 table** for cells that are not supported, not a fourth state. Every such cell has
@@ -310,7 +310,7 @@ whether it runs.
 | Meaningful remainder | {cartesian - n_a_count} | Combinations that could in principle be a claim |
 | Supported (matrix units) | {units["matrix"]} | Staged path plus the row's recorded evidence contract and limitations; passes the support rule |
 | Not supported — listed cell fails the support rule | {listed_failing} | Must stay 0; `scripts/gate_support.py` names the missing provenance or independent check |
-| Not supported — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in legacy-named `support_refusal_reasons.toml`, including mislabeled-inference laundering |
+| Not supported — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in `support_refusal_reasons.toml` |
 | Not supported — no reason on file | {unreasoned_refused_count} | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_refusal_reasons.toml` rule |
 
 Do not read "{units["matrix"]} / {cartesian}" as coverage. Read: **{units["matrix"]} matrix

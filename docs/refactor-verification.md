@@ -56,12 +56,12 @@ replace observations. See [the borrowing contract](hot_paths.md).
 
 ## Claim integrity and support
 
-Support cells remain closed unless their owning registry supports them and their
-cited evidence executes. Point-only evidence does not support interval coverage
+A cell is not supported unless its owning registry lists it and its cited
+evidence executes. Point-only evidence does not support interval coverage
 or posterior guarantees. This pass corrected disclosures, source references,
 independent temporal truth pins and deliberately broken gate controls. It did
-not promote support cells, lower coverage floors, narrow numerical tolerances,
-rewrite calibration measurements or create replay waivers.
+not add support cells, lower coverage floors, narrow numerical tolerances or
+rewrite calibration measurements.
 
 The temporal reference corrections use structural population truths rather than
 conditional regression coefficients: the mediation components are 1.5 and 2.0,

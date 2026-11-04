@@ -84,7 +84,7 @@ re-selects and refits every mechanism and simulates fresh batches. The permutati
 variance is added because the permutations stay fixed across refits. This is the
 uncertainty of the procedure under the declared design (independent rows), not a sum of
 the components. It is a Student-t interval with `fit_bootstrap - 1` degrees of freedom. It
-is uncalibrated and unsupported: no coverage record stands behind it. It is `unquantified`,
+is uncalibrated (`not_measured`) and has no independent construction check. It is `unquantified`,
 with the mechanism-fit reason, when no bootstrap ran.
 
 ### Posterior over the mechanisms

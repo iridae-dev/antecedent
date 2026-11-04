@@ -255,7 +255,7 @@ impl super::Study {
             estimates[index] = Some(transport_point(&proofs[index], &columns)?);
         }
         let Some(representative) = estimates.iter().position(Option::is_some) else {
-            return Err(crate::support_reason!(
+            return Err(crate::unsupported_reason!(
                 "construction_not_supported",
                 "every certified member of the class is a RecursiveFactorization, identified but \
                  not estimable on the supported trial-to-target IPW path"

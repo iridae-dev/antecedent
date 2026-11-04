@@ -273,7 +273,7 @@ def test_action_and_forward_row_order_and_cost_ties_never_change_a_result():
 
 def test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constraint():
     _refused(
-        "not_supported",
+        "inverse_functional_unsupported",
         "inverse.probability_target",
         lambda: inverse_outcome(_forward(), query=ChanceConstraint(3.0, 0.9), actions=_actions()),
     )
@@ -281,7 +281,7 @@ def test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constrai
 
 def test_a_quantile_target_is_refused_until_the_interventional_distribution_cell():
     _refused(
-        "not_supported",
+        "inverse_functional_unsupported",
         "inverse.quantile_target",
         lambda: inverse_outcome(_forward(), query=TargetQuantile(0.9, 3.0), actions=_actions()),
     )
@@ -289,7 +289,7 @@ def test_a_quantile_target_is_refused_until_the_interventional_distribution_cell
 
 def test_observational_scenarios_are_refused_not_turned_into_an_action():
     _refused(
-        "not_supported",
+        "inverse_functional_unsupported",
         "inverse.observational_scenarios",
         lambda: inverse_outcome(_forward(), query=ObservationalScenarios(), actions=_actions()),
     )

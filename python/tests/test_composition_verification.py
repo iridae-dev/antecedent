@@ -212,9 +212,8 @@ def test_calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused
     # the point value was not touched: withdrawn for calibration only
     assert reported.numerical == ()
     assert reported.withdrawn_for("calibration")
-    error = refused(lambda: result.require_valid("reported"))
-    assert error.reason_code == "not_supported"
-    assert error.detail == "composition_verification.calibration_not_held"
+    # a lost calibration annotates the interval; the claim itself is not refused
+    assert result.require_valid("reported").klass == "withdrawn"
     # a point-only dependent keeps its value
     assert result.classify("decision").klass == "still_valid"
     # another record is not the inherited one
@@ -255,12 +254,10 @@ def test_transported_calibration_never_inherits_to_a_different_target():
     assert any(r.cause == "coordinate_changed" for r in transported.numerical)
     assert moved.classify("retargeted").klass == "withdrawn"
     error = refused(lambda: moved.require_valid("retargeted"))
-    assert error.reason_code == "not_supported"
-    assert error.detail == "composition_verification.calibration_not_held"
-    other_target = refused(
-        lambda: cv.verify_composition(other, previous=other).require_valid("retargeted")
-    )
-    assert other_target.reason_code == "not_supported"
+    assert error.reason_code == "claim_revalidation_required"
+    assert error.detail == "composition_verification.recompute_required"
+    other_target = cv.verify_composition(other, previous=other).require_valid("retargeted")
+    assert other_target.klass == "withdrawn"
 
 
 def test_a_removed_input_and_a_new_node_are_classified():
@@ -794,7 +791,9 @@ def test_a_plan_target_change_never_inherits_a_calibration_record_held_for_the_o
     assert law.klass == "withdrawn"
     assert law.calibration.state == "lost" and law.calibration.newly_required
     assert law.withdrawn_for("calibration")
-    assert refused(lambda: result.require_valid("law")).reason_code == "not_supported"
+    # The lost calibration is carried as a withdrawn calibration; the claim refuses only because
+    # the target changed and it must be recomputed.
+    assert refused(lambda: result.require_valid("law")).reason_code == "claim_revalidation_required"
     assert result.classify("score_fit").klass == "still_valid"
     # the decision rests on a law that must be recomputed; its point value is not withdrawn
     assert result.classify("decision").klass == "recompute"

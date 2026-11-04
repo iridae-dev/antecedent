@@ -22,7 +22,7 @@ impl super::Study {
         bound.install_identification(crate::analysis::IdentificationCache::TemporalClass(
             Arc::clone(operation.bundle()),
         ));
-        operation.frozen().bind_study(&mut bound);
+        operation.sealed().bind_study(&mut bound);
         bound.declared.class_prior = operation.class_prior().cloned();
         bound.execute_temporal_class_response(data, operation.query(), operation.physical(), ctx)
     }

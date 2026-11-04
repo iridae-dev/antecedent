@@ -183,10 +183,13 @@ pub struct ScalarExecution {
     pub basis: CalibrationBasis,
 }
 fn refusal(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: format!("{detail}: {message}"),
-    }
+    let code = match detail {
+        "measured_inference.unsupported_route" | "measured_inference.bounds_exceeded" => {
+            antecedent_core::reason_code!("route_not_supported")
+        }
+        _ => antecedent_core::reason_code!("invalid_argument"),
+    };
+    IoError::Refused { code, message: format!("{detail}: {message}") }
 }
 fn basis_wire(b: &CalibrationBasis) -> CalibrationBasisWire {
     CalibrationBasisWire {

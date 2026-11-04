@@ -105,7 +105,7 @@ def test_declared_bounds_designs_and_targets_refuse_with_their_details():
     # Below the replicate floor the point is kept and the interval withheld.
     below = require_success(
         advanced.prepare_learned_continuous(
-            query, data, options=options(bootstrap=50), execution=ac.Execution(seed=2)
+            query, data, options=options(bootstrap=1), execution=ac.Execution(seed=2)
         ).estimate()
     )
     assert below.uncertainty["reason"] == "estimator_inference_mismatch"
@@ -123,7 +123,9 @@ def test_estimator_menu_lists_eligibility_requirements_and_refusals():
     assert learned.required_laws and learned.required_graph_conditions
     assert learned.nuisance_tasks and learned.support_requirements
     assert set(learned.sampling_design) == set(DESIGNS)
-    assert "not_supported" in learned.uncertainty_status
+    assert "point_only: no_interval_requested" in learned.uncertainty_status
+    assert "carries its calibration status" in learned.uncertainty_status
+    assert "not_supported" not in learned.uncertainty_status
     # Requirements are computed from the certificate, learners and thresholds in force.
     assert any("X=[v0]" in law for law in learned.required_laws)
     assert any("learner linear" in task for task in learned.nuisance_tasks)
@@ -291,19 +293,24 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
         advanced.consume_learned_continuous(artifact, max_rows=10)
 
 
-def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
+def test_the_analytic_interval_replays_and_the_bootstrap_interval_is_reported_with_calibration():
     builder_query, builder_data = fixture()
     study = advanced.prepare_learned_continuous(
         builder_query, builder_data, options=options(bootstrap=199), execution=ac.Execution(seed=4)
     )
-    with pytest.raises(
-        CausalUnsupportedError, match="learned_transport.bootstrap_not_supported"
-    ) as info:
-        require_success(study.interval())
-    assert info.value.reason_code == "estimator_inference_mismatch"
+    bootstrap = require_success(study.interval())
+    lower, upper = bootstrap["interval"]
+    assert lower <= bootstrap["estimate"] <= upper
+    assert bootstrap["reason"] is None and bootstrap["replicates_ok"] == 199
+    assert bootstrap["calibration"]["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
     result = require_success(study.estimate())
-    assert result.uncertainty["status"] == "withheld"
-    assert result.uncertainty["reason"] == "not_supported"
+    assert result.uncertainty["status"] == "bootstrap_interval_requested"
+    assert result.uncertainty["reason"] == "joint_outer_bootstrap"
     assert result.interval is None
     assert result.estimate == pytest.approx(2.5, abs=0.15)
     consumed = advanced.consume_learned_continuous(bytes(result.export()))

@@ -542,7 +542,7 @@ impl JointSensitivityArtifactWire {
         }
         if wire.body.sampling.interval.is_some() {
             return Err(IoError::Refused {
-                code: reason_code!("not_supported"),
+                code: reason_code!("route_not_supported"),
                 message: "joint_sensitivity.interval_withheld: an artifact carrying a sampling interval is refused; the interval route is not supported".into(),
             });
         }

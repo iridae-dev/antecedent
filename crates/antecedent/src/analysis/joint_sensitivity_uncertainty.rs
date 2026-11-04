@@ -38,7 +38,7 @@ pub struct JointSamplingWire {
     /// `not_supported`.
     pub reason_code: String,
     /// Always `None` from a public producer; a consumer refuses a value
-    /// (`not_supported` / `joint_sensitivity.interval_withheld`).
+    /// (`route_not_supported` / `joint_sensitivity.interval_withheld`).
     pub interval: Option<[f64; 2]>,
 }
 

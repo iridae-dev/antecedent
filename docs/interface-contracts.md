@@ -55,7 +55,6 @@ and supplied values and the declaration that would support the connection.
 | a required provenance stage is not supplied | `interface_contract_assumption_mismatch` | `provenance_missing` |
 | a required operation is not offered (a mean where a law is required) | `interface_contract_operation_unavailable` | `operation_unavailable` |
 | the required uncertainty meaning is missing, of another paradigm, or another object | `interface_contract_uncertainty_mismatch` | `uncertainty_meaning_missing`, `uncertainty_paradigm_mismatch`, `uncertainty_meaning_mismatch` |
-| the consumer relies on measured calibration and the producer does not hold it | `interface_contract_calibration_not_held` | `calibration_not_held`, `calibration_inherited_unresolved` |
 
 A malformed declaration is refused alone, before any comparison, as
 `interface_contract_invalid`.
@@ -63,8 +62,8 @@ A malformed declaration is refused alone, before any comparison, as
 An accepted `Connection` carries the producer's label and evidence unchanged
 and a connection identity. **A connection never raises a label**: a point-only
 producer stays point-only, a not-measured interval stays not measured, and a
-consumer that relies on measured calibration is refused rather than served an
-not-measured interval.
+consumer that relies on measured calibration is served all the same, and the
+connection says the interval is not measured.
 
 ## Checking a composition, and cycles
 
@@ -79,9 +78,8 @@ execution:
    `interface_contract_cyclic_composition`. Cyclic scientific composition is
    not supported; a loop is never unrolled or iterated;
 4. every connection, with calibration declared `inherited` resolved against
-   its upstream producer in feed-forward order and refused when the upstream
-   does not hold a measured record
-   (`calibration_inherited_not_held`, `calibration_inherited_unfed`);
+   its upstream producer in feed-forward order and carried as not measured
+   when the upstream does not hold a measured record;
 5. inputs required `disjoint_evidence`: two inputs that share a declared
    evidence source are refused (`shared_evidence`), so one observation cannot
    reach a consumer twice.
@@ -115,7 +113,6 @@ tables or the consumer's tables drift from the implementation.
 | Request | Answer |
 |---|---|
 | a connection with a cycle | `interface_contract_cyclic_composition`, with the path |
-| measured calibration relied on, upstream does not hold it | `interface_contract_calibration_not_held` |
 | a mean offered where a law is required, a sampling interval for a posterior | `interface_contract_operation_unavailable`, `interface_contract_uncertainty_mismatch` |
 | an interval or posterior for a composed quantity | not supported: no whole-method coverage has been measured at a composed coordinate, and a component interval does not cover a composition |
 

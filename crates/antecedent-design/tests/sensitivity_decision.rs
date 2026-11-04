@@ -67,7 +67,7 @@ fn withheld() -> UncertaintyRelationship {
         },
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
-            reason_code: "not_supported".into(),
+            reason_code: "uncertainty_representation_insufficient".into(),
             detail: "joint_sensitivity.interval_withheld".into(),
         },
     }
@@ -312,7 +312,7 @@ fn assumption_range_is_not_a_sampling_interval() {
         ..SensitivityDecisionSpec::default()
     };
     let error = evaluate_sensitivity_decision(&contract, &reported, &spec).unwrap_err();
-    assert_eq!(error.reason_code(), "not_supported");
+    assert_eq!(error.reason_code(), "route_not_supported");
     assert_eq!(error.detail(), "sensitivity_decision_composition.composition_not_supported");
 
     // An artifact that claims a composition is refused at construction.
@@ -330,7 +330,7 @@ fn assumption_range_is_not_a_sampling_interval() {
     };
     let error = SensitivityArtifact::new(p).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "route_not_supported");
     assert!(message.starts_with("sensitivity_decision_composition.composition_not_supported"));
 }
 
@@ -500,7 +500,7 @@ fn joint_result(
         inference_claim: "assumption_range".into(),
         interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval".into(),
         sampling: None,
-        withheld_reason_code: "not_supported".into(),
+        withheld_reason_code: "uncertainty_representation_insufficient".into(),
         withheld_detail: "joint_sensitivity.interval_withheld".into(),
         query_binding: "binding-1".into(),
         provider_snapshot: "snapshot-1".into(),
@@ -561,7 +561,7 @@ fn a_joint_sensitivity_result_feeds_a_decision_contract() {
     assert_eq!(decided.coverage, ScenarioCoverage::VertexCertified);
     assert!(matches!(
         decided.sampling,
-        SamplingReport::Withheld { ref reason_code, .. } if reason_code.as_str() == "not_supported"
+        SamplingReport::Withheld { ref reason_code, .. } if reason_code.as_str() == "uncertainty_representation_insufficient"
     ));
 
     // A status quo of 0.25 sits inside the range once the lower end falls below it,

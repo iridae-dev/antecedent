@@ -184,12 +184,12 @@ def test_unsupported_doses_refuse_and_the_support_table_labels_them() -> None:
     refused(
         lambda: run("level", grid=[*GRID, 10.0]),
         "dose_grid.unsupported_dose",
-        "not_supported",
+        "positivity_violated",
     )
     refused(
         lambda: run("level", minimum_local_ess=1000.0),
         "dose_grid.insufficient_local_weight",
-        "not_supported",
+        "positivity_violated",
     )
 
 
@@ -308,7 +308,7 @@ def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -
             dose, outcome, grid=[10.0], bandwidth=0.4, bandwidth_range=(0.1, 1.0)
         ),
         "dose_grid.unsupported_dose",
-        "not_supported",
+        "positivity_violated",
     )
     refused(
         lambda: quadratic_dose_functional(

@@ -21,9 +21,10 @@
 //! confusion columns, posterior draws), not only downstream sampling
 //! variance. The Wald interval of a corrected functional is
 //! [`corrected_functional_interval`]: `point -/+ z * standard_error`, reported with a
-//! calibration annotation and never gated on calibration. It is open for the routes whose
-//! variance has an executed independent closed-form check (binary misclassification, the
-//! classical-error, repeated-measurement and external-posterior linear coefficients and the categorical proportions); the other routes keep the typed [`interval_not_supported`] refusal until theirs is written.
+//! calibration annotation and never gated on calibration. Every route's variance has an
+//! executed independent closed-form check (binary misclassification, the classical-error,
+//! repeated-measurement and external-posterior linear coefficients and the categorical
+//! proportions). A record without a standard error refuses with [`interval_not_supported`].
 //!
 //! The pure numerics are in [`antecedent_stats::measurement_error`].
 //!
@@ -340,24 +341,12 @@ pub(crate) fn counts_as_reals(counts: &[u32]) -> Vec<f64> {
 /// Equal-tailed Wald interval `point -/+ z * standard_error` of a corrected functional.
 ///
 /// # Errors
-/// `not_supported` (`measurement_model.interval_closed`) for a route whose variance has no
-/// executed independent check; `invalid_argument` (`measurement_model.interval_level`) for a
-/// level outside `(0, 1)`. A record without a standard error refuses with `not_supported`.
+/// `invalid_argument` (`measurement_model.interval_level`) for a level outside `(0, 1)`;
+/// `route_not_supported` for a record without a standard error.
 pub fn corrected_functional_interval(
     record: &CorrectedFunctionalRecord,
     level: f64,
 ) -> Result<(f64, f64), MeasurementError> {
-    let checked = match record.route {
-        MeasurementRoute::BinaryMisclassification
-        | MeasurementRoute::ClassicalContinuousError
-        | MeasurementRoute::RepeatedMeasurements
-        | MeasurementRoute::ExternalLatentPosterior
-        | MeasurementRoute::ProbabilisticCategorical => true,
-        _ => false,
-    };
-    if !checked {
-        return Err(interval_not_supported());
-    }
     if !(level > 0.0 && level < 1.0) {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("invalid_argument"),
@@ -372,13 +361,13 @@ pub fn corrected_functional_interval(
     Ok((record.point - half, record.point + half))
 }
 
-/// The refusal for a requested interval on a route whose variance has no executed
-/// independent check: `not_supported`.
+/// The refusal for a requested interval on a route whose variance is not derived:
+/// `route_not_supported`.
 #[must_use]
 pub fn interval_not_supported() -> MeasurementError {
     MeasurementError::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("route_not_supported"),
         "measurement_model.interval_closed",
-        "no coverage record measures the whole measurement-plus-estimation method; the point and an uncalibrated standard error are the result",
+        "no variance of the whole measurement-plus-estimation method is derived for this route; the point and an uncalibrated standard error are the result",
     )
 }

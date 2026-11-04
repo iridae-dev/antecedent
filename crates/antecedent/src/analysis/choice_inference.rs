@@ -447,12 +447,12 @@ impl ChoiceInferenceSession {
         })
     }
 
-    /// The interval of one result of a measured choice cell, bound to currently attesting
-    /// coverage. The result is sealed and replayed first.
+    /// The interval of one result of a choice study, annotated with its calibration status
+    /// (`not_measured` outside the measured cells). The result is sealed and replayed first.
     ///
     /// # Errors
-    /// A result the contract cannot produce, a study outside the measured cells
-    /// (`not_supported`), or coverage evidence that is absent or no longer attesting.
+    /// A result the contract cannot produce, or a stopping decision, which has no interval
+    /// (`route_not_supported`).
     pub fn measured_interval(
         &self,
         request: &ChoiceRequest,

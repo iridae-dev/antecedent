@@ -596,7 +596,7 @@ fn a_shifted_cohort_is_a_transported_source_only_when_accepted() {
     let error =
         cohort_forward_source(&source, TransportedInputPolicy::NativeTargetOnly).unwrap_err();
     assert_eq!(error, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "decision_contract_unsatisfied");
     assert_eq!(error.detail(), DETAIL_TRANSPORTED_NOT_ACCEPTED);
 
     let forward =
@@ -899,7 +899,7 @@ fn a_composition_with_carried_mechanisms_is_not_native_target_data() {
     // every other transported source.
     let error = composed_forward_source(&response).unwrap_err();
     assert_eq!(error, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "decision_contract_unsatisfied");
     assert_eq!(error.detail(), DETAIL_TRANSPORTED_NOT_ACCEPTED);
 
     // Accepted explicitly, the origin names the carrying and is never `supported`.

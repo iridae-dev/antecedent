@@ -6,6 +6,7 @@
 //! rather than trusting the stored numbers) under the identities a producer derives today
 //! from the same declaration. A missing golden fails with the command that writes it. A
 //! changed golden is a compatibility decision and needs a migration note.
+//! An artifact that no longer replays under the current code is regenerated, not carried.
 //!
 //! Generate or refresh both with
 //! `cargo test -p antecedent-design --test artifact_compat_sequential_reliability_golden -- --ignored write_`
@@ -20,9 +21,10 @@ use std::path::PathBuf;
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
-    BatchPlan, DecisionReliabilityArtifact, DecisionReliabilityExpectation, KnownOptimumDesign,
-    NoiseCoupling, RankingRequest, ReliabilityRequest, StreamId, StreamPurpose, ValidationKind,
-    ValidationPlan, assess, consume as consume_reliability, simulate_selection_draws,
+    BatchPlan, ClosedRoute, DecisionReliabilityArtifact, DecisionReliabilityExpectation,
+    KnownOptimumDesign, NoiseCoupling, PublishedRoute, RankingRequest, ReliabilityRequest,
+    StreamId, StreamPurpose, ValidationKind, ValidationPlan, assess,
+    consume as consume_reliability, simulate_selection_draws,
 };
 use antecedent_design::sequential_evaluation::{
     ActionRole, ActionSpec, ActionSupport, CensoringRule, ContingentPolicy, EvaluationLimits,
@@ -238,21 +240,18 @@ fn the_decision_reliability_golden_is_recomputed_and_gated() {
 }
 
 #[test]
-fn historical_closure_snapshot_is_conservative_and_cannot_change_the_report() {
+fn the_decision_reliability_report_is_recomputed_and_cannot_be_altered() {
     let bytes = load(RELIABILITY_GOLDEN);
     let original = DecisionReliabilityArtifact::from_bytes(&bytes).unwrap();
     let current =
         assess(&original.draws, original.validation.as_ref(), &original.request, &ctx()).unwrap();
     original.verify(&DecisionReliabilityExpectation::default(), &ctx()).unwrap();
-    // Historical refusals remain conservative whether current calibration is
-    // pending or has earned additional supports. No new support is assumed here.
-    for closed in &current.closed_routes {
-        assert!(original.report.closed_routes.iter().any(|old| old.route == closed.route));
-    }
+    // No route is closed: calibration annotates a route and never refuses it.
+    assert!(current.closed_routes.is_empty());
+    assert!(original.report.closed_routes.is_empty());
     let consumed =
         consume_reliability(&bytes, &DecisionReliabilityExpectation::default(), &ctx()).unwrap();
     assert_eq!(consumed.digest, original.digest);
-    assert_eq!(consumed.report.closed_routes, original.report.closed_routes);
 
     let rejected = |mut artifact: DecisionReliabilityArtifact| {
         artifact.digest = artifact.recomputed_digest().unwrap();
@@ -264,23 +263,13 @@ fn historical_closure_snapshot_is_conservative_and_cannot_change_the_report() {
                 .contains("report_mismatch")
         );
     };
-    // No route is closed now, so the historical snapshot may be kept or emptied but never
-    // altered.
-    assert!(current.closed_routes.is_empty());
     let mut changed = original.clone();
-    changed.report.closed_routes[0].coordinate.push_str("/foreign");
-    rejected(changed);
-    let mut changed = original.clone();
-    changed.report.closed_routes[0].remedy = "this route is supported".into();
-    rejected(changed);
-    let mut changed = original.clone();
-    changed.report.closed_routes[0].code = "invalid_argument".into();
-    rejected(changed);
-    let mut changed = original.clone();
-    changed.report.closed_routes.push(changed.report.closed_routes[0].clone());
-    rejected(changed);
-    let mut changed = original.clone();
-    changed.report.closed_routes.swap(0, 1);
+    changed.report.closed_routes.push(ClosedRoute {
+        route: PublishedRoute::RankingProbability,
+        coordinate: "foreign".into(),
+        code: "invalid_argument".into(),
+        remedy: "foreign".into(),
+    });
     rejected(changed);
     let mut changed = original.clone();
     let se = &mut changed.report.monte_carlo_error.decision.standard_error;

@@ -186,7 +186,7 @@ impl RecoveryDetail {
                 antecedent_core::reason_code!("invalid_argument")
             }
             Self::Positivity => antecedent_core::reason_code!("transport_support_failure"),
-            Self::EmpiricalNotSupported => antecedent_core::reason_code!("not_supported"),
+            Self::EmpiricalNotSupported => antecedent_core::reason_code!("route_not_supported"),
         }
     }
 }

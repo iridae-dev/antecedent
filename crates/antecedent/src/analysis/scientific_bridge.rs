@@ -531,9 +531,10 @@ impl ScientificBridgeResult {
     /// count); the record is resolved from the shipped coverage table.
     ///
     /// # Errors
-    /// `not_supported` with `scientific_bridge.interval_source_uncertainty_required`
-    /// when the source claim declared no standard error, and with
-    /// `scientific_bridge.interval_scope_outside_measured` outside a measured record.
+    /// `required_option_missing` with `scientific_bridge.interval_source_uncertainty_required`
+    /// when the source claim declared no standard error, and `route_not_supported` with
+    /// `scientific_bridge.interval_scope_outside_measured` for a map the construction does not
+    /// cover.
     pub fn bridged_interval(
         &self,
         level: f64,
@@ -870,9 +871,8 @@ impl ScientificBridgeDistributionResult {
     /// construction.
     ///
     /// # Errors
-    /// `not_supported` with `scientific_bridge.interval_scope_outside_measured`
-    /// for a mapping with uncertain coefficients, a declared source-mapping
-    /// covariance, a level or design no record measured.
+    /// `route_not_supported` with `scientific_bridge.interval_scope_outside_measured`
+    /// for a mapping with uncertain coefficients or a declared source-mapping covariance.
     pub fn bridged_interval(
         &self,
         level: f64,

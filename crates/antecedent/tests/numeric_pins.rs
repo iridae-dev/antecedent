@@ -405,7 +405,7 @@ fn retarget_refuses_treatment_dependence() {
 }
 
 #[test]
-fn retarget_weighted_overlap_is_support() {
+fn retarget_weighted_overlap_is_a_positivity_refusal() {
     let mut rng = ExecutionContext::for_tests(17).rng.stream_for(StreamDomain::Test, 1);
     let n = 800usize;
     let mut z = vec![0.0; n];
@@ -428,7 +428,7 @@ fn retarget_weighted_overlap_is_support() {
     let ctx = ExecutionContext::for_tests(17);
     let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
     let err = prepared.retarget(&w, &[VariableId::from_raw(2)], &ctx).unwrap_err();
-    assert!(matches!(err.peeled(), antecedent::CausalError::Support { .. }), "{err}");
+    assert_eq!(err.reason_code(), Some("positivity_violated"), "{err}");
 }
 
 #[test]

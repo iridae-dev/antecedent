@@ -82,7 +82,7 @@ fn assert_premise(
     detail: &str,
 ) {
     let refusal = result.expect_err("the paradigm's premise must fail");
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "adaptive_assumption_violated");
     assert_eq!(refusal.detail, detail);
     assert!(!refusal.message.is_empty());
 }
@@ -287,7 +287,7 @@ fn the_exact_law_carries_the_terminal_atoms_and_work() {
 // -- premise refusals --------------------------------------------------------------------------------
 
 #[test]
-fn every_paradigm_whose_premise_fails_is_refused_with_not_supported() {
+fn every_paradigm_whose_premise_fails_is_refused_as_an_assumption_violation() {
     let adaptive_stopped = declare(
         thompson(),
         &[1, 1, 1],
@@ -396,7 +396,7 @@ fn delay_and_context_premises_are_refused() {
             &ctx(),
         )
         .expect_err("adaptive weighting premise");
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "adaptive_assumption_violated");
     assert_eq!(refusal.detail, "adaptive_inference.outcome_dependent_delay");
 
     let contextual = AdaptiveProcedure::declare(ProcedureDeclaration {

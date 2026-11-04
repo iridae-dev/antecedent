@@ -17,14 +17,12 @@ use std::collections::BTreeSet;
 use antecedent_core::identity::{CanonicalWriter, SemanticDigest};
 
 use super::declaration::{
-    CalibrationRequirement, CalibrationStatus, ConsumedPort, ContractOperation, EvidenceBasis,
-    INTERFACE_CONTRACT_VERSION, InterfaceContract, ProducedPort, UncertaintyMeaning,
-    operations_text,
+    CalibrationStatus, ConsumedPort, ContractOperation, EvidenceBasis, INTERFACE_CONTRACT_VERSION,
+    InterfaceContract, ProducedPort, UncertaintyMeaning, operations_text,
 };
 use super::refusal::{
-    InterfaceRefusal, calibration_inherited_unresolved, calibration_not_measured,
-    conditioning_mismatch, dependence_unknown, functional_mismatch, horizon_mismatch,
-    measurement_assumption_mismatch, operation_unavailable, population_mismatch,
+    InterfaceRefusal, conditioning_mismatch, dependence_unknown, functional_mismatch,
+    horizon_mismatch, measurement_assumption_mismatch, operation_unavailable, population_mismatch,
     provenance_missing, regime_mismatch, semantic_identity_mismatch, support_mismatch,
     transform_mismatch, uncertainty_meaning_mismatch, uncertainty_meaning_missing,
     uncertainty_paradigm_mismatch, units_mismatch, unknown_port, variable_mismatch,
@@ -208,17 +206,13 @@ pub(super) fn check_ports(
         ));
     }
     compare_uncertainty(out, inp, &mut refusals);
-    if inp.calibration == CalibrationRequirement::Measured {
-        match resolved {
-            Some(CalibrationStatus::Measured { .. }) => {}
-            Some(other) => refusals.push(calibration_not_measured(other.label().to_owned())),
-            None => refusals.push(calibration_inherited_unresolved(&out.name)),
-        }
-    }
     if !refusals.is_empty() {
         return Err(refusals);
     }
-    let calibration = resolved.cloned().unwrap_or_else(|| out.calibration.clone());
+    // A consumer that relies on measured calibration is served all the same: the
+    // connection carries what the producer holds, and an inherited label a pair
+    // cannot resolve is carried as not measured.
+    let calibration = resolved.cloned().unwrap_or(CalibrationStatus::NotMeasured);
     let producer_identity = producer.canonical_identity();
     let consumer_identity = consumer.canonical_identity();
     let mut writer = CanonicalWriter::new(TAG_CONNECTION);

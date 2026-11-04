@@ -17,7 +17,7 @@
 //! probabilities of the realized assignments are retained as selection evidence and are not used
 //! by the posterior. This is a property of the posterior only: the frequentist analysis of the
 //! same trial is calibrated to the whole procedure and is a separate report. An assignment that
-//! depends on an unobserved quantity is refused with `not_supported`
+//! depends on an unobserved quantity is refused with `adaptive_assumption_violated`
 //! (`adaptive_inference.selection_not_ignorable`).
 //!
 //! # What it does not say
@@ -274,7 +274,7 @@ impl RepeatedMeasuresProcedure {
     /// within-unit structure.
     ///
     /// # Errors
-    /// `not_supported` with `adaptive_inference.selection_not_ignorable` for an assignment
+    /// `adaptive_assumption_violated` with `adaptive_inference.selection_not_ignorable` for an assignment
     /// that depends on an unobserved quantity, `adaptive_inference.arm_not_observed` for a
     /// contrast arm without a completed unit, and `adaptive_inference.structure_incomplete` for
     /// an inadmissible declared structure; `invalid_argument` for malformed units, priors, level

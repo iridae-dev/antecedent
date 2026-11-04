@@ -109,12 +109,12 @@ fn refresh_posterior_mean_stays_at_the_new_period_response() {
 fn refresh_posterior_refuses_an_unmeasured_band() {
     let error = normal_mean_posterior(
         &[3.0, 5.0, 10.0],
-        PosteriorRequest::UnmeasuredBand,
+        PosteriorRequest::CredibleBand,
         ScalarNamespace::Refresh,
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("refresh_posterior.unmeasured_band"), "{message}");
+    assert!(message.contains("refresh_posterior.band_not_constructed"), "{message}");
 }
 
 #[test]

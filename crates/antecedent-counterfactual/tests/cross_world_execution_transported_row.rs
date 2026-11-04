@@ -81,7 +81,7 @@ fn every_transported_cell_is_closed_except_the_static_additive_theorem_route() {
                                 }
                                 Err(refusal) => {
                                     assert!(!expected_open, "{request:?}");
-                                    assert_eq!(refusal.code, "not_supported");
+                                    assert_eq!(refusal.code, "route_not_supported");
                                     assert_eq!(
                                         refusal.detail,
                                         "cross_world_execution.transported_row_closed"
@@ -175,7 +175,7 @@ fn a_different_target_population_refuses_before_any_work_and_the_declared_one_ex
     for target in ["pop-b", "POP-A", "pop-a ", "", "pop-a2"] {
         let err = exec.execute(&request(Some(target)), &ctx).expect_err(target);
         let refusal = err.refusal().unwrap();
-        assert_eq!(refusal.code, "not_supported", "{target:?}");
+        assert_eq!(refusal.code, "route_not_supported", "{target:?}");
         assert_eq!(refusal.detail, "cross_world_execution.transported_row_closed", "{target:?}");
         assert!(err.missing().iter().any(|m| m == "target_population_abduction_receipt"));
         let c = exec.counters();

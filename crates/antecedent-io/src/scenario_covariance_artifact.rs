@@ -83,9 +83,10 @@ impl ScenarioCovarianceArtifactError {
             Self::UnsupportedSemantics(_) => {
                 (reason_code!("route_not_supported"), "scenario_covariance.unsupported_semantics")
             }
-            Self::LimitsExceeded(_) => {
-                (reason_code!("not_supported"), "scenario_covariance.consumer_limit_exceeded")
-            }
+            Self::LimitsExceeded(_) => (
+                reason_code!("execution_resource_limit"),
+                "scenario_covariance.consumer_limit_exceeded",
+            ),
             Self::PremisesMismatch => {
                 (reason_code!("invalid_argument"), "scenario_covariance.premises_mismatch")
             }
@@ -251,7 +252,7 @@ fn linear_estimator(table: &RowTableWire, terms: &[ScoreTermWire]) -> Result<Est
     }
     if terms.len() > MAX_SCORE_TERMS {
         return Err(IoError::Refused {
-            code: reason_code!("not_supported"),
+            code: reason_code!("execution_resource_limit"),
             message: format!("scenario_covariance.too_many_terms: at most {MAX_SCORE_TERMS} terms"),
         });
     }
@@ -474,7 +475,7 @@ impl CovarianceSpec {
     ///
     /// # Errors
     /// An invalid table or functional (`invalid_argument`), more rows
-    /// than the bound allows (`not_supported`), or a scenario declaring a unit
+    /// than the bound allows (`execution_resource_limit`), or a scenario declaring a unit
     /// list of another length (`route_not_supported` /
     /// `scenario_covariance.unknown_dependence`).
     pub fn estimators(&self) -> Result<Vec<ScenarioRowEstimator>, IoError> {
@@ -484,7 +485,7 @@ impl CovarianceSpec {
     /// [`Self::estimators`] under the caller's bounds instead of [`MAX_TABLE_ROWS`].
     ///
     /// # Errors
-    /// As [`Self::estimators`]; more rows than `limits.max_rows` is `not_supported`.
+    /// As [`Self::estimators`]; more rows than `limits.max_rows` is `execution_resource_limit`.
     pub fn estimators_within(
         &self,
         limits: &ScenarioCovarianceConsumeLimits,
@@ -492,7 +493,7 @@ impl CovarianceSpec {
         self.table.check()?;
         if self.table.rows.len() > limits.max_rows {
             return Err(IoError::Refused {
-                code: reason_code!("not_supported"),
+                code: reason_code!("execution_resource_limit"),
                 message: format!(
                     "scenario_covariance.table_too_large: at most {} rows",
                     limits.max_rows

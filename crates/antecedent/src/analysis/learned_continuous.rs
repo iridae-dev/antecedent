@@ -6,8 +6,10 @@
 //! refresh replaces the rows of the same schema and sampling design and keeps the
 //! certificate. Estimation returns the point with provenance and diagnostics;
 //! [`PreparedLearnedContinuous::interval`] returns the pointwise analytic influence
-//! interval under the declared IID sampling design. A legacy percentile-bootstrap
-//! request refuses because that method failed its coverage grid.
+//! interval under the declared IID sampling design (`bootstrap = 0`);
+//! [`PreparedLearnedContinuous::bootstrap_interval`] returns the joint outer-refit
+//! percentile-bootstrap interval for a request of two or more replicates, with the
+//! calibration slot of the coverage records (`measured_below_nominal` where measured).
 use super::StudyBuilder;
 use super::transport_common::{err, estimate_err};
 use antecedent_core::{ExecutionContext, TransportQuery};
@@ -31,6 +33,45 @@ pub struct PreparedLearnedContinuous {
     options: LearnedContinuousOptions,
     variable_names: Vec<String>,
     seed: u64,
+}
+
+/// The joint outer-refit percentile-bootstrap interval of the mean contrast with its calibration.
+#[derive(Clone, Debug)]
+pub struct LearnedContinuousBootstrapInterval {
+    run: antecedent_estimate::learned_trial::TrialAipwEstimate,
+    calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
+}
+
+impl LearnedContinuousBootstrapInterval {
+    /// The point run the interval is built around.
+    #[must_use]
+    pub const fn point(&self) -> &antecedent_estimate::learned_trial::TrialAipwEstimate {
+        &self.run
+    }
+
+    /// The percentile interval; `None` when a replicate failed (see [`Self::uncertainty_reason`]).
+    #[must_use]
+    pub const fn interval(&self) -> Option<(f64, f64)> {
+        self.run.interval
+    }
+
+    /// Why no interval was produced, when none was.
+    #[must_use]
+    pub fn uncertainty_reason(&self) -> Option<&str> {
+        self.run.uncertainty_reason.as_deref()
+    }
+
+    /// Successful replicate estimates, in replicate order.
+    #[must_use]
+    pub fn replicates(&self) -> &[(u32, f64)] {
+        &self.run.replicates
+    }
+
+    /// Calibration of the reported interval.
+    #[must_use]
+    pub const fn calibration(&self) -> &antecedent_io_core::contract_section::CalibrationSlotWire {
+        &self.calibration
+    }
 }
 
 /// One execution: the verified artifact wire that carries the point and its evidence.
@@ -169,11 +210,77 @@ impl PreparedLearnedContinuous {
         Ok(LearnedContinuousResult { wire, identity })
     }
 
+    /// Whether the options request a bootstrap interval (two or more replicates are formed by
+    /// [`Self::bootstrap_interval`]; the analytic [`Self::interval`] takes none).
+    #[must_use]
+    pub const fn bootstrap_requested(&self) -> bool {
+        self.options.bootstrap != 0
+    }
+
+    /// The joint outer-refit percentile-bootstrap interval on the frozen seed, with its
+    /// calibration slot. The slot annotates; it never gates the interval.
+    ///
+    /// # Errors
+    /// The refusals of the estimate, a bootstrap below the replicate floor
+    /// (`learned_transport.bootstrap_below_floor`), a workspace above the memory cap, or
+    /// cancellation.
+    pub fn bootstrap_interval(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<LearnedContinuousBootstrapInterval, IoError> {
+        antecedent_estimate::refuse_cancelled(ctx, "learned continuous bootstrap interval")
+            .map_err(estimate_err)?;
+        let mut ctx = ctx.clone();
+        ctx.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        let run = antecedent_estimate::learned_continuous_interval_internal(
+            &self.identification,
+            &self.input,
+            &self.options,
+            &ctx,
+        )
+        .map_err(estimate_err)?;
+        let calibration = if run.interval.is_some() {
+            use antecedent_io_core::calibration::{
+                CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+            };
+            calibration_slot(&CalibrationBasisWire {
+                key: CalibrationKeyWire {
+                    validation: "not_applicable".into(),
+                    query: "ClassicalTransport".into(),
+                    graph_class: "Admg".into(),
+                    structure: "fixed".into(),
+                    modality: "tabular".into(),
+                    inference: "Frequentist".into(),
+                    estimator: "transport.learned_trial_aipw".into(),
+                    interval_method: "percentile_bootstrap".into(),
+                    se_kind: "percentile".into(),
+                    dependence: "iid".into(),
+                    posterior: String::new(),
+                    functional: "target_mean_contrast".into(),
+                    level: self.options.coverage_level,
+                    identification: "point".into(),
+                },
+                scope: CalibrationScopeWire {
+                    row_count: self.input.outcome.len() as u64,
+                    replicates_ok: Some(u32::try_from(run.replicates.len()).unwrap_or(u32::MAX)),
+                    posterior_draws: None,
+                    unidentified_mass: 0.0,
+                },
+            })
+        } else {
+            antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+                antecedent_io_core::calibration::NO_INTERVAL_REPORTED,
+            )
+        };
+        Ok(LearnedContinuousBootstrapInterval { run, calibration })
+    }
+
     /// Compute the design-specific analytic influence interval and exportable result.
     ///
     /// # Errors
-    /// Fit, support, budget or cancellation failure. A legacy bootstrap request refuses
-    /// with `estimator_inference_mismatch` because its percentile interval failed coverage.
+    /// Fit, support, budget or cancellation failure. A non-zero bootstrap request refuses
+    /// with `estimator_inference_mismatch`: this route is the analytic interval, and the
+    /// bootstrap interval is [`Self::bootstrap_interval`].
     pub fn interval(&self, ctx: &ExecutionContext) -> Result<LearnedContinuousResult, IoError> {
         let mut ctx = ctx.clone();
         ctx.rng = antecedent_core::RngFactory::from_seed(self.seed);

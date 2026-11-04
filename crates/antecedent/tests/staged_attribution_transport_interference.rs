@@ -567,11 +567,9 @@ fn design_cells_bind_calibration_under_the_harness_key() {
     );
 }
 
-/// A support refusal renders as `refused: reason=<code>: <message>`.
+/// A construction refusal carries `reason=<code>: <message>`.
 fn refused_with(error: &antecedent::CausalError) -> Option<String> {
-    let text = error.to_string();
-    let rest = text.strip_prefix("not_supported: ")?;
-    antecedent_core::reason_code::split_prefix(rest).map(|(code, _)| code.to_string())
+    error.reason_code().map(str::to_string)
 }
 
 /// The supported interference cell is `NeighborCount` under Bernoulli assignment;

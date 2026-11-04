@@ -20,8 +20,6 @@ pub enum RefusalKind {
     SourceRetired,
     /// The request is malformed or inconsistent with the ledger.
     InvalidArgument,
-    /// The requested statement has no support (an interval, a posterior).
-    NotSupported,
     /// A ledger bound was exceeded.
     LimitExceeded,
 }

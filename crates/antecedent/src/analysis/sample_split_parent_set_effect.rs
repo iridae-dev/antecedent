@@ -280,9 +280,10 @@ impl ParentSetEffect {
     ///
     /// # Errors
     ///
-    /// The refusals of [`estimate_parent_set_effect`], and `not_supported`
-    /// (`measured_inference.record_not_attesting`) when no current attesting, non-boundary
-    /// record measured this construction at this variable count, degree and analysis row count.
+    /// The refusals of [`estimate_parent_set_effect`]. Where no current attesting, non-boundary
+    /// record measured this construction at this variable count, degree and analysis row count,
+    /// the interval is still reported and its calibration is `not_measured` or
+    /// `outside_measured_scope`.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         split_parent_set_effect::measure(&self.source, ctx)
     }

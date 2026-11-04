@@ -996,7 +996,7 @@ fn opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic() {
 
 #[test]
 fn interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed() {
-    let closed = antecedent_core::reason_code!("not_supported");
+    let closed = antecedent_core::reason_code!("callback_protocol_invalid");
     let insufficient = antecedent_core::reason_code!("uncertainty_representation_insufficient");
     for (refusal, detail, expected) in [
         (refuse_interval(), "callback_protocol.interval_not_supported", insufficient),

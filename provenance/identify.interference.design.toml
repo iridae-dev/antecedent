@@ -35,9 +35,9 @@ record_sha256 = "68b60db158caae58a47c4f0da3504cc12c2b012b98b227f8a14a5c0d463cb54
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/transport_interference_path.rs"
-sha256 = "1a6b3d7a449ae256ef3c0217b76c1bf77e3658df080273607827d914d93ee278"
+sha256 = "35810d77ed2f834893b633e17528cc2c75a2e5682e3500d4a343aefab4ce7b67"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
-sha256 = "31860d895425282c61c3184a829c76be8d9388650e7279a9177441c4796cb653"
+sha256 = "33ae454edd7c6568a1aede971105c4f78317d568bdf15215969324d67a355ad5"

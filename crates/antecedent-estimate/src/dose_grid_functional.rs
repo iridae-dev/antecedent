@@ -618,7 +618,7 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             SupportStatus::Supported => {}
             SupportStatus::WeakOverlap => {
                 return Err(refuse(
-                    antecedent_core::reason_code!("not_supported"),
+                    antecedent_core::reason_code!("positivity_violated"),
                     "dose_grid.insufficient_local_weight",
                     &format!(
                         "dose {at} has local effective sample size below the declared minimum"
@@ -627,7 +627,7 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             }
             _ => {
                 return Err(refuse(
-                    antecedent_core::reason_code!("not_supported"),
+                    antecedent_core::reason_code!("positivity_violated"),
                     "dose_grid.unsupported_dose",
                     &format!("dose {at} is outside the observed dose support"),
                 ));
@@ -680,7 +680,7 @@ fn fit_at(
     }
     .map_err(|error| {
         refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("positivity_violated"),
             "dose_grid.insufficient_local_weight",
             &format!("the local quadratic could not be fitted at dose {at}: {error}"),
         )
@@ -1365,7 +1365,7 @@ pub fn estimate_dose_grid_bias_aware_declared(
         )
         .ok_or_else(|| {
             refuse(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("positivity_violated"),
                 "dose_grid.insufficient_local_weight",
                 &format!("the local quadratic is singular at dose {at}"),
             )

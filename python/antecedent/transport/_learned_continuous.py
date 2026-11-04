@@ -15,9 +15,8 @@ of the point estimate: it is consistent when either the outcome regressions or t
 participation model is. No efficiency, rate or CATE claim is made.
 
 The point estimate and the estimator menu are supported. The whole-estimator
-interval (joint outer refit percentile bootstrap of the cross-fitted estimator) is
-not: its route is closed with ``not_supported`` until its coverage records are
-measured, so an estimate reports the interval withheld and never publishes one.
+interval (joint outer refit percentile bootstrap of the cross-fitted estimator) is formed by
+:meth:`PreparedLearnedContinuous.interval` and carries its calibration slot.
 """
 
 from __future__ import annotations
@@ -57,8 +56,8 @@ class LearnedContinuousOptions:
     probability accepted on any row; ``min_treatment_probability`` bounds the known
     randomization probabilities. Both lie in ``(0, 0.5)``; insufficient overlap
     refuses rather than extrapolates. ``bootstrap`` requests interval replicates
-    (at most 2000, floor 199): the percentile route failed calibration, so the
-    request only changes the reported interval status. Set it to zero and call
+    (at most 2000, floor 2): the request sets the
+    reported interval status; ``PreparedLearnedContinuous.interval()`` forms the bootstrap interval. Set it to zero and call
     ``PreparedLearnedContinuous.interval()`` for the analytic influence interval.
     """
 
@@ -201,10 +200,12 @@ class LearnedContinuousEstimate(ScientificResult):
     """The estimate with provenance, diagnostics and interval status.
 
     ``overlap`` keeps source membership (``selection``) and treatment overlap apart.
-    ``uncertainty`` is ``point_only`` when no interval was requested and ``withheld``
-    (``not_supported``, or ``estimator_inference_mismatch`` below the replicate
-    floor) for a legacy bootstrap request. ``interval()`` returns an ``available``
-    analytic influence interval and its standard error.
+    ``uncertainty`` is ``point_only`` when no interval was requested,
+    ``bootstrap_interval_requested`` for a bootstrap request of two or more replicates
+    (``PreparedLearnedContinuous.interval()`` forms it with its calibration slot) and
+    ``withheld`` (``estimator_inference_mismatch``) below the replicate floor. With
+    ``bootstrap=0``, ``interval()`` returns an ``available`` analytic influence interval and
+    its standard error.
     """
 
     estimate: float
@@ -314,9 +315,24 @@ class PreparedLearnedContinuous(ScientificResult):
         native = self._execution._call(self._native.bind_snapshot, data)
         return PreparedLearnedContinuous(native, self._execution)
 
-    def interval(self) -> Outcome[LearnedContinuousEstimate]:
-        """Execute the design-specific analytic influence interval in a separate run."""
-        return capture_outcome(lambda: self._run("interval"))
+    def interval(self) -> Outcome[LearnedContinuousEstimate | dict[str, Any]]:
+        """Execute the interval the options request, in a separate run.
+
+        With ``bootstrap=0`` this is the design-specific analytic influence interval, returned
+        as a :class:`LearnedContinuousEstimate`. With ``bootstrap >= 2`` it is the joint
+        outer-refit percentile-bootstrap interval, returned as a mapping with ``estimate``,
+        ``interval`` (``[lower, upper]``, or ``None`` when a replicate failed), ``reason``
+        (why none was produced, else ``None``), ``replicates_ok``, ``failures`` and
+        ``calibration`` (the slot; calibration annotates and never gates).
+        """
+
+        def execute() -> LearnedContinuousEstimate | dict[str, Any]:
+            if self._execution._call(self._native.bootstrap_requested):
+                raw = self._execution._call(self._native.bootstrap_interval)
+                return dict(json.loads(raw))
+            return self._run("interval")
+
+        return capture_outcome(execute)
 
     def estimator_menu(self) -> EstimatorMenu:
         """The estimator menu for this prepared graph, query and learners."""

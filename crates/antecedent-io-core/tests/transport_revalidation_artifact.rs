@@ -100,7 +100,7 @@ fn a_fresh_consumer_rederives_the_report_from_bytes() {
 }
 
 #[test]
-fn a_calibration_record_from_another_target_is_withdrawn_and_never_inherited() {
+fn a_calibration_record_from_another_target_is_withdrawn_never_inherited_and_not_refused() {
     let current = scene(10, SceneCalibration::Held { record: d(90), established_at_target: d(99) });
     let (_, meta) =
         TransportRevalidationArtifact::seal(None, &current, &BTreeMap::new()).expect("seals");
@@ -108,7 +108,9 @@ fn a_calibration_record_from_another_target_is_withdrawn_and_never_inherited() {
     assert_eq!(effect.class, "withdrawn");
     assert_eq!(effect.reasons, vec!["calibration_from_another_target".to_owned()]);
     assert_eq!(effect.calibration_state, "lost");
-    assert!(effect.refusal_code.is_some());
+    // A lost calibration annotates the claim's interval; the claim itself is not refused.
+    assert_eq!(effect.refusal_code, None);
+    assert_eq!(effect.refusal_detail, None);
     // The point value of the withdrawn claim is not recomputed by this report.
     assert_eq!(claim(&meta, "sibling").class, "still_valid");
 }

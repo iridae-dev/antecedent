@@ -601,7 +601,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_frozen_bounds_are_the_recorded_ones() {
-        assert_eq!(LEARNED_CONTINUOUS_BOUNDS, (20, 199, 2000));
+    fn the_bounds_are_the_recorded_ones() {
+        assert_eq!(LEARNED_CONTINUOUS_BOUNDS, (20, 2, 2000));
     }
 }

@@ -6,6 +6,28 @@ Antecedent's development applies high-assurance engineering principles. The prac
 
 For the shorter introduction, read [Assurance](../concepts/assurance.md). For interpreting an analysis you have already run, start with [Results are claims](../concepts/results-are-claims.md).
 
+## The evidence model
+
+Every reported answer rests on one small model. Five terms carry it; other pages link here rather than restate it.
+
+| Term | Meaning | Effect |
+| --- | --- | --- |
+| **Supported** | A unit has a provenance record and an executed independent scientific check (known truth, an analytic value, or a reference implementation). A unit that reports an interval also has an independent construction check of that interval. A unit is a support-matrix cell, a graphless design-family row, or a capability outside the matrix. | The route runs. |
+| **`not_supported`** | A unit lacks that evidence. | A release build refuses with reason `not_supported`, a detail, and the missing evidence. |
+| **Scientific refusal** | The question is not identified, is a typed n/a, has an invalid declaration or input, names no such method, is numerically impossible, exceeds a resource limit, or is cancelled. | Refuses in every build, with its own reason code, never `not_supported`. |
+| **Calibration status** | `calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`, derived from coverage records. | Attached to every reported interval. It never refuses and never gates. |
+| **Development build** | Cargo feature `development`. In Python, build with `scripts/dev_python.sh` and read `antecedent.build_flavor()`. | Runs `not_supported` routes. Results carry `would_refuse` (the code, the detail and the missing evidence). Release consumers refuse development-stamped artifacts. |
+
+The machinery behind the model:
+
+- `antecedent_core::support_gate::require_supported` is the only place a `not_supported` refusal is built. `scripts/gate_not_supported_sites.py` enforces that.
+- `scripts/gate_support.py` applies the one support rule to every unit and prints the one support count: supported units. Route counts are never a support count.
+- Estimator declarations (`crates/antecedent/src/strategy_table/targets.rs`) list the estimators valid for a cell. An explicit `estimator=` may choose any estimator listed for the cell, and the listed set equals the declared-valid set (the `parity/estimator_validity.toml` snapshot).
+- Calibration records (`parity/coverage_records.toml`) are measured by a separate calibration flow. A record is current while its dependency fingerprint is unchanged. A changed fingerprint makes it owed, and a probe (`scripts/calibration_probe.py`) decides whether the measured numbers still reproduce. Calibration never fails a code change.
+- Scientific-test records (`parity/scientific_records.toml`, managed by `scripts/scientific_records.py`) record passes of the scientific assertions against a dependency fingerprint. Only owed tests rerun. A recorded pass is evidence for support; it is never a calibration measurement.
+
+A supported route can report an interval whose calibration status is `not_measured`, and the result says so. A model-conditional response can be useful without a design that identifies the real-world effect; successful execution preserves that status.
+
 ## Follow the claim, then its evidence
 
 An estimand is the quantity a scientific question asks for: an average effect in a population, for example. An estimator is the procedure used to estimate it. A check needs to name both precisely enough to distinguish the requested calculation from a nearby one.
@@ -114,7 +136,7 @@ Antecedent retains measurement records with their settings and source revision. 
 
 A result reports identification, support, uncertainty, assumptions and calibration separately. [Results are claims](../concepts/results-are-claims.md) explains those fields, and [reading a result](../start/reading-a-result.md) shows how to inspect them.
 
-A route is **supported** when it has provenance and independent scientific checks; a supported route runs. A route that is not supported refuses in release builds with a scientific refusal, and a **development build** runs it and reports `would_refuse` so the result is never mistaken for a supported one. **Calibration status** (`calibrated`, `outside_measured_scope`, `measured_below_nominal`, `not_measured`) is an annotation on an interval and never decides whether a route runs. An interval can be supported without a matching calibration measurement, and the result says so. A model-conditional response can be useful without a design that identifies the real-world effect. Successful execution preserves that status.
+The result carries the pieces of the model above: whether its route is supported (and, in a development build, `would_refuse`), its identification, and the calibration status of each interval.
 
 Export and replay checks preserve specified identities, calculations and interpretation for supported consumers. Artifact acceptance establishes the checks reported by that consumer. Scientific assumptions about the real system remain the researcher's responsibility.
 

@@ -262,6 +262,6 @@ fn a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label()
             &SupportPolicy::compare_supported(),
         )
         .unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "decision_contract_unsatisfied");
     assert_eq!(refusal.detail, DETAIL_SUPPORT_BELOW_POLICY);
 }

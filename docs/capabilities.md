@@ -59,7 +59,8 @@ The matrix has three states:
 
 Calibration status (`calibrated`, `outside_measured_scope`,
 `measured_below_nominal`, `not_measured`) is an annotation on a supported
-interval. It never decides whether a route runs. Evidence kinds are scoped: a known-truth fixture may pin
+interval. It never decides whether a route runs. A route described as outside the support matrix is not a matrix cell; it is a supported unit only through a graphless row or a capability record with provenance and an independent check, and otherwise it is not supported. The full model is in
+[How Antecedent checks its scientific methods](guides/scientific-verification.md#the-evidence-model). Evidence kinds are scoped: a known-truth fixture may pin
 only identification or an effect point, while an internal cross-check may establish
 prepared-vs-fresh consistency without pinning the scientific target. Read each
 row's `limitations`; a shared method name is not a parity claim.
@@ -599,16 +600,16 @@ Implemented identification strategies:
   compiled `IvBounds` study (`analyze(data, query=quasi.IvBounds(...))`): three 0/1
   columns and an optional weight column give an identified set, never a point, with an
   Imbens–Manski row-bootstrap interval (`Frequentist(bootstrap=...)`) or a Bayesian-bootstrap endpoint
-  posterior. It is partially identified (claim kind `bounds`), executes unsupported, and no
-  coverage record measures its interval;
+  posterior. It is partially identified (claim kind `bounds`), is not a support-matrix cell, and no
+  coverage record measures its interval (calibration `not_measured`);
 * noncausal associations, run as the compiled `Association` study
   (`analyze(data, query=descriptive.Association(...))`; see
   [Noncausal associations](guides/fallback.md#describe-the-observed-data-directly)): a declared selection rule picks a
   stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance
   correlation, or a predictive model scored on held-out folds, over the rows of a table or the
   points of one series. Identification is not claimed (claim kind `associational`); the
-  result is never an intervention effect, ranks no action, and executes unsupported with its
-  uncertainty labelled `unmeasured`;
+  result is never an intervention effect, ranks no action, and is not a support-matrix cell; its
+  uncertainty is labelled `unmeasured`;
 * classical single-source sID (Bareinboim–Pearl Figure-5 recursion, access to
   all source experiments): an independently checked symbolic distribution, an
   independently verified s-hedge `ProvenNonTransportable` certificate, or
@@ -978,8 +979,8 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   independent clusters per arm with positive between-cluster variation, it
   reports a pointwise 95% cluster-level Neyman/Welch interval. Fixed-population
   randomization checks cover known truth in 1,910/2,000 draws at eight clusters
-  per arm and 1,933/2,000 at 40 per arm. This remains off the support-matrix
-  axis; the Bernoulli cell's support does not transfer.
+  per arm and 1,933/2,000 at 40 per arm. This remains outside the support
+  matrix; the Bernoulli cell's support does not transfer.
   `SaturationDesign` is a third retained construction: complete allocation of
   clusters to low/high treatment probabilities followed by independent
   Bernoulli assignment of units. With a matching `PartialInterference` partition,
@@ -993,7 +994,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   variation. Repeated-sampling checks cover direct, spillover, and total
   contrasts across neighbor fraction, count, and weighted mappings at the
   reported level. Thinner designs retain a point estimate with a specific
-  interval refusal. This route remains off the support-matrix axis. Direct and
+  interval refusal. This route remains outside the support matrix. Direct and
   retained Python routes use the same native estimator.
   `ObservedExposureDesign` is a retained observational construction on the
   same query. It requires an explicit `PartialInterference` partition, a fixed
@@ -1005,7 +1006,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   retained analysis share the native estimator. Neither the propensities nor
   network exchangeability are verified by the library. With known fixed
   propensities and the documented cluster support gates, the retained result
-  reports a calibrated pointwise cluster interval while remaining off-axis;
+  reports a calibrated pointwise cluster interval while remaining outside the support matrix;
   externally fitted propensities retain a point and labeled variance only.
   `interference.estimate` remains an unsupported utility over every design and
   exposure mapping; it returns bare numbers.
@@ -1039,7 +1040,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   multi-arm interval results are supported by the separate
   [graphless support matrix](graphless-support-matrix.md) only when their
   design-specific support gates and every claimed pointwise interval pass.
-  Sparse and degenerate results remain off-axis; no simultaneous coverage is
+  Sparse and degenerate results remain outside the support matrix; no simultaneous coverage is
   supported.
   Bernoulli ANCOVA now reports a pointwise HC0 interval with one or two
   pre-assignment covariates, a common assignment probability from 0.2 through
@@ -1057,8 +1058,8 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   Bell-McCaffrey degrees of freedom (Bell and McCaffrey 2002; Imbens and Kolesár
   2016), conditional on the realized arm sizes. It needs 100 rows, at least two
   in each arm and positive variance, carries its own uncertainty label and
-  standard-error kind (`hc2`), is never graphless-supported, and states no
-  calibration until a coverage record of a 20-of-300 smaller arm covers the
+  standard-error kind (`hc2`), is never graphless-supported, and reports calibration
+  `not_measured` until a coverage record of a 20-of-300 smaller arm covers the
   execution. The Bernoulli score and fixed CUPED intervals keep the arm rule.
   Complete-randomization Neyman keeps its own construction and 30-unit-per-arm
   rule; contrasts among three or more actions and the receipt-adjusted contrasts
@@ -1120,7 +1121,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   path for independent Bernoulli assignment with a common probability. It
   fits the treatment and pre-assignment covariate coefficients jointly and
   labels its independent-row HC0 variance; with three or more covariates the
-  result has no calibrated interval and is off the support-matrix axis, whereas
+  result has no calibrated interval and is outside the support matrix, whereas
   one or two covariates receive the supported pointwise HC0 interval described
   above. ANCOVA refuses non-Bernoulli
   designs, fixed CUPED or receipt adjustment on the same query, duplicate or
@@ -1142,7 +1143,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   `antecedent.temporal_designs.estimate_temporal_design`, or as typed queries of
   `analyze`/`prepare` (`result.temporal_design`). Their target is the
   excursion of a decision on the outcome a declared lag later, with carryover
-  inside the target; they execute unsupported with calibration unmeasured (see
+  inside the target; they are not support-matrix cells and their calibration is `not_measured` (see
   [the guide](guides/temporal-designs.md)). A static switchback has no target:
   switchback assignment is a sequence of periods.
 
@@ -1175,7 +1176,7 @@ contrasts = multi_result.value.randomized_effect.multi_arm_contrasts
 Multi-source meta-transport and cyclic/equilibrium models remain outside the
 current contract. Observational network exposure has a retained pointwise
 cluster interval only for known fixed propensities and measured cluster support;
-externally fitted propensities remain point-only, and the route is off-axis.
+externally fitted propensities remain point-only, and the route is outside the support matrix.
 
 ### Transported claims, decisions, inverse sources and revalidation
 
@@ -1202,7 +1203,7 @@ measurement](guides/transported-decisions-and-measurement.md),
   `transported_forward_source`, each adapted with its own refusals and its origin
   carried into the sealed artifact; `observational_scenarios` is associational
   and ranks no action. A consumer that does not accept a transported input
-  refuses it as `not_supported` / `transported_not_accepted`.
+  refuses it as `decision_contract_unsatisfied` / `transported_not_accepted`.
 * **Assumption range** (`antecedent.transport.sensitivity`):
   `transport_sensitivity(response, family=, bound=, grid_points=, reference=,
   reference_value=)` returns the range at declared grid points; the bound is the
@@ -1268,7 +1269,7 @@ remain point utilities. Exact generated graphless matrix rows support paired
 policy-value and incremental-value intervals only for known 0.5 Bernoulli
 binary assignment (IPW or disjoint held-out AIPW), the published interval
 pair, sufficient realized assignment support, and uncoupled recommendations.
-Other executed interval designs remain off-axis. The 2,000-replicate binary
+Other executed interval designs remain outside the support matrix. The 2,000-replicate binary
 IPW (90% and 95%) and held-out AIPW (95%) calibration tests are in
 `crates/antecedent-estimate/src/policy_value.rs`; route and artifact checks
 are in `crates/antecedent/tests/policy_value_route.rs`.
@@ -1354,7 +1355,7 @@ redraws covered the three known kernel-smoothed values at rates 0.9805,
 0.9765, and 0.9535. The supplied density and fixed group rules are caller
 claims; neither learned policies, exact-dose potential outcomes, nor
 simultaneous coverage are supported by this row. Estimated-density and sparse
-results stay off-axis and withhold these intervals.
+results stay outside the support matrix and report no interval.
 
 ## Quasi-experimental point utilities
 
@@ -1392,7 +1393,7 @@ normal) recorded in the graphless support matrix and bound into the artifact.
 These routes still remain outside the geometric support matrix, and the support
 is pointwise for the local complier ratio only; weak first stages,
 undersupported windows, and arbitrary bandwidth or manipulation-robustness
-selection do not inherit it and stay off-axis point-only.
+selection do not inherit it and stay outside the support matrix point-only.
 Staggered event studies also run through retained `prepare` / `analyze` with
 `StaggeredAdoption(..., event_study=True)`; the direct utility shares its native
 estimator.
@@ -1459,7 +1460,7 @@ An optional positive `augmentation_ridge` on `SyntheticControl` fits a
 donor-trained pre-to-post outcome model and corrects the simplex gap. The
 retained result and artifact preserve the original gap, correction, and adjusted
 point estimate. This declares outcome-model transport to the treated unit;
-the adjusted effect remains point-only and off the support-matrix axis. Under
+the adjusted effect remains point-only and outside the support matrix. Under
 declared uniform one-unit assignment, its exact sharp-null p-value refits the
 donor and ridge models for every candidate unit.
 

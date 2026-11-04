@@ -150,7 +150,7 @@ also refuses a consistently resealed artifact of another evaluation.
   time-homogeneous within its horizon by construction; carrying them to
   another period is an invariance claim across periods that is not declared
   or checked here.
-- **Uncertainty.** The value is a point. The off-policy standard error and the rollout standard error are uncalibrated diagnostics; no interval, posterior or coverage statement is offered (`not_supported`) because no coverage record exists.
+- **Uncertainty.** The exact value is a point. The off-policy estimate carries a 95% Wald interval from the importance-weighted standard error (`mean(wG) +- z * sqrt(var(wG) / n)`), reported with the calibration status `not_measured` because no coverage record measures it; it needs two trajectories. The rollout standard error is an uncalibrated diagnostic, and an interval of an exact or rollout value is refused (`uncertainty_representation_insufficient`).
 
 ## Facade
 

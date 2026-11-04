@@ -16,9 +16,9 @@
 //!    inferential paradigm for the contract's procedure cell and runs it: a
 //!    Bayesian posterior, a decision-theoretic stopping decision, adaptively
 //!    weighted scores, an anytime-valid confidence sequence or group-sequential
-//!    boundaries. Every result is point-only; the interval and guarantee
-//!    routes refuse with `not_supported` until whole-procedure coverage of
-//!    the exact procedure is measured.
+//!    boundaries. Every result is point-only; an interval is reported with
+//!    its calibration status, which is `calibrated` only where whole-procedure
+//!    coverage of the exact procedure is measured.
 //! 3. **Export** ([`AdaptiveInferenceSession::export_contract`] and
 //!    [`AdaptiveInferenceSession::export_result`]) writes the monitoring
 //!    contract (`adaptive_monitoring_contract_v1`) or a result bound to it
@@ -241,10 +241,11 @@ impl AdaptiveInferenceSession {
     /// confidence interval).
     ///
     /// # Errors
-    /// A result the contract cannot produce, a procedure, prior, threshold,
-    /// exploration mass, outcome structure or look schedule outside the
-    /// measured cells (`not_supported`), or coverage evidence that is
-    /// absent or no longer attesting.
+    /// A result the contract cannot produce or an interval of a kind the replayed
+    /// result does not carry (`route_not_supported`). A procedure, prior,
+    /// threshold, exploration mass, outcome structure or look schedule outside the
+    /// measured cells still reports its interval, with its calibration annotated
+    /// `outside_measured_scope` or `not_measured`.
     pub fn measured_interval(
         &self,
         request: &AdaptiveResultSpec,

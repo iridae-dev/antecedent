@@ -6,7 +6,7 @@ together. :func:`compose_horizons` takes those joint draws (one column per horiz
 every column one realization, all under one ``alignment_id``) and composes them at a
 horizon-indexed coordinate. Horizons fit one by one are independent marginals and are never
 paired by draw index. The result is a labelled spread; no interval or posterior statement is made
-without a coverage record at the coordinate.
+for it, and calibration stays ``not_measured`` at the coordinate.
 """
 
 from __future__ import annotations

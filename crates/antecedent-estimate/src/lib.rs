@@ -237,7 +237,7 @@ pub use learned_continuous::{
     FoldProvenance, LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousEstimate, LearnedContinuousOptions,
     LearnedContinuousUncertainty, check_membership_overlap, estimate_learned_continuous,
     parse_learned_continuous_sampling, parse_learned_continuous_target,
-    refuse_learned_continuous_interval, validate_learned_continuous,
+    validate_learned_continuous,
 };
 pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,

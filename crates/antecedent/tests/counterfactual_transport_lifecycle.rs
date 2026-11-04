@@ -362,7 +362,7 @@ fn prepare_once_then_refresh_rebuilds_the_numbers_and_a_refused_refresh_keeps_st
     .unwrap();
     let counted = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = second.refresh(counted, &ctx()).unwrap_err();
-    assert_eq!(refusal(&error).0, "not_supported");
+    assert_eq!(refusal(&error).0, "route_not_supported");
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = second.refresh(original, &cancelled).unwrap_err();
@@ -605,7 +605,7 @@ fn absent_mislabelled_and_counted_evidence_is_refused_before_a_number() {
     let empirical = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = prepared.evaluate(&empirical, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "route_not_supported");
     assert!(message.contains("counterfactual_transport.sampled_inference_closed"), "{message}");
 }
 

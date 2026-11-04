@@ -719,7 +719,7 @@ pub fn compare_raw_adjusted(
         adjusted,
         gap: raw.difference - adjusted.estimate,
         gap_interval: Unavailable {
-            code: antecedent_core::reason_code!("not_supported"),
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "descriptive_comparison.gap_interval_unavailable",
             reason: "the covariance between the raw and the adjusted estimate is not carried by \
                      either and is not assumed zero (they use the same rows), so the gap has no \

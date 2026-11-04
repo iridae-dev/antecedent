@@ -758,7 +758,7 @@ fn requests_outside_the_cell_refuse_with_their_details() {
     assert!(wide(256).is_ok(), "{:?}", wide(256));
     assert!(wide(257).is_ok(), "{:?}", wide(257));
     // A replicate request below the floor keeps the point and withholds the interval.
-    let below = SmoothedDoseOptions { bootstrap: 50, ..options() };
+    let below = SmoothedDoseOptions { bootstrap: 1, ..options() };
     let result = prepare(query(&GRID, H), base.clone(), below.clone(), 2)
         .unwrap()
         .estimate(&ExecutionContext::for_tests(2))
@@ -1623,7 +1623,7 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
     // limits refusal before any replay work.
     for (edit, name) in [
         (
-            (|w: &mut SmoothedDoseArtifactWire| w.bounds.min_bootstrap = 99)
+            (|w: &mut SmoothedDoseArtifactWire| w.bounds.min_bootstrap = 1)
                 as fn(&mut SmoothedDoseArtifactWire),
             "stored bound min_bootstrap is below this build's floor",
         ),
@@ -1830,13 +1830,13 @@ fn the_interval_route_reports_the_bootstrap_interval_with_its_calibration() {
     assert_eq!(interval.point().grid.len(), GRID.len());
     // The slot annotates; it is never a gate.
     let _ = interval.calibration().status;
-    // The point remains available and reports the interval withheld, never attached.
+    // The point result records the request; the interval is formed by the interval route.
     let requested = SmoothedDoseOptions { bootstrap: 199, ..options() };
     let result = prepare(query(&GRID, H), rows, requested, 2).unwrap().estimate(&ctx).unwrap();
     let uncertainty = &result.estimate().uncertainty;
     assert_eq!(
         (uncertainty.status.as_str(), uncertainty.reason.as_str()),
-        ("withheld", "not_supported")
+        ("bootstrap_interval_requested", "joint_outer_bootstrap")
     );
     assert!(!uncertainty.available());
 }
@@ -2021,7 +2021,7 @@ fn the_free_dose_menu_follows_its_options_without_the_builder() {
     assert!(a.nuisance_tasks.iter().all(|t| t.contains("default: none requested")));
     assert!(b.nuisance_tasks.iter().all(|t| !t.contains("default")));
     assert!(
-        b.uncertainty_status.starts_with("withheld: not_supported")
+        b.uncertainty_status.starts_with("bootstrap_interval_requested: joint_outer_bootstrap")
             && b.uncertainty_status.contains("300")
     );
     assert_eq!(b.sampling_design, ["independent_samples"]);

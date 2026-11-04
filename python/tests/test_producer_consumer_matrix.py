@@ -1682,7 +1682,7 @@ def _check_sensitivity_decision(o: Objs) -> None:
         require_success(
             sd.decide(o.sensitivity.contract(), o.sensitivity, sampling_composition="merge")
         )
-    assert composed.value.reason_code == "not_supported"
+    assert composed.value.reason_code == "route_not_supported"
 
 
 def _check_sensitivity_bundle(o: Objs) -> None:
@@ -2084,7 +2084,7 @@ def _declared_measurement(o: Objs) -> Declared:
     consumed.check_use(_measurement_analysis(), "latent_prevalence")
     with pytest.raises(MeasurementModelRefusal) as unsupported:
         o.measurement_prepared.check_operation("condition_on_construct")
-    assert unsupported.value.reason_code == "not_supported"
+    assert unsupported.value.reason_code == "route_not_supported"
     assert unsupported.value.detail == "measurement_model.operation_not_supported"
     # The estimate reports its Wald interval with a calibration slot; a prepared model holds no
     # corrected value to put an interval around.
@@ -2267,12 +2267,10 @@ def _declared_transport(o: Objs, *, sampled: bool) -> Declared:
     for estimate, truth in ((t.sampled_treated, 0.75), (t.sampled_control, 0.5)):
         assert estimate.probability == pytest.approx(truth, abs=1e-12)
         assert estimate.labels["point_estimate"] == "plug_in_point_estimate"
-        assert estimate.labels["statistical_inference"] == "withheld_not_supported"
-        assert estimate.interval["available"] is False
-        assert estimate.interval["reason"] == "not_supported"
-        assert estimate.interval["detail"] == (
-            "counterfactual_transport_sampled.interval_not_supported"
+        assert estimate.labels["statistical_inference"] == (
+            "delta_wald_interval_calibration_annotated"
         )
+        assert estimate.interval == {"available": True, "status": "reported"}
         assert estimate.standard_error is not None
         assert estimate.standard_error["label"] == "uncalibrated_standard_error"
     treated_q = _declared_quantity("Y", "do(X=1)", units="probability", population="pop")
@@ -2390,7 +2388,7 @@ def _check_cohort_decision(o: Objs) -> None:
     assert diagnostic.calibration == "calibration unmeasured"
     with pytest.raises(cd.CohortDecisionRefusal) as closed:
         source.interval()
-    assert closed.value.reason_code == "not_supported"
+    assert closed.value.reason_code == "route_not_supported"
     assert closed.value.detail == "cohort_decision.interval_requires_native_fit"
     # The support-aware evaluator does not take the raw source.
     with pytest.raises(CausalTypeError):
@@ -2931,7 +2929,7 @@ def _declared_bridge() -> Declared:
         assert wrong.value.detail == "scientific_bridge.value_kind_substitution"
     with pytest.raises(sb.ScientificBridgeRefusal) as closed:
         require_success(claim.interval())
-    assert closed.value.reason_code == "not_supported"
+    assert closed.value.reason_code == "route_not_supported"
     assert closed.value.detail == "scientific_bridge.interval_not_supported"
     assert_registered_refusal(closed.value)
     # The bridge carries no estimand for a decision: the caller declares the quantity.
@@ -2999,7 +2997,7 @@ def _declared_sequential(o: Objs) -> Declared:
     # The interval and a static score table are typed refusals.
     with pytest.raises(seqeval.SequentialEvaluationRefusal) as closed:
         seqeval.request_interval()
-    assert closed.value.reason_code == "not_supported"
+    assert closed.value.reason_code == "uncertainty_representation_insufficient"
     assert closed.value.detail == "sequential_evaluation.interval_not_supported"
     with pytest.raises(seqeval.SequentialEvaluationRefusal) as table:
         seqeval.evaluate(sequential.model, seqeval.ReweightedStaticScores((1.0, 0.0), (0.5, 0.5)))

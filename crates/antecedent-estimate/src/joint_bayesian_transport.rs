@@ -84,13 +84,9 @@ use std::fmt;
 pub const JOINT_TRANSPORT_MAX_DRAWS: usize = 100_000;
 /// Most model parameters (invariant plus every varying block) one fit may declare.
 pub const JOINT_TRANSPORT_MAX_PARAMETERS: usize = 256;
-/// Route name of the closed public interval route.
-pub(crate) const JOINT_TRANSPORT_ROUTE: &str = "antecedent.transport.joint_bayesian";
 /// Sampler recorded on exact conjugate fits.
 pub const JOINT_TRANSPORT_SAMPLER: &str = "exact_conjugate_iid";
 
-/// Detail of the route-level refusal of the public interval route.
-pub const DETAIL_ROUTE_FROZEN: &str = "bayesian_transport.route_frozen";
 /// Detail of an unsupported graph class.
 pub const DETAIL_UNSUPPORTED_GRAPH: &str = "bayesian_transport.unsupported_graph";
 /// Detail of observations used by both a prior bank and the likelihood.

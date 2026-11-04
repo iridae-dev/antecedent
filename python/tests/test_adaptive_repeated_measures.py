@@ -10,7 +10,7 @@ Truth is computed here in pure Python, never by native code:
 * the martingale property of the adaptively weighted score (unbiased under epsilon-greedy
   assignment), with its Monte Carlo standard error.
 
-Every result is ``derived_unmeasured``; every refusal is ``not_supported`` (premise) or
+Every result is ``derived_unmeasured``; every refusal is ``adaptive_assumption_violated`` (premise) or
 ``adaptive_contract_incomplete`` / ``invalid_argument`` (declaration) with its own detail.
 """
 
@@ -58,7 +58,9 @@ EVEN = ai.UnitAssignment.fixed((0.5, 0.5))
 GREEDY = ai.UnitAssignment.epsilon_greedy(0.4)
 
 
-def refused(call, detail: str, code: str = "not_supported") -> AdaptiveInferenceRefusal:
+def refused(
+    call, detail: str, code: str = "adaptive_assumption_violated"
+) -> AdaptiveInferenceRefusal:
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         call()
     assert_registered_refusal(caught.value)

@@ -581,6 +581,17 @@ pub struct RefusalFields {
     pub cluster_minimum: Option<u64>,
 }
 
+impl From<antecedent_core::NotSupported> for EstimationError {
+    fn from(refusal: antecedent_core::NotSupported) -> Self {
+        let explanation = if refusal.missing.is_empty() {
+            "the route is not supported".to_owned()
+        } else {
+            format!("the route is not supported (missing: {})", refusal.missing.join(", "))
+        };
+        Self::refused_detail(refusal.code(), refusal.detail, explanation)
+    }
+}
+
 impl EstimationError {
     /// Fixed unsupported query option.
     #[must_use]

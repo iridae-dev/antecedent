@@ -206,7 +206,7 @@ fn confounded_retarget_study() -> (antecedent::PreparedStudy, Vec<f64>) {
     (prepare_aipw(data, graph, query, 14).unwrap(), w)
 }
 
-/// A retarget onto rows the treated arm never reaches refuses as a support failure with the
+/// A retarget onto rows the treated arm never reaches refuses as a positivity failure with the
 /// same text, and the refusal now reports the per-arm effective sizes and the propensity range
 /// it measured under the target.
 #[test]
@@ -215,13 +215,13 @@ fn a_retarget_onto_unsupported_rows_reports_arm_sizes_and_the_propensity_range()
     let ctx = ExecutionContext::for_tests(14);
     let error = prepared.retarget(&w, &[VariableId::from_raw(2)], &ctx).unwrap_err();
 
-    assert!(matches!(error.peeled(), CausalError::Support { .. }), "{error:?}");
+    assert!(matches!(error.peeled(), CausalError::Unsupported { .. }), "{error:?}");
     assert_eq!(
         error.to_string(),
-        "not_supported: retarget refused: weighted overlap failed under the declared target weights"
+        "reason=positivity_violated: retarget refused: weighted overlap failed under the declared target weights"
     );
     assert_eq!(error.reason_code(), Some("positivity_violated"));
-    assert!(error.blocker_id().is_some(), "the classification is that of the wrapped refusal");
+    assert!(error.blocker_id().is_none(), "a positivity refusal is not a support blocker");
 
     let fields = error.refusal_fields().expect("the support refusal carries structured fields");
     assert_eq!(fields.stage.as_deref(), Some("retarget"));
@@ -366,7 +366,7 @@ fn failed_batch_members_carry_the_claim_as_subject_and_only_what_they_measured()
     let spiked = report.claims[1].outcome.as_ref().unwrap_err();
     assert!(spiked.support_refused);
     assert_eq!(spiked.detail.as_deref(), Some("batch_retarget.weighted_overlap_failed"));
-    assert_eq!(spiked.reason_code.as_deref(), Some("not_supported"));
+    assert_eq!(spiked.reason_code.as_deref(), Some("positivity_violated"));
     let fields = spiked.fields.as_deref().expect("a failed member carries fields");
     assert_eq!(fields.stage.as_deref(), Some("batch_retarget"));
     assert_eq!(fields.subject.as_deref(), Some("spiked"));

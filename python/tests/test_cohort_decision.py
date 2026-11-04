@@ -191,7 +191,7 @@ def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model
         assert refused.value.remedy
     with pytest.raises(cd.CohortDecisionRefusal) as interval:
         source.interval()
-    assert interval.value.reason_code == "not_supported"
+    assert interval.value.reason_code == "route_not_supported"
     assert interval.value.detail == "cohort_decision.interval_not_supported"
 
 
@@ -259,7 +259,7 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
             ),
             outcome_units="mmHg",
         )
-    assert outside.value.reason_code == "not_supported"
+    assert outside.value.reason_code == "invalid_argument"
     assert outside.value.detail == "cohort_decision.outside_support"
     assert "patient-b" in str(outside.value.offending)
     assert outside.value.remedy
@@ -420,7 +420,7 @@ def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:
     # An inverse query does not take a transported mean.
     with pytest.raises(cd.CohortDecisionRefusal) as inverse:
         source.forward_claim()
-    assert inverse.value.reason_code == "not_supported"
+    assert inverse.value.reason_code == "decision_contract_unsatisfied"
     assert inverse.value.detail == "inverse_forward_source.transported_not_accepted"
 
 
@@ -506,7 +506,7 @@ def test_a_declared_compact_model_carries_the_uncalibrated_variance_and_is_never
     assert all(a.standard_error is None for a in decided.actions)
     with pytest.raises(cd.CohortDecisionRefusal) as closed:
         source.interval()
-    assert closed.value.reason_code == "not_supported"
+    assert closed.value.reason_code == "route_not_supported"
     # An export of an absolute mean is not a contrast; a retained identity is required.
     absolute = CompactExport.build(
         response=Quantity("y", units="mmHg", role="outcome"),
@@ -656,7 +656,7 @@ def test_a_declared_compact_export_is_point_only_with_its_own_detail() -> None:
     )
     with pytest.raises(cd.CohortDecisionRefusal) as refused:
         plain.interval()
-    assert refused.value.reason_code == "not_supported"
+    assert refused.value.reason_code == "route_not_supported"
     assert refused.value.detail == "cohort_decision.interval_requires_native_fit"
 
 

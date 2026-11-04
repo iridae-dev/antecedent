@@ -554,7 +554,7 @@ def test_count_fitted_draw_count_is_supported_from_the_minimum():
     # Above the estimator's draw bound the construction is refused.
     with pytest.raises(ObservationQueryRefusal) as refused:
         _count_fitted(draws=100_001)
-    assert refused.value.reason_code == "not_supported"
+    assert refused.value.reason_code == "invalid_argument"
 
 
 def test_count_fitted_interval_is_reported_with_its_calibration_status():

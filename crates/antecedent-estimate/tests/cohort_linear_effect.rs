@@ -151,7 +151,7 @@ fn the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standar
     assert!(narrow.upper - narrow.lower < interval.upper - interval.lower);
     assert_eq!(
         native_cohort_interval(&native, &source, 1.0).err().unwrap().to_string(),
-        "not_supported: cohort_decision.interval_level_invalid (level)"
+        "invalid_argument: cohort_decision.interval_level_invalid (level)"
     );
 }
 
@@ -173,7 +173,7 @@ fn a_declared_export_cannot_claim_a_native_fit() {
     })
     .unwrap();
     assert_eq!(declared_export_refusal().detail, DETAIL_REQUIRES_NATIVE_FIT);
-    assert_eq!(declared_export_refusal().code, "not_supported");
+    assert_eq!(declared_export_refusal().code, "route_not_supported");
     // The same numbers carry a different identity, and replaying the real rows against
     // the declared export is refused.
     assert_ne!(native.export().identity(), declared.identity());
@@ -234,6 +234,7 @@ fn a_shifted_cohort_stays_point_only() {
     .unwrap();
     let error = native_cohort_interval(&native, &source, 0.95).unwrap_err();
     assert_eq!(error.detail, DETAIL_NOT_SUPPORTED);
+    assert_eq!(error.code, "route_not_supported");
 }
 
 // -- exact multiprecision reference --------------------------------------------------------------

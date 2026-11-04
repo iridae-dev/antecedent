@@ -148,7 +148,7 @@ def test_binary_prevalence_inverts_the_misclassification_algebra():
     # There is no coefficient vector to take a functional of.
     with pytest.raises(MeasurementModelRefusal) as caught:
         require_success(estimate.downstream_linear_functional([1.0]))
-    assert_refusal(caught.value, "not_supported", "measurement_model.operation_not_supported")
+    assert_refusal(caught.value, "route_not_supported", "measurement_model.operation_not_supported")
 
 
 def test_risk_difference_keeps_the_arm_covariance_that_split_rates_miss():
@@ -677,7 +677,7 @@ def test_population_regime_arm_and_representation_are_checked_before_estimation(
     # A binary input sent at a classical model is not an operation of its route.
     with pytest.raises(MeasurementModelRefusal) as caught:
         mm.prepare_measurement_model(m, analysis(), mm.BinaryPrevalenceData(10, 100))
-    assert caught.value.reason_code == "not_supported"
+    assert caught.value.reason_code == "route_not_supported"
 
 
 def test_the_route_supports_only_its_own_operations():
@@ -691,7 +691,9 @@ def test_the_route_supports_only_its_own_operations():
     ):
         with pytest.raises(MeasurementModelRefusal) as caught:
             prepared.check_operation(refused)
-        assert_refusal(caught.value, "not_supported", "measurement_model.operation_not_supported")
+        assert_refusal(
+            caught.value, "route_not_supported", "measurement_model.operation_not_supported"
+        )
         assert caught.value.remedy is not None
     assert prepared.route_card["route"] == "classical_continuous_error"
     assert {item["operation"] for item in prepared.route_card["refused"]} >= {
@@ -735,7 +737,7 @@ def test_a_mapping_carries_values_and_intervention_meaning_only_when_declared():
     ok = mm.prepare_measurement_model(m, analysis(representation=v2, mapping=preserving), data)
     with pytest.raises(MeasurementModelRefusal) as caught:
         ok.check_operation("intervene_on_representation")
-    assert_refusal(caught.value, "not_supported", "measurement_model.operation_not_supported")
+    assert_refusal(caught.value, "route_not_supported", "measurement_model.operation_not_supported")
 
 
 # --------------------------------------------------------------------------- lifecycle

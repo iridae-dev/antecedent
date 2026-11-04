@@ -1555,8 +1555,7 @@ def sample_split_effect(
     least-squares interval.
 
     Raises:
-        SelectiveDiscoveryRefusal: a table outside five to seven variables
-            (``split_effect.variable_count_not_measured``), an unresolved structure
+        SelectiveDiscoveryRefusal: an unresolved structure
             (``split_effect.structure_unresolved``), an unfinished search, or an outcome oriented
             into the treatment.
         CausalDiscoveryError: the discovery algorithm failed or was cancelled.
@@ -1699,9 +1698,7 @@ def sample_split_parent_set_effect(
         SelectiveDiscoveryRefusal: an undeclared transformation
             (``parent_set_effect.transformation_undeclared``, ``invalid_argument``), a
             non-positive log-linear value (``parent_set_effect.log_linear_input_not_positive``,
-            naming the column), a degree above four
-            (``parent_set_effect.degree_above_supported``), a table outside ten to twenty
-            variables, an unfinished search, an undirected edge at the treatment
+            naming the column), an unfinished search, an undirected edge at the treatment
             (``parent_set_effect.treatment_parents_ambiguous``, naming the edges), or an outcome
             oriented into the treatment.
         CausalDiscoveryError: the discovery algorithm failed or was cancelled.

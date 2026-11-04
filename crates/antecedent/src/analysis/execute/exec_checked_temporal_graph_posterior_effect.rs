@@ -37,7 +37,7 @@ impl super::Study {
         click.data = series_input(&self.data, data.clone());
         click.query = CausalQuery::TemporalEffect(query.clone());
         click.graph_posterior = Some(operation.posterior().clone());
-        operation.frozen().bind_study(&mut click);
+        operation.sealed().bind_study(&mut click);
         click.declared.split = operation.split().copied();
         match operation.proof() {
             CheckedTemporalGraphPosteriorProof::Dbn(cache) => {

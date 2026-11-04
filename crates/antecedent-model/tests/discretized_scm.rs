@@ -486,7 +486,7 @@ fn every_route_has_a_row_and_every_missing_paradigm_is_a_typed_closed_row() {
                     closed += 1;
                     assert!(!reason.is_empty());
                     let refusal = require_paradigm(route, paradigm).unwrap_err();
-                    assert_eq!(refusal.reason_code, "not_supported");
+                    assert_eq!(refusal.reason_code, "route_not_supported");
                     assert_eq!(refusal.detail, DETAIL_PARADIGM_CLOSED);
                     assert_eq!(refusal.remedy, reason);
                     assert_eq!(

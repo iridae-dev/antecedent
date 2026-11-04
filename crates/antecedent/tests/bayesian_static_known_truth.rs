@@ -29,9 +29,8 @@ use antecedent_data::TabularData;
 use std::sync::Arc;
 use support::{
     Design, GraphKind, Structure, UNKNOWN_TRUTH, assert_coordinate, confounded_truth,
-    for_each_coordinate, for_each_matching, identified_atoms, on_large_stack, rows,
-    run_average_effect, run_query, stratified_truth_with, table_with, unidentified_mass,
-    unknown_table_with,
+    for_each_matching, identified_atoms, on_large_stack, rows, run_average_effect, run_query,
+    stratified_truth_with, table_with, unidentified_mass, unknown_table_with,
 };
 
 /// Mean of at least 2 000 posterior draws of a posterior with sd at most 1e-2, six standard

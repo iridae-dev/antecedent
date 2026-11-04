@@ -592,7 +592,7 @@ fn a_paradigm_never_transfers_to_a_cell_it_is_not_supported_for() {
     assert!(contract.admit_paradigm(InferenceParadigm::AnytimeValidFrequentist).is_ok());
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistAdaptiveWeighting).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistGroupSequential).unwrap_err();
@@ -624,7 +624,7 @@ fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
     ));
     assert_eq!(closed.detail, "adaptive_inference.cell_closed");
     for refusal in [&carried, &paired, &closed] {
-        assert_eq!(refusal.code, "not_supported");
+        assert_eq!(refusal.code, "route_not_supported");
     }
 }
 
@@ -687,9 +687,6 @@ fn interim_looks_count_each_observation_once() {
     assert!(evidence.mass.unknown_sources.is_empty());
     assert_eq!(evidence.look_sources.len(), 2);
     assert!(evidence.ledger.result(evidence.reuse).is_some());
-    // The ledger never supports an interval for the repeated use.
-    let error = evidence.ledger.request_interval(evidence.reuse).unwrap_err();
-    assert_eq!(error.code, "not_supported");
 }
 
 #[test]

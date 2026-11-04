@@ -232,7 +232,7 @@ fn compact_variance_matches_the_hand_calculation_and_a_double_sum_oracle() {
 fn the_interval_route_is_closed_with_a_remedy() {
     let source = build(&compact_model(), &cohort()).unwrap();
     let interval = source.interval_refusal();
-    assert_eq!(interval.code, "not_supported");
+    assert_eq!(interval.code, "route_not_supported");
     assert_eq!(interval.detail, "cohort_decision.interval_requires_native_fit");
     assert!(interval.remedy.contains("measured native-fit route"));
     interval.to_refusal().validate().unwrap();
@@ -273,7 +273,7 @@ fn law_valued_requests_are_refused_with_a_remedy() {
 #[test]
 fn a_model_without_a_support_contract_is_refused_not_assumed_supported() {
     let error = build(&portable(None, "claim-a"), &cohort()).unwrap_err();
-    assert_eq!(error.code, "not_supported");
+    assert_eq!(error.code, "invalid_argument");
     assert_eq!(error.detail, "cohort_decision.support_contract_absent");
     assert!(!portable(None, "claim-a").has_support_contract());
 }
@@ -282,7 +282,7 @@ fn a_model_without_a_support_contract_is_refused_not_assumed_supported() {
 fn rows_outside_the_fitted_support_are_refused_and_named() {
     let outside = cohort_with("target", &[-1.0, 1.5, 2.0], &[0.2, 0.3, 0.5]);
     let error = build(&portable(Some(box_support()), "claim-a"), &outside).unwrap_err();
-    assert_eq!(error.code, "not_supported");
+    assert_eq!(error.code, "invalid_argument");
     assert_eq!(error.detail, "cohort_decision.outside_support");
     assert!(error.subject.contains("row=r1"), "{}", error.subject);
     assert!(error.subject.contains("rows_outside=2"), "{}", error.subject);

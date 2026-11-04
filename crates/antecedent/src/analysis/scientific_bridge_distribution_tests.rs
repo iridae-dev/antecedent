@@ -194,11 +194,11 @@ fn a_bridge_of_draws_is_prepared_derived_exported_and_consumed_independently() {
     assert!(result.require_value_kind(ValueKind::Posterior).is_ok());
     // No interval without a level, and none outside a measured design.
     let refusal = result.interval().unwrap_err();
-    assert_eq!(code(&refusal), ("not_supported", "scientific_bridge.interval_not_supported"));
+    assert_eq!(code(&refusal), ("route_not_supported", "scientific_bridge.interval_not_supported"));
     let refusal = result.bridged_interval(0.95).unwrap_err();
     assert_eq!(
         code(&refusal),
-        ("not_supported", "scientific_bridge.interval_scope_outside_measured")
+        ("route_not_supported", "scientific_bridge.interval_scope_outside_measured")
     );
 
     // Export, then consume as a fresh consumer that retained the identity.
@@ -241,7 +241,10 @@ fn only_a_posterior_or_predictive_law_is_prepared_and_an_associational_claim_is_
     set.source_value = ValueKind::IdentifiedSet;
     set.target_value = ValueKind::IdentifiedSet;
     let refusal = PreparedScientificBridgeDistribution::prepare(set).unwrap_err();
-    assert_eq!(code(&refusal), ("not_supported", "scientific_bridge.value_kind_not_carried"));
+    assert_eq!(
+        code(&refusal),
+        ("bridge_mapping_not_supported", "scientific_bridge.value_kind_not_carried")
+    );
     // An uncertain map without a declared dependence is refused before any draw.
     let mut undeclared = uncertain();
     undeclared.source_dependence = None;
@@ -250,7 +253,10 @@ fn only_a_posterior_or_predictive_law_is_prepared_and_an_associational_claim_is_
     // An associational source claim is never a bridge source.
     let prepared = PreparedScientificBridgeDistribution::prepare(uncertain()).unwrap();
     let refusal = prepared.derive(&table, Some(ClaimKind::Associational), 1).unwrap_err();
-    assert_eq!(code(&refusal), ("not_supported", "scientific_bridge.source_not_draws"));
+    assert_eq!(
+        code(&refusal),
+        ("bridge_mapping_not_supported", "scientific_bridge.source_not_draws")
+    );
 }
 
 #[test]

@@ -52,8 +52,9 @@
 //!
 //! A reweighted static score table is not sequential evaluation, learning or
 //! changing a policy inside an evaluation is not evaluation, a different
-//! population or period needs a transport contract, and intervals or
-//! posteriors for any value are not supported ([`PolicySpec`],
+//! population or period needs a transport contract, and an interval or posterior
+//! of an exact or rollout value is not supported (the interval of a logged-trajectory
+//! estimate is reported with its calibration status; [`PolicySpec`],
 //! [`SequentialRequest`], [`request_interval`]).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -97,7 +98,10 @@ pub use model::{
     ActionRole, ActionSpec, ActionSupport, CensoringRule, DelayedOutcome, FiniteSequentialModel,
     ObservationChannel, StoppingBoundary,
 };
-pub use offpolicy::{LoggedStep, LoggedTrajectory, OffPolicyEstimate, evaluate_off_policy};
+pub use offpolicy::{
+    LoggedStep, LoggedTrajectory, OFF_POLICY_INTERVAL_LEVEL, OffPolicyEstimate, OffPolicyInterval,
+    evaluate_off_policy,
+};
 pub use policy::{ContingentPolicy, HistoryKey, HistoryStep, PolicySpec};
 pub use rollout::{
     RolloutConfig, RolloutEstimate, STREAM_SCHEME, StreamRole, rollout_policy, stream_uniform,
@@ -261,12 +265,15 @@ impl SequentialRequest {
 /// Refuse any interval, posterior or coverage statement for a policy value.
 ///
 /// # Errors
-/// Always: no coverage record measures the whole sequential procedure.
+/// Always: an exact policy value has no sampling uncertainty and a rollout carries only
+/// an uncalibrated diagnostic, so neither representation can carry an interval, posterior
+/// or coverage statement. The interval of a logged-trajectory estimate is
+/// [`OffPolicyEstimate::interval`].
 pub fn request_interval() -> SequentialResult<std::convert::Infallible> {
     Err(refusal!(
-        "not_supported",
+        "uncertainty_representation_insufficient",
         "sequential_evaluation.interval_not_supported",
-        "no interval, posterior or coverage statement is supported for a sequential policy value",
-        "the whole sequential procedure (model, policy, estimator) needs a measured coverage record; the point value and the uncalibrated diagnostics are reported",
+        "no interval, posterior or coverage statement is supported for an exact or rollout sequential policy value",
+        "the exact value has no sampling uncertainty; the interval of a logged-trajectory estimate is reported with the off-policy estimate and the rollout error stays an uncalibrated diagnostic",
     ))
 }

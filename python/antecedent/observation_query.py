@@ -45,8 +45,8 @@ What this is, and is not:
   conjugate posterior (Normal-Inverse-Gamma, Dirichlet) and the query is re-answered under each
   draw. The result is aligned draws (:attr:`ObservationClaim.parameter_draws`); their spread is
   labelled ``uncalibrated_spread`` and an interval is returned by
-  :meth:`ObservationClaim.parameter_interval` only when a currently attesting coverage record
-  governs the construction, and is otherwise refused.
+  :meth:`ObservationClaim.parameter_interval` with its calibration status, which is
+  ``calibrated`` only when a current coverage record governs the construction.
 
 Every refusal is an :class:`ObservationQueryRefusal` with a registered ``reason_code``, an
 ``observation_query.*`` ``detail`` and a remedy. Every number, identity and the artifact is
@@ -1155,7 +1155,7 @@ class CountFittedObservation(ScientificResult):
     The retained per-parent-configuration counts and the row count give every fitted
     conditional an independent Dirichlet posterior. :attr:`point` is the labelled value under
     the posterior-mean tables. :meth:`interval` returns the equal-tailed posterior interval as
-    a measured scalar bound to a currently attesting coverage record, or raises the typed
+    a measured scalar carrying its calibration status, or raises the typed
     refusal. A declared model's probability, by contrast, is exact and has no sampling
     interval (:meth:`ObservationClaim.interval`).
     """

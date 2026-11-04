@@ -73,8 +73,6 @@ use antecedent_learn::{
 use antecedent_prob::ProbError;
 use std::collections::BTreeSet;
 
-/// Route name of the closed public interval route.
-pub(crate) const LEARNED_JOINT_ROUTE: &str = "antecedent.transport.learned_joint";
 /// Sampler recorded on fits: iid draws from the learn crate's exact Gaussian posterior.
 pub const LEARNED_JOINT_SAMPLER: &str = "learn_conjugate_gaussian_iid";
 /// The provider crate of the outcome mechanism.
@@ -82,8 +80,6 @@ pub const LEARNED_JOINT_PROVIDER: &str = "antecedent-learn";
 /// The query the row answers.
 pub const LEARNED_JOINT_QUERY: &str = "target_average_effect";
 
-/// Detail of the route-level refusal of the public interval route.
-pub const DETAIL_ROUTE_FROZEN: &str = "learned_joint_transport.route_frozen";
 /// Detail of an unsupported graph class.
 pub const DETAIL_UNSUPPORTED_GRAPH: &str = "learned_joint_transport.unsupported_graph";
 /// Detail of observations used by both a prior bank and the likelihood.

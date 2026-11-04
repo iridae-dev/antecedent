@@ -15,8 +15,8 @@ use crate::transport_z_api::to_py_json;
 use antecedent_core::{EvidenceCatalog, SearchLimits};
 use antecedent_estimate::counterfactual_transport_sampled::{
     DatasetOverlap, OverlapDeclaration, SampledAxis, SampledCounterfactualTransportEstimate,
-    SampledRegimeCounts, SampledRegimeCountsParts, SampledTableKey, SampledTransportLimits,
-    SampledTransportRequest, SamplingDesign, UnseenCellRule,
+    SampledIntervalOutcome, SampledRegimeCounts, SampledRegimeCountsParts, SampledTableKey,
+    SampledTransportLimits, SampledTransportRequest, SamplingDesign, UnseenCellRule,
 };
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_io::sampled_counterfactual_transport_artifact::{
@@ -126,12 +126,20 @@ fn estimate_json(
             "method": estimate.inference.method,
             "standard_error": standard_error,
             "standard_error_withheld_reason": estimate.inference.standard_error_withheld_reason,
-            "interval": {
-                "available": false,
-                "status": "withheld",
-                "reason": estimate.inference.interval.code,
-                "detail": estimate.inference.interval.detail,
-                "calibration_reason": estimate.inference.interval.reason,
+            "interval": match &estimate.inference.interval {
+                SampledIntervalOutcome::Reported => serde_json::json!({
+                    "available": true,
+                    "status": "reported",
+                }),
+                SampledIntervalOutcome::NotComputable { code, detail, reason } => {
+                    serde_json::json!({
+                        "available": false,
+                        "status": "not_computable",
+                        "reason": code,
+                        "detail": detail,
+                        "absence_reason": reason,
+                    })
+                }
             },
         },
     })

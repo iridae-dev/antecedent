@@ -367,7 +367,7 @@ def test_a_composition_with_admitted_mechanisms_is_a_transported_claim() -> None
             )
         )
     )
-    assert native.reason_code == "not_supported"
+    assert native.reason_code == "decision_contract_unsatisfied"
     assert native.detail == "inverse_forward_source.transported_not_accepted"
 
     source = require_success(
@@ -623,7 +623,7 @@ def test_a_cohort_contrast_is_a_point_source_with_its_own_law_refusal() -> None:
 def test_a_shifted_cohort_is_a_transported_source_only_when_accepted() -> None:
     cohort = cohort_source(shifted=True)
     unaccepted = refusal_of(lambda: src.cohort_forward_source(cohort))
-    assert unaccepted.reason_code == "not_supported"
+    assert unaccepted.reason_code == "decision_contract_unsatisfied"
     assert unaccepted.detail == "inverse_forward_source.transported_not_accepted"
     source = src.cohort_forward_source(cohort, accepts_transported=True)
     assert source.origin.transported

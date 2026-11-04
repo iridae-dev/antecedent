@@ -61,11 +61,8 @@ use antecedent_graph::Cpdag;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-fn refused(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: format!("{detail}: {message}"),
-    }
+fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
+    IoError::Refused { code, message: format!("{detail}: {message}") }
 }
 
 fn malformed(detail: &str, message: &str) -> IoError {
@@ -506,17 +503,20 @@ pub fn treatment_parent_set_under_conflicts(
             neighbourhood(structure, names, treatment, outcome, Some(&orientation))
         }
         ConflictResolution::Varies => Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "parent_set_effect.treatment_orientation_depends_on_conflict",
             "the discovery met conflicting orientation evidence and the choices among the \
              conflicting colliders orient the treatment's edges differently, so the treatment's \
              parents are not determined",
         )),
         ConflictResolution::Unresolvable => Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "parent_set_effect.search_not_finished",
             "the discovery met conflicting orientation evidence that no choice among the \
              colliders removes",
         )),
         ConflictResolution::BudgetExceeded { implicated, budget, coverage } => Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "parent_set_effect.conflict_resolution_budget",
             &format!(
                 "{implicated} colliders are implicated in conflicting orientation evidence, \
@@ -539,6 +539,7 @@ fn neighbourhood(
 ) -> Result<TreatmentNeighbourhood, IoError> {
     if structure.class() != StructureClass::Cpdag {
         return Err(refused(
+            antecedent_core::reason_code!("invalid_argument"),
             "parent_set_effect.structure_class",
             "only a completed partially directed graph over static variables is accepted",
         ));
@@ -557,6 +558,7 @@ fn neighbourhood(
             || !known(edge.b.variable)
         {
             return Err(refused(
+                antecedent_core::reason_code!("invalid_argument"),
                 "parent_set_effect.structure_class",
                 "a node is not a static searched variable",
             ));
@@ -602,6 +604,7 @@ fn neighbourhood(
             .collect::<Vec<_>>()
             .join("; ");
         return Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "parent_set_effect.treatment_parents_ambiguous",
             &format!(
                 "the edges incident to the treatment `{}` are not all oriented: {listed}; the \
@@ -615,6 +618,7 @@ fn neighbourhood(
     directed.sort_unstable();
     if parents.contains(&outcome) {
         return Err(refused(
+            antecedent_core::reason_code!("invalid_argument"),
             "parent_set_effect.outcome_precedes_treatment",
             "the discovered structure orients the outcome into the treatment",
         ));
@@ -853,12 +857,14 @@ pub fn run_with_collider_bound(
     })?;
     if outcome.search_incomplete {
         return Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "parent_set_effect.search_not_finished",
             "the discovery search exhausted a bound",
         ));
     }
     if outcome.diagnostics.iter().any(|(code, _)| code.ends_with(PARENT_LIMIT_DIAGNOSTIC)) {
         return Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "parent_set_effect.parent_limit_bound",
             &format!(
                 "the discovered skeleton exceeded the declared maximum graph degree {}; the \
@@ -890,6 +896,7 @@ pub fn run_with_collider_bound(
         )?,
         (_, true) => {
             return Err(refused(
+                antecedent_core::reason_code!("discovered_structure_unresolved"),
                 "parent_set_effect.search_not_finished",
                 "the discovery met conflicting orientation evidence",
             ));

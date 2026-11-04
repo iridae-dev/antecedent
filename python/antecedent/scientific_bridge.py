@@ -1210,17 +1210,19 @@ class BridgedClaim(ScientificResult):
 
         The source claim's declared ``standard_error`` is carried through the mapping together
         with the mapping's own estimation uncertainty (the trial-level line's prediction error,
-        or the declared variances of the sensitivity and specificity). It is published only where
+        or the declared variances of the sensitivity and specificity). Its calibration status is ``calibrated`` only where
         a current coverage record measured this construction at this bridge kind, mapping,
-        direction and validated trial count, and states what it rests on. With no ``level`` the
+        direction and validated trial count; it states what it rests on. With no ``level`` the
         request is unscoped and, like a posterior or joint law of a bridged claim, always raises.
 
         Raises:
-            ScientificBridgeRefusal: ``not_supported`` /
+            ScientificBridgeRefusal: ``route_not_supported`` /
                 ``scientific_bridge.interval_not_supported`` for an unscoped request;
+                ``required_option_missing`` /
                 ``scientific_bridge.interval_source_uncertainty_required`` when the source claim
-                declared no ``standard_error``; ``scientific_bridge.interval_scope_outside_measured``
-                outside a measured design.
+                declared no ``standard_error``; ``route_not_supported`` /
+                ``scientific_bridge.interval_scope_outside_measured`` for a map the construction
+                does not cover.
         """
         scoped = getattr(self._handle, "bridged_interval", None)
         if level is None or scoped is None:
@@ -1626,14 +1628,14 @@ class BridgedDistribution(ScientificResult):
 
         The standard deviation of the source draws is carried through the mapping together with
         the mapping's own estimation uncertainty, at the source's mean: the construction the
-        bridged-mean coverage records measured. It is published only where such a record exists.
+        bridged-mean coverage records measured. Its calibration status is ``calibrated`` only where such a record exists.
         With no ``level`` the request is unscoped and always raises.
 
         Raises:
-            ScientificBridgeRefusal: ``not_supported`` /
-                ``scientific_bridge.interval_not_supported`` for an unscoped request, and
+            ScientificBridgeRefusal: ``route_not_supported`` /
+                ``scientific_bridge.interval_not_supported`` for an unscoped request, and ``route_not_supported`` /
                 ``scientific_bridge.interval_scope_outside_measured`` for a map with uncertain
-                coefficients, a declared source-mapping covariance, or a design no record measured.
+                coefficients, a declared source-mapping covariance, or a degenerate validation.
         """
         if level is None:
             raise_refusal(self._handle.interval(), ScientificBridgeRefusal)

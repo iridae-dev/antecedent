@@ -32,8 +32,9 @@
 //! A ranking probability or interval is published only where a current coverage record
 //! measured it at the coordinate (candidate-set size, Monte Carlo budget, selection
 //! rule, coupling, serial dependence): [`calibration::support_route_at`] resolves the
-//! record. Every other request is refused with a typed `not_supported`. The
-//! simulation design that measures the routes lives in [`calibration`] and
+//! record. Every other request is published with a calibration status
+//! (`outside_measured_scope`, `measured_below_nominal` or `not_measured`), never
+//! refused. The simulation design that measures the routes lives in [`calibration`] and
 //! [`coverage_design`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -146,13 +147,6 @@ pub enum ReliabilityError {
     },
     /// One combined uncertainty number was requested.
     CombinedUncertainty,
-    /// A published probability or interval route is closed pending measurement.
-    NotSupported {
-        /// Route name.
-        route: &'static str,
-        /// Coordinate the route would be calibrated at.
-        coordinate: String,
-    },
     /// A producer handed over a point-only output: there is no law and no draws to take.
     ProducerPointOnly {
         /// The producing route.
@@ -343,16 +337,6 @@ impl ReliabilityError {
             .remedy(
                 "read the three components separately; a combined statement needs a whole-procedure \
                  calibration at the coordinate (candidate-set size, Monte Carlo budget, selection rule)",
-            )
-            .build(),
-            Self::NotSupported { route, coordinate } => builder(
-                antecedent_core::reason_code!("not_supported"),
-                "decision_reliability.not_supported",
-            )
-            .offending(format!("{route} at {coordinate}"))
-            .remedy(
-                "the route is point-only until a coverage record measures it at this \
-                 coordinate; use the diagnostic fields",
             )
             .build(),
             Self::ProducerPointOnly { producer, held } => {

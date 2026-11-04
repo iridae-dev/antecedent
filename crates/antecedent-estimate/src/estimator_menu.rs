@@ -294,7 +294,7 @@ pub fn transport_estimator_menu_with(
     let detail = uncertainty.detail.as_deref().map_or_else(String::new, |d| format!(" ({d})"));
     let learned_uncertainty = format!(
         "{}: {}{detail}; {} bootstrap replicates requested; the joint outer bootstrap interval \
-         is uncalibrated and its route is closed (not_supported)",
+         is formed by the bootstrap interval route and carries its calibration status",
         uncertainty.status, uncertainty.reason, options.bootstrap
     );
     let floor = options.min_treatment_probability;
@@ -413,7 +413,7 @@ pub fn transport_estimator_menu_with(
                 "every kernel window inside the declared dose support",
             ]),
             sampling_design: strings(&["nested_cohort", "independent_samples"]),
-            uncertainty_status: "withheld: not_supported (joint outer bootstrap route closed)"
+            uncertainty_status: "bootstrap_interval_requested: joint_outer_bootstrap; the interval carries its calibration status"
                 .into(),
             static_fields: all_requirements.map(String::from).to_vec(),
             refusal: Some(refusal(

@@ -225,8 +225,8 @@ fit, and a penalized primary is not one. On the full-sample routes (trimmed, ATT
 predicate) there is no fallback; a failed fit there is recorded in the refusal
 (`nuisance_fallback_not_supported`).
 
-`nuisance_fallback="ml"` (a flexible learner) stays closed: its destination has no
-cross-fitted support or uncertainty support, so a failed GLM fit is refused with
+`nuisance_fallback="ml"` (a flexible learner) is refused: its destination has no
+cross-fitted or uncertainty evidence, so a failed GLM fit is refused with
 `nuisance_fallback_not_supported` and the failed fit recorded, and nothing is silently
 substituted. The fallback is never chosen after seeing a favorable result: it is declared in
 advance and triggered only by a fit failure.

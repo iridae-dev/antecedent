@@ -166,21 +166,36 @@ fn x8t_facade_undeclared_premises_refuse_and_default_to_undeclared() {
     request.premises = PremisesWire::default();
     let refusal =
         TransportedCounterfactual::evaluate(&request).unwrap_err().refusal().expect("refusal");
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "transported_counterfactual.nonadditive_mechanism");
     assert_eq!(refusal.offending.as_deref(), Some("additive_noise"));
 }
 
 #[test]
-fn x8t_facade_the_general_transported_route_stays_closed() {
-    // The narrow cell is a different theorem; the general closed gate still refuses, whatever
-    // is supplied.
+fn x8t_facade_the_general_transported_route_has_no_method() {
+    // The narrow cell is a different theorem; the general route has no joint theorem, so it
+    // refuses whatever is supplied. Missing prerequisite gates are named first.
     let refusal = transported_path_specific(
         &TransportedCounterfactualPrerequisites::default(),
         &[],
         &std::collections::BTreeMap::new(),
     )
     .unwrap_err();
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
-    assert_eq!(refusal.refusal.code, "not_supported");
+    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
+    assert_eq!(refusal.refusal.code, "transport_missing_evidence");
+    assert_eq!(refusal.missing_gates.len(), 3);
+
+    // With every gate passed and no factor required, only the missing theorem remains.
+    let refusal = transported_path_specific(
+        &TransportedCounterfactualPrerequisites {
+            transport_support: true,
+            fixed_population_support: true,
+            cross_population_assumptions: true,
+        },
+        &[],
+        &std::collections::BTreeMap::new(),
+    )
+    .unwrap_err();
+    assert_eq!(refusal.refusal.detail, "transported_counterfactual.joint_theorem_not_derived");
+    assert_eq!(refusal.refusal.code, "route_not_supported");
 }

@@ -189,7 +189,7 @@ fn msm_artifact_refuses_a_sampling_composition() {
     });
     let error = SensitivityArtifact::new(parts).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "route_not_supported");
     assert!(
         message.starts_with("sensitivity_decision_composition.composition_not_supported"),
         "{message}"

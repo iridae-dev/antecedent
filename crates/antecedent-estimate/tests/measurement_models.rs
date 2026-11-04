@@ -815,8 +815,11 @@ fn estimator_and_contract_refuse_the_same_requests_with_the_same_details() {
     let mut interval = request("cohort");
     interval.operation = MeasurementOperation::Interval;
     let refusal = check_measurement_request(&m, &interval, None).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
-    assert_eq!(antecedent_estimate::measurement::interval_not_supported().code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        antecedent_estimate::measurement::interval_not_supported().code,
+        "route_not_supported"
+    );
 }
 
 // ---------------------------------------------------------------------------

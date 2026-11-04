@@ -79,7 +79,7 @@ def require_ordinary_temporal_curve_posterior(
     working likelihood is divided by a long-run-variance factor so serially dependent
     innovations do not make the interval too narrow. It is not the posterior of a joint law of
     the series. With ``"unmodeled"`` serial dependence this refuses
-    (``not_supported``, ``temporal_curve.ordinary_posterior_not_supported``) and names the
+    (``distribution_meaning_mismatch``, ``temporal_curve.ordinary_posterior_not_supported``) and names the
     next attempt: attest independent innovations given the modelled history, add an explicit
     autoregressive innovation law to the likelihood, or read the tempered posterior as a
     generalized posterior. ``"independent_innovations"`` is the caller's attestation that

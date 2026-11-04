@@ -30,8 +30,8 @@ What the ledger decides, and what it does not:
   likelihood, borrowing uses a declared finite prior on the between-study standard deviation, and a
   dependence range returns the exact extremes over the declared correlation interval, labelled
   ``assumption_range``. An interval is reported only by :meth:`EvidenceLedger.pooled_interval`,
-  bound to a currently attesting coverage record of the exact construction (fixed effect,
-  declared covariance, or random effects by Hartung-Knapp); anything else raises
+  carrying its calibration status for the exact construction (fixed effect,
+  declared covariance, or random effects by Hartung-Knapp); any other construction raises
   ``not_supported``.
 * **Atomic.** A refused request leaves the session exactly as it was; so does a refused
   :meth:`EvidenceLedger.refresh`, which applies a batch of added and retired evidence to a copy.

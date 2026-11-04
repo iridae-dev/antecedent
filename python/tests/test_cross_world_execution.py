@@ -354,7 +354,7 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
                 )
             )
         )
-    assert error.value.reason_code == "not_supported"
+    assert error.value.reason_code == "route_not_supported"
     assert "transport_support_missing" in error.value.missing
 
     with pytest.raises(R) as error:

@@ -174,7 +174,7 @@ fn wrong_contract(message: impl Into<String>) -> SensitivityDecisionError {
 
 fn not_supported(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
-        code: antecedent_core::reason_code!("not_supported"),
+        code: antecedent_core::reason_code!("route_not_supported"),
         detail: "sensitivity_decision_composition.composition_not_supported",
         message: message.into(),
     }
@@ -548,7 +548,7 @@ fn point_probabilities(
 ///
 /// # Errors
 /// Refuses (a) a requested sampling composition that is not supported
-/// (`composition_not_supported`, code `not_supported`); (b) an invalid contract, an
+/// (`composition_not_supported`, code `route_not_supported`); (b) an invalid contract, an
 /// unsupported criterion, unlike units or an input the surface does not carry, weights on
 /// a ranged surface, a weight count that does not match the grid, and `Bayes` without
 /// genuine weights (`wrong_contract`, code `decision_contract_unsatisfied`); (c) an

@@ -294,7 +294,7 @@ fn mnar_refuses_unsupported_estimators_unbounded_ranges_and_undeclared_mechanism
     spec.sampling_composition = Some("add the interval to the range".into());
     let err = run(&data, &spec).unwrap_err();
     assert_eq!(err.detail(), "mnar_sensitivity.composition_not_supported");
-    assert_eq!(err.reason_code(), "not_supported");
+    assert_eq!(err.reason_code(), "route_not_supported");
 
     let zero = ArmLoading { treated: 0.0, control: 0.0 };
     let err = run(&data, &shift(zero, -1.0, 1.0)).unwrap_err();

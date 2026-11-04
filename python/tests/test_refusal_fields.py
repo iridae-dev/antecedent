@@ -116,9 +116,9 @@ def test_a_retarget_onto_unsupported_rows_reports_arm_sizes_and_propensity_range
     require_success(completed)
     refused = completed.study.retarget(weights, depends_on=["z"])
     error = _refusal_error(refused, CausalUnsupportedError)
-    # The class, code and message are those of the support refusal.
+    # The class, code and message are those of the positivity refusal.
     assert str(error) == (
-        "not_supported: retarget refused: weighted overlap failed under the declared target weights"
+        "reason=positivity_violated: retarget refused: weighted overlap failed under the declared target weights"
     )
     assert error.reason_code == "positivity_violated"
     assert_registered_refusal(error)
@@ -342,7 +342,7 @@ def test_batch_retarget_members_carry_the_failing_claim_as_subject():
     assert [label for label, _ in spiked["arm_ess"]] == ["control", "active"]
     assert spiked["propensity_min"] is not None and spiked["propensity_max"] is not None
     assert spiked["remedy"]
-    assert members["spiked"].refusal_code == "not_supported"
+    assert members["spiked"].refusal_code == "positivity_violated"
 
     short = members["short"].refusal_fields
     assert short["subject"] == "short" and short["stage"] == "batch_retarget"

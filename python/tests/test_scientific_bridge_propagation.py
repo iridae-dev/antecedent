@@ -131,12 +131,12 @@ def test_the_interval_stays_gated_by_the_measured_coverage_rule():
     claim = derive(independent())
     refused(
         claim.interval,
-        "not_supported",
+        "route_not_supported",
         "scientific_bridge.interval_not_supported",
     )
     refused(
         lambda: claim.interval(0.95),
-        "not_supported",
+        "route_not_supported",
         "scientific_bridge.interval_scope_outside_measured",
     )
 

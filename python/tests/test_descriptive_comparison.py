@@ -61,7 +61,7 @@ def test_the_raw_contrast_and_the_gap_match_the_hand_computation():
     assert result.interpretation == "descriptive_not_causal_decomposition"
     # The gap has no interval: the typed reason is carried, never a standard error.
     assert result.gap_interval_unavailable == (
-        "not_supported",
+        "route_not_supported",
         "descriptive_comparison.gap_interval_unavailable",
     )
 

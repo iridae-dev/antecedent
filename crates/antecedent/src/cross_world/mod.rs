@@ -113,7 +113,7 @@ fn refusal_error(refusal: CrossWorldRefusal) -> CausalError {
 ///
 /// A reason-coded refusal: `cross_world_not_identified` for a recanting witness
 /// (the only nonidentification finding), `route_not_supported` for a query shape
-/// outside the two-world contract, `not_supported` for a graph outside it,
+/// outside the two-world contract, `route_not_supported` for a graph outside it,
 /// `invalid_argument` for a malformed query.
 pub fn check(graph: &Dag, query: &CrossWorldQuery) -> Result<CrossWorldWitness, CausalError> {
     check_cross_world(graph, query).map_err(refusal_error)
@@ -150,7 +150,7 @@ fn float_columns(data: &TabularData) -> Result<(Vec<String>, Vec<Vec<f64>>), Cau
 /// # Errors
 ///
 /// A reason-coded refusal (see [`check`]), `estimator_inference_mismatch` when
-/// an interval or Bayesian inference is requested, `not_supported` for an
+/// an interval or Bayesian inference is requested, `route_not_supported` for an
 /// accepted or non-DAG structure, `invalid_argument` (`cross_world.invalid_query`)
 /// when abduction is ill posed (a mechanism that cannot be inverted on the data,
 /// or exogenous terms that are not exact inversions), [`CausalError::Cancelled`]
@@ -187,7 +187,7 @@ fn evaluate_effect_probed(
         GraphRef::Dag(dag) if source == StructureSource::Explicit => dag,
         _ => {
             return Err(crate::unsupported_reason!(
-                "not_supported",
+                "route_not_supported",
                 "cross_world.graph_outside_contract: only a supplied explicit DAG is supported; \
                  accepted, uncertain, latent-confounded, equivalence-class and temporal \
                  structures are refused"

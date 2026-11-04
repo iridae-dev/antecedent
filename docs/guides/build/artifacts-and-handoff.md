@@ -96,7 +96,7 @@ consumer = require_success(CompactExport.consume(bytes(export.export()), expecte
 consumer.evaluate({"x": 2.0}) == at_two
 ```
 
-The only uncertainty it reports is the model-based `sqrt(phi' V phi)`, with calibration unmeasured: it carries no extrapolation or misspecification uncertainty and is never an interval. A query outside the support, with a missing, unknown or non-finite quantity, or inside a mask region is refused with `not_supported` and a detail such as `compact_export.out_of_support` or `compact_export.masked_region`; `evaluate_many` returns refusals in place instead of raising. A consumer that passes a different `expected_identity` is refused with `compact_export.identity_unexpected`. Categorical inputs use `Categorical` and `OneHot` terms, and a `MaskRegion` names a region to refuse.
+The only uncertainty it reports is the model-based `sqrt(phi' V phi)`, with calibration unmeasured: it carries no extrapolation or misspecification uncertainty and is never an interval. A query outside the support, with a missing, unknown or non-finite quantity, or inside a mask region is refused with `invalid_argument` and a detail such as `compact_export.out_of_support` or `compact_export.masked_region`; `evaluate_many` returns refusals in place instead of raising. A consumer that passes a different `expected_identity` is refused with `compact_export.identity_unexpected`. Categorical inputs use `Categorical` and `OneHot` terms, and a `MaskRegion` names a region to refuse.
 
 ## Keep a result current
 

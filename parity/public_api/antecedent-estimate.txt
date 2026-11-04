@@ -7,7 +7,6 @@
 #[doc(hidden)] pub fn antecedent_estimate::check_membership_overlap(membership: &[f64], options: &antecedent_estimate::LearnedContinuousOptions) -> core::result::Result<(), antecedent_estimate::EstimationError>
 #[doc(hidden)] pub fn antecedent_estimate::learned_continuous::parse_learned_continuous_sampling(name: &str) -> core::result::Result<antecedent_estimate::TrialSampling, antecedent_estimate::EstimationError>
 #[doc(hidden)] pub fn antecedent_estimate::learned_continuous::parse_learned_continuous_target(name: &str) -> core::result::Result<(), antecedent_estimate::EstimationError>
-#[doc(hidden)] pub fn antecedent_estimate::learned_continuous::refuse_learned_continuous_interval() -> antecedent_estimate::EstimationError
 #[doc(hidden)] pub fn antecedent_estimate::learned_continuous::validate_learned_continuous(id: &antecedent_identify::transport::TransportIdentification, input: &antecedent_estimate::TrialAipwInput, options: &antecedent_estimate::LearnedContinuousOptions) -> core::result::Result<(), antecedent_estimate::EstimationError>
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::evaluate_smoothed_dose_models(query: &antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery, input: &antecedent_estimate::SmoothedDoseInput, options: &antecedent_estimate::SmoothedDoseOptions, folds: &[u16], models: &antecedent_estimate::smoothed_dose::SmoothedDoseModels, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::smoothed_dose::SmoothedDoseEvaluation, antecedent_estimate::EstimationError>
 #[doc(hidden)] pub fn antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling(name: &str) -> core::result::Result<antecedent_estimate::TrialSampling, antecedent_estimate::EstimationError>
@@ -21531,7 +21530,6 @@ pub use antecedent_estimate::recovery_sampled::SampledRecoveryResult = anteceden
 pub use antecedent_estimate::recovery_sampled::derive_sampled_recovery = antecedent_estimate::derive_sampled_recovery
 pub use antecedent_estimate::recovery_sampled::estimate_sampled_recovery = antecedent_estimate::estimate_sampled_recovery
 pub use antecedent_estimate::refuse_component_variance_only = antecedent_estimate::recovery_sampled::refuse_component_variance_only
-pub use antecedent_estimate::refuse_learned_continuous_interval = antecedent_estimate::learned_continuous::refuse_learned_continuous_interval
 pub use antecedent_estimate::replay_sampled_recovery = antecedent_estimate::recovery_sampled::replay_sampled_recovery
 pub use antecedent_estimate::response::ContinuousResponseEstimator = antecedent_estimate::ContinuousResponseEstimator
 pub use antecedent_estimate::response::ContinuousResponseOptions = antecedent_estimate::ContinuousResponseOptions
@@ -22258,7 +22256,7 @@ pub variant antecedent_estimate::posterior_mean::LocalQuadraticNamespace::Quadra
 pub variant antecedent_estimate::posterior_mean::PosteriorRequest::ExternalPower
 pub variant antecedent_estimate::posterior_mean::PosteriorRequest::IndependentNormal { scale: f64 }
 pub variant antecedent_estimate::posterior_mean::PosteriorRequest::MappedCoefficient
-pub variant antecedent_estimate::posterior_mean::PosteriorRequest::UnmeasuredBand
+pub variant antecedent_estimate::posterior_mean::PosteriorRequest::CredibleBand
 pub variant antecedent_estimate::posterior_mean::ScalarNamespace::Constancy
 pub variant antecedent_estimate::posterior_mean::ScalarNamespace::Refresh
 pub variant antecedent_estimate::posterior_mean::ScalarNamespace::ScenarioCovariance

@@ -37,7 +37,7 @@ mod dgp;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
-    LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousOptions, LearnerSpec, LinearSpec, TrialAipwInput,
+    LearnedContinuousOptions, LearnerSpec, LinearSpec, TrialAipwInput,
     learned_continuous_interval_internal,
 };
 use antecedent_identify::TransportIdentifier;
@@ -47,8 +47,8 @@ use common::calibration::{
 };
 use dgp::{Design, Scenario, draw, graph};
 
-/// Bootstrap replicates per execution: the frozen replicate floor of the cell.
-const REPLICATES: u32 = LEARNED_CONTINUOUS_BOUNDS.1;
+/// Bootstrap replicates per execution in the coverage grid.
+const REPLICATES: u32 = 199;
 
 fn analytic_construction() -> Construction {
     Construction {

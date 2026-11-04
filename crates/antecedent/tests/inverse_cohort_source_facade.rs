@@ -218,7 +218,7 @@ fn a_shifted_cohort_is_read_only_under_a_policy_that_accepts_transported_claims(
 
     let refused = cohort_source(&source, TransportedInputPolicy::NativeTargetOnly).unwrap_err();
     assert_eq!(refused, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(refused.code(), "not_supported");
+    assert_eq!(refused.code(), "decision_contract_unsatisfied");
 
     let forward = cohort_source(&source, TransportedInputPolicy::AcceptsTransported).unwrap();
     assert_eq!(forward.origin().kind, ForwardSourceKind::TransportedResponse);

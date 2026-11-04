@@ -24,7 +24,7 @@ def test_unmodeled_serial_dependence_refuses_the_ordinary_reading():
     with pytest.raises(CausalError) as caught:
         require_ordinary_temporal_curve_posterior("unmodeled")
     error = caught.value
-    assert error.reason_code == "not_supported"
+    assert error.reason_code == "distribution_meaning_mismatch"
     text = str(error)
     assert "temporal_curve.ordinary_posterior_not_supported" in text
     assert "next attempt" in text and "autoregressive innovation law" in text
@@ -81,7 +81,7 @@ def test_credible_interval_always_refuses_and_names_the_missing_likelihood():
     with pytest.raises(CausalError) as caught:
         trajectory_hazard_credible_interval(**data)
     error = caught.value
-    assert error.reason_code == "not_supported"
+    assert error.reason_code == "route_not_supported"
     text = str(error)
     assert "trajectory_survival.credible_interval_not_supported" in text
     assert "joint likelihood" in text and "g-formula" in text and "next attempt" in text

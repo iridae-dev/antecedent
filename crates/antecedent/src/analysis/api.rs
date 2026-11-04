@@ -126,7 +126,8 @@ pub use super::{
     JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
 };
 pub use super::{
-    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+    LearnedContinuousBootstrapInterval, LearnedContinuousResult, PreparedLearnedContinuous,
+    consume_learned_continuous_artifact,
 };
 pub use super::{
     MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,

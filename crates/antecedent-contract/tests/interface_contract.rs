@@ -297,7 +297,7 @@ fn posterior_and_sampling_uncertainty_are_not_interchangeable() {
 }
 
 #[test]
-fn measured_calibration_is_required_not_assumed() {
+fn measured_calibration_is_carried_never_raised() {
     let consumer = consumer_of(
         consumed(&[ContractOperation::Interval])
             .with_uncertainty(DistributionMeaning::EstimatorSampling)
@@ -310,10 +310,10 @@ fn measured_calibration_is_required_not_assumed() {
                 .with_uncertainty(DistributionMeaning::EstimatorSampling)
                 .with_calibration(status),
         );
-        let refusals = check(&producer, &consumer).expect_err("not held");
-        assert_eq!(details(&refusals), ["interface_contract.calibration_not_held"]);
-        assert_eq!(refusals[0].code, "interface_contract_calibration_not_held");
-        assert_eq!(refusals[0].supplied.as_deref(), Some(label));
+        // The consumer is served, and the connection says what the producer holds.
+        let connection = check_connection(&producer, "effect", &consumer, "effect")
+            .expect("calibration annotates and never refuses");
+        assert_eq!(connection.calibration.label(), label);
     }
     // An inherited label cannot be resolved from a pair.
     let inheriting = InterfaceContract {
@@ -325,8 +325,9 @@ fn measured_calibration_is_required_not_assumed() {
                 .with_calibration(CalibrationStatus::Inherited { input: "effect".into() }),
         ],
     };
-    let refusals = check(&inheriting, &consumer).expect_err("unresolved");
-    assert_eq!(details(&refusals), ["interface_contract.calibration_inherited_unresolved"]);
+    let connection = check_connection(&inheriting, "effect", &consumer, "effect")
+        .expect("an inherited label a pair cannot resolve is carried as not measured");
+    assert_eq!(connection.calibration, CalibrationStatus::NotMeasured);
     // A producer that holds a measured record connects, and the connection keeps its label.
     let measured = producer_of(
         produced(&[ContractOperation::Interval])
@@ -692,21 +693,14 @@ fn inherited_calibration_resolves_against_the_upstream_that_holds_it() {
     let mid_to_sink = composed.connections.iter().find(|c| c.consumer == "sink").expect("edge");
     assert_eq!(mid_to_sink.calibration, CalibrationStatus::Measured { record_id: "rec-7".into() });
 
-    // An upstream that no longer holds a measured record: the inheritance is refused,
-    // and the downstream that relies on it is refused too.
+    // An upstream that no longer holds a measured record: the composition holds and the
+    // downstream connection carries the calibration status the upstream holds.
     let mut unmeasured = measured("rec-7");
     unmeasured.produces[0].calibration = CalibrationStatus::NotMeasured;
-    let refusals = check_composition(&[unmeasured, interval_in("mid", false), sink], &wires)
-        .expect_err("not held");
-    assert_eq!(
-        details(&refusals),
-        [
-            "interface_contract.calibration_inherited_not_held",
-            "interface_contract.calibration_not_held",
-        ]
-    );
-    assert_eq!(refusals[0].offending.as_deref(), Some("out <- in"));
-    assert!(refusals.iter().all(|r| r.code == "interface_contract_calibration_not_held"));
+    let composed = check_composition(&[unmeasured, interval_in("mid", false), sink], &wires)
+        .expect("calibration annotates and never refuses");
+    let mid_to_sink = composed.connections.iter().find(|c| c.consumer == "sink").expect("edge");
+    assert_eq!(mid_to_sink.calibration, CalibrationStatus::NotMeasured);
 }
 
 #[test]
@@ -789,10 +783,10 @@ fn inherited_calibration_does_not_cross_changed_quantity() {
     )
     .with_uncertainty(DistributionMeaning::EstimatorSampling)
     .with_calibration(CalibrationStatus::Inherited { input: "in".into() });
-    let refused = check_composition(&[upstream, mid], &[link("a", "mid")]).unwrap_err();
-    assert!(
-        details(&refused).contains(&"interface_contract.calibration_inherited_quantity_changed")
-    );
+    // The changed quantity does not inherit the record; the composition still holds.
+    let composed = check_composition(&[upstream, mid], &[link("a", "mid")])
+        .expect("calibration annotates and never refuses");
+    assert_eq!(composed.order.len(), 2);
 }
 
 #[test]
@@ -842,10 +836,8 @@ fn inherited_calibration_uses_the_actual_source_and_preserves_forwarding() {
     assert!(details(&refused).contains(&"interface_contract.calibration_without_interval"));
     for changed in changes {
         mid.produces[0] = changed;
-        let refused = check_composition(&[upstream.clone(), mid.clone()], &wires).unwrap_err();
-        assert!(
-            details(&refused)
-                .contains(&"interface_contract.calibration_inherited_quantity_changed")
-        );
+        let composed = check_composition(&[upstream.clone(), mid.clone()], &wires)
+            .expect("calibration annotates and never refuses");
+        assert_eq!(composed.order.len(), 2);
     }
 }

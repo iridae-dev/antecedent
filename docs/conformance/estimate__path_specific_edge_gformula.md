@@ -16,8 +16,7 @@ SCM (see `reference.py`) has
 level on the `t -> m` edge (it starts a selected path) and to the control level
 on `t -> y`, minus the all-control g-formula. An evaluator that binds one level
 everywhere returns the total effect; one that swaps the levels returns the
-natural direct effect. Previously the surgical-graph functional returned the
-total effect here.
+natural direct effect.
 
 The contingency table is the exact SCM law. `reference.py` enumerates the
 equally likely noise cells of the structural equations, so the counterfactual

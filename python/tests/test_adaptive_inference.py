@@ -435,7 +435,7 @@ def test_a_paradigm_the_cell_is_not_supported_for_is_refused():
             session.analyse(ai.AdaptiveWeighting(look=1, plus_arm=1, minus_arm=0))
         )
     )
-    assert error.reason_code == "not_supported"
+    assert error.reason_code == "route_not_supported"
     assert error.detail == "adaptive_inference.paradigm_not_supported_for_cell"
     error = refused(lambda: require_success(session.analyse(ai.GroupSequential(look=1))))
     assert error.detail == "adaptive_inference.paradigm_not_supported_for_cell"
@@ -557,7 +557,7 @@ def test_the_hierarchical_cluster_cell_is_carried_forward():
             prepare(design).analyse(ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0))
         )
     )
-    assert error.reason_code == "not_supported"
+    assert error.reason_code == "route_not_supported"
     assert error.detail == "adaptive_inference.cell_carried_forward"
 
 
@@ -752,7 +752,7 @@ def test_a_paradigm_the_design_may_not_use_cannot_be_exported():
     error = refused(lambda: bytes(session.export(paradigm="frequentist_fixed_sample")))
     assert error.reason_code == "adaptive_design_ignored"
     error = refused(lambda: bytes(session.export(paradigm="bayesian_posterior")))
-    assert error.reason_code == "not_supported"
+    assert error.reason_code == "route_not_supported"
 
 
 def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_experiments():

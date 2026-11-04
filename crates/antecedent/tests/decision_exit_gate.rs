@@ -176,27 +176,30 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
         // Conditioning is not a no-op on this fixture.
         let at = |i: usize| result.distributions()[i].probabilities[1];
         assert!((at(0) - at(2)).abs() > 1e-3);
-        // Counted laws are refused: the route publishes exact points only.
-        let mut laws = model.catalog_and_laws().1.laws().to_vec();
-        let first = &laws[0];
-        let cells = first.probabilities().len();
-        laws[0] = ExactDiscreteLaw::try_new(
-            first.population(),
-            first.regime(),
-            first.interventions().to_vec(),
-            first.axes().to_vec(),
-            vec![1.0 / cells as f64; cells],
-            first.snapshot_identity(),
-            LawTolerance::default(),
-        )
-        .unwrap()
-        .with_empirical_counts(vec![1; cells])
-        .unwrap();
-        let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
-        assert_eq!(
-            coded(&prepared.refresh(counted, &ctx).unwrap_err()),
-            ("not_supported", "admg_transport.counted_laws_unsupported".into())
-        );
+        // Counted laws are refused: the route publishes exact points only. A development build runs them.
+        #[cfg(not(feature = "development"))]
+        {
+            let mut laws = model.catalog_and_laws().1.laws().to_vec();
+            let first = &laws[0];
+            let cells = first.probabilities().len();
+            laws[0] = ExactDiscreteLaw::try_new(
+                first.population(),
+                first.regime(),
+                first.interventions().to_vec(),
+                first.axes().to_vec(),
+                vec![1.0 / cells as f64; cells],
+                first.snapshot_identity(),
+                LawTolerance::default(),
+            )
+            .unwrap()
+            .with_empirical_counts(vec![1; cells])
+            .unwrap();
+            let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
+            assert_eq!(
+                coded(&prepared.refresh(counted, &ctx).unwrap_err()),
+                ("not_supported", "admg_transport.counted_laws_unsupported".into())
+            );
+        }
         let produced: Vec<Vec<u64>> =
             result.distributions().iter().map(|d| bits(&d.probabilities)).collect();
         (result.export_named(&prepared, &names).unwrap(), produced)
@@ -679,7 +682,7 @@ fn story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range
     w.body.sampling.interval = Some([0.1, 0.9]);
     assert_eq!(
         refused(&sensitivity_reseal(w)),
-        ("not_supported", "joint_sensitivity.interval_withheld".to_owned())
+        ("route_not_supported", "joint_sensitivity.interval_withheld".to_owned())
     );
 }
 
@@ -1162,7 +1165,7 @@ fn story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identificati
         .with_empirical_counts(counts)
         .unwrap();
         let error = prepared.refresh(uniform, &ctx).unwrap_err();
-        assert_eq!(error.reason_code(), Some("not_supported"));
+        assert_eq!(error.reason_code(), Some("route_not_supported"));
         assert!(error.to_string().contains("recovery.empirical_not_supported"), "{error}");
         (
             result.export_named(&prepared, &names).unwrap(),

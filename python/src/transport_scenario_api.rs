@@ -371,7 +371,7 @@ fn prepare_transport_scenarios_stage(
     let provider = parse_provider(laws, &catalog, &named, max_support_rows)?;
     if conditioned.is_some() && matches!(provider, Provider::Empirical(_)) {
         return Err(crate::refusal(
-            reason_code!("not_supported"),
+            reason_code!("route_not_supported"),
             "admg_transport.counted_laws_unsupported: counted laws are not supported for a conditional \
              scenario question; the route publishes exact-law points only",
         ));

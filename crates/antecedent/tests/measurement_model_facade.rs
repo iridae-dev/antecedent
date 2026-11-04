@@ -443,7 +443,7 @@ fn the_route_supports_only_its_own_operations() {
         MeasurementOperation::Interval,
     ] {
         let refusal = prepared.check_operation(refused).unwrap_err();
-        assert_eq!(refusal.code, "not_supported", "{refused:?}");
+        assert_eq!(refusal.code, "route_not_supported", "{refused:?}");
         assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
         assert!(refusal.remedy.is_some());
     }
@@ -456,7 +456,7 @@ fn the_route_supports_only_its_own_operations() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(prepared.route_card().route, MeasurementRoute::ClassicalContinuousError);
 }
 
@@ -505,7 +505,7 @@ fn a_mapping_carries_values_and_intervention_meaning_only_when_declared() {
     // The mapping now carries the meaning; the route itself still refuses an
     // intervention on the recorded indicator (it is declared on the construct).
     let refusal = ok.check_operation(MeasurementOperation::InterveneOnRepresentation).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
 }
 
@@ -617,7 +617,7 @@ fn binary_prevalence_inverts_the_misclassification_algebra() {
     assert_eq!(estimate.operation(), MeasurementOperation::LatentPrevalence);
     // No coefficient vector to take a functional of.
     let refusal = estimate.downstream_linear_functional(&[1.0]).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
     assert!(refusal.message.contains("not an operation this route enters"), "{}", refusal.message);
 }

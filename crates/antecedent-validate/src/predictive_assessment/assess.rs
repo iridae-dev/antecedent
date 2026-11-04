@@ -417,7 +417,7 @@ impl AssessmentUncertainty {
     pub const fn withheld() -> Self {
         Self {
             sampling_interval: "not reported",
-            reason_code: reason_code!("not_supported"),
+            reason_code: reason_code!("uncertainty_representation_insufficient"),
             detail: detail::INTERVAL_NOT_SUPPORTED,
         }
     }

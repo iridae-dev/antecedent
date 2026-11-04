@@ -1034,9 +1034,9 @@ impl TransportedRefusal {
             Self::IntervalNotSupported => {
                 antecedent_core::reason_code!("uncertainty_representation_insufficient")
             }
-            // The same code every consumer uses to say it does not accept a
-            // transported input (inverse queries, cohort forward claims).
-            Self::SupportBelowPolicy { .. } => antecedent_core::reason_code!("not_supported"),
+            Self::SupportBelowPolicy { .. } => {
+                antecedent_core::reason_code!("decision_contract_unsatisfied")
+            }
             Self::Boundary(error) => error.reason_code(),
         }
     }

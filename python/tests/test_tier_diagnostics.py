@@ -52,7 +52,7 @@ def test_a_codetermined_result_reports_its_closure_overlap_and_point_evalue() ->
     assert report.evalue.point.value["value"] >= 1.0
     # The interval E-value is a typed unavailable field on every result.
     assert report.evalue.interval.available is False
-    assert report.evalue.interval.code == "not_supported"
+    assert report.evalue.interval.code == "diagnostic_not_available"
     assert report.evalue.interval.detail == "tier_diagnostics.evalue_interval_withheld"
 
 

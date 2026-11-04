@@ -120,7 +120,7 @@ assertion_contract = "The boundary action meets the target within tolerance with
 test = "python/tests/test_inverse_outcome.py::test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constraint"
 assertion_scopes = ["_refused"]
 dimensions = ["refusal"]
-assertion_contract = "A chance constraint is refused not_supported with inverse.probability_target."
+assertion_contract = "A chance constraint is refused inverse_functional_unsupported with inverse.probability_target."
 [[capability.evidence]]
 test = "python/tests/test_inverse_outcome.py::test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused"
 assertion_scopes = ["test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused", "_refused"]
@@ -892,10 +892,10 @@ dimensions = ["refusal", "controls"]
 assertion_contract = "The dependent interval refuses a panel without declared units (route_not_supported temporal_interval.unknown_units), too few units (too_few_clusters temporal_interval.too_few_units), too many replicates (route_not_supported temporal_interval.too_many_replicates) and too few replicates (invalid_argument), and validates a fixed initial state before closing."
 
 [[capability.evidence]]
-test = "python/tests/test_temporal_extensions.py::test_internal_candidate_route_is_closed_after_real_validation"
-assertion_scopes = ["test_internal_candidate_route_is_closed_after_real_validation", "refusal_of"]
+test = "python/tests/test_temporal_extensions.py::test_internal_candidate_route_reports_an_interval_after_real_validation"
+assertion_scopes = ["test_internal_candidate_route_reports_an_interval_after_real_validation", "refusal_of"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "The internal candidate route is refused not_supported temporal_interval.route_frozen after real validation, for the default, fixed-initial-state and marginalized estimands alike."
+assertion_contract = "A panel without exact balanced unit scores is refused route_not_supported temporal_interval.studentized_unbalanced; a balanced panel reports an interval bracketing the point for the default, fixed-initial-state and marginalized estimands alike, annotated by its calibration."
 
 [[capability.evidence]]
 test = "python/tests/test_measured_temporal_public.py::test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence"
@@ -952,10 +952,10 @@ assertion_scopes = ["test_a_mean_does_not_supply_a_law_and_a_sampling_interval_i
 dimensions = ["refusal"]
 assertion_contract = "A mean does not supply a law and a sampling interval is not a posterior."
 [[capability.evidence]]
-test = "python/tests/test_interface_contract.py::test_measured_calibration_is_required_not_assumed"
-assertion_scopes = ["test_measured_calibration_is_required_not_assumed", "refusal_of"]
-dimensions = ["refusal"]
-assertion_contract = "Measured calibration is required, not assumed."
+test = "python/tests/test_interface_contract.py::test_measured_calibration_is_carried_never_raised"
+assertion_scopes = ["test_measured_calibration_is_carried_never_raised"]
+dimensions = ["success"]
+assertion_contract = "A consumer that relies on measured calibration is served; the connection carries the producer's label."
 [[capability.evidence]]
 test = "python/tests/test_interface_contract.py::test_a_malformed_declaration_is_refused_alone"
 assertion_scopes = ["test_a_malformed_declaration_is_refused_alone", "refusal_of"]
@@ -1020,10 +1020,10 @@ assertion_scopes = ["test_a_pair_that_matches_syntactically_fails_scientifically
 dimensions = ["refusal"]
 assertion_contract = "Same names and units but another population, an unavailable law and a missing uncertainty meaning give three ordered refusals under interface_contract_quantity_mismatch with expected/supplied and remedies."
 [[capability.evidence]]
-test = "python/tests/test_interface_contract.py::test_measured_calibration_is_required_not_assumed"
-assertion_scopes = ["test_measured_calibration_is_required_not_assumed"]
-dimensions = ["refusal", "branch"]
-assertion_contract = "No or unmeasured calibration against a measured requirement refuses interface_contract_calibration_not_held."
+test = "python/tests/test_interface_contract.py::test_measured_calibration_is_carried_never_raised"
+assertion_scopes = ["test_measured_calibration_is_carried_never_raised"]
+dimensions = ["success", "branch"]
+assertion_contract = "No or unmeasured calibration against a measured requirement connects and carries the label."
 [[capability.evidence]]
 test = "python/tests/test_interface_contract.py::test_a_malformed_declaration_is_refused_alone"
 assertion_scopes = ["test_a_malformed_declaration_is_refused_alone"]
@@ -1040,10 +1040,10 @@ behavior = "antecedent::analysis::closed_pilots::joint_bayesian_transport_refusa
 python = "antecedent.transport._closed_pilots.joint_bayesian_transport"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_closed_pilots.py::test_joint_bayesian_route_is_closed_with_not_supported"
+test = "python/tests/test_closed_pilots.py::test_joint_bayesian_in_scope_request_without_identification_asks_for_it"
 assertion_scopes = ["assert_refused"]
 dimensions = ["refusal"]
-assertion_contract = "A request inside the pilot scope is refused as not_supported / bayesian_transport.route_frozen."
+assertion_contract = "A request inside the pilot scope without an identification is refused transport_missing_evidence / bayesian_transport.identification_required."
 [[capability.evidence]]
 test = "python/tests/test_closed_pilots.py::test_joint_bayesian_scope_refusals_carry_their_own_details"
 assertion_scopes = ["assert_refused"]
@@ -1098,7 +1098,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_cohort_decision.py::test_a_declared_compact_export_is_point_only_with_its_own_detail"
 assertion_scopes = ["test_a_declared_compact_export_is_point_only_with_its_own_detail"]
 dimensions = ["success", "artifact"]
-assertion_contract = "A cohort source's exported bytes consume under the retained identity and units and the consumed source is point-only: its interval refuses not_supported cohort_decision.interval_requires_native_fit."
+assertion_contract = "A cohort source's exported bytes consume under the retained identity and units and the consumed source is point-only: its interval refuses route_not_supported cohort_decision.interval_requires_native_fit."
 [[capability.evidence]]
 test = "python/tests/test_cohort_decision.py::test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_refused"
 assertion_scopes = ["test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_refused"]
@@ -1139,8 +1139,8 @@ assertion_scopes = ["test_a_native_fit_is_the_declared_ols_with_hc3_covariance_a
 dimensions = ["success", "refusal"]
 assertion_contract = "The native fit equals an independent numpy OLS on [1, x, t, t*x] (coefficients as a multiset, HC3 covariance trace, cohort mean contrast beta_t + beta_tx*mean x); mismatched columns and an intercept-singular design refuse cohort_decision.native_fit_refused."
 [[capability.evidence]]
-test = "python/tests/test_cohort_decision.py::test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"
-assertion_scopes = ["test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"]
+test = "python/tests/test_cohort_decision.py::test_a_native_fit_reports_its_interval_with_calibration_status"
+assertion_scopes = ["test_a_native_fit_reports_its_interval_with_calibration_status"]
 dimensions = ["success", "inspection"]
 assertion_contract = "The fit retains 400 rows of width 4 and its cohort mean contrast is within 0.2 of 1+0.5*mean(x); the point route never carries an interval."
 
@@ -1156,16 +1156,16 @@ deferred_to = "the cohort Student-t/HC3 coverage record being re-measured and at
 deferred_dimensions = ["success"]
 
 [[capability.evidence]]
-test = "python/tests/test_cohort_decision.py::test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"
-assertion_scopes = ["test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"]
+test = "python/tests/test_cohort_decision.py::test_a_native_fit_reports_its_interval_with_calibration_status"
+assertion_scopes = ["test_a_native_fit_reports_its_interval_with_calibration_status"]
 dimensions = ["refusal", "branch", "controls"]
-assertion_contract = "A native OLS/HC3 fit either issues a measured cohort_interval with the interval bracketing the point or is refused not_supported measured_inference.record_not_attesting (never an unmeasured interval); the point contrast equals the hand value 1 + 0.5*mean(x) and a level of 1.0 raises CausalValueError."
+assertion_contract = "A native OLS/HC3 fit reports a cohort_interval bracketing the point, with its calibration status; the point contrast equals the hand value 1 + 0.5*mean(x) and a level of 1.0 raises CausalValueError."
 
 [[capability.evidence]]
 test = "python/tests/test_cohort_decision.py::test_a_declared_compact_export_is_point_only_with_its_own_detail"
 assertion_scopes = ["test_a_declared_compact_export_is_point_only_with_its_own_detail"]
 dimensions = ["refusal"]
-assertion_contract = "A source reloaded from a declared compact export has no interval: not_supported cohort_decision.interval_requires_native_fit."
+assertion_contract = "A source reloaded from a declared compact export has no interval: route_not_supported cohort_decision.interval_requires_native_fit."
 
 [[capability]]
 id = "analysis.composition.consume"
@@ -1909,15 +1909,15 @@ behavior = "antecedent::analysis::decision_reliability::publish_derived_route: p
 python = "antecedent.decision_reliability.DerivedUncertainty.publish"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_decision_reliability_derived.py::test_derived_uncertainty_is_never_published"
-assertion_scopes = ["test_derived_uncertainty_is_never_published"]
+test = "python/tests/test_decision_reliability_derived.py::test_derived_uncertainty_is_published_with_its_calibration_slot"
+assertion_scopes = ["test_derived_uncertainty_is_published_with_its_calibration_slot"]
 dimensions = ["refusal", "success"]
-assertion_contract = "A derived uncertainty is created with a standing of derived and each of the four ranking/interval routes refuses to publish with reason not_supported and detail decision_reliability.not_supported; the combined single uncertainty number refuses uncertainty_components_not_combined."
+assertion_contract = "A derived uncertainty is created with a standing of derived and each of the four ranking/interval routes is published with a calibration slot whose status is one of the four values; the combined single uncertainty number refuses uncertainty_components_not_combined."
 [[capability.evidence]]
-test = "python/tests/test_decision_reliability.py::test_every_published_ranking_or_interval_route_is_closed"
-assertion_scopes = ["test_every_published_ranking_or_interval_route_is_closed"]
-dimensions = ["refusal"]
-assertion_contract = "At the coordinate of a 100-draw, two-candidate report every route is closed (4 closed routes), publication refuses not_supported by the result and by the module function, and an unknown route is a CausalValueError."
+test = "python/tests/test_decision_reliability.py::test_every_published_route_is_published_with_its_calibration_slot"
+assertion_scopes = ["test_every_published_route_is_published_with_its_calibration_slot"]
+dimensions = ["success", "refusal"]
+assertion_contract = "At the coordinate of a 100-draw, two-candidate report no route is closed, every route is published with a calibration slot by the result and by the module function, and an unknown route is a CausalValueError."
 
 [[capability]]
 id = "analysis.decision_reliability.reach_decision_carrier"
@@ -2656,7 +2656,7 @@ assertion_contract = "The cohort contrast tau(z)=2+0.5z over weights (0.2,0.3,0.
 test = "python/tests/test_inverse_sources.py::test_a_shifted_cohort_is_a_transported_source_only_when_accepted"
 assertion_scopes = ["test_a_shifted_cohort_is_a_transported_source_only_when_accepted"]
 dimensions = ["success", "refusal", "branch"]
-assertion_contract = "A shifted cohort refuses not_supported transported_not_accepted unless accepted, then is an extrapolative transported source for clinic_b with the same feasible action; an unshifted cohort is not transported."
+assertion_contract = "A shifted cohort refuses decision_contract_unsatisfied transported_not_accepted unless accepted, then is an extrapolative transported source for clinic_b with the same feasible action; an unshifted cohort is not transported."
 
 [[capability]]
 id = "analysis.inverse_sources.composed_source"
@@ -2687,7 +2687,7 @@ assertion_contract = "A finite outcome whose levels are not coded exactly once r
 test = "python/tests/test_inverse_sources.py::test_a_composition_with_admitted_mechanisms_is_a_transported_claim"
 assertion_scopes = ["test_a_composition_with_admitted_mechanisms_is_a_transported_claim"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A composition with admitted mechanisms refuses without a receipt (composed_response_invalid) and when not accepted (not_supported transported_not_accepted), and with both is an extrapolative transported source for population pop."
+assertion_contract = "A composition with admitted mechanisms refuses without a receipt (composed_response_invalid) and when not accepted (decision_contract_unsatisfied transported_not_accepted), and with both is an extrapolative transported source for population pop."
 
 [[capability]]
 id = "analysis.inverse_sources.evaluate_observational"
@@ -2869,7 +2869,7 @@ assertion_contract = "An aligned contrast claim names its composed coordinate co
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A dependence envelope has no composed interval: not_supported joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
+assertion_contract = "A dependence envelope has no composed interval: uncertainty_representation_insufficient joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.joint_law_composed_basis.dependence_label"
@@ -2892,7 +2892,7 @@ assertion_contract = "An aligned contrast claim names its composed coordinate co
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A dependence envelope has no composed interval: not_supported joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
+assertion_contract = "A dependence envelope has no composed interval: uncertainty_representation_insufficient joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.joint_law_composed_basis.resolve"
@@ -2916,7 +2916,7 @@ assertion_contract = "An aligned contrast claim names its composed coordinate co
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A dependence envelope has no composed interval: not_supported joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
+assertion_contract = "A dependence envelope has no composed interval: uncertainty_representation_insufficient joint_law_propagation.spread_needs_supported_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.claim_from_artifact"
@@ -2937,7 +2937,7 @@ assertion_contract = "The claim rebuilt from its sealed bytes yields coordinates
 test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
 assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
 dimensions = ["refusal"]
-assertion_contract = "A rebuilt envelope claim refuses a composed interval with not_supported spread_needs_supported_dependence and has no coordinate."
+assertion_contract = "A rebuilt envelope claim refuses a composed interval with uncertainty_representation_insufficient spread_needs_supported_dependence and has no coordinate."
 
 [[capability]]
 id = "analysis.input_alignment"
@@ -3301,10 +3301,10 @@ behavior = "antecedent::analysis::learned_joint_closed::learned_joint_transport_
 python = "antecedent.transport._learned_joint.learned_joint_transport"
 required_dimensions = ["refusal"]
 [[capability.evidence]]
-test = "python/tests/test_learned_joint_closed.py::test_learned_route_is_closed_with_not_supported"
-assertion_scopes = ["test_learned_route_is_closed_with_not_supported"]
+test = "python/tests/test_learned_joint_closed.py::test_learned_in_scope_request_without_identification_asks_for_it"
+assertion_scopes = ["test_learned_in_scope_request_without_identification_asks_for_it"]
 dimensions = ["refusal"]
-assertion_contract = "An in-scope learned joint request is not_supported / learned_joint_transport.route_frozen citing calibration evidence."
+assertion_contract = "An in-scope learned joint request without an identification is refused transport_missing_evidence / learned_joint_transport.identification_required."
 [[capability.evidence]]
 test = "python/tests/test_learned_joint_closed.py::test_learned_adjacent_graph_refuses_before_the_producer"
 assertion_scopes = ["assert_refused"]
@@ -3441,7 +3441,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"
 assertion_scopes = ["test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"]
 dimensions = ["success", "artifact", "inspection"]
-assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (not_supported, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
+assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (uncertainty_representation_insufficient, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
 [[capability.evidence]]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_round_trips_and_refuses_a_foreign_identity"
 assertion_scopes = ["test_msm_artifact_round_trips_and_refuses_a_foreign_identity"]
@@ -3466,7 +3466,7 @@ required_dimensions = ["success", "refusal"]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"
 assertion_scopes = ["test_msm_artifact_is_a_lambda_surface_with_withheld_sampling"]
 dimensions = ["success", "artifact", "inspection"]
-assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (not_supported, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
+assertion_contract = "The artifact is a Lambda surface over [1, 2] with grid (1, 1.5, 2), the ranged ATE equal to 0.3 at Lambda 1 and [0.04375, 0.4875] at Lambda 2, sampling withheld (uncertainty_representation_insufficient, msm_sensitivity.interval_withheld) and the sealed source kind marginal_sensitivity_model."
 [[capability.evidence]]
 test = "python/tests/test_msm_sensitivity.py::test_msm_artifact_round_trips_and_refuses_a_foreign_identity"
 assertion_scopes = ["test_msm_artifact_round_trips_and_refuses_a_foreign_identity"]
@@ -3705,10 +3705,10 @@ assertion_scopes = ["test_dirichlet_redraw_returns_aligned_draws_around_the_post
 dimensions = ["success", "controls"]
 assertion_contract = "Retained counts redraw 4000 aligned Dirichlet draws whose mean matches the brute-force posterior-mean plug-in (0.78) within 0.01, each row sums to one, and the same seed reproduces the identity and draws."
 [[capability.evidence]]
-test = "python/tests/test_observation_query.py::test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record"
-assertion_scopes = ["test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record"]
+test = "python/tests/test_observation_query.py::test_an_interval_of_redrawn_parameters_is_reported_with_its_calibration_status"
+assertion_scopes = ["test_an_interval_of_redrawn_parameters_is_reported_with_its_calibration_status"]
 dimensions = ["refusal"]
-assertion_contract = "An interval over the redrawn parameters is refused as not_supported without a measured coverage record."
+assertion_contract = "An interval over the redrawn parameters is reported with its calibration status (not calibrated without a currently attesting coverage record), and the interval of the declared-model value refuses with uncertainty_representation_insufficient."
 
 [[capability]]
 id = "analysis.observation_query.retain_regression"
@@ -3867,7 +3867,7 @@ required_dimensions = ["refusal"]
 test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
 assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
-assertion_contract = "refuse_identification_evidence raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.identification_not_conferred and a remedy; a native trust level is not declarable."
+assertion_contract = "refuse_identification_evidence raises a CallbackRefusal with the registered code callback_protocol_invalid, detail callback_protocol.identification_not_conferred and a remedy; a native trust level is not declarable."
 
 [[capability]]
 id = "analysis.provider_callbacks.refuse_interval"
@@ -3909,7 +3909,7 @@ required_dimensions = ["refusal"]
 test = "python/tests/test_provider_callbacks.py::test_closed_routes_refuse_with_registered_codes_and_remedies"
 assertion_scopes = ["test_closed_routes_refuse_with_registered_codes_and_remedies"]
 dimensions = ["refusal"]
-assertion_contract = "refuse_native_trust raises a CallbackRefusal with the registered code not_supported, detail callback_protocol.native_trust_not_conferred and a remedy; a native trust level is not declarable."
+assertion_contract = "refuse_native_trust raises a CallbackRefusal with the registered code callback_protocol_invalid, detail callback_protocol.native_trust_not_conferred and a remedy; a native trust level is not declarable."
 
 [[capability]]
 id = "analysis.provider_callbacks.refuse_posterior_guarantee"
@@ -4199,15 +4199,15 @@ legacy_internal = ["antecedent::analysis::recalc_joint_bayesian::execute_joint_b
 
 [[capability.evidence]]
 test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit"
-assertion_scopes = ["test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit", "assert_joint_route_frozen"]
+assertion_scopes = ["test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit"]
 dimensions = ["refusal"]
-assertion_contract = "On an ordinary wheel the joint session is the closed calibration-internal route (CausalUnsupportedError route_not_supported naming the calibration-internal build); on a calibration-internal wheel the same test pins the conjugate Gaussian algebra, the counted solves and the retained fit."
+assertion_contract = "The joint session pins the conjugate Gaussian algebra of the shared-block model, the counted solves and the retained fit."
 
 [[capability.evidence]]
 test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work"
-assertion_scopes = ["test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work", "assert_joint_route_frozen"]
+assertion_scopes = ["test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work"]
 dimensions = ["refusal"]
-assertion_contract = "On an ordinary wheel the closed route is asserted route_not_supported; on a calibration-internal wheel a used prior bank and an oversized bank are refused without disturbing the retained fit and invalid declarations raise CausalValueError."
+assertion_contract = "A used prior bank and an oversized bank are refused without disturbing the retained fit, and invalid declarations raise CausalValueError."
 
 [[capability]]
 id = "analysis.recalc_receipt.execute_with_receipt"
@@ -4537,12 +4537,12 @@ assertion_contract = "The split effect adjusts for the treatment's parents (z1, 
 test = "python/tests/test_sample_split_effect.py::test_an_unresolved_structure_reports_no_interval"
 assertion_scopes = ["test_an_unresolved_structure_reports_no_interval"]
 dimensions = ["refusal"]
-assertion_contract = "An unresolved structure is not_supported / split_effect.structure_unresolved."
+assertion_contract = "An unresolved structure is discovered_structure_unresolved / split_effect.structure_unresolved."
 [[capability.evidence]]
-test = "python/tests/test_sample_split_effect.py::test_a_table_outside_five_to_seven_variables_is_refused"
-assertion_scopes = ["test_a_table_outside_five_to_seven_variables_is_refused"]
+test = "python/tests/test_sample_split_effect.py::test_a_table_outside_five_to_seven_variables_is_not_refused_for_its_count"
+assertion_scopes = ["test_a_table_outside_five_to_seven_variables_is_not_refused_for_its_count"]
 dimensions = ["refusal"]
-assertion_contract = "A three-variable table is not_supported / split_effect.variable_count_not_measured."
+assertion_contract = "A three-variable table is never refused for its variable count (split_effect.variable_count_not_measured is not raised)."
 
 [[capability]]
 id = "analysis.sample_split_effect.measure_source"
@@ -4556,16 +4556,16 @@ deferred_to = "the sample-split effect coverage record being measured and attest
 deferred_dimensions = ["success"]
 
 [[capability.evidence]]
-test = "python/tests/test_sample_split_effect.py::test_an_interval_outside_the_measured_row_range_is_never_attested"
-assertion_scopes = ["test_an_interval_outside_the_measured_row_range_is_never_attested"]
-dimensions = ["refusal"]
-assertion_contract = "Measuring a split effect outside the measured row range is refused not_supported measured_inference.record_not_attesting (registered refusal), never an attested interval."
+test = "python/tests/test_sample_split_effect.py::test_an_interval_outside_the_measured_row_range_is_reported_uncalibrated"
+assertion_scopes = ["test_an_interval_outside_the_measured_row_range_is_reported_uncalibrated"]
+dimensions = ["branch"]
+assertion_contract = "Measuring a split effect outside the measured row range reports the interval bracketing the point with a calibration status that is not calibrated."
 
 [[capability.evidence]]
 test = "python/tests/test_sample_split_effect.py::test_an_unresolved_structure_reports_no_interval"
 assertion_scopes = ["test_an_unresolved_structure_reports_no_interval"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "A structure the split leaves unresolved reports no interval: not_supported split_effect.structure_unresolved."
+assertion_contract = "A structure the split leaves unresolved reports no interval: discovered_structure_unresolved split_effect.structure_unresolved."
 
 [[capability]]
 id = "analysis.sample_split_parent_set_effect.estimate_parent_set_effect"
@@ -4633,10 +4633,10 @@ deferred_to = "the sample-split parent-set coverage record being measured and at
 deferred_dimensions = ["success"]
 
 [[capability.evidence]]
-test = "python/tests/test_sample_split_parent_set_effect.py::test_an_unmeasured_variable_count_is_computed_and_never_attested"
-assertion_scopes = ["test_an_unmeasured_variable_count_is_computed_and_never_attested"]
+test = "python/tests/test_sample_split_parent_set_effect.py::test_an_unmeasured_variable_count_is_computed_and_reported_uncalibrated"
+assertion_scopes = ["test_an_unmeasured_variable_count_is_computed_and_reported_uncalibrated"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "Twelve variables lie between measured counts: the estimate is computed under its own functional key (total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path) and measure() is refused not_supported measured_inference.record_not_attesting rather than borrowing another count's record."
+assertion_contract = "Twelve variables lie between measured counts: the estimate is computed under its own functional key (total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path) and measure() reports its interval annotated not calibrated rather than borrowing another count's record."
 
 [[capability]]
 id = "analysis.selective_discovery.accepted_graph_stage_identity"
@@ -5239,7 +5239,7 @@ required_dimensions = ["refusal", "inspection", "branch"]
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_is_closed_with_every_missing_gate"
 assertion_scopes = ["test_transported_route_is_closed_with_every_missing_gate"]
 dimensions = ["refusal", "inspection"]
-assertion_contract = "With every gate missing the route refuses not_supported transported_counterfactual.route_frozen, offending transport_support_missing, retains all three missing gates and both missing factors, stage identify, with a remedy."
+assertion_contract = "With every gate missing the route refuses transport_missing_evidence transported_counterfactual.prerequisite_missing, offending transport_support_missing, retains all three missing gates and both missing factors, stage identify, with a remedy."
 [[capability.evidence]]
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_reports_only_the_gates_still_missing"
 assertion_scopes = ["test_transported_route_reports_only_the_gates_still_missing"]
@@ -5254,7 +5254,7 @@ assertion_contract = "With every gate passed and a factor absent the refusal is 
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present"
 assertion_scopes = ["test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present"]
 dimensions = ["refusal", "branch"]
-assertion_contract = "With every gate and factor present the route still refuses not_supported route_frozen with no offending gate."
+assertion_contract = "With every gate and factor present the route still refuses route_not_supported transported_counterfactual.joint_theorem_not_derived with no offending gate."
 [[capability.evidence]]
 test = "python/tests/test_temporal_counterfactual.py::test_transported_route_refusal_names_the_successor_route_and_its_scope"
 assertion_scopes = ["test_transported_route_refusal_names_the_successor_route_and_its_scope"]
@@ -5845,10 +5845,10 @@ assertion_scopes = ["test_dependent_interval_validates_its_arguments_before_clos
 dimensions = ["refusal", "controls"]
 assertion_contract = "Unknown units, too few units, too many replicates, too few replicates and out-of-range fixed states each refuse with their own registered code and temporal_interval.* detail before the route closes."
 [[capability.evidence]]
-test = "python/tests/test_temporal_extensions.py::test_internal_candidate_route_is_closed_after_real_validation"
-assertion_scopes = ["test_internal_candidate_route_is_closed_after_real_validation"]
+test = "python/tests/test_temporal_extensions.py::test_internal_candidate_route_reports_an_interval_after_real_validation"
+assertion_scopes = ["test_internal_candidate_route_reports_an_interval_after_real_validation"]
 dimensions = ["refusal"]
-assertion_contract = "Valid requests for every estimand refuse not_supported temporal_interval.route_frozen after validation."
+assertion_contract = "Valid requests for every estimand report the interval after validation; calibration only annotates it."
 
 [[capability]]
 id = "callback_plan.mark_python_callback_plan"
@@ -8484,15 +8484,15 @@ deferred_dimensions = ["success"]
 
 [[capability.evidence]]
 test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit"
-assertion_scopes = ["test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit", "assert_joint_route_frozen"]
+assertion_scopes = ["test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit"]
 dimensions = ["refusal"]
-assertion_contract = "On an ordinary wheel the joint session is the closed calibration-internal route (CausalUnsupportedError route_not_supported naming the calibration-internal build); on a calibration-internal wheel the same test pins the conjugate Gaussian algebra, the counted solves and the retained fit."
+assertion_contract = "The joint session pins the conjugate Gaussian algebra of the shared-block model, the counted solves and the retained fit."
 
 [[capability.evidence]]
 test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work"
-assertion_scopes = ["test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work", "assert_joint_route_frozen"]
+assertion_scopes = ["test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work"]
 dimensions = ["refusal"]
-assertion_contract = "On an ordinary wheel the closed route is asserted route_not_supported; on a calibration-internal wheel a used prior bank and an oversized bank are refused without disturbing the retained fit and invalid declarations raise CausalValueError."
+assertion_contract = "A used prior bank and an oversized bank are refused without disturbing the retained fit, and invalid declarations raise CausalValueError."
 
 [[capability]]
 id = "analysis.recalc_receipt.RecalcSession"
@@ -8627,7 +8627,7 @@ assertion_contract = "102,400 history rows give the 640-unit means and a 1 MB me
 test = "python/tests/test_recalc_temporal.py::test_temporal_unmeasured_history_protocol_preserves_source_state"
 assertion_scopes = ["test_temporal_unmeasured_history_protocol_preserves_source_state"]
 dimensions = ["refusal", "lifecycle"]
-assertion_contract = "The dependent interval refuses not_supported temporal_interval.route_frozen and leaves identities and reuse unchanged."
+assertion_contract = "The default dependent interval on an unbalanced history refuses route_not_supported (recalc.temporal_history_unsupported), a percentile request outside the measured protocol is reported annotated not_measured, and identities and reuse stay unchanged."
 [[capability.evidence]]
 test = "python/tests/test_recalc_temporal.py::test_temporal_source_artifact_independent_fresh_process_rebuild"
 assertion_scopes = ["test_temporal_source_artifact_independent_fresh_process_rebuild"]
@@ -8857,7 +8857,7 @@ assertion_contract = "Attested independent innovations support the ordinary read
 test = "python/tests/test_posterior_boundaries.py::test_unmodeled_serial_dependence_refuses_the_ordinary_reading"
 assertion_scopes = ["test_unmodeled_serial_dependence_refuses_the_ordinary_reading"]
 dimensions = ["refusal"]
-assertion_contract = "Unmodeled serial dependence is refused with not_supported and the temporal_curve.ordinary_posterior_not_supported detail naming the autoregressive innovation law as the next attempt."
+assertion_contract = "Unmodeled serial dependence is refused with distribution_meaning_mismatch and the temporal_curve.ordinary_posterior_not_supported detail naming the autoregressive innovation law as the next attempt."
 
 [[capability]]
 id = "analysis.posterior_boundaries.trajectory_hazard_credible_interval"
@@ -8871,7 +8871,7 @@ required_dimensions = ["refusal", "inspection"]
 test = "python/tests/test_posterior_boundaries.py::test_credible_interval_always_refuses_and_names_the_missing_likelihood"
 assertion_scopes = ["test_credible_interval_always_refuses_and_names_the_missing_likelihood"]
 dimensions = ["refusal", "inspection"]
-assertion_contract = "The credible interval is always refused with not_supported and the trajectory_survival.credible_interval_not_supported detail naming the joint likelihood and g-formula as the next attempt; invalid trajectories raise a data error instead of the boundary refusal."
+assertion_contract = "The credible interval is always refused with route_not_supported and the trajectory_survival.credible_interval_not_supported detail naming the joint likelihood and g-formula as the next attempt; invalid trajectories raise a data error instead of the boundary refusal."
 
 [[capability]]
 id = "analysis.posterior_boundaries.trajectory_survival_bootstrap"
@@ -14322,7 +14322,7 @@ assertion_contract = "One-hot terms select the level with hand values 3.5, 2.0 a
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
 dimensions = ["refusal"]
-assertion_contract = "Queries outside the support, missing, unknown, non-finite or mistyped refuse with not_supported and the exact compact_export details."
+assertion_contract = "Queries outside the support, missing, unknown, non-finite or mistyped refuse with invalid_argument and the exact compact_export details."
 
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_verifier_round_trip_matches_the_producer"
@@ -15035,7 +15035,7 @@ assertion_contract = "Every estimate is labelled model_based_sqrt_phi_v_phi with
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
 dimensions = ["refusal"]
-assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse not_supported with their exact compact_export details."
+assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse invalid_argument with their exact compact_export details."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_verifier_round_trip_matches_the_producer"
 assertion_scopes = ["test_compact_verifier_round_trip_matches_the_producer"]
@@ -15387,7 +15387,7 @@ assertion_contract = "The result and the body scope state point prediction with 
 test = "python/tests/test_compact_export.py::test_compact_out_of_support_queries_refuse_with_exact_details"
 assertion_scopes = ["test_compact_out_of_support_queries_refuse_with_exact_details"]
 dimensions = ["refusal"]
-assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse with not_supported and the exact compact_export details and offending quantity."
+assertion_contract = "Out-of-support, missing, unknown, non-finite and mistyped queries refuse with invalid_argument and the exact compact_export details and offending quantity."
 [[capability.evidence]]
 test = "python/tests/test_compact_export.py::test_compact_masked_region_refuses_even_inside_the_support"
 assertion_scopes = ["test_compact_masked_region_refuses_even_inside_the_support"]

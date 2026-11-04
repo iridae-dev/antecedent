@@ -21,7 +21,7 @@ The same observation row is never counted twice, between a source and the respon
 
 ## Intervals
 
-`interval()` refuses with `not_supported`. `measured_interval(request)` builds the interval of one result for the measured choice cells (the routes below) and binds it to a currently attesting coverage record. No record exists yet, so it refuses with `not_supported` for every study. The cells are Dirichlet share intervals of the pooled posterior (final-only, and looks under an efficacy or decision-theoretic rule) and the hierarchical population-share interval (final-only and looks under a decision-theoretic rule).
+`interval()` refuses (`quantity_semantics_mismatch`): an interval belongs to one named result. `measured_interval(request)` builds the interval of one result and reports it with its calibration status. The measured choice cells (the routes below) resolve against the current coverage records; a study outside them still reports its interval, annotated `not_measured`, and until a record exists every study is `not_measured`. Only a stopping decision has no interval (`route_not_supported`). The measured cells are Dirichlet share intervals of the pooled posterior (final-only, and looks under an efficacy or decision-theoretic rule) and the hierarchical population-share interval (final-only and looks under a decision-theoretic rule).
 
 ## Verification
 

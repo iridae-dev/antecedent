@@ -15,8 +15,11 @@
 //! never takes cannot be evaluated from the log. Every logged action and
 //! observation is recorded once in the evidence ledger.
 //!
-//! The result is a point estimate. Its standard error is an uncalibrated
-//! diagnostic of the weighted returns; no interval is produced.
+//! The result is the point estimate with a Wald interval from the standard error of
+//! the weighted returns, `mean(w G) +- z * sqrt(var(w G) / n)` with `z` the normal
+//! quantile of the nominal level ([`OFF_POLICY_INTERVAL_LEVEL`]). The interval treats the
+//! weighted returns as independent and the normal approximation as adequate; no coverage
+//! record measures it, so it is reported with the calibration status `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,6 +27,9 @@ use antecedent_contract::evidence_ledger::{
     EvidenceLedger, MAX_OBSERVATIONS_PER_SOURCE, ObservationId, SourceDeclaration, SourceKind,
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
+use antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED;
+use antecedent_io_core::contract_section::CalibrationSlotWire;
+use antecedent_stats::special::normal_ppf;
 
 use super::belief::{branch_for, from_ledger, record_id};
 use super::gformula::{EvaluationLimits, walk};
@@ -59,7 +65,44 @@ pub struct LoggedTrajectory {
     pub outcome_utility: f64,
 }
 
-/// A point estimate of a policy's value from logged trajectories.
+/// Nominal level of the Wald interval of an importance-weighted estimate.
+pub const OFF_POLICY_INTERVAL_LEVEL: f64 = 0.95;
+
+/// A Wald interval of an importance-weighted estimate with its calibration status.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OffPolicyInterval {
+    /// Nominal level.
+    pub level: f64,
+    /// Lower limit `ordinary - z * se`.
+    pub lower: f64,
+    /// Upper limit `ordinary + z * se`.
+    pub upper: f64,
+    /// Calibration of the interval: no coverage record measures the importance-weighted
+    /// construction, so it is `not_measured`.
+    pub calibration: CalibrationSlotWire,
+}
+
+impl OffPolicyInterval {
+    /// The Wald interval `estimate +- z * standard_error` at `level`.
+    #[must_use]
+    pub fn wald(estimate: f64, standard_error: f64, level: f64) -> Self {
+        let half = normal_ppf(0.5 + level / 2.0) * standard_error;
+        Self {
+            level,
+            lower: estimate - half,
+            upper: estimate + half,
+            calibration: Self::calibration_slot(),
+        }
+    }
+
+    /// The calibration slot of every importance-weighted interval.
+    #[must_use]
+    pub fn calibration_slot() -> CalibrationSlotWire {
+        CalibrationSlotWire::not_measured(CONSTRUCTION_NOT_MEASURED)
+    }
+}
+
+/// A policy value from logged trajectories, with an interval from its standard error.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OffPolicyEstimate {
     /// Ordinary importance-weighted estimate `mean(w G)`.
@@ -74,9 +117,11 @@ pub struct OffPolicyEstimate {
     /// Trajectories used.
     pub trajectories: u64,
     /// Standard error of the ordinary estimate treating the weighted returns
-    /// as independent; `None` below two trajectories. An uncalibrated
-    /// diagnostic, never an interval.
+    /// as independent; `None` below two trajectories.
     pub uncalibrated_standard_error: Option<f64>,
+    /// Wald interval of the ordinary estimate at [`OFF_POLICY_INTERVAL_LEVEL`], with its
+    /// calibration status; `None` below two trajectories.
+    pub interval: Option<OffPolicyInterval>,
     /// Target policy version.
     pub policy_version: String,
     /// Target policy identity (hex).
@@ -436,6 +481,8 @@ pub fn evaluate_off_policy(
         ));
     }
     *ledger = staged;
+    let interval = uncalibrated_standard_error
+        .map(|se| OffPolicyInterval::wald(ordinary, se, OFF_POLICY_INTERVAL_LEVEL));
     Ok(OffPolicyEstimate {
         ordinary,
         self_normalized: sum_wg / sum_w,
@@ -443,6 +490,7 @@ pub fn evaluate_off_policy(
         max_weight,
         trajectories: n as u64,
         uncalibrated_standard_error,
+        interval,
         policy_version: target.version().to_owned(),
         policy_identity: target.identity_hex(),
         behaviour_version: behaviour.version().to_owned(),

@@ -128,7 +128,8 @@ pub(crate) fn condition(
 /// query's treatments and conditioned variables.
 ///
 /// # Errors
-/// Counted laws (`not_supported`, `admg_transport.counted_laws_unsupported`), a
+/// Counted laws (`not_supported`, `admg_transport.counted_laws_unsupported`; a development
+/// build runs them), a
 /// request that does not bind exactly those coordinates
 /// (`admg_transport.invalid_request`), provider/catalog disagreement, or a
 /// compile-time resource limit.
@@ -139,15 +140,15 @@ pub fn prepare_exact_admg_conditional_transport(
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<AdmgConditionalExactPlan, EstimationError> {
-    // Counted laws would make the point an empirical plug-in, which this route
-    // does not support (no coverage record): refused before anything compiles,
-    // as the facade and Python preparations refuse them.
+    // Counted laws would make the point an empirical plug-in, which this route has no
+    // coverage record for: gated before anything compiles, as the facade and Python
+    // preparations gate them.
     if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-        return Err(EstimationError::refused_detail(
-            antecedent_core::reason_code!("not_supported"),
+        antecedent_core::support_gate::require_supported(
+            ctx,
             "admg_transport.counted_laws_unsupported",
-            "counted laws are not supported; the route publishes exact-law points only",
-        ));
+            &["admg_conditional.counted_law_plugin_check"],
+        )?;
     }
     let (joint_request, conditioning) = split_request(functional, request)?;
     let joint =

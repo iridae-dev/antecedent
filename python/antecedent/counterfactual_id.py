@@ -177,7 +177,7 @@ def _graph_edges(graph: object) -> tuple[list[str], list[tuple[str, str]], list[
             "counterfactual_id.graph_outside_contract: only a supplied explicit Admg or Dag "
             "is supported; accepted, uncertain, equivalence-class and temporal structures "
             "are refused",
-            reason_code="not_supported",
+            reason_code="route_not_supported",
         )
     raise CausalTypeError("graph must be an Admg or a Dag")
 

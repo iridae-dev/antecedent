@@ -1273,7 +1273,7 @@ pub fn parity_row(route: ParityRoute) -> &'static ParityRow {
 /// Admit a paradigm request on a route, or refuse it by its typed closed row.
 ///
 /// # Errors
-/// [`BridgeRefusal`] with `not_supported`, [`DETAIL_PARADIGM_CLOSED`] and
+/// [`BridgeRefusal`] with `route_not_supported`, [`DETAIL_PARADIGM_CLOSED`] and
 /// the row's reason as the remedy when the route is closed to the paradigm.
 pub fn require_paradigm(
     route: ParityRoute,
@@ -1287,7 +1287,7 @@ pub fn require_paradigm(
     match cell {
         ParadigmCell::Supported(what) => Ok(what),
         ParadigmCell::Closed(reason) => Err(BridgeRefusal::new(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("route_not_supported"),
             DETAIL_PARADIGM_CLOSED,
             format!("{}:{}", route.as_str(), paradigm.as_str()),
             reason,

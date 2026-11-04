@@ -142,12 +142,17 @@ fn support_failure(
     )
 }
 
-fn unsupported(
+fn invalid_input(
     detail: &'static str,
     subject: impl Into<String>,
     remedy: &'static str,
 ) -> TransportRefusal {
-    TransportRefusal::new(antecedent_core::reason_code!("not_supported"), detail, subject, remedy)
+    TransportRefusal::new(
+        antecedent_core::reason_code!("invalid_argument"),
+        detail,
+        subject,
+        remedy,
+    )
 }
 
 /// A request the transported cohort mean cannot answer.
@@ -164,12 +169,13 @@ impl TransportedRequest {
     #[must_use]
     pub fn refusal(self) -> TransportRefusal {
         match self {
-            Self::Interval => unsupported(
+            Self::Interval => TransportRefusal::new(
+                antecedent_core::reason_code!("route_not_supported"),
                 "transported_effect.interval_not_supported",
                 "interval",
                 "none available: the transported value is point-only under a declared premise; \
-                 an interval needs measured whole-method coverage that includes the transport \
-                 step and the support check",
+                 an interval needs a variance that includes the transport step and the support \
+                 check, and measured whole-method coverage of that construction",
             ),
             Self::Law => TransportRefusal::new(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
@@ -658,7 +664,7 @@ pub fn transport_cohort_effect(
     cohort.validate()?;
     check_model(effect, feature_names, model_identity, model_population)?;
     let Some(support) = &effect.support else {
-        return Err(unsupported(
+        return Err(invalid_input(
             "transported_effect.support_contract_absent",
             "fitted_effect.support",
             "refit with a producer that retains the fitted-row support contract; overlap \
@@ -716,7 +722,7 @@ pub fn transport_cohort_effect(
     let ids: Vec<VariableId> = effect.features.iter().map(|v| VariableId::from_raw(*v)).collect();
     let row_contrasts =
         effect.predict(&ids, &ordered, cohort.weights.len(), ctx).map_err(|error| {
-            unsupported(
+            invalid_input(
                 "transported_effect.prediction_refused",
                 error.to_string(),
                 "the retained model could not predict at these rows; check the cohort features",
@@ -725,7 +731,7 @@ pub fn transport_cohort_effect(
     let mean_contrast =
         TargetCohort::total(row_contrasts.iter().zip(&cohort.weights).map(|(v, w)| v * w));
     if !mean_contrast.is_finite() {
-        return Err(unsupported(
+        return Err(invalid_input(
             "transported_effect.non_finite_result",
             "mean_contrast",
             "the cohort mean is not finite; check the model and the cohort",

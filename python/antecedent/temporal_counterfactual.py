@@ -921,13 +921,15 @@ def transported_path_specific(
     not passed. Nothing is evaluated whatever is supplied.
 
     The refusal is :class:`~antecedent.temporal.TemporalRefusal` with
-    ``reason_code="not_supported"`` and detail ``transported_counterfactual.route_frozen``
-    (``offending`` is the first missing gate) while a prerequisite gate is missing, and also
-    when every gate passes and every regime factor is present. When every gate passes but a
-    required factor (``"source:<regime>"`` / ``"target:<regime>"``) is absent from
-    ``supplied_factors`` (factor -> evidence id) it is ``reason_code="transport_missing_evidence"``
-    with ``transported_counterfactual.factor_missing``. ``missing_gates`` and
-    ``missing_factors`` are retained either way.
+    ``reason_code="transport_missing_evidence"`` and detail
+    ``transported_counterfactual.prerequisite_missing`` (``offending`` is the first missing
+    gate) while a prerequisite gate is missing. When every gate passes but a required factor
+    (``"source:<regime>"`` / ``"target:<regime>"``) is absent from ``supplied_factors``
+    (factor -> evidence id) it is ``reason_code="transport_missing_evidence"`` with
+    ``transported_counterfactual.factor_missing``. When every gate passes and every regime
+    factor is present it is ``reason_code="route_not_supported"`` with
+    ``transported_counterfactual.joint_theorem_not_derived``: no joint theorem is derived.
+    ``missing_gates`` and ``missing_factors`` are retained in every case.
 
     The refusal's ``remedy`` names the successor route for the scope in which an answer
     exists: a finite discrete, static, acyclic semi-Markovian counterfactual transport
@@ -951,6 +953,6 @@ def transported_path_specific(
         TemporalRefusal,
     )
     raise CausalUnsupportedError(  # pragma: no cover - the native route always refuses
-        "transported_counterfactual.route_frozen: the transported route is closed",
-        reason_code="not_supported",
+        "transported_counterfactual.joint_theorem_not_derived: the transported route has no method",
+        reason_code="route_not_supported",
     )

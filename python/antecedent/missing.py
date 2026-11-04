@@ -348,7 +348,7 @@ class GraphSelectionImputationResult:
 
     ``effect`` and ``posterior_sd`` summarise the equal-weight stack of the completed tables'
     effect posteriors, each a mixture over that table's own graph posterior. An interval is
-    withheld until the combined procedure has a supported uncertainty route.
+    not reported: the combined procedure has no independent construction check of its interval.
     ``points`` are the tables' posterior means. Three things stay apart: ``within`` is the mean
     posterior variance inside a table, ``between`` is the spread of the table means (the
     uncertainty the missing cells and the changing selected structure add), and ``assumption``
@@ -485,7 +485,7 @@ class CompiledGraphImputationResult:
     """Model-conditional diagnostics; the mean and SD alone carry no interval or coverage claim.
 
     :meth:`interval` and :meth:`measured` replay the original source through the measured
-    route, which is supported only where a current attesting coverage record covers the
+    route, which reports ``calibrated`` only where a current coverage record covers the
     construction and row count.
     """
 
@@ -498,8 +498,8 @@ class CompiledGraphImputationResult:
     def measured(self) -> MeasuredInference:
         """The calibrated report of this execution's original source.
 
-        Raises :class:`GraphSelectionImputationRefusal` with ``not_supported`` unless a
-        current attesting coverage record covers this construction and row count.
+        The calibration status is ``calibrated`` only when a current coverage record covers
+        this construction and row count.
         """
         from ._measured_inference import MeasuredInference
 

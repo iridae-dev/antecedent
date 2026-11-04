@@ -273,7 +273,7 @@ fn an_unsupported_target_withdraws_only_what_rests_on_its_support() {
 }
 
 #[test]
-fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused() {
+fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_withdrawn_not_refused() {
     let before = build(&params());
     // the upstream result no longer states a guarantee: point value only
     let after =
@@ -288,9 +288,8 @@ fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused() {
     // the point value was never touched: the claim is withdrawn for calibration only
     assert!(reported.numerical.is_empty());
     assert!(reported.withdrawn_for(WithdrawalKind::Calibration));
-    let refusal = r.require_valid("reported_effect").expect_err("refused");
-    assert_eq!(refusal.code, "not_supported");
-    assert_eq!(refusal.detail, "composition_verification.calibration_not_held");
+    // a lost calibration annotates the interval; the claim is not refused
+    assert!(r.require_valid("reported_effect").is_ok());
     // a point-only dependent does not lose its value to a calibration withdrawal
     assert_eq!(r.claim("decision").expect("claim").class, Revalidation::StillValid);
     assert_eq!(r.claim("result").expect("claim").class, Revalidation::StillValid);

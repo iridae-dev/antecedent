@@ -15,7 +15,7 @@ import math
 import struct
 
 import pytest
-from antecedent import Admg
+from antecedent import Admg, build_flavor
 from antecedent.errors import (
     CausalCancelledError,
     CausalSerializationError,
@@ -314,6 +314,10 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
 
 def test_counted_laws_are_not_supported_on_the_conditional_route():
     stage = decide()
+    if build_flavor() == "development":
+        # A development build runs the route and records would_refuse.
+        stage.prepare_empirical(laws(), REQUESTS)
+        return
     with pytest.raises(
         CausalUnsupportedError, match="admg_transport.counted_laws_unsupported"
     ) as info:

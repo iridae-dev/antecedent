@@ -490,6 +490,7 @@ impl NativeCohortFit {
 #[must_use]
 pub fn declared_export_refusal() -> CohortIntervalRefusal {
     refusal(
+        antecedent_core::reason_code!("route_not_supported"),
         DETAIL_REQUIRES_NATIVE_FIT,
         "compact_export",
         "the coefficients and covariance were declared by the caller; fit the effect \
@@ -542,13 +543,13 @@ pub struct CohortMeanInterval {
     pub cohort_rows: u64,
 }
 
-fn refusal(detail: &'static str, subject: &str, remedy: &'static str) -> CohortIntervalRefusal {
-    CohortIntervalRefusal {
-        code: antecedent_core::reason_code!("not_supported"),
-        detail,
-        subject: subject.to_owned(),
-        remedy,
-    }
+fn refusal(
+    code: &'static str,
+    detail: &'static str,
+    subject: &str,
+    remedy: &'static str,
+) -> CohortIntervalRefusal {
+    CohortIntervalRefusal { code, detail, subject: subject.to_owned(), remedy }
 }
 
 /// The interval of `source`, which must be the unshifted decision source built from
@@ -568,6 +569,7 @@ pub fn native_cohort_interval(
 ) -> Result<CohortMeanInterval, CohortIntervalRefusal> {
     if !(level.is_finite() && level > 0.0 && level < 1.0) {
         return Err(refusal(
+            antecedent_core::reason_code!("invalid_argument"),
             DETAIL_LEVEL_INVALID,
             "level",
             "request a two-sided level strictly between 0 and 1",
@@ -577,6 +579,7 @@ pub fn native_cohort_interval(
     let fit = native.size();
     if source.shift().is_some() {
         return Err(refusal(
+            antecedent_core::reason_code!("route_not_supported"),
             DETAIL_NOT_SUPPORTED,
             "declared_covariate_shift",
             "a shifted cohort is point-only; evaluate a cohort of the model's own \
@@ -587,6 +590,7 @@ pub fn native_cohort_interval(
         .is_ok_and(|model| model.identity() == source.model().identity());
     let Some(diagnostic) = source.uncalibrated_standard_error() else {
         return Err(refusal(
+            antecedent_core::reason_code!("route_not_supported"),
             DETAIL_NOT_SUPPORTED,
             "model",
             "the source retains no coefficient covariance",
@@ -594,6 +598,7 @@ pub fn native_cohort_interval(
     };
     if !bound || !source.model().is_linear_compact() {
         return Err(refusal(
+            antecedent_core::reason_code!("invalid_argument"),
             DETAIL_NOT_SUPPORTED,
             "source",
             "build the decision source from exactly the exported native fit",
@@ -605,6 +610,7 @@ pub fn native_cohort_interval(
     let point = source.mean_contrast();
     if !half.is_finite() {
         return Err(refusal(
+            antecedent_core::reason_code!("route_not_supported"),
             DETAIL_NOT_SUPPORTED,
             "interval",
             "the interval is not finite; refit with more rows",

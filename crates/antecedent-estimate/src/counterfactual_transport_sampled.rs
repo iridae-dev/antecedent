@@ -17,8 +17,10 @@
 //! 4. *Statistical inference*: the delta-method standard error
 //!    (`uncalibrated_standard_error`) and the clamped Wald interval of
 //!    [`sampled_transport_interval`], reported with a calibration annotation
-//!    resolved from the interval's basis. The `inference.interval` slot is a
-//!    legacy field kept for stored artifacts.
+//!    resolved from the interval's basis. The `inference.interval` slot states whether
+//!    that interval is computable; when it is not (a partial identification, an
+//!    undefined observed formula, a non-finite variance) the slot carries the
+//!    scientific reason code and the reason.
 //!
 //! # Evidence
 //!
@@ -138,9 +140,9 @@ pub(crate) const DETAIL_ENVELOPE_BUDGET: &str = "counterfactual_transport_sample
 pub(crate) const DETAIL_CANCELLED: &str = "counterfactual_transport_sampled.cancelled";
 pub(crate) const DETAIL_ENVELOPE_EMPTY: &str =
     "counterfactual_transport_sampled.envelope_undefined";
-/// Detail of the withheld interval.
-pub const DETAIL_INTERVAL_NOT_SUPPORTED: &str =
-    "counterfactual_transport_sampled.interval_not_supported";
+/// Detail of an interval that cannot be computed.
+pub const DETAIL_INTERVAL_NOT_COMPUTABLE: &str =
+    "counterfactual_transport_sampled.interval_not_computable";
 
 pub(crate) fn refused(
     code: &'static str,
@@ -190,8 +192,11 @@ pub const LABEL_PLUG_IN: &str = "plug_in_point_estimate";
 pub const LABEL_SMOOTHED_PLUG_IN: &str = "smoothed_plug_in_point_estimate";
 /// No point estimate: a structural envelope only.
 pub const LABEL_ENVELOPE_ONLY: &str = "structural_envelope_no_point_estimate";
-/// Inference withheld: no coordinate has measured coverage.
-pub const LABEL_INFERENCE_WITHHELD: &str = "withheld_not_supported";
+/// Inference: the delta standard error is uncalibrated and the Wald interval of
+/// [`sampled_transport_interval`] carries a calibration status.
+pub const LABEL_INFERENCE_INTERVAL: &str = "delta_wald_interval_calibration_annotated";
+/// Inference: no interval can be computed for this estimate, a scientific outcome.
+pub const LABEL_INFERENCE_NOT_COMPUTABLE: &str = "interval_not_computable";
 
 /// A plug-in value and its parts.
 #[derive(Clone, Debug, PartialEq)]
@@ -227,16 +232,24 @@ pub struct UncalibratedStandardError {
     pub datasets: usize,
 }
 
-/// Legacy closed-interval slot kept for stored artifacts; the interval is
-/// [`sampled_transport_interval`].
+/// Whether the delta Wald interval of a sampled result can be computed.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WithheldUncertainty {
-    /// Always `not_supported`.
-    pub code: &'static str,
-    /// Always [`DETAIL_INTERVAL_NOT_SUPPORTED`].
-    pub detail: &'static str,
-    /// Calibration reason: `estimator_grid_not_measured`.
-    pub reason: &'static str,
+pub enum SampledIntervalOutcome {
+    /// The point and the standard error exist: [`sampled_transport_interval`] returns the
+    /// interval and its calibration annotation is resolved from the interval's basis.
+    Reported,
+    /// No interval exists for this estimate: a scientific outcome, not a calibration gap.
+    NotComputable {
+        /// Registered reason code: `effect_not_identified` for a partial identification,
+        /// `transport_support_failure` when the observed shares leave the formula undefined,
+        /// `transport_numerical_failure` for an undefined perturbed evaluation or a
+        /// non-finite variance.
+        code: &'static str,
+        /// Always [`DETAIL_INTERVAL_NOT_COMPUTABLE`].
+        detail: &'static str,
+        /// The stable reason the point or the standard error is absent.
+        reason: &'static str,
+    },
 }
 
 /// Statistical inference of a sampled result: the standard error; the interval is
@@ -249,8 +262,8 @@ pub struct SampledInference {
     pub standard_error: Option<UncalibratedStandardError>,
     /// Why no standard error is reported, when it is not.
     pub standard_error_withheld_reason: Option<&'static str>,
-    /// The closed interval route.
-    pub interval: WithheldUncertainty,
+    /// Whether the interval of [`sampled_transport_interval`] exists.
+    pub interval: SampledIntervalOutcome,
 }
 
 /// Per-table accounting of how its law was produced.
@@ -317,7 +330,7 @@ pub struct SampledCounterfactualTransportEstimate {
     pub repairs: SampledRepairs,
     /// Regime-law cells read by the point evaluation.
     pub cells_read: u64,
-    /// Statistical inference: standard error uncalibrated, interval withheld.
+    /// Statistical inference: the uncalibrated standard error and whether the interval exists.
     pub inference: SampledInference,
 }
 
@@ -888,6 +901,30 @@ pub fn estimate_sampled_counterfactual_transport(
         }
     };
 
+    let interval = match (&point, &standard_error) {
+        (Some(_), Some(_)) => SampledIntervalOutcome::Reported,
+        _ => {
+            let (code, reason) = if envelope.is_some() {
+                (
+                    antecedent_core::reason_code!("effect_not_identified"),
+                    standard_error_withheld_reason,
+                )
+            } else if point.is_none() {
+                (antecedent_core::reason_code!("transport_support_failure"), point_withheld_reason)
+            } else {
+                (
+                    antecedent_core::reason_code!("transport_numerical_failure"),
+                    standard_error_withheld_reason,
+                )
+            };
+            SampledIntervalOutcome::NotComputable {
+                code,
+                detail: DETAIL_INTERVAL_NOT_COMPUTABLE,
+                reason: reason.unwrap_or("no_standard_error"),
+            }
+        }
+    };
+
     let mut dataset_of = Vec::with_capacity(tables.len());
     while dataset_of.len() < tables.len() {
         work.charge(0)?;
@@ -972,7 +1009,11 @@ pub fn estimate_sampled_counterfactual_transport(
             structural_identification: LABEL_IDENTIFIED,
             exact_finite_law_evaluation: LABEL_EXACT_ON_ESTIMATED_TABLES,
             point_estimate: point_label,
-            statistical_inference: LABEL_INFERENCE_WITHHELD,
+            statistical_inference: if matches!(interval, SampledIntervalOutcome::Reported) {
+                LABEL_INFERENCE_INTERVAL
+            } else {
+                LABEL_INFERENCE_NOT_COMPUTABLE
+            },
         },
         derivation_identity,
         evidence_identity,
@@ -988,11 +1029,7 @@ pub fn estimate_sampled_counterfactual_transport(
             method: SAMPLED_TRANSPORT_UNCERTAINTY_METHOD,
             standard_error,
             standard_error_withheld_reason,
-            interval: WithheldUncertainty {
-                code: antecedent_core::reason_code!("not_supported"),
-                detail: DETAIL_INTERVAL_NOT_SUPPORTED,
-                reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
-            },
+            interval,
         },
     })
 }

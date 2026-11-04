@@ -198,7 +198,10 @@ fn identify_tiered_structure(
                     antecedent_identify::IdentificationError::UnsupportedQuery { .. }
                 )
             {
-                crate::refusal(antecedent_core::reason_code!("not_supported"), error.to_string())
+                crate::refusal(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    error.to_string(),
+                )
             } else {
                 crate::py_err(antecedent::CausalError::from(error))
             }

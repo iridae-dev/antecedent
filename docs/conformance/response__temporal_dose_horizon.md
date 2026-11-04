@@ -62,9 +62,8 @@ multi-step Sustained is not evidenced here.
 
 ## Bands
 
-The pre-1.9 fixture pinned an analytic delta-method band (`surface.lower` /
-`surface.upper`, removed in 1.9; see git history at `0b907cb5`). That band
-treated lag-aligned rows as independent and is no longer published: with zero
+An analytic delta-method band would treat lag-aligned rows as independent, so
+it is not published: with zero
 bootstrap replicates the surface carries no band and an
 `estimate.temporal_response.band_withheld` warning.
 

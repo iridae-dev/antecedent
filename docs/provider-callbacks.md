@@ -3,7 +3,7 @@
 A callback is a function Antecedent does not own: a law, a posterior or a
 composition of them that the library can ask questions of but cannot inspect.
 This page states what such an object may claim, when a stored answer of it may
-be reused, and what stays closed. The declaration is an instance of the one
+be reused, and what it cannot claim. The declaration is an instance of the one
 interface-contract schema and bridges to the one provider contract
 (`CausalProviderSpec` / `ProviderRegistry` rules in
 [connect scientific components](guides/build/scientific-interfaces.md)); there is no second format and no
@@ -111,15 +111,17 @@ takes the standing of the current declaration, not the stored one. An old
 result is preserved and inspectable; it is not revived by a cache or by
 restamping its identities.
 
-## Interval and posterior guarantees stay closed
+## No interval or posterior guarantee from a callback
 
-A callback supplies values, not coverage. An interval from a callback law and a
-posterior or probability guarantee refuse with `not_supported`
-(`refuse_interval`, `refuse_posterior_guarantee`). Calibration is a recorded
-design only: the whole method (the callback and everything composed with it),
-a data-generating process that includes the provider's own estimation, a
-nominal level, a support range and probes for coverage at the composed
-coordinate. No coverage was measured.
+A callback supplies values, not a sampling or posterior representation of them,
+so there is nothing to build an interval from. An interval from a callback law
+and a posterior or probability guarantee refuse with
+`uncertainty_representation_insufficient`
+(`callback_protocol.interval_not_supported`,
+`callback_protocol.posterior_guarantee_not_supported`; `refuse_interval`,
+`refuse_posterior_guarantee`). This is a scientific refusal, not a missing
+measurement: bind the callback output to a native method that reports an
+interval, or keep the result an external claim.
 
 ## Nested callbacks and evidence
 

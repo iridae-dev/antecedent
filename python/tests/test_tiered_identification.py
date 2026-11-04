@@ -137,7 +137,7 @@ def test_unknown_joint_and_nonhard_interventions_are_refused():
             graph=_background(WithinTier.UNKNOWN),
             query=ant.InterventionResponse("y", intervention=[Set("t", 1), Set("peer", 1)]),
         )
-    assert refused.value.reason_code == "not_supported"
+    assert refused.value.reason_code == "route_not_supported"
     with pytest.raises(CausalUnsupportedError, match="hard Set"):
         ant.identify(
             graph=_background(),

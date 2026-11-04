@@ -130,9 +130,9 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> BatchRetargetErr
     }
 }
 
-fn not_supported(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
+fn positivity_violated(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
     BatchRetargetError {
-        code: reason_code!("not_supported"),
+        code: reason_code!("positivity_violated"),
         detail,
         message: message.into(),
         subject: None,
@@ -368,8 +368,8 @@ impl From<BatchRetargetError> for MemberFailure {
 
 fn member_failure(error: &CausalError) -> MemberFailure {
     let carried = error.refusal_fields().map(|fields| Box::new(fields.into_owned()));
-    if matches!(error.peeled(), CausalError::Support { .. }) {
-        let mut failure = MemberFailure::from(not_supported(
+    if error.peeled().reason_code() == Some(reason_code!("positivity_violated")) {
+        let mut failure = MemberFailure::from(positivity_violated(
             "batch_retarget.weighted_overlap_failed",
             error.to_string(),
         ));
@@ -518,12 +518,12 @@ impl BatchRetargetReport {
     ///
     /// # Errors
     ///
-    /// `not_supported` naming the failed members (`batch_retarget.partial_family`) or
+    /// `route_not_supported` naming the failed members (`batch_retarget.partial_family`) or
     /// the point-only members (`batch_retarget.point_only_member`).
     pub fn complete_family(&self) -> Result<&FamilyCovariance, BatchRetargetError> {
         let failed = self.failed_members();
         if !failed.is_empty() {
-            return Err(not_supported(
+            return Err(route_not_supported_err(
                 "batch_retarget.partial_family",
                 format!(
                     "the family is partial: {} failed, so the surviving members are not a \
@@ -534,7 +534,7 @@ impl BatchRetargetReport {
         }
         let point_only = self.point_only_members();
         if !point_only.is_empty() {
-            return Err(not_supported(
+            return Err(route_not_supported_err(
                 "batch_retarget.point_only_member",
                 format!(
                     "{} retarget to a point only under their score-table provenance, so the \
@@ -837,7 +837,7 @@ fn contrast_outcome(
             .find(|claim| &claim.name == name)
             .and_then(|claim| claim.outcome.as_ref().ok())
             .ok_or_else(|| {
-                MemberFailure::from(not_supported(
+                MemberFailure::from(route_not_supported_err(
                     "batch_retarget.contrast_member_failed",
                     format!("contrast {:?} reads claim {name:?}, which failed", contrast.name),
                 ))

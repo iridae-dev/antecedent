@@ -277,7 +277,7 @@ def test_interval_and_law_are_refused_with_the_support_evidence(model) -> None:
     effect = transport(model)
     with pytest.raises(cd.CohortDecisionRefusal) as interval:
         effect.interval()
-    assert interval.value.reason_code == "not_supported"
+    assert interval.value.reason_code == "route_not_supported"
     assert interval.value.detail == "transported_effect.interval_not_supported"
     with pytest.raises(cd.CohortDecisionRefusal) as law:
         effect.refuse("law")
@@ -340,7 +340,9 @@ def test_the_transported_value_is_a_composition_node_that_follows_its_identity(m
     assert retargeted.classify("transported").calibration.state == "lost"
     with pytest.raises(cv.CompositionVerificationRefusal) as lost:
         retargeted.require_valid("transported")
-    assert lost.value.reason_code == "not_supported"
+    # The lost calibration is carried as a withdrawn calibration; the claim refuses only because
+    # the target data changed and it must be recomputed.
+    assert lost.value.reason_code == "claim_revalidation_required"
 
     with pytest.raises(CausalTypeError):
         base.composition_node("")

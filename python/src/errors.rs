@@ -180,6 +180,11 @@ pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
     unsupported_py_err(format!("{prefix}{code}: {}", message.as_ref()))
 }
 
+/// The refusal of a route that is not supported, as the Python class (`reason=not_supported:`).
+pub(crate) fn not_supported_err(error: &antecedent_core::support_gate::NotSupported) -> PyErr {
+    unsupported_py_err(error.to_string())
+}
+
 /// A refusal message with no registered reason code, as the Python class.
 pub(crate) fn unsupported_message(message: impl AsRef<str>) -> PyErr {
     unsupported_py_err(message.as_ref().to_owned())
@@ -408,16 +413,11 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
             ..
         }) => Some(reason_code!("route_not_supported")),
         RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
-        // A matrix refusal without a finer registered code carries the code of its cell verdict.
-        RustCausalError::Support { .. }
-            if error.reason_code() == Some(reason_code!("positivity_violated")) =>
-        {
-            Some(reason_code!("positivity_violated"))
-        }
+        // The wire id of a support refusal that is not typed-impossible is its reason code.
         RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
             reason_code!("cell_not_applicable")
         } else {
-            reason_code!("not_supported")
+            id.as_str()
         }),
         // A query that failed its own validation carries the code the facade derives for it.
         RustCausalError::Rejected(_) => {

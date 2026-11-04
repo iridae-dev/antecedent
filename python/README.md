@@ -1,6 +1,6 @@
 # Antecedent for Python
 
-> Install from PyPI: `python -m pip install antecedent`. `calibrated` still requires a coverage record that attests the installed build.
+> Install from PyPI: `python -m pip install antecedent`. `calibrated` is reported only when a coverage record attests the installed build; calibration status annotates an interval and never decides whether a route runs. A release build refuses a route that lacks provenance or an independent scientific check with `not_supported`; `scripts/dev_python.sh` builds a development build that runs it and reports `would_refuse` (check `antecedent.build_flavor()`).
 
 Antecedent exposes the same causal contract as the Rust facade. The root namespace has an explicit exported-name contract; see [the naming dictionary](../docs/api_naming.md). Start with a query and graph, prepare and identify it, estimate on data, inspect the claim, and export the outcome or branch the study with `ant.rebind` / `ant.reconfigure` when appropriate.
 
@@ -25,4 +25,4 @@ Structural transport uses `antecedent.transport.Transport` with explicit target 
 
 Design-family studies live on their own stage modules — `antecedent.experiment`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, and `antecedent.regimes` — that prepare and analyze as retained studies. `antecedent.factorial.estimate` is a separate point utility, not a retained study. On the experiment, policy, regime, and interference queries, row-aligned inputs may be named by a data column; `prepare` resolves those names and freezes the design. Their interval claims are rows of the [graphless support matrix](../docs/graphless-support-matrix.md), separate from the geometric matrix.
 
-Read the [first analysis](../docs/start/first-analysis.md), [supported analyses](../docs/supported-analyses.md) and [how to read a result](../docs/start/reading-a-result.md). The [support matrix](../docs/support-matrix.md) remains authoritative.
+Read the [first analysis](../docs/start/first-analysis.md), [supported analyses](../docs/supported-analyses.md) and [how to read a result](../docs/start/reading-a-result.md). The [support matrix](../docs/support-matrix.md) lists the supported units; [How Antecedent checks its scientific methods](../docs/guides/scientific-verification.md#the-evidence-model) explains the model.

@@ -145,7 +145,7 @@ polled every 1024 draws (a cancelled context returns `cancelled_no_claim`, never
 and a matrix that is not a unit-diagonal positive semidefinite correlation refused
 (`batch_retarget.covariance_unavailable`; an invalid level or draw count refuses
 `batch_retarget.max_t_invalid_level` / `batch_retarget.max_t_draws_out_of_range`). A partial
-or point-only family has no band and refuses `not_supported`
+or point-only family has no band and refuses `route_not_supported`
 (`batch_retarget.partial_family` / `batch_retarget.point_only_member`); the Python result
 reports that refusal when `simultaneous_interval()` is called.
 
@@ -206,7 +206,7 @@ family refuses `batch_retarget.covariance_unavailable`.
 Every claim and contrast is reported. A member that cannot be retargeted (weighted overlap
 failure, misaligned weights, no scores, a quantile or exceedance grid) is a failed member with
 its typed refusal; a contrast reading a failed claim fails with it, and the covariance covers
-only the surviving members. `complete_family()` raises `not_supported`
+only the surviving members. `complete_family()` raises `route_not_supported`
 (`batch_retarget.partial_family`) naming the failed members: surviving members are never a
 complete-family claim.
 

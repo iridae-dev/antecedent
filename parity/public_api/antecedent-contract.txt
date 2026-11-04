@@ -7135,7 +7135,6 @@ pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn operations(&se
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn overlap(&self, a: antecedent_contract::evidence_ledger::SourceId, b: antecedent_contract::evidence_ledger::SourceId) -> core::result::Result<antecedent_contract::evidence_ledger::Overlap, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn relation(&self, a: antecedent_contract::evidence_ledger::SourceId, b: antecedent_contract::evidence_ledger::SourceId) -> core::result::Result<antecedent_contract::evidence_ledger::RelationKind, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn replace_source(&mut self, target: antecedent_contract::evidence_ledger::SourceId, replacement: antecedent_contract::evidence_ledger::SourceDeclaration) -> core::result::Result<&antecedent_contract::evidence_ledger::AppliedOperation, antecedent_contract::evidence_ledger::LedgerError>
-pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn request_interval(&self, id: antecedent_contract::evidence_ledger::ResultId) -> core::result::Result<core::convert::Infallible, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn require_valid(&self, id: antecedent_contract::evidence_ledger::ResultId) -> core::result::Result<&antecedent_contract::evidence_ledger::ResultRecord, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn result(&self, id: antecedent_contract::evidence_ledger::ResultId) -> core::option::Option<&antecedent_contract::evidence_ledger::ResultRecord>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn result_sources(&self, id: antecedent_contract::evidence_ledger::ResultId) -> alloc::vec::Vec<antecedent_contract::evidence_ledger::SourceId>
@@ -8822,7 +8821,6 @@ pub variant antecedent_contract::evidence_ledger::ReentryKind::Transform
 pub variant antecedent_contract::evidence_ledger::RefusalKind::DoubleCounted
 pub variant antecedent_contract::evidence_ledger::RefusalKind::InvalidArgument
 pub variant antecedent_contract::evidence_ledger::RefusalKind::LimitExceeded
-pub variant antecedent_contract::evidence_ledger::RefusalKind::NotSupported
 pub variant antecedent_contract::evidence_ledger::RefusalKind::OverlapUnknown
 pub variant antecedent_contract::evidence_ledger::RefusalKind::SourceRetired
 pub variant antecedent_contract::evidence_ledger::RelationKind::Independent

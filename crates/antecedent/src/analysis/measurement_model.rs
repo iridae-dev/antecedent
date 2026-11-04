@@ -980,8 +980,7 @@ impl MeasurementEstimate {
     /// (`antecedent_estimate::corrected_functional_interval`).
     ///
     /// # Errors
-    /// The estimate's refusal: a route whose variance has no executed independent check
-    /// (`measurement_model.interval_closed`), or a level outside `(0, 1)`.
+    /// The estimate's refusal: a record without a standard error, or a level outside `(0, 1)`.
     pub fn interval(&self, level: f64) -> Result<(f64, f64), MeasurementModelRefusal> {
         antecedent_estimate::measurement::corrected_functional_interval(&self.record, level)
             .map_err(|error| MeasurementModelRefusal::from_estimate(&error))
@@ -1029,7 +1028,7 @@ impl MeasurementEstimate {
                 Ok((value, variance))
             }
             _ => Err(MeasurementModelRefusal {
-                code: antecedent_core::reason_code!("not_supported"),
+                code: antecedent_core::reason_code!("route_not_supported"),
                 detail: "measurement_model.operation_not_supported".to_owned(),
                 message: "this route has no coefficient vector to take a functional of".to_owned(),
                 remedy: None,

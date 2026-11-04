@@ -100,7 +100,7 @@ impl CrossWorldRefusal {
 
     fn graph(message: impl Into<String>) -> Self {
         Self {
-            code: antecedent_core::reason_code!("not_supported"),
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "cross_world.graph_outside_contract",
             message: message.into(),
         }

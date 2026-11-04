@@ -732,7 +732,7 @@ fn structures_queries_and_inference_outside_the_cell_are_refused() {
         )),
     ] {
         assert!(
-            text.contains("reason=not_supported: counterfactual_id.graph_outside_contract"),
+            text.contains("reason=route_not_supported: counterfactual_id.graph_outside_contract"),
             "{text}"
         );
     }

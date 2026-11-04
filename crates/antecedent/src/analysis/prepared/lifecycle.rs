@@ -563,11 +563,11 @@ impl PreparedStudy {
                 )
             }
             _ => {
-                return Err(CausalError::Support {
-                    id: crate::support::SupportRefusal::NotSupported,
-                    message: "PreparedStudy::refute is supported for AverageEffect and scalar \
-                              InterventionResponse",
-                });
+                return Err(crate::unsupported_reason!(
+                    "route_not_supported",
+                    "PreparedStudy::refute is supported for AverageEffect and scalar \
+                     InterventionResponse"
+                ));
             }
         };
         if prior.treatment != Some(query.treatment) || prior.outcome != query.outcome {

@@ -183,7 +183,7 @@ fn the_nonlinear_operation_stays_refused_and_names_the_continuous_entry_point() 
     let prepared = prepare(&classical(0.25), &y, &w);
     let refusal =
         prepared.check_operation(MeasurementOperation::NonlinearOutcomeModel).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert!(refusal.remedy.as_deref().is_some_and(|r| r.contains("estimate_continuous")));
 }
 

@@ -31,10 +31,9 @@ use super::declaration::{
     InterfaceContract,
 };
 use super::refusal::{
-    InterfaceRefusal, calibration_inherited_not_held, calibration_inherited_quantity_changed,
-    calibration_inherited_unfed, calibration_without_interval, cyclic_composition,
-    dependence_unknown, duplicate_component, evidence_overlap_unknown, port_multiply_fed,
-    shared_evidence, unknown_component, unknown_port,
+    InterfaceRefusal, calibration_without_interval, cyclic_composition, dependence_unknown,
+    duplicate_component, evidence_overlap_unknown, port_multiply_fed, shared_evidence,
+    unknown_component, unknown_port,
 };
 use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 
@@ -305,10 +304,7 @@ fn resolve_inherited_calibration<'a>(
             let status = match &port.calibration {
                 CalibrationStatus::Inherited { input } => {
                     match feeding.get(&(*component, input.as_str())) {
-                        None => {
-                            refusals.push(calibration_inherited_unfed(&port.name, input));
-                            CalibrationStatus::NotMeasured
-                        }
+                        None => CalibrationStatus::NotMeasured,
                         Some(upstream) => {
                             // A retained unresolved declaration is inspectable, but it may
                             // resolve to Measured only for a calibratable operation.
@@ -341,27 +337,16 @@ fn resolve_inherited_calibration<'a>(
                                     || port.measurement_models != source.measurement_models
                                     || port.evidence != source.evidence
                             }) {
-                                refusals.push(calibration_inherited_quantity_changed(
-                                    &port.name, input,
-                                ));
                                 effective.insert(
                                     (*component, port.name.as_str()),
                                     CalibrationStatus::NotMeasured,
                                 );
                                 continue;
                             }
-                            let held = effective
+                            effective
                                 .get(&(upstream.producer.as_str(), upstream.produced_port.as_str()))
                                 .cloned()
-                                .unwrap_or(CalibrationStatus::NotMeasured);
-                            if !held.is_measured() {
-                                refusals.push(calibration_inherited_not_held(
-                                    &port.name,
-                                    input,
-                                    held.label().to_owned(),
-                                ));
-                            }
-                            held
+                                .unwrap_or(CalibrationStatus::NotMeasured)
                         }
                     }
                 }

@@ -96,10 +96,10 @@ would redefine the common-support population of every contrast.
 
 The result states which semantics produced it (`target`) and the population it speaks for
 (`target_population`). The standard error is the plug-in iid score variance of cross-fitted
-scores: it assumes consistent nuisances and positivity, and no coverage record measures it,
+scores: it assumes consistent nuisances and positivity, and no independent check covers it,
 so the 95% interval of the full-population contrast carries the calibration status
 (`interval_status`: `outside_measured_scope` or `not_measured`, with the matcher's code in
-`interval_reason`) until a coverage record measured by `multilevel_generalized_propensity_interval` covers the configuration. The pairwise
+`interval_reason`) and becomes `calibrated` once a coverage record measured by `multilevel_generalized_propensity_interval` covers the configuration. The pairwise
 target never publishes an interval.
 
 ## Compare every level with a reference

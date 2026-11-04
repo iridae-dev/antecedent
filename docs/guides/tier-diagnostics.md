@@ -41,9 +41,9 @@ the estimate did not use.
   does not support the `Cheap` suite at all, so that branch applies to a result whose
   estimate carries a mirrored refuter value.
 * **No E-value interval.** `evalue.interval` is always the typed reason
-  (`not_supported`, `tier_diagnostics.evalue_interval_withheld`): the converted
-  effect-interval endpoint is an approximation whose own uncertainty is excluded, and no
-  coverage record measures it.
+  (`diagnostic_not_available`, `tier_diagnostics.evalue_interval_withheld`): the converted
+  effect-interval endpoint is an approximation whose own uncertainty is excluded, and no coverage
+  record measures the converted endpoint.
 
 The E-value summarizes how strong an unmeasured confounder must be to explain away the point
 effect under the stated tier premise (no latent path into the outcome from outside the tier
@@ -51,10 +51,9 @@ order). It does not test that premise and is not a tier-identification certifica
 
 ## Refusals
 
-`tier_diagnostics` refuses a result that is not a supported single-treatment tiered
-average-effect result: `not_supported`
-(`tier_diagnostics.result_not_supported`), or `invalid_argument`
-(`tier_diagnostics.not_a_tiered_average_result`) for a non-tiered or joint-cell result.
+`tier_diagnostics` refuses a result that is not a single-treatment tiered average-effect
+result: `invalid_argument` (`tier_diagnostics.not_a_tiered_average_result`) for a non-tiered
+or joint-cell result.
 
 A cancelled `ctx` is observed on entry, before each of the two tier reads and once per
 scenario, and stops the read with `cancelled_no_claim` (`tier_diagnostics.cancelled`) and no

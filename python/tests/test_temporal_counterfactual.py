@@ -349,14 +349,14 @@ GATES = (
 
 def test_transported_route_is_closed_with_every_missing_gate() -> None:
     error = transported(required_factors=["source:rct", "target:field"])
-    assert error.reason_code == "not_supported"
-    assert error.detail == "transported_counterfactual.route_frozen"
+    assert error.reason_code == "transport_missing_evidence"
+    assert error.detail == "transported_counterfactual.prerequisite_missing"
     assert error.offending == "transport_support_missing"
     assert error.missing_gates == GATES
     assert error.missing_factors == ("source:rct", "target:field")
     assert error.stage == "identify"
     assert error.remedy is not None
-    assert "transported_counterfactual.route_frozen" in str(error)
+    assert "transported_counterfactual.prerequisite_missing" in str(error)
 
 
 def test_transported_route_refusal_names_the_successor_route_and_its_scope() -> None:
@@ -381,7 +381,8 @@ def test_transported_route_refusal_names_the_successor_route_and_its_scope() -> 
 
 def test_transported_route_reports_only_the_gates_still_missing() -> None:
     error = transported(prerequisites=TransportedPrerequisites(transport_support=True))
-    assert error.detail == "transported_counterfactual.route_frozen"
+    assert error.reason_code == "transport_missing_evidence"
+    assert error.detail == "transported_counterfactual.prerequisite_missing"
     assert error.offending == "fixed_population_temporal_support_missing"
     assert error.missing_gates == GATES[1:]
     error = transported(
@@ -399,8 +400,8 @@ def test_transported_route_with_a_missing_gate_never_reports_factors_as_the_caus
         required_factors=["source:rct", "target:field"],
         supplied_factors={},
     )
-    assert error.reason_code == "not_supported"
-    assert error.detail == "transported_counterfactual.route_frozen"
+    assert error.reason_code == "transport_missing_evidence"
+    assert error.detail == "transported_counterfactual.prerequisite_missing"
     assert error.missing_factors == ("source:rct", "target:field")
 
 
@@ -426,8 +427,8 @@ def test_transported_route_stays_closed_even_when_every_gate_and_factor_is_prese
         required_factors=["source:rct", "target:field"],
         supplied_factors={"source:rct": "e1", "target:field": "e2"},
     )
-    assert error.reason_code == "not_supported"
-    assert error.detail == "transported_counterfactual.route_frozen"
+    assert error.reason_code == "route_not_supported"
+    assert error.detail == "transported_counterfactual.joint_theorem_not_derived"
     assert error.offending is None
     assert error.missing_gates == ()
     assert error.missing_factors == ()

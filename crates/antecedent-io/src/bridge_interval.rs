@@ -125,13 +125,17 @@ pub struct ConstructedBridgeInterval {
     pub basis: CalibrationBasisWire,
 }
 
-fn bridge_interval_not_supported(detail: &str, remedy: &'static str) -> ExternalRefusal {
-    ExternalRefusal::new(reason_code!("not_supported"), BRIDGE_INTERVAL_STAGE, detail)
-        .with_remedy(remedy)
+fn bridge_interval_refusal(
+    code: &'static str,
+    detail: &str,
+    remedy: &'static str,
+) -> ExternalRefusal {
+    ExternalRefusal::new(code, BRIDGE_INTERVAL_STAGE, detail).with_remedy(remedy)
 }
 
 fn bridge_interval_scope_refusal(message: String) -> ExternalRefusal {
-    bridge_interval_not_supported(
+    bridge_interval_refusal(
+        reason_code!("route_not_supported"),
         BRIDGE_INTERVAL_DETAIL_OUTSIDE_MEASURED,
         "ask for the interval inside a measured design: a bridge kind and mapping with a \
          current attesting coverage record, a validated trial count, rates with a Youden index \
@@ -170,8 +174,8 @@ fn bridge_interval_trial_moments(trials: &[TrialEffectPair]) -> (f64, f64, f64, 
 /// [`bridged_claim_interval`].
 ///
 /// # Errors
-/// `not_supported` with `scientific_bridge.interval_source_uncertainty_required` when
-/// the source standard error is absent; `not_supported` with
+/// `required_option_missing` with `scientific_bridge.interval_source_uncertainty_required`
+/// when the source standard error is absent; `route_not_supported` with
 /// `scientific_bridge.interval_scope_outside_measured` for a level outside
 /// `[0.5, 0.9999]`, a negative or non-finite standard error, a Youden index or declared
 /// rate standard error outside the measured range, or a degenerate trial-level fit.
@@ -207,7 +211,8 @@ pub fn construct_bridged_claim_interval(
         )));
     }
     let Some(se) = source_standard_error else {
-        return Err(bridge_interval_not_supported(
+        return Err(bridge_interval_refusal(
+            reason_code!("required_option_missing"),
             BRIDGE_INTERVAL_DETAIL_SOURCE_UNCERTAINTY,
             "supply the source claim's standard error with its own provenance: a bridged \
              interval carries the source estimate's sampling uncertainty, which the declared \

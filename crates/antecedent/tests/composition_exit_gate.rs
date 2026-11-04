@@ -1448,7 +1448,7 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         )
         .unwrap_err()
         .to_string();
-        assert!(text.contains("reason=not_supported"), "{text}");
+        assert!(text.contains("reason=route_not_supported"), "{text}");
         assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
         // The witness the check returns is what the artifact carries.
         let witness = check(&mediation(), &indirect).unwrap();

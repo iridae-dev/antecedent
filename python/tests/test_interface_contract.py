@@ -132,23 +132,18 @@ def test_a_mean_does_not_supply_a_law_and_a_sampling_interval_is_not_a_posterior
     assert "interface_contract.uncertainty_paradigm_mismatch" in details
 
 
-def test_measured_calibration_is_required_not_assumed():
+def test_measured_calibration_is_carried_never_raised():
     wanted = consumer(
         operations=("interval",), uncertainty="estimator_sampling", calibration="measured"
     )
     for label in (ic.Calibration.none(), ic.Calibration.not_measured()):
-        error = refusal_of(
-            lambda label=label: ic.check_connection(
-                producer(
-                    operations=("interval",), uncertainty="estimator_sampling", calibration=label
-                ),
-                "effect",
-                wanted,
-                "effect",
-            )
+        connection = ic.check_connection(
+            producer(operations=("interval",), uncertainty="estimator_sampling", calibration=label),
+            "effect",
+            wanted,
+            "effect",
         )
-        assert error.detail == "interface_contract.calibration_not_held"
-        assert error.reason_code == "interface_contract_calibration_not_held"
+        assert connection.calibration == label
 
 
 def test_a_malformed_declaration_is_refused_alone():

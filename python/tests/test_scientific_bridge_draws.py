@@ -187,7 +187,7 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_support_them():
     # An associational claim is never a bridge source.
     refused(
         lambda: require_success(bridge.derive(draws, seed=1, source_kind="associational")),
-        "not_supported",
+        "bridge_mapping_not_supported",
         "scientific_bridge.source_not_draws",
     )
     # A bootstrap is neither a posterior nor a predictive law.
@@ -220,13 +220,13 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_support_them():
     result.require_value_kind("posterior")
     refused(
         lambda: require_success(result.interval()),
-        "not_supported",
+        "route_not_supported",
         "scientific_bridge.interval_not_supported",
     )
     # An interval needs a measured record; an uncertain map has none.
     refused(
         lambda: require_success(result.interval(0.95)),
-        "not_supported",
+        "route_not_supported",
         "scientific_bridge.interval_scope_outside_measured",
     )
     with pytest.raises(CausalTypeError):

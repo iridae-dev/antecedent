@@ -34,11 +34,11 @@ period identity. Its supported sequence-level Student interval has an exact
 graphless support; sparse schedules remain point-only.
 `experiment.ComplierEffect` adds the retained Bernoulli encouragement
 CACE/LATE query with observed receipt, a positive first stage, and no interval;
-its result is also off the support-matrix axis.
+its result is also outside the support matrix.
 `FactorialRandomization` carries fixed four-cell 2×2 assignment through the
 retained `RandomizedEffect` analysis. The result reports both marginal main
 effects and their interaction with separate conservative cellwise variances;
-it remains off the support-matrix axis and reports no interval.
+it remains outside the support matrix and reports no interval.
 `MultiArmExperimentDesign` carries three or more actions and their known
 row-level assignment probabilities through retained `RandomizedEffect`
 analysis. The result reports all action contrasts to the reference arm with
@@ -242,7 +242,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Structural transport (compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
 | Structural transport (trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — supported cell, not the compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
-| Longitudinal regime value | `LongitudinalRegime` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegime(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and off the support-matrix axis |
+| Longitudinal regime value | `LongitudinalRegime` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegime(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and outside the support matrix |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::support`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |

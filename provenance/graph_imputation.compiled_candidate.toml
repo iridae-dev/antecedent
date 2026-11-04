@@ -20,4 +20,5 @@ test_sources = [
   "crates/antecedent-io/src/measured_inference/graph_candidate.rs",
   "python/tests/test_compiled_graph_imputation.py",
   "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
+  "crates/antecedent/tests/graph_imputation_known_truth.rs",
 ]

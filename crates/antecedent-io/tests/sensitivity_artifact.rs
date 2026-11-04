@@ -346,7 +346,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
     });
     let error = SensitivityArtifact::new(composed).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "route_not_supported");
     assert!(message.starts_with("sensitivity_decision_composition.composition_not_supported"));
 }
 

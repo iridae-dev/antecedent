@@ -267,7 +267,7 @@ fn validate(request: &DoseGridPosteriorRequest<'_>) -> Result<Vec<f64>, Estimati
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), d| (a.min(*d), b.max(*d)));
     if let Some(at) = points.iter().find(|d| **d < minimum || **d > maximum) {
         return Err(refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("positivity_violated"),
             "dose_grid.unsupported_dose",
             &format!("dose {at} is outside the observed dose support"),
         ));

@@ -149,10 +149,9 @@ report on; the Rust contract-only report covers it.
 | Program plan | The route, family, stage and identity, the scientific problem, the identification product and its estimands, the statistical, evidence and physical layers, and a graph posterior's mixture. The sized physical record and kernel policy describe the machine and are left out. |
 | Identities | The domain-separated digests of the contract. |
 
-A status is reported as the records carry it. A route that executes without a
-support-matrix support says so, and a calibration slot that is not `calibrated`
-says that the reported uncertainty has no measured-coverage record. The report
-grants no support and upgrades no status.
+A status is reported as the records carry it. A route that runs in a development build without evidence says so (`would_refuse`), and a
+calibration slot that is not `calibrated` says that the reported uncertainty has no matching
+coverage record. The report grants no support and upgrades no status.
 
 ### Escaping
 

@@ -289,8 +289,8 @@ declaration that would support the composition.
 
 Composition is exact given the declared mechanisms. The delta-method variance is
 a parameter-covariance variance only: it omits second-order terms, holds residual
-scales fixed and carries no coverage claim. The interval route is closed with
-`not_supported` until whole-method coverage is measured.
+scales fixed and carries no coverage claim. No interval is reported for it; an interval route
+needs an independent check of its whole-method construction first.
 
 ### Prepare, refresh and export
 

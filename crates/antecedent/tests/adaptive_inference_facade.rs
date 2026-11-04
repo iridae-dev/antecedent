@@ -272,7 +272,7 @@ fn decision_theoretic_stopping_is_not_supported_for_a_probability_best_rule() {
     let session = session(thompson_trial([0.2, 0.8], 100, &[50, 100], 4));
     let request = AdaptiveRequest::PosteriorStopping { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
 }
 
@@ -313,7 +313,7 @@ fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure
         size_weighted: false,
     };
     let refusal = session.measured_interval(&weighting, "weighting", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_supported_for_cell");
     // The measured construction at a horizon below the measured range is outside its record.
     let measured =
@@ -389,7 +389,7 @@ fn a_group_sequential_repeated_interval_is_bound_to_its_record() {
     // A stagewise-adjusted reading and another arm pair are not the measured design.
     let reversed = AdaptiveRequest::GroupSequential { look: 2, control_arm: 1, treatment_arm: 0 };
     let refusal = session.measured_interval(&reversed, "gs-reversed", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
 }
 
 #[test]
@@ -556,7 +556,7 @@ fn the_hierarchical_cluster_cell_is_carried_forward_not_analysed_as_repeated_mea
     declaration.cell.outcome = OutcomeStructure::HierarchicalClustered;
     let session = session(declaration);
     let refusal = session.analyse(&contrast_request(false), &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
 }
 
@@ -650,7 +650,7 @@ fn a_group_sequential_rule_is_not_supported_for_a_thompson_assignment() {
     let session = session(declaration);
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "adaptive_inference.pairing_not_supported");
 }
 

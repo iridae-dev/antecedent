@@ -305,7 +305,7 @@ fn an_unresolved_structure_reports_no_interval() {
     let data = chain_table(5);
     let error = estimate_effect_on_split(&data, v(1), v(3), SPLIT_SEED, &ctx()).unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("not_supported"), "{text}");
+    assert!(text.contains("discovered_structure_unresolved"), "{text}");
     assert!(text.contains("split_effect.structure_unresolved"), "{text}");
 }
 

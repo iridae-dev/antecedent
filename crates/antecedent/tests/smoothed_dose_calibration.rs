@@ -28,7 +28,7 @@ mod dgp;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
-    SMOOTHED_DOSE_BOUNDS, SmoothedDoseInput, SmoothedDoseOptions, smoothed_dose_interval_internal,
+    SmoothedDoseInput, SmoothedDoseOptions, smoothed_dose_interval_internal,
 };
 use antecedent_identify::TransportIdentifier;
 use common::calibration::{
@@ -39,7 +39,7 @@ use dgp::{Design, Scenario, diagram, draw, query};
 
 const INTERVAL: &str = "percentile_bootstrap";
 /// Bootstrap replicates per execution: the frozen replicate floor of the cell.
-const REPLICATES: u32 = SMOOTHED_DOSE_BOUNDS.min_bootstrap;
+const REPLICATES: u32 = 199;
 const H: f64 = 0.5;
 
 fn smoothed_dose_nested_cohort_quadratic_curve(

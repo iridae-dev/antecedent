@@ -42,7 +42,7 @@ What is supported, and what is not:
   *uncalibrated* delta-method estimate that includes the uncertainty of the estimated measurement
   parameters where the record says it was propagated. :meth:`MeasurementEstimate.interval` returns
   the Wald interval as a :class:`MeasurementInterval` whose calibration slot is ``not_measured``
-  until the whole measurement-plus-estimation method has a measured coverage record.
+  until a coverage record measures the whole measurement-plus-estimation method.
 * **Refresh** keeps the model and recomputes the numbers on new outcome-only data of the same
   question; it never changes validation parameters. :meth:`PreparedMeasurementModel
   .with_validation_parameters` is the only way the numbers a model was established with change, and

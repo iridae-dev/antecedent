@@ -52,7 +52,7 @@ source-fixed gate roster, audited constructors and labels, scientific source has
 an exact fresh validation domain. Unknown configuration, unbudgeted looks, conflicting
 cell counts, cap overflow and replay-domain/source mismatches refuse. Log collection
 rechecks decision arithmetic and binds source, grid, record identity and denominators;
-it retains required successor looks and recordless decisions. The source audit is a
+it retains required successor looks and decisions that emit no record. The source audit is a
 review boundary, not automated dataflow analysis. Its 256-cell cap is a guard on the
 source-possible family, not evidence of nonadaptive hypothesis choice. Family risk
 controls coverage compatibility rejections only, conditional on valid binomial cells;

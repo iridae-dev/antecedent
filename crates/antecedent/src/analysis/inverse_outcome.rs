@@ -59,8 +59,12 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> InverseOutcomeEr
     InverseOutcomeError { code: reason_code!("invalid_argument"), detail, message: message.into() }
 }
 
-fn not_supported(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
-    InverseOutcomeError { code: reason_code!("not_supported"), detail, message: message.into() }
+fn functional_unsupported(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
+    InverseOutcomeError {
+        code: reason_code!("inverse_functional_unsupported"),
+        detail,
+        message: message.into(),
+    }
 }
 
 fn route_not_supported_err(
@@ -662,21 +666,21 @@ fn supported_target(
     let (threshold, direction) = match *query {
         InverseQuery::TargetMean { threshold, direction } => (threshold, direction),
         InverseQuery::ChanceConstraint { .. } => {
-            return Err(not_supported(
+            return Err(functional_unsupported(
                 "inverse.probability_target",
                 "a mean response cannot establish a chance constraint P(Y^do(a) >= y) >= q; that \
                  needs a separately identified and calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::Quantile { .. } => {
-            return Err(not_supported(
+            return Err(functional_unsupported(
                 "inverse.quantile_target",
                 "a target-quantile inverse query needs the interventional distribution and is \
                  not supported without a calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::ObservationalScenarios => {
-            return Err(not_supported(
+            return Err(functional_unsupported(
                 "inverse.observational_scenarios",
                 "observational scenarios compatible with an outcome (P(X | Y)) are not actions \
                  and are closed; ask for feasible interventions instead",
@@ -1045,17 +1049,17 @@ mod tests {
             (
                 InverseQuery::ChanceConstraint { threshold: 3.0, probability: 0.9 },
                 "inverse.probability_target",
-                "not_supported",
+                "inverse_functional_unsupported",
             ),
             (
                 InverseQuery::Quantile { level: 0.9, threshold: 3.0 },
                 "inverse.quantile_target",
-                "not_supported",
+                "inverse_functional_unsupported",
             ),
             (
                 InverseQuery::ObservationalScenarios,
                 "inverse.observational_scenarios",
-                "not_supported",
+                "inverse_functional_unsupported",
             ),
         ] {
             let refusal = run(&query, &forward, &actions).unwrap_err();

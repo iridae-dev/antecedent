@@ -5,7 +5,7 @@
 standard AIPW average effect with **whole clusters** owning folds. The route publishes the
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
 scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The one-way interval's
-95% coverage record is measured, and the interval is supported at its measured coordinate
+95% coverage record is measured, and the interval reports `calibrated` inside its measured coordinate
 (see [What is published](#what-is-published-and-what-is-not)).
 
 ```python
@@ -133,7 +133,7 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
   shared multivariate Student-t scale with that reference df, so a one-claim family
   reproduces the single-claim t reference. The labels are the plan's declared
   `cluster_ids` (aligned with the table rows), and a table or plan without them keeps the
-  iid retarget withheld. The iid max-t score inference stays withheld.
+  iid retarget unavailable. The iid max-t score inference is unavailable.
 - A requested bootstrap (which would resample rows and split clusters) or a non-default
   `se_kind` is refused with `cluster_interval_not_supported` (`cluster_dml.interval_withheld`):
   the route reports its own sandwich standard error rather than ignoring the request.
@@ -141,7 +141,7 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
   `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
   registered in `scripts/gate_calibration.sh`) scores the facade's published interval over a
   sample grid of cluster counts and was measured. The one-way 95% cluster interval
-  is supported for 300–800 rows at that coordinate. This construction does
+  reports `calibrated` for 300–800 rows at that coordinate. This construction does
   not measure the dyadic `multiway` coordinate;
   a dyadic interval must not inherit its one-way coverage record.
 

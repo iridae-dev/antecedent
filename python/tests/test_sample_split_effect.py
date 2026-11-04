@@ -99,7 +99,7 @@ def test_an_unresolved_structure_reports_no_interval() -> None:
             execution=Execution(seed=SEED),
         )
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "not_supported"
+    assert info.value.reason_code == "discovered_structure_unresolved"
     assert info.value.detail == "split_effect.structure_unresolved"
 
 

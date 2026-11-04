@@ -14,7 +14,7 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::{AcceptedGraph, ClassPrior, GraphClass, InferenceMode};
 
 use super::builder::RefuteSuite;
-use super::checked_route_frozen::{CheckedRouteFrozen, PlanBindingScope};
+use super::checked_sealed_procedure::{PlanBindingScope, SealedProcedure};
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::prepared::CachedTemporalClassIdentification;
 use super::proof_support::{Procedure, require_primary_pair};
@@ -31,10 +31,10 @@ pub(crate) struct CheckedTemporalClassResponseOperation {
     query: ResponseQuery,
     bundle: Arc<CachedTemporalClassIdentification>,
     class_prior: Option<ClassPrior>,
-    frozen: CheckedRouteFrozen,
+    sealed: SealedProcedure,
 }
 
-/// The frozen premises of [`CheckedTemporalClassResponseOperation::checked`], carried together.
+/// The sealed premises of [`CheckedTemporalClassResponseOperation::checked`], carried together.
 pub(crate) struct CheckedTemporalClassResponseOperationPremises<'a> {
     pub(crate) source_graph: AcceptedGraph,
     pub(crate) query: &'a ResponseQuery,
@@ -55,7 +55,7 @@ impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
             .field("structure_version", &self.source_graph.version())
             .field("query", &self.query)
             .field("horizon_count", &self.bundle.by_horizon.len());
-        self.frozen.debug_procedure(&mut debug);
+        self.sealed.debug_procedure(&mut debug);
         debug.finish_non_exhaustive()
     }
 }
@@ -168,7 +168,7 @@ impl CheckedTemporalClassResponseOperation {
         let (treatment, outcome) = require_primary_pair(&query.functional)?;
         let identifier = IdentifierId::GeneralizedAdjustment;
         let estimator = EstimatorId::temporal_response_for(inference);
-        let frozen = CheckedRouteFrozen::new(
+        let sealed = SealedProcedure::new(
             identifier,
             estimator,
             inference.clone(),
@@ -177,7 +177,7 @@ impl CheckedTemporalClassResponseOperation {
             physical,
             max_completions,
         );
-        frozen.validate_plan_binding(
+        sealed.validate_plan_binding(
             &CausalQuery::Response(query.clone()),
             PlanBindingScope::Procedure,
             "temporal class response plan disagrees with its retained query or procedure",
@@ -190,13 +190,13 @@ impl CheckedTemporalClassResponseOperation {
             query: query.clone(),
             bundle: Arc::clone(bundle),
             class_prior,
-            frozen,
+            sealed,
         })
     }
 
-    /// The frozen procedure settings sealed with the proof.
-    pub(crate) fn frozen(&self) -> &CheckedRouteFrozen {
-        &self.frozen
+    /// The procedure settings sealed with the proof.
+    pub(crate) fn sealed(&self) -> &SealedProcedure {
+        &self.sealed
     }
 
     #[must_use]
@@ -223,7 +223,7 @@ impl CheckedTemporalClassResponseOperation {
 
     #[must_use]
     pub(crate) fn max_completions(&self) -> Option<usize> {
-        self.frozen.max_completions()
+        self.sealed.max_completions()
     }
 
     #[must_use]
@@ -238,16 +238,16 @@ impl CheckedTemporalClassResponseOperation {
 
     #[must_use]
     pub(crate) const fn inference(&self) -> &InferenceMode {
-        self.frozen.inference()
+        self.sealed.inference()
     }
 
     #[must_use]
     pub(crate) fn procedure(&self) -> Procedure {
         Procedure {
-            identifier: self.frozen.identifier(),
-            estimator: self.frozen.estimator(),
-            bootstrap_replicates: self.frozen.bootstrap_replicates(),
-            validation: self.frozen.validation(),
+            identifier: self.sealed.identifier(),
+            estimator: self.sealed.estimator(),
+            bootstrap_replicates: self.sealed.bootstrap_replicates(),
+            validation: self.sealed.validation(),
         }
     }
 
@@ -258,7 +258,7 @@ impl CheckedTemporalClassResponseOperation {
 
     #[must_use]
     pub(crate) fn physical(&self) -> &PhysicalExecutionPlan {
-        self.frozen.physical()
+        self.sealed.physical()
     }
 
     /// Ordered requested horizons.

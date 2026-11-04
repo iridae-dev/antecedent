@@ -110,9 +110,9 @@ retain one time coordinate.
 
 | Reason code | Detail | When |
 | --- | --- | --- |
-| `not_supported` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified, calibrated interventional-distribution cell |
-| `not_supported` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate functional inverse query (`antecedent.inverse_query`, see [decision routes](../decisions.md#routes-at-a-glance)) requires a source supplying the requested functional |
-| `not_supported` | `inverse.observational_scenarios` | `ObservationalScenarios` |
+| `inverse_functional_unsupported` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified, calibrated interventional-distribution cell |
+| `inverse_functional_unsupported` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate functional inverse query (`antecedent.inverse_query`, see [decision routes](../decisions.md#routes-at-a-glance)) requires a source supplying the requested functional |
+| `inverse_functional_unsupported` | `inverse.observational_scenarios` | `ObservationalScenarios` |
 | `route_not_supported` | `inverse.forward_not_mean_response` | the forward estimand is not a scalar-outcome mean curve (`ResponseCurve`) |
 | `route_not_supported` | `inverse.forward_not_point_identified` | the forward response is an identified set, a class mixture or unidentified |
 | `not_supported` | `inverse.forward_not_supported` | the forward result is not supported |
@@ -209,7 +209,7 @@ The mass of the event no scenario explains is reported, not renormalized away.
 | Quantile, probability or nonlinear utility on a point source | `PointOnlyLawRequested` / `decision_contract_unsatisfied` | Supply a law (draws or a finite table) |
 | Quantile or probability on a Gaussian composition | `ComposedLawNotMaterialized` | Draw the intervened law |
 | Interval region from any source | `IntervalNotSupported` / `not_supported` | Use the point as labelled |
-| Transported input to a consumer that does not accept one (inverse query, cohort forward claim, decision under the default policy) | `not_supported` (`inverse_forward_source.transported_not_accepted`, `transported_decision.transported_not_accepted`) | Accept transported inputs explicitly, naming the weaker support status in the policy |
+| Transported input to a consumer that does not accept one (inverse query, cohort forward claim, decision under the default policy) | `decision_contract_unsatisfied` (`inverse_forward_source.transported_not_accepted`, `transported_decision.transported_not_accepted`) | Accept transported inputs explicitly, naming the weaker support status in the policy |
 | Support rule stronger than the transported label | `transport_support_failure` (`transported_decision.support_rule_unmet`) | Weaken the rule for this input or measure in the target |
 | Typed route through the declared constructor, or a hand-typed identity | `transported_decision.route_needs_typed_source`, `transport_identity_not_digest` | Use the typed constructor of the route |
 | Native or calibrated label on a transported value | `transport_not_certified` | Keep the transport label |

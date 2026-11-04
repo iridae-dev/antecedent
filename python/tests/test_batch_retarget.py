@@ -248,12 +248,12 @@ def test_a_partial_family_lists_the_failed_members_and_is_never_complete():
     assert report.failed_members == ("spiked", "short", "good_minus_spiked")
     failed = {m.name: m for m in (*report.claims, *report.contrasts) if m.status == "failed"}
     assert failed["spiked"].support_status == "not_supported"
-    assert failed["spiked"].refusal_code == "not_supported"
+    assert failed["spiked"].refusal_code == "positivity_violated"
     assert failed["short"].refusal_code == "invalid_argument"
     assert failed["good_minus_spiked"].value is None
     with pytest.raises(CausalUnsupportedError) as partial:
         report.complete_family()
-    assert partial.value.reason_code == "not_supported"
+    assert partial.value.reason_code == "route_not_supported"
     assert "spiked" in str(partial.value) and "short" in str(partial.value)
     rows = report.to_rows()
     assert len(rows) == 4
@@ -403,7 +403,7 @@ def test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal(
     with pytest.raises(CausalUnsupportedError) as refused:
         partial.simultaneous_interval()
     assert_registered_refusal(refused.value)
-    assert refused.value.reason_code == "not_supported"
+    assert refused.value.reason_code == "route_not_supported"
     assert "partial_family" in str(refused.value)
     with pytest.raises(CausalUnsupportedError, match="max_t_invalid_level"):
         require_success(

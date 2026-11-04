@@ -161,7 +161,7 @@ def test_mnar_refuses_undeclared_unbounded_and_unsupported() -> None:
     with pytest.raises(mnar.MnarSensitivityRefusal) as info:
         _shift(sampling_composition="add the interval to the range")
     assert info.value.detail == "mnar_sensitivity.composition_not_supported"
-    assert info.value.code == "not_supported"
+    assert info.value.code == "route_not_supported"
 
 
 def test_mnar_argument_errors_are_domain_errors() -> None:

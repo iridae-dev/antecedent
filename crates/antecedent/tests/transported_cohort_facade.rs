@@ -332,7 +332,7 @@ fn interval_and_law_requests_are_refused_with_the_support_evidence() {
     )
     .unwrap();
     let interval = transported.interval_refusal();
-    assert_eq!(interval.code, "not_supported");
+    assert_eq!(interval.code, "route_not_supported");
     assert_eq!(interval.detail, "transported_effect.interval_not_supported");
     assert!(interval.remedy.contains("coverage"));
     let law = transported.law_refusal();

@@ -114,8 +114,7 @@ outcome=..., imputations=..., n_draws=..., prior_scale=...)` states that study d
 g-computation settings); the exact DAG posterior over the columns in order is searched on every
 completed table and the adjustment is whatever each sampled graph identifies. It returns the
 stacked effect, its posterior sd, the tables' posterior means, and the within, between and total
-variances. An interval is withheld until the combined procedure has its own supported and
-calibrated uncertainty route; graph selection, imputation and effect estimation must be
+variances. An interval is not reported: the combined procedure has no independent construction check of its own interval; graph selection, imputation and effect estimation must be
 evaluated together, and no confidence or credible interval follows from the point support.
 The result retains the
 declared missing-at-random assumption; refusals raise `GraphSelectionImputationRefusal`. Constructions with
@@ -420,7 +419,6 @@ observed throughout it. See [Panel designs](designs/panel-designs.md).
 A handled missingness changes the variance construction, so no interval is published for it:
 responder-weighted and complete-case randomized effects, restricted panels and temporal fits
 on series with gaps report a point estimate and a standard error where one exists, and the
-interval stays closed until a coverage record measures the construction. Multiple
-imputation publishes the pooled standard error and its degrees of freedom, and its interval
-stays closed the same way: the whole impute-fit-pool procedure is one uncertainty path, so a
-coverage record can measure it as one construction.
+interval is not reported. Multiple imputation publishes the pooled standard error and its
+degrees of freedom; the whole impute-fit-pool procedure is one uncertainty path, so any
+interval would have to cover it as one construction.

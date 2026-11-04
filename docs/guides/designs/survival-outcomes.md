@@ -211,7 +211,7 @@ psi_R = R_a(Z)    - 1{A = a}/e_a(Z) * integral_0^{t*} [integral_u^{t*} S_a(s|Z) 
 
 The estimate is the mean score and its standard error is the standard deviation of the scores over the square root of the row count. The scores are returned with `row_index`, so a consumer can replay the estimate and its standard error. A `NaN` is a missing cell: the row leaves the complete cases and is counted in `rows_dropped_missing`.
 
-The standard errors are influence-function standard errors with `calibration == "unmeasured"`. No interval is produced until a coverage record exists. Delayed entry, competing risks and time-varying covariates are not covered by this route. Tests compare it to closed-form survival and RMST for exponential event times with a proportional-hazards effect and six confounder cells, and show that the unadjusted Kaplan-Meier contrast is biased under the same confounding (`crates/antecedent/tests/observational_survival_effects.rs`, `python/tests/test_observational_survival.py`).
+The standard errors are influence-function standard errors with `calibration == "unmeasured"`. No interval is produced. Delayed entry, competing risks and time-varying covariates are not covered by this route. Tests compare it to closed-form survival and RMST for exponential event times with a proportional-hazards effect and six confounder cells, and show that the unadjusted Kaplan-Meier contrast is biased under the same confounding (`crates/antecedent/tests/observational_survival_effects.rs`, `python/tests/test_observational_survival.py`).
 
 ### Refusals on the observational route
 

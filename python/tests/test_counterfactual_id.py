@@ -188,7 +188,7 @@ def test_refusals_carry_reason_codes() -> None:
     five = ett(levels={"x": [0.0, 1.0], "m": [0.0, 1.0, 2.0, 3.0, 4.0], "y": [0.0, 1.0]})()
     assert five.names == ("x", "m", "y")
     error = refusal(ett(Cpdag.from_edges(["x", "m", "y"], [])))
-    assert error.reason_code == "not_supported"
+    assert error.reason_code == "route_not_supported"
     # A law without positivity for this functional.
     error = refusal(
         lambda: prepare().evaluate(probabilities=[0.2, 0.2, 0.0, 0.0, 0.1, 0.1, 0.2, 0.2])

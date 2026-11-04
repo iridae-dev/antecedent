@@ -27,11 +27,11 @@ statement. A spread of a transported claim needs all three pieces (source sampli
 sampling, transport functional) and their dependence (an aligned law or a covariance).
 
 :meth:`PropagationClaim.interval` and :meth:`PropagationClaim.posterior` always raise
-``not_supported``. An interval at a composed coordinate is supported only by
+``uncertainty_representation_insufficient``. An interval at a composed coordinate is supported only by
 :meth:`PropagationClaim.check_composed_interval`, which resolves the claim's coordinate
 (:meth:`PropagationClaim.coordinate_id`), construction and declared evidence size against the
-shipped, currently attesting coverage records; the caller supplies no record, and without one it
-raises the typed refusal. :meth:`PropagationClaim.export` writes
+shipped coverage records; the caller supplies no record, and the interval carries the resulting
+calibration status. :meth:`PropagationClaim.export` writes
 ``joint_law_propagation_v1``; :func:`consume_joint_law_propagation_artifact` re-runs the rule and
 replays the result to identical bits and refuses any edit.
 
@@ -426,7 +426,7 @@ class PropagationClaim(ScientificResult):
         return artifact_from_receipt(self, self._bytes)
 
     def interval(self) -> None:
-        """Always raises ``not_supported``: a component interval does not cover the composition.
+        """Always raises ``uncertainty_representation_insufficient``: a component interval does not cover the composition.
 
         An interval at the composed coordinate is read through :meth:`check_composed_interval`.
         """

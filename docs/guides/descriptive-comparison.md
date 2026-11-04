@@ -41,7 +41,7 @@ things are deliberately absent:
 * **No interval or standard error for the gap.** The covariance between the raw and the
   adjusted estimate is not carried by either (they use the same rows) and is not assumed
   zero. The field `gap_interval_unavailable` carries the typed reason
-  (`not_supported`, `descriptive_comparison.gap_interval_unavailable`).
+  (`route_not_supported`, `descriptive_comparison.gap_interval_unavailable`).
 * **No attribution to adjustment columns.** The adjusted estimate is not an additive
   function of the columns: a leave-one-out difference depends on the order, on the columns
   that remain and on the functional form. `attribute_gap_to_columns(...)` is a closed
@@ -84,22 +84,21 @@ disjoint groups, so `raw_reporting_transform` uses `diag(s1^2/n1, s0^2/n0)`. An 
 fewer than two rows has no sample variance and the covariance is then unavailable
 (`descriptive_comparison.arm_too_small`).
 
-**No interval.** A Wald interval from this covariance would rest on asymptotic normality of
-the pair and on the linearization being adequate near the boundary of the scale (a risk
-ratio of a rare event, an odds ratio near 0 or 1). No coverage record measures that, so
-`level=...` is a typed refusal (`not_supported`,
-`descriptive_comparison.interval_withheld`) and only the points and the covariance are
-published.
+**Interval.** With `level=...` and a covariance, each scale gets the equal-tailed
+delta-method Wald interval on its declared scale, reported with a calibration status. It rests
+on asymptotic normality of the pair and on the linearization being adequate near the boundary
+of the scale (a risk ratio of a rare event, an odds ratio near 0 or 1); the status annotates
+that and never withholds the interval. Without a covariance there is no interval.
 
 ## Limits
 
 * A transform supports {{bound:estimate.descriptive_comparison.reporting_scale_kinds}} distinct reporting scale kinds. A request may repeat a kind; there is no fixed request-count cap.
-* Point only; no interval anywhere, no calibration run.
+* The gap between the raw and adjusted estimates has no interval.
 * The comparison is for the difference-of-means coding on the all-observed population; a
   ratio-scale or subpopulation comparison needs its own adjusted estimate and is refused here.
 * The delta-method covariance is first order and describes the source `Sigma`'s own
-  uncertainty. It adds nothing the source did not support: when the source interval is
-  withheld, so is this.
+  uncertainty. It adds nothing the source did not support: when the source carries no
+  covariance, there is no interval here.
 * `raw_vs_adjusted` reads the data you pass it; it does not check that `adjusted_estimate`
   came from the same rows.
 * The pass over the rows observes cancellation at the first row, every 4096 rows and once

@@ -611,7 +611,7 @@ class CheckedTemporalIntervalCandidate:
 
             raise RecalcRefusal(
                 {
-                    "code": "not_supported",
+                    "code": "route_not_supported",
                     "detail": "temporal_interval.consumer_unavailable",
                     "stage": "inference",
                     "message": "the checked temporal interval consumer is unavailable in this build",

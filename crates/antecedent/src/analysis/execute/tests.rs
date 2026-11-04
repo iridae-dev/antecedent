@@ -428,7 +428,6 @@ mod identify_only_tests {
     use antecedent_prob::InferenceDiagnostics;
 
     use super::*;
-    use crate::support::SupportRefusal;
 
     fn toy_data() -> TabularData {
         TabularData::from_f64_columns([("t", &[0.0_f64, 1.0][..]), ("y", &[0.0_f64, 1.0][..])])
@@ -522,11 +521,11 @@ mod identify_only_tests {
         assert!(
             matches!(
                 err,
-                CausalError::Support { id: SupportRefusal::NotSupported, message: m } if *m == message
+                CausalError::Unsupported { message: m } if *m == message
             ),
             "{err:?}"
         );
-        assert_eq!(err.to_string(), format!("not_supported: {message}"));
+        assert_eq!(err.reason_code(), Some("route_not_supported"));
     }
 
     #[test]
@@ -557,8 +556,8 @@ mod identify_only_tests {
             .unwrap_err();
         assert_identify_only_refused(
             &err,
-            "identify_only is not a graph-posterior cell; identification \
-                          runs per-graph inside execute.",
+            "reason=route_not_supported: identify_only is not a graph-posterior cell; \
+             identification runs per-graph inside execute.",
         );
     }
 
@@ -1099,7 +1098,7 @@ mod identify_only_tests {
             .unwrap_err();
         assert_identify_only_refused(
             &err,
-            "identify_only supports static DAG and ADMG graphs only.",
+            "reason=route_not_supported: identify_only supports static DAG and ADMG graphs only.",
         );
     }
 }

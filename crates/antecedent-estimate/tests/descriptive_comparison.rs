@@ -65,7 +65,7 @@ fn the_gap_is_raw_minus_adjusted_and_carries_no_interval() {
     close(comparison.adjusted.estimate, 3.5, "adjusted");
     // The covariance of the raw and the adjusted estimate is not carried: the gap has a typed
     // reason instead of a standard error, and the adjusted SE is never folded into it.
-    assert_eq!(comparison.gap_interval.code, "not_supported");
+    assert_eq!(comparison.gap_interval.code, "route_not_supported");
     assert_eq!(comparison.gap_interval.detail, "descriptive_comparison.gap_interval_unavailable");
 }
 

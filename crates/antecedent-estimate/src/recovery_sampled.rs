@@ -22,9 +22,8 @@
 //! it is refused as `route_not_supported` /
 //! `sampled_recovery.unrecoverable_pattern` with the offending patterns retained.
 //!
-//! Calibration of the interval (whole-method coverage) is UNMEASURED: no coverage
-//! claim is made and the public interval route stays closed
-//! (the interval is reported with its calibration annotation). The digests are fingerprints (FNV-based),
+//! The interval is reported with its calibration annotation; whole-method coverage is
+//! UNMEASURED outside the measured scope, and no coverage claim is made. The digests are fingerprints (FNV-based),
 //! not cryptographic.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -70,9 +69,6 @@ pub const SAMPLED_RECOVERY_CALIBRATION: &str = "unmeasured";
 /// fixed per kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SampledRecoveryDetail {
-    /// The sampled provider or interval route is requested before full-path
-    /// truth, calibration and replay pass.
-    RouteFrozen,
     /// An interval was requested from per-margin variances alone.
     ComponentVarianceOnly,
     /// An observation pattern, zero cell or graph violates the exact recovery
@@ -95,7 +91,6 @@ impl SampledRecoveryDetail {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::RouteFrozen => "sampled_recovery.route_frozen",
             Self::ComponentVarianceOnly => "sampled_recovery.component_variance_only",
             Self::UnrecoverablePattern => "sampled_recovery.unrecoverable_pattern",
             Self::TooManyFailedReplicates => "sampled_recovery.too_many_failed_replicates",
@@ -110,8 +105,8 @@ impl SampledRecoveryDetail {
     #[must_use]
     pub const fn reason_code(self) -> &'static str {
         match self {
-            Self::RouteFrozen | Self::ComponentVarianceOnly => {
-                antecedent_core::reason_code!("not_supported")
+            Self::ComponentVarianceOnly => {
+                antecedent_core::reason_code!("estimator_inference_mismatch")
             }
             Self::UnrecoverablePattern | Self::TooManyFailedReplicates | Self::BoundsExceeded => {
                 antecedent_core::reason_code!("route_not_supported")

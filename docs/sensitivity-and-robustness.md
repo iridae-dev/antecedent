@@ -92,7 +92,7 @@ What is reported, and what is kept apart:
 | --- | --- |
 | `assumption_range` | The envelope of the point effects over the declared range. An assumption range: `is_confidence_interval` and `empirically_established` are always `False`. |
 | `assumptions` | The departure assumption, status `untestable`, and the treatment-ignorability assumption held fixed. |
-| `point.sampling` | A delta-method sampling interval conditional on that parameter value, at the stated `level`. Reported beside the range; composing the two refuses (`not_supported` / `mnar_sensitivity.composition_not_supported`). |
+| `point.sampling` | A delta-method sampling interval conditional on that parameter value, at the stated `level`. Reported beside the range; composing the two refuses (`route_not_supported` / `mnar_sensitivity.composition_not_supported`). |
 | `observed_case_effect` | The estimate from the observed outcomes alone, which equals the missing-at-random estimate here. |
 
 Refusals use `MnarSensitivityRefusal` with detail `mnar_sensitivity.<slot>`:

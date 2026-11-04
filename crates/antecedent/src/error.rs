@@ -1043,13 +1043,6 @@ impl CausalError {
                 }
                 failure.message()
             }
-            // A retarget whose weighted support gate failed is a positivity refusal; the
-            // facade carries it as a matrix refusal with the estimator's fixed message.
-            Self::Support { message, .. }
-                if *message == antecedent_estimate::RetargetRefusal::WeightedOverlap.as_str() =>
-            {
-                return Some(antecedent_core::reason_code!("positivity_violated"));
-            }
             Self::Unsupported { message } | Self::Support { message, .. } => message,
             Self::Estimate(error) => return error.reason_code(),
             Self::Serialization(IoError::Refused { code, .. })

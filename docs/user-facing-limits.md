@@ -51,11 +51,11 @@ data; it states which premise or declaration was not met.
 
 `not_applicable` is reserved for a cell whose estimand does not denote. A cell
 whose route is not built is `not_supported`, and its reason names the next attempt.
-A cell that is not supported refuses in release builds. A later development
-build will run the Bayesian Dag intervention-level refuter state, the static and
+A cell that is not supported refuses in release builds. A development
+build runs the Bayesian Dag intervention-level refuter state, the static and
 temporal derivative refuter states, the TemporalDag, TemporalCpdag, TemporalPag,
 Cpdag and Pag intervention-level refuter states, and the Bayesian joint
-InterventionResponse on a CoDetermined closure, and report `would_refuse` beside
+InterventionResponse on a CoDetermined closure, and reports `would_refuse` beside
 the result. The cells that stay not applicable, with the reason each one does not denote:
 
 - Pulse, sustained, temporal-conditional and temporal-mediation contrasts on a

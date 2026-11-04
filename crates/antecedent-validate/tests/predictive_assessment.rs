@@ -472,7 +472,7 @@ fn every_report_is_point_only_unmeasured_and_not_a_causal_claim() {
     assert_eq!(report.inference_claim, "point_only");
     assert_eq!(report.causal_validity, "not_established");
     assert_eq!(report.uncertainty.sampling_interval, "not reported");
-    assert_eq!(report.uncertainty.reason_code, "not_supported");
+    assert_eq!(report.uncertainty.reason_code, "uncertainty_representation_insufficient");
     let interval = report.request_score_interval().unwrap_err();
     assert_eq!(interval.reason_code(), "quantity_semantics_mismatch");
     assert_eq!(interval.detail(), detail::INTERVAL_NOT_SUPPORTED);

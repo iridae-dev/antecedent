@@ -28,8 +28,7 @@ What the answer is **not**:
 
 * No graph is checked: the caller owns that ``adjust`` is a valid adjustment set.
 * The standard error is the plug-in influence-function variance of cross-fitted scores. The
-  95% interval ``effect ± z · se_analytic`` is published (``interval`` set,
-  ``interval_status == "calibrated"``) only when a current coverage record measured this
+  95% interval ``effect ± z · se_analytic`` is published (``interval`` set), and ``interval_status == "calibrated"`` only when a current coverage record measured this
   construction (the full-population target, its number of levels, folds and row count).
   Otherwise ``interval`` is ``None``, ``interval_status`` is the calibration status of the
   construction (``"outside_measured_scope"``, ``"measured_below_nominal"`` or

@@ -130,7 +130,9 @@ def test_a_calibration_record_is_never_inherited_by_another_target() -> None:
     assert "calibration_from_another_target" in claim.reasons
     assert claim.calibration_withdrawn
     refusal = refusal_of(lambda: report.require_valid("effect_trial"))
-    assert refusal.reason_code == "not_supported"
+    # The lost record is carried as a withdrawn calibration; the claim refuses only because the
+    # target data changed and it must be recomputed.
+    assert refusal.reason_code == "claim_revalidation_required"
     # A point-only claim of the same scene is recomputed, not withdrawn: it states no guarantee
     # to lose.
     assert report.claim("effect_registry").classification == "recompute"

@@ -23,9 +23,8 @@ states which diagnostic is available for it; nothing is refit and no within-tier
 The E-value is a sensitivity summary of the stated no-latent-path premise, never a test of it.
 Every number, availability decision and refusal is computed in Rust.
 
-A result that is not a supported single-treatment tiered average-effect result is refused with
-``not_supported`` (``tier_diagnostics.result_not_supported``) or ``invalid_argument``
-(``tier_diagnostics.not_a_tiered_average_result``); a cancelled ``cancel`` token stops the read with
+A result that is not a single-treatment tiered average-effect result is refused with
+``invalid_argument`` (``tier_diagnostics.not_a_tiered_average_result``); a cancelled ``cancel`` token stops the read with
 ``cancelled_no_claim`` (``tier_diagnostics.cancelled``) and no diagnostics.
 """
 

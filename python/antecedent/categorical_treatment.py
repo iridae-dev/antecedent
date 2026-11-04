@@ -937,9 +937,9 @@ class PreparedCategoricalPosteriorCandidate:
     only by the execution's resource limits.
     The sampling design is a caller declaration. The compiler requires one distinct
     subject per row; it does not infer independence from the observed data. Compiling
-    grants no authority: ``measured_interval`` returns a calibrated credible interval of
-    every level against the reference only when a current coverage record covers the
-    construction, level count and row count, and otherwise refuses.
+    grants no authority: ``measured_interval`` returns a credible interval of
+    every level against the reference with its calibration status, which is ``calibrated``
+    only when a current coverage record covers the construction, level count and row count.
     """
 
     def __init__(
@@ -1028,7 +1028,7 @@ class PreparedCategoricalPosteriorCandidate:
     def measured_interval(self) -> MeasuredInference:
         """Replay the retained source for a calibrated credible interval per level.
 
-        Refuses with ``not_supported`` unless a current attesting coverage record
+        The calibration status is ``calibrated`` only when a current coverage record
         covers this construction, the declared level count and the row count.
         """
         from ._measured_inference import MeasuredInference

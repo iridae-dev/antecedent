@@ -228,12 +228,15 @@ fn seal_refuses_closed_unsupported_and_uncertified_requests() {
     let mut outside = request("level", 0.1);
     outside.grid.push(10.0);
     let (code, why) = detail(outside);
-    assert_eq!((code, why.as_str()), ("not_supported", "dose_grid.unsupported_dose"));
+    assert_eq!((code, why.as_str()), ("positivity_violated", "dose_grid.unsupported_dose"));
 
     let mut weak = request("level", 0.1);
     weak.minimum_local_ess = 1_000.0;
     let (code, why) = detail(weak);
-    assert_eq!((code, why.as_str()), ("not_supported", "dose_grid.insufficient_local_weight"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("positivity_violated", "dose_grid.insufficient_local_weight")
+    );
 
     let mut derivative_without_claim = request("derivative", 0.1);
     derivative_without_claim.claims.derivative = false;

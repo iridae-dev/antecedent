@@ -80,7 +80,7 @@ covariance for a refit one, joined by the declared dependence: independence by
 design, an aligned joint covariance, or cross-covariance blocks. Unknown
 dependence between more than one involved mechanism is refused. The transport
 assumption adds no variance, support is `extrapolative`, inference is
-`point_only` and the interval route is closed (`not_supported`).
+`point_only` and an interval is refused (`not_supported`).
 
 The conformance fixture `conformance/transport/typed_mechanism_shift` holds a
 source and a target sample in which income and price are invariant and six

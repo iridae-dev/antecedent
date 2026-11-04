@@ -743,7 +743,7 @@ impl LearnedJointArtifactWire {
             || target.covariates[0].len() != 4
             || !identity_ok(&target.identity)
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.input_bounds_exceeded: source/model/identity shape exceeds the declared input bounds".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("invalid_argument"),message:"measured_transport.input_bounds_exceeded: source/model/identity shape exceeds the declared input bounds".into() });
         }
         Ok(())
     }
@@ -774,7 +774,7 @@ impl LearnedJointArtifactWire {
             != antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER
             || fit.diagnostics.draw_count != fit.draws.n_draws
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.sampler_mismatch: actual native posterior differs from the sampler the replay expects".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("invalid_argument"),message:"measured_transport.sampler_mismatch: actual native posterior differs from the sampler the replay expects".into() });
         }
         let basis = crate::measured_inference::transport::tag_outside(
             &scope,

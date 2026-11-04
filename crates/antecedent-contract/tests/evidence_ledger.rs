@@ -360,9 +360,6 @@ fn unknown_overlap_is_never_promoted_to_independent() {
     assert_eq!(record.claim_class, ClaimClass::AssumptionRange);
     assert!(record.mass.unknown_sources.contains(&vendor));
     assert!(record.observations_digest.is_none());
-    // and nothing supports an interval from it
-    let error = ledger.request_interval(ranged).expect_err("closed");
-    expect_refusal(&error, "not_supported", "evidence_ledger.interval_not_supported");
 
     // a covariance with cross terms is supported point-only
     ledger
@@ -1155,7 +1152,4 @@ fn no_interval_or_posterior_is_supported_from_pooled_evidence() {
     let record = ledger.result(pooled).expect("record");
     // the ledger supports a point-only statement
     assert_eq!(record.claim_class, ClaimClass::PointOnly);
-    let error = ledger.request_interval(pooled).expect_err("the interval route is closed");
-    expect_refusal(&error, "not_supported", "evidence_ledger.interval_not_supported");
-    assert!(error.message.contains("point_only"), "{}", error.message);
 }

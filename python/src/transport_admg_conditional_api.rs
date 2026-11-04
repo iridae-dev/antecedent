@@ -408,12 +408,13 @@ impl AdmgConditionalTransportStage {
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
 
-    /// Counted laws are not supported on this route (no coverage record exists),
-    /// so preparation refuses: exact-law points only.
+    /// Prepare with counted laws. The route publishes exact-law points only (no sampling
+    /// theory exists for it), so preparation passes through the support gate.
     #[pyo3(signature=(laws, assignments, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
-    #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
+    #[allow(clippy::too_many_arguments)]
     fn prepare_empirical(
         &self,
+        py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         assignments: &Bound<'_, PyAny>,
         max_operations: usize,
@@ -421,10 +422,12 @@ impl AdmgConditionalTransportStage {
         seed: u64,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedAdmgConditionalTransportStage> {
-        Err(crate::refusal(
-            antecedent_core::reason_code!("not_supported"),
-            "admg_transport.counted_laws_unsupported: counted laws are not supported on the conditional route; it publishes exact-law points only",
-        ))
+        antecedent_core::support_gate::require_supported_unscoped(
+            "admg_transport.counted_laws_unsupported",
+            &["admg_conditional.counted_law_plugin_check"],
+        )
+        .map_err(|e| crate::not_supported_err(&e))?;
+        self.prepare_exact(py, laws, assignments, max_operations, max_depth, seed, cancel)
     }
 }
 

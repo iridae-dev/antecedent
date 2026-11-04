@@ -3127,11 +3127,11 @@ impl super::Study {
         if self.graph_posterior.is_some() {
             // `self.graph` is only the placeholder shape here (see `stub_accepted_graph_for`);
             // identification runs per-graph, against the real posterior atoms, inside `execute()`.
-            return Err(CausalError::Support {
-                id: crate::support::SupportRefusal::NotSupported,
-                message: "identify_only is not a graph-posterior cell; identification \
-                          runs per-graph inside execute.",
-            });
+            return Err(crate::unsupported_reason!(
+                "route_not_supported",
+                "identify_only is not a graph-posterior cell; identification \
+                 runs per-graph inside execute."
+            ));
         }
         let default_id = if matches!(&self.query, CausalQuery::Response(_)) {
             DEFAULT_RESPONSE_IDENTIFIER_ID
@@ -3143,10 +3143,10 @@ impl super::Study {
         if let Some(admg) = self.graph.as_admg() {
             if admg_has_bidirected(admg) {
                 let CausalQuery::AverageEffect(query) = &self.query else {
-                    return Err(CausalError::Support {
-                        id: crate::support::SupportRefusal::NotSupported,
-                        message: "identify_only on an ADMG supports AverageEffect only.",
-                    });
+                    return Err(crate::unsupported_reason!(
+                        "route_not_supported",
+                        "identify_only on an ADMG supports AverageEffect only."
+                    ));
                 };
                 // Only general ID handles bidirected structure; the default
                 // identifier is a backdoor strategy that would ignore it.
@@ -3161,9 +3161,11 @@ impl super::Study {
             return identify_static_query(id, &coerced, &self.query);
         }
 
-        let graph = self.graph.as_dag().ok_or(CausalError::Support {
-            id: crate::support::SupportRefusal::NotSupported,
-            message: "identify_only supports static DAG and ADMG graphs only.",
+        let graph = self.graph.as_dag().ok_or_else(|| {
+            crate::unsupported_reason!(
+                "route_not_supported",
+                "identify_only supports static DAG and ADMG graphs only."
+            )
         })?;
         identify_static_query(id, graph, &self.query)
     }
@@ -3194,11 +3196,11 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<crate::Identification, CausalError> {
         if self.graph_posterior.is_some() {
-            return Err(CausalError::Support {
-                id: crate::support::SupportRefusal::NotSupported,
-                message: "identify_structure is not a graph-posterior cell; identification \
-                          runs per-graph inside execute.",
-            });
+            return Err(crate::unsupported_reason!(
+                "route_not_supported",
+                "identify_structure is not a graph-posterior cell; identification \
+                 runs per-graph inside execute."
+            ));
         }
         crate::identify_api::identify_study_within(
             &self.graph,

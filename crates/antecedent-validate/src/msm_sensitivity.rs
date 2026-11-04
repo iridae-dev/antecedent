@@ -473,7 +473,7 @@ fn check_lambda(lambda: f64) -> Result<(), MsmSensitivityError> {
 fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
-            reason_code!("not_supported"),
+            reason_code!("route_not_supported"),
             "msm_sensitivity.composition_not_supported",
             format!(
                 "composing a sampling interval with the assumption range by `{method}` is not supported"
@@ -659,7 +659,7 @@ pub fn msm_ate_sensitivity(
 /// # Errors
 ///
 /// `msm_posterior.non_positive_scale`, `msm_posterior.mapped_prior`,
-/// `msm_posterior.external_power_prior`, `msm_posterior.unmeasured_band`,
+/// `msm_posterior.external_power_prior`, `msm_posterior.band_not_constructed`,
 /// `msm_posterior.empty_law`, or a refusal of the sensitivity engine.
 pub fn msm_dirichlet_posterior(
     strata: &[MsmStratum],

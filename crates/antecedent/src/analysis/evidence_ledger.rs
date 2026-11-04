@@ -1124,8 +1124,9 @@ impl EvidenceLedgerSession {
     /// the actual study count, with `k - 1` degrees of freedom.
     ///
     /// # Errors
-    /// `not_supported` for a result with no numbers (accounting only) or a
-    /// hierarchical borrowing or dependence range (no interval construction).
+    /// `not_supported` for a result with no numbers (accounting only);
+    /// `route_not_supported` for a hierarchical borrowing or dependence range
+    /// (no interval construction).
     /// A construction, study count or sample size without a currently
     /// attesting coverage record still reports its interval, annotated
     /// `not_measured` or `outside_measured_scope`. An unknown result is
@@ -1161,7 +1162,8 @@ impl EvidenceLedgerSession {
                     // No record measures this study count (or, for the legacy HKSJ interval,
                     // identifies its generating family): the interval is reported and its
                     // calibration says that no record measured it.
-                    basis.estimator = format!("{}+study_count_not_measured", basis.estimator).into();
+                    basis.estimator =
+                        format!("{}+study_count_not_measured", basis.estimator).into();
                 }
                 antecedent_io::measured_inference::build_report(
                     "evidence_ledger_pooled",
@@ -1179,15 +1181,13 @@ impl EvidenceLedgerSession {
             })
             .reduce(Result::or)
             .unwrap_or_else(|| unreachable!("two bases were supplied"))
-        .map_err(|error| {
-            EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
-                "evidence_ledger.interval_not_measured",
-                format!(
-                    "no currently attesting coverage record governs this construction ({error:?})"
-                ),
-            )
-        })?;
+            .map_err(|error| {
+                EvidenceLedgerRefusal::new(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "evidence_ledger.interval_report_invalid",
+                    format!("the pooled interval cannot be reported ({error:?})"),
+                )
+            })?;
         Ok(PooledInterval {
             result,
             method: candidate.method,
@@ -1212,10 +1212,11 @@ impl EvidenceLedgerSession {
         result: ResultId,
     ) -> Result<PooledIntervalCandidate, EvidenceLedgerRefusal> {
         let Some(value) = self.values.get(&result) else {
-            return match self.ledger.request_interval(result) {
-                Err(error) => Err(EvidenceLedgerRefusal::from_ledger(&error)),
-                Ok(never) => match never {},
-            };
+            return Err(EvidenceLedgerRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "evidence_ledger.unknown_result",
+                "the result is not in the ledger",
+            ));
         };
         self.ledger.require_valid(result).map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))?;
         let record = self.ledger.result(result).ok_or_else(|| {
@@ -1227,9 +1228,9 @@ impl EvidenceLedgerSession {
         })?;
         let unmeasured = |what: &str| {
             EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
-                "evidence_ledger.interval_not_measured",
-                format!("no measured interval construction exists for {what}"),
+                antecedent_core::reason_code!("route_not_supported"),
+                "evidence_ledger.interval_construction_unavailable",
+                format!("no interval construction exists for {what}"),
             )
         };
         let level = POOLED_INTERVAL_LEVEL;

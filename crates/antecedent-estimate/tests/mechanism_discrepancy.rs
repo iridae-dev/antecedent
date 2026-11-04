@@ -473,11 +473,11 @@ fn mechanism_posterior_refuses_an_unmeasured_band() {
     .unwrap();
     let err = antecedent_estimate::posterior_mean::mechanism_coefficient_posterior(
         &result.source_summary,
-        antecedent_estimate::posterior_mean::PosteriorRequest::UnmeasuredBand,
+        antecedent_estimate::posterior_mean::PosteriorRequest::CredibleBand,
     )
     .unwrap_err();
     let (_, message) = refusal(err);
-    assert!(message.contains("mechanism_posterior.unmeasured_band"), "{message}");
+    assert!(message.contains("mechanism_posterior.band_not_constructed"), "{message}");
 }
 
 #[test]

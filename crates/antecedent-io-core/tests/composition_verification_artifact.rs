@@ -151,8 +151,7 @@ fn a_first_verification_has_nothing_stale_and_a_withdrawn_calibration_is_carried
     assert_eq!(claim.class, Revalidation::Withdrawn);
     assert!(claim.numerical.is_empty());
     assert!(claim.withdrawn_for(WithdrawalKind::Calibration));
-    let refusal = artifact.revalidation().require_valid("claim").expect_err("refused");
-    assert_eq!(refusal.code, "not_supported");
+    assert!(artifact.revalidation().require_valid("claim").is_ok());
 }
 
 #[test]

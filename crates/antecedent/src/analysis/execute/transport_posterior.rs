@@ -699,7 +699,7 @@ fn transport_representative<'a>(
     atom_estimates: &[Option<TransportEffectEstimate>],
 ) -> Result<(usize, &'a TransportIdentification, TransportEffectEstimate), CausalError> {
     let Some(representative) = atom_estimates.iter().position(Option::is_some) else {
-        return Err(crate::support_reason!(
+        return Err(crate::unsupported_reason!(
             "construction_not_supported",
             "every certified posterior atom is a RecursiveFactorization, identified but not \
                  estimable on the supported trial-to-target IPW path"

@@ -94,12 +94,12 @@ pub fn cohort_decision_input(
 ///
 /// # Errors
 /// A source built under a declared covariate shift: the shape every consumer that does
-/// not accept transported claims returns (`not_supported`,
+/// not accept transported claims returns (`decision_contract_unsatisfied`,
 /// `inverse_forward_source.transported_not_accepted`).
 pub fn cohort_forward_claim(source: &CohortDecisionSource) -> Result<ForwardClaim, CohortRefusal> {
     if source.shift().is_some() {
         return Err(CohortRefusal {
-            code: antecedent_core::reason_code!("not_supported"),
+            code: antecedent_core::reason_code!("decision_contract_unsatisfied"),
             detail: crate::inverse_forward_source::DETAIL_TRANSPORTED_NOT_ACCEPTED,
             subject: source.cohort().population_id().to_owned(),
             remedy: "accept transported claims explicitly (AcceptsTransported) so the result \

@@ -16,9 +16,10 @@
 //! identity independently refuses a consistently resealed artifact of another
 //! evaluation.
 //!
-//! The artifact carries no interval, posterior or coverage statement
-//! (`point_only`); the rollout error and the importance-weighted standard
-//! error are labelled uncalibrated diagnostics.
+//! The artifact carries no posterior or coverage statement (`point_only`). The
+//! off-policy estimate carries the Wald interval of its importance-weighted standard error,
+//! reported with the calibration status `not_measured`; the rollout error is labelled an
+//! uncalibrated diagnostic.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -272,6 +273,19 @@ pub struct TrajectoryWire {
     pub outcome_bits: u64,
 }
 
+/// The Wald interval of an off-policy estimate on the wire. Its calibration status is
+/// always `not_measured` ([`OffPolicyInterval::calibration_slot`]), so none is stored.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntervalWire {
+    /// Nominal level bits.
+    pub level_bits: u64,
+    /// Lower limit bits.
+    pub lower_bits: u64,
+    /// Upper limit bits.
+    pub upper_bits: u64,
+}
+
 /// The off-policy estimate and its inputs on the wire.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -290,6 +304,8 @@ pub struct OffPolicyWire {
     pub max_weight_bits: u64,
     /// Uncalibrated standard error bits.
     pub standard_error_bits: Option<u64>,
+    /// The Wald interval of the ordinary estimate; absent below two trajectories.
+    pub interval: Option<IntervalWire>,
     /// Histories checked for positivity.
     pub positivity_histories_checked: u64,
     /// Records counted once.
@@ -690,6 +706,9 @@ fn evaluation_identity(body: &SequentialEvaluationBody) -> String {
                 .word(off.effective_sample_size_bits)
                 .word(off.max_weight_bits)
                 .opt_word(off.standard_error_bits)
+                .opt_word(off.interval.as_ref().map(|i| i.level_bits))
+                .opt_word(off.interval.as_ref().map(|i| i.lower_bits))
+                .opt_word(off.interval.as_ref().map(|i| i.upper_bits))
                 .text(&off.ledger_state);
         }
         None => {
@@ -745,6 +764,11 @@ fn build_body(
                 effective_sample_size_bits: estimate.effective_sample_size.to_bits(),
                 max_weight_bits: estimate.max_weight.to_bits(),
                 standard_error_bits: estimate.uncalibrated_standard_error.map(f64::to_bits),
+                interval: estimate.interval.as_ref().map(|i| IntervalWire {
+                    level_bits: i.level.to_bits(),
+                    lower_bits: i.lower.to_bits(),
+                    upper_bits: i.upper.to_bits(),
+                }),
                 positivity_histories_checked: estimate.positivity_histories_checked,
                 records_counted: estimate.records_counted,
                 ledger_state: estimate.ledger_state,

@@ -732,7 +732,7 @@ fn prepare(
 fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivityError> {
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
-            reason_code!("not_supported"),
+            reason_code!("route_not_supported"),
             "mnar_sensitivity.composition_not_supported",
             format!(
                 "composing a sampling interval with the assumption range by `{method}` is not supported"

@@ -1,8 +1,8 @@
 //! The closed transported path-specific counterfactual route and its precise gates.
 //!
 //! The composition of a transport theorem and a fixed-population cross-world
-//! theorem is **not** evaluated here: the joint theorem has not passed, so the
-//! route stays closed. This module only reports exactly which prerequisite gate is
+//! theorem is **not** evaluated here: no joint theorem is derived, so the route
+//! has no method. This module only reports exactly which prerequisite gate is
 //! missing, retains the missing regime factors, and returns the live refusal.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -108,13 +108,14 @@ pub struct TransportedCounterfactualRefusal {
 
 /// Refuse the transported path-specific counterfactual route.
 ///
-/// The route is closed whatever is supplied. The refusal is
-/// `transported_counterfactual.route_frozen` (`not_supported`) when any
-/// prerequisite gate is missing, and also when all gates pass but every required
-/// regime factor is present (the joint theorem itself has not passed). Only when
-/// all gates pass and a required source or target regime factor is absent from
-/// `supplied` is it `transported_counterfactual.factor_missing`
-/// (`transport_missing_evidence`). Both lists are retained either way.
+/// The route has no method whatever is supplied. The refusal is
+/// `transported_counterfactual.prerequisite_missing` (`transport_missing_evidence`)
+/// when any prerequisite gate is missing. When all gates pass and a required
+/// source or target regime factor is absent from `supplied` it is
+/// `transported_counterfactual.factor_missing` (`transport_missing_evidence`).
+/// When all gates pass and every required factor is present it is
+/// `transported_counterfactual.joint_theorem_not_derived` (`route_not_supported`):
+/// no joint theorem composes the two. Both lists are retained either way.
 #[must_use]
 pub fn refuse_transported_counterfactual(
     prerequisites: &TransportedCounterfactualPrerequisites,
@@ -126,27 +127,35 @@ pub fn refuse_transported_counterfactual(
         required_factors.iter().filter(|k| !supplied.contains_key(*k)).cloned().collect();
     missing_factors.sort();
     missing_factors.dedup();
-    let (code, detail, offending, remedy) =
-        if missing_gates.is_empty() && !missing_factors.is_empty() {
-            (
-                antecedent_core::reason_code!("transport_missing_evidence"),
-                "transported_counterfactual.factor_missing",
-                missing_factors.first().map(RegimeFactorKey::label),
-                "this temporal route stays closed; a finite discrete, static, acyclic \
-             semi-Markovian counterfactual transport question is answered by \
-             antecedent.transport.advanced.identify_counterfactual",
-            )
-        } else {
-            (
-                antecedent_core::reason_code!("not_supported"),
-                "transported_counterfactual.route_frozen",
-                missing_gates.first().map(|g| g.name().to_owned()),
-                "this temporal, continuous or non-finite route stays closed because the joint \
-             theorem is not derived; a finite discrete, static, acyclic semi-Markovian \
+    let (code, detail, offending, remedy) = if !missing_gates.is_empty() {
+        (
+            antecedent_core::reason_code!("transport_missing_evidence"),
+            "transported_counterfactual.prerequisite_missing",
+            missing_gates.first().map(|g| g.name().to_owned()),
+            "supply the missing transport support, fixed-population cross-world support and \
+             cross-population assumptions; a finite discrete, static, acyclic semi-Markovian \
              counterfactual transport question is answered by \
              antecedent.transport.advanced.identify_counterfactual",
-            )
-        };
+        )
+    } else if !missing_factors.is_empty() {
+        (
+            antecedent_core::reason_code!("transport_missing_evidence"),
+            "transported_counterfactual.factor_missing",
+            missing_factors.first().map(RegimeFactorKey::label),
+            "supply evidence for the missing source and target regime factors; a finite \
+             discrete, static, acyclic semi-Markovian counterfactual transport question is \
+             answered by antecedent.transport.advanced.identify_counterfactual",
+        )
+    } else {
+        (
+            antecedent_core::reason_code!("route_not_supported"),
+            "transported_counterfactual.joint_theorem_not_derived",
+            None,
+            "this temporal, continuous or non-finite route has no joint theorem; a finite \
+             discrete, static, acyclic semi-Markovian counterfactual transport question is \
+             answered by antecedent.transport.advanced.identify_counterfactual",
+        )
+    };
     TransportedCounterfactualRefusal {
         refusal: StructuredRefusal {
             code,

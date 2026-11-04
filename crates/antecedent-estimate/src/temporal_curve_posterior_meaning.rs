@@ -64,7 +64,7 @@ pub fn require_ordinary_temporal_curve_posterior(
     match temporal_curve_posterior_meaning(serial) {
         TemporalCurvePosteriorMeaning::OrdinaryLikelihood => Ok(()),
         TemporalCurvePosteriorMeaning::TemperedGeneralized => Err(EstimationError::refused_detail(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("distribution_meaning_mismatch"),
             "temporal_curve.ordinary_posterior_not_supported",
             "the innovation dependence is not part of the likelihood, so the curve posterior is \
              the tempered generalized posterior and not the posterior of a joint law of the \

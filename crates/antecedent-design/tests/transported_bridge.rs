@@ -135,7 +135,7 @@ fn a_surrogate_validated_elsewhere_is_carried_when_the_diagram_leaves_the_relati
     );
     // Still point-only: no interval is supported for the transported bridge.
     let interval = bridged.request_interval().unwrap_err();
-    assert_eq!(interval.code, "not_supported");
+    assert_eq!(interval.code, "route_not_supported");
     assert_eq!(interval.detail, "scientific_bridge.interval_not_supported");
 }
 

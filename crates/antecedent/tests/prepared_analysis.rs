@@ -1061,7 +1061,7 @@ fn prepare_supports_path_specific_and_conditional_on_admg() {
 }
 
 /// `PreparedStudy::refute` is supported for `AverageEffect` only; a prepared
-/// `ConditionalEffect` handle must refuse cleanly (stable `Support` id), not panic.
+/// `ConditionalEffect` handle must refuse cleanly (`route_not_supported`), not panic.
 #[test]
 fn refute_on_prepared_conditional_effect_refuses_cleanly() {
     let (data, dag, query) = conditional_effect_fixture();
@@ -1077,11 +1077,11 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let err = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     match err {
-        antecedent::CausalError::Support { id, message } => {
-            assert_eq!(id, antecedent::SupportRefusal::NotSupported);
+        antecedent::CausalError::Unsupported { message } => {
+            assert!(message.starts_with("reason=route_not_supported: "), "{message}");
             assert!(message.contains("AverageEffect"), "{message}");
         }
-        other => panic!("expected Support::Refused, got {other:?}"),
+        other => panic!("expected Unsupported, got {other:?}"),
     }
 }
 

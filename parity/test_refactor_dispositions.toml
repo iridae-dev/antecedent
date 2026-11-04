@@ -134,7 +134,7 @@ reason = "Preserve all outputs, budgets, tolerances and support assertions. This
 
 [[case]]
 previous = "crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
-replacement = "crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
+replacement = "crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_is_reported_with_its_calibration_at_its_coordinate"
 disposition = "explicit_calibration_acceptance_selection"
 reason = "Preserve all outputs, budgets, tolerances and support assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 

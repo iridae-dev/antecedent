@@ -80,7 +80,6 @@ Adding any number of the first two classes leaves the estimate bit-for-bit uncha
 | population risk, absolute risk, risk difference, risk ratio | `effect_not_identified` | `matched_case_control.absolute_risk_not_identified` |
 | any other estimand | `route_not_supported` | `matched_case_control.estimand_not_supported` |
 | a sampling design other than `matched_case_control` | `invalid_argument` | `matched_case_control.sampling_design` |
-| an interval (`level=`) | `not_supported` | `matched_case_control.interval_withheld` |
 | every set concordant or outcome-degenerate | `effect_not_identified` | `matched_case_control.no_informative_sets` |
 | the conditional likelihood has no finite maximizer | `route_not_supported` | `matched_case_control.estimate_not_finite` |
 | non-0/1, missing or unequal-length rows | `invalid_argument` | `matched_case_control.invalid_data` |
@@ -90,8 +89,10 @@ Risk-scale quantities are refused because the case fraction is fixed by the samp
 design: an absolute risk needs the outcome prevalence or the selection fractions, and
 this cell takes neither.
 
-No interval is reported. A Wald interval `beta_hat +- z / sqrt(I(beta_hat))` rests on
-asymptotics (many informative sets, bounded set size, a fixed `beta`, independent sets)
-that no coverage record measures, so the route stays closed until one does.
+`level=` adds the Wald interval `beta_hat +- z / sqrt(I(beta_hat))` on the log scale,
+exponentiated for the odds ratio, with its calibration status. It rests on asymptotics (many
+informative sets, bounded set size, a fixed `beta`, independent sets); no coverage record
+measures the construction, so the status is `not_measured`. The interval is reported
+regardless and is not part of the exported artifact.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).

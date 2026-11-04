@@ -567,7 +567,7 @@ fn check_operation(
         .find(|(refused, _)| *refused == operation)
         .map_or("not an operation this route enters", |(_, why)| *why);
     Err(ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("route_not_supported"),
         STAGE_BIND,
         "measurement_model.operation_not_supported",
     )
@@ -1106,7 +1106,7 @@ mod tests {
             req.operation = operation;
             let refusal = check_measurement_request(&model(), &req, None).unwrap_err();
             assert_eq!(refusal.detail, "measurement_model.operation_not_supported");
-            assert_eq!(refusal.code, "not_supported");
+            assert_eq!(refusal.code, "route_not_supported");
             assert!(refusal.remedy.is_some());
         }
         for route in MeasurementRoute::ALL {

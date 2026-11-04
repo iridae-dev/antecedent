@@ -434,7 +434,11 @@ def test_another_population_or_period_and_any_interval_are_typed_refusals():
         "transport_missing_evidence",
         "sequential_evaluation.transported_policy_contract_missing",
     )
-    refused(se.request_interval, "not_supported", "sequential_evaluation.interval_not_supported")
+    refused(
+        se.request_interval,
+        "uncertainty_representation_insufficient",
+        "sequential_evaluation.interval_not_supported",
+    )
 
 
 def test_observation_channels_pass_through_the_measurement_model_checks():
@@ -749,6 +753,13 @@ def test_off_policy_weighting_recovers_the_enumerated_value():
     assert estimate.inference == "point_only"
     assert estimate.uncalibrated_standard_error is not None
     assert estimate.trajectories == LOG_SIZE
+    # a Wald interval from the importance-weighted standard error, calibration not measured
+    interval = estimate.interval
+    assert interval is not None and interval.level == 0.95
+    half = 1.959963984540054 * estimate.uncalibrated_standard_error
+    assert interval.lower == pytest.approx(estimate.ordinary - half, abs=1e-12)
+    assert interval.upper == pytest.approx(estimate.ordinary + half, abs=1e-12)
+    assert interval.calibration["status"] == "not_measured"
     # permutation invariance: the same log in another order is the same estimate
     shuffled = se.evaluate_off_policy(problem, target, logging_policy(), list(reversed(log)))
     assert shuffled.ordinary == estimate.ordinary

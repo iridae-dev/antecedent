@@ -224,7 +224,7 @@ impl AdmgConditionalArtifactError {
                 (reason_code!("invalid_argument"), "admg_transport.invalid_artifact")
             }
             Self::CountedLawsUnsupported => {
-                (reason_code!("not_supported"), "admg_transport.counted_laws_unsupported")
+                (reason_code!("route_not_supported"), "admg_transport.counted_laws_unsupported")
             }
             Self::LimitsExceeded(_) => {
                 (reason_code!("route_not_supported"), "admg_transport.consumer_limits")

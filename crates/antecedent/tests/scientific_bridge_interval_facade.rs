@@ -444,7 +444,7 @@ fn an_interval_without_the_source_standard_error_is_refused_with_its_remedy() {
     let contract = affine_contract();
     let result = derive(&contract, 0.5, "probability", None);
     let refused = refusal(result.bridged_interval(0.95));
-    assert_eq!(refused.code, antecedent_core::reason_code!("not_supported"));
+    assert_eq!(refused.code, antecedent_core::reason_code!("required_option_missing"));
     assert_eq!(refused.detail, "scientific_bridge.interval_source_uncertainty_required");
     assert!(refused.remedy.as_deref().is_some_and(|remedy| remedy.contains("standard error")));
 }

@@ -25,11 +25,12 @@ use serde::{Deserialize, Serialize};
 /// Route name the measured envelope is consumed under.
 pub const ROUTE: &str = "cohort_interval";
 
-fn refused(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: format!("{detail}: {message}"),
-    }
+fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
+    IoError::Refused { code, message: format!("{detail}: {message}") }
+}
+
+fn invalid(detail: &str, message: &str) -> IoError {
+    refused(antecedent_core::reason_code!("invalid_argument"), detail, message)
 }
 
 fn from_interval(error: &CohortIntervalRefusal) -> IoError {
@@ -89,10 +90,10 @@ impl CohortIntervalArtifactWire {
         let rows = native.rows();
         let export_bytes = export
             .to_bytes("cohort_interval_model")
-            .map_err(|e| refused("cohort_decision.fitted_model_invalid", &e.to_string()))?;
+            .map_err(|e| invalid("cohort_decision.fitted_model_invalid", &e.to_string()))?;
         let source_bytes = source
             .to_bytes("cohort_interval_source")
-            .map_err(|e| refused("cohort_decision.source_invalid", &e.to_string()))?;
+            .map_err(|e| invalid("cohort_decision.source_invalid", &e.to_string()))?;
         crate::to_cbor(&Self {
             version: 1,
             export: export_bytes,
@@ -117,18 +118,22 @@ impl CohortIntervalArtifactWire {
     pub fn measure(bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         let wire: Self = crate::from_cbor(bytes)?;
         if wire.version != 1 || crate::to_cbor(&wire)? != bytes {
-            return Err(refused(
+            return Err(invalid(
                 "measured_inference.artifact_mismatch",
                 "cohort interval source is not canonical version 1",
             ));
         }
         let export =
             CompactExport::consume(&wire.export, &ExportLimits::default(), &wire.export_identity)
-                .map_err(|e| refused("cohort_decision.fitted_model_invalid", &e.to_string()))?;
+                .map_err(|e| invalid("cohort_decision.fitted_model_invalid", &e.to_string()))?;
         if wire.fit_rows.outcome.len() > MAX_FIT_ROWS
             || wire.fit_rows.features.len() > MAX_FIT_FEATURES
         {
-            return Err(refused("measured_inference.bounds_exceeded", "fit rows exceed bounds"));
+            return Err(refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                "measured_inference.bounds_exceeded",
+                "fit rows exceed bounds",
+            ));
         }
         // The native-fit marker is never trusted: refit from the retained rows and
         // require the stored export to be exactly what the fit produces.
@@ -143,6 +148,7 @@ impl CohortIntervalArtifactWire {
         )
         .map_err(|_| {
             refused(
+                antecedent_core::reason_code!("route_not_supported"),
                 "cohort_decision.interval_requires_native_fit",
                 "the retained rows do not reproduce the export; a declared export is point-only",
             )
@@ -152,7 +158,7 @@ impl CohortIntervalArtifactWire {
             &CohortExpectation::for_identity(wire.source_identity.clone()),
             ctx,
         )
-        .map_err(|e| refused(e.detail, &e.to_string()))?;
+        .map_err(|e| refused(e.code, e.detail, &e.to_string()))?;
         let interval =
             native_cohort_interval(&native, &source, wire.level).map_err(|e| from_interval(&e))?;
         let body = export.body();
@@ -206,7 +212,7 @@ impl CohortIntervalArtifactWire {
         if expected.candidate_digest
             != crate::identity::digest_canonical(IdentityDomain::Claim, &wire.source).to_hex()
         {
-            return Err(refused(
+            return Err(invalid(
                 "measured_inference.artifact_mismatch",
                 "retained source digest differs from the envelope source",
             ));

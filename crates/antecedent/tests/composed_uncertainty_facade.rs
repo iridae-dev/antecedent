@@ -328,7 +328,7 @@ fn an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused() {
     .expect("envelope");
     let error =
         envelope.check_composed_interval("normal_approximation", 200).expect_err("envelope");
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
     assert_eq!(error.details(), vec!["joint_law_propagation.spread_needs_supported_dependence"]);
     assert!(envelope.coordinate_id().is_err());
 

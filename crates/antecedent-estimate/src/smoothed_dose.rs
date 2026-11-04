@@ -121,8 +121,8 @@ pub const SMOOTHED_DOSE_QUADRATURE_NODES: [usize; 2] = [16, 32];
 /// Largest fold count of the measured envelope (a recorded reference, not a ceiling: the fold
 /// ids are `u16` and each role needs a row per fold).
 pub const SMOOTHED_DOSE_MAX_FOLDS: usize = 20;
-/// Fewest bootstrap replicates of the calibrated interval; below it the interval is withheld.
-pub const SMOOTHED_DOSE_MIN_BOOTSTRAP: u32 = 199;
+/// Fewest bootstrap replicates from which a percentile interval can be formed.
+pub const SMOOTHED_DOSE_MIN_BOOTSTRAP: u32 = 2;
 /// Largest replicate count of the measured envelope (a recorded reference, not a ceiling:
 /// the internal calibration route admits its replicate workspace against the context).
 pub const SMOOTHED_DOSE_MAX_BOOTSTRAP: u32 = 2000;
@@ -213,6 +213,9 @@ pub const SMOOTHED_DOSE_BOUNDS: SmoothedDoseBounds = SmoothedDoseBounds {
 pub(crate) const DOSE_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
 pub(crate) const DOSE_WITHHELD: &str = "withheld";
+/// A bootstrap interval was requested; `smoothed_dose_interval_internal` forms it and its
+/// calibration slot carries the status.
+pub(crate) const DOSE_BOOTSTRAP_INTERVAL: &str = "bootstrap_interval_requested";
 
 /// The deterministic dose-by-covariate basis the outcome learner is fed:
 /// `[1, t, .., t^degree, (t - k)_+ for each knot, x_1..x_d, b(t) x_j if interactions]`.
@@ -409,9 +412,10 @@ impl SmoothedDoseInput {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SmoothedDoseUncertainty {
-    /// [`DOSE_POINT_ONLY`] or [`DOSE_WITHHELD`].
+    /// [`DOSE_POINT_ONLY`], [`DOSE_BOOTSTRAP_INTERVAL`] or [`DOSE_WITHHELD`] (too few
+    /// replicates to form an interval).
     pub status: String,
-    /// `no_interval_requested`, `estimator_inference_mismatch` or `not_supported`.
+    /// `no_interval_requested`, `joint_outer_bootstrap` or `estimator_inference_mismatch`.
     pub reason: String,
     /// The namespaced detail when the request was below the replicate floor.
     pub detail: Option<String>,
@@ -420,7 +424,7 @@ pub struct SmoothedDoseUncertainty {
 }
 
 impl SmoothedDoseUncertainty {
-    /// The status of a request for `bootstrap` replicates on the closed route.
+    /// The status of a request for `bootstrap` replicates.
     #[must_use]
     pub fn for_request(bootstrap: u32) -> Self {
         let (status, reason, detail) = if bootstrap == 0 {
@@ -432,7 +436,7 @@ impl SmoothedDoseUncertainty {
                 Some("dose_response.bootstrap_below_floor"),
             )
         } else {
-            (DOSE_WITHHELD, antecedent_core::reason_code!("not_supported"), None)
+            (DOSE_BOOTSTRAP_INTERVAL, "joint_outer_bootstrap", None)
         };
         Self {
             status: status.into(),
@@ -2066,8 +2070,7 @@ pub fn smoothed_dose_estimator_menu(
             sampling_design: designs,
             uncertainty_status: format!(
                 "{}: {}{detail}; {} bootstrap replicates requested; the pointwise joint outer \
-                 bootstrap interval for psi_h is uncalibrated and its route is closed \
-                 (not_supported)",
+                 bootstrap interval for psi_h is formed by the interval route and carries its calibration status",
                 uncertainty.status, uncertainty.reason, options.bootstrap
             ),
             static_fields: vec![],
@@ -2298,11 +2301,17 @@ mod tests {
             (none.status.as_str(), none.reason.as_str()),
             ("point_only", "no_interval_requested")
         );
-        let low = SmoothedDoseUncertainty::for_request(50);
+        let low = SmoothedDoseUncertainty::for_request(1);
         assert_eq!(low.detail.as_deref(), Some("dose_response.bootstrap_below_floor"));
-        let closed = SmoothedDoseUncertainty::for_request(199);
-        assert_eq!((closed.status.as_str(), closed.reason.as_str()), ("withheld", "not_supported"));
-        assert!(!closed.available());
+        let one = SmoothedDoseUncertainty::for_request(1);
+        assert_eq!(one.detail.as_deref(), Some("dose_response.bootstrap_below_floor"));
+        let requested = SmoothedDoseUncertainty::for_request(199);
+        assert_eq!(
+            (requested.status.as_str(), requested.reason.as_str()),
+            ("bootstrap_interval_requested", "joint_outer_bootstrap")
+        );
+        assert_eq!(requested.detail, None);
+        assert!(!requested.available());
     }
 
     /// Cancellation raised by the predictor on its third quadrature chunk stops the

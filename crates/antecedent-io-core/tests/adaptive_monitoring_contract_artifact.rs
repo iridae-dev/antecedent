@@ -106,7 +106,7 @@ fn a_futility_rule_travels_through_the_wire_with_both_parameters() {
     assert!(matches!(
         Artifact::seal(&source, InferenceParadigm::BayesianPosterior),
         Err(Error::Refused { code, detail, .. })
-            if code == "not_supported" && detail == "adaptive_inference.cell_carried_forward"
+            if code == "route_not_supported" && detail == "adaptive_inference.cell_carried_forward"
     ));
 }
 
@@ -247,7 +247,7 @@ fn a_paradigm_the_design_may_not_use_is_refused_on_consumption() {
     });
     match outcome.unwrap_err() {
         Error::Refused { code, detail, .. } => {
-            assert_eq!(code, "not_supported");
+            assert_eq!(code, "route_not_supported");
             assert_eq!(detail, "adaptive_inference.paradigm_not_supported_for_cell");
         }
         other => panic!("{other}"),
@@ -267,7 +267,7 @@ fn a_paradigm_the_design_may_not_use_is_refused_on_consumption() {
     assert!(matches!(
         Artifact::seal(&source, P::BayesianPosterior),
         Err(Error::Refused { code, detail, .. })
-            if code == "not_supported"
+            if code == "route_not_supported"
                 && detail == "adaptive_inference.paradigm_not_supported_for_cell"
     ));
 }

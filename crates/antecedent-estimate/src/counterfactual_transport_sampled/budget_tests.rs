@@ -7,7 +7,7 @@ use crate::counterfactual_transport_adapter as adapter;
 use crate::counterfactual_transport_cases::{Case, CaseGraph, ExpectedClass, Target, all_cases};
 use crate::counterfactual_transport_sampled::{
     DatasetOverlap, LABEL_ENVELOPE_ONLY, LABEL_EXACT_ON_ESTIMATED_TABLES, LABEL_IDENTIFIED,
-    LABEL_INFERENCE_WITHHELD, LABEL_PLUG_IN, LABEL_SMOOTHED_PLUG_IN, OverlapDeclaration,
+    LABEL_PLUG_IN, LABEL_SMOOTHED_PLUG_IN, OverlapDeclaration,
     SAMPLED_TRANSPORT_UNCERTAINTY_METHOD, STRUCTURAL_ENVELOPE_LABEL, SampledAxis,
     SampledCounterfactualTransportEstimate, SampledRegimeCounts, SampledRegimeCountsParts,
     SampledTransportLimits, SampledTransportRequest, SamplingDesign, UNCALIBRATED_STANDARD_ERROR,

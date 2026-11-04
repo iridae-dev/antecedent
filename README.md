@@ -2,13 +2,7 @@
 
 ![Antecedent](docs/logo.png)
 
-**Antecedent is a compiler and runtime for causal science.**
-
-Model causal systems, evaluate interventions, and connect evidence to decisions, with assumptions, uncertainty and limits made explicit. Use causal inference to study what an intervention would change, then carry the answer into further analysis, decisions and software. Antecedent 3.0 extends that workflow to feedback systems, joint intervention programs and connected experimental updates.
-
-Declare the question, a model or study design, and the evidence. Inspect the compiled analysis, execute a supported route, and read the answer together with its assumptions, uncertainty, provenance and limits.
-
-Antecedent's development applies high-assurance engineering principles, with explicit evidence governing capability claims.
+**Antecedent is a compiler and evidence-aware runtime for causal science.** It exists to make sophisticated causal science programmable, composable, reproducible, and usable by both researchers and autonomous software without silently turning uncertain evidence into unjustified certainty. Use Antecedent to investigate complex systems, determine what can be learned from available evidence, evaluate interventions, and connect findings to decisions and further research.
 
 ## Install and use Antecedent
 
@@ -26,7 +20,7 @@ cargo add antecedent
 
 [Installation](docs/start/installation.md) covers optional Rust learners, notebooks and source builds.
 
-The example below simulates a randomized treatment whose effect on the outcome is two units. Because the data are simulated, the true answer is known and you can check the result against it. The same analysis then moves onto changed data and into an exported artifact.
+The example below simulates a randomized treatment whose effect on the outcome is two units. 
 
 ```python
 import numpy as np
@@ -73,17 +67,13 @@ loaded = ant.load(artifact, expected=artifact.expectation)
 print("Artifact acceptance:", loaded.acceptance.status)
 ```
 
-The estimate lands near two, and the updated branch adds one. The bootstrap budget is small so the example runs quickly; read `result.inspect().calibration` before relying on interval coverage. A successful run shows that the declared graph and data are compatible with the question, not that the graph is true. Loading restores the result and its acceptance report, not a live study or the dataset.
+The estimate lands near two, and the updated branch adds one. The bootstrap budget is small so the example runs quickly; read `result.inspect().calibration` before relying on interval coverage. 
 
-A valid question that the declared structure cannot answer returns an `Outcome` carrying a typed `refusal`. That is scientific information: it names what was asked, what is missing and what would resolve it. Invalid arguments and operational failures raise errors instead. Use `ant.reconfigure(study, ...)` to change declarations such as the query or execution settings, and `ant.rebind(study, data=...)` to change observations. Continue with the [first analysis](docs/start/first-analysis.md), which also shows the Rust form, and [how to read a result](docs/start/reading-a-result.md).
-
-## Choose your path
-
-**Research and scientific decision-making.** Ask a causal question, inspect the assumptions and evidence it needs, and carry the answer into the next comparison, decision or study. Start with the [observational study tutorial](docs/tutorials/observational-study.md), then the [guides](docs/index.md#guides) for the question you have: estimating effects, experiments and study designs, discovery, transport, decisions and study planning.
-
-**Building software and agents.** Embed causal workflows with inspectable plans and machine-readable assumptions, uncertainty and limits. Antecedent supplies the causal computation and its contracts; your application supplies planning, tool use, permissions and the policy for acting on an answer. The minimal [reference host](examples/rust/reference_host.rs) ([Python](examples/python/reference_host.py)) contains no agent logic. Start with the [application component tutorial](docs/tutorials/application-component.md) and [embedding Antecedent](docs/guides/build/embedding.md).
+Continue with the [first analysis](docs/start/first-analysis.md), which also shows the Rust form, and [how to read a result](docs/start/reading-a-result.md).
 
 ## Complete workflows
+
+Antecedent comes with a wide range of examples and tutorials to demonstrate how to ask a causal question, inspect the assumptions and evidence it needs, and carry the answer into the next comparison, decision or study. Start with the [observational study tutorial](docs/tutorials/observational-study.md), then the [guides](docs/index.md#guides) for the question you have: estimating effects, experiments and study designs, discovery, transport, decisions and study planning.
 
 Each tutorial follows one scientific task from declaration to what the computation established, and pairs with a maintained example.
 
@@ -98,14 +88,16 @@ Each tutorial follows one scientific task from declaration to what the computati
 
 Other tutorials: [deciding when p = 0.07](docs/tutorials/decide-under-uncertainty.md) (a retailer's experiment, a decision contract and the value of more evidence), [a real public dataset end to end](docs/tutorials/observational-study.md) and [a scientific component inside an application](docs/tutorials/application-component.md).
 
-## What backs a supported capability
+**Building causally-aware software and better scientific agents?** Embed causal workflows with inspectable plans and machine-readable assumptions, uncertainty and limits. Antecedent supplies the causal computation and its contracts; your application supplies planning, tool use, permissions and the policy for acting on an answer. The minimal [reference host](examples/rust/reference_host.rs) ([Python](examples/python/reference_host.py)) contains no agent logic. Start with the [application component tutorial](docs/tutorials/application-component.md) and [embedding Antecedent](docs/guides/build/embedding.md).
 
-Antecedent's development applies high-assurance engineering principles. Method records name sources, implementation choices and deviations that limit published guarantees. Capability claims are tied to executing tests, with analytic checks, external comparisons, internal consistency and replay evidence labelled for what each establishes. This describes how capability claims are developed and governed; it is not formal verification of the whole system, and it does not show that your causal model is true.
+## What backs a supported capability?
+
+**Antecedent's own development applies high-assurance engineering principles, with explicit evidence governing capability claims.** Method records name sources, implementation choices and deviations that limit published guarantees. Capability claims are tied to executing tests, with analytic checks, external comparisons, internal consistency and replay evidence labelled for what each establishes. 
 
 - **Provenance** names source methods, implementation exposure and deviations that limit published guarantees, and says which published conclusions transfer.
 - **Independent checks** compare a named proposition with analytic truth, an independently constructed fixture or a pinned external implementation. Internal consistency and frozen outputs are labelled separately, and a component comparison establishes that component's behavior.
-- **Supported units** are scientific combinations: a [support-matrix](docs/support-matrix.md) cell naming the question, structure, evidence, inference and estimator, a graphless design row, or a capability outside the matrix (transport stages, adaptive procedures, decisions, bridges). One rule decides all of them: a provenance record plus an executed independent check. `python3 scripts/gate_support.py` prints the one count, `Supported units: N (matrix cells a, graphless rows b, capabilities outside the matrix c); not supported: M`. API and stage routes are entry points of a supported unit and are not counted; a route outside a supported unit refuses with `not_supported`, and successful execution never upgrades the scientific claim.
-- **Calibration** records the uncertainty construction, tested setting, sample sizes, coverage and Monte Carlo error. A result is `calibrated` only when a matching record applies; <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Implemented intervals are not automatically calibrated.
+- **Supported units** are scientific combinations: a [support-matrix](docs/support-matrix.md) cell naming the question, structure, evidence, inference and estimator, a graphless design row, or a capability outside the matrix (transport stages, adaptive procedures, decisions, bridges). One rule decides all of them: a provenance record plus an executed independent check. `python3 scripts/gate_support.py` prints the one count, `Supported units: N (matrix cells a, graphless rows b, capabilities outside the matrix c); not supported: M`. API and stage routes are entry points of a supported unit and are not counted; a route outside a supported unit refuses in a release build with `not_supported`, a detail and the missing evidence, while a development build (`development` cargo feature; `scripts/dev_python.sh`) runs it and records `would_refuse` on the result. Scientific refusals (not identified, typed n/a, invalid input) refuse in every build. Successful execution never upgrades the scientific claim.
+- **Calibration** records the uncertainty construction, tested setting, sample sizes, coverage and Monte Carlo error. Its status (`calibrated`, `outside_measured_scope`, `measured_below_nominal`, `not_measured`) is attached to every reported interval and never refuses or gates a route. A result is `calibrated` only when a matching record applies; <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Implemented intervals are not automatically calibrated.
 
 Read [How Antecedent checks its scientific methods](docs/guides/scientific-verification.md) to follow AIPW from its source method through an independent numerical reference, executing assertions and calibration requirements. The guide also shows how two mathematical derivations check arrow strength and how reviews stay attached to the code they examined.
 

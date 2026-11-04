@@ -72,9 +72,9 @@ the declaration or evidence that would support the request.
 | validation minimums not met, an extrapolated surrogate effect, an unattainable recorded prevalence | `bridge_mapping_not_supported` | `validation_trials_too_few`, `outside_validated_range`, `outside_attainable_range`, ... |
 | a mean, law, posterior, identified set or joint law where another is required | `bridge_substitution_refused` | `value_kind_substitution` |
 | an interval of a bridged claim with no level named, or a posterior or joint law | `not_supported` | `interval_not_supported` |
-| an interval of a bridged value with no source standard error | `not_supported` | `interval_source_uncertainty_required` |
-| an interval at a design no coverage record measured | `not_supported` | `interval_scope_outside_measured` |
-| draws offered by an associational, refused, bounded or incomplete claim | `not_supported` | `source_not_draws` |
+| an interval of a bridged value with no source standard error | `required_option_missing` | `interval_source_uncertainty_required` |
+| an interval of a map the construction does not cover | `route_not_supported` | `interval_scope_outside_measured` |
+| draws offered by an associational, refused, bounded or incomplete claim | `bridge_mapping_not_supported` | `source_not_draws` |
 | draws that are a sampling, bootstrap or empirical law | `distribution_meaning_mismatch` | `draws_meaning_mismatch` |
 | draws that are independent marginals | `joint_law_required` | `draws_not_aligned` |
 | draws that are non-finite, constant under a declared covariance, or a target that repeats a coordinate of the table | `scientific_bridge_invalid` | `draws_unusable` |
@@ -140,9 +140,9 @@ table and the seed.
 The bridged table is read as an `uncalibrated_spread` with calibration `unmeasured`. An interval is
 requested through the same measured-coverage gate as the interval of a bridged mean, on the mean twin
 of the bridge at the source's mean with the standard deviation of the draws as the source standard
-error. A map with uncertain coefficients (propagated by draws, which no record measured), a declared
-slope-source covariance (the records were measured with independent evidence) and any design outside
-a record are refused `interval_scope_outside_measured`. The declared assumptions stay unresolved
+error. A map with uncertain coefficients (propagated by draws, which no construction here covers) and
+a declared slope-source covariance (the records were measured with independent evidence) are refused
+`interval_scope_outside_measured`; a design outside a record is reported with its calibration status. The declared assumptions stay unresolved
 obligations, together with the assumption that the mapping's evidence is independent of the other
 columns of the table, which the bridge cannot check.
 

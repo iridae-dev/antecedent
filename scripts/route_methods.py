@@ -371,7 +371,7 @@ EVIDENCE_OVERRIDE = {
     ],
     "composition.static.frequentist": [
         T
-        + "composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
+        + "composed_uncertainty_facade.rs::a_composed_interval_is_reported_with_its_calibration_at_its_coordinate"
     ],
     "composition.static.bayesian": [
         T

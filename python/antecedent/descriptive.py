@@ -18,8 +18,8 @@ decompose a causal effect.
   transformed points are returned and the covariance is ``None`` with the typed reason in
   ``covariance_unavailable`` (independence is never assumed for arms that share data).
   :func:`raw_reporting_transform` does this for the raw arm means of a sample, whose
-  independent-groups covariance it can form itself. No interval is reported on a transformed
-  scale: ``level=...`` is refused with ``not_supported``.
+  independent-groups covariance it can form itself. ``level=...`` adds the equal-tailed delta-method Wald interval of each
+  scale when the pair carries a covariance, with its calibration slot.
 
 * :class:`Association` is the compiled noncausal route: an outcome against predictors, stated as a
   query to :func:`antecedent.analyze`. A declared selection rule picks a stratified mean or
@@ -88,7 +88,10 @@ _SCALES = ("mean_difference", "risk_difference", "log_risk_ratio", "log_odds_rat
 _INTERPRETATION = "descriptive_not_causal_decomposition"
 
 # (registered reason code, detail) of the typed absences carried as data.
-_GAP_INTERVAL_UNAVAILABLE = ("not_supported", "descriptive_comparison.gap_interval_unavailable")
+_GAP_INTERVAL_UNAVAILABLE = (
+    "route_not_supported",
+    "descriptive_comparison.gap_interval_unavailable",
+)
 _JOINT_COVARIANCE_UNAVAILABLE = (
     "required_option_missing",
     "descriptive_comparison.joint_covariance_unavailable",

@@ -31,7 +31,7 @@ A selection node on a mediator or outcome mechanism is outside the class: two mo
 on the whole source population and differ on the target contrast. When the contrast is
 sensitive to the selected mechanism the refusal retains the explicit two-model witness
 (:attr:`TransportedCounterfactualRefusal.witness`) and is
-``transport_proven_non_transportable``; otherwise it is ``not_supported`` with no witness
+``transport_proven_non_transportable``; otherwise it is ``route_not_supported`` with no witness
 (the class excludes it, no impossibility is claimed).
 
 The GENERAL class (nonparametric mechanisms, recanting witnesses, nonlinear additive noise)
@@ -441,9 +441,9 @@ class TransportedCounterfactualRefusal(StructuredRefusal):
 
     ``reason_code`` and ``remedy`` are the inherited registered fields. ``detail`` is the
     namespaced ``transported_counterfactual.*`` slot: ``nonadditive_mechanism``,
-    ``noise_law_not_shared`` and ``cross_world_independence_missing`` (``not_supported``;
+    ``noise_law_not_shared`` and ``cross_world_independence_missing`` (``route_not_supported``;
     ``offending`` names the undeclared premise), ``selection_on_mechanism``
-    (``transport_proven_non_transportable`` with ``witness`` set, or ``not_supported``
+    (``transport_proven_non_transportable`` with ``witness`` set, or ``route_not_supported``
     without one), ``overlap_failure`` (``transport_support_failure``; ``offending`` is the
     target point outside the source support), ``factor_missing``
     (``transport_missing_evidence``; ``missing_factors``), ``artifact_changed``

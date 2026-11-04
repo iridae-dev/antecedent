@@ -526,7 +526,7 @@ impl BridgedClaim {
     /// records (`antecedent_io::bridge_interval`).
     ///
     /// # Errors
-    /// Always `not_supported` with `scientific_bridge.interval_not_supported`.
+    /// Always `route_not_supported` with `scientific_bridge.interval_not_supported`.
     pub fn request_interval(&self) -> Result<(), BridgeRefusal> {
         Err(interval_not_supported())
     }

@@ -380,7 +380,7 @@ fn covariance_artifact_version_features_and_consumer_limits_refuse() {
         ScenarioCovarianceConsumeLimits { max_replicates: 299, ..base },
     ] {
         let (code, message) = strict(limits);
-        assert_eq!(code, "not_supported");
+        assert_eq!(code, "execution_resource_limit");
         assert!(message.starts_with("scenario_covariance.consumer_limit_exceeded"), "{message}");
     }
 }
@@ -420,7 +420,7 @@ fn covariance_artifact_refuses_a_linear_score_with_too_many_terms() {
         ],
     };
     let (code, message) = refused(declared.compute(&ctx()));
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "execution_resource_limit");
     assert!(message.starts_with("scenario_covariance.too_many_terms"), "{message}");
 }
 
@@ -445,10 +445,10 @@ fn covariance_artifact_consumer_row_bound_is_configurable_on_the_producer_too() 
     declared.compute_within(&ctx(), &base).unwrap();
     let tight = ScenarioCovarianceConsumeLimits { max_rows: N - 1, ..base };
     let (code, message) = refused(declared.compute_within(&ctx(), &tight));
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "execution_resource_limit");
     assert!(message.starts_with("scenario_covariance.table_too_large"), "{message}");
     assert_eq!(
         declared.estimators_within(&tight).err().unwrap().to_string(),
-        "reason=not_supported: scenario_covariance.table_too_large: at most 5 rows"
+        "reason=execution_resource_limit: scenario_covariance.table_too_large: at most 5 rows"
     );
 }

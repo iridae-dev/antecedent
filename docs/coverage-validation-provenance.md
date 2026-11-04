@@ -1,5 +1,7 @@
 # Coverage validation provenance
 
+Coverage records measure interval behavior and feed the calibration status attached to a reported interval (see [the evidence model](guides/scientific-verification.md#the-evidence-model)). They are not support evidence: a unit's support rests on provenance and independent scientific checks, and a calibration status never decides whether a route runs.
+
 Coverage measurement is scoped to the execution that produced it. New v2 records
 include that execution's support validation coordinate in both metadata and the
 record identity. A Study execution uses its identity-bound executed refutation
@@ -8,7 +10,7 @@ procedure may state `not_applicable` only when its producer establishes that it
 has no support-matrix validation axis. Unknown and legacy records never imply
 `none`.
 
-Historical measurements remain unchanged. `parity/coverage_validation_bindings.toml`
+Recorded measurements are never rewritten. `parity/coverage_validation_bindings.toml`
 proposes reviewed bindings keyed by exact record id, measurement commit and test
 identity. Each binding names the test and support-bridge source blobs at that
 commit, and a source-review rationale.
@@ -26,9 +28,9 @@ across the full calibration distribution. Unresolved historical records and
 procedures without an established mode remain readable but cannot claim an exact
 facade validation match.
 
-Historical on-axis bindings also record the source structure when proven.
+On-axis bindings also record the source structure when proven.
 Explicit, accepted, and graph-posterior measurements bind only their respective
-support cells. The old `fixed` construction spelling alone does not establish
+support cells. The `fixed` construction spelling alone does not establish
 whether the scored input was explicit or accepted. New accepted records include
 an accepted-structure marker in their identity; the resolver fails closed when
 that marker or the matching source is missing.

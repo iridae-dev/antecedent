@@ -78,12 +78,6 @@ macro_rules! invalid {
     };
 }
 
-macro_rules! not_supported {
-    ($detail:literal, $($message:tt)+) => {
-        refuse!(NotSupported, "not_supported", $detail, $($message)+)
-    };
-}
-
 /// How a retired source is lost to a dependent result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Loss {
@@ -1168,22 +1162,6 @@ impl EvidenceLedger {
             }
         }
         Ok(())
-    }
-
-    /// The statement a caller may not make from a result: an uncertainty
-    /// interval or posterior. Always refused; the message names the reason.
-    ///
-    /// # Errors
-    /// Always: an unknown result is invalid, a known one is not supported.
-    pub fn request_interval(&self, id: ResultId) -> Result<std::convert::Infallible, LedgerError> {
-        let record = self.result(id).ok_or_else(|| {
-            invalid!("evidence_ledger.unknown_result", "result {id} is not in the ledger")
-        })?;
-        Err(not_supported!(
-            "evidence_ledger.interval_not_supported",
-            "result {id} is a {} claim; the ledger supports no interval, posterior or coverage statement for pooled evidence until its coverage is measured",
-            record.claim_class.as_str()
-        ))
     }
 
     /// A result that is currently usable.

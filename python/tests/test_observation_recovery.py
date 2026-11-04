@@ -248,9 +248,9 @@ def test_self_censoring_is_nonrecoverable_with_a_verified_witness():
 
 def test_counted_laws_are_not_supported_on_the_recovery_route():
     stage = decide()
-    with pytest.raises(CausalUnsupportedError, match="not_supported") as refused:
+    with pytest.raises(CausalUnsupportedError, match="recovery.empirical_not_supported") as refused:
         stage.prepare_empirical(observed_law(), REQUESTS)
-    assert refused.value.reason_code == "not_supported"
+    assert refused.value.reason_code == "route_not_supported"
 
 
 def test_separate_marginals_refuse_as_a_missing_margin():

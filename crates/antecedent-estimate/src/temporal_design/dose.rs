@@ -163,14 +163,14 @@ fn local_support(prepared: &Prepared, at: f64, bandwidth: f64) -> Result<f64, Es
     let ess = antecedent_kernels::kish_ess(&weights);
     if !at.is_finite() || at < low || at > high {
         return Err(refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("positivity_violated"),
             "temporal_design.dose_outside_support",
             &format!("dose {at} is outside the observed dose range"),
         ));
     }
     if ess.is_nan() || ess < MIN_LOCAL_ESS {
         return Err(refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("positivity_violated"),
             "temporal_design.insufficient_local_weight",
             &format!(
                 "dose {at} has local effective sample size {ess} below {MIN_LOCAL_ESS}. Next \
@@ -318,7 +318,7 @@ fn local_smoother(
     }
     let factor = cholesky(&information, 3).ok_or_else(|| {
         refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("positivity_violated"),
             "temporal_design.singular_local_fit",
             &format!("the local quadratic at dose {at} is singular"),
         )

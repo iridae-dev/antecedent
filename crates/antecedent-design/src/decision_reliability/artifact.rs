@@ -17,7 +17,6 @@ use antecedent_io_core::error::IoError;
 use serde::{Deserialize, Serialize};
 
 use super::ReliabilityError;
-use super::calibration::{CalibrationCoordinate, ClosedRoute, PublishedRoute};
 use super::draws::DecisionDraws;
 use super::report::{ReliabilityReport, ReliabilityRequest, assess};
 use super::stream::StreamId;
@@ -76,31 +75,6 @@ fn from_reliability(error: &ReliabilityError) -> IoError {
         return IoError::Admission(*error);
     }
     IoError::Refused { code: error.reason_code(), message: error.to_string() }
-}
-
-fn conservative_closure_snapshot(
-    carried: &[ClosedRoute],
-    current: &[ClosedRoute],
-    coordinate: &CalibrationCoordinate,
-) -> bool {
-    // Historical refusals can remain closed after a promotion, but cannot omit a
-    // currently closed route or carry arbitrary metadata, duplicates or new ordering.
-    let all_route_refusals = PublishedRoute::ALL.map(|route| ClosedRoute {
-        route,
-        coordinate: coordinate.describe(),
-        code: antecedent_core::reason_code!("not_supported").to_owned(),
-        remedy: "point diagnostics only: a coverage record at this candidate-set size, \
-                 Monte Carlo budget and selection rule would be needed"
-            .to_owned(),
-    });
-    let mut remaining = carried.iter();
-    let mut next = remaining.next();
-    for expected in &all_route_refusals {
-        if next == Some(expected) {
-            next = remaining.next();
-        }
-    }
-    next.is_none() && current.iter().all(|required| carried.contains(required))
 }
 
 impl DecisionReliabilityArtifact {
@@ -170,22 +144,8 @@ impl DecisionReliabilityArtifact {
         if self.digest != self.recomputed_digest()? {
             return Err(refused("decision_reliability.identity_mismatch", "digest differs"));
         }
-        let mut recomputed = assess(&self.draws, self.validation.as_ref(), &self.request, ctx)
+        let recomputed = assess(&self.draws, self.validation.as_ref(), &self.request, ctx)
             .map_err(|error| from_reliability(&error))?;
-        if conservative_closure_snapshot(
-            &self.report.closed_routes,
-            &recomputed.closed_routes,
-            &recomputed.coordinate,
-        ) {
-            // Preserve the exactly digested historical snapshot, never replace it
-            // with newly granted supports. Every other report field stays exact.
-            recomputed.closed_routes.clone_from(&self.report.closed_routes);
-        } else {
-            return Err(refused(
-                "decision_reliability.report_mismatch",
-                "closed-route snapshot omits a current refusal or is noncanonical",
-            ));
-        }
         if to_cbor(&recomputed)? != to_cbor(&self.report)? {
             return Err(refused(
                 "decision_reliability.report_mismatch",

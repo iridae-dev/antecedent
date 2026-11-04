@@ -220,8 +220,7 @@ impl ContinuousMeasurementEstimate {
     /// The interval of the corrected coefficient at `level`.
     ///
     /// # Errors
-    /// The estimate's refusal for a route whose variance has no executed independent check
-    /// (`measurement_model.interval_closed`), or a level outside `(0, 1)`.
+    /// The estimate's refusal for a record without a standard error, or a level outside `(0, 1)`.
     pub fn interval(&self, level: f64) -> Result<(f64, f64), MeasurementModelRefusal> {
         antecedent_estimate::measurement::corrected_functional_interval(&self.effect.record, level)
             .map_err(|error| refusal_of(&error))

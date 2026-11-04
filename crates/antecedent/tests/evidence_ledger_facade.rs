@@ -1139,14 +1139,11 @@ fn an_exported_dependence_range_is_replayed_as_an_assumption_range_by_the_consum
     for (value, want) in env.values.iter().zip(expected) {
         close(*value, want, "replayed envelope");
     }
-    // The label and the closed interval route survive the replay, and the
+    // The label survives the replay, and the
     // unknown source stays unknown in the consumer's accounting.
     let record = consumed.ledger().result(result).unwrap();
     assert_eq!(record.claim_class.as_str(), "assumption_range");
     assert!(record.mass.unknown_sources.contains(&vendor));
-    let refusal = consumed.ledger().request_interval(result).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
-    assert_eq!(refusal.detail, "evidence_ledger.interval_not_supported");
     // The same history exports to the same identity, and the producer's range
     // is bound into it: another range is another artifact.
     assert_eq!(range_session().0.export("range-ledger").unwrap().identity, export.identity);

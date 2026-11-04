@@ -225,7 +225,10 @@ fn msm_refuses_malformed_inputs_and_sampling_composition() {
     let mut spec = MsmSensitivitySpec::new(2.0);
     spec.sampling_composition = Some("percentile_bootstrap_of_bounds".into());
     let error = msm_ate_sensitivity(&two_strata(), &spec).unwrap_err();
-    assert_eq!(refusal(&error), ("not_supported", "msm_sensitivity.composition_not_supported"));
+    assert_eq!(
+        refusal(&error),
+        ("route_not_supported", "msm_sensitivity.composition_not_supported")
+    );
     let mut spec = MsmSensitivitySpec::new(2.0);
     spec.grid_points = 1;
     assert_eq!(

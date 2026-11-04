@@ -387,11 +387,11 @@ fn sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapshot_an
 }
 
 #[test]
-fn sampled_recovery_replay_component_variance_only_and_route_frozen_refuse() {
+fn sampled_recovery_component_variance_only_refuses() {
     let error = refuse_component_variance_only(&[0.01, 0.02, 0.03]);
     assert_eq!(error.detail, SampledRecoveryDetail::ComponentVarianceOnly);
     assert_eq!(error.detail.detail(), "sampled_recovery.component_variance_only");
-    assert_eq!(error.reason_code(), "not_supported");
+    assert_eq!(error.reason_code(), "estimator_inference_mismatch");
     assert!(error.message.contains('3'), "{error}");
 }
 

@@ -3,7 +3,7 @@
 This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
 states what it claims and what it does not. It also records the sampling
-composition for the range. Two historical coverage records measure its zero-box
+composition for the range. Two coverage records measure its zero-box
 two-sided and positive-box one-sided targets. The Rust and Python public interval
 routes are now supported for the named level and replicate bounds; the current
 branch wrapper has not been re-attested. The version-3 range artifact remains
@@ -14,8 +14,8 @@ Two records in `parity/capability_records.toml` cover this page:
 - `sensitivity.joint_mechanism` (supported): the exact assumption range
   only. It offers no sampling uncertainty.
 - `sensitivity.joint_uncertainty` (supported): the conservative endpoint
-  bootstrap returned by Rust and Python tuple APIs, plus two historical coverage
-  ids. Their tests were measured by the registered calibration gate; those
+  bootstrap returned by Rust and Python tuple APIs, plus two coverage
+  ids. Their tests were measured by the calibration flow; those
   records do not attest the current branch wrapper.
 
 The derivation is our own; it is not taken from a source.

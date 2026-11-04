@@ -20,7 +20,7 @@ not a guarantee for other observations.
 | Design | held-out split, rolling origin, blocked or clustered, simulation stream | a rolling-origin design whose horizon is not the target's |
 | Dependence | iid (declared), serial with a truncation lag, cluster | iid for a rolling-origin or blocked design: `sampling_dependence_unknown`; a lag shorter than horizon minus one; one cluster |
 | Overlap | held out verified, in sample, unverified, not fitted, decided from row identities | held-out requirement with an in-sample predictor (`evidence_double_counted`) or an undeclared one (`evidence_overlap_unknown`) |
-| Uncertainty | point scores, paired differences, a labelled statistic, and the interval of an expected score or score difference inside a measured design | an unscoped interval request, an interval for an in-sample or unverified predictor, an undeclared dependence, a design no coverage record measured, a significance level: `not_supported` |
+| Uncertainty | point scores, paired differences, a labelled statistic, and the interval of an expected score or score difference, reported with its calibration status | an unscoped interval request (`quantity_semantics_mismatch`), an interval for an in-sample predictor (`evidence_double_counted`) or one whose fit set is not declared (`evidence_overlap_unknown`), an undeclared dependence (`sampling_dependence_unknown`), laws of more than one family (`route_not_supported`) |
 | Meaning | a loss of a law on the observations | a causal claim or the probability of a claim: `route_not_supported` |
 
 ## Scores
@@ -88,7 +88,7 @@ the route. The measured design is a fixed Gaussian forecast against known
 generators, for the CRPS, the log score and the CRPS difference of two
 forecasts. The number of cases must lie inside the range measured for the
 declared dependence; there is no extrapolation above the largest count or below
-the smallest, and a count outside it refuses with `not_supported`. The
+the smallest, and a count outside it is reported `outside_measured_scope`. The
 coverage records form contiguous grids of three case counts each (half the
 base, the base and twice the base):
 
@@ -115,8 +115,8 @@ the interval are single passes).
 The minimum of ten clusters and the bandwidth limit of the serial interval are
 requirements of the construction, not a measured range: a cluster count or
 series length that satisfies them but lies outside the measured case counts
-still refuses. A serial interval for the CRPS of a single forecast is a named
-boundary (0.925 at 6,400 cases) and is not published; the serial log score and
+is reported `outside_measured_scope`. A serial interval for the CRPS of a single forecast is a named
+boundary (0.925 at 6,400 cases) and reports `measured_below_nominal`; the serial log score and
 CRPS difference are. A heavy-tailed truth is also recorded as a named boundary
 and does not support the route. The interval states its assumptions: cases
 independent or dependent as declared, a finite score variance, a law fixed
@@ -261,18 +261,20 @@ pa.consume_predictive_assessment_artifact(artifact, result.identity)
 `pa.keys(domain, rows)` returns the evidence ledger's observation identities, so
 `pa.FitDeclaration.from_ledger(ledger, sources)` and `pa.ledger_observations`
 decide held out from the same rows. `result.score_interval("forecast", "crps")`
-(and `reference=`, `level=`) returns the interval inside a measured design and
-raises `not_supported` elsewhere; `result.score_interval()` with no
+(and `reference=`, `level=`) returns the interval with its calibration status (`calibrated`
+inside a measured design, otherwise `outside_measured_scope` or `not_measured`)
+and raises the refusal above for an in-sample or unverified predictor or an
+undeclared dependence; `result.score_interval()` with no
 predictor is the unscoped request and always raises. `result.causal_validity()`
 and `result.score_as_probability()` raise the typed refusals of the closed
 routes. `pa.replicate_laws` turns posterior predictive
 replicates into sample laws for the same scoring surface.
 
-## Closed routes
+## Refused routes
 
 | Route | Reason | What would support it |
 | --- | --- | --- |
-| unscoped interval request, or a scoped one outside a measured design | `not_supported` | name the predictor, score and level, declare the dependence, and assess a held-out or unfitted predictor inside a design a current coverage record measured |
+| unscoped interval request | `quantity_semantics_mismatch` | name the predictor, score and level, declare the dependence, and assess a held-out or unfitted predictor; the interval then carries the calibration status of the matching coverage record |
 | callback law | `route_not_supported` | the law as a native family, or as provider-evaluated values declared through the provider contract |
 | score as causal validity or as a probability | `route_not_supported` | an identification argument and refutation; a declared prior and likelihood |
 

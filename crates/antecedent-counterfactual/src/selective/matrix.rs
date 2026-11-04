@@ -382,7 +382,7 @@ boundary and does not abduce a target-population factual unit.",
         theorem: "No joint theorem composes a transport support with factual abduction in a \
 target population: a transport identification supplies no abduction, shared-noise or per-world \
 receipts, and abduction in the source population is not abduction of a target unit.",
-        refusal_code: Some("not_supported"),
+        refusal_code: Some("route_not_supported"),
         refusal_detail: Some("cross_world_execution.transported_row_closed"),
         remedy: "supply a transport support for the quantity, a fixed-population cross-world \
 support, and the cross-population invariance of the exogenous law with target-population \
@@ -594,7 +594,7 @@ pub type MatrixDecision = Result<&'static MatrixRow, MatrixRefusal>;
 fn closed(id: &'static str) -> MatrixRefusal {
     let row = ALL_ROWS.iter().find(|r| r.id == id).unwrap_or(&ALL_ROWS[5]);
     MatrixRefusal {
-        code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("not_supported")),
+        code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("route_not_supported")),
         detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_not_in_matrix"),
         subject: row.id,
         remedy: row.remedy,
@@ -753,7 +753,7 @@ mod tests {
             ..finite(QuantityClass::TransportedCrossWorld)
         };
         let refused = decide(&request).unwrap_err();
-        assert_eq!(refused.code, "not_supported");
+        assert_eq!(refused.code, "route_not_supported");
         assert_eq!(refused.detail, "cross_world_execution.transported_row_closed");
         for gate in [
             "transport_support_missing",

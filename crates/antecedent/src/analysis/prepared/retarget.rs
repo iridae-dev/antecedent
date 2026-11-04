@@ -207,10 +207,10 @@ impl PreparedStudy {
             crate::analysis::preflight::with_plan_subject(&self.analysis, CausalError::from(error))
         })?;
         if overlap_failed {
-            let refusal = CausalError::Support {
-                id: crate::support::SupportRefusal::NotSupported,
-                message: antecedent_estimate::RetargetRefusal::WeightedOverlap.as_str(),
-            }
+            let refusal = crate::unsupported_reason!(
+                "positivity_violated",
+                "retarget refused: weighted overlap failed under the declared target weights"
+            )
             .diagnosed(antecedent_estimate::weighted_overlap_fields(
                 table,
                 weights,

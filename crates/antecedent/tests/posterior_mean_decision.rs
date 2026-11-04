@@ -238,12 +238,12 @@ fn finite_action_inverse_posterior_refuses_an_unmeasured_band() {
     let message = refusal(
         dirichlet_posterior_mean(
             &[1.0, 3.0],
-            PosteriorRequest::UnmeasuredBand,
+            PosteriorRequest::CredibleBand,
             DirichletNamespace::FiniteActionInverse,
         )
         .unwrap_err(),
     );
-    assert!(message.contains("finite_action_posterior.unmeasured_band"), "{message}");
+    assert!(message.contains("finite_action_posterior.band_not_constructed"), "{message}");
 }
 
 #[test]

@@ -205,7 +205,7 @@ def test_msm_sampling_composition_request_refuses():
         lambda: msm.msm_ate_sensitivity(
             _two_strata(), 2.0, sampling_composition="percentile_bootstrap_of_bounds"
         ),
-        "not_supported",
+        "route_not_supported",
         "msm_sensitivity.composition_not_supported",
     )
     assert "percentile_bootstrap_of_bounds" in error.message
@@ -412,7 +412,7 @@ def test_msm_decision_keeps_sampling_withheld_and_refuses_composition():
                 artifact.contract(), artifact, sampling_composition="sum_of_interval_and_range"
             )
         )
-    assert caught.value.reason_code == "not_supported"
+    assert caught.value.reason_code == "route_not_supported"
     assert caught.value.detail == "sensitivity_decision_composition.composition_not_supported"
 
 

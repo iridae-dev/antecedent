@@ -262,7 +262,7 @@ fn decide(
         probability_best: p,
         expected_loss: expected_loss[best_option],
         stop: rule.assess(observed, probability_best, expected_loss).is_some(),
-        guarantee: ClosedClaim::closed("choice_inference.stopping_reliability_closed"),
+        guarantee: ClosedClaim::mismatch("choice_inference.stopping_reliability_closed"),
     })
 }
 
@@ -728,7 +728,7 @@ mod tests {
         let mass: f64 = oc.selection.iter().sum::<f64>() + oc.undecided;
         assert!((mass - 1.0).abs() < 1e-12);
         assert!(oc.selection[0] > oc.selection[1]);
-        assert_eq!(oc.guarantee.code, "not_supported");
+        assert_eq!(oc.guarantee.code, "route_not_supported");
     }
 
     #[test]

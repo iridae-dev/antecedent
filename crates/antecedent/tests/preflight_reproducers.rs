@@ -711,10 +711,10 @@ fn a_prepared_batch_diagnoses_and_costs_every_claim() {
 }
 
 /// Retargeted overlap refusal: a row-weight retarget onto a region the treated arm never
-/// reaches refuses as a support failure (class and text as before) and now carries structured
+/// reaches refuses as a positivity failure (`positivity_violated`) and now carries structured
 /// fields (the per-site checks are in `refusal_fields_existing_sites.rs`).
 #[test]
-fn a_retarget_onto_unsupported_rows_refuses_as_support_with_structured_fields() {
+fn a_retarget_onto_unsupported_rows_refuses_as_positivity_with_structured_fields() {
     let mut rng = stream(14, 1);
     let n = 800usize;
     let mut z = vec![0.0; n];
@@ -745,7 +745,7 @@ fn a_retarget_onto_unsupported_rows_refuses_as_support_with_structured_fields() 
         .prepare(&ctx)
         .unwrap();
     let error = prepared.retarget(&w, &[VariableId::from_raw(2)], &ctx).unwrap_err();
-    assert!(matches!(error.peeled(), CausalError::Support { .. }), "{error}");
+    assert_eq!(error.reason_code(), Some("positivity_violated"), "{error}");
     let fields = error.refusal_fields().expect("the retarget refusal carries fields");
     assert_eq!(fields.stage.as_deref(), Some("retarget"));
     assert_eq!(fields.arm_ess.len(), 2);

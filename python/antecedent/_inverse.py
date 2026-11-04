@@ -474,7 +474,7 @@ def inverse_outcome(
     ``response`` is the result of an existing response route evaluated on a grid
     that contains every action's point (an action off that grid is
     ``unevaluated``). ``query`` is a :class:`TargetMean`; the probability,
-    quantile and observational-scenario queries refuse with ``not_supported``
+    quantile and observational-scenario queries refuse with ``inverse_functional_unsupported``
     (``inverse.probability_target``, ``inverse.quantile_target``,
     ``inverse.observational_scenarios``). A forward response that is not a point
     identified mean curve refuses with ``route_not_supported``

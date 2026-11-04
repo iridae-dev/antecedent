@@ -285,7 +285,7 @@ fn absent_mislabelled_and_counted_laws_are_refused_before_a_number() {
     .unwrap();
     let empirical = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = evaluate(&derivation, &empirical).unwrap_err();
-    assert_eq!(refusal_code(&error), "not_supported");
+    assert_eq!(refusal_code(&error), "route_not_supported");
 }
 
 #[test]

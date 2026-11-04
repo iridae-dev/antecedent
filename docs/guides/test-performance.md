@@ -26,7 +26,7 @@ the full workspace build.
 
 The full Python baseline collected 5,478 tests in 6.51 s and executed in
 175.76 s: 5,391 passed, 55 skipped and 32 failed. Thirty-one failures concerned
-calibration records that no longer attest the modified checkout; one concerned
+calibration records whose dependency fingerprint changed in the modified checkout; one concerned
 an older native reason-code registry than the edited registry. These baseline
 failures prevent treating this checkout as a green full-suite benchmark.
 The Python suite already used a release native extension.
@@ -193,7 +193,7 @@ makespan of 373 s against up to 618 s; the observed 464 s lies between them.
 
 ## Rust fixture reuse
 
-`transport_exact_scm.rs` formerly generated the same source population laws
+`transport_exact_scm.rs` would otherwise generate the same source population laws
 for every target selection. Source laws depend on the graph and parameter
 values; target selections change only target mechanisms. The test now builds
 the 27 three-node or 81 four-node source laws once per graph and parameter
@@ -208,8 +208,7 @@ the exhaustive sweep.
 
 The three-node sweep also shares its evidence catalog and binds each proof
 once per selection. Both sweep schedulers distribute directed masks among at
-most the available CPUs. The four-node oracle previously always spawned eight
-workers, including on smaller CI machines. Nextest continues to reserve the
+most the available CPUs. The four-node oracle spawns no more workers than there are CPUs. Nextest continues to reserve the
 machine for these internally parallel sweeps.
 
 Visit counters assert all 512 three-node and 65,536 four-node diagrams are
@@ -272,7 +271,7 @@ See [Maturin configuration](https://www.maturin.rs/config).
 Ignored statistical measurements remain explicit through
 `scripts/measure_calibration.sh`. No faster command silently adds ignored
 calibration experiments to the ordinary suite or substitutes smoke results for
-accepted coverage records.
+measured coverage records.
 
 ## CI build strategy
 
@@ -466,8 +465,7 @@ for larger numerical runs; it can cost more compilation during active editing.
 After changing Rust, rebuild the extension explicitly before using that mode.
 
 Nineteen facade targets that use only the known-truth fixtures now import a
-narrow helper wrapper. Previously each included all ten common helper modules,
-including unrelated calibration and data generators. Each now includes only
+narrow helper wrapper. Each includes only
 the unchanged fixtures and their required calibration seed helpers. This cuts
 the included helper text from 4,168 to 2,437 lines per target and removes
 invalidation from eight unrelated helper modules. Test files, function names,
@@ -508,7 +506,7 @@ incremental compilation to improve compiler-cache hit rates can hurt successive
 local edits. See [sccache Rust support](https://github.com/mozilla/sccache/blob/main/docs/Rust.md).
 
 Support generation now also preserves modification times when its output bytes
-are unchanged. Previously regenerating an identical support matrix rewrote
+are unchanged. Regenerating an identical support matrix would otherwise rewrite
 `reason_codes_data.rs` and the embedded support/coverage JSON files. Cargo's
 timestamp-based invalidation could then rebuild core and downstream crates
 even though no generated content changed. The generator still recomputes live

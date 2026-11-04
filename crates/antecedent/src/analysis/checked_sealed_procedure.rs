@@ -1,5 +1,5 @@
-//! The execution settings every checked temporal graph route freezes beside its
-//! proof payload: the selected procedure, inference mode, bootstrap budget,
+//! The procedure every checked temporal graph route seals beside its proof
+//! payload: the selected procedure, inference mode, bootstrap budget,
 //! validation suite, completion cap and the sealed physical plan.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -19,18 +19,18 @@ use super::execute::Study;
 /// How much of the sealed procedure the physical plan must name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PlanBindingScope {
-    /// The plan names exactly the frozen identifier and estimator.
+    /// The plan names exactly the sealed identifier and estimator.
     Procedure,
-    /// The plan names exactly the frozen estimator; the identifier is not
+    /// The plan names exactly the sealed estimator; the identifier is not
     /// constrained by the plan record.
     Estimator,
 }
 
-/// Frozen procedure settings shared by the checked temporal graph operations.
+/// Sealed procedure settings shared by the checked temporal graph operations.
 /// Each operation composes one of these with its proof payload and its own
 /// query, so the binding guard and the accessors exist once.
 #[derive(Clone, Debug)]
-pub(crate) struct CheckedRouteFrozen {
+pub(crate) struct SealedProcedure {
     identifier: IdentifierId,
     estimator: EstimatorId,
     inference: InferenceMode,
@@ -40,7 +40,7 @@ pub(crate) struct CheckedRouteFrozen {
     max_completions: Option<usize>,
 }
 
-impl CheckedRouteFrozen {
+impl SealedProcedure {
     pub(crate) fn new(
         identifier: IdentifierId,
         estimator: EstimatorId,
@@ -61,7 +61,7 @@ impl CheckedRouteFrozen {
         }
     }
 
-    /// Require the sealed plan to carry exactly `query` and the frozen
+    /// Require the sealed plan to carry exactly `query` and the sealed
     /// procedure (as far as `scope` constrains it).
     ///
     /// # Errors
@@ -84,9 +84,9 @@ impl CheckedRouteFrozen {
         Ok(())
     }
 
-    /// Bind every frozen procedure setting onto a click study, so the live
+    /// Bind every sealed procedure setting onto a click study, so the live
     /// builder cannot change the procedure after preparation. Caller
-    /// validators never run on a frozen route.
+    /// validators never run on a sealed procedure.
     pub(crate) fn bind_study(&self, study: &mut Study) {
         study.settings.inference = self.inference.clone();
         study.declared.identifier = Some(self.identifier);

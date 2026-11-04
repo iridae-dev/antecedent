@@ -272,13 +272,13 @@ fn undeclared_carryover_and_dependence_and_bad_designs_refuse_with_the_next_atte
         ))
         .unwrap_err(),
     );
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "effect_not_identified");
     assert!(message.contains("switchback_posterior.carryover_unrestricted"), "{message}");
     assert!(message.contains("Next attempt") && message.contains("washout"), "{message}");
 
     let (code, message) =
         checks::coded_refusal(run(&none(SequenceDependence::Unspecified)).unwrap_err());
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "sampling_dependence_unknown");
     assert!(message.contains("switchback_posterior.dependence_undeclared"), "{message}");
     assert!(message.contains("Next attempt"), "{message}");
 

@@ -58,9 +58,9 @@ Reviewed set: 66 routes; 29 carryover candidates; 37 deliberate refusals; 0 supe
 | `estimate.matched_case_control_odds_ratio` | `antecedent_estimate.refuse_matched_interval` | `not_supported` | deliberate refusal | retain boundary |
 | `estimate.matched_case_control_odds_ratio` | `antecedent.matched.risk_scale_estimand` | `effect_not_identified` | deliberate refusal | retain boundary |
 | `estimate.matched_case_control_odds_ratio` | `antecedent.matched.interval` | `not_supported` | deliberate refusal | retain boundary |
-| `decision.finite_action_inverse` | `antecedent.inverse.probability_target` | `not_supported` | carryover candidate | finite-action inverse outcome |
-| `decision.finite_action_inverse` | `antecedent.inverse.quantile_target` | `not_supported` | carryover candidate | finite-action inverse outcome |
-| `decision.finite_action_inverse` | `antecedent.inverse.observational_scenarios` | `not_supported` | carryover candidate | finite-action inverse outcome |
+| `decision.finite_action_inverse` | `antecedent.inverse.probability_target` | `inverse_functional_unsupported` | carryover candidate | finite-action inverse outcome |
+| `decision.finite_action_inverse` | `antecedent.inverse.quantile_target` | `inverse_functional_unsupported` | carryover candidate | finite-action inverse outcome |
+| `decision.finite_action_inverse` | `antecedent.inverse.observational_scenarios` | `inverse_functional_unsupported` | carryover candidate | finite-action inverse outcome |
 | `decision.finite_action_inverse` | `antecedent.inverse.unsupported_forward` | `not_supported` | deliberate refusal | retain boundary |
 | `estimate.penalized_propensity_aipw` | `antecedent_estimate.PropensityNuisance.lasso_full_sample` | `selection_inference_not_supported` | deliberate refusal | retain boundary |
 | `estimate.penalized_propensity_aipw` | `antecedent.estimators.PropensityPenalty.lasso_full_sample` | `selection_inference_not_supported` | deliberate refusal | retain boundary |

@@ -42,15 +42,16 @@ pub const MEASURED_DRAWS: u32 = 2000;
 /// width; one rule shared with every posterior-draw route.
 pub use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
 
-fn refused(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: format!("{detail}: {message}"),
-    }
+fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
+    IoError::Refused { code, message: format!("{detail}: {message}") }
+}
+
+fn invalid(detail: &str, message: &str) -> IoError {
+    refused(antecedent_core::reason_code!("invalid_argument"), detail, message)
 }
 
 fn protocol(message: &str) -> IoError {
-    refused("measured_interval.invalid_source", message)
+    invalid("measured_interval.invalid_source", message)
 }
 
 #[allow(clippy::needless_pass_by_value, reason = "used as an owned map_err callback")]
@@ -61,7 +62,7 @@ fn estimation_error(error: antecedent_estimate::EstimationError) -> IoError {
             message: error.to_string(),
         }
     } else {
-        refused("measured_inference.invalid_report", &error.to_string())
+        invalid("measured_inference.invalid_report", &error.to_string())
     }
 }
 
@@ -117,7 +118,7 @@ struct Resolved {
 impl CountFittedIntervalArtifactWire {
     fn resolve(&self) -> Result<Resolved, IoError> {
         if self.version != 1 || self.nodes.is_empty() {
-            return Err(refused(
+            return Err(invalid(
                 "measured_inference.artifact_mismatch",
                 "count-fitted source is not a version 1 model with at least one node",
             ));
@@ -130,7 +131,7 @@ impl CountFittedIntervalArtifactWire {
                     NodeTable::Declared(bits.iter().map(|b| f64::from_bits(*b)).collect())
                 }
                 _ => {
-                    return Err(refused(
+                    return Err(invalid(
                         "measured_inference.artifact_mismatch",
                         "a node carries both or neither of counts and a declared table",
                     ));
@@ -154,16 +155,18 @@ impl CountFittedIntervalArtifactWire {
         }
         let model = CountFittedModel::new(nodes, self.rows).map_err(estimation_error)?;
         let find = |name: &str, level: &str| -> Result<(usize, usize), IoError> {
-            let node = self
-                .nodes
-                .iter()
-                .position(|n| n.name == name)
-                .ok_or_else(|| refused("observation_query.unknown_variable", name))?;
+            let node = self.nodes.iter().position(|n| n.name == name).ok_or_else(|| {
+                refused(
+                    antecedent_core::reason_code!("unknown_variable"),
+                    "observation_query.unknown_variable",
+                    name,
+                )
+            })?;
             let l = self.nodes[node]
                 .levels
                 .iter()
                 .position(|l| l == level)
-                .ok_or_else(|| refused("observation_query.unknown_level", level))?;
+                .ok_or_else(|| invalid("observation_query.unknown_level", level))?;
             Ok((node, l))
         };
         let (target, level_index) = find(&self.target, &self.target_level)?;
@@ -186,7 +189,7 @@ impl CountFittedIntervalArtifactWire {
         resolved
             .model
             .point(&resolved.query, resolved.prior_alpha)
-            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))
+            .map_err(|e| invalid("measured_inference.invalid_report", &e.to_string()))
     }
 
     /// Serialize a retained count-fitted source.
@@ -253,6 +256,7 @@ impl CountFittedIntervalArtifactWire {
         let fraction = interval.mcse_width_fraction();
         if fraction.is_nan() || fraction > mcse_tolerance {
             return Err(refused(
+                antecedent_core::reason_code!("posterior_draws_not_converged"),
                 "measured_interval.draws_not_converged",
                 &format!(
                     "the Monte Carlo standard error of an interval endpoint ({:.3e} lower, \
@@ -276,7 +280,7 @@ impl CountFittedIntervalArtifactWire {
     pub fn measure(bytes: &[u8]) -> Result<MeasuredInference, IoError> {
         let wire: Self = crate::from_cbor(bytes)?;
         if crate::to_cbor(&wire)? != bytes {
-            return Err(refused(
+            return Err(invalid(
                 "measured_inference.artifact_mismatch",
                 "count-fitted source is not canonical",
             ));

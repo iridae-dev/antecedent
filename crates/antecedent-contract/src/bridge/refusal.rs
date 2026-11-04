@@ -441,13 +441,13 @@ pub(super) fn units_mismatch(
     mismatch("scientific_bridge.units_mismatch", expected, supplied)
 }
 
-// -- values outside what the mapping supports (not_supported, bridge_mapping_not_supported) ------------
+// -- values outside what the mapping supports (bridge_mapping_not_supported) ------------
 
 /// A value kind the route does not carry: a law or a posterior on the point route, an
 /// identified set or a joint law on either.
 pub(super) fn value_kind_not_carried(kind: ValueKind) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
         "scientific_bridge.value_kind_not_carried",
     )
@@ -461,7 +461,7 @@ pub(super) fn value_kind_not_carried(kind: ValueKind) -> BridgeRefusal {
 /// The source claim is not a finite point value.
 pub(super) fn source_not_point(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
         "scientific_bridge.source_not_point",
     )
@@ -476,7 +476,7 @@ pub(super) fn source_not_point(supplied: &str) -> BridgeRefusal {
 #[must_use]
 pub fn interval_not_supported() -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("route_not_supported"),
         STAGE_BIND,
         "scientific_bridge.interval_not_supported",
     )
@@ -622,7 +622,7 @@ pub(super) fn youden_too_small(youden: f64, min_youden: f64) -> BridgeRefusal {
 /// an associational claim, a refusal, bounds or an incomplete contract.
 pub(super) fn source_not_draws(supplied: &str) -> BridgeRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("bridge_mapping_not_supported"),
         STAGE_BIND,
         "scientific_bridge.source_not_draws",
     )

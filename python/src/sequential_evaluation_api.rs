@@ -20,6 +20,16 @@ use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json, ser
 use crate::measurement_model_api::{model_json as channel_json, parse_model as parse_channel};
 use crate::transport_common::execution_context;
 
+/// The interval of an off-policy estimate with its calibration slot.
+fn interval_json(
+    level: f64,
+    lower: f64,
+    upper: f64,
+    calibration: &antecedent_io::contract_section::CalibrationSlotWire,
+) -> Json {
+    json!({"level": level, "lower": lower, "upper": upper, "calibration": calibration})
+}
+
 /// Largest declaration this bridge parses, in bytes of JSON text.
 const MAX_DECLARATION_BYTES: usize = 128 * 1024 * 1024;
 
@@ -458,6 +468,7 @@ fn sequential_off_policy(
             "max_weight": e.max_weight,
             "trajectories": e.trajectories,
             "uncalibrated_standard_error": e.uncalibrated_standard_error,
+            "interval": e.interval.as_ref().map(|i| interval_json(i.level, i.lower, i.upper, &i.calibration)),
             "policy_version": e.policy_version,
             "policy_identity": e.policy_identity,
             "behaviour_version": e.behaviour_version,
@@ -957,6 +968,12 @@ impl PyEvaluationArtifact {
                 "effective_sample_size": f64::from_bits(o.effective_sample_size_bits),
                 "max_weight": f64::from_bits(o.max_weight_bits),
                 "uncalibrated_standard_error": o.standard_error_bits.map(f64::from_bits),
+                "interval": o.interval.as_ref().map(|i| interval_json(
+                    f64::from_bits(i.level_bits),
+                    f64::from_bits(i.lower_bits),
+                    f64::from_bits(i.upper_bits),
+                    &seq::OffPolicyInterval::calibration_slot(),
+                )),
                 "trajectories": o.trajectories.len(),
                 "records_counted": o.records_counted,
                 "ledger_state": o.ledger_state,

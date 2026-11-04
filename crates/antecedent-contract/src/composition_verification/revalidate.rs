@@ -400,18 +400,16 @@ impl ClaimRevalidation {
     }
 
     /// The typed refusal for a claim that is not usable as it stands, or
-    /// `None` for a `still_valid` claim.
+    /// `None` for a `still_valid` claim and for a claim that only lost its
+    /// calibration: the point value stands and the interval's calibration
+    /// status carries the loss.
     #[must_use]
     pub fn refusal(&self) -> Option<ExternalRefusal> {
         let stage = "revalidate";
-        if let Some(w) = self.withdrawals.iter().min_by_key(|w| (w.kind, &w.origin)) {
+        let standing = self.withdrawals.iter().filter(|w| w.kind != WithdrawalKind::Calibration);
+        if let Some(w) = standing.min_by_key(|w| (w.kind, &w.origin)) {
             let (code, detail, remedy) = match w.kind {
-                WithdrawalKind::Calibration => (
-                    antecedent_core::reason_code!("not_supported"),
-                    "composition_verification.calibration_not_held",
-                    "establish a calibration record at this claim's coordinate, or report the \
-                     point value without an interval or posterior",
-                ),
+                WithdrawalKind::Calibration => return None,
                 WithdrawalKind::Support => (
                     antecedent_core::reason_code!("claim_support_withdrawn"),
                     "composition_verification.support_withdrawn",
@@ -443,7 +441,7 @@ impl ClaimRevalidation {
                     .with_remedy(remedy),
             );
         }
-        if self.class == Revalidation::Recompute {
+        if !self.numerical.is_empty() {
             let origin = self.numerical.first().map_or("unknown", |r| r.origin.as_str());
             return Some(
                 ExternalRefusal::new(

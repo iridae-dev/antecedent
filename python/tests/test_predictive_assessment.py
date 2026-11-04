@@ -514,7 +514,7 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
 
 
 @pytest.mark.requires_calibration
-def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refused_outside() -> (
+def test_a_scoped_score_interval_is_calibrated_inside_a_measured_design_and_annotated_outside() -> (
     None
 ):
     # 800 iid cases of a fixed (never fitted) Gaussian forecast on a held-out split, level 0.95:
@@ -540,7 +540,8 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
         "quantity_semantics_mismatch",
         "predictive_assessment.interval_not_supported",
     )
-    # Below the measured number of cases, and at another level: the typed out-of-scope refusal.
+    assert interval.calibration == "calibrated"
+    # Below the measured number of cases, and at another level: reported, not calibrated.
     small = pa.assess(
         observed(normals(100, 7)),
         [predictor("a", [pa.Gaussian(0.3, 1.2)] * 100)],
@@ -548,16 +549,8 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
         scores=("crps",),
         dependence=pa.Dependence.iid(),
     )
-    expect(
-        refused(lambda: small.score_interval("a", "crps")),
-        "not_supported",
-        "predictive_assessment.interval_scope_outside_measured",
-    )
-    expect(
-        refused(lambda: result.score_interval("a", "crps", level=0.9)),
-        "not_supported",
-        "predictive_assessment.interval_scope_outside_measured",
-    )
+    assert small.score_interval("a", "crps").calibration != "calibrated"
+    assert result.score_interval("a", "crps", level=0.9).calibration != "calibrated"
     # No declared dependence: independence is never assumed.
     undeclared = pa.assess(
         observed(normals(n, 7)),

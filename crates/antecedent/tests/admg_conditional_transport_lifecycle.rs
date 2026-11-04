@@ -171,28 +171,31 @@ fn refresh_keeps_the_proof_and_moves_the_point() {
         before.distributions()[0].probabilities[1].to_bits(),
         after.distributions()[0].probabilities[1].to_bits()
     );
-    // Counted laws are refused: the route publishes exact points only.
-    let (_, data) = scm(0).catalog_and_laws();
-    let mut laws = data.laws().to_vec();
-    let first = &laws[0];
-    let cells = first.probabilities().len();
-    laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
-        first.population(),
-        first.regime(),
-        first.interventions().to_vec(),
-        first.axes().to_vec(),
-        vec![1.0 / cells as f64; cells],
-        first.snapshot_identity(),
-        antecedent_expr::LawTolerance::default(),
-    )
-    .unwrap()
-    .with_empirical_counts(vec![1; cells])
-    .unwrap();
-    let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
-    let error = prepared.refresh(counted, &ctx).unwrap_err();
-    let IoError::Refused { code, message } = error else { panic!("coded refusal") };
-    assert_eq!(code, "not_supported");
-    assert!(message.starts_with("admg_transport.counted_laws_unsupported"), "{message}");
+    // Counted laws are refused: the route publishes exact points only. A development build runs them.
+    #[cfg(not(feature = "development"))]
+    {
+        let (_, data) = scm(0).catalog_and_laws();
+        let mut laws = data.laws().to_vec();
+        let first = &laws[0];
+        let cells = first.probabilities().len();
+        laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
+            first.population(),
+            first.regime(),
+            first.interventions().to_vec(),
+            first.axes().to_vec(),
+            vec![1.0 / cells as f64; cells],
+            first.snapshot_identity(),
+            antecedent_expr::LawTolerance::default(),
+        )
+        .unwrap()
+        .with_empirical_counts(vec![1; cells])
+        .unwrap();
+        let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
+        let error = prepared.refresh(counted, &ctx).unwrap_err();
+        let IoError::Refused { code, message } = error else { panic!("coded refusal") };
+        assert_eq!(code, "not_supported");
+        assert!(message.starts_with("admg_transport.counted_laws_unsupported"), "{message}");
+    }
 }
 
 fn export(prepared: &PreparedAdmgConditionalTransport) -> Vec<u8> {
@@ -367,7 +370,7 @@ fn a_mutated_artifact_fails_consumption() {
     let mut wire = original.clone();
     wire.laws[0].empirical_counts = Some(vec![1; wire.laws[0].probabilities.len()]);
     let error = refusal(&reseal(&mut wire));
-    assert_eq!(pair(error), ("not_supported", "admg_transport.counted_laws_unsupported"));
+    assert_eq!(pair(error), ("route_not_supported", "admg_transport.counted_laws_unsupported"));
     // (i) An unknown field is refused by the wire (deny_unknown_fields).
     let mut value: serde_json::Value = antecedent_io::from_cbor(&bytes).unwrap();
     value["unexpected"] = serde_json::json!(1);

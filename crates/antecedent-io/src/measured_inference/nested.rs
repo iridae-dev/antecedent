@@ -16,7 +16,7 @@ use antecedent_learn::nested_markov_bayesian::{Options, Prior};
 
 fn outside(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
+        code: antecedent_core::reason_code!("route_not_supported"),
         message: format!("nested_markov.measured_scope: {message}"),
     }
 }
@@ -118,9 +118,12 @@ fn bayesian_authority(artifact: &Artifact) -> Result<MeasuredInference, IoError>
                 || d.tail_ess < 400.0
         })
     {
-        return Err(outside(
-            "all fourteen original posterior diagnostics must pass the frozen Rhat/ESS criteria",
-        ));
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("posterior_draws_not_converged"),
+            message: "nested_markov.measured_scope: all fourteen original posterior diagnostics \
+                      must pass the frozen Rhat/ESS criteria"
+                .to_owned(),
+        });
     }
     let executions = [
         ("mean0", BayesianFunctional::Mean0),
@@ -287,7 +290,7 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            matches!(error,IoError::Refused{code,..} if code==antecedent_core::reason_code!("not_supported"))
+            matches!(error,IoError::Refused{code,..} if code==antecedent_core::reason_code!("route_not_supported"))
         );
         assert!(error.to_string().contains("256 UTF-8 byte bound"));
     }

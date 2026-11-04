@@ -17307,7 +17307,7 @@ decision_ports = "composed_exceedance_decision"
 owning_module = "crates/antecedent-stats/src/joint_law.rs"
 implementation = ["crates/antecedent-stats/src/joint_law.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"]
+evidence = ["crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_is_reported_with_its_calibration_at_its_coordinate"]
 artifact_consumer = ["crates/antecedent/src/analysis/composition.rs", "crates/antecedent/tests/identity_contract.rs::composition_artifact_reload_in_separate_process"]
 
 [[method]]

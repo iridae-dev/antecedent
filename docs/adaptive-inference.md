@@ -2,7 +2,7 @@
 
 Analyze data from an experiment whose assignment adapts to outcomes, that is looked at before it ends, or that stops on a rule. You can read a Bayesian posterior, a decision-theoretic stopping rule, an adaptively weighted estimate, a group-sequential boundary or an anytime-valid confidence sequence, each as its own named paradigm.
 
-The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and the unqualified interval request stays closed (`not_supported`). An interval for one named result is offered only by `measured_interval`, for the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered), bound to the coverage record that attests them.
+The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and an unqualified interval request is refused (`quantity_semantics_mismatch`) because an interval belongs to one named result. `measured_interval` reports the interval of one named result for every procedure with a construction; the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered) are those whose whole-procedure coverage was measured, and any other procedure still reports its interval annotated `not_measured` or `outside_measured_scope`.
 
 ## The retained analysis contract
 
@@ -60,11 +60,17 @@ classified by `procedure_status`:
   measures and a final analysis (adaptive weighting on subject means); fixed
   randomization with group-sequential monitoring (boundaries); fixed
   randomization with one final analysis (fixed-sample, executed elsewhere);
-* **closed, incoherent** (144), for example a stopping rule with no interim
-  analysis to act on;
-* **closed, pairing** (17): every component is delivered but the pairing is
-  not. A guarantee for two components never supports their pairing;
-* **carried forward** (192) with an owner: upper-confidence-bound, contextual
+* **incoherent** (144; stored as `closed_incoherent`): the combination
+  describes no procedure, for example a stopping rule with no interim
+  analysis to act on. It refuses `route_not_supported` with
+  `adaptive_inference.cell_closed`;
+* **pairing not delivered** (17; stored as `closed_pairing`): every component
+  is delivered but their pairing has no method. A guarantee for two components
+  never supports their pairing. It refuses `route_not_supported` with
+  `adaptive_inference.pairing_not_supported`;
+* **no method yet** (192; stored as `carried_forward`), each with an owning
+  module, refusing `route_not_supported` with
+  `adaptive_inference.cell_carried_forward`: upper-confidence-bound, contextual
   and batched assignment, hierarchical clustered outcomes, continuous
   monitoring, futility and resource stopping.
 
@@ -227,8 +233,8 @@ procedure, and a contract records it as `predictable_plug_in_empirical_bernstein
 declared and validated, and only the Hoeffding sequence reads it. This is a
 finite-time theorem under its
 premise, not a measured coverage of the whole procedure: every number is
-`derived_unmeasured` and the interval routes stay closed until a calibration
-record exists. `simulate_participant_procedure` runs the whole procedure end to
+`derived_unmeasured`, and its calibration status stays `not_measured` until a
+coverage record exists. `simulate_participant_procedure` runs the whole procedure end to
 end and records, per replicate, how it ended and whether the sequences covered
 the truth at every look and at the end; it is the entry point a calibration
 design calls.
@@ -295,7 +301,7 @@ These are properties of the simulation under the stated truth. They are not a co
 
 Whole-procedure coverage of an adaptive procedure is measured as a whole, over its data-generating process, nominal level, support range and boundary probes. Coverage of a fixed-sample interval at the final sample size, or of a component estimator, does not substitute. Read `result.inspect().calibration` for the status of what you hold.
 
-`AdaptiveInferenceSession.measured_interval(request)` seals and replays the result, builds the interval from the retained history and resolves it against the current coverage record. It returns an interval only for the cells below, and only while a coverage record currently attests the cell. Any other procedure, prior, threshold, exploration mass or look schedule is refused.
+`AdaptiveInferenceSession.measured_interval(request)` seals and replays the result, builds the interval from the retained history and resolves it against the current coverage record. The cells below are those a coverage record measures; for them the calibration status is `calibrated` while a record currently attests the cell. Any other procedure, prior, threshold, exploration mass or look schedule still reports its interval, annotated `not_measured` or `outside_measured_scope`, because a record for one cell never covers another. Calibration never gates the interval; only a result that carries no interval of the asked kind (a stopping decision, for example) refuses, with `route_not_supported`.
 
 | Cell | Interval | Planned size | Does not say |
 | --- | --- | --- | --- |
@@ -313,7 +319,7 @@ contract; any element may be `None` and is then refused by name),
 `AdaptiveInferenceSession.prepare`, `analyze` (also `analyse`) with one request class per paradigm
 (`BayesianPosterior`, `PosteriorStopping`, `AdaptiveWeighting`, `ConfidenceSequence`,
 `GroupSequential`), `fixed_sample` (always refused for adaptive data), `interval`
-(always `not_supported`), `interim_evidence`, `export_contract`, `export_result`,
+(always refused, `quantity_semantics_mismatch`; use `measured_interval`), `interim_evidence`, `export_contract`, `export_result`,
 `consume_adaptive_monitoring_contract_artifact`,
 `consume_adaptive_inference_result_artifact` and `procedure_matrix()`. The
 participant-level family is `ParticipantDeclaration` (with `ArmPrior`,

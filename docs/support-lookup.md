@@ -1,6 +1,6 @@
 # Find a supported analysis cell
 
-Choose the exact query, graph class, structure source, inference and validation settings. This view filters **supported graph-based cells** from the same generated registry used by the native support matrix; it does not decide whether your graph is true or your observations have adequate support. An interval's calibration must be checked separately at execution.
+Choose the exact query, graph class, structure source, inference and validation settings. This view filters **supported graph-based cells** from the same generated registry used by the native support matrix; it does not decide whether your graph is true or your observations have adequate support. Each reported interval carries a calibration status (`calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`), which annotates the result and never decides whether the cell runs.
 
 <div id="support-lookup">
 <p><label>Search query or estimator <input id="support-search" type="search" placeholder="AverageEffect, aipw, temporal…"></label></p>
@@ -11,6 +11,6 @@ Choose the exact query, graph class, structure source, inference and validation 
 </div>
 </div>
 
-No matching row means this view supplies no support for that configuration. Check [the full support matrix and refusal reasons](support-matrix.md), or prepare the actual query and inspect its structured outcome. The [graphless design-family matrix](graphless-support-matrix.md) covers randomized experiments, policy, quasi-experimental, survival and longitudinal designs on their separate axes.
+No matching row means this configuration is not supported: a release build refuses it with `not_supported`, and a development build runs it and reports `would_refuse`. Check [the full support matrix and refusal reasons](support-matrix.md), or prepare the actual query and inspect its structured outcome. The [graphless design-family matrix](graphless-support-matrix.md) covers randomized experiments, policy, quasi-experimental, survival and longitudinal designs on their separate axes.
 
 If JavaScript is unavailable, use the complete tables linked above. See [the glossary](concepts/glossary.md) for identified, supported, calibrated and identity-bound, and [supported analyses](supported-analyses.md) to choose a workflow before configuring a cell.

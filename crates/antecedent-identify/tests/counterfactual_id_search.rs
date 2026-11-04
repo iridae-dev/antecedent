@@ -760,7 +760,7 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
     let cyclic = CounterfactualIdProblem::new(binary(2), &[(0, 1), (1, 0)], &[]).unwrap_err();
     assert_eq!(
         (cyclic.code, cyclic.detail),
-        ("not_supported", "counterfactual_id.graph_outside_contract")
+        ("route_not_supported", "counterfactual_id.graph_outside_contract")
     );
     assert!(cyclic.message.contains("condensation"), "{}", cyclic.message);
     assert!(cyclic.message.contains("sigma_separates"), "{}", cyclic.message);

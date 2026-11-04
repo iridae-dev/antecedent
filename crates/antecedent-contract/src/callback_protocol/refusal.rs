@@ -473,7 +473,7 @@ pub fn provider_unavailable(identity: &str) -> CallbackRefusal {
     )
 }
 
-// -- closed routes (not_supported, joint_law_required) -----------------------------------------
+// -- closed routes (callback_protocol_invalid, joint_law_required) -----------------------------------------
 
 /// An interval from a callback law is closed.
 #[must_use]
@@ -505,7 +505,7 @@ pub fn posterior_guarantee_not_supported() -> CallbackRefusal {
 #[must_use]
 pub fn native_trust_not_conferred() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("callback_protocol_invalid"),
         STAGE_CLOSED,
         "callback_protocol.native_trust_not_conferred",
     )
@@ -518,7 +518,7 @@ pub fn native_trust_not_conferred() -> CallbackRefusal {
 #[must_use]
 pub fn identification_not_conferred() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("callback_protocol_invalid"),
         STAGE_CLOSED,
         "callback_protocol.identification_not_conferred",
     )

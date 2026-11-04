@@ -14,7 +14,7 @@ use antecedent_core::{ExecutionContext, IdentityDomain};
 
 fn refusal(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
+        code: antecedent_core::reason_code!("invalid_argument"),
         message: format!("measured_interval.source_mismatch: {message}"),
     }
 }

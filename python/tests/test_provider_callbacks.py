@@ -557,12 +557,12 @@ def test_closed_routes_refuse_with_registered_codes_and_remedies():
         ),
         (
             pc.refuse_native_trust,
-            "not_supported",
+            "callback_protocol_invalid",
             "callback_protocol.native_trust_not_conferred",
         ),
         (
             pc.refuse_identification_evidence,
-            "not_supported",
+            "callback_protocol_invalid",
             "callback_protocol.identification_not_conferred",
         ),
         (pc.refuse_joint_law, "joint_law_required", "callback_protocol.joint_law_not_conferred"),

@@ -41,9 +41,9 @@ some and omitting others is refused with the missing pieces listed.
 
 An interval construction at the composed coordinate (normal, draw percentile or
 marginal) is a candidate with calibration status `unmeasured`. The interval
-reading stays closed until a `CoverageRecord` measured at exactly that
+is reported with that status; it becomes `calibrated` only when a `CoverageRecord` measured at exactly that
 `ComposedCoordinate` (operation, route, transported or not, input roles) and
-construction exists, and then only at its recorded nominal level. A
+construction covers it, and then only at its recorded nominal level. A
 component's record is never a composed coordinate's. An exceedance decision
 carries a Monte Carlo band, which is numerical error and not coverage.
 
@@ -140,8 +140,8 @@ more: it is not an interval and not a calibration.
 | Refused request | Reason code or detail | Remedy |
 | --- | --- | --- |
 | Procedure element missing | `adaptive_contract_incomplete` (for example `adaptive_inference.stopping_rule_missing`) | Declare it |
-| Posterior from value-dependent loss | `not_supported` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
-| Fixed-sample or group-sequential on an adaptive design | `not_supported` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
-| Rule that does not match the paradigm | `not_supported` (`adaptive_inference.rule_mismatch`) | Declare the matching stopping rule |
+| Posterior from value-dependent loss | `adaptive_assumption_violated` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
+| Fixed-sample or group-sequential on an adaptive design | `adaptive_assumption_violated` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
+| Rule that does not match the paradigm | `adaptive_assumption_violated` (`adaptive_inference.rule_mismatch`) | Declare the matching stopping rule |
 | Anytime-valid with several contexts | `not_supported` (an `adaptive_inference.*` premise failure) | Run per context |
 | Any interval or coverage claim | not supported | Treat as derived and unmeasured |

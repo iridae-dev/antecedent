@@ -35,17 +35,18 @@ pub use super::design_exports::design_crate::sequential_evaluation::{
     ComparisonReport, ComparisonRow, ComparisonSpec, ContingentPolicy, DecisionReceipt,
     DelayedOutcome, EvaluationLimits, FiniteSequentialModel, HistoryKey, HistoryReceipt,
     HistoryStep, LoggedStep, LoggedTrajectory, MAX_ACTIONS, MAX_HORIZON, MAX_LOGGED_TRAJECTORIES,
-    MAX_POLICY_ENTRIES, MAX_ROLLOUTS, MAX_STATES, NodeKind, ObservationChannel, ObservationReceipt,
-    OffPolicyEstimate, PolicyEvaluation, PolicySpec, RolloutConfig, RolloutEstimate,
-    SEQUENTIAL_EVALUATION_IDENTITY_VERSION, SEQUENTIAL_EVALUATION_INFERENCE, STREAM_SCHEME,
-    SequentialAssumptions, SequentialEvaluationError, SequentialRequest, SequentialResult,
-    StoppingBoundary, StreamRole, VoiCheck, VoiRequest, compare_policies, evaluate_off_policy,
-    evaluate_policy, request_interval, rollout_policy, stream_uniform,
-    value_of_collecting_evidence,
+    MAX_POLICY_ENTRIES, MAX_ROLLOUTS, MAX_STATES, NodeKind, OFF_POLICY_INTERVAL_LEVEL,
+    ObservationChannel, ObservationReceipt, OffPolicyEstimate, OffPolicyInterval, PolicyEvaluation,
+    PolicySpec, RolloutConfig, RolloutEstimate, SEQUENTIAL_EVALUATION_IDENTITY_VERSION,
+    SEQUENTIAL_EVALUATION_INFERENCE, STREAM_SCHEME, SequentialAssumptions,
+    SequentialEvaluationError, SequentialRequest, SequentialResult, StoppingBoundary, StreamRole,
+    VoiCheck, VoiRequest, compare_policies, evaluate_off_policy, evaluate_policy, request_interval,
+    rollout_policy, stream_uniform, value_of_collecting_evidence,
 };
 pub use super::design_exports::design_crate::sequential_evaluation_artifact::{
-    EvaluationIdentities, ExpectedEvaluation, MAX_SEQUENTIAL_EVALUATION_ARTIFACT_BYTES,
-    OffPolicyInput, SEQUENTIAL_EVALUATION_ARTIFACT_FEATURE, SEQUENTIAL_EVALUATION_ARTIFACT_VERSION,
+    EvaluationIdentities, ExpectedEvaluation, IntervalWire,
+    MAX_SEQUENTIAL_EVALUATION_ARTIFACT_BYTES, OffPolicyInput,
+    SEQUENTIAL_EVALUATION_ARTIFACT_FEATURE, SEQUENTIAL_EVALUATION_ARTIFACT_VERSION,
     SequentialEvaluationArtifact, SequentialEvaluationBody,
 };
 pub use antecedent_contract::evidence_ledger::EvidenceLedger;

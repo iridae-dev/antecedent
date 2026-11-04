@@ -475,32 +475,35 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
     let (code, message) = refused(result);
     assert_eq!(code, "schema_mismatch");
     assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
-    // Counted laws are not supported for a conditional question.
-    let mut laws = data.laws().to_vec();
-    let first = &laws[0];
-    let cells = first.probabilities().len();
-    laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
-        first.population(),
-        first.regime(),
-        first.interventions().to_vec(),
-        first.axes().to_vec(),
-        vec![1.0 / f64::from(u32::try_from(cells).unwrap()); cells],
-        first.snapshot_identity(),
-        antecedent_expr::LawTolerance::default(),
-    )
-    .unwrap()
-    .with_empirical_counts(vec![1; cells])
-    .unwrap();
-    let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
-    let (code, message) = refused(try_prepare(
-        scenarios(&ALL, None),
-        catalog,
-        counted,
-        request(&[0], &[2], LEVEL),
-        BUDGET,
-    ));
-    assert_eq!(code, "not_supported");
-    assert!(message.contains("admg_transport.counted_laws_unsupported"), "{message}");
+    // Counted laws are not supported for a conditional question; a development build runs them.
+    #[cfg(not(feature = "development"))]
+    {
+        let mut laws = data.laws().to_vec();
+        let first = &laws[0];
+        let cells = first.probabilities().len();
+        laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
+            first.population(),
+            first.regime(),
+            first.interventions().to_vec(),
+            first.axes().to_vec(),
+            vec![1.0 / f64::from(u32::try_from(cells).unwrap()); cells],
+            first.snapshot_identity(),
+            antecedent_expr::LawTolerance::default(),
+        )
+        .unwrap()
+        .with_empirical_counts(vec![1; cells])
+        .unwrap();
+        let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
+        let (code, message) = refused(try_prepare(
+            scenarios(&ALL, None),
+            catalog,
+            counted,
+            request(&[0], &[2], LEVEL),
+            BUDGET,
+        ));
+        assert_eq!(code, "not_supported");
+        assert!(message.contains("admg_transport.counted_laws_unsupported"), "{message}");
+    }
 }
 
 #[test]

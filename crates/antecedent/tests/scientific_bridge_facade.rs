@@ -448,7 +448,7 @@ fn a_bridged_mean_is_not_a_law_a_posterior_an_identified_set_or_a_joint_law() {
     holds_law.source_value = ValueKind::PredictiveLaw;
     holds_law.target_value = ValueKind::PredictiveLaw;
     let refusal = PreparedScientificBridge::prepare(holds_law).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "bridge_mapping_not_supported");
     assert_eq!(refusal.detail, "scientific_bridge.value_kind_not_carried");
 }
 
@@ -470,7 +470,7 @@ fn a_bridged_claim_reports_a_point_value_and_its_labels() {
 fn an_interval_posterior_or_joint_law_request_on_a_bridged_claim_is_refused() {
     let (_, result) = derived_surrogate();
     let refusal = result.interval().unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "scientific_bridge.interval_not_supported");
     assert!(refusal.remedy.is_some());
     // The refusal does not change the claim.

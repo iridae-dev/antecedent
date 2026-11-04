@@ -158,7 +158,7 @@ fn unsupported_requests_cannot_be_sealed() {
     transported.target_population = Some("pop-b".to_owned());
     let error = CrossWorldExecutionArtifact::seal(&transported, &ctx()).expect_err("closed");
     let refusal = error.refusal().unwrap();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "route_not_supported");
     assert!(refusal.missing.iter().any(|m| m == "transport_support_missing"));
 
     let mut independent = joint();

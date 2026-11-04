@@ -81,7 +81,9 @@ bash scripts/gate_transport.sh     # transport stage contracts; every fixture fa
 bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause runs a cited test; batch benches assert their regression bound
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
-bash scripts/gate_support_matrix.sh   # public support cells; default refused
+bash scripts/gate_support_matrix.sh   # public support cells; default not supported
+python3 scripts/gate_support.py       # the one support rule over every unit, and the one support count
+python3 scripts/gate_not_supported_sites.py   # `not_supported` is built only in require_supported
 bash scripts/gate_checked_execution.sh   # every supported estimator executes from its retained checked plan with no builder alive
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
@@ -338,7 +340,7 @@ decisions remain durable, including a first look superseded by its registered
 recheck. Earlier collected evidence retains its original decision protocol.
 
 Use `--missing-only` to finish an incomplete collection while existing evidence awaits
-reviewed waivers. It selects groups with neither matching coverage records nor a
+a probe or a re-measurement. It selects groups with neither matching coverage records nor a
 complete passed entry in `parity/calibration_gates.toml`, irrespective of status.
 The collector uses `--keep-existing`: it preserves every old record, its original SHA,
 and earlier gate evidence, and refuses collisions with existing record IDs.
@@ -438,7 +440,7 @@ Mark a `parity/*.toml` capability `done` only with conformance under `conformanc
 **or** a named harness in the gate script, plus a recorded reference-generation
 command when black-box comparison applies.
 
-Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
+Statuses: `pending` | `in_progress` | `done`.
 
 ## Release candidates
 
@@ -594,6 +596,18 @@ Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-pr
 declared (the HMC backend is always compiled), and there is no `simd-runtime`
 feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
 Ingest and exchange adapters are optional features and never reshape core types.
+The `development` feature (and `scripts/dev_python.sh` for Python, which
+installs a development build and checks `antecedent.build_flavor()`) turns the
+support gate into a recorder: a route that lacks provenance or an independent
+scientific check runs instead of refusing, and its result carries `would_refuse`
+(the `not_supported` code, the detail and the missing evidence). Scientific
+refusals still refuse. A development build is for exercising unsupported routes
+and developing their evidence; artifacts it seals are stamped `development` and
+release consumers refuse them, so never ship, publish or write fixtures from one.
+The only place a `not_supported` refusal is built is
+`antecedent_core::support_gate::require_supported`, and
+`scripts/gate_not_supported_sites.py` enforces that. See
+[How Antecedent checks its scientific methods](guides/scientific-verification.md#the-evidence-model).
 CI compiles the feature combinations crates.io users get (default features, each
 optional feature alone, `--no-default-features`) in the `features` job.
 

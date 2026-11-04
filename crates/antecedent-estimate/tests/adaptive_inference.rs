@@ -210,7 +210,7 @@ fn group_sequential_boundaries_and_decisions_follow_the_published_values() {
     let last = group_sequential_decision(&plan(), &[1.0, 2.0, 2.0], &ctx()).unwrap();
     assert_eq!(last.stopped_at, Some(2));
     assert_eq!(last.guarantee.detail, "adaptive_inference.stagewise_adjustment_closed");
-    assert_eq!(last.guarantee.code, "not_supported");
+    assert_eq!(last.guarantee.code, "route_not_supported");
     // More looks than planned, and a non-finite statistic.
     {
         let error = group_sequential_decision(&plan(), &[0.0; 4], &ctx()).unwrap_err();

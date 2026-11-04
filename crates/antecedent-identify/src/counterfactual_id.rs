@@ -186,7 +186,11 @@ impl CounterfactualIdRefusal {
     /// A structure outside the graph contract.
     #[must_use]
     pub fn graph(message: impl Into<String>) -> Self {
-        Self::plain("not_supported", "counterfactual_id.graph_outside_contract", message.into())
+        Self::plain(
+            "route_not_supported",
+            "counterfactual_id.graph_outside_contract",
+            message.into(),
+        )
     }
 
     /// An interval or Bayesian request.

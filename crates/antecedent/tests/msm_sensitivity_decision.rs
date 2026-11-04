@@ -134,6 +134,6 @@ fn msm_decision_keeps_sampling_withheld_and_refuses_composition() {
         ..SensitivityDecisionSpec::default()
     };
     let error = evaluate_sensitivity_decision(&contract, &built, &spec).unwrap_err();
-    assert_eq!(error.reason_code(), "not_supported");
+    assert_eq!(error.reason_code(), "route_not_supported");
     assert_eq!(error.detail(), "sensitivity_decision_composition.composition_not_supported");
 }

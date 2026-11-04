@@ -1267,7 +1267,7 @@ fn describe(code: f64, what: &str) -> EstimationError {
 ///
 /// # Errors
 ///
-/// `not_supported` (`counterfactual_transport.sampled_inference_closed`) for
+/// `route_not_supported` (`counterfactual_transport.sampled_inference_closed`) for
 /// a counted or non-exact law; `invalid_argument`
 /// (`counterfactual_transport.invalid_evidence`) for a law whose population,
 /// regime, axes or levels do not match the catalog and the declared levels;
@@ -1357,7 +1357,7 @@ fn evaluate_with_policy(
             if law.empirical_counts().is_some() || !matches!(law.origin(), LawOrigin::SuppliedExact)
             {
                 return Err(refused(
-                    antecedent_core::reason_code!("not_supported"),
+                    antecedent_core::reason_code!("route_not_supported"),
                     DETAIL_COUNTED,
                     "counted, empirical or posterior laws are not supported here; the route evaluates \
                      supplied exact laws only and publishes no sampling inference",

@@ -691,7 +691,7 @@ pub(super) fn authorize_cell(
         CellStatus::Supported { paradigms } => {
             if !paradigms.contains(&paradigm) {
                 return Err(ExternalRefusal::new(
-                    antecedent_core::reason_code!("not_supported"),
+                    antecedent_core::reason_code!("route_not_supported"),
                     STAGE_BIND,
                     "adaptive_inference.paradigm_not_supported_for_cell",
                 )
@@ -704,7 +704,7 @@ pub(super) fn authorize_cell(
         }
         CellStatus::ClosedIncoherent { reason } => {
             return Err(ExternalRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
                 "adaptive_inference.cell_closed",
             )
@@ -713,7 +713,7 @@ pub(super) fn authorize_cell(
         }
         CellStatus::ClosedPairing { reason } => {
             return Err(ExternalRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
                 "adaptive_inference.pairing_not_supported",
             )
@@ -722,7 +722,7 @@ pub(super) fn authorize_cell(
         }
         CellStatus::CarriedForward { owner, reason } => {
             return Err(ExternalRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("route_not_supported"),
                 STAGE_BIND,
                 "adaptive_inference.cell_carried_forward",
             )

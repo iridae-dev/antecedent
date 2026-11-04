@@ -705,7 +705,7 @@ def test_bind_snapshot_rebuilds_the_numbers_and_leaves_the_decided_value_untouch
     counted = [_counted(law) for law in case.laws()]
     with pytest.raises(CausalUnsupportedError) as refused:
         require_success(second.bind_snapshot(counted))
-    assert refused.value.reason_code == "not_supported"
+    assert refused.value.reason_code == "route_not_supported"
     assert (
         abs(require_success(second.estimate()).probability - float(shifted_truth))
         <= EXACT_TOLERANCE
@@ -1025,7 +1025,7 @@ def test_absent_mislabelled_counted_and_malformed_evidence_is_refused_before_a_n
     counted[0] = _counted(counted[0])
     with pytest.raises(CausalUnsupportedError) as raised:
         derivation.evaluate(evidence=counted)
-    assert raised.value.reason_code == "not_supported"
+    assert raised.value.reason_code == "route_not_supported"
     assert "counterfactual_transport.sampled_inference_closed" in str(raised.value)
 
     # Levels that are not the declared ones.
@@ -1371,13 +1371,10 @@ def test_large_samples_converge_to_the_enumerated_truth_with_four_distinct_label
         "exact_on_estimated_tables_not_population_laws"
     )
     assert result.labels["point_estimate"] == "plug_in_point_estimate"
-    assert result.labels["statistical_inference"] == "withheld_not_supported"
+    assert result.labels["statistical_inference"] == "delta_wald_interval_calibration_annotated"
     assert result.point["smoothed"] is False
-    # The interval is never published; the standard error is the only uncertainty.
-    assert result.interval["available"] is False
-    assert result.interval["reason"] == "not_supported"
-    assert result.interval["detail"] == "counterfactual_transport_sampled.interval_not_supported"
-    assert result.interval["calibration_reason"] == "estimator_grid_not_measured"
+    # The interval is computable; the artifact route attaches its calibration status.
+    assert result.interval == {"available": True, "status": "reported"}
     se = result.standard_error
     assert se is not None
     assert se["label"] == "uncalibrated_standard_error"
@@ -1486,7 +1483,7 @@ def test_unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled():
     assert report["smoothed"] is True and report["pseudo_count"] == 0.5
     assert report["unseen_cells"] == 1
     assert 0.0 <= smoothed.probability <= 1.0
-    assert smoothed.interval["available"] is False
+    assert smoothed.interval == {"available": True, "status": "reported"}
 
     # Declaring the cell a structural zero is a different, labelled claim.
     structural = list(tables)
@@ -1515,6 +1512,8 @@ def test_unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled():
         "partial_identification_has_no_single_standard_error"
     )
     assert enveloped.interval["available"] is False
+    assert enveloped.interval["status"] == "not_computable"
+    assert enveloped.interval["reason"] == "effect_not_identified"
 
     # A sparsity limit stricter than the table's unseen share refuses.
     with pytest.raises(CausalUnsupportedError) as raised:
@@ -1666,7 +1665,7 @@ def test_sampled_artifact_round_trips_and_a_fresh_consumer_recomputes_from_the_c
     assert consumed.probability == result.probability  # bit for bit
     assert consumed.standard_error == result.standard_error
     assert consumed.labels == result.labels
-    assert consumed.interval["available"] is False
+    assert consumed.interval == {"available": True, "status": "reported"}
     assert consumed.evidence_identity == result.evidence_identity
 
     # Edited counts (data identity), a wrong expectation and consumer limits.
@@ -1763,7 +1762,7 @@ def test_estimate_sampled_runs_the_retained_plan_after_builder_disposal():
     assert plan["cited"] and plan["canonical_text"]
     result = derivation.estimate_sampled(cited, overlap=transport.SamplingOverlap.all_independent())
     assert abs(result.probability - float(target.expected)) <= PLUG_IN_TOLERANCE
-    assert result.interval["available"] is False
+    assert result.interval == {"available": True, "status": "reported"}
     assert result.derivation_identity
 
 

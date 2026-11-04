@@ -702,7 +702,7 @@ impl TransportAssumptionRange {
                 },
                 identified_bound: None,
                 sampling: SamplingStatus::Withheld {
-                    reason_code: antecedent_core::reason_code!("not_supported").to_owned(),
+                    reason_code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                     detail: "transport_sensitivity.interval_not_composed".to_owned(),
                 },
             },

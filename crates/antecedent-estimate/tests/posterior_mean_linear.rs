@@ -194,13 +194,13 @@ fn quadratic_posterior_refuses_an_unmeasured_band() {
             &outcome,
             10.0,
             3.0,
-            PosteriorRequest::UnmeasuredBand,
+            PosteriorRequest::CredibleBand,
             LocalQuadraticNamespace::QuadraticDose,
         )
         .unwrap_err(),
     );
     assert!(message.contains("not_supported"), "{message}");
-    assert!(message.contains("quadratic_posterior.unmeasured_band"), "{message}");
+    assert!(message.contains("quadratic_posterior.band_not_constructed"), "{message}");
 }
 
 #[test]

@@ -13,8 +13,8 @@
 //! the existing ADMG conditional prepared path: the reduced joint's exact plan
 //! at `do(x, w')`, normalized at the requested `w''`. A zero-mass conditioning
 //! event is that scenario's `support_failure`. Counted laws are refused for a
-//! conditional set (`not_supported`, `admg_transport.counted_laws_unsupported`),
-//! as the standalone route refuses them: it publishes exact-law points only.
+//! conditional set (`not_supported`, `admg_transport.counted_laws_unsupported`; a development
+//! build runs them), as the standalone route does: it publishes exact-law points only.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -497,22 +497,17 @@ fn check_schema(
 }
 
 /// The conditional route publishes exact-law points only: counted laws (an
-/// empirical plug-in) are refused before anything compiles, as the standalone
-/// conditional preparation refuses them.
-fn refuse_counted_laws(data: &antecedent_expr::ExactTransportData) -> Result<(), EstimationError> {
-    if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-        return Err(conditional_counts_refusal());
-    }
-    Ok(())
-}
-
-fn conditional_counts_refusal() -> EstimationError {
-    EstimationError::refused_detail(
-        antecedent_core::reason_code!("not_supported"),
+/// empirical plug-in) are gated before anything compiles, as the standalone
+/// conditional preparation gates them.
+fn require_conditional_counts_supported(
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<(), EstimationError> {
+    antecedent_core::support_gate::require_supported(
+        ctx,
         "admg_transport.counted_laws_unsupported",
-        "counted laws are not supported for a conditional scenario question; the route \
-         publishes exact-law points only",
-    )
+        &["admg_conditional.counted_law_plugin_check"],
+    )?;
+    Ok(())
 }
 
 /// Compile each identified scenario of a decided set once against supplied
@@ -530,8 +525,10 @@ pub fn prepare_transport_scenarios(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
     check_schema(&decision, &data, &request)?;
-    if decision.question.is_conditional() {
-        refuse_counted_laws(&data)?;
+    if decision.question.is_conditional()
+        && data.laws().iter().any(|law| law.empirical_counts().is_some())
+    {
+        require_conditional_counts_supported(ctx)?;
     }
     let plans = compile_all(&decision, &data, &request, limits, ctx)?;
     Ok(PreparedScenarioSet { decision, data, empirical: None, request, limits, plans })
@@ -558,7 +555,7 @@ pub fn prepare_empirical_transport_scenarios(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
     if decision.question.is_conditional() {
-        return Err(conditional_counts_refusal());
+        require_conditional_counts_supported(ctx)?;
     }
     check_samples(&decision, &input)?;
     let options = crate::EmpiricalTableOptions {

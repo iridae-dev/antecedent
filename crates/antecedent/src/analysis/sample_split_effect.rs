@@ -205,9 +205,9 @@ impl SplitEffect {
     ///
     /// # Errors
     ///
-    /// The refusals of [`estimate_effect_on_split`], and `not_supported`
-    /// (`measured_inference.record_not_attesting`) when no current attesting, non-boundary
-    /// record measured this construction at this analysis row count.
+    /// The refusals of [`estimate_effect_on_split`]. Where no current attesting, non-boundary
+    /// record measured this construction at this analysis row count, the interval is still
+    /// reported and its calibration is `not_measured` or `outside_measured_scope`.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         split_effect::measure(&self.source, ctx)
     }

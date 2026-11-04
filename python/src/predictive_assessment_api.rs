@@ -603,6 +603,7 @@ impl PredictiveAssessmentHandle {
                             "dependence": interval.dependence,
                             "construction": interval.construction,
                             "coverage_record": interval.coverage_record,
+                            "calibration": interval.calibration.status.as_str(),
                             "calibration_sha": interval.calibration_sha,
                             "assumptions": interval.assumptions,
                         })

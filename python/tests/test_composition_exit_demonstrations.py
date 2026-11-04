@@ -524,14 +524,10 @@ def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> 
         "fixed_population_temporal_support_missing",
         "cross_population_assumptions_missing",
     )
-    _refused_closed(
-        lambda: transported_path_specific(required_factors=["source:rct", "target:field"]),
-        "counterfactual.transported_path_specific",
-        "antecedent.cross_world.transported_path_specific",
-        "transported_counterfactual.route_frozen",
-    )
     with pytest.raises(TemporalRefusal) as transported:
         transported_path_specific(required_factors=["source:rct", "target:field"])
+    assert transported.value.reason_code == "transport_missing_evidence"
+    assert transported.value.detail == "transported_counterfactual.prerequisite_missing"
     assert transported.value.missing_gates == gates
     assert transported.value.missing_factors == ("source:rct", "target:field")
     with pytest.raises(TemporalRefusal) as passed:
@@ -542,8 +538,8 @@ def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> 
         )
     # Every gate and factor present still does not open the cell: the joint cross-world theorem
     # is not derived.
-    assert passed.value.reason_code == "not_supported"
-    assert passed.value.detail == "transported_counterfactual.route_frozen"
+    assert passed.value.reason_code == "route_not_supported"
+    assert passed.value.detail == "transported_counterfactual.joint_theorem_not_derived"
     assert passed.value.missing_gates == ()
 
     # A caller-created label cannot impersonate the original checked recovery proof.

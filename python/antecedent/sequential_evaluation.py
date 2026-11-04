@@ -33,7 +33,8 @@ What is supplied and what is refused:
   gives no support is refused (``history_support_violated``), as is a reachable history without a
   decision.
 * :func:`evaluate_off_policy` weights logged finite trajectories by their logged assignment
-  probabilities. It is a point estimate; its standard error is an uncalibrated diagnostic.
+  probabilities. Its interval is a Wald interval from the importance-weighted standard error,
+  reported with the calibration status ``not_measured``.
 * :func:`rollout` simulates on common random streams keyed by ``(seed, rollout, time, role)``;
   :func:`stream_uniform` exposes one stream identity.
 * :func:`compare` evaluates named act-now, wait, collect-evidence and choose-after-observation
@@ -94,6 +95,7 @@ __all__ = [
     "LoggedTrajectory",
     "ObservationReceipt",
     "OffPolicyEstimate",
+    "OffPolicyInterval",
     "Policy",
     "PolicyEvaluation",
     "ReweightedStaticScores",
@@ -648,8 +650,22 @@ class PolicyEvaluation:
 
 
 @dataclass(frozen=True, slots=True)
+class OffPolicyInterval:
+    """A Wald interval of an off-policy estimate with its calibration slot.
+
+    ``calibration`` is the calibration slot mapping; its ``status`` is ``not_measured`` because
+    no coverage record measures the importance-weighted construction.
+    """
+
+    level: float
+    lower: float
+    upper: float
+    calibration: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class OffPolicyEstimate:
-    """A point estimate from logged trajectories; the standard error is uncalibrated."""
+    """An importance-weighted policy value from logged trajectories with its Wald interval."""
 
     ordinary: float
     self_normalized: float
@@ -657,6 +673,7 @@ class OffPolicyEstimate:
     max_weight: float
     trajectories: int
     uncalibrated_standard_error: float | None
+    interval: OffPolicyInterval | None
     policy_version: str
     policy_identity: str
     behaviour_version: str
@@ -835,7 +852,7 @@ def evaluate_off_policy(
     max_nodes: int | None = None,
     execution: Execution | None = None,
 ) -> OffPolicyEstimate:
-    """Sequential importance weighting of logged trajectories (point-only).
+    """Sequential importance weighting of logged trajectories with a Wald interval.
 
     Positivity is checked on every history the target policy reaches; a trajectory identity
     repeated in the log, or inconsistent with the model or logging policy, is refused.
@@ -851,7 +868,10 @@ def evaluate_off_policy(
             cancel=execution.cancel,
         )
     )
-    return OffPolicyEstimate(**wire)
+    interval = wire.pop("interval")
+    return OffPolicyEstimate(
+        interval=None if interval is None else OffPolicyInterval(**interval), **wire
+    )
 
 
 def rollout(

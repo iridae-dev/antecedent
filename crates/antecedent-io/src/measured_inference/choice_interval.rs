@@ -33,7 +33,7 @@ fn measured_log_concentration() -> (f64, f64) {
 
 fn refusal(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
+        code: antecedent_core::reason_code!("route_not_supported"),
         message: format!("measured_interval.no_interval_of_this_kind: {message}"),
     }
 }

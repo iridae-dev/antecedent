@@ -26,7 +26,7 @@ probability, quantile, nonlinear utility or joint law refuses (``decision_contra
 or ``joint_law_required``). For a linear compact model that retains its coefficient covariance
 the variance of the weighted cohort mean is available as
 :attr:`CohortDecisionSource.uncalibrated_standard_error`, labelled model-based with calibration
-unmeasured; the interval route is closed (``not_supported``).
+unmeasured; the interval route is closed (``route_not_supported``).
 
 A source built from a verified analysis result is native. A source built from a caller-built
 compact export is a declared model and is never native.
@@ -411,8 +411,8 @@ class CohortDecisionSource(ScientificResult):
 
         Available for a source built with :func:`decision_source_from_native_fit`: the fit is
         replayed from its retained rows and the Student-t interval (HC3 covariance, ``n - p``
-        degrees of freedom) is returned only when a currently attesting coverage record governs
-        exactly this construction. A source from a declared compact export, a portable model or
+        degrees of freedom) is returned with its calibration status, which is ``calibrated`` only when a current
+        coverage record governs exactly this construction. A source from a declared compact export, a portable model or
         a shifted cohort raises a typed :class:`CohortDecisionRefusal`
         (``cohort_decision.interval_requires_native_fit`` or
         ``cohort_decision.interval_not_supported``).
@@ -538,7 +538,7 @@ class CohortDecisionSource(ScientificResult):
         """The cohort mean as a forward claim of :mod:`antecedent.inverse_query`.
 
         A source built under a declared covariate shift is a transported claim and is refused
-        (``not_supported``, ``inverse_forward_source.transported_not_accepted``); read it
+        (``decision_contract_unsatisfied``, ``inverse_forward_source.transported_not_accepted``); read it
         through :func:`antecedent.inverse_sources.cohort_forward_source` with
         ``accepts_transported=True`` so the result carries the transport identity.
         """

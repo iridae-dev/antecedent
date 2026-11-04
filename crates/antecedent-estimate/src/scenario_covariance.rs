@@ -282,7 +282,7 @@ fn invalid(detail: &str, message: &str) -> EstimationError {
 }
 
 fn over_bound(detail: &str, message: &str) -> EstimationError {
-    refuse(antecedent_core::reason_code!("not_supported"), detail, message)
+    refuse(antecedent_core::reason_code!("execution_resource_limit"), detail, message)
 }
 
 fn numerical(detail: &str, message: &str) -> EstimationError {
@@ -807,7 +807,7 @@ pub fn exact_or_bootstrap_covariance(
 /// resampling distribution).
 ///
 /// # Errors
-/// The [`validate_family`] refusals; `not_supported`
+/// The [`validate_family`] refusals; `execution_resource_limit`
 /// (`scenario_covariance.exact_enumeration_cap`) when `n` exceeds [`MAX_EXACT_ROWS`] or the
 /// number of count vectors exceeds the declared cap or [`EXACT_ENUMERATION_HARD_CAP`];
 /// `invalid_argument` (`scenario_covariance.invalid_failure_bound`);

@@ -245,7 +245,7 @@ def test_bounds_arguments_and_failures_refuse_with_typed_details():
     under = refusal(lambda: bootstrap(two, replicates=1))
     assert under == ("invalid_argument", "scenario_covariance.too_few_replicates")
     capped = refusal(lambda: exact(two, max_compositions=461))
-    assert capped == ("not_supported", "scenario_covariance.exact_enumeration_cap")
+    assert capped == ("execution_resource_limit", "scenario_covariance.exact_enumeration_cap")
     many = [transport.ScenarioEstimator(f"s{i}", estimator("a").functional) for i in range(65)]
     wide = exact(many)
     assert wide.scenario_ids == tuple(f"s{i}" for i in range(65))
@@ -353,7 +353,7 @@ def test_tampered_covariance_artifacts_refuse_with_typed_details():
     for limits in ({"max_rows": N - 1},):
         with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
             transport.consume_scenario_covariance_artifact(artifact, **limits)
-        assert refused.value.reason_code == "not_supported"
+        assert refused.value.reason_code == "execution_resource_limit"
         assert refused.value.detail == "scenario_covariance.consumer_limit_exceeded"
     boot = bytes(bootstrap(family("a", "b"), replicates=300).export())
     with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:

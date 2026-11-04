@@ -1316,7 +1316,7 @@ fn the_range_is_an_assumption_range_and_the_interval_is_withheld() {
     let result = run(&fixed_model(), &spec(Some(0.2), Some(0.2))).unwrap();
     assert_eq!(result.inference_claim, "assumption_range");
     assert!(result.interpretation.contains("not a confidence interval"));
-    assert_eq!(result.uncertainty.reason_code, "not_supported");
+    assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
     assert_eq!(result.uncertainty.detail, "joint_sensitivity.interval_withheld");
     assert_eq!(result.uncertainty.method, "conservative_endpoint_percentile_bootstrap");
     assert!(result.uncertainty.coverage_target.starts_with("one_sided"));

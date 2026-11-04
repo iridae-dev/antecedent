@@ -35,8 +35,8 @@ What is decided here, and what is not:
   with a standard error under the declared dependence; diagnostics are labelled ``diagnostic``
   and ``unmeasured``. :meth:`PredictiveAssessment.score_interval` returns the interval of an
   expected score or difference only for a held-out or unfitted predictor under a declared
-  dependence where a current coverage record measured the construction, and raises
-  ``not_supported`` elsewhere; a score is not causal validity
+  dependence, with a calibration status that is ``calibrated`` only where a current coverage record measured the construction, and raises
+  ``not_supported`` for any other predictor or dependence; a score is not causal validity
   (:meth:`PredictiveAssessment.causal_validity`) and not the probability of a claim
   (:meth:`PredictiveAssessment.score_as_probability`).
 * **Artifact.** :meth:`PredictiveAssessment.export` writes ``predictive_assessment_v1``;
@@ -888,7 +888,9 @@ class ScoreInterval(ScientificResult):
 
     ``mean`` is the mean of the case scores (or paired differences) and ``lower``/``upper`` the
     Student-t interval at ``level`` with ``standard_error`` under the declared ``dependence``.
-    ``coverage_record`` names the current coverage record that supported it. The interval is a
+    ``calibration`` is its calibration status (``calibrated``, ``outside_measured_scope``,
+    ``measured_below_nominal`` or ``not_measured``); ``coverage_record`` names the current coverage
+    record that supported it, empty where none did. The interval is a
     statement about the expected score under the declared sampling design, not about the
     assessed cases alone and not about causal validity; ``assumptions`` states what it rests on.
     """
@@ -906,6 +908,7 @@ class ScoreInterval(ScientificResult):
     dependence: str
     construction: str
     coverage_record: str
+    calibration: str
     calibration_sha: str
     assumptions: str
 
@@ -1110,18 +1113,18 @@ class PredictiveAssessment(ScientificResult):
     ) -> ScoreInterval:
         """The interval of a predictor's expected score, or of the expected difference to ``reference``.
 
-        It is published only for a held-out or unfitted predictor under a declared dependence,
-        where a current coverage record measured the construction at this design, score, law
-        family, level and number of cases; the record is resolved in Rust. The number of cases must
-        lie in the range a shipped record measured for the declared dependence; the measurement
-        designs cover ``iid`` 400 to 102,400 in contiguous grids, ``cluster`` 800 to 3,200 and
-        ``serial`` 1,600 to 6,400, and the shipped records cover ``iid`` 400 to 1,600 until the
-        larger grids are measured. There is no extrapolation beyond the shipped range. With no
-        predictor and score named the request is unscoped and raises ``not_supported``.
+        It is reported for a held-out or unfitted predictor under a declared dependence. Its
+        ``calibration`` is ``calibrated`` only where a current coverage record measured the
+        construction at this design, score, law family, level and number of cases; the record is
+        resolved in Rust. The measurement designs cover ``iid`` 400 to 102,400 in contiguous
+        grids, ``cluster`` 800 to 3,200 and ``serial`` 1,600 to 6,400, and the shipped records
+        cover ``iid`` 400 to 1,600 until the larger grids are measured. Outside that range the
+        interval is still reported, with ``outside_measured_scope`` or ``not_measured``. With no
+        predictor and score named the request is unscoped and raises
+        ``quantity_semantics_mismatch``.
 
         Raises:
-            PredictiveAssessmentRefusal: ``not_supported`` outside a measured design,
-                ``sampling_dependence_unknown`` with no declared dependence,
+            PredictiveAssessmentRefusal: ``sampling_dependence_unknown`` with no declared dependence,
                 ``evidence_double_counted`` or ``evidence_overlap_unknown`` for an in-sample or
                 unverified predictor.
         """

@@ -1,7 +1,7 @@
 //! Point-only posterior means of promotion routes that already publish a point.
 //!
 //! A mapped coefficient prior, an external power prior, and a request for an
-//! unmeasured band refuse. The returned number is the posterior mean. Draws
+//! credible band refuse. The returned number is the posterior mean. Draws
 //! are not an interval.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -30,8 +30,8 @@ pub enum PosteriorRequest {
     MappedCoefficient,
     /// A power prior taken from an external sample.
     ExternalPower,
-    /// A request to publish an unmeasured interval around the mean.
-    UnmeasuredBand,
+    /// A request for a credible band around the mean; no route constructs one.
+    CredibleBand,
 }
 
 fn refuse(code: &'static str, detail: &'static str) -> EstimationError {
@@ -56,7 +56,7 @@ fn scale_of(
             Err(refuse(reason_code!("route_not_supported"), mapped))
         }
         PosteriorRequest::ExternalPower => Err(refuse(reason_code!("route_not_supported"), power)),
-        PosteriorRequest::UnmeasuredBand => Err(refuse(reason_code!("not_supported"), band)),
+        PosteriorRequest::CredibleBand => Err(refuse(reason_code!("route_not_supported"), band)),
     }
 }
 
@@ -65,7 +65,7 @@ fn scale_of(
 /// # Errors
 ///
 /// `vector_posterior.non_positive_scale`, `vector_posterior.mapped_prior`,
-/// `vector_posterior.external_power_prior`, or `vector_posterior.unmeasured_band`,
+/// `vector_posterior.external_power_prior`, or `vector_posterior.band_not_constructed`,
 /// plus the design refusals of the joint fit.
 pub fn vector_treatment_posterior(
     input: &VectorTreatmentInput,
@@ -76,7 +76,7 @@ pub fn vector_treatment_posterior(
         "vector_posterior.non_positive_scale",
         "vector_posterior.mapped_prior",
         "vector_posterior.external_power_prior",
-        "vector_posterior.unmeasured_band",
+        "vector_posterior.band_not_constructed",
     )?;
     coefficient_posterior_mean(&summarize_vector_design(input)?, scale)
 }
@@ -86,7 +86,7 @@ pub fn vector_treatment_posterior(
 /// # Errors
 ///
 /// `categorical_posterior.non_positive_scale`, `categorical_posterior.mapped_prior`,
-/// `categorical_posterior.external_power_prior`, or `categorical_posterior.unmeasured_band`,
+/// `categorical_posterior.external_power_prior`, or `categorical_posterior.band_not_constructed`,
 /// plus the design refusals of the categorical fit.
 pub fn categorical_treatment_posterior(
     input: &CategoricalTreatmentInput,
@@ -98,7 +98,7 @@ pub fn categorical_treatment_posterior(
         "categorical_posterior.non_positive_scale",
         "categorical_posterior.mapped_prior",
         "categorical_posterior.external_power_prior",
-        "categorical_posterior.unmeasured_band",
+        "categorical_posterior.band_not_constructed",
     )?;
     let summary = summarize_categorical_design(input, spec)?;
     coefficient_posterior_mean(&summary.design, scale)
@@ -133,7 +133,7 @@ pub fn local_quadratic_posterior(
     let (non_positive, mapped, power, band, weight) = namespace.details();
     let scale = scale_of(request, non_positive, mapped, power, band)?;
     local_quadratic_mean(dose, outcome, at, bandwidth, scale)
-        .ok_or_else(|| refuse(reason_code!("not_supported"), weight))
+        .ok_or_else(|| refuse(reason_code!("positivity_violated"), weight))
 }
 
 /// Which local-quadratic route is refusing.
@@ -152,14 +152,14 @@ impl LocalQuadraticNamespace {
                 "quadratic_posterior.non_positive_scale",
                 "quadratic_posterior.mapped_prior",
                 "quadratic_posterior.external_power_prior",
-                "quadratic_posterior.unmeasured_band",
+                "quadratic_posterior.band_not_constructed",
                 "quadratic_posterior.insufficient_weight",
             ),
             Self::DoseGrid => (
                 "dose_grid_posterior.non_positive_scale",
                 "dose_grid_posterior.mapped_prior",
                 "dose_grid_posterior.external_power_prior",
-                "dose_grid_posterior.unmeasured_band",
+                "dose_grid_posterior.band_not_constructed",
                 "dose_grid_posterior.insufficient_weight",
             ),
         }
@@ -279,35 +279,35 @@ impl ScoreNamespace {
                 "penalized_posterior.non_positive_scale",
                 "penalized_posterior.mapped_prior",
                 "penalized_posterior.external_power_prior",
-                "penalized_posterior.unmeasured_band",
+                "penalized_posterior.band_not_constructed",
                 "penalized_posterior.empty_scores",
             ),
             Self::Clustered => (
                 "clustered_posterior.non_positive_scale",
                 "clustered_posterior.mapped_prior",
                 "clustered_posterior.external_power_prior",
-                "clustered_posterior.unmeasured_band",
+                "clustered_posterior.band_not_constructed",
                 "clustered_posterior.empty_scores",
             ),
             Self::BatchRetarget => (
                 "batch_retarget_posterior.non_positive_scale",
                 "batch_retarget_posterior.mapped_prior",
                 "batch_retarget_posterior.external_power_prior",
-                "batch_retarget_posterior.unmeasured_band",
+                "batch_retarget_posterior.band_not_constructed",
                 "batch_retarget_posterior.empty_scores",
             ),
             Self::LearnedContinuous => (
                 "learned_continuous_posterior.non_positive_scale",
                 "learned_continuous_posterior.mapped_prior",
                 "learned_continuous_posterior.external_power_prior",
-                "learned_continuous_posterior.unmeasured_band",
+                "learned_continuous_posterior.band_not_constructed",
                 "learned_continuous_posterior.empty_scores",
             ),
             Self::SmoothedDose => (
                 "smoothed_dose_posterior.non_positive_scale",
                 "smoothed_dose_posterior.mapped_prior",
                 "smoothed_dose_posterior.external_power_prior",
-                "smoothed_dose_posterior.unmeasured_band",
+                "smoothed_dose_posterior.band_not_constructed",
                 "smoothed_dose_posterior.empty_scores",
             ),
         }
@@ -352,7 +352,7 @@ pub fn score_contrast_posterior(
 /// Dirichlet posterior mean of a finite weight table.
 ///
 /// `concentration` is the prior mass on each atom. A non-positive concentration,
-/// a mapped prior, an external power prior, and an unmeasured band refuse under
+/// a mapped prior, an external power prior, and an credible band refuse under
 /// `namespace`.
 #[allow(
     clippy::neg_cmp_op_on_partial_ord,
@@ -407,70 +407,70 @@ impl DirichletNamespace {
                 "decision_posterior.non_positive_scale",
                 "decision_posterior.mapped_prior",
                 "decision_posterior.external_power_prior",
-                "decision_posterior.unmeasured_band",
+                "decision_posterior.band_not_constructed",
                 "decision_posterior.empty_law",
             ),
             Self::FunctionalInverse => (
                 "functional_inverse_posterior.non_positive_scale",
                 "functional_inverse_posterior.mapped_prior",
                 "functional_inverse_posterior.external_power_prior",
-                "functional_inverse_posterior.unmeasured_band",
+                "functional_inverse_posterior.band_not_constructed",
                 "functional_inverse_posterior.empty_law",
             ),
             Self::FiniteActionInverse => (
                 "finite_action_posterior.non_positive_scale",
                 "finite_action_posterior.mapped_prior",
                 "finite_action_posterior.external_power_prior",
-                "finite_action_posterior.unmeasured_band",
+                "finite_action_posterior.band_not_constructed",
                 "finite_action_posterior.empty_law",
             ),
             Self::BinaryRecovery => (
                 "binary_recovery_posterior.non_positive_scale",
                 "binary_recovery_posterior.mapped_prior",
                 "binary_recovery_posterior.external_power_prior",
-                "binary_recovery_posterior.unmeasured_band",
+                "binary_recovery_posterior.band_not_constructed",
                 "binary_recovery_posterior.empty_law",
             ),
             Self::ChainRecovery => (
                 "chain_recovery_posterior.non_positive_scale",
                 "chain_recovery_posterior.mapped_prior",
                 "chain_recovery_posterior.external_power_prior",
-                "chain_recovery_posterior.unmeasured_band",
+                "chain_recovery_posterior.band_not_constructed",
                 "chain_recovery_posterior.empty_law",
             ),
             Self::MultiSource => (
                 "multi_source_posterior.non_positive_scale",
                 "multi_source_posterior.mapped_prior",
                 "multi_source_posterior.external_power_prior",
-                "multi_source_posterior.unmeasured_band",
+                "multi_source_posterior.band_not_constructed",
                 "multi_source_posterior.empty_law",
             ),
             Self::TwoStepTemporal => (
                 "two_step_posterior.non_positive_scale",
                 "two_step_posterior.mapped_prior",
                 "two_step_posterior.external_power_prior",
-                "two_step_posterior.unmeasured_band",
+                "two_step_posterior.band_not_constructed",
                 "two_step_posterior.empty_law",
             ),
             Self::AdmgConditional => (
                 "admg_conditional_posterior.non_positive_scale",
                 "admg_conditional_posterior.mapped_prior",
                 "admg_conditional_posterior.external_power_prior",
-                "admg_conditional_posterior.unmeasured_band",
+                "admg_conditional_posterior.band_not_constructed",
                 "admg_conditional_posterior.empty_law",
             ),
             Self::InitialState => (
                 "initial_state_posterior.non_positive_scale",
                 "initial_state_posterior.mapped_prior",
                 "initial_state_posterior.external_power_prior",
-                "initial_state_posterior.unmeasured_band",
+                "initial_state_posterior.band_not_constructed",
                 "initial_state_posterior.empty_law",
             ),
             Self::Msm => (
                 "msm_posterior.non_positive_scale",
                 "msm_posterior.mapped_prior",
                 "msm_posterior.external_power_prior",
-                "msm_posterior.unmeasured_band",
+                "msm_posterior.band_not_constructed",
                 "msm_posterior.empty_law",
             ),
         }
@@ -485,7 +485,7 @@ impl DirichletNamespace {
 /// # Errors
 ///
 /// The namespace's non-positive scale, mapped prior, external power prior,
-/// unmeasured band, or empty support.
+/// credible band, or empty support.
 pub fn dirichlet_supported_mean(
     probabilities: &[f64],
     request: PosteriorRequest,
@@ -527,21 +527,21 @@ impl ScalarNamespace {
                 "refresh_posterior.non_positive_scale",
                 "refresh_posterior.mapped_prior",
                 "refresh_posterior.external_power_prior",
-                "refresh_posterior.unmeasured_band",
+                "refresh_posterior.band_not_constructed",
                 "refresh_posterior.empty_values",
             ),
             Self::Constancy => (
                 "constancy_posterior.non_positive_scale",
                 "constancy_posterior.mapped_prior",
                 "constancy_posterior.external_power_prior",
-                "constancy_posterior.unmeasured_band",
+                "constancy_posterior.band_not_constructed",
                 "constancy_posterior.empty_contrast",
             ),
             Self::ScenarioCovariance => (
                 "scenario_covariance_posterior.non_positive_scale",
                 "scenario_covariance_posterior.mapped_prior",
                 "scenario_covariance_posterior.external_power_prior",
-                "scenario_covariance_posterior.unmeasured_band",
+                "scenario_covariance_posterior.band_not_constructed",
                 "scenario_covariance_posterior.empty_matrix",
             ),
         }
@@ -558,7 +558,7 @@ fn shrink(point: f64, precision: f64, scale: f64) -> f64 {
 /// # Errors
 ///
 /// The namespace's non-positive scale, mapped prior, external power prior,
-/// unmeasured band, or a sample that cannot support a variance.
+/// credible band, or a sample that cannot support a variance.
 pub fn normal_mean_posterior(
     values: &[f64],
     request: PosteriorRequest,
@@ -584,7 +584,7 @@ pub fn normal_mean_posterior(
 /// # Errors
 ///
 /// The namespace's non-positive scale, mapped prior, external power prior,
-/// unmeasured band, or a non-positive variance.
+/// credible band, or a non-positive variance.
 pub fn known_variance_posterior(
     point: f64,
     variance: f64,
@@ -613,7 +613,7 @@ pub fn known_variance_posterior(
 /// # Errors
 ///
 /// The scenario-covariance namespace's non-positive scale, mapped prior, external
-/// power prior, unmeasured band, or entries and variances that are empty, of
+/// power prior, credible band, or entries and variances that are empty, of
 /// different lengths, non-finite, or negative.
 pub fn covariance_entry_posterior(
     entries: &[f64],
@@ -650,7 +650,7 @@ pub fn covariance_entry_posterior(
 /// # Errors
 ///
 /// `mediation_posterior.non_positive_scale`, `mediation_posterior.mapped_prior`,
-/// `mediation_posterior.external_power_prior`, `mediation_posterior.unmeasured_band`,
+/// `mediation_posterior.external_power_prior`, `mediation_posterior.band_not_constructed`,
 /// or `mediation_posterior.empty_design`.
 pub fn mediation_coefficient_posterior(
     mediator: &DesignSummary,
@@ -662,7 +662,7 @@ pub fn mediation_coefficient_posterior(
         "mediation_posterior.non_positive_scale",
         "mediation_posterior.mapped_prior",
         "mediation_posterior.external_power_prior",
-        "mediation_posterior.unmeasured_band",
+        "mediation_posterior.band_not_constructed",
     )?;
     if mediator.xty.is_empty() || outcome.xty.is_empty() {
         return Err(refuse(reason_code!("invalid_argument"), "mediation_posterior.empty_design"));
@@ -682,7 +682,7 @@ pub fn mediation_coefficient_posterior(
 /// # Errors
 ///
 /// `latent_class_posterior.non_positive_scale`, `latent_class_posterior.mapped_prior`,
-/// `latent_class_posterior.external_power_prior`, `latent_class_posterior.unmeasured_band`,
+/// `latent_class_posterior.external_power_prior`, `latent_class_posterior.band_not_constructed`,
 /// or `latent_class_posterior.empty_design`.
 pub fn latent_class_effect_posterior(
     designs: &[DesignSummary],
@@ -693,7 +693,7 @@ pub fn latent_class_effect_posterior(
         "latent_class_posterior.non_positive_scale",
         "latent_class_posterior.mapped_prior",
         "latent_class_posterior.external_power_prior",
-        "latent_class_posterior.unmeasured_band",
+        "latent_class_posterior.band_not_constructed",
     )?;
     if designs.is_empty() {
         return Err(refuse(
@@ -721,7 +721,7 @@ pub fn latent_class_effect_posterior(
 /// # Errors
 ///
 /// `mechanism_posterior.non_positive_scale`, `mechanism_posterior.mapped_prior`,
-/// `mechanism_posterior.external_power_prior`, `mechanism_posterior.unmeasured_band`,
+/// `mechanism_posterior.external_power_prior`, `mechanism_posterior.band_not_constructed`,
 /// or `mechanism_posterior.empty_summary`.
 pub fn mechanism_coefficient_posterior(
     summary: &MechanismSummary,
@@ -732,7 +732,7 @@ pub fn mechanism_coefficient_posterior(
         "mechanism_posterior.non_positive_scale",
         "mechanism_posterior.mapped_prior",
         "mechanism_posterior.external_power_prior",
-        "mechanism_posterior.unmeasured_band",
+        "mechanism_posterior.band_not_constructed",
     )?;
     if summary.xty.len() < 2 || summary.xtx.len() != summary.xty.len() * summary.xty.len() {
         return Err(refuse(reason_code!("invalid_argument"), "mechanism_posterior.empty_summary"));
@@ -749,7 +749,7 @@ pub fn mechanism_coefficient_posterior(
 /// # Errors
 ///
 /// The learned-continuous score namespace's non-positive scale, mapped prior,
-/// external power prior, unmeasured band, or empty score table.
+/// external power prior, credible band, or empty score table.
 pub fn learned_continuous_score_posterior(
     scores: &[f64],
     request: PosteriorRequest,
@@ -766,7 +766,7 @@ pub fn learned_continuous_score_posterior(
 /// # Errors
 ///
 /// The smoothed-dose score namespace's non-positive scale, mapped prior, external
-/// power prior, unmeasured band, or empty score table.
+/// power prior, credible band, or empty score table.
 pub fn smoothed_dose_score_posterior(
     grids: &[Vec<f64>],
     request: PosteriorRequest,

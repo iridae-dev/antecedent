@@ -370,7 +370,7 @@ cohort's mean of the true conditional effect
 to a currently attesting coverage record: randomized or observed-confounded binary treatment,
 two to four modifiers, heteroskedastic noise, cohorts of 50 to 200 rows of the fitted
 population, levels 0.90 and 0.95. A caller-built compact export is point-only and refuses
-`not_supported` (`cohort_decision.interval_requires_native_fit`); a shifted cohort and a
+`route_not_supported` (`cohort_decision.interval_requires_native_fit`); a shifted cohort and a
 portable model refuse `cohort_decision.interval_not_supported`. The native-fit marker is never
 trusted: the measured envelope retains the fit rows (`n`, `p`, and a producer digest binding the
 coefficient vector and covariance) and the consumer refits and requires the export to reproduce
@@ -392,7 +392,7 @@ upgraded by being passed on.
 
 | Step | Entry | Keeps | Recomputes | Refuses |
 |---|---|---|---|---|
-| analyze, then decide with a transported source | `BoundDecisionContract::evaluate_transported(&TransportedResponse, TransportedDemand, &SupportPolicy)` | the receipt (route, source and target populations, diagram identities, assumptions), the extrapolative support label and the declared exclusions as part of the bound decision identity | the affine expected utility of the transported mean, or the probability criterion of a transported law, and the decision identity | a law request of a point (`transported_decision.law_not_supplied`), an interval (`not_supported`), the default policy (`transported_decision.transported_not_accepted`), a support rule stronger than the label (`transported_decision.support_rule_unmet`), an uncertainty requirement a point cannot meet (`transported_decision.uncertainty_requirement`) |
+| analyze, then decide with a transported source | `BoundDecisionContract::evaluate_transported(&TransportedResponse, TransportedDemand, &SupportPolicy)` | the receipt (route, source and target populations, diagram identities, assumptions), the extrapolative support label and the declared exclusions as part of the bound decision identity | the affine expected utility of the transported mean, or the probability criterion of a transported law, and the decision identity | a law request of a point (`transported_decision.law_not_supplied`), an interval (`decision_contract_unsatisfied`), the default policy (`transported_decision.transported_not_accepted`), a support rule stronger than the label (`transported_decision.support_rule_unmet`), an uncertainty requirement a point cannot meet (`transported_decision.uncertainty_requirement`) |
 | transported source for an inverse query | `analysis::inverse_sources::{composed_source, cohort_source, transported_source, evaluate, seal}` and `PreparedMechanismComposition::inverse_forward_source` | the origin (kind, representation, support, receipt, assumed mechanisms), bound into the sealed query and re-derived on consume | the per-action forward value (replayed from the composition artifact) and the claim digest | a quantile or probability of a point (`inverse_forward_source.point_only_law_requested`), an interval (`inverse_forward_source.interval_not_supported`), a transported source under a native-only policy (`inverse_forward_source.transported_not_accepted`) |
 | refresh, then revalidate transported claims | `transport_revalidation::{TransportSceneBuilder, revalidate}`, `TransportClaimState::observe` | the declared selection diagram, structure and quantity; claims that do not count a changed source | every claim counting a changed source, diagram or target (`recompute`); a state change enters through `invalidation_effects_for_claims` | a calibration record established at another target (`withdrawn`, `calibration_from_another_target`) and an unsupported target (every claim withdrawn); a refused observation leaves the state unchanged |
 | assumption range on a transported value | `transport_sensitivity::{transport_range, transport_sensitivity_artifact}` | the value, its quantity and receipt, the declared bound | the band at each grid point and the sealed sensitivity artifact on consume | a transported law (`transport_sensitivity.law_response_not_scalar`), a structural premise (`transport_sensitivity.no_scalar_family`), a sampling interval composed with the range (`transport_sensitivity.interval_not_composed`) |
@@ -472,9 +472,12 @@ diagnostics with calibration unmeasured, not supported claims.
 
 For the dose grid the pointwise normal intervals and standard errors are
 diagnostics with calibration unmeasured, the smoothing bias is not included, and
-the simultaneous band is closed (`dose_grid.simultaneous_band_closed`) until
-its own calibration exists. A sampled provider composed on chain recovery, and
-its intervals, stay closed.
+a simultaneous band is a separate claim and is refused (`route_not_supported`,
+`dose_grid.simultaneous_band_closed`): without a smoothing-bias bound it would
+exclude the bias. The bias-aware route (`estimate_dose_grid_bias_aware`, or a
+request that declares a curvature bound) builds the bias-aware intervals and
+band. A sampled provider composed on chain recovery is not part of the route;
+its calibration is separate and `not_measured`.
 
 ### Estimators that feed decisions, and compact export
 

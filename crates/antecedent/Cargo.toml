@@ -1457,3 +1457,11 @@ path = "tests/bayesian_rd_known_truth.rs"
 [[test]]
 name = "response_cells_known_truth"
 path = "tests/response_cells_known_truth.rs"
+
+[[test]]
+name = "graph_imputation_known_truth"
+path = "tests/graph_imputation_known_truth.rs"
+
+[[test]]
+name = "transported_counterfactual_facade"
+path = "tests/transported_counterfactual_facade.rs"

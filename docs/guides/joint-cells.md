@@ -113,8 +113,8 @@ learner, with its default hyperparameters. It runs under its own cross-fitting c
   `fold_seed=` (the config seed of the fold plan) and `ctx_seed=` (the execution context seed
   the learners draw from). The same declaration, seeds and data replay bit-identically.
 - **Point only.** The result keeps the aligned `ScoreTable` and the family contrasts, but no
-  interval or covariance: a flexible nuisance needs its own remainder-rate and coverage support
-  and none is granted. A requested interval refuses `ml_nuisance_not_supported`
+  interval or covariance: a flexible nuisance needs its own remainder-rate and coverage support,
+  and no record grants one. A requested interval refuses `ml_nuisance_not_supported`
   (`joint_cells.ml_interval_withheld`).
 
 Other machine-learning names (`ml`, `neural_network`, `gradient_boosting`, ...) are not declared
@@ -177,7 +177,7 @@ table's provenance carries the ridge tag (or the learner marker, see above), so 
 established rule applies: **no interval or joint covariance is published** for a penalized
 propensity (see [penalized AIPW](penalized-aipw.md)) or a learner-supplied nuisance. A requested interval
 refuses `penalized_interval_not_supported` (`joint_cells.interval_withheld`) on the ridge route
-and `ml_nuisance_not_supported` (`joint_cells.ml_interval_withheld`) with a declared learner. This route has no calibration measurement.
+and `ml_nuisance_not_supported` (`joint_cells.ml_interval_withheld`) with a declared learner. Calibration status stays `not_measured`.
 
 Lasso is closed (`selection_inference_not_supported`); a machine-learning name that is not a
 declared learner refuses `ml_nuisance_not_supported`; an unknown provider name is an invalid

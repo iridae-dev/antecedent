@@ -168,7 +168,7 @@ def _refuse_structure(graph: object) -> None:
             "cross_world.graph_outside_contract: only a supplied explicit Dag is supported; "
             "accepted, uncertain, latent-confounded (Admg), equivalence-class and temporal "
             "structures are refused",
-            reason_code="not_supported",
+            reason_code="route_not_supported",
         )
     raise CausalTypeError("graph must be a Dag")
 

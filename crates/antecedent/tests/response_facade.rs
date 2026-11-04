@@ -775,7 +775,7 @@ fn prepared_response_refute_is_refused() {
     let prior = prepared.estimate(&data, &ctx).unwrap();
     let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.starts_with("not_supported:"), "{msg}");
+    assert!(msg.starts_with("reason=route_not_supported:"), "{msg}");
     assert!(msg.contains("AverageEffect and scalar InterventionResponse"), "{msg}");
 }
 

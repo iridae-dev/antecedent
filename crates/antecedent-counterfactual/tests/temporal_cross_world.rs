@@ -376,7 +376,7 @@ fn all_gates() -> TransportedCounterfactualPrerequisites {
 }
 
 #[test]
-fn transported_gate_reports_exact_missing_gates_and_route_frozen() {
+fn transported_gate_reports_exact_missing_gates_and_the_underived_joint_theorem() {
     let required = [factor(PopulationRole::Source, "obs"), factor(PopulationRole::Target, "obs")];
     let supplied: BTreeMap<RegimeFactorKey, String> =
         required.iter().cloned().map(|k| (k, "evidence".to_owned())).collect();
@@ -391,8 +391,8 @@ fn transported_gate_reports_exact_missing_gates_and_route_frozen() {
             TransportedCounterfactualGate::CrossPopulationAssumptionsMissing,
         ]
     );
-    assert_eq!(refusal.refusal.code, "not_supported");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
+    assert_eq!(refusal.refusal.code, "transport_missing_evidence");
+    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
     assert_eq!(refusal.refusal.offending.as_deref(), Some("transport_support_missing"));
     assert!(refusal.refusal.validate().is_ok());
 
@@ -406,14 +406,21 @@ fn transported_gate_reports_exact_missing_gates_and_route_frozen() {
         refusal.missing_gates,
         vec![TransportedCounterfactualGate::FixedPopulationTemporalSupportMissing]
     );
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
+    assert_eq!(refusal.refusal.code, "transport_missing_evidence");
+    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
+    assert_eq!(
+        refusal.refusal.offending.as_deref(),
+        Some("fixed_population_temporal_support_missing")
+    );
 
-    // Every prerequisite and factor present: the joint theorem has still not passed.
+    // Every prerequisite and factor present: no joint theorem is derived.
     let refusal = refuse_transported_counterfactual(&all_gates(), &required, &supplied);
     assert!(refusal.missing_gates.is_empty());
     assert!(refusal.missing_factors.is_empty());
-    assert_eq!(refusal.refusal.code, "not_supported");
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
+    assert_eq!(refusal.refusal.code, "route_not_supported");
+    assert_eq!(refusal.refusal.detail, "transported_counterfactual.joint_theorem_not_derived");
+    assert_eq!(refusal.refusal.offending, None);
+    assert!(refusal.refusal.validate().is_ok());
 }
 
 #[test]
@@ -432,6 +439,7 @@ fn transported_gate_absent_regime_factor_is_factor_missing() {
     // A missing gate takes precedence, with the missing factor still retained.
     let gated = TransportedCounterfactualPrerequisites { transport_support: false, ..all_gates() };
     let refusal = refuse_transported_counterfactual(&gated, &required, &supplied);
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
+    assert_eq!(refusal.refusal.code, "transport_missing_evidence");
+    assert_eq!(refusal.refusal.detail, "transported_counterfactual.prerequisite_missing");
     assert_eq!(refusal.missing_factors, vec![required[1].clone()]);
 }

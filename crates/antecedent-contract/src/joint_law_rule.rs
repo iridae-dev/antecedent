@@ -640,7 +640,7 @@ fn check_envelope(
     }
     if request.reading != RequestedReading::Envelope {
         return Err(refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             "joint_law_propagation.envelope_is_not_a_point",
             request.reading.as_str(),
             "the dependence envelope is the set of values no dependence could exceed; it is not a point, an interval or a posterior and does not stand in for an aligned joint law; request the envelope reading, or supply the aligned joint law for a point value",
@@ -777,7 +777,7 @@ fn check_core(
     );
     if request.reading == RequestedReading::Spread && envelope_dependence {
         return Err(refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             "joint_law_propagation.spread_needs_supported_dependence",
             "spread",
             "a spread of a composed quantity is determined by a covariance, an aligned joint law, known mixture weights or a declared independence of distinct evidence; a correlation range or the marginals alone give only the labelled envelope, so request the envelope reading",
@@ -1103,7 +1103,7 @@ pub fn check_composed_interval(
             label: MEASURED_INTERVAL_LABEL,
         });
     };
-    let code = antecedent_core::reason_code!("not_supported");
+    let code = antecedent_core::reason_code!("quantity_semantics_mismatch");
     if record.coordinate_id != coordinate.id() {
         return Err(refuse(
             code,
@@ -1581,7 +1581,7 @@ mod tests {
             RequestedReading::Point,
         );
         let (code, name) = detail(&as_point);
-        assert_eq!(code, "not_supported");
+        assert_eq!(code, "uncertainty_representation_insufficient");
         assert_eq!(name, "joint_law_propagation.envelope_is_not_a_point");
         let mixture = request(
             PropagationOperation::Mixture,
@@ -1736,7 +1736,7 @@ mod tests {
             RequestedReading::Spread,
         );
         let (code, name) = detail(&envelope);
-        assert_eq!(code, "not_supported");
+        assert_eq!(code, "uncertainty_representation_insufficient");
         assert_eq!(name, "joint_law_propagation.spread_needs_supported_dependence");
     }
 

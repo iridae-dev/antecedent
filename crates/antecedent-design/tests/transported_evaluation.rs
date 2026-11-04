@@ -1294,7 +1294,7 @@ fn an_adaptive_source_without_its_contract_or_with_open_questions_is_refused() {
     let err =
         transport_adaptive_trial(&AdaptiveTransportRequest { contract: Some(&thompson), ..base })
             .unwrap_err();
-    assert_eq!(err.code, "not_supported");
+    assert_eq!(err.code, "route_not_supported");
 
     // exposure that differs from assignment
     let mut noncompliant = declaration(epsilon_greedy());

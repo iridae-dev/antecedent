@@ -1094,12 +1094,12 @@ fn batch_retarget_posterior_refuses_an_unmeasured_band() {
     let error = score_contrast_posterior(
         &[0.0, 1.0],
         &[1.0, 3.0],
-        PosteriorRequest::UnmeasuredBand,
+        PosteriorRequest::CredibleBand,
         ScoreNamespace::BatchRetarget,
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("batch_retarget_posterior.unmeasured_band"), "{message}");
+    assert!(message.contains("batch_retarget_posterior.band_not_constructed"), "{message}");
 }
 
 #[test]

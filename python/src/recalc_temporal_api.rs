@@ -90,16 +90,23 @@ fn request(
         .collect();
     Ok(request)
 }
+/// The code of a refusal a lower layer's support gate raised, when `cause` is one.
+fn gated_code(cause: &antecedent::CausalError) -> Option<&'static str> {
+    match cause.peeled() {
+        antecedent::CausalError::Estimate(
+            antecedent_estimate::EstimationError::Refused { code, .. }
+            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+        ) if *code == "not_supported" => Some(*code),
+        _ => None,
+    }
+}
 fn error(error: &TemporalRunError) -> String {
     match error {
         TemporalRunError::Recalc(RecalcRunError::Execution(cause))
-            if matches!(cause.peeled(), antecedent::CausalError::Estimate(
-                antecedent_estimate::EstimationError::Refused {code,..}
-                | antecedent_estimate::EstimationError::RefusedWithFields {code,..}
-            ) if *code == "not_supported") =>
+            if gated_code(cause).is_some() =>
         {
             refusal_json(
-                antecedent_core::reason_code!("not_supported"),
+                gated_code(cause).unwrap_or_default(),
                 "inference",
                 "temporal_interval.interval_not_supported",
                 None,
@@ -112,7 +119,7 @@ fn error(error: &TemporalRunError) -> String {
             if *code == "not_supported" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("not_supported"),
+                code,
                 "inference",
                 "temporal_interval.interval_not_supported",
                 None,
@@ -278,7 +285,7 @@ fn error(error: &TemporalRunError) -> String {
             antecedent_estimate::EstimationError::Refused { code, .. }
             | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "not_supported" => refusal_json(
-            antecedent_core::reason_code!("not_supported"),
+            code,
             "inference",
             "temporal_interval.interval_not_supported",
             None,
@@ -496,12 +503,21 @@ impl PyTemporalSession {
                 ),
             ));
         }
-        error(&TemporalRunError::Io(antecedent_io::IoError::Refused {
-            code: antecedent_core::reason_code!("not_supported"),
+        let refused = TemporalRunError::Io(antecedent_io::IoError::Refused {
+            code: antecedent_core::reason_code!("route_not_supported"),
             message:
                 "temporal_interval.interval_not_supported: use the measured original-source interval entry"
                     .into(),
-        }))
+        });
+        refusal_json(
+            antecedent_core::reason_code!("route_not_supported"),
+            "inference",
+            "temporal_interval.interval_not_supported",
+            None,
+            None,
+            &refused.to_string(),
+            None,
+        )
     }
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

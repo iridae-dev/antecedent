@@ -1169,7 +1169,7 @@ def trajectory_hazard_credible_interval(
 ) -> tuple[float, float]:
     """A credible interval for the trajectory survival contrast: always refused.
 
-    Raises a ``not_supported`` refusal (``trajectory_survival.credible_interval_not_supported``)
+    Raises a ``route_not_supported`` refusal (``trajectory_survival.credible_interval_not_supported``)
     naming the missing premise, a joint likelihood for the confounders, treatment, censoring and
     event hazard (a parametric g-formula posterior), and the next attempt: supply a longitudinal
     confounder, treatment, censoring and event model with priors, or report the conditional

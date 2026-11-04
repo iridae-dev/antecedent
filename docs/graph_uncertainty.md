@@ -135,8 +135,8 @@ What is checked, and what is not:
 ## Uncertainty over a discovered structure
 
 A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no
-sampling error. Two compiled routes carry the missing uncertainty. Both execute unsupported
-and neither has a coverage record.
+sampling error. Two compiled routes carry the missing uncertainty. Neither is a support-matrix
+cell, and neither has a coverage record (calibration `not_measured`).
 
 **Posterior over Markov equivalence classes.** `EquivalenceClassPosterior(base)` (Rust:
 `DiscoverySpec::equivalence_classes`) runs an `ExactDagPosterior`, `OrderMcmc`,

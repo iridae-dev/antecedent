@@ -246,7 +246,7 @@ def test_an_undirected_edge_at_the_treatment_is_refused_by_name() -> None:
             execution=Execution(seed=SEED),
         )
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "not_supported"
+    assert info.value.reason_code == "discovered_structure_unresolved"
     assert info.value.detail == "parent_set_effect.treatment_parents_ambiguous"
     assert "h - n0" in info.value.message
     assert "no completion is chosen" in info.value.message

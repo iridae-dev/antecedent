@@ -38,7 +38,7 @@ A lagged DAG (PCMCI), temporal CPDAG (PCMCI+) or temporal PAG (LPCMCI) is a stat
 
 ## Estimates: a point, a structural range or a refusal
 
-`estimate_discovered_transport` checks every member structurally, then searches for a checked formula against the evidence you actually hold: one source treatment trial and one target observational sample, integer-coded and complete. It never promotes another observed column to an experimental intervention, and its choice of formula uses the graph and declared evidence availability, not observed outcomes or cell counts.
+`estimate_discovered_transport` checks every member structurally, then searches for a checked formula against the evidence you actually hold: one source treatment trial and one target observational sample, integer-coded and complete. It never treats another observed column to an experimental intervention, and its choice of formula uses the graph and declared evidence availability, not observed outcomes or cell counts.
 
 - **Point.** Every member is identified and they agree.
 - **Structural range.** Every member is identified but they differ. The smallest and largest member estimate per level are reported as `structural_range`: a statement about which values the class allows, with no probability over members and no interval.
@@ -83,9 +83,9 @@ For ten to twenty variables with undirected edges elsewhere in the class, `sampl
 | Pooled search over stacked populations | `selective_discovery.pooled_population_search` | Use the pooled algorithm directly and declare cross-population assumptions |
 | Content-identical populations | `selective_discovery.pooled_population_data` | Supply disjoint population rows |
 | Interval after reusing the same rows to select and analyse | `not_supported` (`selective_discovery.downstream_interval_not_supported`) | Split the rows and use `sample_split_effect` |
-| Effect after discovery with an unresolved structure, an unfinished search, or outside five to seven variables | `not_supported` (`split_effect.structure_unresolved`, `split_effect.search_not_finished`, `split_effect.variable_count_not_measured`) | Use a fully orientable table, or analyse under a declared graph |
-| Effect after discovery with an undirected edge at the treatment, a non-positive log-linear column, or a declared degree above four | `not_supported` (`parent_set_effect.*`) or `invalid_argument` (`parent_set_effect.log_linear_input_not_positive`) | Orient the named edges, supply positive columns, or declare a degree of at most four |
-| Attestation without a current coverage record, or outside its measured row range | `not_supported` (`measured_inference.record_not_attesting`) | Measure the construction at this coordinate |
+| Effect after discovery with an unresolved structure or an unfinished search | `discovered_structure_unresolved` (`split_effect.structure_unresolved`, `split_effect.search_not_finished`) | Use a fully orientable table, or analyse under a declared graph |
+| Effect after discovery with an undirected edge at the treatment, or a non-positive log-linear column | `discovered_structure_unresolved` (`parent_set_effect.treatment_parents_ambiguous`) or `invalid_argument` (`parent_set_effect.log_linear_input_not_positive`) | Orient the named edges, supply positive columns, or declare a degree of at most four |
+| Attestation without a current coverage record, or outside its measured row range | none: the interval is reported with calibration `outside_measured_scope` or `not_measured` | Measure the construction at this coordinate to obtain `calibrated` |
 | Temporal, panel or clustered rows in a split, or a non-float64 column | `selective_discovery.split_unsupported_rows` | Materialize rows, or use a design for dependent rows |
 
 ## Related

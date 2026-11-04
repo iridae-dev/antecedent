@@ -19,7 +19,7 @@ impl super::Study {
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
         bound.declared.tiered = None;
-        operation.frozen().bind_study(&mut bound);
+        operation.sealed().bind_study(&mut bound);
         bound.declared.class_prior = operation.class_prior().cloned();
         match operation.proof() {
             TemporalPosteriorResponseProof::Dbn(cache) => {

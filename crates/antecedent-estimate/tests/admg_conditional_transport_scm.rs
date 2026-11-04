@@ -480,8 +480,9 @@ fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables() {
 }
 
 /// Counted laws would make the point an empirical plug-in, which this route does
-/// not support: the estimate-level preparation refuses them, as the facade and
-/// Python preparations do, before compiling anything.
+/// not support: the estimate-level preparation refuses them in a release build, as the
+/// facade and Python preparations do, before compiling anything; a development build runs
+/// them.
 #[test]
 fn counted_laws_are_refused_by_the_estimate_level_preparation() {
     let scm = Scm {
@@ -520,17 +521,24 @@ fn counted_laws_are_refused_by_the_estimate_level_preparation() {
     .with_empirical_counts(vec![1; cells])
     .unwrap();
     let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
-    let error = prepare_exact_admg_conditional_transport(
+    let outcome = prepare_exact_admg_conditional_transport(
         &functional,
         counted,
         &request(&[0], &[2], 0),
         ExactEvaluationLimits::default(),
         &ctx,
-    )
-    .unwrap_err();
+    );
+    if cfg!(feature = "development") {
+        assert!(outcome.is_ok(), "a development build runs counted laws");
+        return;
+    }
+    let error = outcome.unwrap_err();
     let EstimationError::Refused { code, message } = error else { panic!("typed refusal") };
     assert_eq!(code, "not_supported");
-    assert!(message.starts_with("admg_transport.counted_laws_unsupported"), "{message}");
+    assert_eq!(
+        message.as_str(),
+        "admg_transport.counted_laws_unsupported: the route is not supported (missing: admg_conditional.counted_law_plugin_check)"
+    );
 }
 
 #[test]
@@ -644,12 +652,12 @@ fn admg_conditional_posterior_mean_stays_at_the_enumerated_truth() {
 fn admg_conditional_posterior_refuses_an_unmeasured_band() {
     let error = dirichlet_supported_mean(
         &[0.5, 0.5],
-        PosteriorRequest::UnmeasuredBand,
+        PosteriorRequest::CredibleBand,
         DirichletNamespace::AdmgConditional,
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("admg_conditional_posterior.unmeasured_band"), "{message}");
+    assert!(message.contains("admg_conditional_posterior.band_not_constructed"), "{message}");
 }
 
 #[test]

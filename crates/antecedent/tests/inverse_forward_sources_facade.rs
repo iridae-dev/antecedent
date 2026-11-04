@@ -471,7 +471,7 @@ fn a_composition_with_admitted_mechanisms_is_a_transported_claim() {
         .inverse_forward_source(&gaussian_actions(), Some(receipt.clone()), native(), &ctx())
         .unwrap_err();
     assert_eq!(error, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "decision_contract_unsatisfied");
 
     let source = prepared
         .inverse_forward_source(

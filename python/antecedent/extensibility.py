@@ -252,7 +252,7 @@ class UncertaintySemantics(StrEnum):
 
     Any other non-blank ``uncertainty_semantics`` string is a provider-declared
     method identity (Rust ``ExternalUncertaintyMeaning::ProviderDeclared``), never
-    promoted to an Antecedent interval.
+    treated as an Antecedent interval.
     """
 
     POINT_ONLY = "point_only"

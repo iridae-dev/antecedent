@@ -110,7 +110,7 @@ pub fn invalid_reason_code() -> &'static str {
 /// `repeated_measures_paradigm_not_derived`).
 #[must_use]
 pub fn premise_reason_code() -> &'static str {
-    antecedent_core::reason_code!("not_supported")
+    antecedent_core::reason_code!("adaptive_assumption_violated")
 }
 
 // -- Declaration ----------------------------------------------------------------------------------

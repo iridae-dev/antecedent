@@ -54,19 +54,15 @@ pub const LEVEL: f64 = 0.95;
 ///
 /// With [`MAX_VARIABLES`] this is the support boundary of the calibration record, not a limit of
 /// the engine: the procedure runs on any table, but its coverage was measured only for these
-/// sizes, so any other size is refused as `not_supported`
-/// (`split_effect.variable_count_not_measured`) until a record measures it.
+/// sizes, so any other size is reported with a calibration status other than `calibrated`.
 pub const MIN_VARIABLES: usize = 5;
 /// Most searched variables measured. See [`MIN_VARIABLES`].
 pub const MAX_VARIABLES: usize = 7;
 const MAX_ROWS: usize = 1 << 20;
 const FORMAT_VERSION: u32 = 1;
 
-fn refused(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: format!("{detail}: {message}"),
-    }
+fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
+    IoError::Refused { code, message: format!("{detail}: {message}") }
 }
 
 fn malformed(detail: &str, message: &str) -> IoError {
@@ -260,6 +256,7 @@ fn directed_parents(
 ) -> Result<Vec<u32>, IoError> {
     if structure.class() != StructureClass::Cpdag {
         return Err(refused(
+            antecedent_core::reason_code!("invalid_argument"),
             "split_effect.structure_class",
             "only a completed partially directed graph over static variables is accepted",
         ));
@@ -273,6 +270,7 @@ fn directed_parents(
             || !known(edge.b.variable)
         {
             return Err(refused(
+                antecedent_core::reason_code!("invalid_argument"),
                 "split_effect.structure_class",
                 "a node is not a static searched variable",
             ));
@@ -282,6 +280,7 @@ fn directed_parents(
             (Mark::Arrow, Mark::Tail) => (edge.b, edge.a),
             _ => {
                 return Err(refused(
+                    antecedent_core::reason_code!("discovered_structure_unresolved"),
                     "split_effect.structure_unresolved",
                     "an edge is not definitely directed",
                 ));
@@ -384,6 +383,7 @@ pub fn adjusted_effect(
     let k = 2 + covariates.len();
     if n < k + 2 || x.len() != n || covariates.iter().any(|c| c.len() != n) {
         return Err(refused(
+            antecedent_core::reason_code!("invalid_argument"),
             "split_effect.too_few_rows",
             "the analysis rows do not exceed the regression parameters",
         ));
@@ -392,13 +392,18 @@ pub fn adjusted_effect(
     slopes.push(x);
     slopes.extend(covariates);
     let (point, rss, inverse_treatment) = centred_least_squares(&y, &slopes).ok_or_else(|| {
-        refused("split_effect.design_singular", "the adjusted regression design is singular")
+        refused(
+            antecedent_core::reason_code!("design_rank_deficient"),
+            "split_effect.design_singular",
+            "the adjusted regression design is singular",
+        )
     })?;
     #[allow(clippy::cast_precision_loss, reason = "bounded row and parameter counts")]
     let df = (n - k) as f64;
     let variance = rss / df * inverse_treatment;
     if !(variance.is_finite() && variance > 0.0) {
         return Err(refused(
+            antecedent_core::reason_code!("invalid_argument"),
             "split_effect.degenerate_variance",
             "the coefficient has no positive sampling variance",
         ));
@@ -440,6 +445,7 @@ pub fn effect_on_structure(
             .collect::<Vec<_>>()
             .join("; ");
         return Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "split_effect.structure_unresolved",
             &format!(
                 "the discovered structure has unresolved edges ({unresolved}); no completion is \
@@ -450,6 +456,7 @@ pub fn effect_on_structure(
     let parents = directed_parents(structure, treatment, variables)?;
     if parents.contains(&outcome) {
         return Err(refused(
+            antecedent_core::reason_code!("invalid_argument"),
             "split_effect.outcome_precedes_treatment",
             "the discovered structure orients the outcome into the treatment",
         ));
@@ -530,6 +537,7 @@ pub fn run(source: &SplitEffectSource, ctx: &ExecutionContext) -> Result<SplitEf
     })?;
     if outcome.search_incomplete || outcome.orientation_conflict {
         return Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
             "split_effect.search_not_finished",
             "the discovery search exhausted a bound or met conflicting orientation evidence",
         ));

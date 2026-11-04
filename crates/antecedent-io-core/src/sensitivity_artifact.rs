@@ -138,7 +138,7 @@ fn unsupported_coordinate(text: &str) -> IoError {
 
 fn composition_not_supported(text: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
+        code: antecedent_core::reason_code!("route_not_supported"),
         message: format!("sensitivity_decision_composition.composition_not_supported: {text}"),
     }
 }

@@ -131,7 +131,7 @@ def test_compact_out_of_support_queries_refuse_with_exact_details() -> None:
     ]
     for query, detail, subject in expected:
         error = refused(export, query)
-        assert error.reason_code == "not_supported", query
+        assert error.reason_code == "invalid_argument", query
         assert error.detail == detail, query
         assert error.offending == subject, query
     # The closed bounds themselves are inside the support.
@@ -147,7 +147,7 @@ def test_compact_masked_region_refuses_even_inside_the_support() -> None:
         error = refused(export, {"x": x, "g": "c"})
         assert error.detail == "compact_export.masked_region"
         assert error.offending == "high_dose_group_c"
-        assert error.reason_code == "not_supported"
+        assert error.reason_code == "invalid_argument"
     export.evaluate({"x": 7.999, "g": "c"})
     export.evaluate({"x": 9.0, "g": "b"})
 

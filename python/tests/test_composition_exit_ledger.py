@@ -169,8 +169,7 @@ def test_ledger_inferential_claim_is_calibrated_or_not_supported(record: Record)
             assert route["claim"] in NOT_INFERENTIAL, (record["id"], route["name"])
             continue
         assert route["status"] == "closed", (record["id"], route["name"])
-        assert route["reason_code"] == "not_supported", route
-        assert route["reason_code"] in RUNTIME_CODES
+        assert route["reason_code"] in RUNTIME_CODES, route
         assert (ROOT / route["refusal_test"]).is_file(), route
         assert route["refusal_assertion"] in (ROOT / route["refusal_test"]).read_text(
             encoding="utf-8"
@@ -189,14 +188,13 @@ def test_ledger_carried_forward_routes_are_closed_with_a_registered_code(
     for route in record["routes"]:
         assert route["status"] == "closed", (record["id"], route["name"])
         assert route["reason_code"] in RUNTIME_CODES, route
-    detail_codes = {refusal["code"] for refusal in record["refusals"]}
-    assert "not_supported" in detail_codes, record["id"]
-    frozen = [
-        r["detail"]
-        for r in record["refusals"]
-        if r["code"] == "not_supported" and r["detail"].endswith(".route_frozen")
-    ]
-    assert frozen, f"{record['id']}: no registered route_frozen refusal detail"
+    # A closed route is a refusal with its own code, and the record lists a refusal detail
+    # under exactly that code.
+    for route in record["routes"]:
+        assert any(r["code"] == route["reason_code"] for r in record["refusals"]), (
+            record["id"],
+            route["name"],
+        )
 
 
 # ------------------------------------------------------------------ real closed producers
@@ -316,14 +314,10 @@ def test_ledger_closed_public_producer_refuses_with_its_typed_cell(
     with pytest.raises(CausalUnsupportedError) as caught:
         CLOSED_PRODUCERS[route["name"]]()
     error = caught.value
-    assert error.reason_code == route["reason_code"] == "not_supported"
+    assert error.reason_code == route["reason_code"]
     assert error.reason_code in REGISTERED
-    frozen = [
-        r["detail"]
-        for r in record["refusals"]
-        if r["code"] == "not_supported" and r["detail"].endswith(".route_frozen")
-    ]
-    assert any(detail in str(error) for detail in frozen), (str(error), frozen)
+    details = [r["detail"] for r in record["refusals"] if r["code"] == route["reason_code"]]
+    assert any(detail in str(error) for detail in details), (str(error), details)
 
 
 def test_ledger_registry_closed_routes_are_all_known_producers() -> None:

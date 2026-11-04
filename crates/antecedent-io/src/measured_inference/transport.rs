@@ -25,12 +25,6 @@ pub(crate) struct Model<'a> {
     pub(crate) conflict: f64,
     pub(crate) degree: Option<usize>,
 }
-fn refused(message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: format!("measured_transport.outside_measured_protocol: {message}"),
-    }
-}
 fn prior_matches(prior: &GaussianPriorWire, width: usize) -> bool {
     prior.provenance == PriorProvenanceWire::Declared
         && prior.mean.len() == width
@@ -49,6 +43,10 @@ fn prior_matches(prior: &GaussianPriorWire, width: usize) -> bool {
 /// validation protocol is not refused: the scope records `measured_protocol: false` with the
 /// reason, and [`tag_outside`] gives its basis a construction no coverage record measured, so
 /// calibration reports `not_measured`. Calibration annotates the interval and never gates it.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "callers propagate the shared artifact error type with `?`"
+)]
 pub(crate) fn protocol(
     model: &Model<'_>,
     sources: &[JointSourceWire],
@@ -57,7 +55,7 @@ pub(crate) fn protocol(
     level: f64,
 ) -> Result<serde_json::Value, IoError> {
     match protocol_checked(model, sources, target, draws, level) {
-        Err(IoError::Refused { message, .. }) => Ok(serde_json::json!({
+        Err(message) => Ok(serde_json::json!({
             "measured_protocol": false,
             "outside_measured_protocol": message,
             "evidence_interpretation": "outside the frozen validation protocol: reported without a coverage claim",
@@ -66,7 +64,7 @@ pub(crate) fn protocol(
             "source_rows": sources.iter().map(|s| s.outcome.len()).collect::<Vec<_>>(),
             "posterior_draws": draws, "level": level, "reported_scalar": "target_effect"
         })),
-        other => other,
+        Ok(scope) => Ok(scope),
     }
 }
 
@@ -87,7 +85,7 @@ fn protocol_checked(
     target: &JointTargetWire,
     draws: usize,
     level: f64,
-) -> Result<serde_json::Value, IoError> {
+) -> Result<serde_json::Value, &'static str> {
     if level.to_bits() != PROTOCOL_LEVEL_BITS
         || draws < PROTOCOL_MIN_DRAWS
         || model.graph != GraphClassCode::FixedDag
@@ -99,9 +97,9 @@ fn protocol_checked(
         || sources.len() > 2
         || model.degree.is_some_and(|d| d != 2)
     {
-        return Err(refused(
+        return Err(
             "nominal level, posterior draws, model, dependence or source count differs from the frozen validation protocol",
-        ));
+        );
     }
     let varying_covariates = match model.varying {
         VaryingBlockCode::Intercept => false,
@@ -121,19 +119,19 @@ fn protocol_checked(
             && varying_covariates
             && sharing == SourceSharingCode::IndependentVaryingBlocks))
     {
-        return Err(refused("varying-block/sharing configuration is not measured"));
+        return Err("varying-block/sharing configuration is not measured");
     }
     let (q, r) = match (model.degree, varying_covariates) {
         (None, false) => (3, 1),
         (None, true) => (2, 2),
         (Some(2), false) => (5, 1),
         (Some(2), true) => (3, 3),
-        _ => return Err(refused("basis is not measured")),
+        _ => return Err("basis is not measured"),
     };
     if !prior_matches(model.invariant, q) || !prior_matches(model.varying_prior, r) {
-        return Err(refused(
+        return Err(
             "only zero-mean declared isotropic Gaussian priors with variance 1000 were measured; prior banks are not activated",
-        ));
+        );
     }
     let n = sources[0].outcome.len();
     if !(150..=600).contains(&n)
@@ -146,9 +144,9 @@ fn protocol_checked(
                     != if i == 0 { 1.0f64.to_bits() } else { 2.25f64.to_bits() }
         })
     {
-        return Err(refused(
+        return Err(
             "balanced per-source sample sizes, known variances or covariate bounds differ from the frozen protocol",
-        ));
+        );
     }
     let target_design = [-0.25f64, 0.25, 0.25, 0.55];
     if target.rows != 4
@@ -156,7 +154,7 @@ fn protocol_checked(
         || target.covariates[0].len() != 4
         || target.covariates[0].iter().zip(target_design).any(|(a, b)| a.to_bits() != b.to_bits())
     {
-        return Err(refused("target covariate design differs from the measured fixed target"));
+        return Err("target covariate design differs from the measured fixed target");
     }
     Ok(serde_json::json!({
         "validation_design":if model.degree.is_some(){"known_quadratic_gaussian_invariant_effect_fixed_target"}else{"known_gaussian_invariant_effect_fixed_target"},

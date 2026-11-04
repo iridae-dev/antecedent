@@ -210,14 +210,16 @@ impl GeneralTemporalCounterfactual {
     }
 }
 
-/// The closed transported path-specific counterfactual route.
+/// The transported path-specific counterfactual route, which has no method: no joint theorem
+/// composes a transport theorem with a fixed-population cross-world theorem.
 ///
-/// Always refuses: `transported_counterfactual.route_frozen` (`not_supported`) while a
-/// prerequisite gate is missing (and also when every gate passes and every required regime
-/// factor is present, because the joint theorem has not passed), and
+/// Always refuses: `transported_counterfactual.prerequisite_missing`
+/// (`transport_missing_evidence`) while a prerequisite gate is missing,
 /// `transported_counterfactual.factor_missing` (`transport_missing_evidence`) when every gate
-/// passes but a required source or target regime factor is absent from `supplied`. The missing
-/// gates and factors are retained on the refusal.
+/// passes but a required source or target regime factor is absent from `supplied`, and
+/// `transported_counterfactual.joint_theorem_not_derived` (`route_not_supported`) when every
+/// gate passes and every required regime factor is present. The missing gates and factors are
+/// retained on the refusal.
 ///
 /// # Errors
 /// Always: the typed [`TransportedCounterfactualRefusal`].
