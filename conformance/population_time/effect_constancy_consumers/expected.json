@@ -48,7 +48,7 @@
             "fn original",
             "fn original_covariance_aware_contrast_replays_and_does_not_support_transport"
           ],
-          "sha256": "0efe431e36d605d8587645645dfc6b3622b9ef94607851554a68a776e8f05729"
+          "sha256": "b5787a7d9ba51bbdc5c83fb277f1d70cd60436765e65362ce4d2abf045182b1e"
         }
       ],
       "fixture_payload_sha256": "f44610bdf8fc89f557eb863d125918d3f80a5d461dc60eda452403e8d32c43e3"
