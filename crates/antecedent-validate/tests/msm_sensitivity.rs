@@ -268,7 +268,7 @@ fn msm_keeps_the_assumption_range_distinct_from_sampling() {
     assert_eq!(result.inference_claim, "assumption_range");
     assert_eq!(result.uncertainty.sampling_interval, "sampling interval: not reported");
     assert_eq!(result.uncertainty.sampling_interval, MSM_SAMPLING_STATEMENT);
-    assert_eq!(result.uncertainty.reason_code, "not_supported");
+    assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
     assert_eq!(result.uncertainty.detail, "msm_sensitivity.interval_withheld");
     assert!(result.normalization.contains("not Hajek"));
 }

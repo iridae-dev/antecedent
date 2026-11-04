@@ -44,8 +44,8 @@ What this is, and is not:
   dependence between more than one involved mechanism is refused, never defaulted to
   independence. The transport assumption adds no variance (``uncertainty_scope``). The Monte
   Carlo error of a response (``monte_carlo_se``) is numerical-approximation uncertainty and is
-  reported apart. No interval is produced: :meth:`TypedTransportedComposition.interval` raises
-  ``not_supported``. Support is ``extrapolative`` and inference ``point_only``.
+  reported apart. The interval is :meth:`TypedTransportedComposition.interval`, reported with a
+  ``not_measured`` calibration slot. Support is ``extrapolative`` and inference ``point_only``.
 
 Every fit, admission, test, response, variance and identity is computed in Rust; this module
 builds the declaration and presents the result.
@@ -66,7 +66,13 @@ from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
-from .mechanism_composition import MeanContrast, SelectionNode, TransportInvariance
+from .mechanism_composition import (
+    FirstOrderInterval,
+    MeanContrast,
+    SelectionNode,
+    TransportInvariance,
+    _first_order_interval,
+)
 
 __all__ = [
     "FAMILIES",
@@ -742,9 +748,32 @@ class TypedTransportedComposition:
             ),
         )
 
-    def interval(self) -> None:
-        """Always raises ``not_supported``: no coverage includes the transport assumption."""
-        raise_refusal(self._handle.interval(), TypedMechanismRefusal)
+    def interval(
+        self,
+        contrast: object,
+        *,
+        level: float = 0.95,
+        draws: int = 100_000,
+        execution: Execution | None = None,
+    ) -> FirstOrderInterval:
+        """The first-order interval of a contrast at ``level`` with its calibration slot.
+
+        The slot status is ``not_measured`` until a coverage record measures the construction;
+        the interval is conditional on the declared transport premises.
+        """
+        execution = resolve_execution(execution)
+        wire = json.loads(
+            _unwrap(
+                self._handle.interval(
+                    _dumps(_contrast(contrast).to_wire()),
+                    _draws(draws),
+                    int(execution.seed),
+                    level,
+                    cancel=execution.cancel,
+                )
+            )
+        )
+        return _first_order_interval(wire)
 
 
 def _contrast(contrast: object) -> MeanContrast:

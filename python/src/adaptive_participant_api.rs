@@ -301,7 +301,7 @@ impl ParticipantProcedureHandle {
                 "alpha_per_arm": spec.alpha_per_arm(),
             },
             "cell": cell.id(),
-            "calibration": antecedent_stats::adaptive_inference::DERIVED_UNMEASURED,
+            "calibration": antecedent_io_core::contract_section::CalibrationStatus::NotMeasured.as_str(),
         })
         .to_string()
     }

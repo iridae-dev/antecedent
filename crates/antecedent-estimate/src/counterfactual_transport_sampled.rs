@@ -14,10 +14,11 @@
 //! 3. *Point estimate*: the plug-in value is an estimate of the population
 //!    probability. Smoothed tables are labelled smoothed; an envelope request
 //!    reports a structural range and no point.
-//! 4. *Statistical inference*: withheld. No coordinate of this route has
-//!    measured whole-method coverage, so no interval is published; the delta
-//!    method standard error is reported only as `uncalibrated_standard_error`,
-//!    and the interval request carries `not_supported`.
+//! 4. *Statistical inference*: the delta-method standard error
+//!    (`uncalibrated_standard_error`) and the clamped Wald interval of
+//!    [`sampled_transport_interval`], reported with a calibration annotation
+//!    resolved from the interval's basis. The `inference.interval` slot is a
+//!    legacy field kept for stored artifacts.
 //!
 //! # Evidence
 //!
@@ -226,7 +227,8 @@ pub struct UncalibratedStandardError {
     pub datasets: usize,
 }
 
-/// An interval route that is closed.
+/// Legacy closed-interval slot kept for stored artifacts; the interval is
+/// [`sampled_transport_interval`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WithheldUncertainty {
     /// Always `not_supported`.
@@ -237,7 +239,8 @@ pub struct WithheldUncertainty {
     pub reason: &'static str,
 }
 
-/// Statistical inference of a sampled result: no interval is ever published.
+/// Statistical inference of a sampled result: the standard error; the interval is
+/// [`sampled_transport_interval`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SampledInference {
     /// Method that produced the standard error.

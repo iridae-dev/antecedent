@@ -16,9 +16,9 @@
 //! * [`hierarchical_choice_posterior`]: the posterior of the population shares and of the
 //!   respondents' heterogeneity (two or three options), by deterministic quadrature.
 //!
-//! No result carries an interval or a coverage statement as a claim. Every guarantee slot is a
-//! [`WithheldGuarantee`] that refuses with `not_supported` until coverage of the exact
-//! procedure has been measured. The numerics are in
+//! Intervals are reported by the measured-interval layer with a calibration annotation. The
+//! claims that stay closed (the error rate of a stopping rule, operating characteristics for
+//! any other truth) are [`ClosedClaim`]s that refuse. The numerics are in
 //! [`antecedent_stats::adaptive_inference`]; the posterior is a statement about choices in the
 //! declared choice set, and stated choices do not identify behaviour or a causal effect.
 //!
@@ -28,7 +28,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference as numerics;
 
 use crate::adaptive_inference::{
-    AdaptiveInferenceError, WithheldGuarantee, numeric_error, refuse_if_interrupted,
+    AdaptiveInferenceError, ClosedClaim, numeric_error, refuse_if_interrupted,
 };
 
 pub use antecedent_stats::adaptive_inference::{
@@ -197,8 +197,6 @@ pub struct ChoicePosterior {
     pub observations: f64,
     /// The premise under which the posterior is unchanged by optional stopping.
     pub premise: &'static str,
-    /// The closed credible-interval and decision-reliability claim.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Conjugate Dirichlet posterior from pooled counts.
@@ -224,7 +222,6 @@ pub fn choice_posterior(
         expected_loss: posterior.expected_losses(&cancel).map_err(|e| numeric_error(&e))?,
         observations: counts.iter().sum(),
         premise: CHOICE_POSTERIOR_PREMISE,
-        guarantee: WithheldGuarantee::closed("choice_inference.posterior_interval_closed"),
     })
 }
 
@@ -240,7 +237,7 @@ pub struct ChoiceStoppingDecision {
     /// Whether the rule says stop.
     pub stop: bool,
     /// The closed claim about the rule's error rates.
-    pub guarantee: WithheldGuarantee,
+    pub guarantee: ClosedClaim,
 }
 
 fn decide(
@@ -265,7 +262,7 @@ fn decide(
         probability_best: p,
         expected_loss: expected_loss[best_option],
         stop: rule.assess(observed, probability_best, expected_loss).is_some(),
-        guarantee: WithheldGuarantee::closed("choice_inference.stopping_reliability_closed"),
+        guarantee: ClosedClaim::closed("choice_inference.stopping_reliability_closed"),
     })
 }
 
@@ -291,8 +288,6 @@ pub struct HierarchicalChoiceResult {
     pub observations: f64,
     /// What the posterior assumes.
     pub premise: &'static str,
-    /// The closed credible-interval and decision-reliability claim.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Hierarchical posterior of respondents' count vectors.
@@ -315,7 +310,6 @@ pub fn hierarchical_choice_posterior(
         respondents: posterior.respondents(),
         observations: respondents.iter().flatten().map(|c| f64::from(*c)).sum(),
         premise: HIERARCHICAL_PREMISE,
-        guarantee: WithheldGuarantee::closed("choice_inference.hierarchical_interval_closed"),
     })
 }
 
@@ -520,7 +514,7 @@ pub struct ChoiceOperatingCharacteristics {
     /// What these probabilities are.
     pub statement: &'static str,
     /// The closed claim that these are error rates of the procedure for any other truth.
-    pub guarantee: WithheldGuarantee,
+    pub guarantee: ClosedClaim,
 }
 
 /// What an operating characteristic is.
@@ -549,9 +543,7 @@ pub fn choice_operating_characteristics(
         horizon_probability: law.horizon_probability(),
         work_units: law.work_units,
         statement: OPERATING_CHARACTERISTICS_STATEMENT,
-        guarantee: WithheldGuarantee::closed(
-            "choice_inference.operating_characteristics_conditional",
-        ),
+        guarantee: ClosedClaim::closed("choice_inference.operating_characteristics_conditional"),
     })
 }
 
@@ -710,12 +702,10 @@ mod tests {
     }
 
     #[test]
-    fn the_posterior_reduces_to_the_beta_for_two_options_and_withholds_intervals() {
+    fn the_posterior_reduces_to_the_beta_for_two_options() {
         let p = choice_posterior(&[1.0, 1.0], &[7.0, 3.0], &ctx()).unwrap();
         assert_eq!(p.alpha, vec![8.0, 4.0]);
         assert!((p.probability_best.iter().sum::<f64>() - 1.0).abs() < 1e-9);
-        assert_eq!(p.guarantee.code, "not_supported");
-        assert!(p.guarantee.refusal("a credible interval").message.contains("not supported"));
     }
 
     #[test]

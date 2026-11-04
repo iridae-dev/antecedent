@@ -55,9 +55,7 @@ use antecedent_identify::{
 use antecedent_io::IoError;
 use antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits;
 use antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits;
-use antecedent_io::mz_transport_artifact::{
-    MZ_INTERVAL_NOT_SUPPORTED, MZ_WITHHELD, MzTransportConsumeLimits,
-};
+use antecedent_io::mz_transport_artifact::{MZ_NOMINAL_INTERVAL, MzTransportConsumeLimits};
 use antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits;
 use antecedent_io::transport_scenario_artifact::TransportScenarioConsumeLimits;
 
@@ -253,28 +251,26 @@ mod s1 {
             let id = RegimeId::from_raw(u32::try_from(k).unwrap());
             let measured: Vec<usize> =
                 (0..4).filter(|i| !do_.iter().any(|(v, _)| v == i)).collect();
-            regimes.push(
-                EvidenceRegime::try_new(
-                    id,
-                    if do_.is_empty() {
-                        RegimeKind::Observational
-                    } else {
-                        RegimeKind::Experimental
-                    },
-                    EvidenceKind::Available,
-                    do_.iter().map(|(v, _)| vid(*v)).collect::<Vec<_>>(),
-                    do_.iter()
-                        .map(|(v, l)| CoreIntervention {
-                            variable: vid(*v),
-                            value: Value::Bool(*l == 1),
-                        })
-                        .collect::<Vec<_>>(),
-                    measured.iter().map(|i| vid(*i)).collect::<Vec<_>>(),
-                    *population,
-                    DistributionAvailability::Joint,
-                )
-                .unwrap(),
-            );
+            let mut regime = EvidenceRegime::try_new(
+                id,
+                if do_.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental },
+                EvidenceKind::Available,
+                do_.iter().map(|(v, _)| vid(*v)).collect::<Vec<_>>(),
+                do_.iter()
+                    .map(|(v, l)| CoreIntervention {
+                        variable: vid(*v),
+                        value: Value::Bool(*l == 1),
+                    })
+                    .collect::<Vec<_>>(),
+                measured.iter().map(|i| vid(*i)).collect::<Vec<_>>(),
+                *population,
+                DistributionAvailability::Joint,
+            )
+            .unwrap();
+            // Each regime is its own counted table, so each is declared its own study: the
+            // joint bootstrap resamples them independently.
+            regime.study = Some(Arc::from(format!("{population}-{k}")));
+            regimes.push(regime);
             let snapshot = format!("{population}-{k}");
             bindings.push(binding(id, &snapshot));
             laws.push(
@@ -420,7 +416,7 @@ fn story_1_multi_source_limited_experiment_effect_requiring_complementary_source
             moved.contrasts()[0].estimate.to_bits(),
         );
 
-        // Counted laws: the point is returned, the unmeasured interval is withheld.
+        // Counted laws: the point is returned with the nominal interval and its calibration.
         let counted_prepared = StudyBuilder::mz_transport_empirical(
             graph,
             functional,
@@ -434,11 +430,8 @@ fn story_1_multi_source_limited_experiment_effect_requiring_complementary_source
         let counted_result = counted_prepared.estimate(&ctx).unwrap();
         assert!((risk_of(counted_result.distribution()) - truth(&P, 1)).abs() < 1e-9);
         let u = counted_result.uncertainty();
-        assert_eq!(
-            (u.status.as_str(), u.reason.as_str()),
-            (MZ_WITHHELD, MZ_INTERVAL_NOT_SUPPORTED)
-        );
-        assert!(!u.available() && u.mean_intervals.is_empty() && u.seed.is_none());
+        assert_eq!(u.status.as_str(), MZ_NOMINAL_INTERVAL);
+        assert!(u.available() && !u.mean_intervals.is_empty() && u.seed.is_some());
         let counted_bytes = counted_result.export(&counted_prepared, &ctx).unwrap();
         let counted_producer = bits(&counted_result.distribution().probabilities);
         (

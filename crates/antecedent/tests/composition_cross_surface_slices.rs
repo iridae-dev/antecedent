@@ -813,9 +813,7 @@ fn temporal_dependence_reloads_from_the_measured_artifact() {
                 consumed.report().scalars.iter().find(|item| item.name == "response").unwrap();
             assert_close(scalar.point, temporal.point, EXACT);
         }
-        Err(error) => {
-            assert!(error.to_string().contains("coverage_record_not_attesting"), "{error}");
-        }
+        Err(error) => panic!("the interval is reported with its calibration: {error}"),
     }
 }
 

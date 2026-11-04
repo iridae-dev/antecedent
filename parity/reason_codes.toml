@@ -218,7 +218,12 @@ meaning = "The requested refutation suite has no state to refute for this estima
 [[code]]
 id = "not_supported"
 applies_to = ["runtime_refusal"]
-meaning = "The support-matrix cell is refused: it is neither supported nor not-applicable."
+meaning = "The route is not supported: a release build refuses it with this code, a detail and the list of missing evidence; a development build runs it and the result lists the same entry under would_refuse."
+
+[[code]]
+id = "development_artifact"
+applies_to = ["runtime_refusal"]
+meaning = "The artifact was sealed by a development build (`build: development`), which runs routes a release build refuses; a release build does not consume it."
 
 [[code]]
 id = "cell_not_applicable"

@@ -1638,14 +1638,12 @@ class ParentSetEffect:
     def measure(self, *, execution: Execution | None = None) -> Any:
         """Replay the source and attest the interval from the current coverage records.
 
+        An interval no current attesting, non-boundary record measured at this variable count,
+        degree and analysis row count is still returned; its calibration says so.
+
         Returns:
             A :class:`antecedent.MeasuredInference` carrying the effect, its interval, the
             acceptance reason, the unresolved edges and the governing record.
-
-        Raises:
-            SelectiveDiscoveryRefusal: ``not_supported`` when no current attesting,
-                non-boundary record measured this construction at this variable count, degree
-                and analysis row count.
         """
         from ._measured_inference import MeasuredInference
 

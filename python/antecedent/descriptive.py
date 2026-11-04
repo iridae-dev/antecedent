@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
@@ -208,7 +208,12 @@ class DescriptiveComparison(ScientificResult):
 
 @dataclass(frozen=True, slots=True)
 class ReportingTransform:
-    """A mean pair on declared scales; ``claim`` is ``point_only`` and no interval exists.
+    """A mean pair on declared scales; ``claim`` is ``point_only``.
+
+    When a ``level`` was requested and the pair carries a covariance, ``intervals[i]`` is the
+    equal-tailed delta-method Wald interval of ``scales[i]`` on its declared scale (``None``
+    without a covariance), and ``interval_calibration`` is the calibration slot that annotates
+    it (never a gate).
 
     ``values[i]`` and ``gradients[i]`` (the row of the Jacobian with respect to the active
     and control means) belong to ``scales[i]``. ``covariance`` is the first-order delta-method
@@ -222,6 +227,8 @@ class ReportingTransform:
     gradients: tuple[tuple[float, float], ...]
     covariance: tuple[tuple[float, ...], ...] | None
     covariance_unavailable: tuple[str, str] | None
+    intervals: tuple[tuple[float, float] | None, ...] = ()
+    interval_calibration: Mapping[str, Any] | None = None
     claim: Literal["point_only"] = "point_only"
 
     def explain(self) -> str:
@@ -232,7 +239,7 @@ class ReportingTransform:
             tail = f"No covariance is available ({reason}); independence is never assumed."
         else:
             tail = "First-order delta-method covariance is available."
-        return f"Reporting transform of a mean pair: {pairs}. Point only, no interval. {tail}"
+        return f"Reporting transform of a mean pair: {pairs}. Point estimate. {tail}"
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe form of this transform."""
@@ -244,6 +251,10 @@ class ReportingTransform:
             "covariance_unavailable": None
             if self.covariance_unavailable is None
             else list(self.covariance_unavailable),
+            "intervals": [None if i is None else list(i) for i in self.intervals],
+            "interval_calibration": None
+            if self.interval_calibration is None
+            else dict(self.interval_calibration),
             "claim": self.claim,
         }
 
@@ -332,10 +343,16 @@ def _scales(scales: Sequence[str]) -> list[str]:
 
 def _transform(
     scales: list[str],
-    raw: tuple[list[float], list[tuple[float, float]], list[float] | None],
+    raw: tuple[
+        list[float],
+        list[tuple[float, float]],
+        list[float] | None,
+        list[tuple[float, float] | None],
+        str | None,
+    ],
     unavailable: tuple[str, str] | None,
 ) -> ReportingTransform:
-    values, gradients, covariance = raw
+    values, gradients, covariance, intervals, slot = raw
     k = len(values)
     rows = (
         None
@@ -348,6 +365,8 @@ def _transform(
         gradients=tuple((g[0], g[1]) for g in gradients),
         covariance=rows,
         covariance_unavailable=unavailable if rows is None else None,
+        intervals=tuple(None if i is None else (i[0], i[1]) for i in intervals),
+        interval_calibration=None if slot is None else json.loads(slot),
     )
 
 
@@ -376,8 +395,9 @@ def transform_mean_pair(
     """Put a pair of arm means on declared scales, with the delta-method covariance if carried.
 
     ``covariance`` is the ``2 x 2`` joint covariance of ``(mean_active, mean_control)`` exactly
-    as the source estimate published it; ``None`` is not read as independence. ``level`` exists
-    only so that asking for an interval is a typed refusal (``not_supported``).
+    as the source estimate published it; ``None`` is not read as independence. ``level`` asks for
+    the delta-method Wald interval of each scale (``intervals``) with its calibration slot; it
+    needs a covariance.
 
     ``risk_difference`` needs both means in ``[0, 1]``, ``log_risk_ratio`` both means positive and
     ``log_odds_ratio`` both inside ``(0, 1)``; outside that the call is refused.
@@ -388,7 +408,7 @@ def transform_mean_pair(
         float(mean_control),
         names,
         covariance=_covariance_triple(covariance),
-        interval=level is not None,
+        level=None if level is None else float(level),
     )
     return _transform(names, raw, _JOINT_COVARIANCE_UNAVAILABLE)
 
@@ -413,7 +433,7 @@ def raw_reporting_transform(
         _floats("outcome", outcome),
         _floats("treatment", treatment),
         names,
-        interval=level is not None,
+        level=None if level is None else float(level),
         cancel=execution.cancel,
     )
     return _transform(names, raw, ("invalid_argument", "descriptive_comparison.arm_too_small"))

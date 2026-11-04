@@ -14,7 +14,6 @@ use antecedent_io::temporal_recalc_artifact::{TemporalHistoryWire, TemporalUnitW
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
-#[cfg(feature = "calibration-internal")]
 mod candidate;
 
 /// Numbers carried by one history window: its time id and five binary states.
@@ -102,7 +101,7 @@ fn error(error: &TemporalRunError) -> String {
             refusal_json(
                 antecedent_core::reason_code!("not_supported"),
                 "inference",
-                "temporal_interval.route_frozen",
+                "temporal_interval.interval_not_supported",
                 None,
                 None,
                 &error.to_string(),
@@ -115,7 +114,7 @@ fn error(error: &TemporalRunError) -> String {
             refusal_json(
                 antecedent_core::reason_code!("not_supported"),
                 "inference",
-                "temporal_interval.route_frozen",
+                "temporal_interval.interval_not_supported",
                 None,
                 None,
                 &error.to_string(),
@@ -281,7 +280,7 @@ fn error(error: &TemporalRunError) -> String {
         ) if *code == "not_supported" => refusal_json(
             antecedent_core::reason_code!("not_supported"),
             "inference",
-            "temporal_interval.route_frozen",
+            "temporal_interval.interval_not_supported",
             None,
             None,
             &error.to_string(),
@@ -441,7 +440,6 @@ impl PyTemporalSession {
             Err(cause) => Ok((None, None, None, Some(error(&cause)))),
         })
     }
-    #[cfg(feature = "calibration-internal")]
     #[pyo3(signature=(config_json,*,memory_limit_bytes=None,cancel=None))]
     fn interval_candidate(
         &self,
@@ -501,13 +499,12 @@ impl PyTemporalSession {
         error(&TemporalRunError::Io(antecedent_io::IoError::Refused {
             code: antecedent_core::reason_code!("not_supported"),
             message:
-                "temporal_interval.route_frozen: use the measured original-source interval entry"
+                "temporal_interval.interval_not_supported: use the measured original-source interval entry"
                     .into(),
         }))
     }
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    #[cfg(feature = "calibration-internal")]
     candidate::register(module)?;
     module.add_class::<PyTemporalSession>()
 }

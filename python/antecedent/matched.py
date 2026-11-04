@@ -1,4 +1,4 @@
-"""Conditional odds ratio from matched case-control sets (point only).
+"""Conditional odds ratio from matched case-control sets.
 
 The data are matched sets sampled on the outcome: each stratum holds one or more
 cases and their matched controls, with a binary exposure. The one estimand is the
@@ -11,6 +11,11 @@ Sets that cannot inform the odds ratio are counted, never silently dropped: sets
 with no case or no control (singletons included) and sets whose members all share
 one exposure value contribute nothing to the likelihood.
 
+``level=...`` adds the Wald interval of the odds ratio (``interval``) with its calibration
+slot (``interval_calibration``). No coverage record measures the construction, so the slot
+status is ``not_measured``; the interval is reported regardless and is not part of the
+exported artifact.
+
 ``result.export()`` writes a JSON artifact carrying the set-shape sufficient statistic
 and a digest; :func:`replay_matched_case_control` rebuilds the sets from it and
 recomputes the estimate and counts bit for bit.
@@ -20,8 +25,7 @@ Refused, with a registered reason code:
 * any risk-scale estimand (``population_risk``, ``absolute_risk``, ``risk_difference``,
   ``risk_ratio``): ``effect_not_identified``, because the case fraction is fixed by the
   design and no prevalence or selection information is taken;
-* an interval (``level=...``): ``not_supported``, because the asymptotic
-  conditions of a Wald interval are not measured by any coverage record;
+* a ``level`` outside ``(0, 1)``: ``invalid_argument``;
 * a set collection with no informative set (``effect_not_identified``) or whose
   conditional likelihood has no finite maximizer (``route_not_supported``).
 """
@@ -29,7 +33,7 @@ Refused, with a registered reason code:
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -78,7 +82,12 @@ class MatchedSetCounts:
 
 @dataclass(frozen=True, slots=True)
 class MatchedCaseControlResult(ScientificResult):
-    """The conditional odds ratio; ``claim`` is ``point_only`` and no interval exists.
+    """The conditional odds ratio, with an optional Wald ``interval`` and its calibration slot.
+
+    ``interval`` is ``(lower, upper)`` of the odds ratio at ``interval_level`` when a level
+    was requested, ``None`` otherwise; ``interval_calibration`` is its calibration slot
+    (``status`` is ``not_measured`` until a coverage record measures the construction).
+    The exported artifact carries the point and counts only.
 
     ``set_types`` is the sufficient statistic of the declared sets: one
     ``(members, cases, exposed, exposed_cases, sets)`` row per distinct set shape,
@@ -92,6 +101,9 @@ class MatchedCaseControlResult(ScientificResult):
     estimand: str = "conditional_odds_ratio"
     sampling: str = "matched_case_control"
     claim: str = "point_only"
+    interval: tuple[float, float] | None = None
+    interval_level: float | None = None
+    interval_calibration: Mapping[str, Any] | None = None
 
     @property
     def identity(self) -> str:
@@ -169,8 +181,8 @@ def matched_case_control_odds_ratio(
 
     ``stratum``, ``case`` (1 = case, 0 = control) and ``exposed`` (1 = exposed) are
     parallel row sequences; non-missing stratum labels are compared as their ``str``. ``sampling``
-    must be ``"matched_case_control"`` (sets sampled on the outcome). ``level`` exists
-    only so that asking for an interval is a typed refusal.
+    must be ``"matched_case_control"`` (sets sampled on the outcome). A ``level`` in ``(0, 1)``
+    adds the odds-ratio Wald interval with its calibration slot.
     """
     execution = resolve_execution(execution)
     labels = []
@@ -186,10 +198,10 @@ def matched_case_control_odds_ratio(
         exposed_values,
         sampling=sampling,
         estimand=estimand,
-        interval=level is not None,
+        level=level,
         cancel=execution.cancel,
     )
-    log_or, odds_ratio, total, informative, concordant, degenerate, singleton = estimate
+    log_or, odds_ratio, total, informative, concordant, degenerate, singleton, bounds = estimate
     return MatchedCaseControlResult(
         set_types=_set_types(labels, case_values, exposed_values),
         odds_ratio=odds_ratio,
@@ -201,6 +213,9 @@ def matched_case_control_odds_ratio(
             outcome_degenerate=degenerate,
             singleton=singleton,
         ),
+        interval=None if bounds is None else (bounds[0], bounds[1]),
+        interval_level=None if bounds is None else level,
+        interval_calibration=None if bounds is None else json.loads(bounds[2]),
     )
 
 

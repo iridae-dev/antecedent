@@ -411,7 +411,7 @@ impl AdmgConditionalArtifactWire {
             return Err(AdmgConditionalArtifactError::LimitsExceeded("search limits").into());
         }
         if input.data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-            return Err(AdmgConditionalArtifactError::IntervalWithheld.into());
+            return Err(AdmgConditionalArtifactError::CountedLawsUnsupported.into());
         }
         let derivation = input.functional.derivation();
         let laws = canonical_laws(input.data)?;
@@ -505,7 +505,7 @@ impl AdmgConditionalArtifactWire {
         if self.uncertainty != ADMG_CONDITIONAL_POINT_ONLY
             || self.laws.iter().any(|law| law.empirical_counts.is_some())
         {
-            return Err(AdmgConditionalArtifactError::IntervalWithheld);
+            return Err(AdmgConditionalArtifactError::CountedLawsUnsupported);
         }
         if self.requests.is_empty() || self.results.len() != self.requests.len() {
             return Err(unsupported("one point result per request"));

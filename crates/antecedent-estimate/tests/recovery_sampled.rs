@@ -18,7 +18,7 @@ use antecedent_core::{EvidenceCatalog, ExecutionContext, RegimeBinding};
 use antecedent_estimate::{
     ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
     SampledRecoveryDetail, derive_sampled_recovery, estimate_sampled_recovery,
-    refuse_component_variance_only, replay_sampled_recovery, sampled_recovery_route_frozen,
+    refuse_component_variance_only, replay_sampled_recovery,
 };
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
@@ -313,7 +313,7 @@ fn unrecoverable_pattern_bounds_and_malformed_inputs_refuse() {
         estimate_sampled_recovery(&derivation, data, config, &ctx()).unwrap_err()
     };
     let good = input(rows.clone());
-    let error = run(&good, &SampledRecoveryConfig::new(5, 1));
+    let error = run(&good, &SampledRecoveryConfig::new(1, 1));
     assert_eq!(error.detail, SampledRecoveryDetail::InvalidInput);
     assert_eq!(error.reason_code(), "invalid_argument");
     let mut duplicated = rows.clone();
@@ -393,10 +393,6 @@ fn sampled_recovery_replay_component_variance_only_and_route_frozen_refuse() {
     assert_eq!(error.detail.detail(), "sampled_recovery.component_variance_only");
     assert_eq!(error.reason_code(), "not_supported");
     assert!(error.message.contains('3'), "{error}");
-    let frozen = sampled_recovery_route_frozen();
-    assert_eq!(frozen.detail, SampledRecoveryDetail::RouteFrozen);
-    assert_eq!(frozen.detail.detail(), "sampled_recovery.route_frozen");
-    assert_eq!(frozen.reason_code(), "not_supported");
 }
 
 // Independent inverse-response/standardization formula for this fixture only.
@@ -522,7 +518,7 @@ fn sampled_bca_refuses_protocol_changes_and_delete_one_support_boundary() {
     let model = model();
     let derivation = derive(&model);
     let mut config = SampledRecoveryConfig::bca(1);
-    config.replicates = 500;
+    config.replicates = 1;
     assert_eq!(
         estimate_sampled_recovery(&derivation, &input(seeded_rows(2000, 8123)), &config, &ctx())
             .unwrap_err()

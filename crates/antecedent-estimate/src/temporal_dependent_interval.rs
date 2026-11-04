@@ -20,9 +20,10 @@
 //! higher-order claim nor a finite-sample guarantee; lattice, degenerate,
 //! unbalanced and unsupported designs need their own methods/evidence.
 //!
-//! Calibration of this interval is **unmeasured**: it is implemented and
-//! reproducible but makes no coverage claim, and the public route stays closed
-//! (see [`route_frozen_refusal`]) until the whole-method grid has been measured.
+//! The interval is reported with a calibration annotation resolved from
+//! [`DependentInterval::calibration_basis`]; calibration never withholds it. Its
+//! bootstrap-t scores, standard errors, pivots and endpoints are checked against a
+//! multiprecision construction in `temporal_dependent_interval_reference.rs`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -49,8 +50,6 @@ pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_unmeasured";
 /// Calibration status of this engine.
 pub const INTERVAL_CALIBRATION_STATUS: &str = "unmeasured";
 
-/// Detail: the public interval route is closed.
-pub(crate) const TEMPORAL_INTERVAL_ROUTE_FROZEN: &str = "temporal_interval.route_frozen";
 /// Detail: unit ownership, time order or dependence is absent or incompatible.
 pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str = "temporal_interval.unknown_units";
 /// Detail: too few repeated units for a dependent interval.
@@ -62,17 +61,6 @@ pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str = "temporal_interval.too_m
 /// Refusal detail: more units than the bootstrap-t is certified for.
 pub(crate) const TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED: &str =
     "temporal_interval.studentized_bounds_exceeded";
-
-/// The refusal of the public interval route while its calibration is unmeasured.
-#[must_use]
-pub fn route_frozen_refusal() -> EstimationError {
-    EstimationError::refused_detail(
-        reason_code!("not_supported"),
-        TEMPORAL_INTERVAL_ROUTE_FROZEN,
-        "a dependent-sampling interval is requested before its whole-method grid and artifact \
-         gate pass",
-    )
-}
 
 fn unknown_units(message: impl AsRef<str>) -> EstimationError {
     EstimationError::refused_detail(

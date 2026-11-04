@@ -109,7 +109,7 @@ fn the_account_is_the_enumerated_spread_bound_to_its_execution() {
 
     // The reading stays closed: a spread is a labelled diagnostic, never an interval.
     assert!(sealed.interval().is_err());
-    assert_eq!(sealed.posterior().unwrap_err().code, "not_supported");
+    assert_eq!(sealed.posterior().unwrap_err().code, "uncertainty_representation_insufficient");
 }
 
 #[test]
@@ -156,4 +156,29 @@ fn undeclared_unit_sampling_is_refused_with_its_remedy() {
     assert_eq!(refusal.code, "sampling_dependence_unknown");
     assert_eq!(refusal.detail, "cross_world_uncertainty.unit_sampling_undeclared");
     assert!(refusal.remedy.is_some());
+}
+
+/// Independent construction check of the whole-path interval: the endpoints equal the hand
+/// closed form on the three-unit fixture (point 169/210; sampling variance of the mean
+/// 2526/264600 with Student t on 2 degrees of freedom, t(0.975, 2) = 4.302652729911275;
+/// fixed-unit predictive variance 2029/44100 with the normal quantile 1.959963984540054).
+#[test]
+fn the_measured_interval_endpoints_equal_the_hand_closed_form() {
+    let sealed = CrossWorldExecution::seal(&three_units(), &ctx()).unwrap();
+    let point = 169.0 / 210.0;
+
+    let sampled = sealed.measured_interval(UnitSampling::IndependentSample, &ctx()).unwrap();
+    let half = 4.302_652_729_911_275 * (2526.0_f64 / 264_600.0).sqrt();
+    assert!((sampled.point - point).abs() < TOL);
+    assert!((sampled.lower - (point - half)).abs() < 1e-9, "{}", sampled.lower);
+    assert!((sampled.upper - (point + half)).abs() < 1e-9, "{}", sampled.upper);
+    assert!((sampled.level - 0.95).abs() < TOL);
+
+    let fixed = sealed.measured_interval(UnitSampling::FixedUnits, &ctx()).unwrap();
+    let half = 1.959_963_984_540_054 * (2029.0_f64 / 44_100.0).sqrt();
+    assert!((fixed.lower - (point - half)).abs() < 1e-9, "{}", fixed.lower);
+    assert!((fixed.upper - (point + half)).abs() < 1e-9, "{}", fixed.upper);
+
+    // Calibration annotates the interval; it is reported whatever the record says.
+    assert_eq!(sampled.record_id, sampled.calibration.record_id);
 }

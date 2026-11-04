@@ -183,10 +183,13 @@ def test_another_estimand_is_not_supported():
     assert "matched_case_control.estimand_not_supported" in str(error)
 
 
-def test_an_interval_is_withheld_with_a_typed_refusal():
-    error = refusal(lambda: fit(pairs(7, 3), level=0.95))
-    assert error.reason_code == "not_supported"
-    assert "matched_case_control.interval_withheld" in str(error)
+def test_an_interval_is_reported_with_its_calibration_status():
+    result = fit(pairs(7, 3), level=0.95)
+    lower, upper = result.interval
+    assert result.interval_level == 0.95
+    assert lower < result.odds_ratio < upper
+    assert result.interval_calibration["status"] == "not_measured"
+    assert fit(pairs(7, 3)).interval is None
 
 
 def test_the_sampling_design_must_be_declared_and_be_the_matched_design():

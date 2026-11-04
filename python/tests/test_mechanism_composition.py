@@ -572,10 +572,11 @@ def test_unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim():
     assert error.reason_code == "joint_law_required"
     assert error.details == ("mechanism_composition.posterior_dependence_unknown",)
     assert error.remedy
-    # The interval route is closed regardless, typed.
-    closed = refusal_of(composition.interval)
-    assert closed.reason_code == "not_supported"
-    assert closed.details == ("mechanism_composition.interval_route_closed",)
+    # The interval needs the same joint law, so it refuses the same way.
+    unbounded = refusal_of(
+        lambda: composition.interval(mc.MeanContrast.mean_at("Y", {"X": 2.0}), 0.95)
+    )
+    assert unbounded.reason_code == "joint_law_required"
 
     # Independence declared over shared evidence is contradicted, not accepted.
     shared = uncertain_chain()

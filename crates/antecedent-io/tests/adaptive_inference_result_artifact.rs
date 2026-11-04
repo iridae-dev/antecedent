@@ -264,7 +264,7 @@ fn a_fresh_consumer_sees_the_procedure_rule_and_paradigm_and_recomputes_the_valu
         StoppingSpec::PosteriorProbabilityBest { threshold: 0.95 }
     );
     close(consumed.result().values[10], 0.999_708_624_708_624_8, 1e-9, "recomputed");
-    assert_eq!(consumed.result().closed_guarantee, "adaptive_inference.posterior_interval_closed");
+    assert_eq!(consumed.result().closed_claim, None);
     // Deterministic, and accepted against its own retained identity.
     assert_eq!(
         Artifact::to_bytes(&source, &posterior(1), "adaptive-result", &ctx()).unwrap(),

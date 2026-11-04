@@ -42,7 +42,7 @@ def main():
     try:
         claim.interval()
     except jl.JointLawPropagationRefusal as error:
-        assert error.reason_code == "not_supported"
+        assert error.reason_code == "uncertainty_representation_insufficient"
         print("Interval refusal:", error.reason_code, error.detail, error.remedy)
     else:
         raise AssertionError("A point-only mixture supplied an interval")

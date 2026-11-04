@@ -8,7 +8,7 @@
 
 pub use antecedent_io_core::sensitivity_artifact::{
     ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
-    DecisionSwitch, IdentifiedBound, JointFactorView, JointSensitivityView,
+    DecisionSwitch, IdentifiedBound, JointFactorView, JointSamplingView, JointSensitivityView,
     MAX_SENSITIVITY_ACTIONS, MAX_SENSITIVITY_ARTIFACT_BYTES, MAX_SENSITIVITY_GRID_POINTS,
     MAX_SENSITIVITY_QUANTITIES, MAX_SENSITIVITY_SCENARIO_EVALUATIONS,
     MAX_SENSITIVITY_UTILITY_DEPTH, NoRobustReason, PointInput, PointLeaders, PointSupport,
@@ -20,8 +20,8 @@ pub use antecedent_io_core::sensitivity_artifact::{
 };
 pub use antecedent_validate::{
     AxisTipping, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
-    JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
-    JointSensitivityUncertainty, TippingBracket, TippingStatus,
+    JointSensitivityInterval, JointSensitivityLimits, JointSensitivityRange,
+    JointSensitivityReceipt, JointSensitivityUncertainty, TippingBracket, TippingStatus,
 };
 
 #[cfg(feature = "test-util")]

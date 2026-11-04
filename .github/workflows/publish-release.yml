@@ -276,6 +276,14 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
+      - name: Published crates resolve without the development feature
+        run: |
+          set -euo pipefail
+          if cargo tree -e features -p antecedent -p antecedent-py | grep -q development; then
+            echo "::error::the development feature is enabled in a release resolution"
+            exit 1
+          fi
+
       - name: Dry-run publish of every crate
         run: bash scripts/publish_crates.sh --dry-run
 
@@ -303,6 +311,14 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Published crates resolve without the development feature
+        run: |
+          set -euo pipefail
+          if cargo tree -e features -p antecedent -p antecedent-py | grep -q development; then
+            echo "::error::the development feature is enabled in a release resolution"
+            exit 1
+          fi
 
       - name: Publish (dry-run when no token is configured)
         env:

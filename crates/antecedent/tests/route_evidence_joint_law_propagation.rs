@@ -381,7 +381,10 @@ fn a_dependence_envelope_ranges_over_every_coupling_of_two_marginals() {
     near(variance.value("linear_variance_lower").expect("lower"), 0.1875);
     near(variance.value("linear_variance_upper").expect("upper"), 0.6875);
     // The envelope is never read as an interval.
-    assert_eq!(product.interval().expect_err("closed").code(), "not_supported");
+    assert_eq!(
+        product.interval().expect_err("closed").code(),
+        "uncertainty_representation_insufficient"
+    );
 }
 
 #[test]

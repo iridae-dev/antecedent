@@ -40,6 +40,7 @@
 mod axis;
 mod bridge;
 mod cell;
+mod gate;
 mod matrix;
 mod matrix_data;
 
@@ -65,9 +66,9 @@ pub use cell::{
 };
 pub(crate) use matrix::retarget_permitted;
 pub use matrix::{
-    cell_coordinate, classify, classify_estimator, refuse_if_not_applicable, refused_message,
-    support_cell_from_coordinate, supported_cells, supported_estimators, supported_neighbors,
-    supported_route_estimator,
+    cell_coordinate, classify, classify_estimator, refuse_if_not_applicable,
+    refuse_if_not_applicable_in, refused_message, support_cell_from_coordinate, supported_cells,
+    supported_estimators, supported_neighbors, supported_route_estimator,
 };
 
 /// The execute-side graphless support handshake: return

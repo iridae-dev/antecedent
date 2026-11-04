@@ -181,54 +181,59 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
     half = 1.959963984540054 * math.sqrt(1.61)
     assert interval.lower == pytest.approx(-0.7 - half, abs=1e-6)
     assert interval.upper == pytest.approx(-0.7 + half, abs=1e-6)
-    # Another construction or a smaller evidence size has no attesting record.
-    with pytest.raises(R) as error:
-        require_success(
-            claim.check_composed_interval(
-                "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
-            )
+    assert interval.calibration["status"] == "calibrated"
+    # Another construction or a smaller evidence size has no attesting record: the support is
+    # reported and its calibration says so.
+    other = require_success(
+        claim.check_composed_interval(
+            "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
         )
-    assert error.value.reason_code == "not_supported"
-    assert error.value.detail == "joint_law_propagation.interval_route_closed"
-    with pytest.raises(R) as error:
-        require_success(claim.check_composed_interval("normal_approximation", evidence_rows=100))
-    assert error.value.detail == "joint_law_propagation.coverage_record_unmeasured"
-    assert error.value.remedy
+    )
+    assert other.calibration["status"] != "calibrated"
+    assert other.lower is None and other.upper is None
+    smaller = require_success(
+        claim.check_composed_interval("normal_approximation", evidence_rows=100)
+    )
+    assert smaller.calibration["status"] != "calibrated"
+    assert smaller.lower is not None and smaller.upper is not None
     with pytest.raises(CausalValueError):
         require_success(claim.check_composed_interval("normal_approximation", evidence_rows=0))
 
-    # Component-interval and posterior readings stay closed.
+    # The unqualified interval reading stays refused: it names no construction.
     with pytest.raises(R) as error:
         claim.interval()
+    assert error.value.reason_code == "uncertainty_representation_insufficient"
     assert error.value.detail == "joint_law_propagation.interval_route_closed"
     with pytest.raises(TypeError, match="evidence_rows"):
         require_success(claim.check_composed_interval("normal_approximation"))  # type: ignore[call-arg]
 
 
-def test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record() -> None:
+def test_a_composed_interval_is_annotated_when_its_coordinate_has_no_attesting_record() -> None:
     x, y = _pair("snap-enum")
     claim = require_success(jl.aligned_linear_spread("contrast", (1.0, -1.0), x, y))
     assert claim.coordinate_id() == "contrast|aligned_joint_law|estimate,estimate"
-    # Below the measured evidence size no record covers the composed coordinate.
-    with pytest.raises(R) as error:
-        require_success(claim.check_composed_interval("normal_approximation", evidence_rows=100))
-    assert error.value.reason_code == "not_supported"
-    assert error.value.detail == "joint_law_propagation.coverage_record_unmeasured"
-    assert error.value.remedy
-    # Another construction is not a measured route of this coordinate.
-    with pytest.raises(R) as error:
-        require_success(
-            claim.check_composed_interval(
-                "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
-            )
+    # Below the measured evidence size no record covers the composed coordinate: the interval is
+    # reported and its calibration is not `calibrated`.
+    interval = require_success(
+        claim.check_composed_interval("normal_approximation", evidence_rows=100)
+    )
+    assert interval.calibration["status"] != "calibrated"
+    half = 1.959963984540054 * math.sqrt(1.61)
+    assert interval.lower == pytest.approx(-0.7 - half, abs=1e-6)
+    assert interval.upper == pytest.approx(-0.7 + half, abs=1e-6)
+    # Another construction names the aligned draws; it is annotated the same way.
+    other = require_success(
+        claim.check_composed_interval(
+            "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
         )
-    assert error.value.reason_code == "not_supported"
-    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+    )
+    assert other.calibration["status"] != "calibrated"
     with pytest.raises(CausalValueError):
         require_success(claim.check_composed_interval("normal_approximation", evidence_rows=0))
-    # Component-interval readings stay closed.
+    # The unqualified interval reading stays refused: it names no construction.
     with pytest.raises(R) as error:
         claim.interval()
+    assert error.value.reason_code == "uncertainty_representation_insufficient"
     assert error.value.detail == "joint_law_propagation.interval_route_closed"
 
 

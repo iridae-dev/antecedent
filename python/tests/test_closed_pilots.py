@@ -58,12 +58,14 @@ def joint_kwargs(**overrides):
     return kwargs
 
 
-def test_joint_bayesian_route_is_closed_with_not_supported():
+def test_joint_bayesian_in_scope_request_without_identification_asks_for_it():
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs()))
-    assert_refused(error, "not_supported", "bayesian_transport.route_frozen")
+    assert_refused(
+        error, "transport_missing_evidence", "bayesian_transport.identification_required"
+    )
 
 
-def test_joint_bayesian_adjacent_graph_refuses_before_the_frozen_route():
+def test_joint_bayesian_adjacent_graph_refuses_before_the_producer():
     adjacent = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")], [("x", "y")])
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(graph=adjacent)))
     assert_refused(error, "route_not_supported", "bayesian_transport.unsupported_graph")
@@ -71,10 +73,12 @@ def test_joint_bayesian_adjacent_graph_refuses_before_the_frozen_route():
         lambda: transport.joint_bayesian_transport(**joint_kwargs(graph_class="graph_posterior"))
     )
     assert_refused(error, "route_not_supported", "bayesian_transport.unsupported_graph")
-    # A graph without a bidirected edge stays a fixed DAG: the frozen refusal, not the scope one.
+    # A graph without a bidirected edge stays a fixed DAG: in scope, so it asks for identification.
     dag = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")])
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(graph=dag)))
-    assert_refused(error, "not_supported", "bayesian_transport.route_frozen")
+    assert_refused(
+        error, "transport_missing_evidence", "bayesian_transport.identification_required"
+    )
 
 
 def test_joint_bayesian_scope_refusals_carry_their_own_details():
@@ -123,11 +127,15 @@ def test_joint_bayesian_validates_its_arguments_as_typed_errors():
 # ------------------------------------------------------------------ A3 nested Markov
 
 
-def test_nested_bayesian_below_measured_row_range_cannot_borrow_fisher_evidence():
-    error = refusal_of(
-        lambda: transport.binary_nested_markov(graph=verma(), regimes=[observational()])
-    )
-    assert_refused(error, "not_supported", "sample_size_outside_measured_range")
+def test_nested_bayesian_below_measured_row_range_is_annotated_not_borrowed():
+    from antecedent.inference import MeasuredInference
+
+    result = transport.binary_nested_markov(graph=verma(), regimes=[observational()])
+    assert isinstance(result, MeasuredInference)
+    assert [scalar.name for scalar in result.scalars] == ["mean0", "mean1", "contrast"]
+    for scalar in result.scalars:
+        assert scalar.calibration != "calibrated"
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
 
 
 @pytest.mark.requires_calibration
@@ -263,16 +271,15 @@ def test_sampled_recovery_zero_support_and_native_nonrecoverability_refuse():
 
 
 def test_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
-    error = refusal_of(
-        lambda: transport.sampled_observation_recovery(**sampled_kwargs(replicates=5000)),
-        CausalValueError,
-    )
-    assert "exactly 2000" in str(error)
-    error = refusal_of(
-        lambda: transport.sampled_observation_recovery(**sampled_kwargs(replicates=5)),
-        CausalValueError,
-    )
-    assert "exactly 2000" in str(error)
+    # Any replicate count of at least two runs; a count the grid did not measure is annotated.
+    fewer = transport.sampled_observation_recovery(**sampled_kwargs(replicates=500))
+    assert fewer.calibration != "calibrated"
+    with pytest.raises(CausalValueError, match="at least 2"):
+        transport.sampled_observation_recovery(**sampled_kwargs(replicates=1))
+    # The sealed artifact carries at most 2000 replicates: a larger count is a resource bound of
+    # the export, not a measured-scope refusal.
+    with pytest.raises(CausalValueError, match="export bounds"):
+        transport.sampled_observation_recovery(**sampled_kwargs(replicates=2500))
     # A proxy value with no response is a pattern the proxy model excludes.
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=[(0, 0, 1, 0)])),
@@ -323,14 +330,16 @@ def test_scoped_pilot_routes_are_exported_from_the_advanced_namespace():
         assert callable(getattr(transport, name))
 
 
-def test_sampled_bca_default_rejects_below_measured_rows_and_distinct_method():
+def test_sampled_bca_default_annotates_below_measured_rows_and_rejects_distinct_method():
     values = sampled_kwargs()
     values.pop("replicates")
     values.pop("interval_method")
-    error = refusal_of(lambda: transport.sampled_observation_recovery(**values))
-    assert_refused(error, "not_supported", "sampled_recovery.protocol_not_measured")
-    with pytest.raises(CausalValueError, match="exactly 2000"):
-        transport.sampled_observation_recovery(**values, replicates=500)
+    # Fewer rows than the measured range still report the interval; calibration annotates it.
+    reported = transport.sampled_observation_recovery(**values)
+    assert reported.calibration != "calibrated"
+    # Another replicate count is computed; calibration annotates it as not measured.
+    other = transport.sampled_observation_recovery(**values, replicates=500)
+    assert other.calibration != "calibrated"
     with pytest.raises(CausalValueError, match="interval_method"):
         transport.sampled_observation_recovery(**values, interval_method="percentile_alias")
 

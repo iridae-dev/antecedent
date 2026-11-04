@@ -181,10 +181,11 @@ def test_unknown_dependence_refuses_the_variance_but_not_the_point(sources, targ
     assert caught.value.details == ("typed_mechanism_transport.parameter_dependence_unknown",)
 
 
-def test_the_interval_route_is_closed(transported) -> None:
-    with pytest.raises(tmt.TypedMechanismRefusal) as caught:
-        transported.interval()
-    assert caught.value.reason_code == "not_supported"
+def test_the_interval_carries_its_calibration_status(transported) -> None:
+    contrast = level("demand", 1.0)
+    interval = transported.interval(contrast, draws=5_000)
+    assert interval.lower < interval.point < interval.upper
+    assert interval.calibration["status"] == "not_measured"
 
 
 def test_identity_is_verified_only_against_what_it_re_derives(

@@ -228,11 +228,12 @@ def test_second_click_refuter_suite_refuses(query):
 def test_bootstrap_and_validation_follow_each_attribution_cell(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
     # A Frequentist replicate count runs the mechanism-refit row bootstrap: it publishes
-    # a bootstrap standard error and the result is unsupported.
+    # a bootstrap standard error; calibration annotates it as not covered by a coverage record.
     bootstrapped = require_success(
         ant.analyze(data, graph=_dag(), query=query, inference=ant.Frequentist(bootstrap=50))
     )
-    assert bootstrapped.evidence_status != "supported"
+    assert bootstrapped.evidence_status == "supported"
+    assert bootstrapped.calibration.status != "calibrated"
     assert any("gcm.frequentist_bootstrap" in note for note in bootstrapped.diagnostics)
     # Bayesian contribution uncertainty uses its own posterior declaration;
     # a frequentist replicate budget is not a Bayesian configuration field.

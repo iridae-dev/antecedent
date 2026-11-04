@@ -307,7 +307,9 @@ def test_a_transport_is_verified_only_against_the_identity_it_re_derives(
 # ------------------------------------------------------------------------------ uncertainty
 
 
-def test_variance_is_parameter_only_scoped_and_has_no_interval(source_gcm, target_gcm) -> None:
+def test_variance_is_parameter_only_scoped_and_reports_its_interval_uncalibrated(
+    source_gcm, target_gcm
+) -> None:
     source = source_composition(source_gcm, uncertain=True)
     transported = source.transport_to(
         transport(
@@ -333,9 +335,12 @@ def test_variance_is_parameter_only_scoped_and_has_no_interval(source_gcm, targe
     assert value.standard_error == pytest.approx(np.sqrt(variance), abs=1e-8)
     assert value.scope == SCOPE
     assert value.method == "first_order_delta_method"
-    closed = refusal_of(transported.interval)
-    assert closed.reason_code == "not_supported"
-    assert closed.detail == "mechanism_transport.interval_route_closed"
+    interval = transported.interval(contrast, 0.95)
+    half = 1.959963984540054 * np.sqrt(variance)
+    assert interval.point == pytest.approx(value.point, abs=TOL)
+    assert interval.lower == pytest.approx(value.point - half, abs=1e-8)
+    assert interval.upper == pytest.approx(value.point + half, abs=1e-8)
+    assert interval.calibration["status"] == "not_measured"
 
 
 def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(

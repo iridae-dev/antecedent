@@ -530,7 +530,7 @@ fn counted_laws_are_refused_by_the_estimate_level_preparation() {
     .unwrap_err();
     let EstimationError::Refused { code, message } = error else { panic!("typed refusal") };
     assert_eq!(code, "not_supported");
-    assert!(message.starts_with("admg_transport.interval_withheld"), "{message}");
+    assert!(message.starts_with("admg_transport.counted_laws_unsupported"), "{message}");
 }
 
 #[test]

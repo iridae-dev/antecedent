@@ -6,8 +6,7 @@ default = "closed"
 [[routes]]
 route = "antecedent.treatment.categorical_effects.posterior_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "A bounded prior-predictive candidate is registered; posterior intervals remain withheld until supported."
 
 [[routes]]
@@ -20,8 +19,7 @@ notes = "The combined imputation and graph-selection procedure lacks a source-bo
 [[routes]]
 route = "antecedent.sensitivity.mnar_sensitivity.sampling_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "The conditional sampling interval and its excludes-null conclusions remain withheld pending support."
 
 [[routes]]
@@ -808,7 +806,7 @@ graph = "finite_supplied_latent_confounded_selection_admg_scenarios_within_the_c
 evidence = "catalog_bound_exact_laws_per_scenario"
 functional = "per_scenario_target_conditional_interventional_distribution"
 guarantee = "each_identified_scenario_compiled_once_through_the_b1_exact_prepared_path"
-limits = "Exact finite laws only (counted laws refuse not_supported / admg_transport.interval_withheld); the request binds exactly the treatments and the conditioned variables (admg_transport.invalid_request); a zero-mass conditioning event is that scenario's support_failure. Points only; the envelope, masses, receipt and artifact (format v2) belong to the scenario envelope."
+limits = "Exact finite laws only (counted laws refuse not_supported / admg_transport.counted_laws_unsupported); the request binds exactly the treatments and the conditioned variables (admg_transport.invalid_request); a zero-mass conditioning event is that scenario's support_failure. Points only; the envelope, masses, receipt and artifact (format v2) belong to the scenario envelope."
 evidence_test = "crates/antecedent/tests/transport_scenarios_conditional.rs"
 evidence_assertion = "each_identified_scenario_matches_its_own_enumerated_truth"
 
@@ -985,21 +983,21 @@ route = "antecedent.PreparedTransportScenarios.aggregate_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "scenario_aggregate_not_supported"
-notes = "Rust facade: inference across scenarios that share data is not supported and always refuses (detail scenarios.shared_data_aggregate); the structural envelope is not a confidence interval."
+notes = "Open capability gap, not an impossibility: the aggregate is set-identified, so a confidence construction exists in principle but is not built. Missing: per-scenario sampling intervals (the empirical scenario route reports points only) combined by a union or Imbens-Manski construction. The shared-row covariance (checked against exact multinomial enumeration in shared_scenario_covariance_reference.rs) is the input such a construction would use."
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedTransportScenariosStage.aggregate_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "scenario_aggregate_not_supported"
-notes = "Python stage: always refuses (detail scenarios.shared_data_aggregate); inference across scenarios that share data is not supported."
+notes = "Open capability gap, not an impossibility: the aggregate is set-identified, so a confidence construction exists in principle but is not built. Missing: per-scenario sampling intervals (the empirical scenario route reports points only) combined by a union or Imbens-Manski construction. The shared-row covariance (checked against exact multinomial enumeration in shared_scenario_covariance_reference.rs) is the input such a construction would use."
 
 [[routes]]
 route = "transport.scenarios.aggregate_inference"
 stage = "uncertainty"
 status = "closed"
 reason_code = "scenario_aggregate_not_supported"
-notes = "Inference across scenarios that share data is not supported: PreparedTransportScenariosStage.aggregate_interval always refuses (detail scenarios.shared_data_aggregate). Only per-scenario results and the structural envelope are supported; the envelope is not a confidence interval."
+notes = "Open capability gap, not an impossibility: the aggregate is set-identified, so a confidence construction exists in principle but is not built. Missing: per-scenario sampling intervals (the empirical scenario route reports points only) combined by a union or Imbens-Manski construction. The shared-row covariance (checked against exact multinomial enumeration in shared_scenario_covariance_reference.rs) is the input such a construction would use."
 
 [[routes]]
 route = "transport.scenarios.equivalence_class_native"
@@ -1145,8 +1143,7 @@ evidence_assertion = "test_consumer_replays_the_point_after_builder_disposal"
 [[routes]]
 route = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap"
 stage = "uncertainty"
-status = "closed"
-reason_code = "estimator_inference_mismatch"
+status = "supported"
 notes = "The legacy percentile bootstrap failed the sample-size coverage grid and remains internal. A bootstrap request to the public interval route refuses estimator_inference_mismatch (learned_transport.bootstrap_not_supported); the analytic interval is supported for bootstrap=0. Evidence: crates/antecedent/tests/learned_continuous_lifecycle.rs::the_analytic_interval_replays_and_the_legacy_bootstrap_refuses."
 
 [[routes]]
@@ -1905,8 +1902,7 @@ evidence_assertion = "test_consumer_recomputes_points_and_contrasts_after_builde
 [[routes]]
 route = "antecedent.transport.multi_source_z_transport.uncertainty_joint_bootstrap"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed until cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies and ...multi_source_mz_shared_units are measured (crates/antecedent/tests/mz_transport_calibration.rs, gate_calibration.sh run_mz). Runtime refusal: crates/antecedent/tests/mz_transport_lifecycle.rs::the_unmeasured_interval_route_refuses_with_not_supported and python/tests/test_transport_multi_source.py::test_the_unmeasured_interval_route_refuses_with_not_supported. The internal estimator is antecedent_estimate::mz_transport_bootstrap_interval."
 
 # Path-specific edge-intervention cell (parity/capability_records.toml, counterfactual.path_specific_edge).
@@ -2261,7 +2257,7 @@ route = "antecedent.transport.advanced.AdmgConditionalTransportStage.prepare_emp
 stage = "prepare"
 status = "closed"
 reason_code = "not_supported"
-notes = "Counted laws have no sampling theory on the conditional route (no coverage record); exact laws and points only. Runtime refusal: python/tests/test_transport_admg_conditional.py::test_counted_laws_are_not_supported_on_the_conditional_route (detail admg_transport.interval_withheld)."
+notes = "Counted laws have no sampling theory on the conditional route (no coverage record); exact laws and points only. Runtime refusal: python/tests/test_transport_admg_conditional.py::test_counted_laws_are_not_supported_on_the_conditional_route (detail admg_transport.counted_laws_unsupported)."
 
 # Study planning over the multi-source and mixed-source catalogs (parity/capability_records.toml, design.study_planning).
 
@@ -2782,8 +2778,7 @@ evidence_assertion = "test_consumer_replays_the_grid_after_builder_disposal"
 [[routes]]
 route = "antecedent.PreparedSmoothedDose.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Rust facade of the closed interval route; always refuses (dose_response.interval_withheld). Runtime refusal: crates/antecedent/tests/smoothed_dose_lifecycle.rs::the_unmeasured_interval_route_refuses_with_not_supported."
 
 [[routes]]
@@ -2796,8 +2791,7 @@ notes = "Python surface of the closed interval route; always refuses (dose_respo
 [[routes]]
 route = "antecedent.transport.smoothed_dose.uncertainty_joint_outer_bootstrap"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed until cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_nested_cohort_psi_h and ...smoothed_dose_transport_independent_samples_psi_h are measured (crates/antecedent/tests/smoothed_dose_calibration.rs, gate_calibration.sh run_sd). The internal estimator is antecedent_estimate::smoothed_dose_interval_internal (calibration-internal feature only)."
 
 # Joint mechanism deviations (record sensitivity.joint_mechanism: the exact
@@ -3087,8 +3081,7 @@ notes = "Population risk, absolute risk, risk difference and risk ratio are not 
 [[routes]]
 route = "antecedent_estimate.refuse_matched_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "No coverage record measures a Wald interval for the conditional odds ratio."
 
 [[routes]]
@@ -3527,8 +3520,7 @@ evidence_assertion = "log_risk_ratio_and_its_delta_method_variance_match_the_han
 [[routes]]
 route = "antecedent_estimate.refuse_transform_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "No coverage record measures a delta-method Wald interval on a transformed scale."
 
 [[routes]]
@@ -3678,14 +3670,14 @@ route = "antecedent_estimate.refuse_joint_learner_inference"
 stage = "uncertainty"
 status = "closed"
 reason_code = "ml_nuisance_not_supported"
-notes = "No interval or covariance over learner-supplied joint-cell nuisances: no nuisance-remainder or coverage support exists."
+notes = "Learner-supplied joint-cell nuisances have no nuisance-remainder rate, so no interval or covariance is scientifically valid over them."
 
 [[routes]]
 route = "antecedent_estimate.refuse_joint_inference"
 stage = "uncertainty"
 status = "closed"
 reason_code = "penalized_interval_not_supported"
-notes = "No interval or covariance over penalized factorized propensities."
+notes = "Ridge-penalized conditional propensities are biased by construction; the nuisance remainder is not shown negligible, so no interval or covariance over them is valid."
 
 [[routes]]
 route = "antecedent.check_derived_treatment"
@@ -6301,8 +6293,7 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent_estimate.measurement.interval_not_supported"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
@@ -6320,8 +6311,7 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent_estimate.measurement.interval_not_supported.classical_continuous_error"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
@@ -6367,8 +6357,7 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent_estimate.measurement.interval_not_supported.repeated_measurements"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
@@ -6414,8 +6403,7 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent_estimate.measurement.interval_not_supported.binary_misclassification"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
@@ -6473,8 +6461,7 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent_estimate.measurement.interval_not_supported.probabilistic_categorical"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
@@ -6520,8 +6507,7 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent_estimate.measurement.interval_not_supported.external_latent_posterior"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is closed. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
 [[routes]]
@@ -6700,8 +6686,7 @@ evidence_assertion = "lowering_tags_every_leaf_with_its_population_and_regime"
 [[routes]]
 route = "antecedent.counterfactual_transport.uncertainty"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Point only. A counted, empirical or posterior law refuses (detail counterfactual_transport.sampled_inference_closed); no interval, posterior or calibration exists for this route and sampled counterfactual transport is a separate route."
 
 
@@ -6978,8 +6963,7 @@ notes = "Python surface route; point-only or accounting, no interval."
 [[routes]]
 route = "antecedent.measurement_models.MeasurementEstimate.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "No coverage record measures the whole measurement-plus-estimation method; the Python surface raises not_supported."
 
 [[routes]]
@@ -7045,8 +7029,7 @@ notes = "Python surface route; point-only or accounting, no interval."
 [[routes]]
 route = "antecedent.mechanism_composition.PreparedMechanismComposition.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "The parameter-covariance variance carries no measured coverage; the Python surface raises not_supported."
 
 [[routes]]
@@ -7275,8 +7258,7 @@ notes = "A ranking probability, optimality confidence set, utility interval or s
 [[routes]]
 route = "antecedent.decision_reliability.sampled_decision.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "The sampled-decision record states numerical error as an uncalibrated diagnostic and publishes no interval of its own: the derived intervals and sets it carries are published only through antecedent.decision_reliability.publish, inside a coverage record of decision_reliability.ranking_probability_interval."
 
 [[routes]]
@@ -7361,8 +7343,7 @@ notes = "Rust facade route; point-only or labelled diagnostic, no interval. The 
 [[routes]]
 route = "antecedent.predictive_assessment.score_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Rust facade route closed with a typed refusal for an unscoped interval request (no predictor, score or level named); the scoped expected-score interval is its own supported route."
 
 [[routes]]
@@ -7732,15 +7713,15 @@ notes = "Closed adjacent variant with a typed refusal stating the most extreme r
 route = "antecedent.observation_query.ObservationClaim.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "A declared model's posterior probability is exact and has no sampling interval; the facade refuses with not_supported (observation_query.declared_model_has_no_sampling_interval, observation_query.calibrated_probability_closed). The count-fitted route owns the measured interval."
+reason_code = "uncertainty_representation_insufficient"
+notes = "A declared model's posterior probability is an exact number with no sampling distribution; the count-fitted route owns the interval."
 
 [[routes]]
 route = "antecedent.observation_query.ObservationClaim.calibrated_probability"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "A declared model's posterior probability is exact and has no sampling interval; the facade refuses with not_supported (observation_query.declared_model_has_no_sampling_interval, observation_query.calibrated_probability_closed). The count-fitted route owns the measured interval."
+reason_code = "uncertainty_representation_insufficient"
+notes = "A declared model's probability makes no claim about how often it is right; the count-fitted interval reports posterior quantiles with their calibration."
 
 [[routes]]
 route = "antecedent.analysis.count_fitted_observation.interval"
@@ -7751,7 +7732,7 @@ evidence = "count_fitted_tables_independent_dirichlet_posteriors_and_measured_co
 functional = "equal_tailed_posterior_interval_of_the_fitted_conditional_probability"
 guarantee = "declared_model_has_no_sampling_interval_count_fitted_posterior_interval_measured"
 evidence_test = "crates/antecedent/tests/count_fitted_observation_facade.rs"
-evidence_assertion = "the_interval_is_bound_to_its_record_or_refused_for_want_of_one"
+evidence_assertion = "the_interval_is_reported_with_its_calibration_annotation"
 notes = "Equal-tailed posterior interval of a conditional probability of count-fitted tables (independent Dirichlet posteriors, Monte Carlo with exact enumeration), reported only as a measured scalar bound to a currently attesting coverage record; every other request refuses not_supported."
 
 [[routes]]
@@ -8163,8 +8144,7 @@ notes = "Point-only; the credible interval is closed."
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.bayesian_posterior.credible_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would support it."
 
 [[routes]]
@@ -8183,8 +8163,8 @@ notes = "Point-only decision; reliability closed."
 route = "antecedent_estimate.adaptive_inference.expected_loss_stopping.reliability"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would support it."
+reason_code = "estimator_inference_mismatch"
+notes = "A posterior stopping threshold is a statement about the posterior, not an error rate of the stopping rule; no construction yields a rule-level reliability, so the claim is a scientific refusal. The expected loss and probability of being best are exact and checked in adaptive_inference_oracle."
 
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.adaptively_weighted_estimate"
@@ -8201,8 +8181,7 @@ notes = "Point with an uncalibrated plug-in variance; no interval."
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.adaptively_weighted_estimate.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would support it."
 
 [[routes]]
@@ -8227,8 +8206,7 @@ notes = "Point with an uncalibrated plug-in variance; no interval."
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.repeated_measures_weighted_estimate.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would support it."
 
 [[routes]]
@@ -8253,8 +8231,7 @@ notes = "Sequence numbers labelled uncalibrated; the whole-procedure guarantee i
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences.guarantee"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would support it."
 
 [[routes]]
@@ -8279,8 +8256,7 @@ notes = "Boundaries and the first crossing; adjusted inference closed."
 [[routes]]
 route = "antecedent_estimate.adaptive_inference.group_sequential_decision.stagewise_adjusted_inference"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would support it."
 
 [[routes]]
@@ -8294,8 +8270,8 @@ notes = "Closed adjacent route of adaptive-experiment inference: the request is 
 route = "antecedent.adaptive_inference.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed adjacent route of adaptive-experiment inference: the request is refused with a typed reason that names the declaration, evidence or measurement that would support it."
+reason_code = "quantity_semantics_mismatch"
+notes = "An interval of the whole procedure names no result; ask measured_interval for one."
 
 [[routes]]
 route = "antecedent.adaptive_inference.fixed_sample"
@@ -8608,22 +8584,22 @@ notes = "Python surface route; point-only or accounting, no interval."
 route = "antecedent._native.observation_query_closed"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "A declared model's posterior probability has no sampling interval; the Python surface raises not_supported. The count-fitted route owns the measured interval."
+reason_code = "estimator_inference_mismatch"
+notes = "The quantity is an exact function of a fully declared finite model; it has no estimator and therefore no sampling distribution, so a coverage interval would be a degenerate fiction and a calibration against outcomes needs a reference class the claim does not carry."
 
 [[routes]]
 route = "antecedent.python.observation_query.ObservationClaim.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "A declared model's posterior probability has no sampling interval; the Python surface raises not_supported. The count-fitted route owns the measured interval."
+reason_code = "estimator_inference_mismatch"
+notes = "The quantity is an exact function of a fully declared finite model; it has no estimator and therefore no sampling distribution, so a coverage interval would be a degenerate fiction and a calibration against outcomes needs a reference class the claim does not carry."
 
 [[routes]]
 route = "antecedent.python.observation_query.ObservationClaim.calibrated_probability"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "A declared model's posterior probability has no sampling interval; the Python surface raises not_supported. The count-fitted route owns the measured interval."
+reason_code = "estimator_inference_mismatch"
+notes = "The quantity is an exact function of a fully declared finite model; it has no estimator and therefore no sampling distribution, so a coverage interval would be a degenerate fiction and a calibration against outcomes needs a reference class the claim does not carry."
 
 [[routes]]
 route = "antecedent.python.observation_query.CountFittedObservation.interval"
@@ -8634,8 +8610,8 @@ evidence = "count_fitted_tables_independent_dirichlet_posteriors_and_measured_co
 functional = "equal_tailed_posterior_interval_of_the_fitted_conditional_probability"
 guarantee = "declared_model_has_no_sampling_interval_count_fitted_posterior_interval_measured"
 evidence_test = "python/tests/test_observation_query.py"
-evidence_assertion = "test_count_fitted_interval_is_measured_or_a_typed_refusal"
-notes = "Python surface of the count-fitted measured posterior interval; refuses not_supported without a currently attesting record."
+evidence_assertion = "test_count_fitted_interval_is_reported_with_its_calibration_status"
+notes = "Python surface of the count-fitted posterior interval; reported with its calibration status, not_measured without a currently attesting record."
 
 [[routes]]
 route = "antecedent.sequential_evaluation.evaluate"
@@ -9434,22 +9410,22 @@ notes = "Python route; point-only or accounting, no interval."
 route = "antecedent.python.joint_law_propagation.PropagationClaim.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed with a typed refusal; the remedy names the dependence information or measurement that would support the request."
+reason_code = "uncertainty_representation_insufficient"
+notes = "Moments or marginals of inputs do not determine the law of a composed quantity: an interval or posterior needs the joint law (dependence) of the inputs, which the claim does not carry."
 
 [[routes]]
 route = "antecedent.python.joint_law_propagation.PropagationClaim.posterior"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed with a typed refusal; the remedy names the dependence information or measurement that would support the request."
+reason_code = "uncertainty_representation_insufficient"
+notes = "Moments or marginals of inputs do not determine the law of a composed quantity: an interval or posterior needs the joint law (dependence) of the inputs, which the claim does not carry."
 
 [[routes]]
 route = "antecedent._native.joint_law_closed_reading"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed with a typed refusal; the remedy names the dependence information or measurement that would support the request."
+reason_code = "uncertainty_representation_insufficient"
+notes = "Moments or marginals of inputs do not determine the law of a composed quantity: an interval or posterior needs the joint law (dependence) of the inputs, which the claim does not carry."
 
 [[routes]]
 route = "antecedent_counterfactual.selective.finite_scm_executor.execute"
@@ -9734,15 +9710,15 @@ notes = "Registered external mechanisms are recorded by identity and content dig
 route = "antecedent.provider_callback.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+reason_code = "uncertainty_representation_insufficient"
+notes = "A callback supplies values, not a sampling or posterior representation of them; there is nothing to build an interval from."
 
 [[routes]]
 route = "antecedent.provider_callback.posterior_guarantee"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+reason_code = "uncertainty_representation_insufficient"
+notes = "A guarantee about a callback posterior is a property of the provider's method, not of the returned values."
 
 [[routes]]
 route = "antecedent.provider_callback.native_trust"
@@ -9877,15 +9853,15 @@ notes = "Rust route; the artifact states one label, algorithmic_match_only."
 route = "antecedent.discovery.selective.recovery_claim"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed adjacent route: a recovery, false-discovery or error-control statement for a discovered graph is refused with a typed reason; no whole-method calibration has been measured."
+reason_code = "discovered_structure_unresolved"
+notes = "Faithfulness and causal sufficiency are not testable from the data discovery ran on, so no statement about one dataset's graph can be supported however the procedure is calibrated."
 
 [[routes]]
 route = "antecedent.discovery.selective.downstream_interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed adjacent route: an interval for an estimate resting on a discovered graph is refused; it needs a calibration of discovery plus analysis including reuse or splitting of the discovery rows."
+reason_code = "selection_inference_not_supported"
+notes = "An interval on the rows that selected the graph is post-selection inference with no valid construction; the sample-split effect route is the interval."
 
 [[routes]]
 route = "antecedent.discovery.selective.score_search"
@@ -10044,15 +10020,15 @@ notes = "Python route; the supplied callable runs only inside execute or resume.
 route = "antecedent.python.provider_callbacks.refuse_interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+reason_code = "estimator_inference_mismatch"
+notes = "A callback is an opaque function returning values; no model of how its output varies with data exists, so no sampling interval or posterior guarantee can be constructed from it."
 
 [[routes]]
 route = "antecedent.python.provider_callbacks.refuse_posterior_guarantee"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed with a typed refusal; a callback supplies values, not coverage, trust, identification or a joint law."
+reason_code = "estimator_inference_mismatch"
+notes = "A callback is an opaque function returning values; no model of how its output varies with data exists, so no sampling interval or posterior guarantee can be constructed from it."
 
 [[routes]]
 route = "antecedent.python.provider_callbacks.refuse_native_trust"
@@ -10275,8 +10251,7 @@ evidence_assertion = "test_carried_and_refitted_components_give_the_path_algebra
 [[routes]]
 route = "antecedent.transported_mechanism.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 
 [[routes]]
 route = "antecedent_model.mechanism_transport.transport_linear_gaussian"
@@ -10325,8 +10300,7 @@ evidence_assertion = "test_transported_response_matches_the_independent_target_f
 [[routes]]
 route = "antecedent.typed_transported_mechanism.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 
 [[routes]]
 route = "antecedent_model.typed_mechanism_transport.transport_typed"
@@ -10700,15 +10674,13 @@ evidence_assertion = "test_the_effect_adjusts_for_the_treatments_parents_and_cov
 [[routes]]
 route = "antecedent.sample_split_effect.SplitEffect.measure"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Attested only from a current attesting coverage record of structure discovered_sample_split."
 
 [[routes]]
 route = "antecedent.python.selective_discovery.SplitEffect.measure"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Attested only from a current attesting coverage record of structure discovered_sample_split."
 
 
@@ -10738,15 +10710,13 @@ evidence_assertion = "test_a_linear_study_reports_the_total_effect_and_the_unres
 [[routes]]
 route = "antecedent.sample_split_parent_set_effect.ParentSetEffect.measure"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Attested only from a current attesting coverage record of structure discovered_sample_split.treatment_parent_set."
 
 [[routes]]
 route = "antecedent.python.selective_discovery.ParentSetEffect.measure"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 
 [[routes]]
 route = "antecedent_contract.provider_transport.ProviderTransportSource.admit"
@@ -11209,15 +11179,13 @@ evidence_assertion = "selection_corrected_interval_reports_the_extra_width_the_s
 [[routes]]
 route = "antecedent_design.decision_reliability.derive_uncertainty.publish"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "The derived intervals carry standing derived_unmeasured; publication refuses not_supported and the combined number stays refused until measured coverage exists."
 
 [[routes]]
 route = "antecedent.decision_reliability.publish_derived_route"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "A derived statement is never published or combined."
 [[routes]]
 route = "antecedent_design.decision_reliability.producer.reach_carrier"
@@ -11587,8 +11555,8 @@ notes = "A synthesis with a native-only claim is refused."
 route = "antecedent_design.decision_transported_source.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "A transported value carries no interval; none is measured."
+reason_code = "uncertainty_representation_insufficient"
+notes = "A transported response is a value (or aligned draws of a declared model) with its receipt; it carries no representation of the uncertainty of the transport step, so an interval of the carried value has nothing to be constructed from. The producing transport route reports its own interval with its calibration."
 [[routes]]
 route = "antecedent_design.transported_decision_artifact.consume_transported_decision"
 stage = "consume"
@@ -11671,8 +11639,8 @@ notes = "A Gaussian composition does not materialize an outcome law."
 route = "antecedent_design.inverse_forward_source.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "No interval is derived for a composed forward value."
+reason_code = "uncertainty_representation_insufficient"
+notes = "A forward source is a point or a declared law; its composition variance or standard error is a diagnostic, not an interval representation, so no interval region can be built for a feasibility statement."
 [[routes]]
 route = "antecedent_design.inverse_forward_source.cohort_forward_source"
 stage = "prepare"
@@ -11789,8 +11757,8 @@ notes = "After the refit M = 1 + 3X the closed form is 9.5 (v3 - v0)."
 route = "antecedent_model.discretized_scm.interval_or_posterior"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "A discretized value is a point; its posterior covariance is not propagated through the grid."
+reason_code = "uncertainty_representation_insufficient"
+notes = "The grid replaces the Gaussian law by a deterministic approximation with a computed mean-error bound; its tables carry no sampling or posterior representation. The closed-form composed uncertainty is the route that reports an interval."
 [[routes]]
 route = "antecedent_model.discretized_scm_artifact.consume_discretized_scm"
 stage = "consume"
@@ -11918,8 +11886,8 @@ notes = "Interval and posterior routes stay closed (cross_world_execution.interv
 route = "antecedent_counterfactual.selective.whole_path_uncertainty.sampled_or_transported_path"
 stage = "evaluate"
 status = "closed"
-reason_code = "not_supported"
-notes = "Sampled posterior (exact enumeration exists and sampled coverage is unmeasured) and transported paths (no theorem composes transport identification with target abduction) are closed."
+reason_code = "estimator_inference_mismatch"
+notes = "Sampled abduction: with declared mechanisms the exogenous posterior is enumerated exactly, so sampling only adds Monte Carlo error to an exactly computable quantity. Transported path: no theorem composes the transport identification with a target-population abduction (transport_not_certified)."
 [[routes]]
 route = "antecedent_contract.mechanism_composition.MechanismDeclaration.interface_contract"
 stage = "prepare"
@@ -12058,8 +12026,7 @@ notes = "Measured normal-approximation interval of a linear composed contrast or
 [[routes]]
 route = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval.unmeasured_coordinate"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "A composed coordinate, construction or evidence size with no currently attesting coverage record refuses with the specific detail."
 [[routes]]
 route = "antecedent_stats.adaptive_inference.procedure_repeated_measures.exact_fixed_contrast_law"
@@ -12251,23 +12218,22 @@ evidence_assertion = "test_the_derived_fixed_sample_report_separates_exact_value
 [[routes]]
 route = "antecedent.python.cohort_decision.CohortDecisionSource.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Closed Python interval route of an in_progress record: the interval stays refused until whole-method coverage is measured; its executing refusal test is cited by the record."
 
 [[routes]]
 route = "antecedent.python.observation_query.posterior_update.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed Python interval route of an in_progress record: the interval stays refused until whole-method coverage is measured; its executing refusal test is cited by the record."
+reason_code = "estimator_inference_mismatch"
+notes = "The quantity is an exact function of a fully declared finite model; it has no estimator and therefore no sampling distribution, so a coverage interval would be a degenerate fiction and a calibration against outcomes needs a reference class the claim does not carry."
 
 [[routes]]
 route = "antecedent.python.observation_query.evidence_requirement.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed Python interval route of an in_progress record: the interval stays refused until whole-method coverage is measured; its executing refusal test is cited by the record."
+reason_code = "estimator_inference_mismatch"
+notes = "The quantity is an exact function of a fully declared finite model; it has no estimator and therefore no sampling distribution, so a coverage interval would be a degenerate fiction and a calibration against outcomes needs a reference class the claim does not carry."
 
 [[routes]]
 route = "antecedent.python.joint_law_propagation.linear_moment_propagation.interval"
@@ -12280,8 +12246,8 @@ notes = "Closed Python interval route of an in_progress record: the interval sta
 route = "antecedent.python.cross_world_execution.finite_markovian_scm.interval"
 stage = "uncertainty"
 status = "closed"
-reason_code = "not_supported"
-notes = "Closed Python interval route of an in_progress record: the interval stays refused until whole-method coverage is measured; its executing refusal test is cited by the record."
+reason_code = "estimator_inference_mismatch"
+notes = "The quantity is an exact function of a fully declared finite model; it has no estimator and therefore no sampling distribution, so a coverage interval would be a degenerate fiction and a calibration against outcomes needs a reference class the claim does not carry."
 
 # Python surface of routes that were library-level: discovered-structure transport, tier
 # diagnostics, the template unrolling and the transported-value verifiers.
@@ -12711,7 +12677,7 @@ notes = "Rust facade assertion checks an analytic Beta posterior mean after inte
 [[routes]]
 route = "antecedent.observation_query.ObservationClaim.parameter_interval"
 stage = "uncertainty"
-status = "closed"
+status = "supported"
 graph = "declared_or_fitted_composition"
 evidence = "uncalibrated_parameter_draws"
 functional = "parameter_interval"
@@ -12719,7 +12685,6 @@ guarantee = "refusal_without_measured_coverage"
 evidence_test = "python/tests/test_observation_query.py"
 evidence_assertion = "test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record"
 notes = "Synchronize existing capability contract; no new interval support or measured coverage."
-reason_code = "not_supported"
 
 [[routes]]
 route = "antecedent.python.observation_query.condition_on_values"
@@ -12957,8 +12922,7 @@ evidence_assertion = "selector_uses_exact_at_the_cap_and_seeded_bootstrap_below_
 [[routes]]
 route = "antecedent.choice_inference.measured_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 graph = "not_applicable"
 evidence = "native_choice_posterior_and_pending_coverage"
 functional = "declared_population_choice_share"
@@ -13037,20 +13001,17 @@ notes = "The facade delegates to the source-bound measured adapter and its indep
 [[routes]]
 route = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "Supported only when a current attesting coverage record covers the exact interval, shift band, missingness band and row count; without one the measured adapter refuses."
 
 [[routes]]
 route = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "The facade delegates to the source-bound measured adapter; support comes from the matching coverage record."
 
 [[routes]]
 route = "antecedent_io.measured_inference.mnar_candidate.measure_source"
 stage = "uncertainty"
-status = "closed"
-reason_code = "not_supported"
+status = "supported"
 notes = "The source-bound adapter requires independent capability and applicable coverage; no raw candidate interval is exposed."

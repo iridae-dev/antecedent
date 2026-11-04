@@ -69,7 +69,7 @@
 //!   dependence refuses. Conflicting sources are never silently pooled: pairwise
 //!   posterior disagreement of the per-source target effects is reported.
 //! * Calibration is **unmeasured**. No coverage is claimed and the public interval route
-//!   stays closed ([`route_frozen_refusal`]).
+//!   is reported with its calibration annotation, never refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -354,21 +354,6 @@ type Refused = Box<JointTransportRefusal>;
 fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
     JointTransportRefusal::new(antecedent_core::reason_code!("invalid_argument"), detail, message)
         .at("validate")
-}
-
-/// The route-level refusal of the public interval route: the native joint posterior route
-/// lacks calibration evidence, so no interval is published.
-#[must_use]
-pub fn route_frozen_refusal() -> JointTransportRefusal {
-    JointTransportRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
-        DETAIL_ROUTE_FROZEN,
-        format!(
-            "{JOINT_TRANSPORT_ROUTE} lacks likelihood, value and calibration evidence; \
-             the engine's posterior is not a published interval"
-        ),
-    )
-    .at("route")
 }
 
 /// The refusal of a graph class other than the fixed DAG.

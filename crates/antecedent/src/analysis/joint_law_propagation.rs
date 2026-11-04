@@ -492,11 +492,12 @@ impl PropagationClaim {
         ))
     }
 
-    /// The interval reading of the composed quantity, supported only by a
-    /// currently attesting coverage record the registry holds for exactly this
-    /// composed coordinate, construction, nominal level and evidence size.
-    /// The caller supplies no record. Without one it is closed with the typed
-    /// refusal; a component interval does not cover the composition.
+    /// The interval reading of the composed quantity, with the calibration
+    /// slot the registry resolves for exactly this composed coordinate,
+    /// construction, nominal level and evidence size: `calibrated` under a
+    /// currently attesting record, otherwise the status that names why not.
+    /// The caller supplies no record. A component interval does not cover the
+    /// composition, so the interval is always built for the named construction.
     ///
     /// A supported `normal_approximation` interval is built from this claim's
     /// mean and variance at the record's nominal level. For another
@@ -509,8 +510,7 @@ impl PropagationClaim {
     ///
     /// # Errors
     /// The refusals of `antecedent_contract::check_composed_interval`: an
-    /// unsupported dependence route, a missing or non-attesting record, or a
-    /// nominal level outside `(0, 1)`.
+    /// unsupported dependence route or a nominal level outside `(0, 1)`.
     pub fn check_composed_interval(
         &self,
         construction: &str,
@@ -562,9 +562,11 @@ impl PropagationClaim {
         } else {
             None
         };
+        let calibration = super::joint_law_composed_basis::slot(&basis);
         Ok(ComposedInterval {
             coordinate_id: plan.coordinate.id(),
             record_id: plan.record_id,
+            calibration,
             construction: plan.construction,
             nominal_level: plan.nominal_level,
             label: plan.label,
@@ -581,12 +583,12 @@ impl PropagationClaim {
         self.artifact.export().map_err(Refusal::from)
     }
 
-    /// An interval for the composed quantity. Always refused: no composed
-    /// coordinate has a measured coverage record, and a component interval
-    /// does not cover the composition.
+    /// An interval for the composed quantity without a named construction. Always
+    /// refused: a component interval does not cover the composition.
     ///
     /// # Errors
-    /// Always `not_supported` with the stated remedy.
+    /// Always `uncertainty_representation_insufficient` with the stated remedy; ask
+    /// for [`Self::check_composed_interval`] naming a construction.
     pub fn interval(&self) -> Result<(), Refusal> {
         self.closed(RequestedReading::Interval)
     }
@@ -594,7 +596,7 @@ impl PropagationClaim {
     /// A posterior statement for the composed quantity. Always refused.
     ///
     /// # Errors
-    /// Always `not_supported` with the stated remedy.
+    /// Always `uncertainty_representation_insufficient` with the stated remedy.
     pub fn posterior(&self) -> Result<(), Refusal> {
         self.closed(RequestedReading::Posterior)
     }
@@ -616,7 +618,8 @@ impl PropagationClaim {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComposedInterval {
     coordinate_id: String,
-    record_id: String,
+    record_id: Option<String>,
+    calibration: antecedent_io::contract_section::CalibrationSlotWire,
     construction: String,
     nominal_level: f64,
     label: &'static str,
@@ -639,10 +642,16 @@ impl ComposedInterval {
         &self.coordinate_id
     }
 
-    /// The identity of the record that supported the interval.
+    /// The identity of the governing coverage record, when one matched.
     #[must_use]
-    pub fn record_id(&self) -> &str {
-        &self.record_id
+    pub fn record_id(&self) -> Option<&str> {
+        self.record_id.as_deref()
+    }
+
+    /// The calibration of this interval.
+    #[must_use]
+    pub const fn calibration(&self) -> &antecedent_io::contract_section::CalibrationSlotWire {
+        &self.calibration
     }
 
     /// The construction the interval is built with.

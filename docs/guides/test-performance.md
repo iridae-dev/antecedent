@@ -103,7 +103,6 @@ ordinary test is in the software lane, so none falls between lanes.
 | Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance` | 13 Rust tests; 39 pytest tests (`python-calibration-acceptance`) | Tests registered under `calibration_acceptance_assertions` in `parity/v3_test_registry.toml`, or marked `requires_calibration`. They need the frozen branch's attesting coverage records and fail until `scripts/measure_calibration.sh` has produced them. |
 | Calibration measurement | `bash scripts/measure_calibration.sh` | 803 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and measurement diagnostics. No ordinary lane runs them. |
 | Slow correctness | `bash scripts/test.sh slow` | 9 `#[ignore]` Rust tests | Exhaustive enumerations and heavy acceptance fits that are too slow for the ordinary lanes (for example `mag_id_bruteforce::exhaustive_four_observed_two_latent` and the ring-with-triangles sampler references in `graph_posterior_wide`). Selected by exact name from `parity/slow_correctness_tests.toml`, which gives each a reason and an expected runtime. Manual or nightly; not part of ordinary CI. Twelve sweeps that take 4 s or less at the test profile (the 100,000-row `antecedent-io` fits, the matching and neighbourhood-sensitivity 100,000-row tests, the `p = 667` joint identification and the optional-estimator closure) are ordinary tests, not in this lane. |
-| Internal candidates (Python) | `bash scripts/test.sh python-internal` | 6 pytest modules | `test_joint_transport_candidate_lifecycle`, `test_checked_temporal_interval`, `test_nested_fisher_activation`, `test_nested_bayesian_activation`, `test_temporal_interval_activation` and `test_sampled_recovery_activation` exercise private candidate hooks that exist only in an extension built with the `calibration-internal` feature, and skip against every ordinary wheel. This lane builds a release wheel with that feature into an isolated directory and virtualenv (`target/python-internal`, or `ANTECEDENT_INTERNAL_DIR`), never touching `python/antecedent/_native*` or `target/`'s ordinary build, then runs exactly those modules from outside `python/` with `-m 'not requires_calibration'`. `scripts/check_python_internal_lane.py` reads the JUnit report and fails if a module collected nothing, passed nothing, or skipped for a missing hook (fault controls in `scripts/test_python_internal_lane.py`). A release build of about 15 to 20 minutes: manual or nightly, never an ordinary CI job. `ANTECEDENT_INTERNAL_REUSE_WHEEL=1` reuses the wheel already built there. |
 | Integration | `bash scripts/test.sh integration` | 6,570 Rust tests | All integration targets, without library unit tests. |
 
 Cost per lane from the cold ordinary run on 10 CPUs (`fa3ecc207`, 13,486
@@ -270,17 +269,6 @@ Python runs synchronize the locked dev environment, use explicit release
 artifact reuse does not depend on correcting an unoptimized Python build.
 See [Maturin configuration](https://www.maturin.rs/config).
 
-The six Python modules that need the private `calibration-internal` candidate
-hooks run only in `bash scripts/test.sh python-internal`, which builds its own
-release wheel and virtualenv under `target/python-internal` so the ordinary
-extension in `python/antecedent` is not replaced. Run it before a release or
-nightly:
-
-```bash
-bash scripts/test.sh python-internal
-ANTECEDENT_INTERNAL_REUSE_WHEEL=1 bash scripts/test.sh python-internal   # reuse the wheel
-```
-
 Ignored statistical measurements remain explicit through
 `scripts/measure_calibration.sh`. No faster command silently adds ignored
 calibration experiments to the ordinary suite or substitutes smoke results for
@@ -314,12 +302,6 @@ another feature-specific set of binaries. Compiler caches remain enabled on
 the jobs that already use them; cache hits do not replace same-run artifact
 reuse.
 
-The `python-internal` lane is not a CI job: its release build (about 15 to
-20 minutes) is run manually or from a nightly schedule, together with
-`bash scripts/test.sh slow`. Ordinary CI only runs its source check
-(`python3 scripts/check_python_internal_lane.py sources`, in `Test-suite controls`)
-and the report-check fault controls in the script tests, so a module cannot drop
-out of the lane or be listed against a test that no longer exists.
 
 ## Timing reports and verification
 

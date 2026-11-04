@@ -153,10 +153,10 @@ fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_di
     assert!(static_effect.se_analytic().is_nan());
     let (lower, upper, _) = static_first_stage.anderson_rubin.expect("an Anderson-Rubin set");
     assert!(lower < ratio && ratio < upper, "[{lower}, {upper}] around {ratio}");
-    // Different support: the temporal instrument is certified from the unfolded graph and
-    // executes unsupported; the static cell is supported.
+    // Same support: the temporal instrument is certified from the unfolded graph and its cell
+    // is supported, as the static cell is.
     assert_eq!(static_result.support_status(), Some(antecedent::support::CellStatus::Supported));
-    assert_ne!(temporal.support_status(), Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(temporal.support_status(), Some(antecedent::support::CellStatus::Supported));
 }
 
 // ---------------------------------------------------------------------------

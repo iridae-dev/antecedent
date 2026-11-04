@@ -537,7 +537,7 @@ impl AdaptiveProcedureHandle {
             "family": spec.family_name(),
             "monitoring": spec.monitoring_name(),
             "stopping_kind": spec.stopping_name(),
-            "calibration": antecedent_stats::adaptive_inference::DERIVED_UNMEASURED,
+            "calibration": antecedent_io_core::contract_section::CalibrationStatus::NotMeasured.as_str(),
         })
         .to_string()
     }

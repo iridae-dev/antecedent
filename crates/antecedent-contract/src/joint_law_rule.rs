@@ -506,19 +506,19 @@ fn plan(
 }
 
 fn closed_reading(reading: RequestedReading) -> Option<ExternalRefusal> {
-    let code = antecedent_core::reason_code!("not_supported");
+    let code = antecedent_core::reason_code!("uncertainty_representation_insufficient");
     match reading {
         RequestedReading::Interval => Some(refuse(
             code,
             "joint_law_propagation.interval_route_closed",
             "interval",
-            "no interval for a composed quantity has a measured coverage record at its composed coordinate, and a component interval does not cover the composition; the labelled point value under a supported dependence route, or the dependence envelope, is the result",
+            "a composed quantity carries no interval until a construction is named: a component interval does not cover the composition. Ask for check_composed_interval with the construction and the declared evidence size, which reports the interval with its calibration status; or take the labelled point value under a supported dependence route, or the dependence envelope",
         )),
         RequestedReading::Posterior => Some(refuse(
             code,
             "joint_law_propagation.posterior_route_closed",
             "posterior",
-            "no posterior statement for a composed quantity has a measured calibration at its composed coordinate; the labelled point value under a supported dependence route is the result",
+            "a composed quantity of fixed-law inputs carries no posterior: a posterior statement needs the posterior draws of the inputs under one alignment identity; the labelled point value under a supported dependence route is the result",
         )),
         RequestedReading::Point | RequestedReading::Spread | RequestedReading::Envelope => None,
     }
@@ -1045,8 +1045,9 @@ pub struct ComposedIntervalPlan {
     pub propagation: PropagationPlan,
     /// The coordinate the coverage record was matched against.
     pub coordinate: ComposedCoordinate,
-    /// The record that supported the interval.
-    pub record_id: String,
+    /// The coverage record that governs the interval, when one matched. Calibration
+    /// annotates the interval: its absence or non-attestation never withholds it.
+    pub record_id: Option<String>,
     /// The construction the interval must be built with.
     pub construction: String,
     /// The nominal level.
@@ -1055,14 +1056,16 @@ pub struct ComposedIntervalPlan {
     pub label: &'static str,
 }
 
+/// Nominal level of a composed interval when no coverage record names one.
+pub const COMPOSED_DEFAULT_LEVEL: f64 = 0.95;
+
 /// Check a composed interval: the composition's dependence route must support
-/// its spread, and a measured coverage record must exist for exactly this
-/// composed coordinate and construction.
-///
-/// Without a record the interval reading is closed (the component intervals do
-/// not cover the composition). With one, the interval is supported only at the
-/// recorded nominal level; the record, not this function, carries the coverage
-/// evidence.
+/// its spread. A coverage record for exactly this composed coordinate and
+/// construction annotates the interval (its identity and nominal level); without
+/// one, or with a wired but unmeasured one, the interval is still planned at
+/// [`COMPOSED_DEFAULT_LEVEL`] and the caller reports its calibration slot as
+/// `not_measured` or `outside_measured_scope`. A record for another coordinate
+/// or construction is a mismatched request and is refused.
 ///
 /// # Errors
 /// An invalid request, an unsupported dependence route (the refusals of
@@ -1090,23 +1093,17 @@ pub fn check_composed_interval(
     let spread = PropagationRequest { reading: RequestedReading::Spread, ..request.clone() };
     let propagation = check_propagation(&spread)?;
     let coordinate = ComposedCoordinate::of(request, &propagation);
-    let closed = || {
-        closed_reading(RequestedReading::Interval).unwrap_or_else(|| {
-            invalid("interval", "ask for the point or spread reading of the composition")
-        })
-    };
     let Some(record) = record else {
-        return Err(closed());
+        return Ok(ComposedIntervalPlan {
+            propagation,
+            coordinate,
+            record_id: None,
+            construction: construction.to_owned(),
+            nominal_level: COMPOSED_DEFAULT_LEVEL,
+            label: MEASURED_INTERVAL_LABEL,
+        });
     };
     let code = antecedent_core::reason_code!("not_supported");
-    if !record.measured {
-        return Err(refuse(
-            code,
-            "joint_law_propagation.coverage_record_unmeasured",
-            record.record_id.clone(),
-            "the coverage record is wired but not measured; run the whole-method coverage measurement at the composed coordinate and attest it, or report the labelled spread",
-        ));
-    }
     if record.coordinate_id != coordinate.id() {
         return Err(refuse(
             code,
@@ -1139,7 +1136,7 @@ pub fn check_composed_interval(
     Ok(ComposedIntervalPlan {
         propagation,
         coordinate,
-        record_id: record.record_id.clone(),
+        record_id: Some(record.record_id.clone()),
         construction: construction.to_owned(),
         nominal_level: record.nominal_level,
         label: MEASURED_INTERVAL_LABEL,
@@ -1610,7 +1607,7 @@ mod tests {
                 reading,
             );
             let (code, name) = detail(&closed);
-            assert_eq!(code, "not_supported");
+            assert_eq!(code, "uncertainty_representation_insufficient");
             assert_eq!(name, expected);
         }
     }
@@ -1840,14 +1837,10 @@ mod tests {
             RequestedReading::Interval,
         );
         let construction = "aligned_draw_percentile";
-        let (code, name) = {
-            let refusal = check_composed_interval(&composed, None, construction)
-                .expect_err("closed without a record");
-            refusal.validate().expect("well-formed refusal");
-            (refusal.code, refusal.detail)
-        };
-        assert_eq!(code, "not_supported");
-        assert_eq!(name, "joint_law_propagation.interval_route_closed");
+        // Without a record the interval is planned and annotated, never refused.
+        let unrecorded = check_composed_interval(&composed, None, construction).expect("plan");
+        assert_eq!(unrecorded.record_id, None);
+        assert!((unrecorded.nominal_level - COMPOSED_DEFAULT_LEVEL).abs() < 1e-12);
 
         let spread = PropagationRequest { reading: RequestedReading::Spread, ..composed.clone() };
         let coordinate =
@@ -1871,10 +1864,9 @@ mod tests {
                 .detail
         };
         let unmeasured = CoverageRecord { measured: false, ..record.clone() };
-        assert_eq!(
-            reason(&unmeasured, construction),
-            "joint_law_propagation.coverage_record_unmeasured"
-        );
+        let plan = check_composed_interval(&composed, Some(&unmeasured), construction)
+            .expect("an unmeasured record annotates, never refuses");
+        assert_eq!(plan.record_id.as_deref(), Some("record_1"));
         let wrong_coordinate = CoverageRecord {
             coordinate_id: "sum|linear_moments|estimate,estimate".into(),
             ..record.clone()

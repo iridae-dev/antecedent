@@ -1,14 +1,14 @@
 //! Python bindings of the three closed calibrated-interval pilot routes: joint
 //! Bayesian transport, the binary nested-Markov pilot and sampled observation
 //! recovery. Each function validates its request against the pilot's scope through
-//! the Rust core and always raises: the engine's scope refusal for a request outside the
-//! pilot, otherwise `not_supported` with the route-frozen detail. Calibration is
-//! measured only at the release cut, so no interval is published. Each backs one routed
+//! the Rust core: the engine's scope refusal for a request outside the pilot raises, and a
+//! request inside it returns so the wrapper runs the route's own producer and reports the
+//! interval with its calibration status. Each backs one routed
 //! wrapper in `antecedent.transport._closed_pilots` and is reached only through it.
 use antecedent::analysis::closed_pilots::{
     ClosedPilotRefusal, ClosedRegimeCounts, JointBayesianRequest, NestedMarkovRequest,
-    SampledRecoveryRequest, joint_bayesian_transport_refusal, nested_markov_refusal,
-    sampled_recovery_refusal,
+    SampledRecoveryRequest, joint_bayesian_transport_scope_refusal, nested_markov_scope_refusal,
+    sampled_recovery_scope_refusal,
 };
 use antecedent_core::reason_code;
 use pyo3::prelude::*;
@@ -24,7 +24,7 @@ fn closed_err(refusal: &ClosedPilotRefusal) -> PyErr {
     }
 }
 
-/// The closed joint Bayesian source-target transport route; always raises.
+/// The closed joint Bayesian source-target transport route; raises the scope refusal, returns when in scope.
 #[pyfunction]
 #[pyo3(signature = (graph_class, dependence, varying, sharing, features, sources, has_target, draws))]
 #[doc(hidden)]
@@ -50,14 +50,17 @@ fn joint_bayesian_transport_closed(
             has_target,
             draws,
         };
-        Err(closed_err(&joint_bayesian_transport_refusal(&request)))
+        match joint_bayesian_transport_scope_refusal(&request) {
+            Some(refusal) => Err(closed_err(&refusal)),
+            None => Ok(()),
+        }
     })
 }
 
 /// One regime table of a nested-Markov request: `(fixed variables or None, levels, cells)`.
 type RegimeTuple = (Option<Vec<usize>>, Vec<usize>, Vec<f64>);
 
-/// The closed binary nested-Markov route; always raises.
+/// The closed binary nested-Markov route; raises the scope refusal, returns when in scope.
 #[pyfunction]
 #[pyo3(signature = (variables, directed, bidirected, regimes))]
 #[doc(hidden)]
@@ -77,11 +80,14 @@ fn binary_nested_markov_closed(
                 .map(|(fixed, levels, cells)| ClosedRegimeCounts { fixed, levels, cells })
                 .collect(),
         };
-        Err(closed_err(&nested_markov_refusal(&request)))
+        match nested_markov_scope_refusal(&request) {
+            Some(refusal) => Err(closed_err(&refusal)),
+            None => Ok(()),
+        }
     })
 }
 
-/// The closed sampled observation-recovery route; always raises.
+/// The closed sampled observation-recovery route; raises the scope refusal, returns when in scope.
 #[pyfunction]
 #[pyo3(signature = (graph_recoverable, partially_observed, fully_observed, replicates, rows))]
 #[doc(hidden)]
@@ -100,7 +106,10 @@ fn sampled_observation_recovery_closed(
             replicates,
             rows: &rows,
         };
-        Err(closed_err(&sampled_recovery_refusal(&request)))
+        match sampled_recovery_scope_refusal(&request) {
+            Some(refusal) => Err(closed_err(&refusal)),
+            None => Ok(()),
+        }
     })
 }
 

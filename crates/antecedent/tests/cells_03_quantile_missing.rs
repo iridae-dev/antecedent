@@ -328,7 +328,8 @@ fn cells_03_sharp_rd_runs_from_a_dag_or_confounding_free_admg_and_refuses_every_
         let error = rd(&columns, latent, None)
             .err()
             .unwrap_or_else(|| panic!("{a}<->{b}: latent confounding was ignored"));
-        assert!(error.to_string().contains("ADMG ATE requires estimator"), "{a}<->{b}: {error}");
+        assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{a}<->{b}: {error}");
+        assert!(error.to_string().contains("Admg"), "{a}<->{b}: {error}");
         assert!(error.to_string().contains("rd.sharp"), "{a}<->{b}: {error}");
     }
     let mut cpdag = Cpdag::with_variables(3);
@@ -338,10 +339,12 @@ fn cells_03_sharp_rd_runs_from_a_dag_or_confounding_free_admg_and_refuses_every_
         pag.insert_directed(node(from), node(to)).unwrap();
     }
     let error = rd(&columns, cpdag, None).expect_err("a CPDAG was read as a DAG");
-    assert!(error.to_string().contains("generalized.adjustment"), "{error}");
+    assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
+    assert!(error.to_string().contains("GeneralizedAdjustment"), "{error}");
     assert!(error.to_string().contains("rd.sharp"), "{error}");
     let error = rd(&columns, pag, None).expect_err("a PAG was read as a DAG");
-    assert!(error.to_string().contains("PAG"), "{error}");
+    assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
+    assert!(error.to_string().contains("Pag"), "{error}");
     assert!(error.to_string().contains("rd.sharp"), "{error}");
 }
 
@@ -356,7 +359,9 @@ fn cells_03_discontinuity_refuses_a_temporal_graph_and_the_time_discontinuity_re
     temporal.insert_directed(treatment, outcome).unwrap();
     temporal.insert_directed(running, outcome).unwrap();
     let error = rd(&columns, temporal.clone(), None).expect_err("a temporal graph was ignored");
-    assert!(error.to_string().contains("unsupported data/graph/query combination"), "{error}");
+    assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
+    assert!(error.to_string().contains("does not run on a TemporalDag graph"), "{error}");
+    assert!(error.to_string().contains("rd.sharp"), "{error}");
 
     // The discontinuity in calendar time is a design-based query: it carries its own
     // identification contract and refuses every graph class instead of ignoring it.

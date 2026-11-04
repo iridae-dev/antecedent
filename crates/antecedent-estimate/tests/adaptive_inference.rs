@@ -40,11 +40,14 @@ fn the_posterior_is_conjugate_and_carries_its_premise_and_a_closed_guarantee() {
         "normalization",
     );
     assert!(posterior.premise.contains("observed history"));
-    assert_eq!(posterior.guarantee.code, "not_supported");
-    assert_eq!(posterior.guarantee.detail, "adaptive_inference.posterior_interval_closed");
-    let refusal = posterior.guarantee.refusal("a credible interval");
-    assert_eq!(refusal.code, "not_supported");
-    assert!(refusal.message.contains("whole-procedure coverage"));
+    // The credible interval is reported: the uniform-prior posterior of 1 success in 1 trial
+    // is Beta(2, 1) (CDF x^2), whose equal-tailed 95% interval is (sqrt(0.025), sqrt(0.975)).
+    let one = bayesian_posterior(1.0, 1.0, &[ArmCounts { successes: 1, failures: 0 }; 2], &ctx())
+        .unwrap();
+    let (lower, upper) = one.arms[0].credible_interval(0.95).unwrap();
+    close(lower, 0.025_f64.sqrt(), 1e-9, "Beta(2,1) lower");
+    close(upper, 0.975_f64.sqrt(), 1e-9, "Beta(2,1) upper");
+    assert!(one.arms[0].credible_interval(1.0).is_none());
 }
 
 #[test]
@@ -68,7 +71,7 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
             .unwrap();
     assert!(!loss.stop, "the expected loss of the best arm is not below one in a million");
     assert_eq!(stop.guarantee.detail, "adaptive_inference.stopping_reliability_closed");
-    assert_eq!(stop.guarantee.code, "not_supported");
+    assert_eq!(stop.guarantee.code, "estimator_inference_mismatch");
     {
         let error =
             expected_loss_stopping(&posterior, PosteriorRule::ProbabilityBest { threshold: 0.4 })
@@ -111,7 +114,6 @@ fn weighted_estimates_match_the_hand_calculation_and_never_clip() {
     close(fit.uncalibrated_variance, 0.774_348_577_567_450_3, 1e-9, "variance");
     close(fit.uncalibrated_standard_error, fit.uncalibrated_variance.sqrt(), 1e-15, "se");
     assert_eq!(fit.units, 4);
-    assert_eq!(fit.guarantee.code, "not_supported");
     // A floor above the smallest probability of an estimand arm is a typed
     // refusal naming the unit and arm, never a clip.
     let strict = WeightedOptions { probability_floor: 0.25, ..options };
@@ -168,7 +170,6 @@ fn confidence_sequences_match_the_closed_form_and_union_bound_a_contrast() {
     close(single.arms[0].upper, 0.865_299_150_331_128_5, 1e-12, "upper");
     close(single.arms[0].mean, 0.75, 1e-15, "mean");
     assert_eq!(single.label, "uncalibrated_confidence_sequence");
-    assert_eq!(single.guarantee.code, "not_supported");
     let arm_b: Vec<f64> = (0..100).map(|i| f64::from(i % 2)).collect();
     let contrast =
         anytime_valid_arm_sequences(&[arm_a, arm_b], Some((0, 1)), 0.05, 100.0, &ctx()).unwrap();
@@ -263,9 +264,8 @@ fn cancellation_is_a_refusal_not_a_verdict() {
     assert_eq!(refusal.code, "cancelled_no_claim");
 }
 
-#[cfg(feature = "calibration-internal")]
 #[test]
-fn the_calibration_internal_intervals_are_candidates_not_claims() {
+fn the_interval_constructions_are_reported_and_their_arguments_validated() {
     use antecedent_estimate::adaptive_inference::{
         beta_credible_interval_internal, weighted_wald_interval_internal,
     };
@@ -280,7 +280,5 @@ fn the_calibration_internal_intervals_are_candidates_not_claims() {
             .unwrap();
     close(mass, 0.9, 1e-9, "interval mass");
     assert!(beta_credible_interval_internal(&posterior.arms[0], 1.5).is_none());
-    // The published guarantee stays closed.
-    assert_eq!(posterior.guarantee.code, "not_supported");
     let _ = weighted_wald_interval_internal;
 }

@@ -994,6 +994,9 @@ class AnalysisResult(ResultModel, ResultAPI):
     interval_bindings: tuple[IntervalBindingView, ...] = ()
     plan: PlanView | None = None
     evidence_status: str | None = None
+    #: What a development build ran although a release build would have refused it: one
+    #: ``{"code", "detail", "missing"}`` mapping per entry. Always empty in a release build.
+    would_refuse: tuple[Mapping[str, Any], ...] = ()
     structural_weight_basis: str | None = None
     structural_identified_mass: float | None = None
     structural_unidentified_mass: float | None = None
@@ -1222,7 +1225,15 @@ class AnalysisResult(ResultModel, ResultAPI):
             parts.append(f"unidentified_mass={fmt_pct(mass)}")
         if self.evidence_status == "not_supported":
             parts.append("unsupported")
-        return f"<AnalysisResult {' '.join(parts)}>"
+        text = f"<AnalysisResult {' '.join(parts)}>"
+        if self.would_refuse:
+            banner = "; ".join(
+                f"{entry['code']}: {entry['detail']}"
+                + (f" (missing {', '.join(entry['missing'])})" if entry["missing"] else "")
+                for entry in self.would_refuse
+            )
+            return f"development build: would have refused ({banner})\n{text}"
+        return text
 
     def rendering_limitation(self) -> str | None:
         """Stable id when a point-mean display would misrepresent the claim."""

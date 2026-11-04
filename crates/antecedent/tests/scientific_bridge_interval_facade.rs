@@ -309,14 +309,18 @@ fn checked_bridge_slot(basis: &CalibrationBasisWire, expected_method: &str) -> C
     live
 }
 
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "the deterministic fixture preserves its exact values and bounded setup"
-)]
-fn assert_not_attesting(refused: ScientificBridgeRefusal) {
-    assert_eq!(refused.code, antecedent_core::reason_code!("not_supported"));
-    assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
-    assert!(refused.message.contains("(coverage_record_not_attesting)"), "{}", refused.message);
+/// A construction whose record does not attest the current code is reported, annotated
+/// `outside_measured_scope` with `coverage_record_not_attesting`; calibration never refuses it.
+fn assert_not_attesting(
+    reported: Result<antecedent_io::bridge_interval::BridgedClaimInterval, ScientificBridgeRefusal>,
+) {
+    let interval = reported.expect("the interval is reported whatever its calibration");
+    assert!(interval.lower < interval.upper);
+    assert_ne!(interval.calibration.status, CalibrationStatus::Calibrated);
+    assert_eq!(
+        interval.calibration.reason.as_deref(),
+        Some(antecedent_io_core::calibration::RECORD_NOT_ATTESTING)
+    );
 }
 
 #[test]
@@ -380,7 +384,7 @@ fn a_correction_inside_a_measured_record_is_published_bound_to_it() {
     let slot = checked_bridge_slot(&built.basis, "normal_delta_method_clipped");
     let publication = result.bridged_interval(0.95);
     if slot.status != CalibrationStatus::Calibrated {
-        assert_not_attesting(refusal(publication));
+        assert_not_attesting(publication);
         return;
     }
     let interval = publication.expect("attesting record publishes");
@@ -422,7 +426,7 @@ fn a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound
     let slot = checked_bridge_slot(&built.basis, "student_t_prediction_interval");
     let publication = result.bridged_interval(0.95);
     if slot.status != CalibrationStatus::Calibrated {
-        assert_not_attesting(refusal(publication));
+        assert_not_attesting(publication);
         return;
     }
     let interval = publication.expect("attesting record publishes");
@@ -454,12 +458,11 @@ fn an_unscoped_request_a_posterior_and_an_unmeasured_level_stay_refused() {
         "scientific_bridge.interval_not_supported",
         "an unscoped request"
     );
-    // No record measures the trial-level construction at level 0.8, so the scoped request
-    // is refused whatever else has been measured.
-    let refused = refusal(result.bridged_interval(0.8));
-    assert_eq!(refused.code, antecedent_core::reason_code!("not_supported"));
-    assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
-    // A level outside the admitted range is outside the measured scope.
+    // No record measures the trial-level construction at level 0.8: the interval is reported
+    // with a calibration that is not `calibrated`.
+    let reported = result.bridged_interval(0.8).expect("reported at an unmeasured level");
+    assert_ne!(reported.calibration.status, CalibrationStatus::Calibrated);
+    // A level outside (0, 1) has no interval at all.
     assert_eq!(
         refusal(result.bridged_interval(1.5)).detail,
         "scientific_bridge.interval_scope_outside_measured"

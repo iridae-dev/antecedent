@@ -197,7 +197,13 @@ fn interval_and_export_refuse() {
             &ctx(),
         )
         .unwrap();
-    assert_eq!(estimate.interval().unwrap_err().code, "not_supported");
+    // The classical-error variance has an executed independent check, so the Wald interval is
+    // open: `point -/+ z * standard_error`.
+    let (lo, hi) = estimate.interval(0.95).unwrap();
+    let half = 1.959_963_984_540_054 * estimate.standard_error().unwrap();
+    assert!((lo - (estimate.point() - half)).abs() < 1e-9, "{lo}");
+    assert!((hi - (estimate.point() + half)).abs() < 1e-9, "{hi}");
+    assert_eq!(estimate.interval(1.0).unwrap_err().detail, "measurement_model.interval_level");
     let export = estimate.export("continuous").unwrap_err();
     assert_eq!(export.code, "route_not_supported");
     assert_eq!(export.detail, "measurement_model.continuous_export");

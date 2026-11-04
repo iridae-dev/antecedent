@@ -23,7 +23,7 @@ named world is evaluated under that same posterior state. The pipeline keeps its
 Every value is a ``point_only`` result of exact enumeration under the declared model (mechanism
 adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are closed:
 :meth:`CrossWorldExecution.interval` and :meth:`CrossWorldExecution.posterior` always raise
-``not_supported``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
+``sampling_dependence_unknown`` and ``uncertainty_representation_insufficient``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
 :func:`consume_cross_world_execution_artifact` replays everything with a fresh executor and
 refuses any edit. Every number, identity and refusal is computed in Rust.
 
@@ -33,8 +33,8 @@ abduction-action-prediction path: the enumerated posterior predictive variance o
 variance of the realized-outcome mean and, for an independent sample, the sampling variance of
 the mean unit probability. Every source of uncertainty (structural, posterior, sampling,
 numerical) is listed with what the path does with it. The result is an ``uncalibrated_spread``.
-:meth:`CrossWorldExecution.measured_interval` turns the declared spread into an interval only
-where a currently attesting whole-path coverage record exists, conditional on the declared model;
+:meth:`CrossWorldExecution.measured_interval` turns the declared spread into an interval,
+annotated by its calibration slot and conditional on the declared model;
 the unqualified interval, a posterior reading and a sampled abduction stay closed. The account
 is derived from the artifact bytes, never trusted: another set of units,
 mechanisms, quantity or unit sampling is refused by :meth:`WholePathAccount.verify_against`.
@@ -557,11 +557,11 @@ class CrossWorldExecution(ScientificResult):
         return self._data
 
     def interval(self) -> None:
-        """Always raises ``not_supported``: no whole-path coverage record exists."""
+        """Always raises ``sampling_dependence_unknown``: no unit sampling is declared."""
         _refuse(_native.cross_world_closed_reading("interval"))
 
     def posterior(self) -> None:
-        """Always raises ``not_supported``: no whole-path calibration record exists."""
+        """Always raises ``uncertainty_representation_insufficient``."""
         _refuse(_native.cross_world_closed_reading("posterior"))
 
     @outcome_operation
@@ -597,17 +597,18 @@ class CrossWorldExecution(ScientificResult):
     ) -> MeasuredCrossWorldInterval:
         """The interval of the executed quantity under a declared unit sampling.
 
-        Supported only by a currently attesting whole-path coverage record for this model class,
-        quantity, unit sampling and unit count. The interval is a statement conditional on the
+        Always reported; ``calibration`` annotates it with the status of the whole-path coverage
+        records for this model class, quantity, unit sampling and unit count. The interval is a statement conditional on the
         declared mechanisms being the truth: ``independent_sample`` covers the population mean of
         the unit counterfactual probabilities; ``fixed_units`` covers the mean of the realized
         counterfactual outcomes of these units. A posterior statement and a sampled abduction stay
         closed: with declared mechanisms the exogenous posterior is exact.
 
         Raises:
-            CrossWorldExecutionRefusal: ``not_supported`` without an attesting record or for
-                a request outside the measured model class, or any refusal of
-                :meth:`whole_path_uncertainty`.
+            CrossWorldExecutionRefusal: ``estimator_inference_mismatch`` (sampled abduction),
+                ``transport_not_certified`` (transported request),
+                ``uncertainty_representation_insufficient`` (no determined variance), or any
+                refusal of :meth:`whole_path_uncertainty`.
         """
         if unit_sampling not in ("fixed_units", "independent_sample"):
             raise CausalValueError(
@@ -630,7 +631,8 @@ class CrossWorldExecution(ScientificResult):
             upper=float(info["upper"]),
             level=float(info["level"]),
             unit_sampling=str(info["unit_sampling"]),
-            record_id=str(info["record_id"]),
+            record_id=None if info["record_id"] is None else str(info["record_id"]),
+            calibration=dict(info["calibration"]),
             label=str(info["label"]),
         )
 
@@ -645,7 +647,8 @@ class MeasuredCrossWorldInterval(ScientificResult):
     upper: float
     level: float
     unit_sampling: str
-    record_id: str
+    record_id: str | None
+    calibration: Mapping[str, Any]
     label: str
 
 
@@ -786,11 +789,11 @@ class WholePathAccount(ScientificResult):
         )
 
     def interval(self) -> None:
-        """Always raises ``not_supported``: a spread is not an interval."""
+        """Always raises ``sampling_dependence_unknown``: a spread is not an interval."""
         _refuse(_native.cross_world_closed_reading("interval"))
 
     def posterior(self) -> None:
-        """Always raises ``not_supported``: a spread is not a posterior."""
+        """Always raises ``uncertainty_representation_insufficient``: a spread is not a posterior."""
         _refuse(_native.cross_world_closed_reading("posterior"))
 
 

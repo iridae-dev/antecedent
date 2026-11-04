@@ -460,7 +460,7 @@ fn an_interval_or_posterior_request_of_a_discretized_value_is_refused_by_both_pa
     for paradigm in [InferenceParadigm::Frequentist, InferenceParadigm::Bayesian] {
         let refusal = model.uncertainty_refusal(paradigm);
         assert_eq!(refusal.detail, DETAIL_POINT_ONLY);
-        assert_eq!(refusal.reason_code, "not_supported");
+        assert_eq!(refusal.reason_code, "uncertainty_representation_insufficient");
         assert!(!refusal.remedy.is_empty());
     }
 }

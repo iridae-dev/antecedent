@@ -1,0 +1,44 @@
+feature_id = "estimate.bayesian_randomized_quantile"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/quantile_posterior.rs"]
+
+# Strategy-table implementation id: estimate.bayesian_randomized_quantile
+# (EstimatorId::BayesianRandomizedQuantile, public name bayesian.randomized_quantile, kernel
+# bayesian_quantile.dirichlet_grid_inversion).
+#
+# Bayesian posterior of the quantile treatment effect of a randomized two-arm trial. Within each
+# arm the outcomes fall into the K + 1 bins cut by a declared strictly increasing threshold grid,
+# with one multinomial probability vector per arm and a symmetric Dirichlet prior, so the
+# posterior is Dirichlet(prior + counts) in closed form. A draw's grid distribution function is
+# the cumulative sum of a Dirichlet draw, and the quantile at level tau is read by piecewise-linear
+# inversion of that function (the same inversion as the frequentist quantile cell,
+# crate::quantile::invert_cdf_quantile). The treatment effect is the draw-by-draw difference of the
+# independent arm quantiles. The module's doc comments name no publication; the references below
+# are the standard sources for the quantile-treatment-effect estimand, the Dirichlet-weighted
+# Bayesian view of an unknown distribution, and Dirichlet-multinomial conjugacy.
+papers = [
+ { title = "Efficient Semiparametric Estimation of Quantile Treatment Effects (Firpo, Econometrica 75:259-276)", sections = ["the quantile treatment effect estimand"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet posterior over the probabilities of a discrete support"] },
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["multinomial model with a Dirichlet prior (conjugate posterior)"] },
+]
+
+implementation_deviations = [
+ "The likelihood is a binned multinomial over the declared threshold grid with a symmetric Dirichlet prior, not a model of the unbinned outcome law; the within-bin law is the linear interpolation of the distribution function, so the quantile is a functional of the binned law and inference conditions on the grid.",
+ "The posterior of the quantile is computed by simulation: Dirichlet draws are formed from gamma variates, cumulatively summed, and inverted piecewise linearly at tau. A draw whose quantile is not bracketed by the grid, or whose local bracket density is too small to invert, is unresolved and removed; the reported posterior is conditional on a draw being resolved, and more than one percent unresolved refuses the posterior.",
+ "The two arms are independent under randomization, so the effect posterior is the draw-by-draw difference of independent arm posteriors. Covariates, confounding adjustment, nonrandomized assignment and effect modifiers are not modelled; the cell is claimed only for a randomized two-arm design.",
+ "Only the refute=none suite is supported. The mean-effect refuters (placebo, random common cause, subset and similar re-estimations of a mean contrast) do not validate a quantile treatment effect, so a quantile route that ran them would report evidence about a different estimand; the route therefore does not offer any refuter suite.",
+ "The credible interval is an equal-tailed 95 percent interval of the simulated draws; no repeated-sampling coverage is claimed.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/bayesian_static_known_truth.rs (bayesian_randomized_quantile_posterior_cdf_matches_the_dirichlet_closed_form: on the AverageEffect Dag accepted and explicit Bayesian none cells, the retained posterior row's control and treated grid distribution-function means equal the hand-counted Dirichlet closed form to 1e-12, the logical plan names bayesian.randomized_quantile, and the refute=none suite carries no refutations)",
+ "crates/antecedent-estimate/tests/quantile_posterior_reference.rs (sampler against the exact Beta-integral distribution of the resolved quantile)",
+ "crates/antecedent/tests/bayesian_design_posterior_routes.rs",
+]

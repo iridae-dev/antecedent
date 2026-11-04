@@ -152,6 +152,9 @@ pub struct StudyConfig {
     /// `TemporalCpdag` or `TemporalPag`, when the build compiled it as its lag-0 pulse contrast. The support
     /// cell is the `AverageEffect` cell; every result discloses the reading.
     pub(crate) lag_zero_average_effect: Option<antecedent_core::AverageEffectQuery>,
+    /// What a development build ran although a release build would have refused it at build
+    /// time. Not part of the study's identity; always empty in a release build.
+    pub(crate) would_refuse: Vec<antecedent_core::WouldRefuse>,
 }
 
 /// Prepared analysis (static or temporal).

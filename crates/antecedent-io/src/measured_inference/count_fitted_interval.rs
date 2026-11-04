@@ -50,7 +50,7 @@ fn refused(detail: &str, message: &str) -> IoError {
 }
 
 fn protocol(message: &str) -> IoError {
-    refused("measured_interval.protocol_not_measured", message)
+    refused("measured_interval.invalid_source", message)
 }
 
 #[allow(clippy::needless_pass_by_value, reason = "used as an owned map_err callback")]
@@ -197,14 +197,16 @@ impl CountFittedIntervalArtifactWire {
         crate::to_cbor(self)
     }
 
-    /// The draw count lies in the supported range, from the minimum to the bound.
+    /// The draw count lies in the computable range. A count below [`MEASURED_DRAWS`] is computed
+    /// and reported; its calibration is `outside_measured_scope`, and the Monte Carlo error rule
+    /// refuses an interval whose endpoints have not converged.
     ///
     /// # Errors
-    /// A count below [`MEASURED_DRAWS`] or above the estimator's draw bound.
+    /// No draws, or a count above the estimator's draw bound.
     pub fn check_draws(&self) -> Result<(), IoError> {
-        if self.draws < MEASURED_DRAWS || self.draws as usize > MAX_DRAWS {
+        if self.draws == 0 || self.draws as usize > MAX_DRAWS {
             return Err(protocol(&format!(
-                "posterior draws must lie in {MEASURED_DRAWS}..={MAX_DRAWS}, got {}",
+                "posterior draws must lie in 1..={MAX_DRAWS}, got {}",
                 self.draws
             )));
         }
@@ -237,9 +239,6 @@ impl CountFittedIntervalArtifactWire {
     /// and the Monte Carlo error of the endpoints against `mcse_tolerance`.
     fn replay(&self, mcse_tolerance: f64) -> Result<PosteriorInterval, IoError> {
         let resolved = self.resolve()?;
-        if resolved.prior_alpha.to_bits() != MEASURED_PRIOR_ALPHA.to_bits() {
-            return Err(protocol("only the uniform Dirichlet prior was measured"));
-        }
         self.check_draws()?;
         let interval = resolved
             .model
@@ -270,11 +269,10 @@ impl CountFittedIntervalArtifactWire {
     /// current calibration evidence.
     ///
     /// # Errors
-    /// A non-canonical or malformed source, a construction outside the measured
-    /// protocol (prior, a draw count below the supported minimum or above the bound,
-    /// complete rows), endpoints whose Monte Carlo error exceeds
-    /// [`MAX_ENDPOINT_MCSE_FRACTION`] of the width, evidence of probability zero, or a
-    /// construction with no currently attesting record.
+    /// A non-canonical or malformed source, a draw count of zero or above the bound,
+    /// incomplete rows, endpoints whose Monte Carlo error exceeds
+    /// [`MAX_ENDPOINT_MCSE_FRACTION`] of the width, or evidence of probability zero. A prior or
+    /// draw count no record measured still reports its interval, annotated by calibration.
     pub fn measure(bytes: &[u8]) -> Result<MeasuredInference, IoError> {
         let wire: Self = crate::from_cbor(bytes)?;
         if crate::to_cbor(&wire)? != bytes {
@@ -324,7 +322,17 @@ impl CountFittedIntervalArtifactWire {
                 name: FUNCTIONAL_ID.into(),
                 point: interval.point,
                 interval: (interval.lower, interval.upper),
-                basis: calibration_basis(interval.rows, interval.level, interval.draws),
+                basis: {
+                    let mut basis =
+                        calibration_basis(interval.rows, interval.level, interval.draws);
+                    if f64::from_bits(wire.prior_alpha_bits).to_bits()
+                        != MEASURED_PRIOR_ALPHA.to_bits()
+                    {
+                        // Another prior is another posterior: no record measured it.
+                        basis.posterior = "dirichlet.prior_not_measured".into();
+                    }
+                    basis
+                },
             }],
         )
     }
@@ -440,22 +448,22 @@ mod tests {
     }
 
     #[test]
-    fn draws_below_the_supported_minimum_or_above_the_bound_are_refused() {
-        for draws in [0, 2, 1000, MEASURED_DRAWS - 1, u32::try_from(MAX_DRAWS).unwrap() + 1] {
+    fn zero_draws_or_draws_above_the_bound_are_refused() {
+        for draws in [0, u32::try_from(MAX_DRAWS).unwrap() + 1] {
             let error = wire(draws).replay(MAX_ENDPOINT_MCSE_FRACTION).unwrap_err();
             let message = detail(&error);
-            assert!(message.contains("protocol_not_measured"), "{draws}: {message}");
+            assert!(message.contains("invalid_source"), "{draws}: {message}");
             assert!(message.contains(&format!("got {draws}")), "{message}");
         }
         assert!(wire(u32::try_from(MAX_DRAWS).unwrap()).replay(1.0).is_ok());
     }
 
     #[test]
-    fn a_non_measured_prior_is_still_refused() {
+    fn a_non_measured_prior_is_computed_and_replays() {
         let other =
             CountFittedIntervalArtifactWire { prior_alpha_bits: 0.5_f64.to_bits(), ..wire(2000) };
-        let message = detail(&other.replay(1.0).unwrap_err());
-        assert!(message.contains("protocol_not_measured"), "{message}");
+        let interval = other.replay(1.0).expect("another prior is computed");
+        assert!(interval.lower < interval.upper);
     }
 
     #[test]
@@ -473,15 +481,10 @@ mod tests {
 
     #[test]
     fn a_draw_count_below_the_supported_minimum_is_refused_naming_it() {
-        let error = wire(200).replay(MAX_ENDPOINT_MCSE_FRACTION).unwrap_err();
-        let message = detail(&error);
-        assert!(message.contains("measured_interval.protocol_not_measured"), "{message}");
-        assert!(message.contains("2000..=100000, got 200"), "{message}");
         assert_eq!(MEASURED_DRAWS, 2000);
-        assert!(wire(200).check_draws().is_err() && wire(MEASURED_DRAWS).check_draws().is_ok());
-        // The refusal comes before any draw is made, so no interval can carry the count.
-        assert!(wire(1999).replay(1.0).is_err());
+        assert!(wire(0).check_draws().is_err() && wire(200).check_draws().is_ok());
         assert!(wire(MEASURED_DRAWS).replay(1.0).is_ok());
+        assert!(wire(1999).replay(1.0).is_ok());
     }
 
     #[test]

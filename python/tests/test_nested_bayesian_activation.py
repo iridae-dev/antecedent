@@ -11,18 +11,12 @@ from dataclasses import FrozenInstanceError, replace
 
 import numpy as np
 import pytest
-from antecedent import _native
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.graph import Admg
 from antecedent.transport._closed_pilots import _nested_posterior_candidate as binary_nested_markov
 from antecedent.transport.advanced import (
     NestedMarkovPosteriorCandidate,
     NestedMarkovPrior,
-)
-
-_INTERNAL = hasattr(_native, "nested_markov_posterior_candidate")
-_CANDIDATE = pytest.mark.skipif(
-    not _INTERNAL, reason="requires calibration-internal acceptance wheel"
 )
 
 
@@ -80,17 +74,6 @@ def test_nested_bayesian_named_prior_is_immutable_and_has_domain_errors():
         assert caught.value.reason_code == "invalid_argument"
 
 
-@pytest.mark.skipif(_INTERNAL, reason="normal released wheel refusal boundary")
-def test_nested_bayesian_default_producer_and_consumer_remain_frozen():
-    with pytest.raises(CausalUnsupportedError) as caught:
-        produce()
-    assert caught.value.reason_code == "not_supported"
-    with pytest.raises(CausalUnsupportedError) as caught:
-        NestedMarkovPosteriorCandidate.load(b"unsupported", expected_identity="absent")
-    assert caught.value.reason_code == "not_supported"
-
-
-@_CANDIDATE
 def test_nested_bayesian_public_original_posterior_matches_conjugate_reference_and_fresh_consumer(
     tmp_path,
 ):
@@ -158,7 +141,6 @@ print(json.dumps(r.to_dict()))
     assert json.loads(fresh.stdout) == payload
 
 
-@_CANDIDATE
 def test_nested_bayesian_prior_changes_actual_posterior_and_bound_identity():
     baseline = produce()
     changed = produce(NestedMarkovPrior(q40=(4, 1), q41=(4, 1)))

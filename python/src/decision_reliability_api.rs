@@ -257,19 +257,25 @@ fn decision_reliability_digests(draws_json: &str) -> Refused<(String, String)> {
     }
 }
 
-/// Ask for a published ranking probability or interval route at a coordinate. Every
-/// route is closed until a coverage record measures it, so this returns its refusal.
+/// Publish a ranking probability or interval route at a coordinate. The route is always
+/// published; the result is its calibration slot.
 #[pyfunction]
-fn decision_reliability_publish(route: &str, coordinate_json: &str) -> Option<String> {
+fn decision_reliability_publish(route: &str, coordinate_json: &str) -> Refused<String> {
     let route: PublishedRoute = match serde_json::from_value(Json::String(route.to_owned())) {
         Ok(value) => value,
-        Err(error) => return Some(invalid_json(format!("route: {error}"))),
+        Err(error) => return (None, Some(invalid_json(format!("route: {error}")))),
     };
     let coordinate: CalibrationCoordinate = match parse(coordinate_json, "coordinate") {
         Ok(value) => value,
-        Err(refusal) => return Some(refusal),
+        Err(refusal) => return (None, Some(refusal)),
     };
-    support_route(route, &coordinate).err().map(|error| error_json(&error))
+    match support_route(route, &coordinate) {
+        Ok(slot) => match serde_json::to_string(&slot) {
+            Ok(text) => (Some(text), None),
+            Err(error) => (None, Some(invalid_json(format!("slot: {error}")))),
+        },
+        Err(error) => (None, Some(error_json(&error))),
+    }
 }
 
 /// Derive the three uncertainty components from draws (derived, unmeasured).
@@ -382,18 +388,24 @@ fn decision_reliability_verify_derived(
     Ok(outcome.1)
 }
 
-/// Ask to publish a route from a derivation: refuses `not_supported`.
+/// Publish a route from a derivation; the result is its calibration slot.
 #[pyfunction]
-fn decision_reliability_publish_derived(route: &str, derived_json: &str) -> Option<String> {
+fn decision_reliability_publish_derived(route: &str, derived_json: &str) -> Refused<String> {
     let route: PublishedRoute = match serde_json::from_value(Json::String(route.to_owned())) {
         Ok(value) => value,
-        Err(error) => return Some(invalid_json(format!("route: {error}"))),
+        Err(error) => return (None, Some(invalid_json(format!("route: {error}")))),
     };
     let derived: DerivedUncertainty = match parse(derived_json, "derived uncertainty") {
         Ok(value) => value,
-        Err(refusal) => return Some(refusal),
+        Err(refusal) => return (None, Some(refusal)),
     };
-    publish_derived_route(&derived, route).err().map(|refusal| refusal_json(&refusal))
+    match publish_derived_route(&derived, route) {
+        Ok(slot) => match serde_json::to_string(&slot) {
+            Ok(text) => (Some(text), None),
+            Err(error) => (None, Some(invalid_json(format!("slot: {error}")))),
+        },
+        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    }
 }
 
 /// The coverage-measurement design as JSON (nothing is measured).

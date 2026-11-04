@@ -56,7 +56,7 @@ def test_a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() -
     # An interval, posterior or law reading of a point is refused for both paradigms.
     for paradigm in ("frequentist", "bayesian"):
         refusal = refusal_of(lambda paradigm=paradigm: bridged.uncertainty(paradigm))
-        assert refusal.reason_code == "not_supported"
+        assert refusal.reason_code == "uncertainty_representation_insufficient"
         assert refusal.detail == "discretized_scm.point_only"
         assert refusal.remedy
     refusal_of(bridged.interval)

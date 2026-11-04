@@ -87,8 +87,10 @@ def test_ledger_mean_keeps_evidence_and_remains_point_only():
     consumed = require_success(ant.load(artifact, expected=artifact.expectation))
     assert bytes(consumed.export()) == artifact.data
     assert consumed.acceptance.identity_bound
-    with pytest.raises(el.EvidenceLedgerRefusal, match=r"evidence_ledger\.interval_not_measured"):
-        ledger.pooled_interval(outcome.result)
+    # Two studies have no coverage record: the interval is reported, annotated, not calibrated.
+    reported = ledger.pooled_interval(outcome.result)
+    assert reported["lower"] < reported["estimate"] < reported["upper"]
+    assert reported["calibration"]["status"] != "calibrated"
 
 
 def test_transported_counterfactual_identity_and_point_only_reading_survive_dispatch():

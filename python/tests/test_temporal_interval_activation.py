@@ -17,7 +17,6 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from antecedent import _native
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.transport._temporal_extensions import (
     _temporal_dependent_interval_candidate as temporal_dependent_interval,
@@ -28,10 +27,6 @@ from antecedent.transport.advanced import (
     TemporalUnitPanel,
 )
 
-_INTERNAL = hasattr(_native, "temporal_dependent_interval_candidate")
-_CANDIDATE = pytest.mark.skipif(
-    not _INTERNAL, reason="requires calibration-internal acceptance wheel"
-)
 _MASK = (1 << 64) - 1
 _GAMMA = 0x9E3779B97F4A7C15
 
@@ -105,16 +100,6 @@ def test_temporal_candidate_requires_original_factory():
         TemporalIntervalCandidate._from_native(SimpleNamespace(payload=lambda: "{}"))
 
 
-@pytest.mark.skipif(_INTERNAL, reason="normal wheels omit the private internal candidate hook")
-@pytest.mark.parametrize("method", ["studentized"])
-def test_temporal_default_route_remains_frozen(method):
-    with pytest.raises(CausalUnsupportedError) as caught:
-        produce(method)
-    assert caught.value.reason_code == "not_supported"
-    assert caught.value.detail == "temporal_interval.route_frozen"
-
-
-@_CANDIDATE
 @pytest.mark.parametrize("method", ["studentized"])
 def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh_consumer(
     method, tmp_path
@@ -166,7 +151,6 @@ print(json.dumps(r.to_dict()))
     assert json.loads(fresh.stdout) == payload
 
 
-@_CANDIDATE
 @pytest.mark.parametrize(
     "change",
     [
@@ -186,7 +170,6 @@ def test_temporal_changed_panel_refuses_retained_identity(change):
     assert caught.value.detail == "temporal_interval_artifact.expected_identity_mismatch"
 
 
-@_CANDIDATE
 def test_temporal_candidate_keeps_unknown_units_and_incompatible_history_refusals():
     with pytest.raises(CausalUnsupportedError) as caught:
         temporal_dependent_interval(TemporalUnitPanel("no-map", None), sequence=(0, 0))

@@ -247,11 +247,6 @@ fn result_digest(result: &MnarSensitivityResult) -> Result<[u8; 32], CausalError
         side(w, t.positive);
     }
     fn point(w: &mut CanonicalWriter, p: &MnarPoint) -> Result<(), CausalError> {
-        if p.sampling.is_some() {
-            return Err(CausalError::Compile {
-                message: "unsupported MNAR interval in point candidate".into(),
-            });
-        }
         w.real(p.parameter)
             .real(p.treated_mean)
             .real(p.control_mean)
@@ -482,15 +477,15 @@ mod tests {
                 let expected = treated + (1.0 - share) * data.treated_shift() - mean(false).0;
                 let point = declared_point(&result, data.treated_shift()).unwrap();
                 assert!((point.effect - expected).abs() < 1e-9);
-                assert!(result.grid.iter().all(|point| point.sampling.is_none()));
-                assert_eq!(result.sampling_status, "not_supported");
+                assert!(result.grid.iter().all(|point| point.sampling.is_some()));
+                assert_eq!(result.sampling_status, "reported");
             }
         }
     }
 
     #[test]
     fn standard_error_matches_the_validated_sensitivity_construction() {
-        use antecedent_validate::mnar_sensitivity::mnar_sensitivity_calibration_candidate;
+        use antecedent_validate::mnar_sensitivity::mnar_sensitivity as mnar_sensitivity_calibration_candidate;
         let ctx = ExecutionContext::for_tests(16);
         for design in
             [rows((30, 24), (40, 28)), rows((15, 9), (90, 60)), rows((200, 150), (60, 31))]
@@ -546,8 +541,8 @@ mod tests {
         let ctx = ExecutionContext::for_tests(13);
         let prepared = Study::prepare_mnar_fixed_shift(source(), &ctx).unwrap();
         let result = prepared.estimate_candidate(&ctx).unwrap();
-        assert!(result.mar.sampling.is_none());
-        assert!(result.grid.iter().all(|point| point.sampling.is_none()));
+        assert!(result.mar.sampling.is_some());
+        assert!(result.grid.iter().all(|point| point.sampling.is_some()));
         let artifact = prepared.export_source(&ctx).unwrap();
         let expected = *artifact.expectation();
         let mut bytes = artifact.bytes().to_vec();

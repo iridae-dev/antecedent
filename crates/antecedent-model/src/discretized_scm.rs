@@ -52,7 +52,10 @@
 //! * Levels are declared per variable, never defaulted; `2..=64` per variable
 //!   and the joint space within the finite-enumeration bound.
 //! * Point-only. The discretized value carries no interval, no posterior and
-//!   no calibration; parameter uncertainty declared on the source mechanisms
+//!   no calibration (a scientific refusal, `uncertainty_representation_insufficient`: the
+//!   grid replaces the Gaussian law by a deterministic approximation with a computed
+//!   mean-error bound, so its table has no sampling or posterior representation, and the
+//!   closed-form composed uncertainty is the route that reports an interval); parameter uncertainty declared on the source mechanisms
 //!   is not propagated through the discretization and the result says so.
 //!
 //! The parity table at the end of the module records, per transported or
@@ -966,7 +969,7 @@ impl DiscretizedLinearGaussian {
     pub fn uncertainty_refusal(&self, paradigm: InferenceParadigm) -> BridgeRefusal {
         let _ = paradigm;
         BridgeRefusal::new(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             DETAIL_POINT_ONLY,
             "discretization_bridge",
             "use the closed-form composed uncertainty for an interval on the Gaussian model; a discretized value is a point with a computed mean-error bound",

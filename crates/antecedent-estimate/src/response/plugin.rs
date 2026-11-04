@@ -2,11 +2,9 @@
 
 use std::sync::Arc;
 
-#[cfg(feature = "calibration-internal")]
 use antecedent_core::{DerivativeScale, ResponseFunctional, ResponseUncertainty, ResponseValue};
 use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, VariableId};
 use antecedent_data::TabularData;
-#[cfg(feature = "calibration-internal")]
 use antecedent_stats::normal_ppf;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, invert_square};
 
@@ -57,8 +55,7 @@ impl ContinuousResponseEstimator {
 
     /// Pointwise confidence band of the Frequentist additive-GAM plug-in gradient
     /// (a [`ResponseFunctional::Jacobian`] on the identity scale, or a
-    /// [`ResponseFunctional::DirectionalDerivative`]): the closed interval route the
-    /// calibration harness measures.
+    /// [`ResponseFunctional::DirectionalDerivative`]).
     ///
     /// Each coordinate is a linear functional `c'β̂` of the target fit's
     /// coefficients (`c` the treatment-basis derivatives at `at`), so its
@@ -66,18 +63,16 @@ impl ContinuousResponseEstimator {
     /// for the intervention-response level, with no covariate-average term (the
     /// additive gradient does not depend on the adjustment covariates). The
     /// variance uses HC2 row-leverage residuals from the same penalized Gram,
-    /// accounting for unequal leverage of the spline basis. The band conditions on the fixed knots and
-    /// adjustment penalty and excludes sieve-approximation bias of a non-additive
-    /// or rough outcome surface. The public route withholds this band
-    /// (`response.derivative_interval_withheld`) until its coverage records are
-    /// measured; the returned value is the published point, bit for bit.
+    /// accounting for unequal leverage of the spline basis. The band conditions on the fixed
+    /// knots and adjustment penalty and excludes sieve-approximation bias of a non-additive or
+    /// rough outcome surface. The public Jacobian and directional-derivative routes report this
+    /// band with a calibration annotation; the value is the published point, bit for bit.
     ///
     /// # Errors
     ///
     /// The public route's refusals, a transformed Jacobian scale (no interval is
     /// constructed for it), invalid options, or a design whose penalized Gram is
     /// rank deficient.
-    #[cfg(feature = "calibration-internal")]
     #[doc(hidden)]
     pub fn plugin_gradient_interval_internal(
         &self,
@@ -108,6 +103,20 @@ impl ContinuousResponseEstimator {
                 ));
             }
         };
+        self.plugin_gradient_band(data, outcomes, treatments, at, direction.map(|d| &d[..]))
+    }
+
+    /// The pointwise sandwich band of the plug-in gradient: the Jacobian coordinates when
+    /// `direction` is `None`, else the directional derivative.
+    pub(super) fn plugin_gradient_band(
+        &self,
+        data: &TabularData,
+        outcomes: &[VariableId],
+        treatments: &[VariableId],
+        at: &[f64],
+        direction: Option<&[f64]>,
+    ) -> Result<(ResponseValue, ResponseUncertainty), EstimationError> {
+        let level = self.options.confidence_level;
         let run = self.plugin_gradient_run(data, outcomes, treatments, at, true)?;
         let nf = run.n as f64;
         let z = normal_ppf(0.5 + level / 2.0);
@@ -311,11 +320,8 @@ impl PluginSandwich {
     /// HC2 divides each in-sample residual by `sqrt(1 - h_ii)` before forming the
     /// functional's coefficient influence.
     fn leverage(&self) -> Result<Vec<f64>, EstimationError> {
-        let inverse = invert_square(&self.gram, self.p).ok_or_else(|| {
-            EstimationError::unsupported(
-                "response influence requires an invertible penalized design",
-            )
-        })?;
+        let inverse = invert_square(&self.gram, self.p)
+            .ok_or_else(|| EstimationError::unsupported(NOT_INVERTIBLE_PENALIZED_DESIGN))?;
         let mut out = Vec::with_capacity(self.n);
         for i in 0..self.n {
             let h = (0..self.p)
@@ -446,28 +452,16 @@ pub(super) struct PluginGradientRun {
     pub(super) levels: Vec<f64>,
     pub(super) gradients: Vec<Vec<f64>>,
     /// One entry per outcome when influence was requested, else empty. Read only
-    /// by the calibration-internal band.
-    #[cfg_attr(
-        not(feature = "calibration-internal"),
-        allow(dead_code, reason = "read only by the calibration-internal band")
-    )]
+    /// by the band.
     pub(super) influence: Vec<PluginGradientInfluence>,
     pub(super) all_treatments: Vec<f64>,
     /// Original data-frame row index of each shared complete-case row.
     pub(super) keep: Vec<usize>,
     /// Shared complete-case row count.
-    #[cfg_attr(
-        not(feature = "calibration-internal"),
-        allow(dead_code, reason = "read only by the calibration-internal band")
-    )]
     pub(super) n: usize,
 }
 
 /// Coefficient-sandwich influence of one outcome's gradient coordinates.
-#[cfg_attr(
-    not(feature = "calibration-internal"),
-    allow(dead_code, reason = "read only by the calibration-internal band")
-)]
 pub(super) struct PluginGradientInfluence {
     /// One centred column per treatment coordinate.
     pub(super) columns: Vec<Vec<f64>>,
@@ -512,7 +506,6 @@ fn plugin_gradient_influence(
 /// HC2 standard error of a centred influence column: `sqrt(Σψ²) / n` after
 /// dividing each fit residual by its own `sqrt(1 - h_ii)` in
 /// [`plugin_gradient_influence`].
-#[cfg(feature = "calibration-internal")]
 fn plugin_sandwich_se(psi: &[f64], n: f64) -> f64 {
     if !(n.is_finite() && n > 0.0) {
         return f64::NAN;
@@ -520,13 +513,28 @@ fn plugin_sandwich_se(psi: &[f64], n: f64) -> f64 {
     (psi.iter().map(|x| x * x).sum::<f64>() / (n * n)).sqrt()
 }
 
-/// Why the Frequentist plug-in gradient publishes no interval.
+/// The refusal of the sandwich band when the penalized Gram has no inverse.
+pub(super) const NOT_INVERTIBLE_PENALIZED_DESIGN: &str =
+    "response influence requires an invertible penalized design";
+
+/// Why the plug-in gradient of a collinear design has a point and no band.
+pub(super) fn plugin_gradient_band_unavailable() -> Diagnostic {
+    Diagnostic::new(
+        "response.derivative_interval_withheld",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "no Frequentist interval is reported for this additive-GAM plug-in gradient: the penalized design is rank deficient (collinear treatment columns), so the coefficient sandwich cannot be formed and only the point value is published",
+    )
+}
+
+/// Why a transformed-scale Frequentist plug-in Jacobian has no interval: the sandwich band is
+/// constructed on the identity scale only.
 pub(super) fn plugin_gradient_interval_withheld() -> Diagnostic {
     Diagnostic::new(
         "response.derivative_interval_withheld",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
-        "no Frequentist interval is reported for this additive-GAM plug-in gradient: its coefficient-sandwich confidence band is wired for calibration but its repeated-sampling coverage is not yet measured, so the interval route stays closed and only the point value is published; Bayesian inference publishes a measured pointwise credible band for the same plug-in gradient",
+        "no Frequentist interval is reported for this transformed-scale additive-GAM plug-in Jacobian: its coefficient-sandwich confidence band is constructed on the identity scale only, so only the point value is published; the identity-scale Jacobian and the directional derivative report the band",
     )
 }
 

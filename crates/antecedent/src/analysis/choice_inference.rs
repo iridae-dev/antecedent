@@ -434,14 +434,14 @@ impl ChoiceInferenceSession {
     /// Request an interval or coverage statement without naming a result.
     ///
     /// # Errors
-    /// Always `not_supported`: a coverage statement belongs to one measured cell and one
-    /// named result. Ask for a result's interval with [`Self::measured_interval`].
+    /// Always `quantity_semantics_mismatch`: a coverage statement belongs to one cell and one
+    /// named result, so an interval of the whole procedure names no scientific quantity. Ask for a result's interval with [`Self::measured_interval`].
     pub fn interval(&self) -> Result<(), ChoiceInferenceRefusal> {
         Err(ChoiceInferenceRefusal {
-            code: antecedent_core::reason_code!("not_supported"),
+            code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
             detail: "choice_inference.interval_closed".to_owned(),
             message: format!(
-                "no interval or coverage statement is supported for the choice procedure {} as an unqualified request; request the interval of a result with measured_interval, which is supported only for measured cells",
+                "an interval or coverage statement of the choice procedure {} as an unqualified request names no scientific quantity; request the interval of a result with measured_interval, which reports it with its calibration status",
                 self.contract.cell().identifier()
             ),
         })

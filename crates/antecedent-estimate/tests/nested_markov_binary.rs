@@ -14,7 +14,7 @@ use antecedent_estimate::nested_markov_binary::{
     AdmgDeclaration, BinaryCells, ConstraintStatus, FitMethod, FitOptions, IdentificationStanding,
     InferenceStanding, LikelihoodFitStanding, NestedMarkovInput, Regime, RegimeCounts,
     binary_cells, check_likelihood, constraint_residuals, evaluate_nested_markov_pilot,
-    fit_nested_markov, refuse_public_interval_route,
+    fit_nested_markov,
 };
 
 /// `P(V = 1) = p` as a level probability.
@@ -170,12 +170,7 @@ fn nested_likelihood_truth_exact_counts_recover_scm() {
     // The three standings are separate fields.
     assert_eq!(report.status.identification, IdentificationStanding::NonparametricallyIdentified);
     assert_eq!(report.status.likelihood_fit, LikelihoodFitStanding::ConvergedConstraintsSatisfied);
-    assert_eq!(report.status.inference, InferenceStanding::IntervalWithheldCalibrationUnmeasured);
-
-    // The interval route stays closed.
-    let (code, message) = coded(&refuse_public_interval_route());
-    assert_eq!(code, "not_supported");
-    assert!(message.contains("nested_markov.route_frozen"));
+    assert_eq!(report.status.inference, InferenceStanding::IntervalCandidatesCalibrationAnnotated);
 }
 
 #[test]

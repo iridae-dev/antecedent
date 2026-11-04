@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-contract/development", "antecedent-data/development", "antecedent-discovery/development", "antecedent-estimate/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-io/development", "antecedent-io-core/development", "antecedent-prob/development", "antecedent-stats/development", "antecedent-validate/development", "antecedent-model/development", "antecedent-learn/development", "antecedent-counterfactual/development", "antecedent-attribution/development", "antecedent-design/development", "antecedent-state/development", "antecedent-kernels/development"]
 default = ["file-source"]
 # Parquet and Arrow IPC table files (`analysis::file_table`).
 file-source = ["antecedent-data/parquet", "antecedent-data/ipc"]
@@ -726,6 +728,15 @@ name = "transported_decision_facade"
 path = "tests/transported_decision_facade.rs"
 
 [[test]]
+name = "development_build"
+path = "tests/development_build.rs"
+required-features = ["development"]
+
+[[test]]
+name = "release_not_supported"
+path = "tests/release_not_supported.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
 
@@ -820,6 +831,18 @@ path = "tests/white_innovation_route.rs"
 [[test]]
 name = "horizon_composition"
 path = "tests/horizon_composition.rs"
+
+[[test]]
+name = "mechanism_refit_bootstrap_construction"
+path = "tests/mechanism_refit_bootstrap_construction.rs"
+
+[[test]]
+name = "white_innovation_posterior_construction"
+path = "tests/white_innovation_posterior_construction.rs"
+
+[[test]]
+name = "joint_horizon_block_weight_construction"
+path = "tests/joint_horizon_block_weight_construction.rs"
 
 [[test]]
 name = "attribute_mechanism_posterior"
@@ -1359,5 +1382,78 @@ name = "conditional_study_ranking_exact"
 path = "tests/conditional_study_ranking_exact.rs"
 
 [[test]]
+name = "estimator_support_enumeration"
+path = "tests/estimator_support_enumeration.rs"
+required-features = ["development"]
+
+[[test]]
 name = "tier_diagnostics_exact"
 path = "tests/tier_diagnostics_exact.rs"
+
+[[test]]
+name = "estimator_validity_snapshot"
+path = "tests/estimator_validity_snapshot.rs"
+
+[[test]]
+name = "temporal_lagged_instrument_known_truth"
+path = "tests/temporal_lagged_instrument_known_truth.rs"
+
+[[test]]
+name = "temporal_glm_link_contrast_known_truth"
+path = "tests/temporal_glm_link_contrast_known_truth.rs"
+
+[[test]]
+name = "temporal_dag_adjustment_known_truth"
+path = "tests/temporal_dag_adjustment_known_truth.rs"
+
+[[test]]
+name = "functional_effect_average_dag_known_truth"
+path = "tests/functional_effect_average_dag_known_truth.rs"
+
+[[test]]
+name = "temporal_sequential_gcomp_class_known_truth"
+path = "tests/temporal_sequential_gcomp_class_known_truth.rs"
+
+[[test]]
+name = "bayesian_temporal_glm_link_contrast_known_truth"
+path = "tests/bayesian_temporal_glm_link_contrast_known_truth.rs"
+
+[[test]]
+name = "bayesian_temporal_lagged_instrument_known_truth"
+path = "tests/bayesian_temporal_lagged_instrument_known_truth.rs"
+
+[[test]]
+name = "bayesian_temporal_white_innovation_known_truth"
+path = "tests/bayesian_temporal_white_innovation_known_truth.rs"
+
+[[test]]
+name = "interference_estimators_known_truth"
+path = "tests/interference_estimators_known_truth.rs"
+
+[[test]]
+name = "static_adjustment_known_truth"
+path = "tests/static_adjustment_known_truth.rs"
+
+[[test]]
+name = "frontdoor_known_truth"
+path = "tests/frontdoor_known_truth.rs"
+
+[[test]]
+name = "bayesian_static_known_truth"
+path = "tests/bayesian_static_known_truth.rs"
+
+[[test]]
+name = "temporal_sequential_gcomp_multistep_known_truth"
+path = "tests/temporal_sequential_gcomp_multistep_known_truth.rs"
+
+[[test]]
+name = "admg_response_known_truth"
+path = "tests/admg_response_known_truth.rs"
+
+[[test]]
+name = "bayesian_rd_known_truth"
+path = "tests/bayesian_rd_known_truth.rs"
+
+[[test]]
+name = "response_cells_known_truth"
+path = "tests/response_cells_known_truth.rs"

@@ -29,9 +29,10 @@
 
 use antecedent_core::reason_code;
 use antecedent_io_core::calibration::{
-    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+    CONSTRUCTION_NOT_MEASURED, CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire,
+    calibration_slot,
 };
-use antecedent_io_core::contract_section::CalibrationStatus;
+use antecedent_io_core::contract_section::CalibrationSlotWire;
 use antecedent_stats::student_t_ppf;
 
 use super::assess::{PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictorAssessment};
@@ -99,10 +100,14 @@ pub struct ScoreInterval {
     pub dependence: &'static str,
     /// Interval construction label.
     pub construction: &'static str,
-    /// Governing coverage record (empty on an unsupported construction).
+    /// Governing coverage record (empty when none matched).
     pub coverage_record: String,
-    /// Commit the governing record was measured at (empty on an unsupported construction).
+    /// Commit the governing record was measured at (empty when none matched).
     pub calibration_sha: String,
+    /// Calibration of this interval: `calibrated` inside a current record's measured
+    /// scope, otherwise the status that names why not. It annotates the interval and never
+    /// withholds it.
+    pub calibration: CalibrationSlotWire,
     /// Stated assumptions, [`SCORE_INTERVAL_ASSUMPTIONS`].
     pub assumptions: &'static str,
 }
@@ -323,26 +328,12 @@ pub fn construct_expected_score_interval(
         DependenceDeclaration::Iid => (nf - 1.0, "iid"),
         DependenceDeclaration::Serial { truncation_lag, .. } => {
             let bandwidth = f64::from(*truncation_lag) + 1.0;
-            if bandwidth / nf > SCORE_INTERVAL_MAX_BANDWIDTH_FRACTION {
-                return Err(interval_scope_refusal(format!(
-                    "the Bartlett bandwidth {bandwidth} spans more than \
-                     {SCORE_INTERVAL_MAX_BANDWIDTH_FRACTION} of the {n} cases; the interval is \
-                     measured only for a bandwidth inside that share"
-                )));
-            }
             ((nf / bandwidth - 1.0).max(1.0), "serial")
         }
         DependenceDeclaration::Cluster { .. } => {
             let mut labels: Vec<u32> = resolved.cluster.clone().unwrap_or_default();
             labels.sort_unstable();
             labels.dedup();
-            if labels.len() < SCORE_INTERVAL_MIN_CLUSTERS {
-                return Err(interval_scope_refusal(format!(
-                    "{} clusters are declared; the cluster-robust interval is measured for at \
-                     least {SCORE_INTERVAL_MIN_CLUSTERS}",
-                    labels.len()
-                )));
-            }
             (labels.len() as f64 - 1.0, "cluster")
         }
     };
@@ -385,23 +376,23 @@ pub fn construct_expected_score_interval(
             construction: score_interval_construction(label).0,
             coverage_record: String::new(),
             calibration_sha: String::new(),
+            calibration: CalibrationSlotWire::not_measured(CONSTRUCTION_NOT_MEASURED),
             assumptions: SCORE_INTERVAL_ASSUMPTIONS,
         },
         basis,
     })
 }
 
-/// Build the interval for `query` and publish it.
+/// Build the interval for `query` and report it with its calibration.
 ///
 /// The record is resolved from the shipped coverage table
-/// ([`antecedent_io_core::calibration::calibration_slot`]): the interval is returned only
-/// when a current attesting non-boundary record measured exactly this construction.
+/// ([`antecedent_io_core::calibration::calibration_slot`]): the slot is `calibrated` when a
+/// current attesting non-boundary record measured exactly this construction, and otherwise
+/// names why not (`outside_measured_scope`, `measured_below_nominal`, `not_measured`). The
+/// interval is reported either way.
 ///
 /// # Errors
-/// As [`construct_expected_score_interval`], and `not_supported` with
-/// `predictive_assessment.interval_scope_outside_measured` when no current attesting
-/// coverage record measured this construction at this design, score, law family, level
-/// and number of cases.
+/// As [`construct_expected_score_interval`].
 pub fn expected_score_interval(
     spec: &PredictiveAssessmentSpec,
     report: &PredictiveAssessmentReport,
@@ -410,21 +401,10 @@ pub fn expected_score_interval(
     let ConstructedInterval { mut interval, basis } =
         construct_expected_score_interval(spec, report, query)?;
     let slot = calibration_slot(&basis);
-    match (&slot.status, &slot.record_id, &slot.calibration_sha) {
-        (CalibrationStatus::Calibrated, Some(id), Some(sha)) => {
-            interval.coverage_record.clone_from(id);
-            interval.calibration_sha.clone_from(sha);
-            Ok(interval)
-        }
-        _ => Err(interval_scope_refusal(format!(
-            "no current attesting coverage record measured the {} interval ({}; {} dependence) \
-             with {} cases at level {} ({})",
-            if query.reference.is_some() { "difference" } else { "mean" },
-            basis.key.functional,
-            interval.dependence,
-            interval.cases,
-            query.level,
-            slot.reason.as_deref().unwrap_or("construction_not_measured")
-        ))),
+    if let (Some(id), Some(sha)) = (&slot.record_id, &slot.calibration_sha) {
+        interval.coverage_record.clone_from(id);
+        interval.calibration_sha.clone_from(sha);
     }
+    interval.calibration = slot;
+    Ok(interval)
 }

@@ -229,7 +229,9 @@ def test_intervals_machine_learning_nuisance_and_lasso_are_closed():
         call(nuisance="random_forest", penalties=[0.1])
     with pytest.raises(CausalValueError):
         call(nuisance=3)
-    assert refusal(lambda: call(nuisance="lasso")).reason_code == "selection_inference_not_supported"
+    assert (
+        refusal(lambda: call(nuisance="lasso")).reason_code == "selection_inference_not_supported"
+    )
     assert refusal(lambda: call(nuisance="typo")).reason_code == "invalid_argument"
     assert refusal(lambda: call(ordering=["t0", "t0"])).reason_code == "invalid_argument"
 

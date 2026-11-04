@@ -216,7 +216,7 @@ class NestedMarkovPosteriorCandidate(ScientificResult):
         consumer = getattr(_native, "consume_nested_markov_posterior_candidate", None)
         if consumer is None:
             raise CausalUnsupportedError(
-                "nested_markov.route_frozen: posterior consumer remains closed pending calibration",
+                "nested_markov.native_hook_unavailable: this build has no posterior consumer",
                 reason_code="not_supported",
             )
         return cls._from_native(consumer(artifact, expected_identity))

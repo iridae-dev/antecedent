@@ -124,8 +124,9 @@ fn degenerate_treatment_outcome_and_adjustment_columns_follow_their_known_answer
 }
 
 /// A static effect estimator reads rows of a table under a static graph. Given a temporal graph it
-/// is refused with the typed `unsupported data/graph/query combination` rather than reading the
-/// lagged nodes as static variables.
+/// is refused as `strategy_incompatible` (the default route: the typed
+/// `unsupported data/graph/query combination`) rather than reading the lagged nodes as static
+/// variables.
 #[test]
 fn static_effect_estimators_refuse_a_temporal_graph() {
     use antecedent::EstimatorId;
@@ -168,10 +169,16 @@ fn static_effect_estimators_refuse_a_temporal_graph() {
                 study.run(&ExecutionContext::for_tests(5)).map_err(|e| e.to_string())
             });
         let error = outcome.expect_err(&format!("{estimator:?} must refuse a temporal graph"));
-        assert!(
-            error.contains("unsupported data/graph/query combination"),
-            "{estimator:?}: {error}"
-        );
+        // A static estimator does not run on a time-indexed graph: a scientific refusal in
+        // every build (`strategy_incompatible`), before any support gate. The default route
+        // reaches the typed combination refusal.
+        match estimator {
+            Some(id) => assert!(
+                error.contains("reason=strategy_incompatible"),
+                "{id:?} must refuse a temporal graph as strategy_incompatible: {error}"
+            ),
+            None => assert!(error.contains("unsupported data/graph/query combination"), "{error}"),
+        }
     }
 }
 

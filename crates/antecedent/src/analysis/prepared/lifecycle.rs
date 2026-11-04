@@ -334,6 +334,7 @@ impl PreparedStudy {
             let mut refreshed = self.analysis.clone();
             refreshed.data = DataInput::Tabular(data);
             self.replace_study(refreshed);
+            result.stamp_would_refuse(&self.analysis.would_refuse, ctx);
             // Bound once, to the snapshot the handle now retains.
             result.executed_contract = Some(self.executed_contract(
                 &self.analysis.data,
@@ -423,6 +424,7 @@ impl PreparedStudy {
             // any data-bound evidence (such as the fixed interference
             // network), so the result is bound once, to the snapshot the
             // handle actually retains.
+            result.stamp_would_refuse(&self.analysis.would_refuse, ctx);
             result.executed_contract = Some(self.executed_contract(
                 &self.analysis.data,
                 self.analysis.settings.refute,
@@ -577,7 +579,7 @@ impl PreparedStudy {
         if matches!(self.analysis.settings.inference, InferenceMode::Bayesian(_)) {
             return self.refute_bayesian_rerun(prior, data, suite, ctx);
         }
-        let support_status = self.support_after_refute(prior, suite)?;
+        let support_status = self.support_after_refute(prior, suite, ctx)?;
         let estimator = self.plan.binding().estimator_or(RouteDefaults::STATIC_ATE)?;
 
         let (data_est, query_est, estimand_est) =
@@ -633,6 +635,7 @@ impl PreparedStudy {
         &self,
         prior: &StudyResult,
         suite: RefuteSuite,
+        ctx: &ExecutionContext,
     ) -> Result<Option<crate::support::CellStatus>, CausalError> {
         let analysis = &self.analysis;
         let class = if analysis.graph_posterior.is_some() {
@@ -648,6 +651,7 @@ impl PreparedStudy {
             prior.support_status,
             (&analysis.query, class, analysis.structure_source, &analysis.settings.inference),
             (analysis.settings.refute, suite),
+            ctx,
         )
     }
 
@@ -668,7 +672,7 @@ impl PreparedStudy {
                 message: "refute prior does not match mediation query".into(),
             });
         }
-        let support_status = self.support_after_refute(prior, suite)?;
+        let support_status = self.support_after_refute(prior, suite, ctx)?;
         let graph =
             self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
                 message: "static mediation refute requires Dag",
@@ -705,7 +709,7 @@ impl PreparedStudy {
         // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
         // frozen physical plan is the only path that constructs those artifacts;
         // retain the prior point/identification while replacing validation state.
-        let support_status = self.support_after_refute(prior, suite)?;
+        let support_status = self.support_after_refute(prior, suite, ctx)?;
         let started = Instant::now();
         let mut analysis = self.analysis.clone();
         analysis.settings.refute = suite;
@@ -1305,6 +1309,7 @@ fn support_after_suite_change(
         &InferenceMode,
     ),
     (built, suite): (RefuteSuite, RefuteSuite),
+    ctx: &ExecutionContext,
 ) -> Result<Option<crate::support::CellStatus>, CausalError> {
     use crate::support::{CellStatus, classify, support_cell_named};
     let Some(cell) = support_cell_named(query, class, source, inference, suite) else {
@@ -1316,7 +1321,7 @@ fn support_after_suite_change(
     let built_supported = support_cell_named(query, class, source, inference, built)
         .is_some_and(|built_cell| classify(built_cell) == CellStatus::Supported);
     if built_supported {
-        crate::support::refuse_if_not_applicable(cell).map(Some)
+        crate::support::refuse_if_not_applicable_in(cell, ctx).map(Some)
     } else {
         Ok(prior)
     }
@@ -1339,13 +1344,19 @@ mod suite_support_tests {
             Some(CellStatus::Supported),
             coordinates,
             (RefuteSuite::None, RefuteSuite::None),
+            &ExecutionContext::for_tests(0),
         );
         assert_eq!(kept.unwrap(), Some(CellStatus::Supported));
         let refused = support_after_suite_change(
             Some(CellStatus::Supported),
             coordinates,
             (RefuteSuite::None, RefuteSuite::Full),
+            &ExecutionContext::for_tests(0),
         );
+        // A release build refuses; a development build runs it and reports the status.
+        #[cfg(not(feature = "development"))]
         assert!(matches!(refused, Err(CausalError::Support { .. })), "{refused:?}");
+        #[cfg(feature = "development")]
+        assert_eq!(refused.unwrap(), Some(CellStatus::NotSupported));
     }
 }

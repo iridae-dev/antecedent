@@ -1897,7 +1897,6 @@ fn published(data: &TabularData, functional: ResponseFunctional) -> CausalRespon
         .unwrap()
 }
 
-#[cfg(feature = "calibration-internal")]
 fn internal_band(
     data: &TabularData,
     functional: &ResponseFunctional,
@@ -1920,27 +1919,43 @@ fn internal_band(
     (values, lower.to_vec(), upper.to_vec())
 }
 
-/// The Frequentist Jacobian and directional derivative publish the point only
-/// and say why: the interval route is closed until its coverage is measured.
+/// The Frequentist identity-scale Jacobian and the directional derivative publish the sandwich
+/// band; a transformed-scale Jacobian publishes the point only and says why.
 #[test]
-fn frequentist_plugin_gradient_withholds_its_interval_and_says_why() {
+fn frequentist_plugin_gradient_reports_its_band_and_a_transformed_scale_says_why_not() {
     let data = plugin_gradient_data(1.0, 0.0);
     for functional in [plugin_jacobian(DerivativeScale::Identity), plugin_directional([1.0, 1.0])] {
         let response = published(&data, functional);
-        assert!(matches!(response.uncertainty, ResponseUncertainty::None));
-        let withheld = response
-            .support
-            .warnings
-            .iter()
-            .find(|w| w.code.as_ref() == "response.derivative_interval_withheld")
-            .expect("the withheld interval is disclosed");
-        assert!(withheld.message.contains("not yet measured"), "{}", withheld.message);
-        assert!(withheld.message.contains("Bayesian"), "{}", withheld.message);
+        assert!(matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. }));
+        assert!(
+            !response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+        );
     }
+    // A log-treatment scale needs a positive treatment point, so it is read at (0.2, 0.3).
+    let response = published(
+        &data,
+        ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            at: Arc::from([0.2, 0.3]),
+            scale: DerivativeScale::LogTreatment,
+        },
+    );
+    assert!(matches!(response.uncertainty, ResponseUncertainty::None));
+    let withheld = response
+        .support
+        .warnings
+        .iter()
+        .find(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+        .expect("the withheld interval is disclosed");
+    assert!(withheld.message.contains("identity scale"), "{}", withheld.message);
 }
 
-/// The closed route's band is the coefficient sandwich of the published point.
-#[cfg(feature = "calibration-internal")]
+/// The band is the coefficient sandwich of the published point.
 #[test]
 fn plugin_gradient_interval_internal_is_a_sandwich_band_around_the_published_point() {
     let data = plugin_gradient_data(1.0, 0.0);
@@ -1994,7 +2009,6 @@ fn plugin_gradient_interval_internal_is_a_sandwich_band_around_the_published_poi
     }
 }
 
-#[cfg(feature = "calibration-internal")]
 #[test]
 fn plugin_gradient_interval_internal_refuses_what_it_does_not_construct() {
     let data = plugin_gradient_data(1.0, 0.0);

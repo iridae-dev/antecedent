@@ -160,7 +160,7 @@ impl StudyBuilder {
 }
 
 /// One plan per request. Counted laws are refused here by the estimate-level
-/// preparation (`not_supported`, `admg_transport.interval_withheld`) before
+/// preparation (`not_supported`, `admg_transport.counted_laws_unsupported`) before
 /// anything compiles: this route has no sampling theory.
 fn compile(
     functional: &BoundConditionalTransportFunctional,

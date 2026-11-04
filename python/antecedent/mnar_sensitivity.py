@@ -23,9 +23,9 @@ Three things stay distinct and are never merged:
   over the declared parameter range, *conditional on the departure model*: it is not a
   confidence interval and it is not empirically established;
 * the **departure assumption** is recorded in ``result.assumptions`` with status ``untestable``;
-* the **sampling interval** at each grid point is withheld pending its own calibration;
-  ``point.sampling`` is ``None`` and ``result.sampling_status`` is ``not_supported``.
-  Composing sampling uncertainty with the range also refuses.
+* the **sampling interval** at each grid point is conditional on the parameter and is reported in
+  ``point.sampling`` (``result.sampling_status`` is ``reported``); calibration annotates it and
+  never withholds it. Composing sampling uncertainty with the range refuses.
 
 Rust owns the estimates, the tipping search and every refusal; this module builds declarations
 and raises each refusal as :class:`MnarSensitivityRefusal`, a
@@ -127,7 +127,7 @@ class MnarTipping:
     """The tipping points of one conclusion (``sign`` or a decision).
 
     ``at_mar`` is the conclusion at parameter 0: the sign of the effect for ``sign``; ``-1``,
-    ``1`` when a decision acts and ``0`` when it does not. Interval-derived tipping is withheld.
+    ``1`` when a decision acts and ``0`` when it does not.
     """
 
     kind: str
@@ -206,19 +206,12 @@ class MnarResult:
     def tipping_point(self, label: str = "sign") -> MnarTipping:
         """The tipping points of the conclusion named ``label``.
 
-        ``"sign"`` or the name of a declared decision.
+        ``"sign"``, ``"excludes_null"`` (where the sampling interval stops excluding zero) or
+        the name of a declared decision.
 
         Raises:
             CausalValueError: no such conclusion was analysed.
         """
-        if label == "excludes_null":
-            raise MnarSensitivityRefusal(
-                {
-                    "code": self.sampling_status,
-                    "detail": self.sampling_detail,
-                    "message": "interval-derived tipping is withheld pending calibration",
-                }
-            )
         for tipping in self.tipping:
             if tipping.label == label:
                 return tipping

@@ -62,6 +62,7 @@ impl PreparedStudy {
         {
             self.study().report_static_missing_data(tabular, result)?;
         }
+        result.stamp_would_refuse(&self.study().would_refuse, ctx);
         if !defer {
             result.executed_contract = Some(self.executed_contract(data, refute, None)?);
         }

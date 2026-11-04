@@ -1013,6 +1013,7 @@ class BridgedClaimInterval(ScientificResult):
     coverage_record: str
     calibration_sha: str
     assumptions: str
+    calibration: Mapping[str, Any]
 
 
 @dataclass(repr=False, frozen=True, slots=True)

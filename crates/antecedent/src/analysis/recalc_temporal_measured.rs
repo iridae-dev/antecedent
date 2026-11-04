@@ -51,7 +51,7 @@ pub struct CheckedMeasuredTemporal {
 fn refused(message: &str) -> TemporalRunError {
     IoError::Refused {
         code: reason_code!("not_supported"),
-        message: format!("checked_temporal.protocol_not_measured: {message}"),
+        message: format!("checked_temporal.interval_not_supported: {message}"),
     }
     .into()
 }
@@ -84,39 +84,37 @@ fn preflight(
     config: &DependentIntervalConfig,
     ctx: &ExecutionContext,
     source_bytes: usize,
-) -> Result<&'static str, TemporalRunError> {
+) -> Result<(&'static str, bool), TemporalRunError> {
     let request = &source.request;
-    let effect = matches!(
+    let measured_effect = matches!(
         &request.functional,
         TemporalFunctionalWire::Effect { active, control }
             if active.as_slice() == [1, 1] && control.as_slice() == [0, 0]
     );
-    let response = matches!(
+    let measured_response = matches!(
         &request.functional,
         TemporalFunctionalWire::Response { sequence } if sequence.as_slice() == [0, 0]
     );
-    if !(effect || response)
-        || (response && config.method != IntervalMethod::Studentized)
-        || config.level.to_bits() != 0.95f64.to_bits()
-        || config.replicates != 500
-        || config.min_units != 20
-        || config.max_failed_fraction.to_bits() != 0.05f64.to_bits()
-        || request.initial_state.map(f64::to_bits) != [0.3f64.to_bits(), 0.7f64.to_bits()]
-        || request.horizon != 2
-        || request.lag_alignment != [0, 1, 2, 2, 2]
-        || !request.bidirected.is_empty()
-        || request.selection_targets != [0]
-        || request.edges.len() != 10
-        || [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)]
+    let effect = matches!(&request.functional, TemporalFunctionalWire::Effect { .. });
+    // A request outside the measured protocol is still computed and reported; its calibration
+    // slot says `not_measured`. Calibration annotates the interval and never gates it.
+    let measured = (measured_effect
+        || (measured_response && config.method == IntervalMethod::Studentized))
+        && config.level.to_bits() == 0.95f64.to_bits()
+        && config.replicates == 500
+        && config.min_units == 20
+        && config.max_failed_fraction.to_bits() == 0.05f64.to_bits()
+        && request.initial_state.map(f64::to_bits) == [0.3f64.to_bits(), 0.7f64.to_bits()]
+        && request.horizon == 2
+        && request.lag_alignment == [0, 1, 2, 2, 2]
+        && request.bidirected.is_empty()
+        && request.selection_targets == [0]
+        && request.edges.len() == 10
+        && [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)]
             .iter()
-            .any(|edge| !request.edges.contains(edge))
-        || !(64..=256).contains(&request.units.len())
-        || request.units.iter().any(|u| !complete_binary_unit(u))
-    {
-        return Err(refused(
-            "only the measured complete binary-history 95% response (studentized) or paired effect (studentized, percentile, basic), 500 draws and target law (0.3, 0.7), is supported",
-        ));
-    }
+            .all(|edge| request.edges.contains(edge))
+        && (64..=256).contains(&request.units.len())
+        && request.units.iter().all(complete_binary_unit);
     if ctx.cancellation.is_cancelled() {
         return Err(IoError::Refused {
             code: reason_code!("cancelled_no_claim"),
@@ -133,7 +131,7 @@ fn preflight(
     if ctx.memory_limit_bytes().is_some_and(|limit| limit < planned) {
         return Err(refused("planned source replay and interval receipt exceed memory budget"));
     }
-    Ok(if effect { "effect" } else { "response" })
+    Ok((if effect { "effect" } else { "response" }, measured))
 }
 impl CheckedMeasuredTemporal {
     /// Produce from a retained checked session and its ORIGINAL source proof.
@@ -160,7 +158,7 @@ impl CheckedMeasuredTemporal {
             return Err(refused("original source exceeds the declared source byte limit"));
         }
         let source = TemporalRecalcArtifactWire::decode(&original)?;
-        let name = preflight(&source, config, ctx, original.len())?;
+        let (name, measured) = preflight(&source, config, ctx, original.len())?;
         let mut producing = ctx.clone();
         producing.rng = RngFactory::from_seed(source.seed);
         let result = session.candidate_interval_replay(config, &producing)?;
@@ -194,7 +192,14 @@ impl CheckedMeasuredTemporal {
                 name: name.into(),
                 point: result.point,
                 interval: (result.lower, result.upper),
-                basis: result.calibration_basis(),
+                basis: {
+                    let mut basis = result.calibration_basis();
+                    if !measured {
+                        basis.estimator =
+                            format!("{}+outside_measured_protocol", basis.estimator).into();
+                    }
+                    basis
+                },
             }],
         )?;
         let envelope = encode_report(&bytes, &report)?;
@@ -344,16 +349,19 @@ mod tests {
     }
 
     #[test]
-    fn a_drifted_checked_effect_does_not_produce_a_calibrated_report() {
+    fn a_drifted_checked_effect_is_reported_but_not_calibrated() {
         let context = ExecutionContext::for_tests(99_991);
         let config = DependentIntervalConfig {
             method: IntervalMethod::Studentized,
             seed: 901,
             ..DependentIntervalConfig::default()
         };
-        let error = CheckedMeasuredTemporal::produce(&session(), &config, &context).unwrap_err();
-        let message = error.to_string();
-        assert!(message.contains("coverage_record_not_attesting"), "{message}");
-        assert!(message.contains("effect"), "{message}");
+        let measured = CheckedMeasuredTemporal::produce(&session(), &config, &context)
+            .expect("the interval is reported with its calibration annotation");
+        let scalar = &measured.report().scalars[0];
+        assert_eq!(scalar.name, "effect");
+        assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+        assert_eq!(scalar.calibration.status.as_str(), "outside_measured_scope");
+        assert_eq!(scalar.calibration.reason.as_deref(), Some("coverage_record_not_attesting"));
     }
 }

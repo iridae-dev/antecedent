@@ -1085,14 +1085,15 @@ class EvidenceLedger(ScientificResult):
         return {r["result"]: r["class"] for r in classification}
 
     def pooled_interval(self, result: str) -> dict[str, Any]:
-        """The measured 95% interval of a pooled result.
+        """The 95% interval of a pooled result, annotated with its calibration.
 
         Fixed-effect and declared-covariance pooling report the Wald ``z`` interval; random
         effects reports the Hartung-Knapp-Sidik-Jonkman ``t`` interval. The returned mapping
-        carries ``lower``, ``upper``, ``level`` and the governing coverage record under
-        ``calibration``. Raises ``not_supported`` (:class:`EvidenceLedgerRefusal`) for a
-        result with no numbers, a hierarchical borrowing or dependence range, or a
-        construction, study count or sample size with no currently attesting coverage record.
+        carries ``lower``, ``upper``, ``level`` and the calibration slot under ``calibration``
+        (``status`` is not ``calibrated`` for a construction, study count or sample size no
+        coverage record attests; the interval is reported regardless). Raises
+        :class:`EvidenceLedgerRefusal` for a result with no numbers or a hierarchical borrowing
+        or dependence range.
         """
         raw = _unwrap(self._handle.pooled_interval(_name(result, "result")))
         return dict(json.loads(raw))

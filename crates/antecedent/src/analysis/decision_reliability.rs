@@ -202,13 +202,17 @@ impl PreparedDecisionReliability {
             .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
     }
 
-    /// Publish a ranking or optimality probability, or an interval, as a calibrated
-    /// claim at this assessment's coordinate.
+    /// Publish a ranking or optimality probability, or an interval, at this
+    /// assessment's coordinate with its calibration slot: `calibrated` where a
+    /// coverage record measured the route there, otherwise the status that names why not.
     ///
     /// # Errors
-    /// `not_supported` until a coverage record measures the route at the
-    /// coordinate; the diagnostics in [`Self::report`] remain available.
-    pub fn publish(&self, route: PublishedRoute) -> Result<(), DecisionReliabilityRefusal> {
+    /// None today; calibration annotates the route and never refuses it.
+    pub fn publish(
+        &self,
+        route: PublishedRoute,
+    ) -> Result<antecedent_io_core::contract_section::CalibrationSlotWire, DecisionReliabilityRefusal>
+    {
         support_route(route, &self.artifact.report.coordinate)
             .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
     }
@@ -382,15 +386,14 @@ pub fn reach_decision_carrier(
     reach_carrier(output).map_err(|error| DecisionReliabilityRefusal::from_error(&error))
 }
 
-/// Ask to publish a route from a derivation.
+/// Publish a route from a derivation with its calibration slot.
 ///
 /// # Errors
-/// `not_supported` until a coverage record measures the route at the derivation's
-/// coordinate.
+/// None today; calibration annotates the route and never refuses it.
 pub fn publish_derived_route(
     derived: &DerivedUncertainty,
     route: PublishedRoute,
-) -> Result<(), DecisionReliabilityRefusal> {
+) -> Result<antecedent_io_core::contract_section::CalibrationSlotWire, DecisionReliabilityRefusal> {
     derived.publish(route).map_err(|error| DecisionReliabilityRefusal::from_error(&error))
 }
 

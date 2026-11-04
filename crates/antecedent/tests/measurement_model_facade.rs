@@ -217,11 +217,16 @@ fn classical_error_recovers_the_coefficient_and_carries_its_labels() {
     assert_eq!(estimate.inference(), MeasurementInference::UncalibratedStandardError);
     assert_eq!(estimate.inference().as_str(), "uncalibrated_standard_error");
     assert_eq!(estimate.parameter_uncertainty(), ParameterUncertainty::DeclaredExact);
-    let refusal = estimate.interval().unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
-    assert_eq!(refusal.detail, "measurement_model.interval_closed");
+    // The classical-continuous variance has an executed independent closed-form check, so the
+    // Wald interval is open: `point -/+ z * standard_error`. A prepared model has no value to
+    // bound.
+    let (lo, hi) = estimate.interval(0.95).unwrap();
+    let half = 1.959_963_984_540_054 * se;
+    assert!((lo - (estimate.point() - half)).abs() < 1e-9, "{lo}");
+    assert!((hi - (estimate.point() + half)).abs() < 1e-9, "{hi}");
+    assert_eq!(estimate.interval(1.0).unwrap_err().detail, "measurement_model.interval_level");
     let refusal = prepared.interval().unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "uncertainty_representation_insufficient");
 }
 
 #[test]

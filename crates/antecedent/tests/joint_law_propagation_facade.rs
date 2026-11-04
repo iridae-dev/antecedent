@@ -313,7 +313,7 @@ fn the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval() {
     // The envelope states no point and no interval.
     for refusal in [cdf.interval(), cdf.posterior()] {
         let error = refusal.expect_err("closed");
-        assert_eq!(error.code(), "not_supported");
+        assert_eq!(error.code(), "uncertainty_representation_insufficient");
     }
     assert_eq!(
         cdf.interval().expect_err("closed").details(),

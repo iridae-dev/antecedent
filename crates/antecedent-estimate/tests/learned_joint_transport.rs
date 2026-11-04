@@ -28,7 +28,7 @@ use antecedent_estimate::learned_joint_transport::{
     DETAIL_RANK_DEFICIENT, DETAIL_ROUTE_FROZEN, DETAIL_SOURCE_DEPENDENCE, DETAIL_TOO_MANY_DRAWS,
     DETAIL_TOO_MANY_PARAMETERS, DETAIL_UNSUPPORTED_GRAPH, DETAIL_WEAK_OVERLAP,
     LEARNED_JOINT_PROVIDER, LEARNED_JOINT_QUERY, LEARNED_JOINT_SAMPLER, LearnedJointFit,
-    LearnedJointModel, fit_learned_joint_transport, route_frozen_refusal,
+    LearnedJointModel, fit_learned_joint_transport,
 };
 use antecedent_identify::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
@@ -946,9 +946,6 @@ fn learned_joint_declaration_and_input_refusals_carry_typed_details() {
         assert_eq!(refusal.code, "route_not_supported");
         assert_eq!(refusal.detail, DETAIL_UNSUPPORTED_GRAPH);
     }
-    let frozen = route_frozen_refusal();
-    assert_eq!(frozen.code, "not_supported");
-    assert_eq!(frozen.detail, DETAIL_ROUTE_FROZEN);
     let mut m = model();
     m.features = vec![FEATURE + 1];
     assert_eq!(refusal_of(&m, &sources, Some(&target())).detail, DETAIL_FEATURE_MISMATCH);

@@ -189,3 +189,9 @@ fail-fast = false
 
 [profile.ci.junit]
 path = "junit.xml"
+
+# Development lane: the build that runs `not_supported` routes and lists `would_refuse`.
+# Select tests on the command line with `--features development`, for example
+# cargo nextest run -P development -p antecedent --features development --test development_build
+[profile.development]
+fail-fast = false

@@ -9,26 +9,22 @@ mod enabled {
     };
     use antecedent_estimate::learned_joint_transport::LearnedJointModel;
     use antecedent_identify::{TransportFormula, TransportIdentification};
-    #[cfg(feature = "calibration-internal")]
     use antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation;
     use antecedent_io::joint_bayesian_transport_artifact::{
         DataIdentityWire, GaussianPriorWire, JointBayesianArtifactWire, JointBayesianConsumeLimits,
         PriorProvenanceWire,
     };
     use antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire;
-    #[cfg(feature = "calibration-internal")]
     use antecedent_io::learned_joint_transport_artifact::{
         LearnedJointConsumeLimits, LearnedJointExpectation,
     };
     use pyo3::prelude::*;
     use serde::Deserialize;
 
-    #[cfg(feature = "calibration-internal")]
     use crate::bridge::check_declared_len;
     use crate::bridge::{MAX_DECLARED_ARTIFACT_BYTES as MAX_BYTES, check_declared_size};
 
     /// Largest sealed joint-transport artifact a consumer reads.
-    #[cfg(feature = "calibration-internal")]
     const MAX_ARTIFACT_BYTES: usize = crate::bridge::MAX_SEALED_ARTIFACT_BYTES;
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -68,7 +64,6 @@ mod enabled {
         max_unsupported_mass: f64,
         conflict_z_threshold: f64,
     }
-    #[cfg(feature = "calibration-internal")]
     #[derive(Default, Deserialize)]
     #[serde(deny_unknown_fields)]
     struct Expectation {
@@ -280,7 +275,6 @@ mod enabled {
         })
     }
 
-    #[cfg(feature = "calibration-internal")]
     #[pyfunction]
     fn joint_transport_candidate(
         py: Python<'_>,
@@ -374,7 +368,6 @@ mod enabled {
             crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
         })
     }
-    #[cfg(feature = "calibration-internal")]
     #[pyfunction]
     fn consume_joint_transport_candidate(
         py: Python<'_>,
@@ -429,7 +422,6 @@ mod enabled {
     }
     pub(super) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(joint_transport_measured, m)?)?;
-        #[cfg(feature = "calibration-internal")]
         {
             m.add_function(wrap_pyfunction!(joint_transport_candidate, m)?)?;
             m.add_function(wrap_pyfunction!(consume_joint_transport_candidate, m)?)?;

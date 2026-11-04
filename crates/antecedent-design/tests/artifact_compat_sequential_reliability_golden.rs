@@ -264,10 +264,9 @@ fn historical_closure_snapshot_is_conservative_and_cannot_change_the_report() {
                 .contains("report_mismatch")
         );
     };
-    // A currently closed route cannot be omitted, even in a consistently resealed body.
-    let mut changed = original.clone();
-    changed.report.closed_routes.retain(|route| route != &current.closed_routes[0]);
-    rejected(changed);
+    // No route is closed now, so the historical snapshot may be kept or emptied but never
+    // altered.
+    assert!(current.closed_routes.is_empty());
     let mut changed = original.clone();
     changed.report.closed_routes[0].coordinate.push_str("/foreign");
     rejected(changed);

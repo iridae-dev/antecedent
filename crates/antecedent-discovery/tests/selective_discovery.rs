@@ -505,11 +505,11 @@ fn closed_claims_are_refused_with_not_supported_and_a_remedy() {
     let data = collider_table(40, 71);
     let (outcome, _) = full_static(&oracle_contract(&[0, 1, 2, 3]), &data);
     let recovery = request_recovery_claim(&outcome).unwrap_err();
-    assert_eq!(recovery.code(), Some("not_supported"));
+    assert_eq!(recovery.code(), Some("discovered_structure_unresolved"));
     assert_eq!(recovery.detail(), Some("selective_discovery.recovery_claim_not_supported"));
     assert!(recovery.to_string().contains("not testable"));
     let interval = request_downstream_interval(&outcome).unwrap_err();
-    assert_eq!(interval.code(), Some("not_supported"));
+    assert_eq!(interval.code(), Some("selection_inference_not_supported"));
     assert_eq!(interval.detail(), Some("selective_discovery.downstream_interval_not_supported"));
     assert!(interval.to_string().contains("disjoint discovery and analysis rows"));
     let score = request_score_search_reuse().unwrap_err();

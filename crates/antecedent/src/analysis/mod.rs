@@ -402,9 +402,9 @@ pub use measurement_model::{
     PreparedMeasurementModel, consume_measurement_model_artifact,
 };
 pub use mechanism_composition::{
-    ConsumedComposition, DependenceInput, MechanismCompositionExport, MechanismCompositionRefusal,
-    MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
-    PreparedMechanismComposition, consume_mechanism_composition_artifact,
+    ConsumedComposition, DependenceInput, FirstOrderInterval, MechanismCompositionExport,
+    MechanismCompositionRefusal, MechanismCompositionRequest, MechanismInput, MechanismRefit,
+    MechanismSource, PreparedMechanismComposition, consume_mechanism_composition_artifact,
 };
 pub use missing_support::{
     MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
@@ -450,7 +450,7 @@ pub use scientific_bridge::{
     consume_scientific_bridge_distribution_artifact, scientific_bridge_artifact_shape,
 };
 pub use smoothed_dose::{
-    PreparedSmoothedDose, SmoothedDosePosteriorResult, SmoothedDoseResult,
+    PreparedSmoothedDose, SmoothedDoseInterval, SmoothedDosePosteriorResult, SmoothedDoseResult,
     consume_smoothed_dose_artifact, consume_smoothed_dose_posterior_artifact,
     consume_smoothed_dose_posterior_artifact_with_context,
 };
@@ -583,7 +583,6 @@ pub mod proposal_arrival;
 pub mod recalc_attempt;
 pub mod recalc_bayesian;
 pub mod recalc_external;
-#[cfg(feature = "calibration-internal")]
 pub mod recalc_joint_bayesian;
 /// Shared finite static response and multi-source transport recalculation.
 pub mod recalc_static;

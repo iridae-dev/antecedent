@@ -31,7 +31,6 @@ use std::sync::Arc;
 const RECOVERY_PREFIX: &[u8] = b"ANTECEDENT-OBSERVATION-RECOVERY\x01";
 
 /// Largest sampled-recovery artifact a consumer reads: it carries the sampled replicates.
-#[cfg(feature = "calibration-internal")]
 const MAX_SAMPLED_RECOVERY_ARTIFACT_BYTES: usize = 2 * crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 /// Graph-supported recovery of the full law, exact laws, point only.
@@ -294,11 +293,14 @@ impl ObservationRecoveryStage {
             SampledRecoveryArtifactInput, SampledRecoveryArtifactWire,
         };
         let config = match interval_method {
-            "bootstrap_bca" if replicates == 2000 => SampledRecoveryConfig::bca(seed),
+            // Any replicate count runs; calibration annotates a count no record measured.
+            "bootstrap_bca" => {
+                SampledRecoveryConfig { replicates, ..SampledRecoveryConfig::bca(seed) }
+            }
             _ => {
                 return Err(sampled_candidate_error(
                     "invalid_argument",
-                    "sampled_recovery.invalid_input: BCa requires 2000 replicates and a known interval method",
+                    "sampled_recovery.invalid_input: unknown interval method",
                 ));
             }
         };
@@ -417,7 +419,6 @@ impl ObservationRecoveryStage {
 #[pymethods]
 impl ObservationRecoveryStage {
     /// Internal historical candidate; retains unmeasured semantics.
-    #[cfg(feature = "calibration-internal")]
     #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_bca"))]
     #[allow(clippy::too_many_arguments)]
     fn sampled_candidate(
@@ -469,22 +470,6 @@ impl ObservationRecoveryStage {
         use antecedent_io::sampled_recovery_artifact::{
             SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
         };
-        if replicates != 2000
-            || interval_method != "bootstrap_bca"
-            || !(1000..=4000).contains(&rows.len())
-        {
-            return Err(crate::transport_common::error(IoError::Refused {code:antecedent_core::reason_code!("not_supported"),message:"sampled_recovery.protocol_not_measured: measured BCa requires 2000 draws and 1000..=4000 observation rows".into()}));
-        }
-        if self.catalog.bindings.iter().any(|binding| {
-            binding.regime == self.query.observed_regime
-                && (binding.weights.is_some()
-                    || binding.sampling != antecedent_core::SamplingDesign::Independent)
-        }) {
-            return Err(crate::transport_common::error(IoError::Refused {
-                code: antecedent_core::reason_code!("not_supported"),
-                message: "sampled_recovery.protocol_not_measured: measured whole-row recovery requires an unweighted independent observation binding".into(),
-            }));
-        }
         let memory = match (self.memory_bytes, memory_limit_bytes) {
             (Some(a), Some(b)) => Some(a.min(b)),
             (a, b) => a.or(b),
@@ -918,7 +903,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedObservationRecoveryStage>()?;
     module.add_function(wrap_pyfunction!(identify_observation_recovery_stage, module)?)?;
     module.add_function(wrap_pyfunction!(consume_observation_recovery_artifact, module)?)?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(consume_sampled_recovery_candidate, module)?)?;
     Ok(())
 }
@@ -948,7 +932,6 @@ fn sampled_candidate_json(
 }
 
 /// Candidate consumer reruns the original whole-row method under retained identities.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 #[pyfunction]
 #[pyo3(signature=(artifact, premises_digest, data_digest, *, max_rows=100_000, max_replicates=2000, memory_bytes=None, cancel=None))]

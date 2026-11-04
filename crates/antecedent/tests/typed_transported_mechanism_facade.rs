@@ -198,7 +198,12 @@ fn a_shifted_count_mechanism_is_refit_and_the_invariant_covariate_is_carried() {
         let band = 4.5 * (u.standard_error.powi(2) + u.estimate.monte_carlo_se.powi(2)).sqrt();
         assert!((u.estimate.value - truth).abs() <= band, "x={x}: {} vs {truth}", u.estimate.value);
     }
-    assert_eq!(composition.interval().unwrap_err().code(), "not_supported");
+    // The interval is the first-order Wald band around the contrast value.
+    let u = composition.mean_contrast_uncertainty(&level(0.0), 50_000, &ctx).unwrap();
+    let band = composition.interval(&level(0.0), 50_000, &ctx, 0.95).unwrap();
+    let half = 1.959_963_984_540_054 * u.standard_error;
+    assert!((band.upper - band.lower - 2.0 * half).abs() < 1e-9);
+    assert!((band.point - u.estimate.value).abs() < 1e-12);
 }
 
 #[test]

@@ -4,7 +4,6 @@ use crate::transport_common::execution_context;
 use antecedent_estimate::{
     AdjustedEstimate, Availability, EstimationError, MeanPair, RawContrast, ReportingScale,
     ReportingTransform, compare_raw_adjusted, raw_contrast, refuse_column_attribution,
-    refuse_transform_interval,
 };
 use pyo3::prelude::*;
 
@@ -73,9 +72,33 @@ fn attribute_gap_to_columns() -> PyResult<()> {
 
 /// `(values, gradients, covariance)` of a transformed family; the covariance is column-major
 /// `k x k` or `None` when the source carries no joint covariance.
-type Transformed = (Vec<f64>, Vec<(f64, f64)>, Option<Vec<f64>>);
+/// The fourth element holds the equal-tailed delta-method Wald interval of each scale at the
+/// requested level (empty without a level; `None` for a scale without a covariance), and the
+/// fifth the calibration slot (JSON) that annotates those intervals.
+type Transformed =
+    (Vec<f64>, Vec<(f64, f64)>, Option<Vec<f64>>, Vec<Option<(f64, f64)>>, Option<String>);
 
-fn transformed(transform: &ReportingTransform) -> Transformed {
+fn check_level(level: Option<f64>) -> PyResult<()> {
+    match level {
+        Some(level) if !(level > 0.0 && level < 1.0) => {
+            Err(crate::value_err("level must lie strictly between 0 and 1".to_owned()))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn transformed(transform: &ReportingTransform, level: Option<f64>) -> Transformed {
+    let intervals: Vec<Option<(f64, f64)>> = level.map_or_else(Vec::new, |level| {
+        (0..transform.contrasts.len()).map(|i| transform.interval(i, level)).collect()
+    });
+    // No coverage record describes the delta-method interval of a reporting transform, so
+    // its slot is `not_measured`; the interval is reported regardless.
+    let slot = level.map(|_| {
+        serde_json::to_string(&antecedent_io::contract_section::CalibrationSlotWire::not_measured(
+            antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+        ))
+        .unwrap_or_default()
+    });
     (
         transform.contrasts.iter().map(|c| c.value).collect(),
         transform.contrasts.iter().map(|c| (c.gradient[0], c.gradient[1])).collect(),
@@ -83,6 +106,8 @@ fn transformed(transform: &ReportingTransform) -> Transformed {
             Availability::Available(values) => Some(values.clone()),
             Availability::Unavailable(_) => None,
         },
+        intervals,
+        slot,
     )
 }
 
@@ -91,51 +116,47 @@ fn parse_scales(scales: &[String]) -> PyResult<Vec<ReportingScale>> {
 }
 
 /// Put a mean-outcome pair on the declared scales. `covariance` is
-/// `(var(active), cov, var(control))` as the source published it, or `None`. An interval
-/// request is refused before any work.
+/// `(var(active), cov, var(control))` as the source published it, or `None`. A `level`
+/// returns the delta-method Wald interval of each scale with its calibration slot.
 #[pyfunction]
-#[pyo3(signature=(mean_active, mean_control, scales, *, covariance=None, interval=false))]
+#[pyo3(signature=(mean_active, mean_control, scales, *, covariance=None, level=None))]
 #[allow(clippy::needless_pass_by_value)]
 fn transform_mean_pair(
     mean_active: f64,
     mean_control: f64,
     scales: Vec<String>,
     covariance: Option<(f64, f64, f64)>,
-    interval: bool,
+    level: Option<f64>,
 ) -> PyResult<Transformed> {
-    if interval {
-        return Err(estimation_err(refuse_transform_interval()));
-    }
+    check_level(level)?;
     let pair = MeanPair::new(mean_active, mean_control, covariance.map(|(a, c, b)| [a, c, b]));
     let transform = antecedent_estimate::transform_mean_pair(&pair, &parse_scales(&scales)?)
         .map_err(estimation_err)?;
-    Ok(transformed(&transform))
+    Ok(transformed(&transform, level))
 }
 
 /// Put the raw arm means of a binary-treatment sample on the declared scales, with the
 /// independent-groups covariance of the two arm means. Returns the arm summaries and the
 /// transformed family.
 #[pyfunction]
-#[pyo3(signature=(outcome, treatment, scales, *, interval=false, cancel=None))]
+#[pyo3(signature=(outcome, treatment, scales, *, level=None, cancel=None))]
 #[allow(clippy::needless_pass_by_value)]
 fn transform_raw_arms(
     py: Python<'_>,
     outcome: Vec<f64>,
     treatment: Vec<f64>,
     scales: Vec<String>,
-    interval: bool,
+    level: Option<f64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<(Arm, Arm, Transformed)> {
-    if interval {
-        return Err(estimation_err(refuse_transform_interval()));
-    }
+    check_level(level)?;
     let scales = parse_scales(&scales)?;
     let ctx = execution_context(0, None, cancel);
     crate::detach_catch(py, move || {
         let raw = raw_contrast(&outcome, &treatment, &ctx).map_err(estimation_err)?;
         let transform = antecedent_estimate::transform_mean_pair(&raw.mean_pair(), &scales)
             .map_err(estimation_err)?;
-        Ok((arm(&raw.active), arm(&raw.control), transformed(&transform)))
+        Ok((arm(&raw.active), arm(&raw.control), transformed(&transform, level)))
     })
 }
 

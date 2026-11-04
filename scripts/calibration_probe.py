@@ -284,11 +284,8 @@ def merge_results(existing: list[dict], new: list[dict]) -> list[dict]:
     for row in new:
         record, measurement = str(row["record_id"]), str(row["calibration_sha"])
 
-        def same_measurement(other: dict) -> bool:
-            return (str(other.get("record_id")), str(other.get("calibration_sha"))) == (
-                record,
-                measurement,
-            )
+        def same_measurement(other: dict, key: tuple[str, str] = (record, measurement)) -> bool:
+            return (str(other.get("record_id")), str(other.get("calibration_sha"))) == key
 
         if row["result"] != "pass":
             rows = [r for r in rows if not same_measurement(r)]

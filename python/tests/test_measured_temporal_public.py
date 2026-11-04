@@ -96,11 +96,12 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
     require_success(session.execute(req, execution=Execution(seed=41)))
     if method == "percentile":
         # Its record is a named boundary (measured below the level) over 128 to 512
-        # units, so no calibrated claim is reported at this size or any other.
-        with pytest.raises(RecalcRefusal, match="record_not_attesting"):
-            session.dependent_interval(
-                config=CheckedTemporalIntervalConfig(method=method, bootstrap_seed=9171)
-            )
+        # units: the interval is reported and annotated as not calibrated.
+        boundary = session.dependent_interval(
+            config=CheckedTemporalIntervalConfig(method=method, bootstrap_seed=9171)
+        )
+        assert boundary.scalars[0].calibration != "calibrated"
+        assert boundary.scalars[0].interval[0] <= boundary.scalars[0].point
         return
     result = session.dependent_interval(
         config=CheckedTemporalIntervalConfig(method=method, bootstrap_seed=9171)
@@ -167,7 +168,6 @@ def test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_c
         per_draw, abs=1e-12
     )
     assert source["result"]["studentization"]["pivots"] == pytest.approx(pivots, abs=1e-10)
-    assert not hasattr(_native, "temporal_dependent_interval_candidate")
     replay(result, tmp_path)
 
 
@@ -176,17 +176,23 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
     require_success(
         session.execute(request(TemporalResponse((0, 0))), execution=Execution(seed=41))
     )
+    # The percentile and basic methods are retired for responses: a scientific refusal.
     for config in [
         CheckedTemporalIntervalConfig(method="percentile"),
         CheckedTemporalIntervalConfig(method="basic"),
+    ]:
+        with pytest.raises(RecalcRefusal):
+            session.dependent_interval(config=config)
+    # Another level or draw count is a different construction: the interval is reported and its
+    # calibration says no record measured it. Calibration annotates, it never gates.
+    for config in [
         CheckedTemporalIntervalConfig(method="studentized", level=0.9),
         CheckedTemporalIntervalConfig(method="studentized", replicates=400),
     ]:
-        with pytest.raises(RecalcRefusal) as refused:
-            session.dependent_interval(config=config)
-        assert refused.value.reason_code == "not_supported"
-        assert refused.value.detail == "temporal_interval.route_frozen"
-        assert "checked_temporal.protocol_not_measured" in str(refused.value)
+        reported = session.dependent_interval(config=config)
+        scalar = reported.scalar("response")
+        assert scalar.interval[0] < scalar.point < scalar.interval[1]
+        assert scalar.calibration == "not_measured"
     for args in [
         {"method": "percentile"},
         {"sequence": (1, 1)},
@@ -201,9 +207,8 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
             with pytest.raises(CausalValueError, match="direct temporal intervals require"):
                 temporal_dependent_interval(panel(), **options)
         else:
-            with pytest.raises(Exception, match="measured_interval.protocol_not_measured") as no:
-                temporal_dependent_interval(panel(), **options)
-            assert no.value.reason_code == "not_supported"
+            reported = temporal_dependent_interval(panel(), **options)
+            assert reported.scalar("response").calibration == "not_measured"
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError):
@@ -264,7 +269,7 @@ def test_checked_duplicate_history_cells_cannot_borrow_measured_protocol(method)
     changed = replace(req, units=(replace(unit, histories=tuple(histories)), *req.units[1:]))
     session = TemporalSession()
     require_success(session.execute(changed, execution=Execution(seed=41)))
-    with pytest.raises(RecalcRefusal) as refused:
-        session.dependent_interval(config=CheckedTemporalIntervalConfig(method=method))
-    assert refused.value.reason_code == "not_supported"
-    assert refused.value.detail == "temporal_interval.route_frozen"
+    # Duplicated history cells are outside the measured protocol: the interval is reported and its
+    # calibration slot says that no record measured this construction.
+    reported = session.dependent_interval(config=CheckedTemporalIntervalConfig(method=method))
+    assert reported.scalars[0].calibration == "not_measured"

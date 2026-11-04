@@ -656,7 +656,7 @@ fn categorical_likelihood(
 #[must_use]
 pub fn interval_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         OBSERVATION_QUERY_STAGE,
         "observation_query.declared_model_has_no_sampling_interval",
     )
@@ -669,7 +669,7 @@ pub fn interval_refusal() -> ExternalRefusal {
 #[must_use]
 pub fn calibration_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         OBSERVATION_QUERY_STAGE,
         "observation_query.calibrated_probability_closed",
     )
@@ -1131,7 +1131,8 @@ mod tests {
         assert_eq!(unreachable.code, "evidence_cannot_reach_level");
         assert_eq!(unreachable.expected.as_deref(), Some("0.9"));
         assert_eq!(unreachable.supplied.as_deref(), Some("0.78"));
-        assert_eq!(interval_refusal().code, "not_supported");
+        assert_eq!(interval_refusal().code, "uncertainty_representation_insufficient");
+        assert_eq!(calibration_refusal().code, "uncertainty_representation_insufficient");
         assert_eq!(calibration_refusal().detail, "observation_query.calibrated_probability_closed");
     }
 

@@ -10,6 +10,8 @@ description = "Optional Burn neural-net provider for antecedent-learn; emits Vec
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development"]
 default = []
 # Opt-in. Not part of `default`, so the ndarray CPU wheel does not link it.
 wgpu = ["burn/wgpu"]

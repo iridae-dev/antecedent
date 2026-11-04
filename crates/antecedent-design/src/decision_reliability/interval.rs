@@ -29,14 +29,17 @@
 //! the best *retained* candidate.
 //!
 //! The derivation itself carries [`DerivedStanding::DerivedUnmeasured`]: it is a
-//! construction, not a claim. [`DerivedUncertainty::publish`] returns `Ok` only when a
-//! current, attesting coverage record measured the route at its coordinate
+//! construction, not a claim. Its calibration is measured per route at its coordinate
 //! (candidate-set size, Monte Carlo budget, selection rule, coupling and serial
-//! dependence) and refuses with `not_supported` everywhere else.
+//! dependence). [`DerivedUncertainty::publish`] reports the intervals at every coordinate and
+//! attaches the calibration slot: `calibrated` where such a record covers the coordinate,
+//! otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED;
+use antecedent_io_core::contract_section::CalibrationSlotWire;
 use antecedent_kernels::norm_inv;
 use serde::{Deserialize, Serialize};
 
@@ -308,12 +311,15 @@ pub struct DerivedUncertainty {
 }
 
 impl DerivedUncertainty {
-    /// Ask to publish a route from this derivation.
+    /// Publish a route from this derivation with its calibration slot.
+    ///
+    /// The slot is `calibrated` when a current, attesting coverage record measured the
+    /// route at [`Self::coordinate`], and otherwise names why it is not (an unmeasured
+    /// level, multiplicity or Monte Carlo budget). The intervals are reported either way.
     ///
     /// # Errors
-    /// [`ReliabilityError::NotSupported`] until a coverage record measures the route
-    /// at [`Self::coordinate`].
-    pub fn publish(&self, route: PublishedRoute) -> Result<(), ReliabilityError> {
+    /// None today: calibration annotates the route and never refuses it.
+    pub fn publish(&self, route: PublishedRoute) -> Result<CalibrationSlotWire, ReliabilityError> {
         // The measured utility and ranking-probability intervals are marginal; a
         // simultaneous (Bonferroni over every reported interval) request is a different
         // construction no record measured. The confidence set and the selection-corrected
@@ -321,10 +327,7 @@ impl DerivedUncertainty {
         let marginal_only =
             matches!(route, PublishedRoute::RankingProbability | PublishedRoute::UtilityInterval);
         if marginal_only && self.request.multiplicity != IntervalMultiplicity::Marginal {
-            return Err(ReliabilityError::NotSupported {
-                route: route.as_str(),
-                coordinate: self.coordinate.describe(),
-            });
+            return Ok(CalibrationSlotWire::not_measured(CONSTRUCTION_NOT_MEASURED));
         }
         support_route_at(route, &self.coordinate, self.request.level)
     }

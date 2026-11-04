@@ -93,10 +93,14 @@ pub enum Resolution {
     },
 }
 
-/// Resolve a key against the shipped records.
+/// The calibration slot of a composed key against the shipped records.
 #[must_use]
-pub fn resolve(basis: &CalibrationBasis) -> Resolution {
-    let wire = CalibrationBasisWire {
+pub fn slot(basis: &CalibrationBasis) -> antecedent_io::contract_section::CalibrationSlotWire {
+    calibration_slot(&wire_of(basis))
+}
+
+fn wire_of(basis: &CalibrationBasis) -> CalibrationBasisWire {
+    CalibrationBasisWire {
         key: CalibrationKeyWire {
             validation: basis.validation.to_string(),
             query: basis.query.to_string(),
@@ -119,8 +123,13 @@ pub fn resolve(basis: &CalibrationBasis) -> Resolution {
             posterior_draws: basis.posterior_draws,
             unidentified_mass: basis.unidentified_mass,
         },
-    };
-    let slot = calibration_slot(&wire);
+    }
+}
+
+/// Resolve a key against the shipped records.
+#[must_use]
+pub fn resolve(basis: &CalibrationBasis) -> Resolution {
+    let slot = calibration_slot(&wire_of(basis));
     match (slot.status.as_str(), slot.record_id) {
         ("calibrated", Some(record_id)) => Resolution::Calibrated { record_id },
         (_, Some(record_id)) => Resolution::NotAttesting {

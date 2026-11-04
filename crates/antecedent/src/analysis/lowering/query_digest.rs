@@ -205,6 +205,8 @@ fn audit_identification_inputs(study: &Study) {
         selection_diagram: _,
         transport_trial: _,
         lag_zero_average_effect: _,
+        // Development-build disclosure; never part of a study's identity.
+        would_refuse: _,
         // A built study never carries this: the build refuses it.
         continuous_cell: _,
         // A structure search and a mechanism fit are executed after identification and neither

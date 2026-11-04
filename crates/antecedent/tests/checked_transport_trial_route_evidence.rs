@@ -716,11 +716,12 @@ mod declared_design {
                 assert!(error.to_string().contains(needle), "{error}");
                 assert!(error.to_string().contains("Next attempt"), "{error}");
             };
-            // An estimator the route does not run: it would be answered by weighting.
-            refused(
-                run(builder(table(&base["rows"])).estimator(antecedent::EstimatorId::Aipw)),
-                "inverse-probability weighting",
-            );
+            // An estimator the route does not run is refused for the quantity: it does not estimate
+            // a transport query.
+            let error = run(builder(table(&base["rows"])).estimator(antecedent::EstimatorId::Aipw))
+                .expect_err("an estimator the route does not run");
+            assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
+            assert!(error.to_string().contains("aipw does not estimate this query"), "{error}");
             // The route's own estimator, named, is the plain run.
             let named =
                 run(builder(table(&base["rows"]))
@@ -802,11 +803,14 @@ mod declared_design {
             );
             // Sampling weights declared on an estimator the route does not run.
             let declared = antecedent_estimate::SamplingWeights::new(vec![1.0; n]).unwrap();
-            refused(
-                run(builder(table(&base["rows"])).estimator(
-                    antecedent_estimate::LinearAdjustmentAte::new().with_sampling_weights(declared),
-                )),
-                "sampling_weights.route_unsupported",
+            let error = run(builder(table(&base["rows"])).estimator(
+                antecedent_estimate::LinearAdjustmentAte::new().with_sampling_weights(declared),
+            ))
+            .expect_err("an estimator the route does not run");
+            assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
+            assert!(
+                error.to_string().contains("linear.adjustment.ate does not estimate this query"),
+                "{error}"
             );
             // One cluster carries no between-cluster variation: a typed estimation refusal.
             let error = run(builder(table(&base["rows"]))

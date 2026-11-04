@@ -28,7 +28,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from _repo import REPO_ROOT, read_text
@@ -113,7 +113,7 @@ def record_passes(root: Path, items: list[dict]) -> int:
     if not items:
         return 0
     commit, dirty = git_state(root)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     records = load_records(root)  # reread: another gate may have written meanwhile
     for item in items:
         records[item["selector"]] = {

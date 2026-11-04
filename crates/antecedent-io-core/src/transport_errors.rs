@@ -182,9 +182,9 @@ pub enum AdmgConditionalArtifactError {
         /// The stored version.
         version: u32,
     },
-    /// The artifact claims an interval or carries counted laws.
-    #[error("admg_transport.interval_withheld: the route publishes exact points only")]
-    IntervalWithheld,
+    /// The artifact claims an interval or carries counted laws: the conditional route has no sampling construction for counted tables.
+    #[error("admg_transport.counted_laws_unsupported: the route publishes exact points only")]
+    CountedLawsUnsupported,
     /// A stored limit or collection exceeds the consumer's bound.
     #[error("admg_transport.consumer_limits: consumer limit exceeded: {0}")]
     LimitsExceeded(&'static str),
@@ -223,8 +223,8 @@ impl AdmgConditionalArtifactError {
             | Self::NamesMismatch => {
                 (reason_code!("invalid_argument"), "admg_transport.invalid_artifact")
             }
-            Self::IntervalWithheld => {
-                (reason_code!("not_supported"), "admg_transport.interval_withheld")
+            Self::CountedLawsUnsupported => {
+                (reason_code!("not_supported"), "admg_transport.counted_laws_unsupported")
             }
             Self::LimitsExceeded(_) => {
                 (reason_code!("route_not_supported"), "admg_transport.consumer_limits")

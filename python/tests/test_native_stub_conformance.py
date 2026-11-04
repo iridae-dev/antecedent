@@ -84,9 +84,8 @@ def test_every_extension_name_is_declared_in_the_stub():
     )
 
 
-# One atomic optional compile-time family. Normal wheels omit ALL of these and
-# the stage method; internal acceptance builds must expose ALL of them. None is
-# an ordinary public name waived individually, and partial registration is a bug.
+# One atomic interval-candidate family. Every build exposes ALL of these and the
+# stage methods; partial registration is a bug.
 _INTERNAL_CANDIDATE_NAMES = {
     "JointBayesianSessionHandle",
     "NativeCheckedTemporalIntervalCandidate",

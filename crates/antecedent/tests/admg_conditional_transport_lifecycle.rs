@@ -192,7 +192,7 @@ fn refresh_keeps_the_proof_and_moves_the_point() {
     let error = prepared.refresh(counted, &ctx).unwrap_err();
     let IoError::Refused { code, message } = error else { panic!("coded refusal") };
     assert_eq!(code, "not_supported");
-    assert!(message.starts_with("admg_transport.interval_withheld"), "{message}");
+    assert!(message.starts_with("admg_transport.counted_laws_unsupported"), "{message}");
 }
 
 fn export(prepared: &PreparedAdmgConditionalTransport) -> Vec<u8> {
@@ -363,11 +363,11 @@ fn a_mutated_artifact_fails_consumption() {
     // (h) An interval claim or counted laws: the route is point-only.
     let mut wire = original.clone();
     wire.uncertainty = "percentile_bootstrap".into();
-    assert_eq!(refusal(&reseal(&mut wire)), AdmgConditionalArtifactError::IntervalWithheld);
+    assert_eq!(refusal(&reseal(&mut wire)), AdmgConditionalArtifactError::CountedLawsUnsupported);
     let mut wire = original.clone();
     wire.laws[0].empirical_counts = Some(vec![1; wire.laws[0].probabilities.len()]);
     let error = refusal(&reseal(&mut wire));
-    assert_eq!(pair(error), ("not_supported", "admg_transport.interval_withheld"));
+    assert_eq!(pair(error), ("not_supported", "admg_transport.counted_laws_unsupported"));
     // (i) An unknown field is refused by the wire (deny_unknown_fields).
     let mut value: serde_json::Value = antecedent_io::from_cbor(&bytes).unwrap();
     value["unexpected"] = serde_json::json!(1);

@@ -16,6 +16,10 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-kernels/development", "antecedent-stats/development"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-kernels = { workspace = true }

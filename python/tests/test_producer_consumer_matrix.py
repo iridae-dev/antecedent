@@ -89,7 +89,6 @@ from antecedent.errors import (
     CausalValueError,
 )
 from antecedent.estimation import RetargetClaim
-from antecedent.evidence_ledger import EvidenceLedgerRefusal
 from antecedent.execution import Execution
 from antecedent.external import ExternalRefusal
 from antecedent.inference import PosteriorArtifact, encode_posterior_artifact
@@ -2087,10 +2086,21 @@ def _declared_measurement(o: Objs) -> Declared:
         o.measurement_prepared.check_operation("condition_on_construct")
     assert unsupported.value.reason_code == "not_supported"
     assert unsupported.value.detail == "measurement_model.operation_not_supported"
-    for closed in (estimate, o.measurement_prepared):
-        with pytest.raises(MeasurementModelRefusal) as interval:
-            closed.interval()
-        assert interval.value.detail == "measurement_model.interval_closed"
+    # The estimate reports its Wald interval with a calibration slot; a prepared model holds no
+    # corrected value to put an interval around.
+    reported = estimate.interval()
+    assert reported.level == 0.95
+    assert reported.lower <= estimate.point <= reported.upper
+    assert reported.calibration["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
+    with pytest.raises(MeasurementModelRefusal) as interval:
+        o.measurement_prepared.interval()
+    assert interval.value.reason_code == "uncertainty_representation_insufficient"
+    assert interval.value.detail == "measurement_model.interval_closed"
     quantity = _declared_quantity(
         "construct:latent", "observational", units="unit", population="cohort"
     )
@@ -2140,9 +2150,10 @@ def _declared_composition(o: Objs) -> Declared:
     assert replayed.result.variance == pytest.approx(9.25, abs=1e-12)
     assert o.composition.declared_mechanisms, "a declared mechanism is never labelled fitted"
     with pytest.raises(MechanismCompositionRefusal) as closed:
-        composition.interval()
-    assert closed.value.reason_code == "not_supported"
-    assert closed.value.details == ("mechanism_composition.interval_route_closed",)
+        composition.interval(mc.MeanContrast.ate("Y", "X", 1.0, 0.0))
+    # The interval needs the joint law of the mechanisms' parameters; it is never assumed.
+    assert closed.value.reason_code == "joint_law_required"
+    assert closed.value.details == ("mechanism_composition.posterior_dependence_unknown",)
     treated_q = _declared_quantity("Y", "do(X=1)", units="u", population="pop")
     control_q = _declared_quantity("Y", "do(X=0)", units="u", population="pop")
     return Declared(
@@ -2191,10 +2202,10 @@ def _declared_ledger(o: Objs) -> Declared:
     # The dependence range is an assumption range: no point, so no source.
     assert ledgered.envelope.claim_class == "assumption_range"
     assert isinstance(ledgered.envelope.value, el.DependenceEnvelope)
-    with pytest.raises(EvidenceLedgerRefusal) as closed:
-        ledgered.ledger.pooled_interval(pooled.result)
-    assert closed.value.reason_code == "not_supported"
-    assert closed.value.detail == "evidence_ledger.interval_not_measured"
+    # The pooled interval is reported; calibration annotates it and no record attests this size.
+    reported = ledgered.ledger.pooled_interval(pooled.result)
+    assert reported["lower"] < reported["estimate"] < reported["upper"]
+    assert reported["calibration"]["status"] != "calibrated"
     # The ledger carries no estimand: the caller declares the pooled quantity.
     quantity = _declared_quantity(
         "pooled_effect",
@@ -2479,10 +2490,8 @@ def _declared_reliability(o: Objs) -> Declared:
         )
     )
     assert consumed.report.raw == report.raw
-    with pytest.raises(dreliab.DecisionReliabilityRefusal) as closed:
-        require_success(result.publish("ranking_probability"))
-    assert closed.value.reason_code == "not_supported"
-    assert closed.value.detail == "decision_reliability.not_supported"
+    slot = require_success(result.publish("ranking_probability"))
+    assert slot["status"] != "calibrated"
     with pytest.raises(dreliab.DecisionReliabilityRefusal) as combined:
         require_success(result.combined_uncertainty())
     assert combined.value.reason_code == "uncertainty_components_not_combined"
@@ -2527,10 +2536,13 @@ def _declared_adaptive(o: Objs) -> Declared:
     assert a.contract.paradigm == "frequentist_adaptive_weighting"
     assert a.contract.procedure == "epsilon_greedy/single_outcome/fixed_interim_looks/efficacy"
     # No interval, and fixed-sample inference of the same data is refused.
-    for ask in (a.session.interval, a.session.fixed_sample):
+    for ask, codes in (
+        (a.session.interval, {"quantity_semantics_mismatch"}),
+        (a.session.fixed_sample, {"not_supported", "adaptive_design_ignored"}),
+    ):
         with pytest.raises(ai.AdaptiveInferenceRefusal) as closed:
             ask()
-        assert closed.value.reason_code in {"not_supported", "adaptive_design_ignored"}
+        assert closed.value.reason_code in codes
         assert_registered_refusal(closed.value)
     quantity = _declared_quantity(
         "arm_mean",
@@ -2638,7 +2650,7 @@ def _declared_observation(o: Objs) -> Declared:
     assert replayed.claim.distribution["1"] == pytest.approx(0.78, abs=1e-12)
     with pytest.raises(oq.ObservationQueryRefusal) as closed:
         claim.interval()
-    assert closed.value.reason_code == "not_supported"
+    assert closed.value.reason_code == "uncertainty_representation_insufficient"
     assert closed.value.detail == "observation_query.declared_model_has_no_sampling_interval"
     with pytest.raises(oq.ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
@@ -3061,7 +3073,7 @@ def _declared_propagated(o: Objs) -> Declared:
     for closed in (claim.interval, claim.posterior):
         with pytest.raises(jlp.JointLawPropagationRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "not_supported"
+        assert refused.value.reason_code == "uncertainty_representation_insufficient"
     quantity = _declared_quantity("pq", "composed", units="utility", population="cohort")
     return Declared(
         (quantity,),
@@ -3093,7 +3105,7 @@ def _check_envelope_is_not_a_source(o: Objs) -> None:
     assert claim.value("product_moment_upper") == pytest.approx(0.25, abs=1e-12)
     with pytest.raises(jlp.JointLawPropagationRefusal) as refused:
         claim.interval()
-    assert refused.value.reason_code == "not_supported"
+    assert refused.value.reason_code == "uncertainty_representation_insufficient"
     for feed in (_feed_evaluate, _feed_inverse):
         with pytest.raises(
             CausalUnsupportedError, match="envelope is not a mean source"
@@ -3146,10 +3158,13 @@ def _declared_crossed(o: Objs) -> Declared:
         )
     )
     assert consumed.result.value == claim.value
-    for closed in (claim.interval, claim.posterior):
+    for closed, code in (
+        (claim.interval, "sampling_dependence_unknown"),
+        (claim.posterior, "uncertainty_representation_insufficient"),
+    ):
         with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "not_supported"
+        assert refused.value.reason_code == code
     quantity = _declared_quantity("nde", "natural", units="utility", population="cohort")
     return Declared(
         (quantity,),
@@ -3354,7 +3369,7 @@ def _check_discretized_is_a_point(o: Objs) -> None:
     for paradigm in ("frequentist", "bayesian"):
         with pytest.raises(dcomp.DiscretizedCompositionRefusal) as closed:
             discretized.uncertainty(paradigm)
-        assert closed.value.reason_code == "not_supported"
+        assert closed.value.reason_code == "uncertainty_representation_insufficient"
         assert closed.value.detail == "discretized_scm.point_only"
     _check_raw_rejected(discretized, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
 
@@ -3394,10 +3409,13 @@ def _check_account_is_a_spread(o: Objs) -> None:
     assert account.label == "uncalibrated_spread"
     assert account.value == pytest.approx(169 / 210, abs=1e-12)
     assert account.realized_mean_predictive_variance == pytest.approx(2029 / 44100, abs=1e-12)
-    for closed in (account.interval, account.posterior):
+    for closed, code in (
+        (account.interval, "sampling_dependence_unknown"),
+        (account.posterior, "uncertainty_representation_insufficient"),
+    ):
         with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "not_supported"
+        assert refused.value.reason_code == code
     _check_raw_rejected(account, feeders=_DECISION_FEEDERS + _INVERSE_FEEDERS)
 
 

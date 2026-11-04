@@ -92,12 +92,16 @@ fn classify_estimator_supports_calibration_and_route_estimators() {
             "{est:?} is named by this cell's route or calibration ids; got refuse"
         );
     }
-    // No record id names these on this cell.
+    // The matching, stratification, forest and learner estimators are earned on this row.
     for est in [EstimatorId::DistanceMatching, EstimatorId::CausalForest] {
+        assert_eq!(classify_estimator(c, est), CellStatus::Supported, "{est:?}");
+    }
+    // A Bayesian estimator is not on a frequentist row's evidence list.
+    for est in [EstimatorId::BayesianGcomp, EstimatorId::BayesianIvJointLinear] {
         assert_eq!(
             classify_estimator(c, est),
             CellStatus::NotSupported,
-            "{est:?} must stay refused without a calibration token"
+            "{est:?} must stay refused on a frequentist row"
         );
     }
 }
@@ -122,19 +126,16 @@ fn a_retarget_runs_on_a_supported_cell_whatever_the_estimator_status() {
 #[test]
 fn classify_estimator_refuses_unmeasured_estimators() {
     let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
-    let status = classify_estimator(c, EstimatorId::CausalForest);
+    let status = classify_estimator(c, EstimatorId::BayesianGcomp);
     assert_eq!(status, CellStatus::NotSupported);
 }
 
 #[test]
 fn classify_estimator_refuses_estimator_with_no_route_or_token() {
-    // Stratification has neither a supported_routes entry nor a calibration
-    // token on the AverageEffect Dag frequentist/none cell.
+    // A Bayesian estimator has neither a supported_routes entry nor an evidence record on the
+    // AverageEffect Dag frequentist/none cell.
     let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
-    assert_eq!(
-        classify_estimator(c, EstimatorId::PropensityStratification),
-        CellStatus::NotSupported
-    );
+    assert_eq!(classify_estimator(c, EstimatorId::BayesianIvJointLinear), CellStatus::NotSupported);
 }
 
 #[test]

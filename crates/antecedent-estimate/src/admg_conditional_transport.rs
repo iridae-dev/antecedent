@@ -128,7 +128,7 @@ pub(crate) fn condition(
 /// query's treatments and conditioned variables.
 ///
 /// # Errors
-/// Counted laws (`not_supported`, `admg_transport.interval_withheld`), a
+/// Counted laws (`not_supported`, `admg_transport.counted_laws_unsupported`), a
 /// request that does not bind exactly those coordinates
 /// (`admg_transport.invalid_request`), provider/catalog disagreement, or a
 /// compile-time resource limit.
@@ -145,7 +145,7 @@ pub fn prepare_exact_admg_conditional_transport(
     if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
         return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("not_supported"),
-            "admg_transport.interval_withheld",
+            "admg_transport.counted_laws_unsupported",
             "counted laws are not supported; the route publishes exact-law points only",
         ));
     }

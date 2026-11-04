@@ -1114,40 +1114,41 @@ impl EvidenceLedgerSession {
     ///
     /// Fixed-effect and Gaussian study pooling have measured constructions at
     /// the declared study counts from 5 to 30. The legacy random-effects HKSJ
-    /// interval is published only at 20, 25 and 30 studies. At 5, 10 or 15
-    /// studies, use [`Self::pool_gaussian_studies`] for the measured Gaussian
-    /// construction. A legacy record for a strong-heterogeneity design does
+    /// interval is measured only at 20, 25 and 30 studies; at 5, 10 or 15
+    /// studies it is still reported, with its calibration annotated
+    /// `not_measured`, and [`Self::pool_gaussian_studies`] is the measured Gaussian
+    /// construction there. A legacy record for a strong-heterogeneity design does
     /// not identify that generating family from the observed summaries.
     /// Records also bound the observations of the smallest study (the sample
     /// size its variance estimate rests on). The random-effects interval uses
     /// the actual study count, with `k - 1` degrees of freedom.
     ///
     /// # Errors
-    /// `not_supported` for a result with no numbers (accounting only), a
-    /// hierarchical borrowing or dependence range (no measured construction),
-    /// or a construction, study count or sample size without a currently
-    /// attesting coverage record. An unknown result is `invalid_argument`.
+    /// `not_supported` for a result with no numbers (accounting only) or a
+    /// hierarchical borrowing or dependence range (no interval construction).
+    /// A construction, study count or sample size without a currently
+    /// attesting coverage record still reports its interval, annotated
+    /// `not_measured` or `outside_measured_scope`. An unknown result is
+    /// `invalid_argument`.
     pub fn pooled_interval(
         &self,
         result: ResultId,
     ) -> Result<PooledInterval, EvidenceLedgerRefusal> {
         let candidate = self.pooled_interval_candidate(result)?;
         // Legacy HKSJ records share a broad `studies=5-30` key. Only the
-        // baseline designs at these three counts passed; strong-heterogeneity
-        // records at 5 and 15 cannot support other generating families there.
-        // Keep the historical numerical candidate and its replay key intact.
+        // baseline designs at 20, 25 and 30 studies passed; at other counts the interval is
+        // still reported and its calibration is annotated `not_measured`.
         let unmeasured_hksj_count = matches!(
             self.values.get(&result),
             Some(SynthesisValue::RandomEffects(fit))
                 if ![20, 25, 30].contains(&(fit.degrees_of_freedom + 1))
         );
-        if unmeasured_hksj_count {
-            return Err(EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("not_supported"),
-                "evidence_ledger.hksj_study_count_not_measured",
-                "legacy HKSJ intervals are measured at 20, 25 and 30 studies; use pool_gaussian_studies for the measured Gaussian construction at 5, 10 or 15 studies",
-            ));
-        }
+        // A study count outside the measured family has no record either, whatever the
+        // smallest study's sample size says.
+        let unmeasured_study_count = unmeasured_hksj_count
+            || candidate.scope["studies"].as_u64().is_some_and(|k| {
+                usize::try_from(k).map_or(true, |k| !MEASURED_STUDY_COUNTS.contains(&k))
+            });
         let observations = self
             .ledger
             .result(result)
@@ -1155,7 +1156,13 @@ impl EvidenceLedgerSession {
             .map_or_else(|| "unknown".to_owned(), |digest| digest.to_hex());
         let report = [candidate.basis, candidate.exact_count_basis]
             .into_iter()
-            .map(|basis| {
+            .map(|mut basis| {
+                if unmeasured_study_count {
+                    // No record measures this study count (or, for the legacy HKSJ interval,
+                    // identifies its generating family): the interval is reported and its
+                    // calibration says that no record measured it.
+                    basis.estimator = format!("{}+study_count_not_measured", basis.estimator).into();
+                }
                 antecedent_io::measured_inference::build_report(
                     "evidence_ledger_pooled",
                     result.to_hex().as_bytes(),
@@ -1325,16 +1332,11 @@ impl EvidenceLedgerSession {
         if !(half.is_finite() && estimate.is_finite()) {
             return Err(unmeasured("a non-finite pooled value"));
         }
-        if !MEASURED_STUDY_COUNTS.contains(&studies) {
-            return Err(unmeasured(&format!(
-                "{studies} studies (the measured family is {} to {})",
-                MEASURED_STUDY_COUNTS.start(),
-                MEASURED_STUDY_COUNTS.end()
-            )));
-        }
-        let Some(study_rows) = self.smallest_study_rows(result) else {
-            return Err(unmeasured("studies whose observations are not all declared"));
-        };
+        // A study count outside the measured family, or studies whose observations are not all
+        // declared, still report the interval: the exact-count key matches no record and the
+        // smallest-study sample size is then zero, so the calibration slot says
+        // `not_measured` or `outside_measured_scope`. Calibration never gates the interval.
+        let study_rows = self.smallest_study_rows(result).unwrap_or(0);
         let make_basis = |functional: String, rows: u64| {
             antecedent_core::CalibrationBasis::new(
                 [

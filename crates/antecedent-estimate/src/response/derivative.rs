@@ -18,8 +18,10 @@ use super::{
     PseudoOutcome, bias_corrected_interval_note, delta_method_interval_note,
     delta_method_standard_error, ensure_crossfit_size, fieller_elasticity_interval,
     fieller_interval_note, local_design_refusal, multivariate_support,
-    plugin::plugin_gradient_interval_withheld, plugin::predict_one, push_outcome_tail_diagnostic,
-    sample::CompleteSample, support_report, transform_derivative, transform_point_derivative,
+    plugin::{self, plugin_gradient_interval_withheld, predict_one},
+    push_outcome_tail_diagnostic,
+    sample::CompleteSample,
+    support_report, transform_derivative, transform_point_derivative,
     transform_point_derivative_gradient, treatment_sigma,
 };
 
@@ -297,6 +299,19 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
+        if scale == DerivativeScale::Identity {
+            let (value, uncertainty, withheld) =
+                self.banded_or_point_gradient(data, outcomes, treatments, at, None)?;
+            let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
+            let mut support = multivariate_support(
+                at,
+                &run.all_treatments,
+                treatments.len(),
+                outcomes.len() * treatments.len(),
+            );
+            support.warnings.extend(withheld);
+            return Ok((value, uncertainty, support));
+        }
         let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
         let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
         for (level, gradient) in run.levels.iter().zip(&run.gradients) {
@@ -326,16 +341,55 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         direction: &[f64],
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
+        let (value, uncertainty, withheld) =
+            self.banded_or_point_gradient(data, outcomes, treatments, at, Some(direction))?;
         let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
-        let values: Vec<f64> = run
-            .gradients
-            .iter()
-            .map(|gradient| gradient.iter().zip(direction).map(|(a, b)| a * b).sum())
-            .collect();
         let mut support =
-            multivariate_support(at, &run.all_treatments, treatments.len(), values.len());
-        support.warnings.push(plugin_gradient_interval_withheld());
-        Ok((ResponseValue::Vector(Arc::from(values)), ResponseUncertainty::None, support))
+            multivariate_support(at, &run.all_treatments, treatments.len(), outcomes.len());
+        support.warnings.extend(withheld);
+        Ok((value, uncertainty, support))
+    }
+
+    /// The plug-in gradient with its sandwich band. A design whose penalized Gram is not
+    /// invertible (collinear treatment columns) has a point but no sandwich: the point is
+    /// published alone with a warning that says why, never refused for lack of a band.
+    fn banded_or_point_gradient(
+        &self,
+        data: &TabularData,
+        outcomes: &[VariableId],
+        treatments: &[VariableId],
+        at: &[f64],
+        direction: Option<&[f64]>,
+    ) -> Result<(ResponseValue, ResponseUncertainty, Option<Diagnostic>), EstimationError> {
+        match self.plugin_gradient_band(data, outcomes, treatments, at, direction) {
+            Ok((value, uncertainty)) => Ok((value, uncertainty, None)),
+            Err(EstimationError::Unsupported { message })
+                if message == plugin::NOT_INVERTIBLE_PENALIZED_DESIGN =>
+            {
+                let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
+                let value = match direction {
+                    None => ResponseValue::Jacobian {
+                        outcomes: outcomes.len(),
+                        treatments: treatments.len(),
+                        values: Arc::from(run.gradients.concat()),
+                    },
+                    Some(direction) => ResponseValue::Vector(Arc::from(
+                        run.gradients
+                            .iter()
+                            .map(|gradient| {
+                                gradient.iter().zip(direction).map(|(a, b)| a * b).sum::<f64>()
+                            })
+                            .collect::<Vec<f64>>(),
+                    )),
+                };
+                Ok((
+                    value,
+                    ResponseUncertainty::None,
+                    Some(plugin::plugin_gradient_band_unavailable()),
+                ))
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub(super) fn cross_fitted_ade_scores(

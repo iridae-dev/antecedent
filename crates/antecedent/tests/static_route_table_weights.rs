@@ -500,7 +500,11 @@ fn weights_declared_on_an_estimator_a_route_does_not_run_are_refused() {
         let error = run(&route, route.data.clone(), Some(linear(Some(weights.clone()))))
             .err()
             .unwrap_or_else(|| panic!("{}: declared weights were ignored", route.name));
-        assert_typed_weight_refusal(route.name, &error);
+        // The estimator is refused for the quantity before its weights could be dropped: the
+        // linear adjustment estimates the average effect, not a counterfactual.
+        let text = refusal_text(&error);
+        assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{}: {text}", route.name);
+        assert!(text.contains("linear.adjustment.ate does not estimate this query"), "{text}");
     }
 }
 

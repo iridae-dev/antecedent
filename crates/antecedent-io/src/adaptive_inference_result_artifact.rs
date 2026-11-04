@@ -8,7 +8,7 @@
 //!   the observation accounting);
 //! * the request: which look, which route and its parameters; and
 //! * the stored values, the method name, the point-only claim, the
-//!   **unmeasured** calibration status and the closed guarantee.
+//!   **unmeasured** calibration status and the closed claim (a stopping rule's error rate), if any.
 //!
 //! A consumer trusts none of the stored values. It replays the embedded
 //! contract through the contract checks (so a missing element, an inconsistent
@@ -195,8 +195,9 @@ pub struct AdaptiveResult {
     pub method: &'static str,
     /// Values in the order documented on [`compute_adaptive_result`].
     pub values: Vec<f64>,
-    /// Detail of the closed guarantee that goes with the values.
-    pub closed_guarantee: &'static str,
+    /// The claim with no construction that goes with the values (an error rate of a stopping
+    /// rule); `None` when every claim of the result is reported through an interval route.
+    pub closed_claim: Option<&'static str>,
 }
 
 /// A refusal to compute a result.
@@ -369,7 +370,7 @@ pub fn compute_adaptive_result(
                 paradigm,
                 method: "beta_bernoulli_conjugate_posterior",
                 values,
-                closed_guarantee: posterior.guarantee.detail,
+                closed_claim: None,
             })
         }
         AdaptiveResultSpec::PosteriorStopping { prior_alpha, prior_beta, .. } => {
@@ -399,7 +400,7 @@ pub fn compute_adaptive_result(
                     decision.expected_loss,
                     f64::from(u8::from(decision.stop)),
                 ],
-                closed_guarantee: decision.guarantee.detail,
+                closed_claim: Some("adaptive_inference.stopping_reliability_closed"),
             })
         }
         AdaptiveResultSpec::AdaptiveWeighting {
@@ -445,7 +446,7 @@ pub fn compute_adaptive_result(
                     fit.effective_units,
                     fit.max_weight_share,
                 ],
-                closed_guarantee: fit.guarantee.detail,
+                closed_claim: None,
             })
         }
         AdaptiveResultSpec::ConfidenceSequence { alpha, tuning_samples, contrast, .. } => {
@@ -468,7 +469,7 @@ pub fn compute_adaptive_result(
                 paradigm,
                 method: "mixture_hoeffding_confidence_sequence",
                 values,
-                closed_guarantee: sequences.guarantee.detail,
+                closed_claim: None,
             })
         }
         AdaptiveResultSpec::GroupSequential { control_arm, treatment_arm, .. } => {
@@ -522,7 +523,7 @@ pub fn compute_adaptive_result(
                 paradigm,
                 method: "lan_demets_alpha_spending_group_sequential",
                 values,
-                closed_guarantee: outcome.guarantee.detail,
+                closed_claim: Some("adaptive_inference.stagewise_adjustment_closed"),
             })
         }
     }
@@ -570,8 +571,8 @@ pub struct AdaptiveResultMeta {
     pub claim: String,
     /// Calibration status: always `unmeasured`.
     pub calibration: String,
-    /// Detail of the closed guarantee.
-    pub closed_guarantee: String,
+    /// The claim with no construction, when the result has one.
+    pub closed_claim: Option<String>,
     /// BLAKE3 identity (hex) of everything above.
     pub identity: String,
 }
@@ -697,7 +698,10 @@ fn compute_identity(meta: &AdaptiveResultMeta) -> String {
     for bit in &meta.value_bits {
         writer.word(*bit);
     }
-    writer.text(&meta.claim).text(&meta.calibration).text(&meta.closed_guarantee);
+    writer
+        .text(&meta.claim)
+        .text(&meta.calibration)
+        .text(meta.closed_claim.as_deref().unwrap_or(""));
     writer.finish_hex()
 }
 
@@ -739,8 +743,10 @@ fn check(
     }
     let recomputed = compute_adaptive_result(contract_artifact.contract(), &spec, ctx)
         .map_err(|error| result_refusal(&error))?;
-    if recomputed.method != meta.method || recomputed.closed_guarantee != meta.closed_guarantee {
-        return Err(Error::ResultMismatch("method or closed guarantee"));
+    if recomputed.method != meta.method
+        || recomputed.closed_claim.map(str::to_owned) != meta.closed_claim
+    {
+        return Err(Error::ResultMismatch("method or closed claim"));
     }
     let stored: Vec<f64> = meta.value_bits.iter().map(|b| f64::from_bits(*b)).collect();
     if stored.len() != recomputed.values.len()
@@ -826,7 +832,7 @@ impl AdaptiveInferenceResultArtifact {
             value_bits: result.values.iter().map(|v| v.to_bits()).collect(),
             claim: "point_only".to_owned(),
             calibration: ADAPTIVE_INFERENCE_CALIBRATION.to_owned(),
-            closed_guarantee: result.closed_guarantee.to_owned(),
+            closed_claim: result.closed_claim.map(str::to_owned),
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta);

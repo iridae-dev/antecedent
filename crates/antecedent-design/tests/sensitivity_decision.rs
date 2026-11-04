@@ -280,6 +280,7 @@ fn assumption_range_is_not_a_sampling_interval() {
         level: 0.95,
         method: "percentile_bootstrap".into(),
         composed: None,
+        calibration: None,
         lower: vec![-2.0; 3],
         upper: vec![3.0; 3],
     });
@@ -498,6 +499,7 @@ fn joint_result(
     JointSensitivityView {
         inference_claim: "assumption_range".into(),
         interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval".into(),
+        sampling: None,
         withheld_reason_code: "not_supported".into(),
         withheld_detail: "joint_sensitivity.interval_withheld".into(),
         query_binding: "binding-1".into(),

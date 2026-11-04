@@ -706,21 +706,21 @@ def test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record():
                     f"legacy-{count}-{method}", summaries(0.05, count), method=method
                 )
             ).result
-            error = refused(lambda legacy=legacy: ledger.pooled_interval(legacy))
-            expect(error, "not_supported", "evidence_ledger.hksj_study_count_not_measured")
+            reported = ledger.pooled_interval(legacy)
+            assert reported["lower"] < reported["estimate"] < reported["upper"]
+            assert reported["calibration"]["status"] != "calibrated"
     three = require_success(ledger.pool_summaries("three", summaries(0.01, 3))).result
-    error = refused(lambda: ledger.pooled_interval(three))
-    expect(error, "not_supported", "evidence_ledger.interval_not_measured")
+    reported = ledger.pooled_interval(three)
+    assert reported["calibration"]["status"] != "calibrated"
 
 
-def test_a_pooled_interval_refuses_without_a_measured_record():
+def test_a_pooled_interval_without_a_measured_record_is_reported_uncalibrated():
     scenario = Scenario()
-    error = refused(lambda: scenario.ledger.pooled_interval(scenario.r_all))
-    assert error.reason_code == "not_supported"
-    assert error.detail in {
-        "evidence_ledger.interval_not_measured",
-        "evidence_ledger.interval_not_supported",
-    }
+    # The small fixture has no coverage record of its sample size: the interval is reported and
+    # its calibration is not `calibrated`.
+    reported = scenario.ledger.pooled_interval(scenario.r_all)
+    assert reported["lower"] < reported["estimate"] < reported["upper"]
+    assert reported["calibration"]["status"] != "calibrated"
     error = refused(lambda: scenario.ledger.pooled_interval("ab" * 32))
     assert error.reason_code == "invalid_argument"
     with pytest.raises(CausalTypeError):
@@ -1204,8 +1204,10 @@ def test_equal_study_gaussian_method_uses_study_noise_and_replays_without_borrow
     replay = consumed.synthesis_of(outcome.result)
     assert replay.method == "equal_study_gaussian"
     assert replay.values == pytest.approx((ys.mean(), ys.var(ddof=1) / len(ys)), abs=TOL)
-    error = refused(lambda: ledger.pooled_interval(outcome.result))
-    assert error.code == "not_supported"
+    # Three studies have no coverage record: the interval is reported, not calibrated.
+    reported = ledger.pooled_interval(outcome.result)
+    assert reported["lower"] < reported["estimate"] < reported["upper"]
+    assert reported["calibration"]["status"] != "calibrated"
 
 
 def test_unknown_declaration_key_refused():

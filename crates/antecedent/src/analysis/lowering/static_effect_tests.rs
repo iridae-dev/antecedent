@@ -871,13 +871,34 @@ fn a_declared_general_id_does_not_inherit_the_default_routes_support() {
         if let Some(identifier) = declared {
             builder = builder.identifier(identifier);
         }
-        builder.build().unwrap()
+        builder.build()
     };
     // The default adjustment estimator is the cell's supported route.
-    assert_eq!(build(None).support_status(), Some(CellStatus::Supported));
-    // general.id evaluates the functional plug-in, whose evidence the cell's rows never ran.
+    assert_eq!(build(None).unwrap().support_status(), Some(CellStatus::Supported));
+    // general.id evaluates the functional plug-in, not the default adjustment estimator. Its own
+    // evidence (`functional.effect`, on this cell's list) is what supports it, so the status is
+    // earned from that record rather than inherited from the default route.
+    let declared = build(Some(IdentifierId::GeneralId)).expect("functional.effect is earned here");
+    assert_eq!(declared.support_status(), Some(CellStatus::Supported));
+    // A declared general.id is classified on its own estimator. On a supported cell whose
+    // evidence list lacks that estimator, the same classification the builder applies is
+    // `NotSupported`, and the missing entry the gate reports names it. The nested counterfactual
+    // cell lists only `mediation.linear`.
+    use crate::support::{SupportCell, classify, classify_estimator};
+    let cell = SupportCell::from_labels(
+        "NestedCounterfactualEffect",
+        "Dag",
+        "explicit",
+        "Frequentist",
+        "none",
+    )
+    .expect("axis labels");
+    assert_eq!(classify(cell), CellStatus::Supported);
+    let native = IdentifierId::GeneralId.static_native_estimator().expect("general.id estimator");
+    assert_eq!(native, EstimatorId::FunctionalEffect);
+    assert_eq!(classify_estimator(cell, native), CellStatus::NotSupported);
     assert_eq!(
-        build(Some(IdentifierId::GeneralId)).support_status(),
-        Some(CellStatus::NotSupported)
+        format!("estimator_evidence:{}", native.as_str()),
+        "estimator_evidence:functional.effect"
     );
 }

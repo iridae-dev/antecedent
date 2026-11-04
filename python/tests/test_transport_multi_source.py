@@ -279,33 +279,35 @@ def test_exported_result_is_recomputed_by_an_independent_consumer():
         transport.consume_multi_source_z_transport_artifact(artifact[:-3] + b"\x00\x00\x00")
 
 
-def test_the_unmeasured_interval_route_refuses_with_not_supported():
-    """Counted laws return the point; the interval route is closed until its
-    coverage records exist, so no interval is ever attached (live or consumed)."""
+def test_counted_laws_report_the_interval_with_its_calibration_annotation():
+    """Counted laws return the point and the nominal pointwise joint bootstrap interval;
+    calibration annotates the interval and never withholds it."""
     with_studies = identified_stage(catalog(studies=True)).prepare_empirical(
         laws(sample_size=40_000), {"x": 1.0}, seed=3
     )
     result = json.loads(require_success(with_studies.estimate()))
     assert risk(result) == pytest.approx(truth(1), abs=1e-12)
     interval = result["interval"]
-    assert interval["available"] is False
-    assert interval["status"] == "withheld"
-    assert interval["reason"] == "not_supported"
+    assert interval["available"] is True
+    assert interval["status"] == "nominal_interval"
+    assert interval["method"] == "percentile_bootstrap"
+    assert interval["coverage_target"] == 0.95
+    assert interval["seed"] == 3 and interval["replicates_requested"] == 999
     assert interval["dependence_reason"] is None
-    assert interval["mean_intervals"] == [] and interval["contrast_intervals"] == []
-    assert interval["seed"] is None and interval["replicates_requested"] == 0
+    assert interval["mean_intervals"]
+    assert all(band["lower"] <= band["upper"] for band in interval["mean_intervals"][0])
     consumed = transport.consume_multi_source_z_transport_artifact(
         bytes(with_studies.export())
     ).to_dict()
     assert consumed["interval"] == interval
     assert consumed["probabilities"] == result["probabilities"]
-    # Without study identities the two arms of source a are not known to be
-    # independent: that reason is reported beside the closed-route reason.
+    # Without study identities the two arms of source a are not known to be independent:
+    # the interval is withheld for that data reason.
     undeclared = identified_stage().prepare_empirical(laws(sample_size=40_000), {"x": 1.0})
     withheld = json.loads(require_success(undeclared.estimate()))
     assert withheld["interval"]["available"] is False
-    assert withheld["interval"]["reason"] == "not_supported"
-    assert withheld["interval"]["dependence_reason"] == "sampling_dependence_unknown"
+    assert withheld["interval"]["status"] == "withheld"
+    assert withheld["interval"]["reason"] == "sampling_dependence_unknown"
     assert risk(withheld) == pytest.approx(risk(result))
     # No public Python route builds or yields an interval.
     for owner in (with_studies, transport):
@@ -314,8 +316,8 @@ def test_the_unmeasured_interval_route_refuses_with_not_supported():
             for name in dir(owner)
             if "bootstrap" in name.lower() or name.lower().startswith("interval")
         ]
-    # An artifact that claims an interval is refused as the closed route by the
-    # consumer: `not_supported` with the `mz_transport.interval_withheld` detail.
+    # An artifact whose exact laws claim an interval fails the consumer's uncertainty
+    # bookkeeping: exact laws carry no interval.
     exact = identified_stage().prepare_exact(laws(), {"x": 1.0})
     require_success(exact.estimate())
     artifact = bytes(exact.export())
@@ -324,10 +326,8 @@ def test_the_unmeasured_interval_route_refuses_with_not_supported():
         lambda inner: _replace_once(inner, b"\x6apoint_only", b"\x70nominal_interval"),
     )
     assert claimed != artifact
-    with pytest.raises(CausalUnsupportedError) as refused:
+    with pytest.raises(CausalSerializationError, match="exact laws carry no interval"):
         transport.consume_multi_source_z_transport_artifact(claimed)
-    assert refused.value.reason_code == "not_supported"
-    assert "mz_transport.interval_withheld" in str(refused.value)
 
 
 def test_rebinding_keeps_the_proof_and_refuses_other_snapshots():
@@ -400,7 +400,8 @@ def test_prepare_empirical_compiles_a_counted_plan_after_builder_disposal():
     assert plan["compiled_plans"] == 2
     result = json.loads(require_success(retained_plan.estimate()))
     assert [risk(r) for r in result["requests"]] == pytest.approx([truth(0), truth(1)], abs=1e-12)
-    assert result["interval"]["reason"] == "not_supported"
+    assert result["interval"]["available"] is True
+    assert result["interval"]["reason"] == "estimator_grid_not_measured"
     assert retained_plan.seed == 5
 
 
@@ -674,13 +675,15 @@ def test_distinct_studies_are_the_declared_independence_the_interval_reports():
     counted = laws(sample_size=40_000)
     # One study per regime: independence is declared, nothing else withholds.
     distinct = identified_stage(catalog(studies=True)).prepare_empirical(counted, {"x": 1.0})
-    assert json.loads(require_success(distinct.estimate()))["interval"]["dependence_reason"] is None
+    declared = json.loads(require_success(distinct.estimate()))["interval"]
+    assert declared["dependence_reason"] is None and declared["available"] is True
     # Both arms of source a in one study (no shared dataset declared): unknown.
     shared = {"obs": "s-obs", "a_z2_0": "trial-a", "a_z2_1": "trial-a", "b_z1_0": "s-b"}
     same_study = identified_stage(catalog(studies=shared)).prepare_empirical(counted, {"x": 1.0})
     interval = json.loads(require_success(same_study.estimate()))["interval"]
-    assert interval["dependence_reason"] == "sampling_dependence_unknown"
-    assert interval["reason"] == "not_supported"
+    # Without a declared shared dataset the arms are not known to be independent: withheld.
+    assert interval["available"] is False
+    assert interval["reason"] == "sampling_dependence_unknown"
 
 
 def _pair(exc):

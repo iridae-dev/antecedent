@@ -10,7 +10,7 @@ use super::budget::{
 };
 use super::cancel::{CancellationToken, ProgressSink};
 use super::rng::RngFactory;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Finite logical-work ceiling for a complete-design Fisher randomization test.
@@ -70,9 +70,30 @@ pub struct ExecutionContext {
     pub(super) hmc_work_limit: Option<u64>,
     pub(super) temporal_materialization_limits: Option<crate::TemporalMaterializationLimits>,
     pub(super) randomization_test_limits: Option<RandomizationTestLimits>,
+    /// What a development build ran although a route was `not_supported`. Shared by every
+    /// clone of this context; always empty in a release build.
+    pub(super) would_refuse: Arc<Mutex<Vec<crate::support_gate::WouldRefuse>>>,
 }
 
 impl ExecutionContext {
+    /// Entries a development build recorded for `not_supported` routes it ran anyway, in
+    /// order. Shared by every clone of this context. Always empty in a release build.
+    #[must_use]
+    pub fn would_refuse(&self) -> Vec<crate::support_gate::WouldRefuse> {
+        self.would_refuse
+            .lock()
+            .map_or_else(|poisoned| poisoned.into_inner().clone(), |g| g.clone())
+    }
+
+    /// Append `entry` to the shared log (development builds only call this).
+    #[doc(hidden)]
+    pub fn record_would_refuse(&self, entry: crate::support_gate::WouldRefuse) {
+        let mut log = self.would_refuse.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !log.contains(&entry) {
+            log.push(entry);
+        }
+    }
+
     /// Set the finite row-visit ceiling for a Fisher randomization test.
     #[must_use]
     pub fn with_randomization_test_limits(&self, limits: RandomizationTestLimits) -> Self {
@@ -232,6 +253,7 @@ impl ExecutionContext {
             hmc_work_limit: None,
             temporal_materialization_limits: None,
             randomization_test_limits: None,
+            would_refuse: Arc::default(),
         }
     }
 
@@ -278,6 +300,7 @@ impl ExecutionContext {
             hmc_work_limit: None,
             temporal_materialization_limits: None,
             randomization_test_limits: None,
+            would_refuse: Arc::default(),
         }
     }
 

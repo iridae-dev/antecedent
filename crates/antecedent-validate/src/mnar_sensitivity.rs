@@ -95,9 +95,11 @@ pub const MNAR_ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// Empirical status of the departure: the data cannot establish it.
 pub const MNAR_EMPIRICAL_STATUS: &str = "not_empirically_established";
 /// What the per-point sampling interval is conditional on.
-pub const MNAR_SAMPLING_BASIS: &str = "sampling interval conditional on the sensitivity parameter is withheld pending calibration; distinct from the assumption range and never combined with it";
-/// Detail for the withheld pointwise sampling interval and derived conclusions.
-pub const MNAR_SAMPLING_DETAIL: &str = "mnar_sensitivity.sampling_interval_not_supported";
+pub const MNAR_SAMPLING_BASIS: &str = "sampling interval conditional on the sensitivity parameter, reported with its calibration status; distinct from the assumption range and never combined with it";
+/// Detail for the pointwise sampling interval and the conclusions derived from it.
+pub const MNAR_SAMPLING_DETAIL: &str = "mnar_sensitivity.sampling_interval_conditional";
+/// Status of the pointwise sampling interval: reported, annotated by its calibration.
+pub const MNAR_SAMPLING_STATUS: &str = "reported";
 /// Stable id of the untestable departure assumption.
 pub const MNAR_DEPARTURE_ASSUMPTION_ID: &str = "outcome_missingness_departure_from_mar";
 /// Status of the departure assumption.
@@ -386,7 +388,7 @@ pub struct MnarPoint {
     pub control_mean: f64,
     /// The effect, `treated_mean - control_mean`.
     pub effect: f64,
-    /// Withheld until the exact sampling construction has applicable calibration evidence.
+    /// The sampling interval conditional on the parameter; its calibration annotates it.
     pub sampling: Option<MnarSamplingInterval>,
     /// Whether each declared decision acts, in declaration order.
     pub acts: Vec<bool>,
@@ -540,10 +542,15 @@ pub struct MnarSensitivityResult {
     pub empirical_status: &'static str,
     /// [`MNAR_SAMPLING_BASIS`].
     pub sampling_basis: &'static str,
-    /// The public interval route remains closed until its own coverage record exists.
+    /// [`MNAR_SAMPLING_STATUS`]: the interval is reported and calibration annotates it.
     pub sampling_status: &'static str,
-    /// Why the sampling interval and its derived conclusions are withheld.
+    /// What the sampling interval is conditional on ([`MNAR_SAMPLING_DETAIL`]).
     pub sampling_detail: &'static str,
+    /// Calibration of the per-point sampling intervals. The grid's intervals are the
+    /// delta-method construction at each declared parameter; the record covering the
+    /// fixed-shift route is resolved by that route's own basis, so this general grid
+    /// is `not_measured` until a record measures the grid construction.
+    pub sampling_calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
 }
 
 /// One arm's observed outcomes and missing count.
@@ -1101,7 +1108,7 @@ pub fn mnar_sensitivity(
     data: &MnarData<'_>,
     spec: &MnarSensitivitySpec,
 ) -> Result<MnarSensitivityResult, MnarSensitivityError> {
-    mnar_sensitivity_impl(data, spec, false)
+    mnar_sensitivity_impl(data, spec, true)
 }
 
 /// Evaluate the unsupported candidate solely for a registered calibration study.
@@ -1284,12 +1291,12 @@ fn mnar_sensitivity_impl(
         inference_claim: MNAR_ASSUMPTION_RANGE_CLAIM,
         empirical_status: MNAR_EMPIRICAL_STATUS,
         sampling_basis: MNAR_SAMPLING_BASIS,
-        sampling_status: if calibration_candidate {
-            "calibration_candidate"
-        } else {
-            reason_code!("not_supported")
-        },
+        sampling_status: if calibration_candidate { MNAR_SAMPLING_STATUS } else { "not_computed" },
         sampling_detail: MNAR_SAMPLING_DETAIL,
+        sampling_calibration:
+            antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+                antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+            ),
     })
 }
 

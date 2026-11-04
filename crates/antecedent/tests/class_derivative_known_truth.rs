@@ -401,8 +401,7 @@ fn class_derivative_routes_and_refuter_states_known_truth() {
 fn frequentist_class_vector_derivatives_report_bands_or_withhold() {
     let pin = fixture();
     let data = Fixture::new().data();
-    let mut saw_band = false;
-    let mut saw_withheld = false;
+    let mut bands = 0_usize;
     for structure in [Structure::Cpdag, Structure::Pag, Structure::Admg] {
         for (key, functional, _, _) in cases(&pin, number(&pin, "at")) {
             if !matches!(key, "jacobian" | "directional") {
@@ -424,30 +423,24 @@ fn frequentist_class_vector_derivatives_report_bands_or_withhold() {
                 .unwrap()
                 .estimate(&data, &ctx)
                 .unwrap();
-                saw_band |= matches!(
-                    result.response().unwrap().uncertainty,
-                    antecedent_core::ResponseUncertainty::PointwiseBand { .. }
-                );
-                saw_withheld |= matches!(
-                    result.response().unwrap().uncertainty,
-                    antecedent_core::ResponseUncertainty::None
-                );
+                // The identity-scale Jacobian and directional derivative report their
+                // coefficient-sandwich band on every class structure; calibration annotates it.
                 assert!(
                     matches!(
                         result.response().unwrap().uncertainty,
-                        antecedent_core::ResponseUncertainty::None
-                            | antecedent_core::ResponseUncertainty::PointwiseBand {
-                                interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                                ..
-                            }
+                        antecedent_core::ResponseUncertainty::PointwiseBand {
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            ..
+                        }
                     ),
                     "{structure:?} {key} accepted={accepted}: {:?}",
                     result.response().unwrap().uncertainty
                 );
+                bands += 1;
             }
         }
     }
-    assert!(saw_band && saw_withheld);
+    assert!(bands > 0);
 }
 
 #[test]

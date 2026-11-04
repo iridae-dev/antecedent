@@ -6,10 +6,8 @@ use antecedent_estimate::nested_markov_binary::{
 use antecedent_io::{IoError, nested_markov_bayesian_artifact::Artifact};
 use antecedent_learn::nested_markov_bayesian::{Options, Prior};
 use pyo3::prelude::*;
-#[cfg(feature = "calibration-internal")]
 use pyo3::types::PyBytes;
 
-#[cfg(feature = "calibration-internal")]
 use antecedent_io::nested_markov_bayesian_artifact::{Expectation, Limits};
 
 type RegimeTuple = (Option<Vec<usize>>, Vec<usize>, Vec<f64>);
@@ -67,14 +65,12 @@ fn error(e: IoError) -> PyErr {
         ),
     }
 }
-#[cfg(feature = "calibration-internal")]
 #[pyclass(name = "NativeNestedMarkovPosteriorCandidate", frozen)]
 struct Candidate {
     artifact: Artifact,
-    bytes: &[u8],
+    bytes: Vec<u8>,
     identity: String,
 }
-#[cfg(feature = "calibration-internal")]
 impl Candidate {
     fn from_artifact(artifact: Artifact) -> PyResult<Self> {
         let o = &artifact.options;
@@ -95,7 +91,6 @@ impl Candidate {
     }
 }
 #[pymethods]
-#[cfg(feature = "calibration-internal")]
 impl Candidate {
     #[getter]
     fn identity(&self) -> &str {
@@ -108,7 +103,6 @@ impl Candidate {
         PyBytes::new(py, &self.bytes)
     }
 }
-#[cfg(feature = "calibration-internal")]
 #[pyfunction]
 #[allow(
     clippy::too_many_arguments,
@@ -137,7 +131,6 @@ fn nested_markov_posterior_candidate(
         )
     })
 }
-#[cfg(feature = "calibration-internal")]
 #[pyfunction]
 fn consume_nested_markov_posterior_candidate(
     py: Python<'_>,
@@ -204,11 +197,8 @@ fn nested_markov_posterior_measured(
     })
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    #[cfg(feature = "calibration-internal")]
     module.add_class::<Candidate>()?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(nested_markov_posterior_candidate, module)?)?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(consume_nested_markov_posterior_candidate, module)?)?;
     module.add_function(wrap_pyfunction!(nested_markov_posterior_measured, module)?)?;
     Ok(())

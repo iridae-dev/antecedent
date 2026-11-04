@@ -231,7 +231,7 @@ def consume_joint_transport_posterior(
     consumer = getattr(_native, "consume_joint_transport_candidate", None)
     if consumer is None:
         raise CausalUnsupportedError(
-            "joint_transport.route_frozen: candidate lifecycle requires internal feature build",
+            "joint_transport.native_hook_unavailable: candidate lifecycle requires the internal feature build",
             reason_code="not_supported",
         )
     if kind not in ("gaussian", "learned_gaussian"):
@@ -392,7 +392,7 @@ def _measured(
     producer = getattr(_native, "joint_transport_measured", None)
     if producer is None:
         raise CausalUnsupportedError(
-            "joint_transport.route_frozen: measured native authority unavailable",
+            "joint_transport.native_hook_unavailable: measured native authority unavailable",
             reason_code="not_supported",
         )
     native = call_native(

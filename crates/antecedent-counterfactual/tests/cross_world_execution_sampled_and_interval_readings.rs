@@ -125,7 +125,7 @@ fn a_sampled_posterior_is_refused_before_any_work_for_every_request_shape() {
                 assert_eq!(
                     detail(&err),
                     (
-                        "not_supported".to_owned(),
+                        "estimator_inference_mismatch".to_owned(),
                         "cross_world_execution.sampled_abduction_not_supported".to_owned()
                     ),
                     "{name} {coupling:?} {reading:?}"
@@ -158,7 +158,10 @@ fn interval_and_posterior_readings_are_closed_for_every_quantity_and_coupling() 
                 );
                 let err = exec.execute(&r, &ctx()).expect_err(name);
                 let (code, d) = detail(&err);
-                assert_eq!(code, "not_supported", "{name} {coupling:?} {reading:?}");
+                assert_eq!(
+                    code, "uncertainty_representation_insufficient",
+                    "{name} {coupling:?} {reading:?}"
+                );
                 assert_eq!(d, expected, "{name} {coupling:?} {reading:?}");
                 assert_eq!(exec.retained_len(), 0, "a closed reading retains no abduction");
                 assert_eq!(exec.counters().shared_draws, 0);

@@ -3306,7 +3306,7 @@ assertion_scopes = ["test_learned_route_is_closed_with_not_supported"]
 dimensions = ["refusal"]
 assertion_contract = "An in-scope learned joint request is not_supported / learned_joint_transport.route_frozen citing calibration evidence."
 [[capability.evidence]]
-test = "python/tests/test_learned_joint_closed.py::test_learned_adjacent_graph_refuses_before_the_frozen_route"
+test = "python/tests/test_learned_joint_closed.py::test_learned_adjacent_graph_refuses_before_the_producer"
 assertion_scopes = ["assert_refused"]
 dimensions = ["refusal"]
 assertion_contract = "An adjacent ADMG or graph-posterior class is route_not_supported / unsupported_graph while a bidirected-free graph stays the frozen route."
@@ -11208,12 +11208,12 @@ assertion_contract = "The point equals the hand posterior-mean conditional 31/42
 test = "python/tests/test_observation_query.py::test_count_fitted_draw_count_is_supported_from_the_minimum"
 assertion_scopes = ["test_count_fitted_draw_count_is_supported_from_the_minimum"]
 dimensions = ["controls", "refusal"]
-assertion_contract = "Draw counts 2000, 3000 and 8000 keep the point 31/42, while 1999 and 100001 draws refuse not_supported."
+assertion_contract = "Draw counts 2000, 3000 and 8000 keep the point 31/42, 1999 draws are annotated, and 100001 draws refuse not_supported."
 [[capability.evidence]]
-test = "python/tests/test_observation_query.py::test_count_fitted_interval_is_measured_or_a_typed_refusal"
-assertion_scopes = ["test_count_fitted_interval_is_measured_or_a_typed_refusal"]
+test = "python/tests/test_observation_query.py::test_count_fitted_interval_is_reported_with_its_calibration_status"
+assertion_scopes = ["test_count_fitted_interval_is_reported_with_its_calibration_status"]
 dimensions = ["refusal"]
-assertion_contract = "The interval is either a measured scalar bracketing the point or a not_supported refusal with a record detail, and an unmeasured level refuses."
+assertion_contract = "The interval is a scalar bracketing the point with a calibration status, and an unmeasured level is annotated, not refused."
 
 [[capability]]
 id = "analysis.nonlinear_mediation.mediation_effects"

@@ -241,7 +241,7 @@ fn a_point_refuses_every_request_that_needs_a_law_or_an_interval() {
     )
     .unwrap_err();
     assert_eq!(error, TransportedRefusal::IntervalNotSupported);
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
     assert_eq!(error.detail(), DETAIL_INTERVAL_NOT_SUPPORTED);
 }
 

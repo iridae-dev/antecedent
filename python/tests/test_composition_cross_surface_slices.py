@@ -435,13 +435,12 @@ def test_temporal_dependence_reloads_from_the_measured_artifact():
     loaded = _reload_candidate(panel, temporal["point"])
     assert loaded.point == pytest.approx(temporal["point"], abs=1e-12)
 
-    # The measured route additionally needs a current attesting coverage record. Until the
-    # coverage records are re-measured it refuses for exactly that reason and no other.
-    try:
-        result = transport.temporal_dependent_interval(panel, **_interval_arguments())
-    except TemporalExtensionRefusal as refusal:
-        assert "coverage_record_not_attesting" in str(refusal), refusal
-        return
+    # The measured route reports its interval with a calibration status.
+    arguments = _interval_arguments()
+    seed = arguments.pop("seed")
+    result = transport.temporal_dependent_interval(
+        panel, **arguments, execution=Execution(seed=seed)
+    )
     artifact = bytes(result.export())
     expected = result.expected_identity
     del result

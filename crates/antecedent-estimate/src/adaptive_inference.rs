@@ -26,11 +26,14 @@
 //!   independent increments, and the first look at which the statistic
 //!   crosses.
 //!
-//! No result carries an interval or a coverage statement as a claim. Every
-//! guarantee slot is a [`WithheldGuarantee`] that refuses with
-//! `not_supported` until whole-procedure coverage of the exact procedure
-//! (assignment, outcome structure, monitoring and stopping together) has been
-//! measured. The numerics are in [`antecedent_stats::adaptive_inference`].
+//! The interval constructions ([`BayesianPosterior::credible_interval`],
+//! [`WeightedResult::wald_interval`], the confidence sequences and the repeated
+//! interval of [`crate::adaptive_measured_interval`]) are reported with a calibration
+//! annotation resolved from [`crate::adaptive_measured_interval::calibration_basis`];
+//! calibration annotates and never gates them. The one claim with no construction, the
+//! error rate of a posterior stopping rule, stays a [`ClosedClaim`] that refuses
+//! with `estimator_inference_mismatch`. The numerics are in
+//! [`antecedent_stats::adaptive_inference`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -118,10 +121,12 @@ pub(crate) fn refuse_if_interrupted(ctx: &ExecutionContext) -> Result<(), Adapti
     check_cancelled(ctx)
 }
 
-/// A guarantee route that is closed.
+/// A claim that stays closed because no construction yields it (the error rate of a posterior
+/// stopping rule; bias-adjusted estimates after stopping). Intervals are not closed claims: they
+/// are reported with a calibration annotation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WithheldGuarantee {
-    /// Always `not_supported`.
+pub struct ClosedClaim {
+    /// The refusal code of the closed claim.
     pub code: &'static str,
     /// Namespaced detail naming the closed claim.
     pub detail: &'static str,
@@ -129,7 +134,17 @@ pub struct WithheldGuarantee {
     pub reason: &'static str,
 }
 
-impl WithheldGuarantee {
+/// Reliability of a posterior stopping rule: a posterior threshold is a statement about the
+/// posterior, not an error rate of the rule, and no construction yields one.
+fn stopping_reliability_closed() -> ClosedClaim {
+    ClosedClaim {
+        code: antecedent_core::reason_code!("estimator_inference_mismatch"),
+        detail: "adaptive_inference.stopping_reliability_closed",
+        reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
+    }
+}
+
+impl ClosedClaim {
     pub(crate) fn closed(detail: &'static str) -> Self {
         Self {
             code: antecedent_core::reason_code!("not_supported"),
@@ -141,13 +156,17 @@ impl WithheldGuarantee {
     /// The refusal a request for the guarantee receives.
     #[must_use]
     pub fn refusal(&self, what: &str) -> AdaptiveInferenceError {
-        AdaptiveInferenceError::new(
-            self.code,
-            self.detail,
+        let message = if self.code == antecedent_core::reason_code!("estimator_inference_mismatch")
+        {
+            format!(
+                "{what} is refused: a posterior stopping threshold is a statement about the posterior, not an error rate of the stopping rule, and no construction yields one; the posterior quantities and the decision are the result"
+            )
+        } else {
             format!(
                 "{what} is not supported: whole-procedure coverage of this assignment, outcome structure, monitoring and stopping rule has not been measured; the point values and uncalibrated diagnostics are the result"
-            ),
-        )
+            )
+        };
+        AdaptiveInferenceError::new(self.code, self.detail, message)
     }
 }
 
@@ -189,8 +208,6 @@ pub struct BayesianPosterior {
     /// The premise under which the posterior is the same under adaptive
     /// assignment.
     pub premise: &'static str,
-    /// The closed credible-interval and decision-reliability claim.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Premise of the posterior's validity under adaptive assignment.
@@ -231,12 +248,7 @@ pub fn bayesian_posterior(
             expected_loss,
         })
         .collect();
-    Ok(BayesianPosterior {
-        prior: (prior_alpha, prior_beta),
-        arms,
-        premise: POSTERIOR_PREMISE,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.posterior_interval_closed"),
-    })
+    Ok(BayesianPosterior { prior: (prior_alpha, prior_beta), arms, premise: POSTERIOR_PREMISE })
 }
 
 /// A stopping rule evaluated on a posterior.
@@ -273,7 +285,7 @@ pub struct StoppingDecision {
     /// Whether the rule says stop.
     pub stop: bool,
     /// The closed claim about the rule's error rates.
-    pub guarantee: WithheldGuarantee,
+    pub guarantee: ClosedClaim,
 }
 
 /// Evaluate a posterior stopping rule.
@@ -324,7 +336,7 @@ pub fn expected_loss_stopping(
         probability_best: best.probability_best,
         expected_loss: best.expected_loss,
         stop,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.stopping_reliability_closed"),
+        guarantee: stopping_reliability_closed(),
     })
 }
 
@@ -375,8 +387,6 @@ pub struct WeightedResult {
     pub effective_units: f64,
     /// Largest weight as a share of the total.
     pub max_weight_share: f64,
-    /// The closed interval claim.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Adaptively weighted augmented inverse-probability estimate of an arm mean
@@ -421,7 +431,6 @@ pub fn adaptively_weighted_estimate(
         units: fit.units,
         effective_units: fit.effective_units,
         max_weight_share: fit.max_weight_share,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.interval_closed"),
     })
 }
 
@@ -441,8 +450,6 @@ pub struct SequenceResult {
     pub tuning_samples: f64,
     /// Always `uncalibrated_confidence_sequence`.
     pub label: &'static str,
-    /// The closed whole-procedure guarantee.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Time-uniform confidence sequences for `[0, 1]`-bounded arm means.
@@ -495,7 +502,6 @@ pub fn anytime_valid_arm_sequences(
         arm_alpha,
         tuning_samples,
         label: "uncalibrated_confidence_sequence",
-        guarantee: WithheldGuarantee::closed("adaptive_inference.interval_closed"),
     })
 }
 
@@ -541,7 +547,7 @@ pub struct GroupSequentialResult {
     pub stopped_at: Option<usize>,
     /// The closed claim about bias-adjusted estimates and intervals after
     /// stopping.
-    pub guarantee: WithheldGuarantee,
+    pub guarantee: ClosedClaim,
 }
 
 /// Apply a rule to the standardized statistics of the performed looks.
@@ -579,7 +585,7 @@ pub fn group_sequential_decision(
         spend_increments: boundaries.spend_increments,
         statistics: statistics.to_vec(),
         stopped_at,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.stagewise_adjustment_closed"),
+        guarantee: ClosedClaim::closed("adaptive_inference.stagewise_adjustment_closed"),
     })
 }
 
@@ -621,29 +627,43 @@ pub fn standardized_difference(
     Ok((mt - mc) / standard_error)
 }
 
-// -- calibration-internal candidate intervals ---------------------------------------------------
+// -- intervals ------------------------------------------------------------------------------
 
-/// A nominal Wald interval around an adaptively weighted estimate, for the
-/// calibration harness only. Compiled only with `calibration-internal`.
-#[cfg(feature = "calibration-internal")]
+/// A nominal Wald interval around an adaptively weighted estimate. Its calibration status is
+/// an annotation resolved from the construction's calibration basis.
 #[doc(hidden)]
 #[must_use]
 pub fn weighted_wald_interval_internal(result: &WeightedResult, level: f64) -> Option<(f64, f64)> {
-    crate::adaptive_measured_interval::weighted_wald_interval(
-        result.estimate,
-        result.uncalibrated_variance,
-        level,
-    )
+    result.wald_interval(level)
 }
 
 /// Equal-tailed Beta credible interval of one posterior arm by bisection on
-/// the incomplete beta function, for the calibration harness only.
-/// Compiled only with `calibration-internal`.
-#[cfg(feature = "calibration-internal")]
+/// the incomplete beta function.
 #[doc(hidden)]
 #[must_use]
 pub fn beta_credible_interval_internal(arm: &PosteriorArm, level: f64) -> Option<(f64, f64)> {
     crate::adaptive_measured_interval::beta_credible_interval(arm.alpha, arm.beta, level)
+}
+
+impl PosteriorArm {
+    /// Equal-tailed Beta credible interval of this arm at `level`; `None` for a level outside
+    /// `(0, 1)`.
+    #[must_use]
+    pub fn credible_interval(&self, level: f64) -> Option<(f64, f64)> {
+        crate::adaptive_measured_interval::beta_credible_interval(self.alpha, self.beta, level)
+    }
+}
+
+impl WeightedResult {
+    /// Normal-approximation interval around the weighted estimate at `level`.
+    #[must_use]
+    pub fn wald_interval(&self, level: f64) -> Option<(f64, f64)> {
+        crate::adaptive_measured_interval::weighted_wald_interval(
+            self.estimate,
+            self.uncalibrated_variance,
+            level,
+        )
+    }
 }
 
 #[cfg(test)]

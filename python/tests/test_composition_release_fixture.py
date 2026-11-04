@@ -35,6 +35,7 @@ from antecedent import evidence_ledger as el
 from antecedent import interface_contract as ic
 from antecedent import joint_law_propagation as jl
 from antecedent import measurement_models as mm
+from antecedent import mechanism_composition as mc
 from antecedent.errors import StructuredRefusal
 from antecedent.joint_distribution import (
     DistributionIdentity,
@@ -200,7 +201,8 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     assert claim.value("variance") == pytest.approx(pooled.variance, abs=EXACT)
     assert claim.label == "point_only"
     error = refused(claim.interval, jl.JointLawPropagationRefusal)
-    assert error.reason_code == VARIANTS["interval"]["code"]
+    # A point-only propagation has no uncertainty representation to read an interval from.
+    assert error.reason_code == "uncertainty_representation_insufficient"
 
     # Unknown dependence is a gap, not an independence.
     distinct = [
@@ -267,7 +269,8 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
     # The aligned moment is the point claim of the composed model.
     assert claim.value("mean") == pytest.approx(World.build().excess_risk, abs=DECISION)
     assert (
-        refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code == "not_supported"
+        refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code
+        == "uncertainty_representation_insufficient"
     )
 
 
@@ -673,12 +676,13 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
 
 def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships():
     world = World.build()
-    # The ledger: a pooled interval is never supported.
-    error = refused(
-        lambda: world.ledger.pooled_interval(world.pooled.result), el.EvidenceLedgerRefusal
-    )
-    assert error.reason_code == VARIANTS["interval"]["code"]
-    # The measurement: an interval is never supported.
+    # The ledger: a pooled interval is reported with a calibration status, never `calibrated`
+    # for two studies.
+    pooled_interval = world.ledger.pooled_interval(world.pooled.result)
+    assert pooled_interval["lower"] < pooled_interval["estimate"] < pooled_interval["upper"]
+    assert pooled_interval["calibration"]["status"] != "calibrated"
+    # The measurement: the estimate's interval is reported with an unmeasured calibration slot,
+    # and a prepared model with no estimate has none to bound.
     prepared = mm.prepare_measurement_model(
         rb.measurement_model(),
         mm.AnalysisBinding(
@@ -691,11 +695,17 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
             SCENARIO["measurement"]["events"], SCENARIO["measurement"]["total"]
         ),
     )
-    error = refused(require_success(prepared.estimate()).interval, mm.MeasurementModelRefusal)
-    assert error.reason_code == VARIANTS["interval"]["code"]
-    # The composition: the variance carries no measured coverage.
-    error = refused(world.composition.interval)
-    assert error.reason_code == VARIANTS["interval"]["code"]
+    measured_interval = require_success(prepared.estimate()).interval(0.95)
+    assert measured_interval.lower <= measured_interval.upper
+    assert measured_interval.calibration["status"] == "not_measured"
+    error = refused(prepared.interval, mm.MeasurementModelRefusal)
+    assert error.reason_code == "uncertainty_representation_insufficient"
+    # The composition: the parameter dependence of its mechanisms is undeclared, so the
+    # first-order interval is a joint-law refusal, never an independence default.
+    error = refused(
+        lambda: world.composition.interval(mc.MeanContrast.ate("Y", "X", 1.0, 0.0), 0.95)
+    )
+    assert error.reason_code == "joint_law_required"
     # The claim graph holds no calibration record: the decision is a point value.
     assert world.gate().classify("decision").calibration.state == "not_applicable"
     # A criterion beyond a mean is refused, not approximated.

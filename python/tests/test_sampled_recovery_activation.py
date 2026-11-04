@@ -27,11 +27,6 @@ from antecedent.transport._closed_pilots import _sampled_observation_recovery_ca
 
 from test_observation_recovery import catalog, graph, query
 
-pytestmark = pytest.mark.skipif(
-    not hasattr(_native, "consume_sampled_recovery_candidate"),
-    reason="private candidate hook requires calibration-internal; public measured route is available",
-)
-
 
 def rows():
     """Frozen confounded missingness SCM, probabilities enumerated independently."""
@@ -413,7 +408,14 @@ print(r.interval)
         text=True,
     )
     assert replayed.strip() == str(candidate.interval)
-    with pytest.raises(CausalValueError, match="exactly 2000"):
+    # No replicate count is fixed: 500 draws still form the BCa interval, and calibration only
+    # annotates it. Fewer than two draws cannot form it.
+    fewer = _sampled_observation_recovery_candidate(
+        stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=500
+    )
+    assert fewer.interval_method == "bootstrap_bca"
+    assert fewer.interval[0] < fewer.interval[1]
+    with pytest.raises(CausalValueError, match="at least 2"):
         _sampled_observation_recovery_candidate(
-            stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=500
+            stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=1
         )

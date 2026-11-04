@@ -429,29 +429,47 @@ def interval_panel(units: int = 24) -> TemporalUnitPanel:
     return TemporalUnitPanel.from_rows("interval-panel", rows)
 
 
-def test_internal_candidate_route_is_closed_after_real_validation():
+def balanced_interval_panel(units: int = 24) -> TemporalUnitPanel:
+    """Every unit holds all sixteen complete binary histories exactly once."""
+    rows = []
+    for unit in range(units):
+        time_id = 0
+        for s0 in range(2):
+            for a1 in range(2):
+                for level in range(2):
+                    for a2 in range(2):
+                        y = ((unit * 7 + s0 * 3 + a1 * 2 + level * 5 + a2) % 10) / 10.0
+                        rows.append((unit, time_id, s0, a1, level, a2, y))
+                        time_id += 1
+    return TemporalUnitPanel.from_rows("interval-panel", rows)
+
+
+def test_internal_candidate_route_reports_an_interval_after_real_validation():
+    # The studentized interval needs exact balanced unit scores: a panel without identical
+    # complete binary histories is refused as a construction, not for its calibration.
     error = refusal_of(
         lambda: _temporal_dependent_interval_candidate(
             interval_panel(), sequence=SEQUENCE, replicates=40
         )
     )
-    assert error.reason_code == "not_supported"
-    assert error.detail == "temporal_interval.route_frozen"
-    assert "temporal_interval.route_frozen" in str(error)
-    # The internal candidate diagnostic remains closed for every estimand.
+    assert error.reason_code == "route_not_supported"
+    assert error.detail == "temporal_interval.studentized_unbalanced"
+    candidate = _temporal_dependent_interval_candidate(
+        balanced_interval_panel(), sequence=SEQUENCE, replicates=40
+    )
+    assert candidate.lower <= candidate.point <= candidate.upper
+    # The interval is reported for every estimand; calibration only annotates it.
     for kwargs in (
         {"estimand": "fixed_initial_state", "fixed_state": 1},
         {"estimand": "marginalized_initial_state", "target_law": target_law()},
     ):
-        error = refusal_of(
-            lambda kwargs=kwargs: _temporal_dependent_interval_candidate(
-                interval_panel(), sequence=SEQUENCE, replicates=40, **kwargs
-            )
+        other = _temporal_dependent_interval_candidate(
+            balanced_interval_panel(), sequence=SEQUENCE, replicates=40, **kwargs
         )
-        assert error.detail == "temporal_interval.route_frozen"
+        assert other.lower <= other.upper
 
 
-def test_dependent_interval_validates_its_arguments_before_closing():
+def test_dependent_interval_validates_its_arguments():
     error = refusal_of(
         lambda: temporal_dependent_interval(
             TemporalUnitPanel("interval-panel", None),

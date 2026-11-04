@@ -4,9 +4,10 @@
 //! it, recognizes the exact choice cells whose coverage is measured, builds the interval with
 //! the construction the record describes and resolves it against the current coverage records.
 //! Any other contract, prior, route or outcome structure is refused: a record for one cell never
-//! covers another.
+//! covers another. A study outside the measured cells still reports its interval, annotated
+//! `not_measured`; calibration never gates it.
 //!
-//! Cells (a record exists for none until coverage is measured; an unresolved key refuses):
+//! Cells:
 //!
 //! * categorical choice, one final analysis, no retained sources, uniform Dirichlet prior: the
 //!   equal-tailed credible interval of the first option's share;
@@ -33,7 +34,7 @@ fn measured_log_concentration() -> (f64, f64) {
 fn refusal(message: &str) -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("not_supported"),
-        message: format!("measured_interval.protocol_not_measured: {message}"),
+        message: format!("measured_interval.no_interval_of_this_kind: {message}"),
     }
 }
 
@@ -41,17 +42,29 @@ fn bits(a: f64, b: f64) -> bool {
     a.to_bits() == b.to_bits()
 }
 
-fn final_only(contract: &ChoiceDesignContract, look: usize) -> Result<u64, IoError> {
+/// Whether the study is one final analysis without a stopping rule, and the respondents analysed.
+/// Any other schedule still reports its interval; the calibration slot then says it is not
+/// measured.
+fn analysed(contract: &ChoiceDesignContract, look: usize) -> Result<(bool, u64), IoError> {
     let cell = contract.cell();
-    if cell.monitoring != MonitoringStrategy::FinalAnalysisOnly
-        || cell.stopping != StoppingRuleKind::NoStopping
-        || look + 1 != contract.looks()
-    {
-        return Err(refusal(
-            "only one final analysis without a stopping rule was measured for choice studies",
-        ));
+    let final_only = cell.monitoring == MonitoringStrategy::FinalAnalysisOnly
+        && cell.stopping == StoppingRuleKind::NoStopping
+        && look + 1 == contract.looks();
+    let rows =
+        contract.respondents_at(look).map_err(|_| refusal("the look is not declared"))?.len();
+    Ok((final_only, rows as u64))
+}
+
+/// A basis for a study outside the measured cells names a construction no record measured, so its
+/// calibration slot reports `not_measured`.
+fn tagged(
+    measured: bool,
+    mut basis: antecedent_core::CalibrationBasis,
+) -> antecedent_core::CalibrationBasis {
+    if !measured {
+        basis.estimator = format!("{}+outside_measured_protocol", basis.estimator).into();
     }
-    Ok(contract.respondents_at(look).map_err(|_| refusal("the look is not declared"))?.len() as u64)
+    basis
 }
 
 struct Reading {
@@ -72,15 +85,15 @@ fn reading(
     match spec {
         ChoiceResultSpec::Posterior { .. } => {
             let declaration = contract.declaration();
-            if contract.cell().outcome != OutcomeStructure::CategoricalChoice
-                || !declaration.retained_sources.is_empty()
-                || !declaration.initial_prior.iter().all(|p| bits(*p, 1.0))
-            {
+            if contract.cell().outcome != OutcomeStructure::CategoricalChoice {
                 return Err(refusal(
-                    "only a categorical choice study on the uniform Dirichlet prior without retained sources was measured",
+                    "the replayed posterior is a Dirichlet posterior of a categorical choice study",
                 ));
             }
-            let planned = final_only(contract, look)?;
+            let (final_only, planned) = analysed(contract, look)?;
+            let measured = final_only
+                && declaration.retained_sources.is_empty()
+                && declaration.initial_prior.iter().all(|p| bits(*p, 1.0));
             let alpha: Vec<f64> = (0..contract.options()).map(|k| values[4 * k]).collect();
             let interval = built::dirichlet_share_interval(&alpha, 0, built::MEASURED_LEVEL)
                 .map_err(|e| refusal(&e.message))?;
@@ -88,12 +101,15 @@ fn reading(
                 cell: "dirichlet_multinomial_final_analysis",
                 point: values[1],
                 interval,
-                basis: built::calibration_basis(
-                    built::DIRICHLET_ESTIMATOR,
-                    built::FIRST_OPTION_SHARE_FUNCTIONAL,
-                    built::POOLED_DEPENDENCE,
-                    built::DIRICHLET_PRIOR,
-                    planned,
+                basis: tagged(
+                    measured,
+                    built::calibration_basis(
+                        built::DIRICHLET_ESTIMATOR,
+                        built::FIRST_OPTION_SHARE_FUNCTIONAL,
+                        built::POOLED_DEPENDENCE,
+                        built::DIRICHLET_PRIOR,
+                        planned,
+                    ),
                 ),
                 scope: serde_json::json!({
                     "validation_design":"respondent shares drawn from the uniform Dirichlet prior, one choice per respondent, one final analysis",
@@ -110,15 +126,11 @@ fn reading(
             log_concentration_sd,
             ..
         } => {
-            if !shapes.iter().all(|s| bits(*s, 1.0))
-                || !bits(*log_concentration_mean, measured_log_concentration().0)
-                || !bits(*log_concentration_sd, measured_log_concentration().1)
-            {
-                return Err(refusal(
-                    "only uniform population-share shapes with ln kappa ~ Normal(ln 5, 1) were measured",
-                ));
-            }
-            let planned = final_only(contract, look)?;
+            let (final_only, planned) = analysed(contract, look)?;
+            let measured = final_only
+                && shapes.iter().all(|s| bits(*s, 1.0))
+                && bits(*log_concentration_mean, measured_log_concentration().0)
+                && bits(*log_concentration_sd, measured_log_concentration().1);
             let prior = built::HierarchicalChoicePrior {
                 shapes: shapes.clone(),
                 log_concentration_mean: *log_concentration_mean,
@@ -142,12 +154,15 @@ fn reading(
                 cell: "hierarchical_dirichlet_multinomial_final_analysis",
                 point: values[0],
                 interval,
-                basis: built::calibration_basis(
-                    built::HIERARCHICAL_ESTIMATOR,
-                    built::FIRST_OPTION_SHARE_FUNCTIONAL,
-                    built::HIERARCHICAL_DEPENDENCE,
-                    built::HIERARCHICAL_PRIOR,
-                    planned,
+                basis: tagged(
+                    measured,
+                    built::calibration_basis(
+                        built::HIERARCHICAL_ESTIMATOR,
+                        built::FIRST_OPTION_SHARE_FUNCTIONAL,
+                        built::HIERARCHICAL_DEPENDENCE,
+                        built::HIERARCHICAL_PRIOR,
+                        planned,
+                    ),
                 ),
                 scope: serde_json::json!({
                     "validation_design":"population shares and respondent heterogeneity drawn from the declared hyperprior, repeated choices per respondent, one final analysis",

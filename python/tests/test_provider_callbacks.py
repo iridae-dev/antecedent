@@ -545,10 +545,14 @@ def values_digest_of(execution):
 
 def test_closed_routes_refuse_with_registered_codes_and_remedies():
     for route, code, detail in (
-        (pc.refuse_interval, "not_supported", "callback_protocol.interval_not_supported"),
+        (
+            pc.refuse_interval,
+            "uncertainty_representation_insufficient",
+            "callback_protocol.interval_not_supported",
+        ),
         (
             pc.refuse_posterior_guarantee,
-            "not_supported",
+            "uncertainty_representation_insufficient",
             "callback_protocol.posterior_guarantee_not_supported",
         ),
         (

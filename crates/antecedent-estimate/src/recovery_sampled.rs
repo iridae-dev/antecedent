@@ -24,7 +24,7 @@
 //!
 //! Calibration of the interval (whole-method coverage) is UNMEASURED: no coverage
 //! claim is made and the public interval route stays closed
-//! ([`sampled_recovery_route_frozen`]). The digests are fingerprints (FNV-based),
+//! (the interval is reported with its calibration annotation). The digests are fingerprints (FNV-based),
 //! not cryptographic.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -187,17 +187,6 @@ fn from_recovery(error: &RecoveryError) -> SampledRecoveryError {
         patterns: Vec::new(),
         recovery: Some(error.detail),
     }
-}
-
-/// The route-level refusal of the public sampled interval: closed until full-path
-/// truth, calibration and replay pass.
-#[must_use]
-pub fn sampled_recovery_route_frozen() -> SampledRecoveryError {
-    refusal(
-        SampledRecoveryDetail::RouteFrozen,
-        "the sampled observation-recovery interval route is closed until the whole-method \
-         calibration grid, public producer and artifact consumer pass",
-    )
 }
 
 /// The refusal of an interval built from per-margin variances alone: the margins
@@ -778,14 +767,11 @@ impl Layout {
 
 fn validate_config(config: &SampledRecoveryConfig) -> Result<(), SampledRecoveryError> {
     let invalid = |message: &str| Err(refusal(SampledRecoveryDetail::InvalidInput, message));
-    if config.interval_method == SampledIntervalMethod::Bca
-        && (config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES
-            || config.max_failed_fraction != 0.0)
-    {
-        return invalid("BCa requires at least 2000 replicates and zero allowed failed replicates");
+    if config.interval_method == SampledIntervalMethod::Bca && config.max_failed_fraction != 0.0 {
+        return invalid("BCa allows zero failed replicates");
     }
-    if config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES {
-        return invalid("too few replicates to form a 95% BCa interval");
+    if config.replicates < 2 {
+        return invalid("too few replicates to form the BCa interval");
     }
     if !(config.max_failed_fraction.is_finite()
         && (0.0..=0.5).contains(&config.max_failed_fraction))

@@ -19085,13 +19085,6 @@ path = "crates/antecedent-validate/tests/predictive_assessment_reference.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "audit-scripts-test-python-internal-lane-py"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_python_internal_lane.py"
-gates = ["inventory"]
-
-[[test]]
 id = "scenario-route-declarations"
 crate = "antecedent"
 cargo_target = "scenario_route_declarations"

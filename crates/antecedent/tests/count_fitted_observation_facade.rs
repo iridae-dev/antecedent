@@ -43,36 +43,34 @@ fn the_point_value_is_the_posterior_mean_of_the_fitted_conditional() {
 }
 
 #[test]
-fn the_interval_is_bound_to_its_record_or_refused_for_want_of_one() {
+fn the_interval_is_reported_with_its_calibration_annotation() {
     let claim = fitted();
     let ctx = ExecutionContext::for_tests(5);
-    match claim.interval(0.95, &ctx) {
-        Ok(measured) => {
-            let scalar = &measured.report().scalars[0];
-            assert_eq!(scalar.calibration.status, "calibrated");
-            assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
-            assert!((scalar.point - 31.0 / 42.0).abs() < 1e-12);
-            let again = MeasuredInference::consume(measured.export(), measured.expectation(), &ctx)
-                .unwrap();
-            assert_eq!(again.export(), measured.export());
-        }
-        Err(refusal) => {
-            assert_eq!(refusal.code(), "not_supported");
-            // The n = 100 sample lies outside the measured size range, so the record does not attest.
-            assert_eq!(refusal.details()[0], "measured_inference.record_not_attesting");
-            assert!(
-                refusal.to_string().contains("sample_size_outside_measured_range"),
-                "{refusal}"
-            );
-        }
-    }
+    let measured = claim.interval(0.95, &ctx).expect("the interval is always reported");
+    let scalar = &measured.report().scalars[0];
+    assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+    assert!((scalar.point - 31.0 / 42.0).abs() < 1e-12);
+    // Calibration only annotates: the status is whichever the records give at n = 100.
+    assert!(
+        ["calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"]
+            .contains(&scalar.calibration.status.as_str()),
+        "{:?}",
+        scalar.calibration
+    );
+    let again =
+        MeasuredInference::consume(measured.export(), measured.expectation(), &ctx).unwrap();
+    assert_eq!(again.export(), measured.export());
 }
 
 #[test]
-fn an_unmeasured_level_or_a_two_level_mismatch_refuses_not_supported() {
+fn an_unmeasured_level_is_reported_and_annotated_not_measured() {
     let ctx = ExecutionContext::for_tests(5);
-    let refusal = fitted().interval(0.5, &ctx).unwrap_err();
-    assert_eq!(refusal.code(), "not_supported");
+    let measured = fitted().interval(0.5, &ctx).expect("the interval is reported");
+    let scalar = &measured.report().scalars[0];
+    assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+    assert!((scalar.level - 0.5).abs() < 1e-12);
+    assert_eq!(scalar.calibration.status.as_str(), "not_measured");
+    assert_eq!(scalar.calibration.reason.as_deref(), Some("interval_level_not_measured"));
 }
 
 #[test]
@@ -95,28 +93,14 @@ fn with_draws(draws: u32) -> CountFittedObservation {
 }
 
 #[test]
-fn draw_counts_from_the_supported_minimum_are_supported_and_fewer_are_refused() {
+fn draw_counts_from_the_measured_minimum_are_calibrated_and_fewer_are_annotated() {
     let ctx = ExecutionContext::for_tests(5);
     for draws in [2000, 3000, 4000, 8000] {
-        match with_draws(draws).interval(0.95, &ctx) {
-            Ok(measured) => {
-                let scalar = &measured.report().scalars[0];
-                assert_eq!(scalar.calibration.status, "calibrated", "{draws}");
-                assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
-            }
-            Err(refusal) => {
-                // Only the absence of a currently attesting record may stand in the way.
-                assert_eq!(refusal.code(), "not_supported");
-                let detail = &refusal.details()[0];
-                assert!(
-                    !detail.contains("protocol_not_measured")
-                        && !detail.contains("draws_not_converged"),
-                    "{draws}: {detail}"
-                );
-            }
-        }
+        let measured = with_draws(draws).interval(0.95, &ctx).expect("reported");
+        let scalar = &measured.report().scalars[0];
+        assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper, "{draws}");
     }
-    let refusal = with_draws(1999).interval(0.95, &ctx).unwrap_err();
-    assert_eq!(refusal.code(), "not_supported");
-    assert!(refusal.details()[0].contains("protocol_not_measured"), "{refusal}");
+    // Fewer draws than the measured minimum are computed; calibration annotates, never gates.
+    let fewer = with_draws(1999).interval(0.95, &ctx).expect("reported");
+    assert_ne!(fewer.report().scalars[0].calibration.status, "calibrated");
 }

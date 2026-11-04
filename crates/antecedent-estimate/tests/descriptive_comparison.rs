@@ -9,8 +9,7 @@ use std::sync::Arc;
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
     AdjustedEstimate, Availability, EstimationError, JointCovariance, MeanPair, ReportingScale,
-    compare_raw_adjusted, raw_contrast, refuse_column_attribution, refuse_transform_interval,
-    transform_mean_pair,
+    compare_raw_adjusted, raw_contrast, refuse_column_attribution, transform_mean_pair,
 };
 
 #[path = "common/checks.rs"]
@@ -343,10 +342,24 @@ fn scale_names_round_trip_and_an_unknown_scale_is_refused() {
 }
 
 #[test]
-fn an_interval_and_a_column_attribution_are_closed_routes() {
-    let (code, message) = refused(refuse_transform_interval());
-    assert_eq!(code, "not_supported");
-    assert!(message.starts_with("descriptive_comparison.interval_withheld"), "{message}");
+fn a_transformed_interval_is_the_hand_delta_method_wald_interval_and_attribution_is_closed() {
+    // Pair (mu1, mu0) = (0.6, 0.4) with Var = (0.01, 0.02) and Cov = 0.004.
+    let pair = MeanPair::new(0.6, 0.4, Some([0.01, 0.004, 0.02]));
+    let transform =
+        transform_mean_pair(&pair, &[ReportingScale::RiskDifference, ReportingScale::LogRiskRatio])
+            .unwrap();
+    let z = 1.959_963_984_540_054;
+    // Risk difference: gradient (1, -1), variance 0.01 + 0.02 - 2 * 0.004 = 0.022.
+    let (lo, hi) = transform.interval(0, 0.95).unwrap();
+    let half = z * 0.022_f64.sqrt();
+    assert!((lo - (0.2 - half)).abs() < 1e-12 && (hi - (0.2 + half)).abs() < 1e-12);
+    // Log risk ratio: gradient (1/0.6, -1/0.4), variance 0.01/0.36 + 0.02/0.16 - 2 * 0.004/0.24.
+    let variance: f64 = 0.01 / 0.36 + 0.02 / 0.16 - 2.0 * 0.004 / 0.24;
+    let half = z * variance.sqrt();
+    let centre = (0.6_f64 / 0.4).ln();
+    let (lo, hi) = transform.interval(1, 0.95).unwrap();
+    assert!((lo - (centre - half)).abs() < 1e-12 && (hi - (centre + half)).abs() < 1e-12);
+    assert!(transform.interval(2, 0.95).is_none() && transform.interval(0, 1.0).is_none());
     let (code, message) = refused(refuse_column_attribution());
     assert_eq!(code, "effect_not_identified");
     assert!(

@@ -87,7 +87,6 @@ pub struct ContrastPosterior {
     /// Posterior standard deviation; `NaN` when the degrees of freedom are at most two.
     pub standard_deviation: f64,
     /// Equal-tailed credible interval at the requested level.
-    #[cfg(feature = "calibration-internal")]
     pub interval: [f64; 2],
     /// Posterior probability that the contrast is positive.
     pub probability_positive: f64,
@@ -158,8 +157,6 @@ fn summarize(
     names: (&str, &str),
     level: f64,
 ) -> Result<ContrastPosterior, EstimationError> {
-    #[cfg(not(feature = "calibration-internal"))]
-    let _ = level;
     let student = posterior.linear_functional(weights).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
@@ -172,7 +169,6 @@ fn summarize(
         to: names.1.to_string(),
         mean: student.location,
         standard_deviation: student.standard_deviation(),
-        #[cfg(feature = "calibration-internal")]
         interval: student.equal_tailed_interval(level),
         probability_positive: student.probability_above(0.0),
         posterior: student,
@@ -312,17 +308,15 @@ pub const fn categorical_candidate_prior() -> CategoricalPosteriorPrior {
 }
 
 /// One credible interval per non-reference level, named for its contrast.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub type ContrastIntervals = Vec<(String, [f64; 2])>;
 
 /// Compute the prior-predictive candidate of every level contrast against the first declared
-/// level, with its native calibration basis. This internal operation grants no supported
-/// interval or coverage claim.
+/// level, with its native calibration basis. The calibration annotation on a reported interval
+/// is resolved from that basis.
 ///
 /// # Errors
 /// Refuses rows or levels outside the candidate's bounds, and invalid posterior input.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn categorical_prior_predictive_calibration_candidate(
     input: &CategoricalTreatmentInput,

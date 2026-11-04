@@ -213,7 +213,18 @@ def test_the_endpoint_bootstrap_interval_replays():
     assert plug_in["minimum"] == pytest.approx(population_lower, abs=0.05)
     assert plug_in["maximum"] == pytest.approx(population_upper, abs=0.05)
     assert first == second
-    for kwargs in ({"replicates": 198}, {"replicates": 1}, {"replicates": 2001}, {"level": 0.9}):
+    # Calibration annotates: fewer replicates or another level are computed, not refused.
+    for kwargs in ({"replicates": 198}, {"level": 0.9}):
+        annotated = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, **kwargs)
+        assert annotated.lower <= annotated.upper
+        assert annotated.calibration["status"] != "calibrated"
+    assert first.calibration["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
+    for kwargs in ({"replicates": 1}, {"replicates": 2001}):
         with pytest.raises(CausalUnsupportedError) as caught:
             transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, **kwargs)
         assert caught.value.reason_code == "route_not_supported"

@@ -403,17 +403,33 @@ fn temporal_history_source_program_uses_only_reachable_actual_observational_sour
 
 #[test]
 fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
-    use antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig;
+    use antecedent_estimate::temporal_dependent_interval::{
+        DependentIntervalConfig, IntervalMethod,
+    };
     let r = effect();
     let mut session = TemporalSession::new();
     run(&mut session, &r);
-    let error = session
+    // The default studentized interval needs exact balanced unit scores, which this panel does
+    // not have: that is a refusal of the construction, not of its calibration.
+    let unbalanced = session
         .dependent_interval(&DependentIntervalConfig {
             replicates: 20,
             ..DependentIntervalConfig::default()
         })
         .unwrap_err();
-    assert!(error.to_string().contains("only the measured complete binary-history"));
+    assert!(
+        unbalanced.to_string().contains("exact unit scores require identical complete binary"),
+        "{unbalanced}"
+    );
+    // A request outside the measured protocol is reported, annotated `not_measured`.
+    let reported = session
+        .dependent_interval(&DependentIntervalConfig {
+            replicates: 20,
+            method: IntervalMethod::Percentile,
+            ..DependentIntervalConfig::default()
+        })
+        .expect("the interval is reported");
+    assert_eq!(reported.report().calibration, "not_measured");
     let mut confounded = r.clone();
     confounded.bidirected.push((1, 4));
     let (result, work) =
@@ -490,7 +506,8 @@ fn temporal_history_closed_candidate_replays_whole_unit_identities_without_cover
     close(changed.point, result.point);
     assert_ne!(changed.panel_digest, result.panel_digest);
     assert_ne!(changed.replicate_digest(), result.replicate_digest());
-    assert!(session.dependent_interval(&config).is_err());
+    let reported = session.dependent_interval(&config).expect("the interval is reported");
+    assert_eq!(reported.report().calibration, "not_measured");
 }
 
 #[cfg(feature = "calibration-internal")]

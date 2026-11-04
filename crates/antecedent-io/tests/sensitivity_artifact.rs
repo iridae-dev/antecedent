@@ -12,12 +12,12 @@ use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::sensitivity_artifact::{
     ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, AxisTipping, DecisionSwitch,
-    JointFactor, JointFactorBound, JointMechanismSensitivityResult, JointSensitivityLimits,
-    JointSensitivityRange, JointSensitivityReceipt, JointSensitivityUncertainty,
-    MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SamplingInterval, SamplingStatus,
-    SensitivityArtifact, SensitivityOutcome, SensitivityParts, SensitivityProvenance,
-    SurfaceQuantity, TippingBracket, TippingStatus, UncertaintyRelationship, UtilityTerm,
-    decode_parts, encode_parts,
+    JointFactor, JointFactorBound, JointMechanismSensitivityResult, JointSensitivityInterval,
+    JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
+    JointSensitivityUncertainty, MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SamplingInterval,
+    SamplingStatus, SensitivityArtifact, SensitivityOutcome, SensitivityParts,
+    SensitivityProvenance, SurfaceQuantity, TippingBracket, TippingStatus, UncertaintyRelationship,
+    UtilityTerm, decode_parts, encode_parts,
 };
 
 fn scientific(name: &str) -> ScientificQuantity {
@@ -310,6 +310,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
             level: 0.9,
             method: "percentile_bootstrap".into(),
             composed: None,
+            calibration: None,
             lower: vec![interval_lower; 3],
             upper: vec![9.0; 3],
         });
@@ -339,6 +340,7 @@ fn range_and_sampling_interval_stay_separate_fields() {
         level: 0.9,
         method: "percentile_bootstrap".into(),
         composed: Some("conservative_endpoint_percentile_bootstrap".into()),
+        calibration: None,
         lower: vec![0.0; 3],
         upper: vec![9.0; 3],
     });
@@ -434,6 +436,7 @@ fn joint_result(
         interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval",
         inference_claim: "assumption_range",
         uncertainty: JointSensitivityUncertainty::withheld(),
+        sampling: None,
     }
 }
 
@@ -627,4 +630,61 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     ));
     assert!(matches!(artifact.to_bytes_within("tight", bytes.len() - 1), Err(IoError::TooLarge)));
     assert_eq!(artifact.to_bytes_within("tight", bytes.len()).expect("fits"), bytes);
+}
+
+/// Construction check of the reported joint sampling interval: five replicates whose ranges are
+/// `[z - 0.6, z + 0.6]` about baselines `z = 0.4, 0.45, 0.5, 0.55, 0.6`, at level 0.5. The type-7
+/// quantile at 0.25 of five ordered values is exactly the second (position 1.0) and at 0.75 the
+/// fourth (position 3.0), so at box scale `s` the interval is
+/// `[0.45 - 0.6 s, 0.55 + 0.6 s]` on the grid `s = 0, 0.25, 0.5, 0.75, 1`.
+#[test]
+fn a_joint_result_with_endpoint_replicates_reports_its_sampling_interval_by_hand() {
+    let zeros = vec![0.4, 0.45, 0.5, 0.55, 0.6];
+    let interval = JointSensitivityInterval {
+        lower: -0.15,
+        upper: 1.15,
+        pointwise_at_zero: (0.45, 0.55),
+        level: 0.5,
+        method: "conservative_endpoint_percentile_bootstrap",
+        coverage_target: "one_sided",
+        replicates_requested: 5,
+        replicates_ok: 5,
+        replicates_failed: 0,
+        replicate_minima: zeros.iter().map(|z| z - 0.6).collect(),
+        replicate_maxima: zeros.iter().map(|z| z + 0.6).collect(),
+        replicate_baselines: zeros,
+        calibration: antecedent_io::contract_section::CalibrationSlotWire::not_measured(
+            "estimator_grid_not_measured",
+        ),
+    };
+    let result = joint_result(
+        vec![JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.4 }],
+        0.5,
+        (-0.1, 1.1),
+    )
+    .with_sampling_interval(interval);
+    let artifact = SensitivityArtifact::from_joint_result(
+        &result,
+        &scientific("effect"),
+        5,
+        adopt_against(-0.5),
+        "checked",
+    )
+    .unwrap();
+    let SamplingStatus::Reported(reported) = &artifact.uncertainty().sampling else {
+        panic!("the sampling interval is reported");
+    };
+    assert_eq!(reported.quantity, "effect");
+    assert!((reported.level - 0.5).abs() < 1e-15);
+    for (actual, expected) in reported.lower.iter().zip([0.45, 0.3, 0.15, 0.0, -0.15]) {
+        assert!((actual - expected).abs() <= 1e-12, "{actual} vs {expected}");
+    }
+    for (actual, expected) in reported.upper.iter().zip([0.55, 0.7, 0.85, 1.0, 1.15]) {
+        assert!((actual - expected).abs() <= 1e-12, "{actual} vs {expected}");
+    }
+    // Calibration annotates the interval; it never withholds it.
+    assert_eq!(reported.calibration.as_ref().unwrap().status, "not_measured");
+    // The assumption range itself is unchanged and stays separate.
+    assert_eq!(artifact.uncertainty().assumption_range.kind, "assumption_range");
+    assert_eq!(artifact.quantities()[0].upper[4], 1.1);
 }

@@ -354,25 +354,24 @@ fn frequentist_class_and_latent_confounded_derivatives_match_the_structural_refe
                         "{label}: the consumer must verify or explain"
                     );
                 }
-                // A single-model additive-GAM gradient (Jacobian, directional derivative) keeps
-                // its frequentist band withheld until its coverage is measured: the point is
-                // published and the withholding is disclosed.
+                // A single-model additive-GAM gradient (Jacobian, directional derivative) reports
+                // its coefficient-sandwich band like every other class route, and the band is
+                // not disclosed as withheld.
                 if matches!(structure, Structure::Admg) && matches!(key, "jacobian" | "directional")
                 {
                     let response = fresh.response().unwrap();
                     assert!(
-                        matches!(response.uncertainty, ResponseUncertainty::None),
-                        "{label}: a withheld band is not published"
+                        matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. }),
+                        "{label}: the band is published"
                     );
                     assert!(
-                        response
+                        !response
                             .support
                             .warnings
                             .iter()
                             .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
-                        "{label}: the withheld interval is disclosed"
+                        "{label}: a published band is not disclosed as withheld"
                     );
-                    continue;
                 }
                 let (lower, upper) = interval(&fresh, &label);
                 assert_eq!(lower.len(), got.len(), "{label}");

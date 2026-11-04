@@ -259,9 +259,11 @@ class TemporalSession(_Session):
     ) -> MeasuredInference:
         """Measured whole-unit interval from the original causal source and both effect arms.
 
-        Defaults to 500 studentized draws at 95%. The native producer enforces
-        the measured binary two-step protocol and current evidence; it refuses
-        every adjacent unmeasured method, target law or functional.
+        Defaults to 500 studentized draws at 95%. A request outside the measured binary
+        two-step protocol is reported with a ``not_measured`` calibration slot, never refused
+        for that reason. The default studentized interval refuses a panel without identical
+        complete binary histories (``route_not_supported``,
+        ``temporal_interval.studentized_unbalanced``); percentile and basic do not.
         """
         run = _execution(execution)
         memory_limit_bytes, cancel = run.limits.memory_bytes, run.cancel
@@ -610,9 +612,9 @@ class CheckedTemporalIntervalCandidate:
             raise RecalcRefusal(
                 {
                     "code": "not_supported",
-                    "detail": "temporal_interval.route_frozen",
+                    "detail": "temporal_interval.consumer_unavailable",
                     "stage": "inference",
-                    "message": "checked temporal interval calibration is unmeasured",
+                    "message": "the checked temporal interval consumer is unavailable in this build",
                 }
             )
         native, error = run._call(

@@ -157,7 +157,7 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
     // An interval, posterior or law reading of a point is refused for both paradigms.
     for paradigm in [InferenceParadigm::Frequentist, InferenceParadigm::Bayesian] {
         let refusal = bridged.uncertainty(paradigm).unwrap_err();
-        assert_eq!(refusal.code(), "not_supported");
+        assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
         assert_eq!(refusal.detail(), "discretized_scm.point_only");
         assert!(refusal.remedy().is_some());
     }

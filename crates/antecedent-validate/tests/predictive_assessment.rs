@@ -474,7 +474,7 @@ fn every_report_is_point_only_unmeasured_and_not_a_causal_claim() {
     assert_eq!(report.uncertainty.sampling_interval, "not reported");
     assert_eq!(report.uncertainty.reason_code, "not_supported");
     let interval = report.request_score_interval().unwrap_err();
-    assert_eq!(interval.reason_code(), "not_supported");
+    assert_eq!(interval.reason_code(), "quantity_semantics_mismatch");
     assert_eq!(interval.detail(), detail::INTERVAL_NOT_SUPPORTED);
     let causal = report.request_causal_validity().unwrap_err();
     assert_eq!(causal.detail(), detail::NOT_A_CAUSAL_CLAIM);
@@ -488,7 +488,7 @@ fn a_score_interval_request_is_refused_with_not_supported() {
     spec.score_interval =
         Some(ScoreIntervalRequest { level: 0.95, method: "block bootstrap".to_owned() });
     let (code, detail_slot) = refusal(assess_predictive_laws(&spec, &ctx()));
-    assert_eq!(code, "not_supported");
+    assert_eq!(code, "quantity_semantics_mismatch");
     assert_eq!(detail_slot, detail::INTERVAL_NOT_SUPPORTED);
 }
 
@@ -1168,8 +1168,10 @@ fn the_iid_score_interval_is_the_exact_t_interval_at_ten_thousand_and_a_hundred_
 }
 
 #[test]
-fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() {
-    // Many cases do not substitute for clusters: nine clusters of 2,000 cases refuse.
+fn the_cluster_count_and_serial_bandwidth_set_the_degrees_of_freedom_at_any_case_count() {
+    // Many cases do not substitute for clusters: nine clusters of 2,000 cases give 8 degrees
+    // of freedom (the interval is built; its calibration says it is outside the measured
+    // designs).
     let n = 18_000;
     let outcomes = gaussian_outcomes(n, 61);
     let query = |name: &str| ScoreIntervalQuery {
@@ -1196,11 +1198,9 @@ fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() 
     };
     let nine = clustered(9);
     let report = assess_predictive_laws(&nine, &ctx()).unwrap();
-    let error =
-        construct_expected_score_interval(&nine, &report, &query("forecast_a")).unwrap_err();
-    assert_eq!(error.reason_code(), "not_supported");
-    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
-    // Ten clusters satisfy the requirement; the construction no longer refuses on it.
+    let built = construct_expected_score_interval(&nine, &report, &query("forecast_a")).unwrap();
+    assert!(close(built.interval.degrees_of_freedom, 8.0, 0.0));
+    // Ten clusters give 9 degrees of freedom.
     let ten = clustered(10);
     let report = assess_predictive_laws(&ten, &ctx()).unwrap();
     let built = construct_expected_score_interval(&ten, &report, &query("forecast_a")).unwrap();
@@ -1227,9 +1227,12 @@ fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() 
     };
     let wide = serial(2_000);
     let report = assess_predictive_laws(&wide, &ctx()).unwrap();
-    let error =
-        construct_expected_score_interval(&wide, &report, &query("forecast_a")).unwrap_err();
-    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
+    let built = construct_expected_score_interval(&wide, &report, &query("forecast_a")).unwrap();
+    assert!(close(
+        built.interval.degrees_of_freedom,
+        (18_000.0_f64 / 2_001.0 - 1.0).max(1.0),
+        1e-9
+    ));
     let narrow = serial(26);
     let report = assess_predictive_laws(&narrow, &ctx()).unwrap();
     let built = construct_expected_score_interval(&narrow, &report, &query("forecast_a")).unwrap();
@@ -1247,9 +1250,9 @@ fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() 
 }
 
 #[test]
-fn a_case_count_beyond_every_measured_record_is_not_published() {
+fn a_case_count_beyond_every_measured_record_is_reported_outside_the_measured_scope() {
     // The iid construction is measured to a stated upper limit (102,400 cases); one past
-    // it refuses rather than extrapolating.
+    // it is reported and the slot says it is outside the measured scope, never calibrated.
     let n = 110_000;
     let spec = large_iid_spec(n);
     let report = assess_predictive_laws(&spec, &ctx()).unwrap();
@@ -1259,9 +1262,12 @@ fn a_case_count_beyond_every_measured_record_is_not_published() {
         score: ScoreKind::Crps,
         level: 0.95,
     };
-    let error = expected_score_interval(&spec, &report, &query).unwrap_err();
-    assert_eq!(error.reason_code(), "not_supported");
-    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
+    let interval = expected_score_interval(&spec, &report, &query).unwrap();
+    assert!(interval.lower < interval.upper);
+    assert_ne!(
+        interval.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
+    );
 }
 
 #[test]

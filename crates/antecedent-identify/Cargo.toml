@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-kernels/development"]
 # Frozen-oracle DOT parser (`oracle_dot`) for tests and parity fixtures. It panics on
 # malformed input by design, so it is not part of the default public API.
 test-util = []

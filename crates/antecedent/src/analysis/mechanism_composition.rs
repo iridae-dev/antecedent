@@ -581,6 +581,58 @@ impl StudyBuilder {
     }
 }
 
+/// The first-order (delta-method) Wald interval of a mechanism-composition contrast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FirstOrderInterval {
+    /// The contrast at the fitted parameters.
+    pub point: f64,
+    /// Square root of the first-order parameter variance `g' Sigma g`.
+    pub standard_error: f64,
+    /// Lower end.
+    pub lower: f64,
+    /// Upper end.
+    pub upper: f64,
+    /// Nominal level.
+    pub level: f64,
+    /// Calibration of this interval: no coverage record measures the first-order
+    /// construction, so it is `not_measured` until one does.
+    pub calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
+}
+
+impl FirstOrderInterval {
+    /// The Wald interval of `point` with first-order `variance` at `level`.
+    ///
+    /// # Errors
+    /// `invalid_argument` for a level outside `(0, 1)` or a variance that is not finite and
+    /// non-negative.
+    pub(super) fn wald(
+        point: f64,
+        variance: f64,
+        level: f64,
+    ) -> Result<Self, MechanismCompositionRefusal> {
+        if !(level > 0.0 && level < 1.0) || !(variance.is_finite() && variance >= 0.0) {
+            return Err(MechanismCompositionRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "uncertainty",
+                "mechanism_composition.interval_invalid",
+                "the interval needs a level strictly between 0 and 1 and a finite non-negative variance",
+            ));
+        }
+        let standard_error = variance.sqrt();
+        let half = antecedent_stats::special::normal_ppf(0.5 + level / 2.0) * standard_error;
+        Ok(Self {
+            point,
+            standard_error,
+            lower: point - half,
+            upper: point + half,
+            level,
+            calibration: antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+                antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+            ),
+        })
+    }
+}
+
 impl PreparedMechanismComposition {
     /// The semantically checked plan, in canonical order.
     #[must_use]
@@ -636,19 +688,21 @@ impl PreparedMechanismComposition {
             .collect()
     }
 
-    /// An interval for any functional of this composition.
+    /// The equal-tailed first-order interval of a contrast of interventional means:
+    /// `point -/+ z * sqrt(g' Sigma g)` at `level`, with its calibration slot
+    /// (`not_measured` while no record covers the delta-method construction).
     ///
     /// # Errors
-    /// Always `not_supported` with `mechanism_composition.interval_route_closed`:
-    /// the delta-method variance carries no measured coverage.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MechanismCompositionRefusal> {
-        Err(MechanismCompositionRefusal::of(
-            antecedent_core::reason_code!("not_supported"),
-            "uncertainty",
-            "mechanism_composition.interval_route_closed",
-            "the first-order parameter-covariance variance has no measured coverage; the point \
-             and the labelled variance are the result",
-        ))
+    /// The refusals of [`Self::mean_contrast_uncertainty`] (an unknown or incomplete
+    /// parameter dependence is `joint_law_required`, never an independence default) and
+    /// `invalid_argument` for a level outside `(0, 1)`.
+    pub fn interval(
+        &self,
+        contrast: &MeanContrast,
+        level: f64,
+    ) -> Result<FirstOrderInterval, MechanismCompositionRefusal> {
+        let uncertainty = self.mean_contrast_uncertainty(contrast)?;
+        FirstOrderInterval::wald(uncertainty.point, uncertainty.variance, level)
     }
 
     /// Variables whose mechanism was fitted in another population or regime and

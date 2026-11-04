@@ -92,9 +92,9 @@ fn natural_direct_effect_seals_replays_and_resumes() {
     assert!((sealed.result().value - 0.25).abs() < 1e-12, "{}", sealed.result().value);
     assert_eq!(sealed.result().label, "point_only");
     let interval = sealed.interval().err().expect("an unqualified interval is closed");
-    assert_eq!(interval.code, "not_supported");
+    assert_eq!(interval.code, "sampling_dependence_unknown");
     assert_eq!(interval.detail, "cross_world_execution.interval_route_closed");
-    assert_eq!(sealed.posterior().unwrap_err().code, "not_supported");
+    assert_eq!(sealed.posterior().unwrap_err().code, "uncertainty_representation_insufficient");
 
     let bytes = sealed.to_bytes("natural-direct").unwrap();
     let mut consumed =

@@ -479,12 +479,12 @@ pub fn provider_unavailable(identity: &str) -> CallbackRefusal {
 #[must_use]
 pub fn interval_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         STAGE_CLOSED,
         "callback_protocol.interval_not_supported",
     )
     .with_remedy(
-        "a callback supplies values, not coverage: an interval needs a whole-method coverage record measured at this coordinate",
+        "a callback supplies values, not a sampling or posterior representation of them: there is nothing to build an interval from; bind the callback output to a native method that reports an interval, or keep the result an external claim",
     )
 }
 
@@ -492,12 +492,12 @@ pub fn interval_not_supported() -> CallbackRefusal {
 #[must_use]
 pub fn posterior_guarantee_not_supported() -> CallbackRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         STAGE_CLOSED,
         "callback_protocol.posterior_guarantee_not_supported",
     )
     .with_remedy(
-        "a callback posterior is the provider's object; a posterior or probability guarantee needs a measured coverage record for the whole method",
+        "a callback posterior is the provider's object, and a guarantee about it is a property of the provider's method, not of the values it returned; keep it an external claim or implement the method natively",
     )
 }
 

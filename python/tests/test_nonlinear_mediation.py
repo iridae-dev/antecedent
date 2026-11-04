@@ -14,7 +14,7 @@ degrees-of-freedom corrected residual variance equals ``sigma2``. Closed form:
     TE  = NDE + NIE
 
 Calibration is deliberately NOT measured here: bootstrap standard errors are reported with
-calibration ``"unmeasured"`` and no interval.
+calibration resolved per interval from its basis.
 """
 
 from __future__ import annotations
@@ -247,11 +247,19 @@ def test_mediation_bootstrap_is_seeded_unmeasured_and_has_no_interval() -> None:
     assert a.bootstrap.seed == 7
     assert a.bootstrap.replicate_ids == tuple(range(30))
     assert a.bootstrap.replicates_succeeded + len(a.bootstrap.failed_replicate_ids) == 30
-    assert a.calibration == "unmeasured"
-    assert a.interval_status == "closed_calibration_unmeasured"
-    assert a.bootstrap.interval_status == "closed_calibration_unmeasured"
+    assert a.calibration == "resolved_from_basis"
+    assert a.interval_status == "percentile_bootstrap_interval"
+    assert a.bootstrap.interval_status == "percentile_bootstrap_interval"
+    for interval in a.intervals:
+        assert interval.lower <= interval.upper
+        assert interval.status in (
+            "calibrated",
+            "outside_measured_scope",
+            "measured_below_nominal",
+            "not_measured",
+        )
     assert a.inference_claim == "point_with_diagnostics"
-    assert any("unmeasured" in caveat for caveat in a.caveats)
+    assert any("calibration slot" in caveat for caveat in a.caveats)
     assert not hasattr(a, "interval") and not hasattr(a, "natural_direct_interval")
     other = run(g, bootstrap_replicates=30, seed=8)
     assert other.natural_direct_se != a.natural_direct_se

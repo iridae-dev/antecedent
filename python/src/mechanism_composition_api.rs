@@ -10,7 +10,7 @@
 //! A mechanism the analyst wrote down is labelled declared by the facade from
 //! the source of its numbers; this bridge cannot label it fitted.
 
-use antecedent::analysis::mechanism_composition::CompositionQueryWire;
+use antecedent::analysis::mechanism_composition::{CompositionQueryWire, FirstOrderInterval};
 use antecedent::analysis::transported_mechanism::{
     MechanismRole, MechanismTransportDeclaration, TransportedMechanismComposition,
     TransportedMechanismReceipt, verify_mechanism_transport,
@@ -43,6 +43,19 @@ use crate::transport_common::execution_context;
 // ---------------------------------------------------------------------------
 // Refusals as data: every defect, in checker order.
 // ---------------------------------------------------------------------------
+
+/// A first-order interval with its calibration slot, as the JSON the Python wrappers decode.
+pub(crate) fn interval_json(interval: &FirstOrderInterval) -> String {
+    json!({
+        "point": interval.point,
+        "standard_error": interval.standard_error,
+        "lower": interval.lower,
+        "upper": interval.upper,
+        "level": interval.level,
+        "calibration": interval.calibration,
+    })
+    .to_string()
+}
 
 fn one_refusal(refusal: &ExternalRefusal) -> Json {
     let mut message = String::new();
@@ -500,13 +513,14 @@ impl PreparedCompositionHandle {
         self.inner.declared_mechanisms().into_iter().map(str::to_owned).collect()
     }
 
-    /// Always the typed refusal: no measured coverage stands behind the
-    /// parameter-covariance variance.
-    fn interval(&self) -> String {
-        match self.inner.interval() {
-            Err(refusal) => refusal_json(&refusal),
-            Ok(never) => match never {},
-        }
+    /// The first-order interval of a contrast at `level` with its calibration slot
+    /// (`not_measured` until a coverage record measures the construction), or the refusal.
+    fn interval(&self, contrast_json: &str, level: f64) -> PyResult<Refused<String>> {
+        let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
+        Ok(match self.inner.interval(&contrast, level) {
+            Ok(done) => (Some(interval_json(&done)), None),
+            Err(refusal) => refused(&refusal),
+        })
     }
 
     /// The joint Gaussian law under `do(interventions)`.
@@ -871,12 +885,14 @@ impl TransportedCompositionHandle {
         })
     }
 
-    /// Always the typed refusal: no coverage includes the transport assumption.
-    fn interval(&self) -> String {
-        match self.inner.interval() {
-            Err(refusal) => refusal_json(&refusal),
-            Ok(never) => match never {},
-        }
+    /// The first-order interval of a transported contrast at `level` with its calibration
+    /// slot, conditional on the declared transport premises, or the refusal.
+    fn interval(&self, contrast_json: &str, level: f64) -> PyResult<Refused<String>> {
+        let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
+        Ok(match self.inner.interval(&contrast, level) {
+            Ok(done) => (Some(interval_json(&done)), None),
+            Err(refusal) => refused(&refusal),
+        })
     }
 
     /// Seal the transported premises and one query into the composition artifact.

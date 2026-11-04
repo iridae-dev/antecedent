@@ -133,6 +133,7 @@ pub(crate) fn assemble_result(mut args: AssembleArgs<'_>) -> StudyResult {
             row_weights: None,
             missing_data: None,
             custom_validator_names: Vec::new(),
+            would_refuse: Vec::new(),
         },
         executed_contract: None,
         lowered_identity: None,

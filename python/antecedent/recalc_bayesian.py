@@ -373,8 +373,7 @@ def _joint_result(
 class JointBayesianSession(_Session):
     """Retained joint checked fit; exported results are independently consumable.
 
-    Part of the calibration-internal candidate family: a build without it refuses to construct
-    a session (:class:`~antecedent.errors.CausalUnsupportedError`, ``route_not_supported``).
+    Reports the joint-transport interval; calibration is an annotation on it.
     """
 
     __slots__ = ()
@@ -386,8 +385,8 @@ class JointBayesianSession(_Session):
         native = getattr(_native, "JointBayesianSessionHandle", None)
         if native is None:
             raise CausalUnsupportedError(
-                "joint_bayesian.route_frozen: the joint-transport recalculation is a "
-                "calibration-internal candidate with an unmeasured law; this build omits it",
+                "joint_bayesian.native_hook_unavailable: this build does not provide the "
+                "joint-transport recalculation",
                 reason_code="route_not_supported",
             )
         return native

@@ -320,7 +320,7 @@ class CollectorTests(unittest.TestCase):
     def test_malformed_digests_are_refused(self) -> None:
         for bad in ({"7": "ab" * 16}, {"10": "xyz"}, {}):
             with self.subTest(bad=bad), self.assertRaises(SystemExit):
-                collector.probe_table(RECORD_ID, self.points(lambda p: bad))
+                collector.probe_table(RECORD_ID, self.points(lambda p, bad=bad: bad))
 
     def test_the_probe_is_written_after_the_role_as_a_nested_table(self) -> None:
         text = collector.toml_value(

@@ -151,11 +151,12 @@ fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withh
     // the generating contrast 0.9.
     assert!((reported_se_interval_z() - 1.959_963_984_540_054).abs() < 1e-12);
     assert!((report.effect - TRUTH).abs() < 4.0 * report.se_analytic, "{}", report.effect);
-    if let Some(interval) = &report.interval {
-        assert_eq!((interval.lower, interval.upper), candidate);
-        assert_eq!(interval.level, REPORTED_SE_INTERVAL_LEVEL);
-        assert!(!interval.coverage_record.is_empty());
-        assert_eq!(report.interval_status, "calibrated");
+    // The interval is always reported; calibration annotates it.
+    let interval = report.interval.as_ref().expect("the interval is always reported");
+    assert_eq!((interval.lower, interval.upper), candidate);
+    assert_eq!(interval.level, REPORTED_SE_INTERVAL_LEVEL);
+    if report.interval_status == "calibrated" {
+        assert!(interval.coverage_record.as_deref().is_some_and(|id| !id.is_empty()));
         assert_eq!(report.calibration, "calibrated");
         assert!(report.interval_reason.is_none());
     } else {
@@ -170,9 +171,10 @@ fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withh
     }
 }
 
-/// The pairwise subpopulation target has no measurement design, so its interval stays withheld.
+/// The pairwise subpopulation target has no measurement design: its interval is reported and
+/// annotated `not_measured`.
 #[test]
-fn the_pairwise_target_publishes_no_interval() {
+fn the_pairwise_target_reports_its_interval_as_not_measured() {
     let (treatment, outcome, z) = simulate(1500, BASE_SEED);
     let report = MultiLevelTreatment::evaluate(&MultiLevelTreatmentRequest {
         outcome,
@@ -188,7 +190,7 @@ fn the_pairwise_target_publishes_no_interval() {
         },
     })
     .expect("a pairwise fit");
-    assert!(report.interval.is_none());
+    assert!(report.interval.is_some());
     assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_NOT_MEASURED);
     assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);
 }

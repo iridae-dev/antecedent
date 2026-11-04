@@ -476,7 +476,7 @@ pub struct ForwardSourceInspection {
     pub representation: &'static str,
     /// Support label of the claim.
     pub support: String,
-    /// Always `not_supported`: no source supplies an interval region.
+    /// Always `uncertainty_representation_insufficient`: no source supplies an interval region.
     pub interval_region: &'static str,
     /// Whether the claim was carried from another population.
     pub transported: bool,
@@ -497,7 +497,7 @@ pub fn inspect_origin(origin: &ForwardOrigin) -> ForwardSourceInspection {
         kind: origin.kind.as_str(),
         representation: origin.representation.as_str(),
         support: origin.support.clone(),
-        interval_region: "not_supported",
+        interval_region: "uncertainty_representation_insufficient",
         transported: origin.transport.is_some(),
         source_populations: origin
             .transport

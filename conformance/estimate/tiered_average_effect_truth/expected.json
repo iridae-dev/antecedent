@@ -54,7 +54,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/tiered_average_effect_closed_form.rs",
-          "sha256": "09bc24f468a6b8dfdb0013281a3fc9857e4b72cd5de2df1d3f6f1b3206596987"
+          "sha256": "2ac060d4c8a6da3aee2c51d54fbe9a0a8e99e7138be9ebaee35241d4246ea3e0"
         }
       ],
       "fixture_payload_sha256": "6386214df18133dd12d808ffc9372f9e1d6c0e5baf2214ad98875544b0267322"

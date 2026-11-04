@@ -372,7 +372,7 @@ fn prepare_transport_scenarios_stage(
     if conditioned.is_some() && matches!(provider, Provider::Empirical(_)) {
         return Err(crate::refusal(
             reason_code!("not_supported"),
-            "admg_transport.interval_withheld: counted laws are not supported for a conditional \
+            "admg_transport.counted_laws_unsupported: counted laws are not supported for a conditional \
              scenario question; the route publishes exact-law points only",
         ));
     }

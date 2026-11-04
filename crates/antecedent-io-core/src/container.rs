@@ -121,6 +121,84 @@ pub struct ArtifactManifest {
     pub provenance: ProvenanceWire,
 }
 
+/// First line of a development stamp in [`ProvenanceWire::note`].
+const DEVELOPMENT_BUILD_LINE: &str = "build=development";
+/// Prefix of each recorded would-refuse line of a development stamp.
+const DEVELOPMENT_ENTRY_PREFIX: &str = "would_refuse=";
+
+impl ArtifactManifest {
+    /// Whether this manifest was sealed by a development build.
+    #[must_use]
+    pub fn is_development_build(&self) -> bool {
+        self.provenance.note.lines().any(|line| line == DEVELOPMENT_BUILD_LINE)
+    }
+
+    /// The would-refuse entries a development build sealed into this manifest, as text lines.
+    #[must_use]
+    pub fn development_entries(&self) -> Vec<&str> {
+        self.provenance
+            .note
+            .lines()
+            .filter_map(|line| line.strip_prefix(DEVELOPMENT_ENTRY_PREFIX))
+            .collect()
+    }
+
+    /// Stamp this manifest as sealed by a development build, with what that build ran
+    /// although a release build would have refused it. The stamp lives in the provenance note,
+    /// so it is part of the manifest every reader verifies. A release build leaves the
+    /// manifest unchanged.
+    pub fn stamp_development(&mut self, entries: &[antecedent_core::WouldRefuse]) {
+        #[cfg(feature = "development")]
+        {
+            if !self.is_development_build() {
+                self.provenance.note.push('\n');
+                self.provenance.note.push_str(DEVELOPMENT_BUILD_LINE);
+            }
+            for entry in entries {
+                let line = format!("{DEVELOPMENT_ENTRY_PREFIX}{entry}").replace('\n', " ");
+                if !self.provenance.note.lines().any(|existing| existing == line) {
+                    self.provenance.note.push('\n');
+                    self.provenance.note.push_str(&line);
+                }
+            }
+        }
+        #[cfg(not(feature = "development"))]
+        {
+            let _ = entries;
+        }
+    }
+
+    /// Refuse a manifest a development build sealed, in a release build.
+    ///
+    /// # Errors
+    ///
+    /// [`IoError::Refused`] with the reason code `development_artifact` in a release build
+    /// when the manifest carries a development stamp.
+    pub fn refuse_development(&self) -> Result<(), IoError> {
+        if antecedent_core::BUILD_FLAVOR == "release" && self.is_development_build() {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("development_artifact"),
+                message: "this artifact was sealed by a development build and carries results a \
+                          release build would have refused; a release build does not consume it"
+                    .to_owned(),
+            });
+        }
+        Ok(())
+    }
+
+    /// This manifest as the container writes it: a development build stamps it, a release
+    /// build refuses to write a manifest that already carries a development stamp.
+    fn sealed(&self) -> Result<std::borrow::Cow<'_, Self>, IoError> {
+        self.refuse_development()?;
+        if cfg!(feature = "development") && !self.is_development_build() {
+            let mut stamped = self.clone();
+            stamped.stamp_development(&[]);
+            return Ok(std::borrow::Cow::Owned(stamped));
+        }
+        Ok(std::borrow::Cow::Borrowed(self))
+    }
+}
+
 /// One section's payload bytes with checksum verification on read.
 ///
 /// Logical bytes are reference-counted so writers can share Arrow / draw buffers
@@ -212,7 +290,8 @@ impl EncodedArtifact {
         w.write_all(MAGIC)?;
         w.write_all(&CONTAINER_VERSION.to_le_bytes())?;
         let mut manifest_buf = Vec::new();
-        ciborium::into_writer(&self.manifest, &mut manifest_buf).map_err(IoError::cbor_encode)?;
+        ciborium::into_writer(&*self.manifest.sealed()?, &mut manifest_buf)
+            .map_err(IoError::cbor_encode)?;
         let manifest_len = u32::try_from(manifest_buf.len()).map_err(|_| IoError::TooLarge)?;
         w.write_all(&manifest_len.to_le_bytes())?;
         w.write_all(&manifest_buf)?;
@@ -375,6 +454,8 @@ pub(crate) fn read_header_and_manifest_with<'r, R: Read>(
     let manifest_buf = read_exact_len(r, manifest_len)?;
     // The manifest is one CBOR item; trailing bytes are refused like in section payloads.
     let manifest: ArtifactManifest = crate::convert::from_cbor(&manifest_buf)?;
+    // A release build never consumes what a development build sealed.
+    manifest.refuse_development()?;
     let total = manifest
         .sections
         .iter()
@@ -1113,7 +1194,7 @@ pub fn write_streaming<W: Write>(
         ..StreamReceipt::default()
     };
     let mut manifest_buf = Vec::new();
-    ciborium::into_writer(manifest, &mut manifest_buf).map_err(IoError::cbor_encode)?;
+    ciborium::into_writer(&*manifest.sealed()?, &mut manifest_buf).map_err(IoError::cbor_encode)?;
     let manifest_len = u32::try_from(manifest_buf.len()).map_err(|_| IoError::TooLarge)?;
     w.write_all(MAGIC)?;
     w.write_all(&CONTAINER_VERSION.to_le_bytes())?;

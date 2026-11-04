@@ -312,9 +312,11 @@ def test_a_log_shift_is_declared_only_by_a_log_linear_study() -> None:
     assert info.value.detail == "parent_set_effect.source_invalid"
 
 
-def test_a_maximum_degree_above_four_is_refused_with_both_degrees_named() -> None:
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
-        sd.sample_split_parent_set_effect(
+def test_a_maximum_degree_above_four_is_computed_and_not_measured() -> None:
+    # Calibration annotates the interval; a degree no record measured never refuses it. Another
+    # refusal (for instance an unresolved structure) is allowed, the removed detail is not.
+    try:
+        result = sd.sample_split_parent_set_effect(
             hub_table(10, rows=600),
             treatment="x",
             outcome="y",
@@ -322,17 +324,18 @@ def test_a_maximum_degree_above_four_is_refused_with_both_degrees_named() -> Non
             max_degree=5,
             split_seed=SPLIT_SEED,
         )
-    assert_registered_refusal(info.value)
-    assert info.value.reason_code == "not_supported"
-    assert info.value.detail == "parent_set_effect.degree_above_supported"
-    assert "declared maximum graph degree is 5" in info.value.message
-    assert "supported maximum is 4" in info.value.message
+    except sd.SelectiveDiscoveryRefusal as refusal:
+        assert refusal.detail != "parent_set_effect.degree_above_supported"
+    else:
+        scalar = result.measure().scalars[0]
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+        assert scalar.calibration != "calibrated"
 
 
-def test_a_table_outside_ten_to_twenty_variables_is_refused() -> None:
+def test_a_table_outside_ten_to_twenty_variables_is_not_refused_for_its_count() -> None:
     rng = np.random.default_rng(11)
     data = {name: rng.normal(size=60) for name in ("a", "b", "c")}
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
+    try:
         sd.sample_split_parent_set_effect(
             data,
             treatment="a",
@@ -341,8 +344,8 @@ def test_a_table_outside_ten_to_twenty_variables_is_refused() -> None:
             split_seed=1,
             execution=Execution(seed=SEED),
         )
-    assert info.value.reason_code == "not_supported"
-    assert info.value.detail == "parent_set_effect.variable_count_not_measured"
+    except sd.SelectiveDiscoveryRefusal as refusal:
+        assert refusal.detail != "parent_set_effect.variable_count_not_measured"
 
 
 def test_unknown_roles_are_rejected_before_any_native_work() -> None:
@@ -386,9 +389,9 @@ def test_the_same_seeds_give_the_same_estimate_and_another_split_seed_another_sp
     assert other.receipt_identity != first.receipt_identity
 
 
-def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
-    # Twelve variables lie between measured counts: the estimate is computed, and attesting it
-    # is refused rather than borrowing another count's record.
+def test_an_unmeasured_variable_count_is_computed_and_reported_uncalibrated() -> None:
+    # Twelve variables lie between measured counts: the interval is reported, annotated as not
+    # calibrated rather than borrowing another count's record.
     estimate = sd.sample_split_parent_set_effect(
         hub_table(14, rows=2000, chains=7),
         treatment="x",
@@ -401,11 +404,10 @@ def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
         estimate.basis["functional"]
         == "total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path"
     )
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
-        estimate.measure()
-    assert_registered_refusal(info.value)
-    assert info.value.reason_code == "not_supported"
-    assert info.value.detail == "measured_inference.record_not_attesting"
+    measured = estimate.measure()
+    scalar = measured.scalars[0]
+    assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    assert scalar.calibration != "calibrated"
 
 
 def test_background_knowledge_that_is_true_of_the_law_enters_the_key_and_is_honoured() -> None:

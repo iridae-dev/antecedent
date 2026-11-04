@@ -13,8 +13,7 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
-from antecedent import _native
-from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.errors import CausalValueError
 from antecedent.graph import Admg
 from antecedent.transport._closed_pilots import (
     _nested_fisher_candidate as binary_nested_markov_fisher_interval,
@@ -24,11 +23,6 @@ from antecedent.transport.advanced import (
 )
 
 from _repo_text import REPO_ROOT
-
-_INTERNAL = hasattr(_native, "nested_markov_fisher_candidate")
-_CANDIDATE = pytest.mark.skipif(
-    not _INTERNAL, reason="requires calibration-internal acceptance wheel"
-)
 
 
 def graph():
@@ -78,16 +72,6 @@ def original_law(p):
     return np.array(out)
 
 
-@pytest.mark.skipif(_INTERNAL, reason="normal released wheel refusal boundary")
-@pytest.mark.parametrize("level", [0.90, 0.95])
-def test_nested_fisher_normal_route_remains_frozen(level):
-    with pytest.raises(CausalUnsupportedError) as caught:
-        produce(level)
-    assert caught.value.reason_code == "not_supported"
-    assert "nested_markov.route_frozen" in str(caught.value)
-
-
-@_CANDIDATE
 @pytest.mark.parametrize("level", [0.90, 0.95])
 def test_nested_fisher_actual_public_candidate_has_independent_full_covariance_and_fresh_consumer(
     level, tmp_path
@@ -95,7 +79,7 @@ def test_nested_fisher_actual_public_candidate_has_independent_full_covariance_a
     result = produce(level)
     assert isinstance(result, NestedFisherCandidate)
     assert result.calibration == "unmeasured"
-    assert result.inference == "interval_withheld_calibration_unmeasured"
+    assert result.inference == "interval_candidates_calibration_annotated"
     assert result.identification == "nonparametrically_identified"
     assert result.values == pytest.approx((0.3, 0.5, 0.2), abs=1e-12)
     oracle = json.loads(
@@ -151,7 +135,6 @@ print(json.dumps(r.to_dict()))
     assert json.loads(fresh.stdout) == payload
 
 
-@_CANDIDATE
 def test_nested_fisher_candidate_retains_original_identity_and_scope_refusals():
     original = produce()
     changed = produce(n=32000)
@@ -204,7 +187,6 @@ def test_nested_fisher_candidate_cannot_be_constructed_from_caller_fields():
         NestedFisherCandidate._from_native(object())
 
 
-@_CANDIDATE
 def test_nested_fisher_candidate_cannot_replace_native_values_with_display_values():
     from dataclasses import replace
 

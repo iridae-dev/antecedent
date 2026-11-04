@@ -664,7 +664,8 @@ fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
         assert_eq!(slot.status, "calibrated");
         assert!(slot.record_id.is_some());
     }
-    // Three studies are outside the measured study counts: typed refusal.
+    // Three studies are outside the measured study counts: the interval is reported and its
+    // calibration says no record measured the count.
     let three = session
         .pool_summaries(
             pooling("three", summaries(0.01)[..3].to_vec()),
@@ -673,8 +674,10 @@ fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
         )
         .unwrap()
         .result;
-    let refusal = session.pooled_interval(three).unwrap_err();
-    expect(&refusal, "not_supported", "evidence_ledger.interval_not_measured");
+    let interval = session.pooled_interval(three).unwrap();
+    assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
+    assert_eq!(interval.report.scalars[0].calibration.status, "not_measured");
+    assert_eq!(interval.report.calibration, "not_measured");
 }
 
 /// Studies `i = 0..k` of 20 observations each (the last has 17), with scattered
@@ -781,9 +784,11 @@ fn pooled_intervals_refuse_study_counts_outside_the_measured_family() {
             .unwrap()
             .result;
         for result in [fixed, random] {
-            let refusal = session.pooled_interval_candidate(result).unwrap_err();
-            expect(&refusal, "not_supported", "evidence_ledger.interval_not_measured");
-            assert!(refusal.message.contains(&format!("{k} studies")), "{refusal}");
+            // The interval is reported; its calibration says no record measured this count.
+            let interval = session.pooled_interval(result).unwrap();
+            assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
+            assert_eq!(interval.report.scalars[0].calibration.status, "not_measured", "{k}");
+            assert_eq!(interval.report.calibration, "not_measured", "{k}");
         }
     }
 }
@@ -799,9 +804,10 @@ fn legacy_hksj_records_cannot_support_unmeasured_study_counts() {
                 .result;
             // The original numerical construction remains available to replay.
             assert_eq!(session.pooled_interval_candidate(result).unwrap().method, "hksj_t");
-            let refusal = session.pooled_interval(result).unwrap_err();
-            expect(&refusal, "not_supported", "evidence_ledger.hksj_study_count_not_measured");
-            assert!(refusal.message.contains("pool_gaussian_studies"));
+            // The interval is reported; its calibration says no record measured this count.
+            let interval = session.pooled_interval(result).expect("reported");
+            assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
+            assert_ne!(interval.report.scalars[0].calibration.status, "calibrated");
         }
     }
 }
@@ -809,16 +815,12 @@ fn legacy_hksj_records_cannot_support_unmeasured_study_counts() {
 #[test]
 fn a_pooled_interval_refuses_without_a_measured_record() {
     let s = scenario();
-    // The small fixture has no coverage record of its sample size: the numeric
-    // result is refused as unmeasured, never reported without a record.
-    let refusal = s.session.pooled_interval(s.r_all).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
-    assert!(
-        refusal.detail == "evidence_ledger.interval_not_measured"
-            || refusal.detail == "evidence_ledger.interval_not_supported",
-        "{}",
-        refusal.detail
-    );
+    // The small fixture has no coverage record of its sample size: the interval is reported
+    // and its calibration is not `calibrated`.
+    let interval = s.session.pooled_interval(s.r_all).unwrap();
+    assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
+    assert_ne!(interval.report.scalars[0].calibration.status, "calibrated");
+    assert_eq!(interval.report.calibration, interval.report.scalars[0].calibration.status.as_str());
     let unknown = ResultId::from_hex(&"ab".repeat(32)).unwrap();
     let refusal = s.session.pooled_interval(unknown).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
@@ -1235,14 +1237,20 @@ fn equal_study_gaussian_pool_has_a_distinct_conservative_interval_and_durable_re
     assert_eq!(candidate.scope["coverage_claim"], "at_least_nominal");
     assert_eq!(&*candidate.basis.estimator, "evidence.synthesis.equal_study_gaussian");
     assert!(candidate.basis.functional.contains("equal_study_gaussian"));
+    // The interval is reported with its calibration annotation; the equal-study record
+    // measures the construction, but its smallest study (17 observations) is below the
+    // measured sample sizes.
+    let published = session.pooled_interval(result).expect("the interval is reported");
+    assert_eq!(published.lower.to_bits(), candidate.lower.to_bits());
+    assert_eq!(published.upper.to_bits(), candidate.upper.to_bits());
+    assert_eq!(published.method, "independent_gaussian_study_t");
+    let slot = &published.report.scalars[0].calibration;
+    assert_eq!(slot.status.as_str(), "outside_measured_scope");
     assert!(
-        session.pooled_interval(result).is_err(),
-        "new method cannot borrow old precision-weighted records"
+        slot.record_id.as_deref().is_some_and(|id| id.contains("independent_gaussian_study_t")),
+        "{slot:?}"
     );
-    assert_eq!(
-        session.pooled_interval(result).unwrap_err().detail,
-        "evidence_ledger.interval_not_measured"
-    );
+    assert_eq!(published.report.calibration, "outside_measured_scope");
     let export = session.export("equal-study").unwrap();
     let consumed = consume_evidence_ledger_artifact(&export.bytes, Some(&export.identity)).unwrap();
     let recomputed = consumed.synthesis_of(result).unwrap();

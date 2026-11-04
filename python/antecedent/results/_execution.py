@@ -70,7 +70,7 @@ def _calibration_status(value: Any) -> CalibrationStatus:
         raise ValueError(
             f"unknown calibration status {value!r}; expected one of {CALIBRATION_STATUSES}"
         )
-    return value  # type: ignore[no-any-return]
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,7 +138,9 @@ class CalibrationInfo:
             calibration_sha=pick("calibration_sha"),
             level=_as_optional_float(pick("level")),
             observed_coverage=_as_optional_float(
-                pick("observed_coverage") if pick("observed_coverage") is not None else pick("observed")
+                pick("observed_coverage")
+                if pick("observed_coverage") is not None
+                else pick("observed")
             ),
             replicates=_as_optional_int(pick("replicates")),
             extra=extra,
@@ -149,7 +151,7 @@ class CalibrationInfo:
 
         Absent fields are omitted, never printed as ``None``.
         """
-        bits = [self.status]
+        bits: list[str] = [self.status]
         if self.reason:
             bits.append(f"reason {self.reason}")
         if self.record_id:

@@ -435,12 +435,30 @@ impl TypedTransportedHandle {
         })
     }
 
-    /// Always the typed refusal: no coverage includes the transport assumption.
-    fn interval(&self) -> String {
-        match self.inner.interval() {
-            Err(refusal) => refusal_json(&refusal),
-            Ok(never) => match never {},
-        }
+    /// The first-order interval of a transported contrast at `level` with its calibration
+    /// slot (`not_measured` until a coverage record measures the construction), conditional
+    /// on the declared transport premises, or the refusal.
+    #[pyo3(signature = (contrast_json, draws, seed, level=0.95, *, cancel=None))]
+    fn interval(
+        &self,
+        py: Python<'_>,
+        contrast_json: &str,
+        draws: u64,
+        seed: u64,
+        level: f64,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Refused<String>> {
+        let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
+        let draws = draw_count(draws)?;
+        let inner = self.inner.clone();
+        let outcome = crate::detach_catch(py, move || {
+            let ctx: ExecutionContext = execution_context(seed, None, cancel);
+            Ok(inner.interval(&contrast, draws, &ctx, level))
+        })?;
+        Ok(match outcome {
+            Ok(done) => (Some(crate::mechanism_composition_api::interval_json(&done)), None),
+            Err(refusal) => refused(&refusal),
+        })
     }
 }
 

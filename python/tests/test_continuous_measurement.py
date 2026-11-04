@@ -109,9 +109,11 @@ def test_logistic_calibration_recovers_the_slope_reproducibly():
     assert first.inference == "uncalibrated_standard_error"
     again = prepared.estimate_continuous(data)
     assert again == first
-    with pytest.raises(MeasurementModelRefusal) as raised:
-        first.interval()
-    assert raised.value.reason_code == "not_supported"
+    # The bootstrap standard error gives a Wald interval; no coverage record measures it.
+    reported = first.interval()
+    assert reported.lower < first.point < reported.upper
+    assert reported.level == 0.95
+    assert reported.calibration["status"] == "not_measured"
 
 
 def test_outcome_error_under_an_identity_link_needs_no_correction():

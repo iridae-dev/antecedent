@@ -1120,6 +1120,11 @@ pub(crate) fn ate_result_from_analysis(
                 .with_compiled_study_origin()
         }),
         evidence_status,
+        would_refuse: result
+            .would_refuse()
+            .iter()
+            .map(|entry| (entry.code.to_owned(), entry.detail.clone(), entry.missing.clone()))
+            .collect(),
         effect_authority,
     })
 }

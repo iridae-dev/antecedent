@@ -9,7 +9,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from antecedent import Execution, ResourceLimits, _native
-from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
 
@@ -182,7 +188,7 @@ print(json.dumps(r.inspect(),sort_keys=True))
 
 
 @pytest.mark.parametrize("learned", [False, True])
-def test_nearby_unmeasured_joint_protocols_refuse_without_candidate_fallback(learned):
+def test_nearby_unmeasured_joint_protocols_are_annotated_not_calibrated(learned):
     opts = options(learned, "independent")
     first = opts["sources"][0]
     priors = opts["priors"]
@@ -199,13 +205,26 @@ def test_nearby_unmeasured_joint_protocols_refuse_without_candidate_fallback(lea
                 ),
             )
         },
-        {"priors": replace(priors, invariant=replace(priors.invariant, bank_id="unmeasured-bank"))},
     ]
     if learned:
-        cases.append({"basis_degree": 3})
+        # A changed basis is a different coefficient block: the measured prior no longer fits it.
+        with pytest.raises(CausalUnsupportedError, match="prior_dimension_mismatch"):
+            produce(learned, opts | {"basis_degree": 3})
     for changes in cases:
-        with pytest.raises(CausalError):
-            produce(learned, opts | changes)
+        # A protocol the grid did not measure is computed and annotated; it never borrows the
+        # calibration of the measured protocol and never falls back to a candidate.
+        reported = produce(learned, opts | changes)
+        assert isinstance(reported, MeasuredInference)
+        scalar = reported.scalar("target_effect")
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+        assert scalar.calibration != "calibrated"
+    # A named prior bank without its consumed-data lineage is a malformed declaration, not a
+    # calibration question: it is refused before any fit.
+    banked = {
+        "priors": replace(priors, invariant=replace(priors.invariant, bank_id="unmeasured-bank"))
+    }
+    with pytest.raises(CausalValueError, match="prior_bank_lineage_missing"):
+        produce(learned, opts | banked)
 
 
 @pytest.mark.parametrize("learned", [False, True])
@@ -232,10 +251,17 @@ def test_normal_joint_original_proof_bounds_and_cancel_are_required(learned):
 
 
 def test_normal_measured_hooks_do_not_publish_internal_candidate_factories():
+    # The native module is private. The candidate factories are internal producers of the
+    # original unmeasured artifacts; no public namespace exports them.
+    import antecedent
+    from antecedent import transport
+
     for name in (
         "joint_transport_candidate",
         "consume_joint_transport_candidate",
         "nested_markov_fisher_candidate",
         "nested_markov_posterior_candidate",
     ):
-        assert not hasattr(_native, name), name
+        for namespace in (antecedent, transport, tr):
+            assert name not in getattr(namespace, "__all__", ()), name
+            assert not hasattr(namespace, name), name

@@ -250,7 +250,7 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
 
 
 @pytest.mark.parametrize("kind", ["jacobian", "directional"])
-def test_frequentist_plugin_gradient_is_point_only_and_says_why(kind):
+def test_frequentist_plugin_gradient_reports_a_pointwise_band(kind):
     """The Frequentist Jacobian / directional derivative publishes no interval.
 
     Its coefficient-sandwich band is wired for calibration but stays closed until
@@ -283,12 +283,10 @@ def test_frequentist_plugin_gradient_is_point_only_and_says_why(kind):
         ac.analyze(data, graph=graph, query=query, refute="none", execution=ac.Execution(seed=3))
     )
     assert np.all(np.isfinite(np.asarray(result.estimate, dtype=float)))
-    assert result.uncertainty.kind == "none"
-    assert result.uncertainty.lower is None and result.uncertainty.upper is None
-    withheld = [w for w in result.support.warnings if "response.derivative_interval_withheld" in w]
-    assert withheld, result.support.warnings
-    assert "not yet measured" in withheld[0]
-    assert "Bayesian" in withheld[0]
+    # The additive-GAM gradient reports its coefficient-sandwich band like every other route,
+    # and the band is not disclosed as withheld.
+    assert result.uncertainty.kind == "pointwise"
+    assert not [w for w in result.support.warnings if "response.derivative_interval_withheld" in w]
 
 
 @pytest.mark.parametrize("kind", ["selected", "right_km", "left_km", "right_cox", "left_cox"])
@@ -647,12 +645,12 @@ def test_v13_named_refusals():
     )
     prepared_cf = _prepare(data, graph=dag, query=cf, refute="cheap")
     assert require_success(prepared_cf.estimate()).evidence_status == "supported"
-    # A Frequentist replicate count runs the mechanism-refit row bootstrap, which is
-    # unsupported; the Bayesian cell keeps its posterior and refuses bootstrap=.
+    # A Frequentist replicate count runs the mechanism-refit row bootstrap, which has its own
+    # evidence row; the Bayesian cell keeps its posterior and refuses bootstrap=.
     bootstrapped = require_success(
         ac.analyze(data, graph=dag, query=cf, refute="none", inference=ac.Frequentist(bootstrap=10))
     )
-    assert bootstrapped.evidence_status != "supported"
+    assert bootstrapped.evidence_status == "supported"
     assert any("gcm.frequentist_bootstrap" in d for d in bootstrapped.diagnostics)
     # The Bayesian cell keeps its posterior: its declaration has no replicate budget at all.
     with pytest.raises(TypeError, match="bootstrap"):

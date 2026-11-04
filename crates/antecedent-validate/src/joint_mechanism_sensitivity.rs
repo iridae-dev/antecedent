@@ -24,9 +24,11 @@
 //! frontier's certified brackets (the only iterative work) share. The range is
 //! an assumption range, never a confidence interval. Sampling uncertainty is
 //! not offered by this record: its conservative composition below is compiled
-//! only under `calibration-internal` and its route is closed until its coverage
-//! is measured (record `sensitivity.joint_uncertainty`:
-//! wired, not yet measured).
+//! reported by [`joint_sensitivity_bootstrap_interval_internal`] with the calibration
+//! slot of record `sensitivity.joint_uncertainty`; calibration annotates it and never
+//! withholds it. Its construction is checked against an exhaustive vertex
+//! enumeration in exact rational arithmetic
+//! (`tests/joint_uncertainty_reference.rs`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -357,7 +359,7 @@ pub struct AxisTipping {
     pub bracket: Option<TippingBracket>,
 }
 
-/// Declared sampling composition and why its interval is withheld.
+/// Declared sampling composition and the status of a result that carries no interval.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JointSensitivityUncertainty {
     /// The one declared method.
@@ -371,7 +373,7 @@ pub struct JointSensitivityUncertainty {
 }
 
 impl JointSensitivityUncertainty {
-    /// The withheld status every public result carries.
+    /// The status of a result that carries no sampling interval: none was requested for it.
     #[must_use]
     pub const fn withheld() -> Self {
         Self {
@@ -440,8 +442,23 @@ pub struct JointMechanismSensitivityResult {
     pub interpretation: &'static str,
     /// Always [`ASSUMPTION_RANGE_CLAIM`].
     pub inference_claim: &'static str,
-    /// Sampling uncertainty status (withheld).
+    /// Declared sampling composition. Its interval is attached with
+    /// [`JointMechanismSensitivityResult::with_sampling_interval`]; until then the status says no
+    /// interval was requested for this result.
     pub uncertainty: JointSensitivityUncertainty,
+    /// The conservative endpoint-bootstrap interval, when it was computed for this result. It is
+    /// reported next to, never inside, the assumption range, with its calibration annotation.
+    pub sampling: Option<JointSensitivityInterval>,
+}
+
+impl JointMechanismSensitivityResult {
+    /// Attach the endpoint-bootstrap sampling interval computed from the same data, diagram and
+    /// spec ([`joint_sensitivity_bootstrap_interval_internal`]).
+    #[must_use]
+    pub fn with_sampling_interval(mut self, interval: JointSensitivityInterval) -> Self {
+        self.sampling = Some(interval);
+        self
+    }
 }
 
 impl From<&JointMechanismSensitivityResult>
@@ -454,6 +471,16 @@ impl From<&JointMechanismSensitivityResult>
         JointSensitivityView {
             inference_claim: result.inference_claim.into(),
             interpretation: result.interpretation.into(),
+            sampling: result.sampling.as_ref().map(|interval| {
+                antecedent_io_core::sensitivity_artifact::JointSamplingView {
+                    level: interval.level,
+                    method: interval.method.into(),
+                    calibration: Some(interval.calibration.clone()),
+                    baselines: interval.replicate_baselines.clone(),
+                    minima: interval.replicate_minima.clone(),
+                    maxima: interval.replicate_maxima.clone(),
+                }
+            }),
             withheld_reason_code: result.uncertainty.reason_code.into(),
             withheld_detail: result.uncertainty.detail.into(),
             query_binding: result.query_binding.clone(),
@@ -1134,6 +1161,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
         interpretation: JOINT_SENSITIVITY_INTERPRETATION,
         inference_claim: ASSUMPTION_RANGE_CLAIM,
         uncertainty: JointSensitivityUncertainty::withheld(),
+        sampling: None,
     })
 }
 
@@ -1159,6 +1187,56 @@ pub struct JointSensitivityInterval {
     pub replicates_ok: u32,
     /// Replicates whose draw or range failed.
     pub replicates_failed: u32,
+    /// Range baseline (zero deviation) of each evaluated replicate, in draw order.
+    pub replicate_baselines: Vec<f64>,
+    /// Range minimum over the declared box of each evaluated replicate.
+    pub replicate_minima: Vec<f64>,
+    /// Range maximum over the declared box of each evaluated replicate.
+    pub replicate_maxima: Vec<f64>,
+    /// Calibration of the interval, resolved from its construction basis: `calibrated`
+    /// inside a current record's measured scope, otherwise the status that names why not.
+    /// It annotates the interval and never withholds it.
+    pub calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
+}
+
+fn interval_calibration(
+    data: &ExactTransportData,
+    level: f64,
+    replicates_ok: u32,
+) -> antecedent_io_core::contract_section::CalibrationSlotWire {
+    use antecedent_io_core::calibration::{
+        CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+    };
+    let rows = data
+        .laws()
+        .iter()
+        .filter_map(|law| law.empirical_counts().map(|counts| counts.iter().sum::<u64>()))
+        .min()
+        .unwrap_or(0);
+    calibration_slot(&CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: "ClassicalTransport".into(),
+            graph_class: "Admg".into(),
+            structure: "fixed".into(),
+            modality: "tabular".into(),
+            inference: "Frequentist".into(),
+            estimator: "transport.z_joint_sensitivity_endpoint_bootstrap".into(),
+            interval_method: "percentile_bootstrap".into(),
+            se_kind: "percentile".into(),
+            dependence: "iid".into(),
+            posterior: String::new(),
+            functional: "target_interventional_mean".into(),
+            level,
+            identification: "point".into(),
+        },
+        scope: CalibrationScopeWire {
+            row_count: rows,
+            replicates_ok: Some(replicates_ok),
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    })
 }
 
 /// The closed conservative endpoint bootstrap: each iid row-bootstrap draw of
@@ -1262,6 +1340,10 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
         replicates_requested: replicates,
         replicates_ok: ok,
         replicates_failed: failed,
+        replicate_baselines: zeros,
+        replicate_minima: lows,
+        replicate_maxima: highs,
+        calibration: interval_calibration(data, level, ok),
     }))
 }
 

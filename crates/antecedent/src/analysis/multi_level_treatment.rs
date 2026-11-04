@@ -12,13 +12,13 @@
 //!
 //! No graph is identified or checked: the caller owns that the declared adjustment columns are
 //! a valid adjustment set. The point estimate and the influence-function standard error are
-//! always reported. The 95% normal interval `effect ± z · se_analytic` is published only when a
-//! current attesting coverage record measured this construction (the target, the number of
-//! declared levels, the folds and the row count are part of the key); otherwise it is withheld
-//! with the calibration status of the slot (`outside_measured_scope`, `measured_below_nominal` or
-//! `not_measured`) and the standard error is labelled **unmeasured**. Only the
-//! full-population target has a measurement design; the pairwise subpopulation target has none
-//! and stays withheld.
+//! always reported. The 95% normal interval `effect ± z · se_analytic` is always reported
+//! when the standard error is positive and finite, with the calibration status of the slot: it
+//! is `calibrated` when a current attesting coverage record measured this construction (the
+//! target, the number of declared levels, the folds and the row count are part of the key),
+//! and otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`, in
+//! which case the standard error is labelled **unmeasured**. Only the full-population target
+//! has a measurement design; the pairwise subpopulation target is reported `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -141,8 +141,9 @@ pub struct MultiLevelIntervalWire {
     pub upper: f64,
     /// Nominal level.
     pub level: f64,
-    /// Identity of the governing coverage record.
-    pub coverage_record: String,
+    /// Identity of the governing coverage record, when one matched.
+    #[serde(default)]
+    pub coverage_record: Option<String>,
 }
 
 fn interval_status_default() -> String {
@@ -175,15 +176,16 @@ pub struct MultiLevelReportWire {
     /// Calibration standing of the standard error: `calibrated` when a coverage record governs
     /// the interval, `unmeasured` otherwise.
     pub calibration: String,
-    /// The 95% interval `effect ± z · se_analytic`; present only when a current attesting
-    /// coverage record measured this construction at this row count.
+    /// The 95% interval `effect ± z · se_analytic`; present whenever the standard error is
+    /// positive and finite, annotated by `interval_status`.
     #[serde(default)]
     pub interval: Option<MultiLevelIntervalWire>,
     /// The calibration status of the interval: `calibrated`, `outside_measured_scope`,
     /// `measured_below_nominal` or `not_measured`.
     #[serde(default = "interval_status_default")]
     pub interval_status: String,
-    /// Why the interval is withheld (the matcher's reason code), when it is.
+    /// Why the interval is not calibrated (the matcher's reason code), or that it has no
+    /// positive standard error.
     #[serde(default)]
     pub interval_reason: Option<String>,
 }
@@ -350,16 +352,19 @@ fn publish_interval(
     let slot = calibration_slot(&multi_level_interval_basis(spec.target, levels, folds, n_obs));
     let interval = multi_level_normal_interval(estimate.effect.ate, estimate.effect.se_analytic());
     let status = slot.status.as_str();
-    match (slot.record_id, interval) {
-        (Some(record), Some((lower, upper))) if slot.status == "calibrated" => {
+    match interval {
+        Some((lower, upper)) => {
             let level = crate::result::REPORTED_SE_INTERVAL_LEVEL;
-            let wire = MultiLevelIntervalWire { lower, upper, level, coverage_record: record };
-            (Some(wire), MULTI_LEVEL_INTERVAL_CALIBRATED, None)
+            let wire = MultiLevelIntervalWire {
+                lower,
+                upper,
+                level,
+                coverage_record: slot.record_id.clone(),
+            };
+            let reason = if slot.status == "calibrated" { None } else { slot.reason };
+            (Some(wire), status, reason)
         }
-        (Some(_), None) if slot.status == "calibrated" => {
-            (None, status, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))
-        }
-        _ => (None, status, slot.reason),
+        None => (None, status, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into())),
     }
 }
 
@@ -396,7 +401,7 @@ fn report(
                 propensity_max: m.propensity_range.1,
             })
             .collect(),
-        calibration: if interval.is_some() {
+        calibration: if interval_status == MULTI_LEVEL_INTERVAL_CALIBRATED {
             MULTI_LEVEL_TREATMENT_CALIBRATED
         } else {
             MULTI_LEVEL_TREATMENT_CALIBRATION

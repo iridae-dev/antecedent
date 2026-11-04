@@ -32,7 +32,6 @@ pub use antecedent_estimate::measurement::continuous::{
 };
 use antecedent_estimate::measurement::{
     ContinuousErrorData, DataBinding, MeasurementError, correct_continuous_error,
-    interval_not_supported,
 };
 
 use super::measurement_model::{
@@ -218,12 +217,14 @@ impl ContinuousMeasurementEstimate {
         self.effect.record.parameter_uncertainty
     }
 
-    /// An interval for the corrected coefficient.
+    /// The interval of the corrected coefficient at `level`.
     ///
     /// # Errors
-    /// Always `not_supported` with `measurement_model.interval_closed`.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(refusal_of(&interval_not_supported()))
+    /// The estimate's refusal for a route whose variance has no executed independent check
+    /// (`measurement_model.interval_closed`), or a level outside `(0, 1)`.
+    pub fn interval(&self, level: f64) -> Result<(f64, f64), MeasurementModelRefusal> {
+        antecedent_estimate::measurement::corrected_functional_interval(&self.effect.record, level)
+            .map_err(|error| refusal_of(&error))
     }
 
     /// Artifact bytes of the result.

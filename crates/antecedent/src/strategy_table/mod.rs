@@ -6,6 +6,7 @@
 
 mod dispatch;
 mod ids;
+mod targets;
 #[cfg(test)]
 mod workspace_tests;
 
@@ -40,3 +41,9 @@ pub use ids::{
     validate_response_pair, validate_static_pair,
 };
 use ids::{estimator_data, identifier_data};
+pub use targets::{
+    DesignTarget, EstimatorTarget, GraphScope, InferenceTarget, PolicyShape, RandomizedShape,
+    ResponseShape, ScientificRefusal, Site, TemporalAccept, TemporalDesignShape,
+    TemporalPolicyShape, ValidationTarget, estimator_targets, estimator_targets_cell,
+    estimator_validation, inference_mismatch,
+};

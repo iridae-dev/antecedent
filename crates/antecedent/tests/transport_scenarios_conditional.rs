@@ -500,7 +500,7 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
         BUDGET,
     ));
     assert_eq!(code, "not_supported");
-    assert!(message.contains("admg_transport.interval_withheld"), "{message}");
+    assert!(message.contains("admg_transport.counted_laws_unsupported"), "{message}");
 }
 
 #[test]

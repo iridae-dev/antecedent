@@ -18,7 +18,7 @@ use crate::inference::InferenceMode;
 use super::axis::{naming_class, query_axis};
 use super::cell::{
     StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportQuery,
-    SupportRefusal, SupportValidation,
+    SupportValidation,
 };
 
 /// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
@@ -51,7 +51,7 @@ pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
 ///
 /// # Errors
 ///
-/// [`CausalError::Support`] ([`SupportRefusal::NotSupported`]) for an unlisted off-axis kind.
+/// [`CausalError::Support`] (`not_supported`) for an unlisted off-axis kind in a release build.
 pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError> {
     if is_declared_off_axis(query)
         || query_axis(query, GraphClass::Dag).is_some()
@@ -59,7 +59,11 @@ pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError
     {
         return Ok(());
     }
-    Err(CausalError::Support { id: SupportRefusal::NotSupported, message: UNDECLARED_OFF_AXIS })
+    antecedent_core::support_gate::require_supported_unscoped(
+        UNDECLARED_OFF_AXIS,
+        &["support_cell:undeclared_query_kind"],
+    )?;
+    Ok(())
 }
 
 const UNDECLARED_OFF_AXIS: &str = "this query kind has no support-matrix cell and is not a \

@@ -1120,7 +1120,7 @@ pub fn consume_sampled_counterfactual_transport(
 fn interval_not_measured(message: &str) -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("not_supported"),
-        message: format!("measured_interval.protocol_not_measured: {message}"),
+        message: format!("measured_interval.variance_assumption_not_met: {message}"),
     }
 }
 

@@ -1642,6 +1642,10 @@ def _wrap_ate(
         },
         plan=_plan_from_raw(raw),
         evidence_status=getattr(raw, "evidence_status", None),
+        would_refuse=tuple(
+            {"code": code, "detail": detail, "missing": tuple(missing)}
+            for code, detail, missing in getattr(raw, "would_refuse", ())
+        ),
         structural_weight_basis=getattr(raw, "structural_weight_basis", None),
         structural_identified_mass=getattr(raw, "structural_identified_mass", None),
         structural_unidentified_mass=getattr(raw, "structural_unidentified_mass", None),

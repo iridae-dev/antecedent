@@ -1363,7 +1363,6 @@ fn bootstrap_draw(
     Ok(true)
 }
 
-#[cfg(feature = "calibration-internal")]
 /// Joint percentile-bootstrap intervals for a multi-source mz functional.
 ///
 /// Every replicate draws all cited tables once under one replicate id and
@@ -1392,7 +1391,6 @@ pub struct MzTransportIntervals {
     pub replicates_failed: u32,
 }
 
-#[cfg(feature = "calibration-internal")]
 /// Pointwise intervals of one request of a joint mz bootstrap.
 #[derive(Clone, Debug)]
 pub struct MzRequestInterval {
@@ -1451,8 +1449,7 @@ pub fn mz_sampling_dependence(
     Ok(())
 }
 
-#[cfg(feature = "calibration-internal")]
-/// The spec of the internal mz joint bootstrap: one row bootstrap per cited
+/// The spec of the mz joint bootstrap: one row bootstrap per cited
 /// dataset and replicate on the classical bootstrap stream, with counts kept.
 const fn mz_bootstrap_spec(replicates: u32, coverage_level: f64) -> ZDrawSpec {
     ZDrawSpec {
@@ -1502,8 +1499,7 @@ pub fn mz_interval_withheld_reason(
     Ok(mz_tables(functional, data)?.err())
 }
 
-#[cfg(feature = "calibration-internal")]
-/// The law sets the internal mz joint bootstrap evaluates, one per replicate
+/// The law sets the mz joint bootstrap evaluates, one per replicate
 /// (`None` for a replicate whose draw failed), for inspection: laws sharing a
 /// forwarded dataset are drawn from one resampled table in every replicate.
 ///
@@ -1581,18 +1577,12 @@ pub fn z_transport_bootstrap_law_draws(
     Ok(Ok(out))
 }
 
-#[cfg(feature = "calibration-internal")]
 /// Joint percentile bootstrap of a multi-source mz functional over `requests`.
 ///
-/// This is the internal estimator the calibration harness measures; the public
-/// prepared route does not publish it until its coverage records exist.
-///
-/// Like the learned-continuous interval, this is compiled only with the
-/// `calibration-internal` feature, which only dev-dependencies (this crate's integration
-/// tests, `antecedent-io`'s interval tests and the facade's calibration harness) enable;
-/// no released build links it. The public prepared route withholds the interval, and
-/// [`mz_interval_withheld_reason`] / [`mz_sampling_dependence`] stay public to report why.
-/// Exact laws, undeclared or unsupported dependence (including shared datasets
+/// The reported intervals carry a calibration annotation resolved from the construction's
+/// calibration basis; calibration never gates them.
+/// [`mz_interval_withheld_reason`] / [`mz_sampling_dependence`] report why an interval is
+/// withheld for a data or dependence reason. Exact laws, undeclared or unsupported dependence (including shared datasets
 /// that are not one table or a recorded margin of it), and a bootstrap that
 /// fails too often withhold the interval with a stable reason; the point
 /// estimate is never withheld by this function.

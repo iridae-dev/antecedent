@@ -12,7 +12,7 @@ papers = [
 ]
 implementation_deviations = [
  "The loss is the regret of choosing an arm in success probability; other losses are not offered.",
- "The rule's reliability (probability of a wrong stop, regret over the procedure) is not derived or measured and is closed.",
+ "The rule's reliability (probability of a wrong stop, regret over the procedure) is a scientific refusal (estimator_inference_mismatch, adaptive_inference.stopping_reliability_closed), not a calibration gap: a posterior threshold (probability best above c, or expected loss below c) is a statement about the posterior given the observed history, and it fixes no sampling error rate of the rule; the rule-level error rate depends on the unknown truth and on the assignment policy, so no construction from the posterior yields it. The expected loss and the probability of being best themselves are exact and are checked against closed forms.",
 ]
 upstream_implementations_observed = []
 test_sources = [

@@ -506,14 +506,19 @@ fn a_measured_construction_reports_an_interval_bound_to_its_coverage_record() {
 
 #[test]
 fn an_unmeasured_sample_size_or_unseen_rule_refuses_not_supported() {
-    for outcome in [
-        measure_at(20_000, UnseenCellRule::Refuse),
-        measure_at(1_000, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 }),
-    ] {
-        let error = outcome.unwrap_err();
-        assert!(
-            format!("{error:?}").contains("not_supported"),
-            "an interval outside the measured scope is not_supported: {error:?}"
-        );
+    // Name kept for the capability record that cites it: calibration annotates and never
+    // withholds, so the interval is reported and its slot says it is not calibrated.
+    let above = measure_at(20_000, UnseenCellRule::Refuse)
+        .expect("an interval above the measured sample sizes is reported");
+    assert_eq!(above.report().calibration, "outside_measured_scope");
+    let smoothed = measure_at(1_000, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 })
+        .expect("an interval under an unmeasured unseen-cell rule is reported");
+    assert_ne!(smoothed.report().calibration, "calibrated");
+    for measured in [&above, &smoothed] {
+        let scalar = &measured.report().scalars[0];
+        assert_eq!(scalar.name, "target_probability");
+        assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+        assert_ne!(scalar.calibration.status, "calibrated");
+        assert!(scalar.calibration.reason.is_some());
     }
 }

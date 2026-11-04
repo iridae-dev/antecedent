@@ -2,8 +2,9 @@
 //!
 //! A decoded source is data, not authority. The adapter reconstructs the shared typed compiler
 //! contract, independently executes the native conjugate posterior under that compiler
-//! identity, and calls the private measured factory. The factory refuses unless a current
-//! attesting coverage record covers the execution's construction, level count and row count.
+//! identity, and calls the private measured factory. The interval carries a calibration
+//! status that is `calibrated` only when a current attesting coverage record covers the
+//! construction, level count and row count.
 use std::borrow::Cow;
 
 use antecedent_core::categorical_candidate_contract::{
@@ -114,9 +115,8 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<CandidateReadi
 /// follows. A measured result can never be created from a caller-provided basis or report.
 ///
 /// # Errors
-/// The source is malformed/out of scope, execution is cancelled or over budget, the native
-/// computation refuses, or no current attesting record covers the construction, level count
-/// and row count.
+/// The source is malformed/out of scope, execution is cancelled or over budget, or the native
+/// computation refuses.
 pub fn measure_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
     let reading = execute_source(bytes, ctx)?;
     let source = &reading.source;
@@ -261,20 +261,21 @@ mod tests {
     }
 
     #[test]
-    fn without_a_matching_record_the_route_refuses() {
+    fn without_a_matching_record_the_interval_is_reported_not_measured() {
         let bytes = source(&[20, 20]).encode();
         let ctx = ExecutionContext::for_tests(7);
-        let (code, message) = super::super::with_test_records(vec![], || {
-            refusal_code(measure_source(&bytes, &ctx).unwrap_err())
-        });
-        assert_eq!(code, "not_supported");
-        assert!(message.contains("measured_inference.record_not_attesting"));
+        let measured =
+            super::super::with_test_records(vec![], || measure_source(&bytes, &ctx)).unwrap();
+        let scalar = &measured.report().scalars[0];
+        assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
+        assert_ne!(scalar.calibration.status, "calibrated");
+        assert_ne!(measured.report().calibration, "calibrated");
         // A record of another level count or another row range does not cover this execution.
         for wrong in [record(3, 30, 4096), record(2, 100, 4096), record(2, 30, 39)] {
-            let (code, _) = super::super::with_test_records(vec![wrong], || {
-                refusal_code(measure_source(&bytes, &ctx).unwrap_err())
-            });
-            assert_eq!(code, "not_supported");
+            let measured =
+                super::super::with_test_records(vec![wrong], || measure_source(&bytes, &ctx))
+                    .unwrap();
+            assert_ne!(measured.report().scalars[0].calibration.status, "calibrated");
         }
     }
 
@@ -317,14 +318,14 @@ mod tests {
     fn a_record_never_extrapolates_beyond_its_measured_rows() {
         let ctx = ExecutionContext::for_tests(7);
         let bytes = source(&[40, 40]).encode();
-        let (code, _) = super::super::with_test_records(vec![record(2, 30, 79)], || {
-            refusal_code(measure_source(&bytes, &ctx).unwrap_err())
+        let outside = super::super::with_test_records(vec![record(2, 30, 79)], || {
+            measure_source(&bytes, &ctx)
         });
-        assert_eq!(code, "not_supported");
+        assert_ne!(outside.unwrap().report().scalars[0].calibration.status, "calibrated");
         let inside = super::super::with_test_records(vec![record(2, 30, 80)], || {
             measure_source(&bytes, &ctx)
         });
-        assert!(inside.is_ok());
+        assert_eq!(inside.unwrap().report().scalars[0].calibration.status, "calibrated");
     }
 
     #[test]

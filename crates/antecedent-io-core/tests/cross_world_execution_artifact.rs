@@ -169,7 +169,7 @@ fn unsupported_requests_cannot_be_sealed() {
     let mut interval = joint();
     interval.reading = RequestedReading::Interval;
     let error = CrossWorldExecutionArtifact::seal(&interval, &ctx()).expect_err("closed");
-    assert_eq!(error.refusal().unwrap().code, "not_supported");
+    assert_eq!(error.refusal().unwrap().code, "uncertainty_representation_insufficient");
 }
 
 #[test]

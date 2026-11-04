@@ -118,7 +118,7 @@ def test_a_prespecified_decision_has_no_selection_correction() -> None:
     assert derived.decided_id == "B"
 
 
-def test_derived_uncertainty_is_never_published() -> None:
+def test_derived_uncertainty_is_published_with_its_calibration_slot() -> None:
     result = require_success(dr.assess(_law(), _request()))
     derived = require_success(result.derive_uncertainty(dr.IntervalRequest(level=0.9)))
     for route in (
@@ -127,10 +127,13 @@ def test_derived_uncertainty_is_never_published() -> None:
         "utility_interval",
         "selection_corrected_interval",
     ):
-        with pytest.raises(DR) as raised:
-            require_success(derived.publish(route))
-        assert raised.value.reason_code == "not_supported"
-        assert raised.value.detail == "decision_reliability.not_supported"
+        slot = require_success(derived.publish(route))
+        assert slot["status"] in (
+            "calibrated",
+            "outside_measured_scope",
+            "measured_below_nominal",
+            "not_measured",
+        )
     with pytest.raises(DR) as raised:
         require_success(result.combined_uncertainty())
     assert raised.value.reason_code == "uncertainty_components_not_combined"

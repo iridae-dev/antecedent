@@ -21,8 +21,15 @@
 //!   vectors are dropped jointly, their probability mass reported, and the surviving
 //!   mass renormalized.
 //!
-//! The output is a covariance matrix, a point-only claim: no interval is derived from
-//! it. Unknown or incompatible dependence (different snapshots, different unit lists,
+//! The output is a joint sampling covariance of the scenario estimates. No aggregate interval
+//! is provided over the scenarios. The aggregate is set-identified (the envelope of the
+//! scenarios' values), so a confidence construction for it exists in principle; it is not built
+//! here. It needs per-scenario sampling intervals (the empirical scenario route reports points
+//! only) combined by a union or an Imbens-Manski construction. This is an open capability gap,
+//! refused as `scenario_aggregate_not_supported`; the covariance below is the input such a
+//! construction would use, and is not itself an interval.
+//!
+//! Unknown or incompatible dependence (different snapshots, different unit lists,
 //! declared-independent samples, duplicate unit identities) is refused with
 //! `route_not_supported` (`scenario_covariance.unknown_dependence`); a diagonal-only or
 //! zero off-diagonal matrix is never a fallback.

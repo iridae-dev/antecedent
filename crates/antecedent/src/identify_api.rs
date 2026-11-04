@@ -223,7 +223,7 @@ fn identify_with_source(
         &crate::inference::InferenceMode::Frequentist,
         crate::analysis::RefuteSuite::None,
     ) {
-        crate::support::refuse_if_not_applicable(cell)?;
+        crate::support::refuse_if_not_applicable_in(cell, ctx)?;
     }
     match structure.graph_ref() {
         GraphRef::Dag(dag) => identify_source_dag(dag, query, strategy, structure_version),

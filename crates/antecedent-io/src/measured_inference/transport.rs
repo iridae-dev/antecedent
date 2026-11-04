@@ -28,7 +28,7 @@ pub(crate) struct Model<'a> {
 fn refused(message: &str) -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("not_supported"),
-        message: format!("measured_transport.protocol_not_measured: {message}"),
+        message: format!("measured_transport.outside_measured_protocol: {message}"),
     }
 }
 fn prior_matches(prior: &GaussianPriorWire, width: usize) -> bool {
@@ -45,7 +45,43 @@ fn prior_matches(prior: &GaussianPriorWire, width: usize) -> bool {
                 }
         })
 }
+/// The validated scope of a measured transport interval. A configuration outside the frozen
+/// validation protocol is not refused: the scope records `measured_protocol: false` with the
+/// reason, and [`tag_outside`] gives its basis a construction no coverage record measured, so
+/// calibration reports `not_measured`. Calibration annotates the interval and never gates it.
 pub(crate) fn protocol(
+    model: &Model<'_>,
+    sources: &[JointSourceWire],
+    target: &JointTargetWire,
+    draws: usize,
+    level: f64,
+) -> Result<serde_json::Value, IoError> {
+    match protocol_checked(model, sources, target, draws, level) {
+        Err(IoError::Refused { message, .. }) => Ok(serde_json::json!({
+            "measured_protocol": false,
+            "outside_measured_protocol": message,
+            "evidence_interpretation": "outside the frozen validation protocol: reported without a coverage claim",
+            "declared_model_assumptions": ["correct invariant Gaussian effect model","independent disjoint source samples","known residual variances"],
+            "sampling_assumptions_authenticated_from_rows": false,
+            "source_rows": sources.iter().map(|s| s.outcome.len()).collect::<Vec<_>>(),
+            "posterior_draws": draws, "level": level, "reported_scalar": "target_effect"
+        })),
+        other => other,
+    }
+}
+
+/// Give a basis a construction no record measured when its scope is outside the protocol.
+pub(crate) fn tag_outside(
+    scope: &serde_json::Value,
+    mut basis: antecedent_core::CalibrationBasis,
+) -> antecedent_core::CalibrationBasis {
+    if scope.get("measured_protocol") == Some(&serde_json::Value::Bool(false)) {
+        basis.estimator = format!("{}+outside_measured_protocol", basis.estimator).into();
+    }
+    basis
+}
+
+fn protocol_checked(
     model: &Model<'_>,
     sources: &[JointSourceWire],
     target: &JointTargetWire,
@@ -134,6 +170,7 @@ pub(crate) fn protocol(
         "source_ids":sources.iter().map(|s|&s.id).collect::<Vec<_>>(),"source_noise_variances":sources.iter().map(|s|s.noise_variance).collect::<Vec<_>>(),
         "target_covariates":target.covariates,"features":model.features,"basis_degree":model.degree,
         "varying":model.varying.as_str(),"sharing":model.sharing.as_str(),"prior_mean":0.0,"prior_variance":f64::from_bits(PROTOCOL_PRIOR_VARIANCE_BITS),"prior_provenance":"declared",
+        "measured_protocol":true,
         "posterior_draws":draws,"posterior_draws_min":PROTOCOL_MIN_DRAWS,"level":level,"reported_scalar":"target_effect"
     }))
 }
@@ -190,29 +227,36 @@ mod tests {
         assert_eq!(report["sampling_assumptions_authenticated_from_rows"], false);
         assert_eq!(report["varying"], "intercept");
         assert_eq!(report["sharing"], "independent_varying_blocks");
-        assert!(protocol(&model, &sources, &target, 4095, 0.95).is_err());
-        assert!(protocol(&model, &sources, &target, 4096, 0.90).is_err());
+        assert_eq!(report["measured_protocol"], true);
+        // A configuration outside the frozen protocol is reported, not refused: the scope
+        // records `measured_protocol: false` with the reason.
+        let outside = |report: serde_json::Value| {
+            assert_eq!(report["measured_protocol"], false, "{report}");
+            assert!(report["outside_measured_protocol"].as_str().is_some(), "{report}");
+        };
+        outside(protocol(&model, &sources, &target, 4095, 0.95).unwrap());
+        outside(protocol(&model, &sources, &target, 4096, 0.90).unwrap());
         sources[0].noise_variance = 1.1;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         sources[0].noise_variance = 1.0;
         sources[0].covariates[0][0] = 1.1;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         sources[0].covariates[0][0] = 0.0;
         target.covariates[0][0] = -0.20;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         target.covariates[0][0] = -0.25;
         model.degree = Some(3);
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         model.degree = None;
         let bank = GaussianPriorWire {
             provenance: PriorProvenanceWire::Bank { bank_id: "bank".into(), consumed: vec![] },
             ..prior(3)
         };
         model.invariant = &bank;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         model.invariant = &invariant;
         sources[0].outcome.truncate(149);
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
     }
 }
 
@@ -365,14 +409,16 @@ mod native_lifecycle_tests {
                 );
             match result {
                 Ok((wire, _, measured)) => {
-                    assert_eq!(slot.status, "calibrated");
-                    assert!(slot.record_id.is_some() && slot.calibration_sha.is_some());
+                    // Calibration annotates: the interval is reported with the slot the resolver gave.
+                    assert_eq!(measured.report().scalars[0].calibration.status, slot.status);
+                    assert!(
+                        measured.report().scalars[0].lower <= measured.report().scalars[0].upper
+                    );
                     assert_eq!(wire.export().unwrap(), measured.source_artifact());
                     assert_eq!(
                         measured.report().scalars[0].point.to_bits(),
                         joint.target_effect_mean.to_bits()
                     );
-                    assert_eq!(measured.report().scalars[0].calibration.status, "calibrated");
                     let (_,_,loaded)=crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).unwrap();
                     assert_eq!(loaded.export(), measured.export());
                     // Canonical harness identities keep the exact pre-change evidence key.
@@ -476,7 +522,9 @@ mod native_lifecycle_tests {
                         assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&bytes,&swapped.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
                     }
                 }
-                Err(error) => assert_unattested_refusal(error, &slot),
+                Err(error) => {
+                    panic!("interval must be reported with its calibration status: {error:?}")
+                }
             }
             let learned_model = LearnedJointModel {
                 graph: model.graph,
@@ -552,8 +600,11 @@ mod native_lifecycle_tests {
                 );
             match result {
                 Ok((wire, _, measured)) => {
-                    assert_eq!(slot.status, "calibrated");
-                    assert!(slot.record_id.is_some() && slot.calibration_sha.is_some());
+                    // Calibration annotates: the interval is reported with the slot the resolver gave.
+                    assert_eq!(measured.report().scalars[0].calibration.status, slot.status);
+                    assert!(
+                        measured.report().scalars[0].lower <= measured.report().scalars[0].upper
+                    );
                     assert_eq!(wire.export().unwrap(), measured.source_artifact());
                     assert_eq!(
                         measured.report().scalars[0].point.to_bits(),
@@ -619,27 +670,10 @@ mod native_lifecycle_tests {
                     let forged_bytes = crate::to_cbor(&forged).unwrap();
                     assert!(crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).is_err());
                 }
-                Err(error) => assert_unattested_refusal(error, &slot),
+                Err(error) => {
+                    panic!("interval must be reported with its calibration status: {error:?}")
+                }
             }
-        }
-    }
-
-    fn assert_unattested_refusal(error: crate::IoError, slot: &crate::CalibrationSlotWire) {
-        assert!(
-            slot.status != "calibrated"
-                || slot.record_id.is_none()
-                || slot.calibration_sha.is_none()
-        );
-        assert_eq!(slot.reason.as_deref(), Some("coverage_record_not_attesting"));
-        match error {
-            crate::IoError::Refused { code, message } => {
-                assert_eq!(code, antecedent_core::reason_code!("not_supported"));
-                assert_eq!(
-                    message,
-                    "measured_inference.record_not_attesting: target_effect: coverage_record_not_attesting"
-                );
-            }
-            other => panic!("expected a closed attestation refusal, got {other:?}"),
         }
     }
 }

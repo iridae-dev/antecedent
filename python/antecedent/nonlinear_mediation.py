@@ -28,10 +28,11 @@ treatment-induced mediator-outcome confounder, or an undeclared cross-world inde
 refuses. The interventional (randomized-draw) estimand is closed and refuses with
 ``nonlinear_mediation.interventional_effects_closed``.
 
-Bootstrap standard errors (fixed seed, replicate ids ``0 .. replicates``) have calibration
-``"unmeasured"``: no coverage claim is made and no public interval is produced
-(``interval_status == "closed_calibration_unmeasured"``). The point estimates and the
-diagnostics are the claim.
+Bootstrap standard errors and percentile bootstrap intervals (fixed seed, replicate ids
+``0 .. replicates``; ``interval_status == "percentile_bootstrap_interval"``) are reported for the
+three effects. Calibration is an annotation: each :class:`MediationInterval` carries the slot
+resolved from its basis (``calibrated`` only inside a measured record), and ``calibration`` is
+``"resolved_from_basis"``.
 
 :func:`consume_mediation_artifact` re-estimates from the artifact's embedded dataset under the
 stored seed and refuses unless every stored value reproduces bit for bit; with ``expected_identity`` (the
@@ -75,6 +76,7 @@ __all__ = [
     "MediationEffects",
     "MediationEstimand",
     "MediationIdentity",
+    "MediationInterval",
     "MediationOverlap",
     "MediationPremise",
     "MediationPremises",
@@ -195,8 +197,24 @@ class MediationOverlap:
 
 
 @dataclass(frozen=True, slots=True)
+class MediationInterval:
+    """A percentile bootstrap interval of one effect with its calibration slot."""
+
+    effect: str
+    lower: float
+    upper: float
+    #: The calibration slot: ``status`` is ``calibrated``, ``outside_measured_scope``,
+    #: ``measured_below_nominal`` or ``not_measured``.
+    calibration: Mapping[str, Any]
+
+    @property
+    def status(self) -> str:
+        return str(self.calibration["status"])
+
+
+@dataclass(frozen=True, slots=True)
 class MediationBootstrap:
-    """The bootstrap record: seed, replicate ids and the closed interval status."""
+    """The bootstrap record: seed, replicate ids and the interval method."""
 
     seed: int
     replicates_requested: int
@@ -204,7 +222,7 @@ class MediationBootstrap:
     replicate_ids: tuple[int, ...]
     failed_replicate_ids: tuple[int, ...]
     id_scheme: str
-    #: ``"closed_calibration_unmeasured"``: no public interval is produced.
+    #: ``"percentile_bootstrap_interval"``.
     interval_status: str
 
 
@@ -236,7 +254,7 @@ class MediationEffects(ScientificResult):
     """Natural effects, their diagnostics and the portable artifact.
 
     ``natural_direct``, ``natural_indirect`` and ``total`` are the claim; ``*_se`` are bootstrap
-    standard errors with ``calibration == "unmeasured"`` and no interval. ``integration_error``
+    standard errors; ``intervals`` are the percentile bootstrap intervals with their calibration slots. ``integration_error``
     is the ``coarse_nodes`` versus ``fine_nodes`` (``2n``) disagreement as a fraction of the
     outcome standard deviation; the point estimates use ``fine_nodes``.
     """
@@ -248,6 +266,9 @@ class MediationEffects(ScientificResult):
     natural_direct_se: float | None
     natural_indirect_se: float | None
     total_se: float | None
+    interval_level: float
+    intervals: tuple[MediationInterval, ...]
+    interval_unavailable_reason: str | None
     identity_residual: float
     integration_error: float
     coarse_nodes: int
@@ -296,6 +317,17 @@ class MediationEffects(ScientificResult):
             "natural_direct_se": self.natural_direct_se,
             "natural_indirect_se": self.natural_indirect_se,
             "total_se": self.total_se,
+            "interval_level": self.interval_level,
+            "intervals": [
+                {
+                    "effect": i.effect,
+                    "lower": i.lower,
+                    "upper": i.upper,
+                    "calibration": dict(i.calibration),
+                }
+                for i in self.intervals
+            ],
+            "interval_unavailable_reason": self.interval_unavailable_reason,
             "identity_residual": self.identity_residual,
             "integration_error": self.integration_error,
             "coarse_nodes": self.coarse_nodes,
@@ -347,6 +379,17 @@ def _result(
         natural_direct_se=optional(r["natural_direct_se"]),
         natural_indirect_se=optional(r["natural_indirect_se"]),
         total_se=optional(r["total_se"]),
+        interval_level=float(r["interval_level"]),
+        intervals=tuple(
+            MediationInterval(
+                effect=str(i["effect"]),
+                lower=float(i["lower"]),
+                upper=float(i["upper"]),
+                calibration=dict(i["calibration"]),
+            )
+            for i in r["intervals"]
+        ),
+        interval_unavailable_reason=r["interval_unavailable_reason"],
         identity_residual=float(r["identity_residual"]),
         integration_error=float(r["integration_error"]),
         coarse_nodes=int(r["coarse_nodes"]),

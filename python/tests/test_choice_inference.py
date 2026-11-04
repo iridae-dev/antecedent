@@ -85,11 +85,11 @@ def test_a_rationale_does_not_support_cross_population_transfer():
         ci.ChoiceInferenceSession.prepare(study(sources=(declared,)))
 
 
-def test_an_interval_request_is_not_supported_without_coverage():
+def test_an_unqualified_interval_request_names_no_quantity():
     session = ci.ChoiceInferenceSession.prepare(study())
     with pytest.raises(ChoiceInferenceRefusal) as raised:
         session.interval()
-    assert raised.value.reason_code == "not_supported"
+    assert raised.value.reason_code == "quantity_semantics_mismatch"
 
 
 def test_a_stopping_study_has_exact_operating_characteristics():

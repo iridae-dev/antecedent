@@ -319,44 +319,39 @@ def test_three_components_are_separate_and_a_combined_number_is_refused() -> Non
     assert again.value.detail == "decision_reliability.combined_uncertainty"
 
 
-def test_every_published_ranking_or_interval_route_is_closed() -> None:
+def test_every_published_route_is_published_with_its_calibration_slot() -> None:
     result = require_success(dr.assess(_draws(_gaussian([0.0, 1.0], 100, seed=1))))
     assert result.report.coordinate["candidate_set_size"] == 2
     assert result.report.coordinate["mc_budget"] == 100
-    assert len(result.report.closed_routes) == 4
+    assert result.report.closed_routes == []
+    statuses = ("calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured")
     for route in (
         "ranking_probability",
         "optimality_confidence_set",
         "utility_interval",
         "selection_corrected_interval",
     ):
-        with pytest.raises(DR) as refused:
-            require_success(result.publish(route))
-        assert refused.value.reason_code == "not_supported"
-        assert refused.value.detail == "decision_reliability.not_supported"
-        with pytest.raises(DR) as direct:
-            require_success(dr.publish(route, result.report.coordinate))
-        assert direct.value.reason_code == "not_supported"
-        assert direct.value.detail == "decision_reliability.not_supported"
+        slot = require_success(result.publish(route))
+        assert slot["status"] in statuses
+        assert require_success(dr.publish(route, result.report.coordinate)) == slot
     with pytest.raises(CausalValueError):
         require_success(dr.publish("not_a_route", result.report.coordinate))
 
 
 @pytest.mark.requires_calibration
-def test_every_published_route_is_supported_inside_a_measured_coverage_record() -> None:
+def test_a_route_inside_a_measured_coverage_record_is_calibrated() -> None:
     # Two candidates, 1000 draws, shared stream, expected-utility selection, level 0.95:
     # inside the measured records (500 to 2000 draws per candidate).
     result = require_success(dr.assess(_draws(_gaussian([0.5, 0.0], 1000, seed=5, rho=0.5))))
     assert result.report.coordinate["mc_budget"] == 1000
-    assert len(result.report.closed_routes) == 0
+    assert result.report.closed_routes == []
     for route in (
         "ranking_probability",
         "optimality_confidence_set",
         "utility_interval",
         "selection_corrected_interval",
     ):
-        require_success(result.publish(route))
-        require_success(dr.publish(route, result.report.coordinate))
+        assert require_success(result.publish(route))["status"] == "calibrated"
 
 
 # ------------------------------------------------------------------ artifact

@@ -397,20 +397,25 @@ impl TypedTransportedComposition {
         self.inner.mean_contrast_uncertainty(contrast, draws, ctx).map_err(model_error)
     }
 
-    /// An interval for a transported contrast.
+    /// The first-order interval of a transported contrast at `level`, with its calibration
+    /// slot. The interval is conditional on the declared transport premises, which the
+    /// variance does not contain.
     ///
     /// # Errors
-    /// Always `not_supported`: no measured coverage stands behind the variance, and
-    /// none includes the transport assumption.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MechanismCompositionRefusal> {
-        Err(refusal(
-            antecedent_core::reason_code!("not_supported"),
-            "compose",
-            "typed_mechanism_transport.interval_route_closed",
-            "interval".to_owned(),
-            "the first-order parameter variance omits the transport assumption and has no \
-             measured coverage; the point and the labelled variance are the result",
-        ))
+    /// As [`Self::mean_contrast_uncertainty`], and a level outside `(0, 1)`.
+    pub fn interval(
+        &self,
+        contrast: &MeanContrast,
+        draws: usize,
+        ctx: &ExecutionContext,
+        level: f64,
+    ) -> Result<super::mechanism_composition::FirstOrderInterval, MechanismCompositionRefusal> {
+        let uncertainty = self.mean_contrast_uncertainty(contrast, draws, ctx)?;
+        super::mechanism_composition::FirstOrderInterval::wald(
+            uncertainty.estimate.value,
+            uncertainty.variance,
+            level,
+        )
     }
 }
 

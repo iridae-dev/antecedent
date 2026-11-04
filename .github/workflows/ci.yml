@@ -313,6 +313,29 @@ jobs:
           cargo check $pkgs
           cargo check $pkgs --features calibration-internal
 
+      # The `development` feature runs `not_supported` routes. It is never default and nothing
+      # that ships may resolve it: published crates and the wheel build without it.
+      - name: Release builds resolve without the development feature
+        run: |
+          set -euo pipefail
+          if cargo tree -e features -p antecedent -p antecedent-py | grep -q development; then
+            echo "::error::the development feature is enabled in a release resolution"
+            cargo tree -e features -i antecedent-core -p antecedent -p antecedent-py | grep development || true
+            exit 1
+          fi
+          # The wheel's maturin configuration and manifests must not name the feature.
+          if grep -nE 'features *=.*development' python/pyproject.toml; then
+            echo "::error::python/pyproject.toml enables the development feature"
+            exit 1
+          fi
+          if grep -nE '^default *=.*development' crates/*/Cargo.toml python/Cargo.toml; then
+            echo "::error::a crate enables development by default"
+            exit 1
+          fi
+
+      - name: Hand-built not_supported refusals only shrink
+        run: python3 scripts/gate_not_supported_sites.py
+
       - name: Each optional feature alone
         run: |
           set -euo pipefail
@@ -459,6 +482,37 @@ jobs:
             echo "No crate manifest changes; skipping publish dry-run"
           fi
 
+  # The development build: `not_supported` routes run and results list `would_refuse`.
+  # The release-semantics twin (`release_not_supported`) runs in the ordinary suites.
+  development:
+    name: Development build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: nextest
+
+      - name: Test the development build
+        run: |
+          set -euo pipefail
+          cargo nextest run -P development -p antecedent --features development --test development_build
+          cargo nextest run -P development -p antecedent-core --features development --lib
+
   # Linux source-tree Python checks all use one native extension from this run.
   # Keep the full release wheel matrix independent: it checks packaged installs
   # across every supported platform and interpreter.
@@ -497,6 +551,10 @@ jobs:
           set -euo pipefail
           uv run --no-sync maturin develop --locked --release --skip-install --timings
           uv run --no-sync python ../scripts/ci_python_native.py stage ../target/ci-python-native "$GITHUB_SHA"
+
+      - name: Wheel is a release build
+        working-directory: python
+        run: uv run --no-sync python -c "import antecedent; assert antecedent.build_flavor() == 'release', antecedent.build_flavor()"
 
       - name: Upload same-run native extension
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -702,7 +760,6 @@ jobs:
           python3 scripts/check_v3_test_registry.py --self-test
           python3 scripts/check_ignored_tests.py
           python3 scripts/check_child_test_selectors.py
-          python3 scripts/check_python_internal_lane.py sources
           mkdir -p target
           python3 scripts/evidence_audit.py report > target/evidence-audit-report.md
 

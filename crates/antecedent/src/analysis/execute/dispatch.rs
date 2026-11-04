@@ -1987,6 +1987,7 @@ impl super::Study {
         });
         if let Ok(result) = &mut observed.result {
             result.view.performance.native_execution.clone_from(&observed.facts);
+            result.stamp_would_refuse(&self.would_refuse, ctx);
         }
         observed
     }

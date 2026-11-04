@@ -336,3 +336,36 @@ fn the_bootstrap_resamples_clusters_and_blocks_and_rows_otherwise() {
         );
     }
 }
+
+/// Type-7 quantile of a sample from its definition `h = (n - 1) p`, interpolating the two
+/// neighbouring order statistics; independent of the interval code.
+fn hand_quantile(values: &[f64], p: f64) -> f64 {
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let h = (sorted.len() as f64 - 1.0) * p;
+    let k = h.floor() as usize;
+    if k + 1 >= sorted.len() {
+        return sorted[sorted.len() - 1];
+    }
+    sorted[k] + (h - h.floor()) * (sorted[k + 1] - sorted[k])
+}
+
+#[test]
+fn bootstrap_interval_endpoints_equal_hand_percentiles_of_the_retained_replicates() {
+    use antecedent_estimate::smoothed_dose::smoothed_dose_interval_internal;
+    let case = reference().into_iter().next().unwrap();
+    let rows = input(&case);
+    let (id, query, mut options) = setup(&case);
+    options.bootstrap = 199;
+    options.coverage_level = 0.95;
+    let ctx = ExecutionContext::for_tests(7);
+    let run = smoothed_dose_interval_internal(&id, &query, &rows, &options, &ctx).unwrap();
+    assert_eq!(run.failures, 0, "{:?}", run.uncertainty_reason);
+    assert_eq!(run.replicates.len(), 199);
+    for (g, interval) in run.intervals.iter().enumerate() {
+        let values: Vec<f64> = run.replicates.iter().map(|(_, v)| v[g]).collect();
+        let (lo, hi) = interval.expect("every replicate succeeded, so the interval is reported");
+        assert!((lo - hand_quantile(&values, 0.025)).abs() < 1e-12, "grid {g} lower");
+        assert!((hi - hand_quantile(&values, 0.975)).abs() < 1e-12, "grid {g} upper");
+    }
+}

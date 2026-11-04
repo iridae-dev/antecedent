@@ -37,8 +37,9 @@ dependence) and reports three uncertainties **separately**, never summed::
 Everything is a point diagnostic labelled uncalibrated. Ranking probabilities (best, top-``k``,
 better than a baseline) are Monte Carlo estimates under the supplied law over the candidates as
 supplied, refused for adaptively generated candidates without a :class:`CandidateSearchRecord`.
-:meth:`DecisionReliability.publish` and :func:`publish` return only where a current coverage record
-measured the route at its coordinate and raise ``not_supported`` everywhere else, and
+:meth:`DecisionReliability.publish` and :func:`publish` always return the route's calibration
+slot (``calibrated`` only where a current coverage record measured the route at its coordinate),
+and
 :meth:`DecisionReliability.combined_uncertainty` always raises
 ``uncertainty_components_not_combined``.
 
@@ -53,8 +54,7 @@ copied from the report, the Monte Carlo component (Wald intervals for utilities 
 intervals at the effective sample size for ranking probabilities) and the selection component (a
 confidence set for the best candidate and a selection-corrected interval, next to the held-out
 interval when the decision was re-evaluated). The derivation is a construction, not a claim:
-:meth:`DerivedUncertainty.publish` returns only where a current coverage record measured the route
-at its coordinate and raises ``not_supported`` everywhere else, and :func:`coverage_design`
+:meth:`DerivedUncertainty.publish` always returns the route's calibration slot, and :func:`coverage_design`
 returns the measurement design as data. A derivation is never stored beside the artifact: :func:`consume_derived_uncertainty`
 recomputes it from the carried draws.
 
@@ -618,7 +618,7 @@ class ReliabilityReport(ScientificResult):
 
     @property
     def closed_routes(self) -> list[dict[str, Any]]:
-        """Published routes closed at the coordinate, each with its refusal code."""
+        """Published routes closed at the coordinate (none: calibration annotates, never closes)."""
         return [dict(route) for route in self.raw["closed_routes"]]
 
     @property
@@ -690,12 +690,12 @@ class DecisionReliability(ScientificResult):
         return self._draws.digests()
 
     @outcome_operation
-    def publish(self, route: str) -> None:
-        """Publish a ranking probability, confidence set or interval as a calibrated claim.
+    def publish(self, route: str) -> dict[str, Any]:
+        """Publish a ranking probability, confidence set or interval with its calibration slot.
 
-        Raises:
-            DecisionReliabilityRefusal: ``not_supported`` unless a current coverage record
-                measured the route at this report's coordinate (at the default level 0.95).
+        The route is always published; the returned slot has ``status`` ``calibrated`` only where
+        a current coverage record measured the route at this report's coordinate (at the default
+        level 0.95), and otherwise names why not.
         """
         return require_success(publish(route, self.report.coordinate))
 
@@ -817,18 +817,18 @@ def rank(
 
 
 @outcome_operation
-def publish(route: str, coordinate: Mapping[str, Any]) -> None:
-    """Publish a ranking or optimality route at a calibration coordinate.
+def publish(route: str, coordinate: Mapping[str, Any]) -> dict[str, Any]:
+    """Publish a ranking or optimality route at a calibration coordinate, with its slot.
 
-    A route is published only where a current coverage record measured it at its coordinate
-    (candidate-set size, Monte Carlo budget, selection rule, coupling, serial dependence); every
-    other request refuses with ``not_supported``.
-
-    Raises:
-        DecisionReliabilityRefusal: ``not_supported``.
+    The route is always published. The returned calibration slot is ``calibrated`` only where a
+    current coverage record measured it at its coordinate (candidate-set size, Monte Carlo
+    budget, selection rule, coupling, serial dependence), and otherwise names why not.
     """
     _check_choice(route, _ROUTES, "route")
-    _refuse(_native.decision_reliability_publish(route, _dumps(dict(coordinate))))
+    payload, refusal = _native.decision_reliability_publish(route, _dumps(dict(coordinate)))
+    _refuse(refusal)
+    assert payload is not None
+    return dict(json.loads(payload))
 
 
 @outcome_operation
@@ -964,16 +964,18 @@ class DerivedUncertainty(ScientificResult):
         return tuple(self.raw["assumptions"])
 
     @outcome_operation
-    def publish(self, route: str) -> None:
-        """Publish a route from this derivation as a calibrated claim.
+    def publish(self, route: str) -> dict[str, Any]:
+        """Publish a route from this derivation with its calibration slot.
 
-        Raises:
-            DecisionReliabilityRefusal: ``not_supported`` unless a current coverage record
-                measured the route at :attr:`coordinate` and at the derivation's level (ranking
-                probabilities and utilities only for marginal intervals).
+        The slot is ``calibrated`` only where a current coverage record measured the route at
+        :attr:`coordinate` and at the derivation's level (ranking probabilities and utilities
+        only for marginal intervals), and otherwise names why not.
         """
         _check_choice(route, _ROUTES, "route")
-        _refuse(_native.decision_reliability_publish_derived(route, _dumps(self.raw)))
+        payload, refusal = _native.decision_reliability_publish_derived(route, _dumps(self.raw))
+        _refuse(refusal)
+        assert payload is not None
+        return dict(json.loads(payload))
 
     @outcome_operation
     def verify(self, artifact: bytes, *, execution: Execution | None = None) -> None:
@@ -1015,8 +1017,8 @@ def derive_uncertainty(
 ) -> DerivedUncertainty:
     """Derive the three uncertainty components (source, Monte Carlo, selection) from draws.
 
-    The result is a construction; publishing it as a calibrated claim refuses
-    ``not_supported`` outside a measured record.
+    The result is a construction; publishing it returns the calibration slot, which is
+    ``calibrated`` only inside a measured record.
 
     Raises:
         DecisionReliabilityRefusal: anything :func:`assess` refuses, a level outside

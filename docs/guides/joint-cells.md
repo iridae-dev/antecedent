@@ -204,3 +204,15 @@ Implementation limits are listed in [supported input bounds](../supported-bounds
 
 - [Fit and compare coordinated intervention programs](joint-intervention-responses.md)
 - [Joint distributions](../joint-distributions.md)
+
+## Why a joint-cell family has no interval or joint covariance
+
+A refusal here is scientific, not a calibration gap. The conditional propensities of the
+factorized joint cells are ridge-penalized (`penalized_interval_not_supported`): a penalized
+nuisance carries shrinkage bias of order `lambda / n` per cell that the estimator neither
+estimates nor shows negligible, so the plug-in score variance is not the variance of the
+estimator around its target. Learner-supplied cells (`ml_nuisance_not_supported`) carry an
+arbitrary learner's remainder, whose convergence rate cannot be checked from the cells; a
+cross-fitted interval is valid only under a verified product-rate condition. No construction
+of the interval or covariance is valid without those conditions, so the point estimates and the
+aligned score table are the whole result. Calibration plays no part in this refusal.

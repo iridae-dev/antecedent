@@ -39,22 +39,22 @@ Varying = Literal["intercept", "intercept_and_covariates"]
 Sharing = Literal["independent_varying_blocks", "shared_varying_block"]
 _GRAPH_CLASSES = ("fixed_dag", "admg", "graph_posterior")
 _ROUTE = "antecedent.transport.learned_joint"
-_ROUTE_FROZEN = "learned_joint_transport.route_frozen"
+_ROUTE_MISSING = "learned_joint_transport.identification_required"
 
 
-#: What a caller can do instead: the open point-estimate route of the same transport question.
+#: What a caller can do to obtain the interval.
 _REMEDY = (
-    "use the open learned point-estimate route antecedent.transport.advanced."
-    "prepare_learned_continuous (cross-fitted, interval withheld), or an identified closed-form "
-    "transport estimate; the learned joint posterior opens only when its coverage is measured"
+    "pass identification= (the original identification of the transport question) and complete "
+    "priors=; the interval is then reported with its calibration status"
 )
 
 
-def _frozen() -> CausalUnsupportedError:
-    """The fallback refusal; the native call always raises before it is reached."""
+def _identification_required() -> CausalUnsupportedError:
+    """A request inside the row's scope that names no identification to produce from."""
     return CausalUnsupportedError(
-        f"{_ROUTE_FROZEN}: {_ROUTE} is a closed route; calibration is unmeasured",
-        reason_code="not_supported",
+        f"{_ROUTE_MISSING}: {_ROUTE} produces its interval from an original identification and "
+        "complete priors; supply identification= and priors=",
+        reason_code="transport_missing_evidence",
         remedy=_REMEDY,
     )
 
@@ -153,22 +153,15 @@ def learned_joint_transport(
             max_unsupported_mass=max_unsupported_mass,
             conflict_z_threshold=conflict_z_threshold,
         )
-    try:
-        _learned_joint_transport_closed(
-            declared,
-            dependence,
-            varying,
-            sharing,
-            len(feature_names),
-            basis_degree,
-            len(sources),
-            target is not None and (isinstance(target, JointTransportTarget) or len(target) > 0),
-            draws,
-        )
-    except CausalUnsupportedError as error:
-        if getattr(error, "reason_code", None) == "not_supported" and not getattr(
-            error, "remedy", None
-        ):
-            error.remedy = _REMEDY
-        raise
-    raise _frozen()
+    _learned_joint_transport_closed(
+        declared,
+        dependence,
+        varying,
+        sharing,
+        len(feature_names),
+        basis_degree,
+        len(sources),
+        target is not None and (isinstance(target, JointTransportTarget) or len(target) > 0),
+        draws,
+    )
+    raise _identification_required()

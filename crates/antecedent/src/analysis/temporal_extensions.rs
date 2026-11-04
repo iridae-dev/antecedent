@@ -11,11 +11,9 @@
 //!   replacement panel of a new period when the graph, horizon, lag alignment,
 //!   intervention history, selection targets, regimes and proof are unchanged. Anything
 //!   else is a typed invalidation. A stale interval never survives a refresh.
-//! * **Dependent interval** (`antecedent.transport.temporal_dependent_interval`): a
-//!   calibrated claim whose calibration is unmeasured, so this
-//!   route is **closed**: it validates its arguments through the core and then refuses
-//!   with `not_supported` / `temporal_interval.route_frozen`. Its replay artifact
-//!   exists at the io layer as an internal artifact.
+//! * **Dependent interval** (`antecedent.transport.temporal_dependent_interval`): the
+//!   block-bootstrap interval of the temporal response, reported with the calibration slot
+//!   of its coverage records (the measured route lives in `recalc_temporal_measured`).
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_dependent_interval::{
     DependentIntervalConfig, INTERVAL_MIN_REPLICATES, ObservedStateSequence,

@@ -1081,11 +1081,12 @@ fn bayesian_does_not_rewrite_functional_estimators() {
                 .query(CausalQuery::PathSpecific(query))
                 .estimator(antecedent::EstimatorId::BayesianGcomp)
         };
-        let study = builder.build().unwrap();
-        assert!(
-            study.compile(&ExecutionContext::for_tests(1)).is_err(),
-            "an explicit incompatible estimator must not be silently replaced"
-        );
+        // The estimator does not estimate a path-specific query: refused at build, in every
+        // build, not replaced by the functional plug-in.
+        let Err(error) = builder.build() else {
+            panic!("an explicit incompatible estimator must not be silently replaced");
+        };
+        assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
     }
 }
 

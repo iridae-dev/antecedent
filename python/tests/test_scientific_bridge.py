@@ -859,17 +859,16 @@ def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design
         "not_supported",
         "scientific_bridge.interval_source_uncertainty_required",
     )
-    # Four validation trials are below the measured 15 to 40: refused with the typed reason.
+    # Four validation trials are below the measured 15 to 40: the interval is reported and its
+    # calibration says no current record measured it.
     claim = require_success(
         sb.prepare_scientific_bridge(contract).derive(
             sb.SourceClaim.declared("biomarker-effect", 0.8, quantity, standard_error=0.1)
         )
     )
-    refused(
-        lambda: claim.interval(0.95),
-        "not_supported",
-        "scientific_bridge.interval_scope_outside_measured",
-    )
+    reported = require_success(claim.interval(0.95))
+    assert reported.lower < reported.upper
+    assert reported.calibration["status"] != "calibrated"
     # Twenty validation trials, source standard error declared: published, bound to a record.
     trials = [
         (0.5 + 1.5 * i / 19.0, 0.1 + 0.9 * (0.5 + 1.5 * i / 19.0) + 0.1 * math.sin(i))

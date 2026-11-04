@@ -646,6 +646,9 @@ impl EstimatorId {
 /// [`EstimatorId::parallel_task_dimension`], [`EstimatorId::kernel_label`], and
 /// `estimate_provenance_step`.
 ///
+/// What each estimator estimates (query kinds, inference mode, design variants) is its
+/// [`super::EstimatorTarget`], the sibling exhaustive table `estimator_target` in `targets.rs`.
+///
 /// The static-ATE identifier allow-list is [`Self::compatible`]. Fit dispatch in
 /// [`estimate_static_effect`] / [`estimate_static_effect_default`] and
 /// [`estimand_compatible_with_estimator`] stay exhaustive `match`es.

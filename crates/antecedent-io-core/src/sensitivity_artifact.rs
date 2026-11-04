@@ -474,6 +474,10 @@ pub struct SamplingInterval {
     /// Supported composition method with the assumption range; refused unless listed in
     /// [`SUPPORTED_SAMPLING_COMPOSITIONS`].
     pub composed: Option<String>,
+    /// Calibration annotation of this interval, resolved from its construction basis.
+    /// It annotates the interval and never withholds it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calibration: Option<crate::contract_section::CalibrationSlotWire>,
     /// Lower endpoint at each grid point (stored in the numbers section).
     #[serde(skip)]
     pub lower: Vec<f64>,
@@ -1296,6 +1300,72 @@ pub struct JointFactorView {
     pub max_fraction: f64,
 }
 
+/// The endpoint-bootstrap replicates of a joint mechanism sensitivity result: for each
+/// resampled table, the range's baseline (zero deviation), minimum and maximum over the declared
+/// box. The sampling interval at every grid point is derived from them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointSamplingView {
+    /// Nominal level in `(0, 1)`.
+    pub level: f64,
+    /// Interval method name.
+    pub method: String,
+    /// Calibration annotation resolved from the construction basis; it never withholds.
+    pub calibration: Option<crate::contract_section::CalibrationSlotWire>,
+    /// Range baseline of each replicate.
+    pub baselines: Vec<f64>,
+    /// Range minimum over the full box of each replicate.
+    pub minima: Vec<f64>,
+    /// Range maximum over the full box of each replicate.
+    pub maxima: Vec<f64>,
+}
+
+/// Linear-interpolation (type-7) quantile of an ascending slice.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the position is within the slice length"
+)]
+fn type7_quantile(sorted: &[f64], probability: f64) -> f64 {
+    let position = probability.clamp(0.0, 1.0) * (sorted.len() - 1) as f64;
+    let lower = position.floor() as usize;
+    let upper = position.ceil() as usize;
+    sorted[lower] + (position - lower as f64) * (sorted[upper] - sorted[lower])
+}
+
+impl JointSamplingView {
+    /// The equal-tailed percentile interval of the replicate range scaled to `scale` of the
+    /// declared box: `[q(zero + scale (min - zero)), q(zero + scale (max - zero))]`. At scale 0
+    /// it is the ordinary percentile interval of the baseline; at scale 1 the conservative
+    /// endpoint interval. The range is exactly linear in the scale, so this is exact for a
+    /// one-factor box at every grid point and at the two endpoints of a two-factor box.
+    fn interval_at(&self, scale: f64) -> Option<(f64, f64)> {
+        let n = self.baselines.len();
+        if n < 2 || self.minima.len() != n || self.maxima.len() != n {
+            return None;
+        }
+        let at = |zero: f64, end: f64| -> f64 {
+            if scale == 0.0 {
+                zero
+            } else if scale == 1.0 {
+                end
+            } else {
+                zero + scale * (end - zero)
+            }
+        };
+        let lows: Vec<f64> = (0..n).map(|i| at(self.baselines[i], self.minima[i])).collect();
+        let highs: Vec<f64> = (0..n).map(|i| at(self.baselines[i], self.maxima[i])).collect();
+        if lows.iter().chain(&highs).any(|v| !v.is_finite()) {
+            return None;
+        }
+        let (mut lows, mut highs) = (lows, highs);
+        lows.sort_by(f64::total_cmp);
+        highs.sort_by(f64::total_cmp);
+        let tail = (1.0 - self.level) / 2.0;
+        Some((type7_quantile(&lows, tail), type7_quantile(&highs, 1.0 - tail)))
+    }
+}
+
 /// A joint mechanism sensitivity result reduced to what the surface adapter
 /// reads.
 ///
@@ -1307,9 +1377,12 @@ pub struct JointSensitivityView {
     pub inference_claim: String,
     /// Interpretation statement carried into the artifact.
     pub interpretation: String,
-    /// Registered reason code of the withheld sampling interval.
+    /// The endpoint-bootstrap replicates, when the result carries its sampling interval.
+    pub sampling: Option<JointSamplingView>,
+    /// Registered reason code reported when the result carries no sampling interval (none was
+    /// requested for this result).
     pub withheld_reason_code: String,
-    /// Detail of the withheld sampling interval.
+    /// Detail reported when the result carries no sampling interval.
     pub withheld_detail: String,
     /// Stable identity of the checked derivation's inputs.
     pub query_binding: String,
@@ -1381,8 +1454,10 @@ impl SensitivityArtifact {
     /// surface is filled on `grid_points` equally spaced fractions in `[0, bound]` with
     /// the exact endpoints. With two factors only the unperturbed point and the declared
     /// box are exact, so the surface is the two points `0` and `1` of the box scale and
-    /// `grid_points` must be 2. The withheld sampling status is carried unchanged:
-    /// the range stays an assumption range.
+    /// `grid_points` must be 2. When the result carries its endpoint-bootstrap replicates, the
+    /// separate sampling interval is reported at every grid point next to, never inside, the
+    /// range, with its calibration annotation; otherwise the not-requested status is carried.
+    /// The range stays an assumption range.
     ///
     /// # Errors
     /// A result that is not an assumption range, a degenerate or unsupported factor
@@ -1405,15 +1480,48 @@ impl SensitivityArtifact {
         effect.validate().map_err(|_| invalid_surface("effect quantity coordinate is invalid"))?;
         let (coordinate, grid, lower, upper) = surface_of(&result, grid_points)?;
         let n = grid.len();
+        let effect_wire = ScientificQuantityWire::from(effect);
+        let sampling = match &result.sampling {
+            Some(view) => {
+                if !(view.level > 0.0 && view.level < 1.0) || coordinate.maximum <= 0.0 {
+                    return Err(invalid_surface("sampling interval level is malformed"));
+                }
+                let mut sampling_lower = Vec::with_capacity(n);
+                let mut sampling_upper = Vec::with_capacity(n);
+                for (j, g) in grid.iter().enumerate() {
+                    let scale = if j == 0 {
+                        0.0
+                    } else if j + 1 == n {
+                        1.0
+                    } else {
+                        g / coordinate.maximum
+                    };
+                    let (low, high) = view.interval_at(scale).ok_or_else(|| {
+                        invalid_surface("the endpoint bootstrap replicates give no interval")
+                    })?;
+                    sampling_lower.push(low);
+                    sampling_upper.push(high);
+                }
+                SamplingStatus::Reported(SamplingInterval {
+                    quantity: effect_wire.variable_id.clone(),
+                    level: view.level,
+                    method: view.method.clone(),
+                    composed: None,
+                    calibration: view.calibration.clone(),
+                    lower: sampling_lower,
+                    upper: sampling_upper,
+                })
+            }
+            None => SamplingStatus::Withheld {
+                reason_code: result.withheld_reason_code.clone(),
+                detail: result.withheld_detail.clone(),
+            },
+        };
         Self::new(SensitivityParts {
             coordinate,
             grid,
             support: vec![PointSupport::Supported; n],
-            quantities: vec![SurfaceQuantity {
-                quantity: ScientificQuantityWire::from(effect),
-                lower,
-                upper,
-            }],
+            quantities: vec![SurfaceQuantity { quantity: effect_wire, lower, upper }],
             actions,
             uncertainty: UncertaintyRelationship {
                 assumption_range: AssumptionRangeStatement {
@@ -1421,10 +1529,7 @@ impl SensitivityArtifact {
                     interpretation: result.interpretation,
                 },
                 identified_bound: None,
-                sampling: SamplingStatus::Withheld {
-                    reason_code: result.withheld_reason_code,
-                    detail: result.withheld_detail,
-                },
+                sampling,
             },
             provenance: SensitivityProvenance {
                 source_kind: JOINT_SOURCE_KIND.into(),

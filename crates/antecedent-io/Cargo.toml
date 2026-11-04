@@ -18,11 +18,11 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-kernels/development", "antecedent-contract/development", "antecedent-data/development", "antecedent-discovery/development", "antecedent-io-core/development", "antecedent-estimate/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-learn/development", "antecedent-model/development", "antecedent-prob/development", "antecedent-stats/development", "antecedent-validate/development"]
 default = []
-# Interval-bearing mz-transport artifact construction and its bit-for-bit
-# recompute, for the calibration harness and lifecycle tests only. Pass
-# `--features calibration-internal` to compile it. No released build carries it,
-# so no public route yields or accepts an interval.
+# Calibration-harness seams only (candidate observers used by the coverage studies).
+# Every interval route is compiled in every build; calibration is an annotation.
 calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-learn/calibration-internal"]
 
 # Hidden seams that seal and open artifact containers from raw parts, for the

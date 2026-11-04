@@ -997,13 +997,22 @@ fn opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic() {
 #[test]
 fn interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed() {
     let closed = antecedent_core::reason_code!("not_supported");
-    for (refusal, detail) in [
-        (refuse_interval(), "callback_protocol.interval_not_supported"),
-        (refuse_posterior_guarantee(), "callback_protocol.posterior_guarantee_not_supported"),
-        (refuse_native_trust(), "callback_protocol.native_trust_not_conferred"),
-        (refuse_identification_evidence(), "callback_protocol.identification_not_conferred"),
+    let insufficient = antecedent_core::reason_code!("uncertainty_representation_insufficient");
+    for (refusal, detail, expected) in [
+        (refuse_interval(), "callback_protocol.interval_not_supported", insufficient),
+        (
+            refuse_posterior_guarantee(),
+            "callback_protocol.posterior_guarantee_not_supported",
+            insufficient,
+        ),
+        (refuse_native_trust(), "callback_protocol.native_trust_not_conferred", closed),
+        (
+            refuse_identification_evidence(),
+            "callback_protocol.identification_not_conferred",
+            closed,
+        ),
     ] {
-        assert_eq!(refusal.code, closed);
+        assert_eq!(refusal.code, expected);
         assert_eq!(refusal.detail, detail);
         assert!(refusal.remedy.is_some());
         refusal.validate().expect("well-formed refusal");

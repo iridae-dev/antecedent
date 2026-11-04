@@ -258,12 +258,11 @@ fn fit_history_units(
     )
 }
 
-/// Closed whole-unit candidate: both effect arms use the same resampled units.
-/// This route is built only for the internal acceptance/calibration harness;
-/// its empirical interval has no calibrated coverage claim.
+/// Whole-unit interval of a paired sequence effect: both effect arms use the same resampled
+/// units. The interval carries a calibration annotation resolved from
+/// [`crate::temporal_dependent_interval::DependentInterval::calibration_basis`].
 /// # Errors
 /// Invalid configuration, insufficient units, cancellation or unsupported resampled histories.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn history_interval_candidate(
     panel: &TemporalUnitPanel,
@@ -303,7 +302,7 @@ pub fn history_interval_candidate(
     )
 }
 
-#[cfg(all(test, feature = "calibration-internal"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::temporal_dependent_interval::{DependentIntervalConfig, SequenceHistory};

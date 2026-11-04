@@ -19,8 +19,9 @@ crate-type = ["cdylib"]
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-contract/development", "antecedent-data/development", "antecedent/development", "antecedent-io/development", "antecedent-io-core/development", "antecedent-prob/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-design/development", "antecedent-model/development", "antecedent-attribution/development", "antecedent-state/development", "antecedent-stats/development", "antecedent-validate/development", "antecedent-discovery/development", "antecedent-estimate/development", "antecedent-learn/development", "antecedent-learn-burn?/development"]
 default = ["ml-full", "ml-neural"]
-calibration-internal = ["antecedent/calibration-internal", "antecedent-io/calibration-internal", "antecedent-estimate/calibration-internal", "antecedent-validate/calibration-internal"]
 ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]

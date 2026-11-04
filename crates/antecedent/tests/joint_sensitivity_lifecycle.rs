@@ -783,7 +783,19 @@ fn the_endpoint_bootstrap_interval_replays() {
     let (_, upper) = percentile_interval(&highs, 0.95).unwrap();
     assert_eq!(published.lower.to_bits(), lower.to_bits());
     assert_eq!(published.upper.to_bits(), upper.to_bits());
-    for (replicates, level) in [(198, 0.95), (1, 0.95), (2001, 0.95), (199, 0.9), (199, 1.0)] {
+    // Another level or a replicate count below the measured floor is reported, annotated as
+    // outside the measured scope; only counts the estimator cannot evaluate refuse.
+    for (replicates, level) in [(198, 0.95), (199, 0.9)] {
+        let reported = prepared
+            .joint_mechanism_sensitivity_interval(&deviation, replicates, level, &ctx)
+            .unwrap();
+        assert_ne!(
+            reported.calibration.status,
+            antecedent_io_core::contract_section::CalibrationStatus::Calibrated,
+            "replicates={replicates} level={level}"
+        );
+    }
+    for (replicates, level) in [(1, 0.95), (2001, 0.95), (199, 1.0)] {
         let error = prepared
             .joint_mechanism_sensitivity_interval(&deviation, replicates, level, &ctx)
             .unwrap_err();

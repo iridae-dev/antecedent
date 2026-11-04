@@ -5,10 +5,8 @@ use antecedent_estimate::nested_markov_binary::{
 };
 use antecedent_io::{IoError, nested_markov_artifact::NestedFisherArtifact};
 use pyo3::prelude::*;
-#[cfg(feature = "calibration-internal")]
 use pyo3::types::PyBytes;
 
-#[cfg(feature = "calibration-internal")]
 use antecedent_io::nested_markov_artifact::{NestedMarkovConsumeLimits, NestedMarkovExpectation};
 
 type RegimeTuple = (Option<Vec<usize>>, Vec<usize>, Vec<f64>);
@@ -40,14 +38,12 @@ fn error(e: IoError) -> PyErr {
     }
 }
 /// Opaque original candidate; only actual native producers/replay can construct it.
-#[cfg(feature = "calibration-internal")]
 #[pyclass(name = "NativeNestedFisherCandidate", frozen)]
 struct Candidate {
     artifact: NestedFisherArtifact,
     bytes: Vec<u8>,
     identity: String,
 }
-#[cfg(feature = "calibration-internal")]
 impl Candidate {
     fn from_artifact(artifact: NestedFisherArtifact) -> PyResult<Self> {
         let bytes = artifact.export().map_err(error)?;
@@ -56,7 +52,6 @@ impl Candidate {
     }
 }
 #[pymethods]
-#[cfg(feature = "calibration-internal")]
 impl Candidate {
     #[getter]
     fn identity(&self) -> &str {
@@ -69,7 +64,6 @@ impl Candidate {
         PyBytes::new(py, &self.bytes)
     }
 }
-#[cfg(feature = "calibration-internal")]
 #[pyfunction]
 #[allow(
     clippy::too_many_arguments,
@@ -94,7 +88,6 @@ fn nested_markov_fisher_candidate(
         )
     })
 }
-#[cfg(feature = "calibration-internal")]
 #[pyfunction]
 fn consume_nested_markov_fisher_candidate(
     py: Python<'_>,
@@ -155,11 +148,8 @@ fn nested_markov_fisher_measured(
     })
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    #[cfg(feature = "calibration-internal")]
     module.add_class::<Candidate>()?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(nested_markov_fisher_candidate, module)?)?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(consume_nested_markov_fisher_candidate, module)?)?;
     module.add_function(wrap_pyfunction!(nested_markov_fisher_measured, module)?)?;
     Ok(())

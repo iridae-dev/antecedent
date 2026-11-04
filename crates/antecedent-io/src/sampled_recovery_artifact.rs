@@ -717,7 +717,7 @@ impl SampledRecoveryArtifactWire {
             SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION
                 if self.required_features == [SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE]
                     && self.receipt.config.interval_method.as_deref() == Some("bootstrap_bca")
-                    && self.receipt.config.replicates == 2000
+                    && self.receipt.config.replicates >= 2
                     && self.receipt.config.max_failed_fraction == 0.0
                     && self.receipt.bca.as_ref().is_some_and(|b| {
                         b.convention == "midrank_exact_ties:type7:delete_one_row"

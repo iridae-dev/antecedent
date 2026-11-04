@@ -86,7 +86,7 @@ fn has_diagnostic(result: &StudyResult, code: &str) -> bool {
 }
 
 #[test]
-fn frequentist_counterfactual_bootstrap_is_an_unsupported_interval() {
+fn frequentist_counterfactual_bootstrap_publishes_its_interval() {
     let data = linear_table(600, 3);
     let point = counterfactual_study(data.clone(), 0).run(&ExecutionContext::for_tests(3)).unwrap();
     assert_eq!(point.support_status(), Some(CellStatus::Supported));
@@ -94,7 +94,7 @@ fn frequentist_counterfactual_bootstrap_is_an_unsupported_interval() {
 
     let result =
         counterfactual_study(data.clone(), 40).run(&ExecutionContext::for_tests(3)).unwrap();
-    assert_eq!(result.support_status(), Some(CellStatus::NotSupported));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     let effect = result.estimate().as_effect().unwrap();
     // The linear law's unit contrast is the slope.
     assert!((effect.ate - 2.0).abs() < 0.1, "mean ITE {}", effect.ate);
@@ -145,7 +145,7 @@ fn frequentist_attribution_bootstraps_publish_unsupported_standard_errors() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    assert_eq!(anomaly.support_status(), Some(CellStatus::NotSupported));
+    assert_eq!(anomaly.support_status(), Some(CellStatus::Supported));
     // Known truth: `y` is Gaussian, so against its median / 1.4826·MAD reference the
     // two-sided tail probability is uniform and the score `-ln p` is Exp(1): mean 1.
     let mean_score = anomaly.estimate().as_effect().unwrap().ate;
@@ -180,7 +180,7 @@ fn frequentist_attribution_bootstraps_publish_unsupported_standard_errors() {
         .unwrap()
         .run(&ExecutionContext::for_tests(11))
         .unwrap();
-    assert_eq!(change.support_status(), Some(CellStatus::NotSupported));
+    assert_eq!(change.support_status(), Some(CellStatus::Supported));
     let total = change.estimate().as_effect().unwrap().ate;
     assert!((total - 3.0).abs() < 0.3, "total change {total}");
     assert!(bootstrap_se(&change).is_some_and(|se| se > 0.0));

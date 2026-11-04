@@ -259,7 +259,7 @@ fn a_spread_of_unpaired_draws_or_on_a_mismatched_route_is_refused() {
 // ------------------------------------------------------------------ interval
 
 #[test]
-fn a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() {
+fn a_composed_interval_is_reported_with_its_calibration_at_its_coordinate() {
     let (x, y) = pair("snap-enum", 1);
     let claim = propagate_aligned_linear_spread(
         PropagationOperation::Contrast,
@@ -279,35 +279,40 @@ fn a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() {
     assert_eq!(&*basis.estimator, "joint_law.aligned_joint_law");
     assert_eq!(basis.row_count, 200);
 
-    // Inside the measured scope (a normal approximation of a linear contrast of aligned
-    // draws, from 200 observations) the interval is bound to its attesting record. Mean -0.7,
-    // variance 1.61, z(0.975) = 1.959964.
-    let support = claim.check_composed_interval("normal_approximation", 200).expect("supported");
+    // The normal approximation of a linear contrast of aligned draws is built from the
+    // claim's mean -0.7 and variance 1.61 (independent closed form): z(0.975) = 1.959964.
+    let support = claim.check_composed_interval("normal_approximation", 200).expect("interval");
     assert_eq!(support.label(), "measured_interval");
-    assert!(support.record_id().starts_with("cov.composed_quantity."));
     assert!((support.nominal_level() - 0.95).abs() < 1e-12);
     let half = 1.959_963_984_540_054 * 1.61_f64.sqrt();
     let (lower, upper) = support.bounds().expect("bounds");
     assert!((lower - (-0.7 - half)).abs() < 1e-6, "lower {lower}");
     assert!((upper - (-0.7 + half)).abs() < 1e-6, "upper {upper}");
+    // Calibration annotates: a record under the composed coordinate resolves, else the
+    // interval is reported with the status that names why not.
+    if let Some(id) = support.record_id() {
+        assert!(id.starts_with("cov.composed_quantity."));
+    }
 
-    // Below the measured size, or with a construction that was not measured, it is closed.
-    let error = claim.check_composed_interval("normal_approximation", 100).expect_err("size");
-    assert_eq!(error.code(), "not_supported");
-    assert_eq!(error.details(), vec!["joint_law_propagation.coverage_record_unmeasured"]);
-    let error = claim
+    // Below the measured size the interval is still reported, annotated as not calibrated
+    // there; a construction without draws in the claim reports its status without bounds.
+    let small = claim.check_composed_interval("normal_approximation", 100).expect("small");
+    assert!(small.bounds().is_some());
+    assert_ne!(
+        small.calibration().status,
+        antecedent_io::contract_section::CalibrationStatus::Calibrated
+    );
+    let other = claim
         .check_composed_interval("aligned_draw_equal_tail_exchangeable_rank", 200)
-        .expect_err("construction");
-    assert_eq!(error.code(), "not_supported");
-    assert_eq!(error.details(), vec!["joint_law_propagation.interval_route_closed"]);
+        .expect("construction");
+    assert!(other.bounds().is_none());
     let error = claim.check_composed_interval("normal_approximation", 0).expect_err("rows");
     assert_eq!(error.code(), "invalid_argument");
 
-    // The component-interval readings stay closed.
-    assert_eq!(
-        claim.interval().expect_err("closed").details(),
-        vec!["joint_law_propagation.interval_route_closed"]
-    );
+    // An interval of the whole composition without a named construction is refused.
+    let refusal = claim.interval().expect_err("unqualified");
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
+    assert_eq!(refusal.details(), vec!["joint_law_propagation.interval_route_closed"]);
 }
 
 #[test]

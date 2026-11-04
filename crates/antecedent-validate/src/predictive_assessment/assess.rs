@@ -458,7 +458,8 @@ impl PredictiveAssessmentReport {
     /// [`super::expected_score_interval`].
     ///
     /// # Errors
-    /// Always `not_supported` with `predictive_assessment.interval_not_supported`.
+    /// Always `quantity_semantics_mismatch` with `predictive_assessment.interval_not_supported`:
+    /// the request names no predictor, score or level.
     pub fn request_score_interval(&self) -> Result<Infallible, PredictiveAssessmentError> {
         Err(interval_refusal())
     }
@@ -494,7 +495,7 @@ impl PredictiveAssessmentReport {
 
 pub(crate) fn interval_refusal() -> PredictiveAssessmentError {
     refuse(
-        reason_code!("not_supported"),
+        reason_code!("quantity_semantics_mismatch"),
         detail::INTERVAL_NOT_SUPPORTED,
         "the report states point scores, paired differences and the Diebold-Mariano style \
          statistic as diagnostics and carries no interval. An interval is a statement about \

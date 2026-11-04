@@ -929,7 +929,6 @@ class CategoricalPosteriorCandidateSource:
     expectation: bytes
 
 
-
 class PreparedCategoricalPosteriorCandidate:
     """A retained compiler candidate for the conjugate categorical model.
 

@@ -95,7 +95,7 @@ def test_a_linear_gaussian_composition_supplies_a_replayed_point_per_action() ->
     assert origin.kind == "composed_mechanism"
     assert origin.representation == "point_only"
     assert not origin.transported
-    assert origin.interval_region == "not_supported"
+    assert origin.interval_region == "uncertainty_representation_insufficient"
     # Every mechanism of the chain was written down, not estimated.
     assert set(origin.assumed_mechanisms) == {"X", "M", "Y"}
 
@@ -145,7 +145,7 @@ def test_a_point_composition_refuses_laws_intervals_and_the_wrong_family() -> No
             source.evaluate(query(arms, [iq.target_mean(5.0)]), interval_region=True)
         )
     )
-    assert interval.reason_code == "not_supported"
+    assert interval.reason_code == "uncertainty_representation_insufficient"
     assert interval.detail == "inverse_forward_source.interval_not_supported"
 
     # A finite-distribution query of a linear-Gaussian composition is refused by the composition.

@@ -1,10 +1,12 @@
 //! The delta-method Wald interval of a sampled counterfactual transport estimate
 //! and the calibration basis it is attested against.
 //!
-//! The interval is `estimate +/- z * se` clamped to `[0, 1]`. It is a candidate
-//! construction: a caller may report it as calibrated only when the basis built
-//! here resolves to a currently attesting coverage record. Scope outside the
-//! measured design is refused with a stable reason instead of being reported.
+//! The interval is `estimate +/- z * se` clamped to `[0, 1]`. It is always reported when the
+//! point and standard error exist; its calibration status is an annotation resolved from the
+//! basis built here. A design the coverage records did not measure (another level, smoothed
+//! tables, an unseen-cell rule, low conditioning mass, unequal totals) names itself in the
+//! basis, so no record matches it and the annotation is `not_measured` or
+//! `outside_measured_scope` rather than the interval being withheld.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,7 +16,7 @@ use std::sync::Arc;
 use antecedent_core::CalibrationBasis;
 use antecedent_identify::CounterfactualTransportDerivation;
 
-use super::{LABEL_PLUG_IN, SampledCounterfactualTransportEstimate, UnseenCellRule};
+use super::{SampledCounterfactualTransportEstimate, UnseenCellRule};
 
 /// Nominal level of the measured construction.
 pub const SAMPLED_TRANSPORT_INTERVAL_LEVEL: f64 = 0.95;
@@ -29,16 +31,38 @@ pub const SAMPLED_TRANSPORT_ESTIMATOR: &str = "sampled_counterfactual_transport"
 
 /// Dependence structure of the evidence the interval was built from. Only independent
 /// units were measured; any other design names itself, so no coverage record attests it.
-fn design_dependence(estimate: &SampledCounterfactualTransportEstimate) -> &'static str {
+fn design_dependence(estimate: &SampledCounterfactualTransportEstimate) -> String {
     let stratified = estimate.tables.iter().any(|t| t.stratified);
     let datasets: BTreeSet<usize> = estimate.tables.iter().map(|t| t.dataset).collect();
     let shared = datasets.len() < estimate.tables.len();
-    match (stratified, shared) {
+    let mut name = String::from(match (stratified, shared) {
         (false, false) => "independent_units",
         (true, false) => "stratified_fixed_totals",
         (false, true) => "shared_dataset",
         (true, true) => "stratified_shared_dataset",
+    });
+    // Unmeasured designs name themselves so that no coverage record matches them.
+    let low_mass = estimate
+        .point
+        .as_ref()
+        .and_then(|p| p.conditioning_mass)
+        .is_some_and(|m| m < SAMPLED_TRANSPORT_MIN_CONDITIONING_MASS);
+    let unequal_totals = estimate.tables.iter().map(|t| t.total).min()
+        != estimate.tables.iter().map(|t| t.total).max();
+    let smoothed = estimate.tables.iter().any(|t| t.smoothed || t.unseen_cells > 0)
+        || estimate.point.as_ref().is_some_and(|p| p.smoothed)
+        || estimate.unseen_rule != UnseenCellRule::Refuse;
+    for (flag, tag) in [
+        (low_mass, "low_conditioning_mass"),
+        (unequal_totals, "unequal_table_totals"),
+        (smoothed, "unseen_cells_or_smoothed"),
+    ] {
+        if flag {
+            name.push('+');
+            name.push_str(tag);
+        }
     }
+    name
 }
 
 /// A clamped delta Wald interval with the basis that governs its calibration.
@@ -63,16 +87,15 @@ pub struct SampledTransportInterval {
 ///
 /// # Errors
 ///
-/// A level other than the measured one, no point or standard error, an
-/// envelope or smoothed estimate, an unseen-cell rule other than refusal,
-/// conditioning mass below the measured floor, or unequal table totals.
+/// A level outside `(0, 1)`, no point or standard error (an envelope has no single point), or
+/// no tables.
 pub fn sampled_transport_interval(
     derivation: &CounterfactualTransportDerivation,
     estimate: &SampledCounterfactualTransportEstimate,
     level: f64,
 ) -> Result<SampledTransportInterval, &'static str> {
-    if level.to_bits() != SAMPLED_TRANSPORT_INTERVAL_LEVEL.to_bits() {
-        return Err("level_not_measured");
+    if !(level > 0.0 && level < 1.0) {
+        return Err("invalid_interval_level");
     }
     let Some(point) = &estimate.point else {
         return Err("no_point_estimate");
@@ -83,28 +106,10 @@ pub fn sampled_transport_interval(
             .standard_error_withheld_reason
             .unwrap_or("no_standard_error"));
     };
-    if estimate.envelope.is_some()
-        || point.smoothed
-        || estimate.labels.point_estimate != LABEL_PLUG_IN
-    {
-        return Err("smoothed_or_envelope_not_measured");
-    }
-    if estimate.unseen_rule != UnseenCellRule::Refuse
-        || estimate.tables.iter().any(|t| t.smoothed || t.unseen_cells > 0)
-    {
-        return Err("unseen_cell_rule_not_measured");
-    }
-    if point.conditioning_mass.is_some_and(|m| m < SAMPLED_TRANSPORT_MIN_CONDITIONING_MASS) {
-        return Err("conditioning_mass_below_measured");
-    }
     let low = estimate.tables.iter().map(|t| t.total).min();
-    let high = estimate.tables.iter().map(|t| t.total).max();
-    let (Some(low), Some(high)) = (low, high) else {
+    let Some(low) = low else {
         return Err("no_tables");
     };
-    if low != high {
-        return Err("unequal_table_totals_not_measured");
-    }
     let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
     let functional = derivation.query.canonical_text();
     let basis = CalibrationBasis::new(
@@ -117,7 +122,7 @@ pub fn sampled_transport_interval(
             SAMPLED_TRANSPORT_ESTIMATOR,
             SAMPLED_TRANSPORT_INTERVAL_METHOD,
             SAMPLED_TRANSPORT_SE_KIND,
-            design_dependence(estimate),
+            design_dependence(estimate).as_str(),
             "",
             functional.as_str(),
         ]

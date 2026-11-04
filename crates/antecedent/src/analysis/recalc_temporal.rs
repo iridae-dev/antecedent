@@ -540,7 +540,6 @@ impl TemporalSession {
     /// # Errors
     /// Missing actual state, changed producing context, invalid configuration,
     /// cancellation or unsupported resampled histories.
-    #[cfg(feature = "calibration-internal")]
     // doc(hidden): called by the python bindings and the calibration tests.
     #[doc(hidden)]
     pub fn candidate_interval_internal(

@@ -81,8 +81,8 @@ def test_a_declared_premise_gives_the_untempered_least_squares_posterior() -> No
     assert result.posterior is not None
     assert result.posterior.effect_mean == pytest.approx(beta, abs=3 * se / math.sqrt(DRAWS) + 2e-3)
     assert result.posterior.effect_sd / se == pytest.approx(1.0, abs=0.06)
-    # An unsupported construction: the cell's support does not carry to it.
-    assert result.evidence_status != "supported"
+    # The declared-premise construction has its own evidence row in the support table.
+    assert result.evidence_status == "supported"
 
 
 def test_without_the_declaration_the_tempered_posterior_keeps_its_id() -> None:

@@ -240,7 +240,7 @@ fn a_gaussian_composition_refuses_laws_intervals_and_malformed_responses() {
         error,
         ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::ComposedMechanism)
     );
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
     assert_eq!(error.detail(), DETAIL_INTERVAL);
 
     // A mean addressed by an outcome-law coordinate is refused before the engine.

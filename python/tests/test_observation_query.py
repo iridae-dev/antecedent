@@ -397,11 +397,11 @@ def test_interval_and_calibrated_probability_are_closed():
     claim = oq.condition_on(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
-    assert interval.value.reason_code == "not_supported"
+    assert interval.value.reason_code == "uncertainty_representation_insufficient"
     assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
     with pytest.raises(ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
-    assert calibrated.value.reason_code == "not_supported"
+    assert calibrated.value.reason_code == "uncertainty_representation_insufficient"
     assert calibrated.value.detail == "observation_query.calibrated_probability_closed"
     fitted = oq.conjugate_posterior(1.0, 1.0, successes=1, failures=1, basis="sample_fitted")
     with pytest.raises(ObservationQueryRefusal):
@@ -515,6 +515,14 @@ def test_a_refreshed_composition_gives_a_new_claim_and_leaves_the_earlier_one():
 # ------------------------------------------------------------------ count-fitted tables
 
 
+CALIBRATION_STATUSES = (
+    "calibrated",
+    "outside_measured_scope",
+    "measured_below_nominal",
+    "not_measured",
+)
+
+
 def _count_fitted(**extra):
     return oq.count_fitted_observation(
         {"Z": ["0", "1"], "Y": ["0", "1"]},
@@ -537,32 +545,32 @@ def test_count_fitted_draw_count_is_supported_from_the_minimum():
     for draws in (2000, 3000, 8000):
         claim = _count_fitted(draws=draws)
         assert abs(claim.point - 31.0 / 42.0) < 1e-12
-        try:
-            claim.interval(level=0.95)
-        except ObservationQueryRefusal as refusal:
-            assert refusal.detail == "measured_inference.record_not_attesting"
-    for draws in (1999, 100_001):
-        with pytest.raises(ObservationQueryRefusal) as refused:
-            _count_fitted(draws=draws)
-        assert refused.value.reason_code == "not_supported"
+        scalar = claim.interval(level=0.95).scalars[0]
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    # Fewer draws than the measured minimum are computed; calibration annotates, never gates.
+    fewer = _count_fitted(draws=1999).interval(level=0.95).scalars[0]
+    assert fewer.interval[0] <= fewer.point <= fewer.interval[1]
+    assert fewer.calibration in CALIBRATION_STATUSES
+    # Above the estimator's draw bound the construction is refused.
+    with pytest.raises(ObservationQueryRefusal) as refused:
+        _count_fitted(draws=100_001)
+    assert refused.value.reason_code == "not_supported"
 
 
-def test_count_fitted_interval_is_measured_or_a_typed_refusal():
+def test_count_fitted_interval_is_reported_with_its_calibration_status():
     claim = _count_fitted()
-    try:
-        measured = claim.interval(level=0.95)
-    except ObservationQueryRefusal as refusal:
-        assert refusal.reason_code == "not_supported"
-        assert refusal.detail in (
-            "measured_inference.record_not_attesting",
-            "measured_interval.protocol_not_measured",
-        )
-    else:
-        scalar = measured.scalars[0]
-        assert scalar.lower <= scalar.point <= scalar.upper
-    with pytest.raises(ObservationQueryRefusal) as unmeasured:
-        claim.interval(level=0.5)
-    assert unmeasured.value.reason_code == "not_supported"
+    scalar = claim.interval(level=0.95).scalars[0]
+    assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    assert scalar.calibration in (
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    )
+    # A level the grid did not measure is computed and annotated, never withheld.
+    unmeasured = claim.interval(level=0.5).scalars[0]
+    assert unmeasured.interval[0] <= unmeasured.point <= unmeasured.interval[1]
+    assert unmeasured.calibration in CALIBRATION_STATUSES
 
 
 def test_a_declared_model_interval_has_no_sampling_distribution():
@@ -742,17 +750,24 @@ def test_dirichlet_redraw_returns_aligned_draws_around_the_posterior_mean():
     assert again.parameter_draws.values == aligned.values
 
 
-def test_an_interval_of_redrawn_parameters_needs_a_measured_coverage_record():
+def test_an_interval_of_redrawn_parameters_is_reported_with_its_calibration_status():
     claim = oq.parameter_uncertainty(
         confounded(), "Y", given={"S": "1"}, retained=counts_for_confounded(), draws=500
     )
-    with pytest.raises(ObservationQueryRefusal) as caught:
-        claim.parameter_interval(
-            "probability:1", "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
-        )
-    assert caught.value.reason_code == "not_supported"
-    with pytest.raises(ObservationQueryRefusal):
+    interval = claim.parameter_interval(
+        "probability:1", "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
+    )
+    assert interval.bounds is not None
+    lower, upper = interval.bounds
+    assert lower <= upper
+    mean, _ = require_success(claim.parameter_draws.spread("probability:1"))
+    assert lower <= mean <= upper
+    # No coverage record attests this coordinate, so the interval is annotated, not withheld.
+    assert interval.calibration["status"] in CALIBRATION_STATUSES
+    assert interval.calibration["status"] != "calibrated"
+    with pytest.raises(ObservationQueryRefusal) as closed:
         claim.interval()
+    assert closed.value.reason_code == "uncertainty_representation_insufficient"
 
 
 def test_a_regression_redraw_spreads_around_the_declared_structural_equation():

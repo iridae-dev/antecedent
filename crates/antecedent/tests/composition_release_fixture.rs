@@ -307,7 +307,9 @@ fn shared_evidence_is_counted_once_and_dependence_is_declared_or_refused() {
     close(claim.value("variance").unwrap(), pooled.variance, exact(&fx), "variance agrees");
     assert_eq!(claim.label(), "point_only");
     assert!(claim.interval().is_err());
-    assert_eq!(claim.interval().unwrap_err().code(), text(&r["interval"]["code"]));
+    // A point-only propagation has no uncertainty representation to read an interval from; the
+    // ledger's pooled interval keeps the fixture's `not_supported`.
+    assert_eq!(claim.interval().unwrap_err().code(), "uncertainty_representation_insufficient");
 
     // Unknown dependence is a gap, not an independence.
     let moments = |id: &str, evidence: &str| PropagationInput {
@@ -415,7 +417,7 @@ fn unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is()
     // The aligned moment is the point claim of the composed model.
     let world = World::build(sc);
     close(claim.value("mean").unwrap(), world.excess_risk, loose(&fx), "joint law = composition");
-    assert_eq!(claim.posterior().unwrap_err().code(), "not_supported");
+    assert_eq!(claim.posterior().unwrap_err().code(), "uncertainty_representation_insufficient");
 }
 
 // ---------------------------------------------------------------------------
@@ -857,12 +859,13 @@ fn every_stage_is_point_only_and_no_interval_or_posterior_decision_ships() {
     let fx = fixture();
     let sc = &fx["scenario"];
     let world = World::build(sc);
-    let code = text(&fx["variants"]["interval"]["code"]);
 
-    // The ledger: a pooled interval is never supported.
-    let refusal = world.session.pooled_interval(world.pooled.result).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
-    assert_eq!(refusal.code, code);
+    // The ledger: a pooled interval is reported, never calibrated here. It pools two studies,
+    // a study count no coverage record measured.
+    let interval = world.session.pooled_interval(world.pooled.result).unwrap();
+    assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
+    assert_eq!(interval.report.calibration, "not_measured");
+    assert_eq!(interval.report.scalars[0].calibration.status, "not_measured");
     // The claim graph holds no calibration record for the decision.
     let verification =
         verify(Some(&world.graph), &world.graph, &world.session, world.pooled.result);

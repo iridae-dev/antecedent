@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-kernels/development"]
 default = ["arrow"]
 arrow = [
     "dep:arrow-array",

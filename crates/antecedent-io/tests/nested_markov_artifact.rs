@@ -219,7 +219,7 @@ fn nested_fit_replay_exact_counts_replay_value_for_value_against_the_scm() {
     // Three separate status fields; calibration unmeasured; no interval anywhere.
     assert_eq!(loaded.receipt.status.identification, "nonparametrically_identified");
     assert_eq!(loaded.receipt.status.likelihood_fit, "converged_constraints_satisfied");
-    assert_eq!(loaded.receipt.status.inference, "interval_withheld_calibration_unmeasured");
+    assert_eq!(loaded.receipt.status.inference, "interval_candidates_calibration_annotated");
     assert_eq!(loaded.calibration, "unmeasured");
     assert_ne!(loaded.premises_digest, loaded.data_digest);
 }
@@ -343,7 +343,7 @@ fn nested_fit_replay_refuses_an_unknown_version_foreign_feature_and_claim() {
     interval.receipt.status.inference = "interval_published".into();
     assert!(matches!(
         NestedMarkovArtifactWire::decode(&interval.export().expect("export")),
-        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: this pilot publishes no interval"
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: this pilot artifact publishes the fit and point contrast only"
     ));
 }
 

@@ -699,21 +699,6 @@ macro_rules! frequentist {
         })
     };
 }
-macro_rules! bayesian {
-    ($name:literal) => {
-        Err(CausalError::Unsupported {
-            message: concat!(
-                "reason",
-                "=estimator_inference_mismatch: estimator ",
-                $name,
-                " is Bayesian, so it does not run under inference=Frequentist. Omit \
-                 estimator= to use the Frequentist estimator, or use inference=Bayesian to \
-                 run ",
-                $name
-            ),
-        })
-    };
-}
 
 /// Whether an omitted replicate count is a real resampling budget for this route.
 ///
@@ -748,63 +733,14 @@ pub(super) fn refuse_estimator_inference_mismatch(
 }
 
 /// Refuses a Bayesian-only estimator selected under Frequentist inference.
+///
+/// Which estimators are Bayesian-only is their declared target
+/// ([`crate::strategy_table::EstimatorTarget::inference`]).
 fn refuse_bayesian_estimator_under_frequentist(estimator: EstimatorId) -> Result<(), CausalError> {
-    match estimator {
-        EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
-        EstimatorId::BayesianBasisGcomp => bayesian!("bayesian.basis.gcomp"),
-        EstimatorId::BayesianIvJointLinear => bayesian!("iv.bayesian_joint_linear"),
-        EstimatorId::BayesianRdLocalLinear => bayesian!("rd.bayesian_local_linear"),
-        EstimatorId::BayesianRobustAte => bayesian!("bayesian.robust_ate"),
-        EstimatorId::BayesianPanelDid => bayesian!("bayesian.panel_did"),
-        EstimatorId::BayesianSyntheticControl => bayesian!("bayesian.synthetic_control"),
-        EstimatorId::BayesianLocalRatio => bayesian!("bayesian.local_ratio"),
-        EstimatorId::BayesianPiecewiseSurvival => bayesian!("bayesian.piecewise_survival"),
-        EstimatorId::BayesianRandomizedQuantile => bayesian!("bayesian.randomized_quantile"),
-        EstimatorId::BayesianDosePolicy => bayesian!("bayesian.continuous_dose_policy"),
-        EstimatorId::BayesianRandomizedFinitePopulation => {
-            bayesian!("bayesian.randomized_finite_population")
-        }
-        EstimatorId::BayesianRandomizedSuperpopulation => {
-            bayesian!("bayesian.randomized_superpopulation")
-        }
-        EstimatorId::BayesianSwitchback => bayesian!("bayesian.switchback_effect"),
-        EstimatorId::BayesianComplierEffect => bayesian!("bayesian.complier_effect"),
-        EstimatorId::BayesianBinaryPolicyValue => bayesian!("bayesian.binary_policy_value"),
-        EstimatorId::BayesianSequentialRegimeValue => {
-            bayesian!("bayesian.sequential_regime_value")
-        }
-        EstimatorId::BayesianSequentialCrossfitContrast => {
-            bayesian!("bayesian.sequential_crossfit_contrast")
-        }
-        EstimatorId::BayesianPeriodHistoryOutcomeModel => {
-            bayesian!("bayesian.period_history_outcome_model")
-        }
-        EstimatorId::BayesianTemporalDesignExcursion => {
-            bayesian!("bayesian.temporal_design.excursion")
-        }
-        EstimatorId::BayesianIvBounds => bayesian!("bayesian.iv_bounds.endpoint_bootstrap"),
-        EstimatorId::BayesianTemporalRegimeSurvival => {
-            bayesian!("bayesian.temporal_design.regime_survival")
-        }
-        EstimatorId::TransportTrialBayesianBootstrap => {
-            bayesian!("transport.trial_bayesian_bootstrap")
-        }
-        EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
-        EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
-        EstimatorId::BayesianTemporalWhiteInnovation => {
-            bayesian!("bayesian.temporal.white_innovation_linear")
-        }
-        EstimatorId::BayesianTemporalGlmLinkContrast => {
-            bayesian!("bayesian.temporal.glm_link_contrast")
-        }
-        EstimatorId::BayesianTemporalLaggedInstrument => {
-            bayesian!("bayesian.temporal.lagged_instrument")
-        }
-        EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
-        EstimatorId::ResponseBayesian => bayesian!("response.bayesian"),
-        EstimatorId::BayesianTemporalMediation => bayesian!("temporal.mediation.bayesian"),
-        _ => Ok(()),
+    if estimator.target().inference == crate::strategy_table::InferenceTarget::Bayesian {
+        return Err(crate::strategy_table::inference_mismatch(estimator, false).into());
     }
+    Ok(())
 }
 
 /// Refuses a Frequentist-only estimator selected under Bayesian inference.

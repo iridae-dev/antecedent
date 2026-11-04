@@ -13,7 +13,6 @@ from antecedent.errors import (
     CausalCancelledError,
     CausalError,
     CausalResourceError,
-    CausalUnsupportedError,
 )
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
@@ -97,24 +96,24 @@ print(json.dumps(r.inspect(),sort_keys=True))
         )
 
 
+def _annotated_not_calibrated(result):
+    assert isinstance(result, MeasuredInference)
+    assert [scalar.name for scalar in result.scalars] == ["mean0", "mean1", "contrast"]
+    for scalar in result.scalars:
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+        assert scalar.calibration != "calibrated"
+
+
 @pytest.mark.parametrize("bayesian", [False, True])
-def test_normal_nested_unmeasured_protocol_refusals_are_not_candidate_successes(bayesian):
+def test_normal_nested_unmeasured_protocols_are_annotated_not_calibrated(bayesian):
+    # A protocol, prior or level the grid did not measure is computed and annotated; it never
+    # borrows the calibration of the measured protocol.
     for kwargs in ({"max_iterations": 49999}, {"tolerance": 2e-11}):
-        with pytest.raises(CausalUnsupportedError, match="nested_markov.measured_scope") as caught:
-            produce(bayesian, **kwargs)
-        assert caught.value.reason_code == "not_supported"
-        assert "only the measured default constrained-likelihood fitting protocol" in str(
-            caught.value
-        )
+        _annotated_not_calibrated(produce(bayesian, **kwargs))
     if bayesian:
-        with pytest.raises(CausalUnsupportedError, match="nested_markov.measured_scope") as caught:
-            produce(True, shape=3)
-        assert caught.value.reason_code == "not_supported"
-        assert "only uniform eleven-coordinate Beta(1,1) or Beta(2,2) priors" in str(caught.value)
+        _annotated_not_calibrated(produce(True, shape=3))
     else:
-        with pytest.raises(CausalUnsupportedError, match="only nominal level 0.95") as caught:
-            produce(False, nominal_level=0.90)
-        assert caught.value.reason_code == "not_supported"
+        _annotated_not_calibrated(produce(False, nominal_level=0.90))
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):

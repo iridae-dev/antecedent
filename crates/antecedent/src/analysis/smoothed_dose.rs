@@ -8,12 +8,11 @@
 //! certificate. The result is the grid of points with their quadrature, smoothing-bias
 //! and support records and the interval status.
 //!
-//! The interval route is registered closed (`not_supported`) until its coverage
-//! records are measured: an estimate reports the interval withheld, and
-//! [`PreparedSmoothedDose::interval`] refuses. The internal estimator the calibration
-//! harness measures is `antecedent_estimate::smoothed_dose_interval_internal`, compiled
-//! only under the `calibration-internal` feature that the facade's dev-dependencies
-//! enable.
+//! [`PreparedSmoothedDose::interval`] reports the pointwise joint outer-refit
+//! percentile-bootstrap interval of `antecedent_estimate::smoothed_dose_interval_internal`
+//! with the calibration slot of the smoothed-dose coverage records; calibration annotates
+//! the interval and never withholds it. A replicate that fails withholds every interval
+//! for that stated reason.
 use super::StudyBuilder;
 use super::transport_common::{err, estimate_err};
 use antecedent_core::{ExecutionContext, SmoothedDoseTransportQuery};
@@ -38,6 +37,46 @@ pub struct PreparedSmoothedDose {
     variable_names: Vec<String>,
     seed: u64,
     zero_weight_rows: u64,
+}
+
+/// The pointwise bootstrap interval of a smoothed dose-response grid with its calibration.
+#[derive(Clone, Debug)]
+pub struct SmoothedDoseInterval {
+    run: antecedent_estimate::SmoothedDoseIntervalRun,
+    calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
+}
+
+impl SmoothedDoseInterval {
+    /// The point run the interval is built around.
+    #[must_use]
+    pub const fn point(&self) -> &SmoothedDoseEstimate {
+        &self.run.point
+    }
+
+    /// Pointwise percentile interval per grid dose; `None` for every dose when a replicate
+    /// failed (see [`Self::uncertainty_reason`]).
+    #[must_use]
+    pub fn intervals(&self) -> &[Option<(f64, f64)>] {
+        &self.run.intervals
+    }
+
+    /// Why no interval was produced, when none was.
+    #[must_use]
+    pub fn uncertainty_reason(&self) -> Option<&str> {
+        self.run.uncertainty_reason.as_deref()
+    }
+
+    /// Successful replicate estimates, one per grid dose, in replicate order.
+    #[must_use]
+    pub fn replicates(&self) -> &[(u32, Vec<f64>)] {
+        &self.run.replicates
+    }
+
+    /// Calibration of the reported interval.
+    #[must_use]
+    pub const fn calibration(&self) -> &antecedent_io_core::contract_section::CalibrationSlotWire {
+        &self.calibration
+    }
 }
 
 /// One execution: the verified artifact wire that carries the grid and its evidence.
@@ -201,15 +240,61 @@ impl PreparedSmoothedDose {
         Ok(SmoothedDoseResult { wire, identity })
     }
 
-    /// The closed interval route: the point is retained by [`Self::estimate`] and the
-    /// interval is withheld until this cell's coverage records are measured.
+    /// The pointwise joint outer-refit percentile-bootstrap interval of the grid, built
+    /// on the frozen seed, with its calibration slot.
     ///
     /// # Errors
-    /// Always `not_supported` (`dose_response.interval_withheld`), or cancellation.
-    pub fn interval(&self, ctx: &ExecutionContext) -> Result<SmoothedDoseResult, IoError> {
+    /// The refusals of the estimate, a bootstrap below the replicate floor
+    /// (`dose_response.bootstrap_below_floor`), a workspace above the memory cap, or
+    /// cancellation.
+    pub fn interval(&self, ctx: &ExecutionContext) -> Result<SmoothedDoseInterval, IoError> {
         antecedent_estimate::refuse_cancelled(ctx, "smoothed dose interval")
             .map_err(estimate_err)?;
-        Err(estimate_err(antecedent_estimate::smoothed_dose::refuse_smoothed_dose_interval()))
+        let mut ctx = ctx.clone();
+        ctx.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        let run = antecedent_estimate::smoothed_dose_interval_internal(
+            &self.identification,
+            &self.query,
+            &self.input,
+            &self.options,
+            &ctx,
+        )
+        .map_err(estimate_err)?;
+        let calibration = if run.intervals.iter().all(Option::is_some) && !run.intervals.is_empty()
+        {
+            use antecedent_io_core::calibration::{
+                CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+            };
+            calibration_slot(&CalibrationBasisWire {
+                key: CalibrationKeyWire {
+                    validation: "not_applicable".into(),
+                    query: "ClassicalTransport".into(),
+                    graph_class: "Admg".into(),
+                    structure: "fixed".into(),
+                    modality: "tabular".into(),
+                    inference: "Frequentist".into(),
+                    estimator: "transport.smoothed_dose_transport_aipw".into(),
+                    interval_method: "percentile_bootstrap".into(),
+                    se_kind: "percentile".into(),
+                    dependence: "iid".into(),
+                    posterior: String::new(),
+                    functional: "smoothed_dose_response".into(),
+                    level: self.options.coverage_level,
+                    identification: "point".into(),
+                },
+                scope: CalibrationScopeWire {
+                    row_count: self.input.outcome.len() as u64,
+                    replicates_ok: Some(u32::try_from(run.replicates.len()).unwrap_or(u32::MAX)),
+                    posterior_draws: None,
+                    unidentified_mass: 0.0,
+                },
+            })
+        } else {
+            antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+                antecedent_io_core::calibration::NO_INTERVAL_REPORTED,
+            )
+        };
+        Ok(SmoothedDoseInterval { run, calibration })
     }
 
     /// Replace the rows with a compatible snapshot after validation; the certificate,

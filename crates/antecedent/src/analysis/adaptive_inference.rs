@@ -212,17 +212,17 @@ impl AdaptiveInferenceSession {
     /// whole procedure without naming a result.
     ///
     /// # Errors
-    /// Always `not_supported`: a coverage statement belongs to one
-    /// measured procedure cell and one named result, so the unqualified request
-    /// is refused. Ask for a result's interval with
+    /// Always `quantity_semantics_mismatch`: a coverage statement belongs to one
+    /// procedure cell and one named result, so an interval of the whole procedure
+    /// names no scientific quantity and is refused. Ask for a result's interval with
     /// [`Self::measured_interval`]; a guarantee for components never supports
     /// their pairing.
     pub fn interval(&self) -> Result<(), AdaptiveInferenceRefusal> {
         Err(AdaptiveInferenceRefusal {
-            code: antecedent_core::reason_code!("not_supported"),
+            code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
             detail: "adaptive_inference.interval_closed".to_owned(),
             message: format!(
-                "no interval, credible interval or coverage statement is supported for the procedure {} as an unqualified request: a coverage statement belongs to one measured procedure cell and one named result; request the interval of a result with measured_interval, which is supported only for the measured cells and refuses every other procedure; the point values and uncalibrated diagnostics are the result",
+                "an interval, credible interval or coverage statement of the procedure {} as an unqualified request names no scientific quantity: an interval belongs to one named result; request the interval of a result with measured_interval, which reports it with its calibration status; the point values and uncalibrated diagnostics are the result",
                 self.contract.cell().identifier()
             ),
         })

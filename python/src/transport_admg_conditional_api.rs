@@ -423,7 +423,7 @@ impl AdmgConditionalTransportStage {
     ) -> PyResult<PreparedAdmgConditionalTransportStage> {
         Err(crate::refusal(
             antecedent_core::reason_code!("not_supported"),
-            "admg_transport.interval_withheld: counted laws are not supported on the conditional route; it publishes exact-law points only",
+            "admg_transport.counted_laws_unsupported: counted laws are not supported on the conditional route; it publishes exact-law points only",
         ))
     }
 }

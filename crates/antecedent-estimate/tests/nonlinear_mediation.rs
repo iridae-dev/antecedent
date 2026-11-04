@@ -191,9 +191,10 @@ fn mediation_exact_scm_recovers_closed_form_effects() {
     assert!((est.mediator.residual_variance - s.sigma2).abs() < 1e-9);
     assert!((est.mediator.coefficients[1] - s.alpha).abs() < 1e-9);
     assert!(est.integration_error < 1e-10);
-    assert_eq!(est.calibration, "unmeasured");
-    assert_eq!(est.interval_status, "closed_calibration_unmeasured");
+    assert_eq!(est.calibration, "resolved_from_basis");
+    assert_eq!(est.interval_status, "percentile_bootstrap_interval");
     assert!(est.natural_direct_se.is_none(), "no replicates were requested");
+    assert!(est.natural_direct_interval.is_none(), "no replicates were requested");
     assert_eq!(est.n_rows, 40);
 }
 
@@ -449,8 +450,33 @@ fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     let other = NonlinearMediationConfig { seed: 8, ..cfg };
     let c = run(&g, &ignorable, &other).expect("other seed");
     assert_ne!(a.natural_direct_se, c.natural_direct_se);
-    assert_eq!(a.calibration, "unmeasured");
-    assert_eq!(a.interval_status, "closed_calibration_unmeasured");
+    // The percentile intervals are the type-7 (linear interpolation) quantiles of the same
+    // independently recomputed replicate effects, at the declared level.
+    assert_eq!(a.interval_level, 0.95);
+    assert!(a.interval_unavailable_reason.is_none());
+    let type7 = |v: &[f64], p: f64| {
+        let mut sorted = v.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        let h = (sorted.len() - 1) as f64 * p;
+        let lo = h.floor() as usize;
+        let hi = h.ceil() as usize;
+        sorted[lo] + (h - lo as f64) * (sorted[hi] - sorted[lo])
+    };
+    for (reported, replicates, name) in [
+        (a.natural_direct_interval.unwrap(), &direct, "direct"),
+        (a.natural_indirect_interval.unwrap(), &indirect, "indirect"),
+        (a.total_interval.unwrap(), &total, "total"),
+    ] {
+        let expected = (type7(replicates, 0.025), type7(replicates, 0.975));
+        assert!(
+            (reported.0 - expected.0).abs() < 1e-8 * (1.0 + expected.0.abs())
+                && (reported.1 - expected.1).abs() < 1e-8 * (1.0 + expected.1.abs()),
+            "{name} interval {reported:?} vs independent type-7 {expected:?}"
+        );
+        assert!(reported.0 < reported.1, "{name}");
+    }
+    assert_eq!(a.calibration, "resolved_from_basis");
+    assert_eq!(a.interval_status, "percentile_bootstrap_interval");
 }
 
 #[test]

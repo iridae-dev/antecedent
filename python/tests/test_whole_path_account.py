@@ -89,10 +89,15 @@ def test_the_account_is_the_enumerated_spread_bound_to_its_execution() -> None:
     assert account.inspect().family == "WholePathAccount"
 
     # The reading stays closed: a spread is a labelled diagnostic, never an interval.
-    for closed in (sealed.interval, sealed.posterior, account.interval, account.posterior):
+    for closed, code in (
+        (sealed.interval, "sampling_dependence_unknown"),
+        (sealed.posterior, "uncertainty_representation_insufficient"),
+        (account.interval, "sampling_dependence_unknown"),
+        (account.posterior, "uncertainty_representation_insufficient"),
+    ):
         with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "not_supported"
+        assert refused.value.reason_code == code
 
 
 def test_a_fresh_consumer_derives_the_same_account_from_the_artifact() -> None:

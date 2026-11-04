@@ -291,8 +291,9 @@ fn latent_class_body() {
         ),
     ] {
         let error = refused(error, class);
-        assert!(matches!(error, CausalError::Unsupported { .. }), "{class}: {error:?}");
-        assert!(error.to_string().contains("requires a static DAG"), "{class}: {error}");
+        assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{class}: {error}");
+        assert!(error.to_string().contains("cell.aipw"), "{class}: {error}");
+        assert!(error.to_string().contains("does not run on a"), "{class}: {error}");
     }
     // The same graph as a DAG recovers the cell mean.
     let plain = value(&study(table(None, false), level_query(1.0, 1.0), None, None, 0).unwrap());
@@ -609,6 +610,19 @@ fn assert_matches_reference(result: &StudyResult, expected: &serde_json::Value, 
         "{what}: variance {} vs exact {variance}",
         se * se
     );
+    // The reported interval is the Wald interval of the exact rational mean and variance:
+    // mean -/+ 1.959963984540054 sqrt(variance), computed here from the exact reference rather
+    // than from the standard error the estimator published.
+    let response = result.response().expect("a response payload");
+    let antecedent_core::ResponseUncertainty::Scalar { lower, upper, level, .. } =
+        &response.uncertainty
+    else {
+        panic!("{what}: the cell reports a scalar interval, got {:?}", response.uncertainty);
+    };
+    assert!((level - 0.95).abs() < 1e-12, "{what}: level {level}");
+    let half = 1.959_963_984_540_054 * variance.sqrt();
+    assert!((lower - (mean - half)).abs() < 1e-6 * half.max(1e-3), "{what}: lower {lower}");
+    assert!((upper - (mean + half)).abs() < 1e-6 * half.max(1e-3), "{what}: upper {upper}");
 }
 
 #[test]
@@ -880,23 +894,24 @@ fn prepared_body() {
 }
 
 #[test]
-fn a_weighted_or_dependent_joint_cell_does_not_inherit_the_unweighted_cells_support() {
+fn a_weighted_or_dependent_joint_cell_is_supported_by_its_own_exact_reference() {
     on_large_stack("cells-04-support", support_body);
 }
 
 fn support_body() {
     let reference = reference();
     let plain = dependent_study(reference_table(&reference, false), None, None).unwrap();
+    assert_eq!(format!("{:?}", plain.support_status()), "Some(Supported)");
+    // Weights and a declared cluster dependence are read by the cell, and their intervals have an
+    // executed independent check (`the_joint_cell_equals_the_exact_weighted_cross_fit_aipw_...`:
+    // exact-rational means, sandwich variances and Wald endpoints), so the cell is supported.
     let weighted = dependent_study(reference_table(&reference, true), None, None).unwrap();
+    assert_eq!(format!("{:?}", weighted.support_status()), "Some(Supported)");
     let clustered = dependent_study(
         reference_table(&reference, false),
         Some(DeclaredSamplingDesign::ClusteredPanel),
         Some(ScoreDependence::clusters((0..60u32).map(|i| i / 5).collect::<Vec<_>>())),
     )
     .unwrap();
-    assert_eq!(format!("{:?}", plain.support_status()), "Some(Supported)");
-    assert_ne!(weighted.support_status(), plain.support_status());
-    assert_ne!(clustered.support_status(), plain.support_status());
-    assert_eq!(format!("{:?}", weighted.support_status()), "Some(NotSupported)");
-    assert_eq!(format!("{:?}", clustered.support_status()), "Some(NotSupported)");
+    assert_eq!(format!("{:?}", clustered.support_status()), "Some(Supported)");
 }

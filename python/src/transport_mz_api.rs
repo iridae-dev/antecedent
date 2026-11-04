@@ -14,7 +14,6 @@ use antecedent_identify::{
 };
 use antecedent_io::mz_transport_artifact::{
     MzContrastWire, MzTransportArtifactWire, MzTransportConsumeLimits, MzUncertaintyWire,
-    refuse_unsupported_interval,
 };
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
@@ -637,7 +636,6 @@ fn consume_multi_source_z_transport_artifact(
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be the mapping the verified identity binds.
         consumed.wire.check_variable_names(&names).map_err(error)?;
-        refuse_unsupported_interval(&consumed.wire.uncertainty).map_err(error)?;
         let mut payload =
             points_json(&consumed.requests, &consumed.distributions, &consumed.contrasts, &names);
         payload["status"] = "available".into();

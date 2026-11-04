@@ -294,7 +294,8 @@ pub struct ReliabilityReport {
     pub label: ClaimLabel,
     /// Coordinate the report sits at.
     pub coordinate: CalibrationCoordinate,
-    /// Published routes that are closed at that coordinate, with their refusals.
+    /// Historical refusal snapshot of published routes; empty now, because calibration
+    /// annotates a route and never closes it.
     pub closed_routes: Vec<ClosedRoute>,
 }
 

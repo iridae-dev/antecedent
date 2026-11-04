@@ -269,8 +269,9 @@ fn consume_z_transport_joint_sensitivity_artifact(
 
 /// Conservative endpoint percentile bootstrap of the joint range.
 ///
-/// Returns `(lower, upper, coverage_target)`. Only level 0.95 and 199 to 2000
-/// replicates are admitted.
+/// Returns `(lower, upper, coverage_target, calibration_json, replicates_ok,
+/// replicates_failed)`. Any level inside `(0, 1)` and 2 to 2000 replicates are computed; the
+/// calibration slot says whether a record measured the request.
 #[pyfunction]
 #[pyo3(signature=(stage, factors, *, replicates=199, level=0.95, decision_threshold=None, memory_bytes=None, cancel=None))]
 #[doc(hidden)]
@@ -283,7 +284,7 @@ fn z_transport_joint_sensitivity_interval(
     decision_threshold: Option<f64>,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(f64, f64, String)> {
+) -> PyResult<(f64, f64, String, String, u32, u32)> {
     let mut spec = JointDeviationSpec::new(parse_factors(factors)?);
     spec.decision_threshold = decision_threshold;
     let ctx = stage.ctx(memory_bytes, cancel);
@@ -294,7 +295,17 @@ fn z_transport_joint_sensitivity_interval(
             .joint_mechanism_sensitivity_interval(&spec, replicates, level, &ctx)
             .map_err(joint_py_err)
     })?;
-    Ok((interval.lower, interval.upper, interval.coverage_target.to_owned()))
+    // The calibration slot annotates the interval; it never withholds it.
+    let calibration = serde_json::to_string(&interval.calibration)
+        .map_err(|error| crate::value_err(&error.to_string()))?;
+    Ok((
+        interval.lower,
+        interval.upper,
+        interval.coverage_target.to_owned(),
+        calibration,
+        interval.replicates_ok,
+        interval.replicates_failed,
+    ))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

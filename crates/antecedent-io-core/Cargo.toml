@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-contract/development", "antecedent-counterfactual/development", "antecedent-data/development", "antecedent-discovery/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-kernels/development", "antecedent-learn/development", "antecedent-model/development", "antecedent-prob/development", "antecedent-stats/development"]
 # Hidden seams that seal and open artifact containers from raw parts, for the
 # tamper and resealed-edit tests. Not part of the supported API.
 test-util = []

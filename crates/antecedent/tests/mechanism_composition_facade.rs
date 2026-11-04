@@ -487,10 +487,9 @@ fn unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim() {
     assert_eq!(refusal.code(), "joint_law_required");
     assert_eq!(details(&refusal), vec!["mechanism_composition.posterior_dependence_unknown"]);
     assert!(refusal.refusals[0].remedy.is_some());
-    // The interval route is closed regardless.
-    let closed = prepared.interval().unwrap_err();
-    assert_eq!(closed.code(), "not_supported");
-    assert_eq!(closed.details(), vec!["mechanism_composition.interval_route_closed"]);
+    // The interval refuses for the same reason: an unknown dependence is never independence.
+    let closed = prepared.interval(&ate_at(2.0), 0.95).unwrap_err();
+    assert_eq!(closed.code(), "joint_law_required");
 
     // Independence declared over shared evidence is contradicted, not accepted.
     let mut mechanisms = uncertain_chain();
@@ -545,6 +544,11 @@ fn independent_assumption_and_declared_covariance_give_different_checked_varianc
     near(grad("Y", ParameterTerm::Coefficient("X".into())), 2.0);
     near(grad("Y", ParameterTerm::Coefficient("M".into())), 4.5);
     assert!((v.standard_error - 0.648_625_f64.sqrt()).abs() < 1e-12);
+    // Independent closed form of the interval: 13.5 -/+ z(0.975) * sqrt(0.648625).
+    let band = declared.interval(&ate_at(2.0), 0.95).unwrap();
+    let half = 1.959_963_984_540_054 * 0.648_625_f64.sqrt();
+    near(band.lower, 13.5 - half);
+    near(band.upper, 13.5 + half);
 
     // The same dependence as one aligned joint law, in an arbitrary order.
     let ids: Vec<ParameterId> = vec![

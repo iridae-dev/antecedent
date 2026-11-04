@@ -4,6 +4,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{PremiseChange, SupportedNeighbor};
+use antecedent_core::ExecutionContext;
 
 use crate::error::CausalError;
 use crate::strategy_table::EstimatorId;
@@ -254,24 +255,44 @@ fn neighbor_action(changed: &[PremiseChange]) -> &'static str {
 
 /// Refuse n/a cells and every unsupported meaningful cell. Supported cells pass.
 ///
+/// This is the context-free form: a development build records what a release build would
+/// refuse in the calling thread's log ([`antecedent_core::support_gate::drain_unscoped`]).
+/// Prefer [`refuse_if_not_applicable_in`] where an [`ExecutionContext`] exists.
+///
 /// # Errors
 ///
-/// [`CausalError::Support`] when the cell is n/a or refused. A refusal uses the
-/// reason from legacy-named `parity/support_refusal_reasons.toml` when one matches,
-/// otherwise it uses the shared default-refusal message.
+/// [`CausalError::Support`] when the cell is n/a (every build) or not supported (a release
+/// build; a development build returns `Ok(CellStatus::NotSupported)` and records the entry).
 pub fn refuse_if_not_applicable(cell: SupportCell) -> Result<CellStatus, CausalError> {
+    refuse_cell(cell, antecedent_core::support_gate::require_supported_unscoped)
+}
+
+/// [`refuse_if_not_applicable`] recording a development build's would-refuse entry in `ctx`.
+///
+/// # Errors
+///
+/// As [`refuse_if_not_applicable`].
+pub fn refuse_if_not_applicable_in(
+    cell: SupportCell,
+    ctx: &ExecutionContext,
+) -> Result<CellStatus, CausalError> {
+    refuse_cell(cell, |detail, missing| {
+        antecedent_core::support_gate::require_supported(ctx, detail, missing)
+    })
+}
+
+fn refuse_cell(
+    cell: SupportCell,
+    gate: impl FnOnce(&'static str, &[&str]) -> Result<(), antecedent_core::NotSupported>,
+) -> Result<CellStatus, CausalError> {
     match classify(cell) {
         CellStatus::NotApplicable { reason } => {
             Err(CausalError::Support { id: SupportRefusal::NotApplicable, message: reason })
         }
         CellStatus::NotSupported => {
-            if let Some(reason) = refusal_reason(cell) {
-                return Err(CausalError::Support {
-                    id: SupportRefusal::NotSupported,
-                    message: reason,
-                });
-            }
-            Err(CausalError::Support { id: SupportRefusal::NotSupported, message: UNSUPPORTED })
+            let coordinate = format!("support_cell:{}", cell_coordinate(cell));
+            gate(refused_message(cell), &[coordinate.as_str()])?;
+            Ok(CellStatus::NotSupported)
         }
         CellStatus::Supported => Ok(CellStatus::Supported),
     }

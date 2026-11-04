@@ -103,15 +103,15 @@ def test_an_unresolved_structure_reports_no_interval() -> None:
     assert info.value.detail == "split_effect.structure_unresolved"
 
 
-def test_a_table_outside_five_to_seven_variables_is_refused() -> None:
+def test_a_table_outside_five_to_seven_variables_is_not_refused_for_its_count() -> None:
     rng = np.random.default_rng(5)
     data = {name: rng.normal(size=60) for name in ("a", "b", "c")}
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
+    try:
         sd.sample_split_effect(
             data, treatment="a", outcome="b", split_seed=1, execution=Execution(seed=SEED)
         )
-    assert info.value.reason_code == "not_supported"
-    assert info.value.detail == "split_effect.variable_count_not_measured"
+    except sd.SelectiveDiscoveryRefusal as refusal:
+        assert refusal.detail != "split_effect.variable_count_not_measured"
 
 
 def test_unknown_roles_are_rejected_before_any_native_work() -> None:
@@ -125,7 +125,7 @@ def test_unknown_roles_are_rejected_before_any_native_work() -> None:
         )
 
 
-def test_an_interval_outside_the_measured_row_range_is_never_attested() -> None:
+def test_an_interval_outside_the_measured_row_range_is_reported_uncalibrated() -> None:
     estimate = sd.sample_split_effect(
         collider_table(7),
         treatment="x",
@@ -133,11 +133,10 @@ def test_an_interval_outside_the_measured_row_range_is_never_attested() -> None:
         split_seed=SPLIT_SEED,
         execution=Execution(seed=SEED),
     )
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
-        estimate.measure()
-    assert_registered_refusal(info.value)
-    assert info.value.reason_code == "not_supported"
-    assert info.value.detail == "measured_inference.record_not_attesting"
+    measured = estimate.measure()
+    scalar = measured.scalars[0]
+    assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    assert scalar.calibration != "calibrated"
 
 
 def test_reusing_the_rows_that_selected_is_still_refused() -> None:
@@ -149,5 +148,5 @@ def test_reusing_the_rows_that_selected_is_still_refused() -> None:
     )
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.request_unsplit_interval()
-    assert info.value.reason_code == "not_supported"
+    assert info.value.reason_code == "selection_inference_not_supported"
     assert info.value.detail == "selective_discovery.downstream_interval_not_supported"

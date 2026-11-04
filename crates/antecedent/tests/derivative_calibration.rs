@@ -1048,11 +1048,10 @@ fn directional_derivative_bayesian_nominal_90_coverage() {
 
 // --- Multivariate GAM plug-in, Frequentist: the closed band ------------------
 //
-// The Frequentist Jacobian / directional derivative publishes the point only
-// (`response.derivative_interval_withheld`). Its coefficient-sandwich band is
-// built by `ContinuousResponseEstimator::plugin_gradient_interval_internal` and
-// stays closed while these records are unmeasured; the two
-// tests below score that internal band on the Bayesian cells' DGP and seeds.
+// The Frequentist Jacobian / directional derivative reports its coefficient-sandwich band
+// around the published point, annotated by calibration. The band is built by
+// `ContinuousResponseEstimator::plugin_gradient_interval_internal`; the two
+// tests below score it on the Bayesian cells' DGP and seeds.
 
 /// The construction the closed band is keyed under once the route opens: the
 /// Frequentist analytic interval of `response.gam_derivative` on the explicit
@@ -1301,24 +1300,26 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         let half = (upper - lower) / 2.0;
         assert!((value - truth).abs() <= half, "{label}: {value} vs truth {truth}, half {half}");
     }
-    // The multivariate GAM plug-in still withholds the Frequentist interval and
-    // says why; the closed band the gate measures is around the published point.
+    // The multivariate GAM plug-in reports its coefficient-sandwich band around the published
+    // point; the band is not disclosed as withheld.
     let gam = gam_data(3_000, 7);
     for (label, functional) in
         [("jacobian", jacobian_query()), ("directional", directional_query())]
     {
         let response = run(&gam, &gam_graph(), functional.clone(), None, None, 7).unwrap();
+        let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
+            panic!(
+                "{label}: Frequentist GAM plug-in reports a band, got {:?}",
+                response.uncertainty
+            );
+        };
         assert!(
-            matches!(response.uncertainty, ResponseUncertainty::None),
-            "{label}: Frequentist GAM plug-in still publishes no interval"
-        );
-        assert!(
-            response
+            !response
                 .support
                 .warnings
                 .iter()
                 .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
-            "{label}: the withheld interval is disclosed"
+            "{label}: a published band is not disclosed as withheld"
         );
         let ResponseIdentification::PointIdentified(
             ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values),
@@ -1328,6 +1329,11 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         };
         let (internal, bands) = gam_internal_band(&gam, &functional);
         assert_eq!(internal, values.to_vec(), "{label}: the gate measures the published point");
+        assert_eq!(lower.len(), values.len(), "{label}: one lower bound per coordinate");
+        assert_eq!(upper.len(), values.len(), "{label}: one upper bound per coordinate");
+        for ((lo, hi), value) in lower.iter().zip(upper.iter()).zip(values.iter()) {
+            assert!(lo <= value && value <= hi, "{label}: {lo} <= {value} <= {hi}");
+        }
         let truth: &[f64] = if label == "jacobian" { &JACOBIAN_TRUTH } else { &DIRECTIONAL_TRUTH };
         assert_eq!(values.len(), truth.len(), "{label}: dimension");
         for (value, truth) in values.iter().zip(truth) {

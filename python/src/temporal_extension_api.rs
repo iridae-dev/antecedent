@@ -343,8 +343,8 @@ fn consume_temporal_refresh_artifact(
     }))
 }
 
-/// The closed dependent-interval route: validates the arguments through the Rust
-/// core, then returns the structured refusal. Never returns an interval.
+/// Validate the dependent-interval arguments through the Rust core: `None` when they are
+/// valid, otherwise the structured refusal.
 #[pyfunction]
 #[pyo3(signature = (snapshot_id, units, sequence, estimand, fixed_state, law, point, replicates, seed, level, method, min_units, max_failed_fraction))]
 #[allow(clippy::too_many_arguments)]
@@ -362,7 +362,7 @@ fn temporal_dependent_interval_closed(
     method: &str,
     min_units: usize,
     max_failed_fraction: f64,
-) -> PyResult<String> {
+) -> PyResult<Option<String>> {
     crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let method = match method {
         "studentized" => IntervalMethod::Studentized,
@@ -401,24 +401,19 @@ fn temporal_dependent_interval_closed(
         )
     });
     match outcome {
-        Ok(()) => Ok(refusal_json(
-            reason_code!("not_supported"),
-            "temporal_interval.route_frozen: the historical candidate diagnostic does not authorize inference",
-        )),
-        Err(IoError::Refused { code, message }) => Ok(refusal_json(code, &message)),
+        Ok(()) => Ok(None),
+        Err(IoError::Refused { code, message }) => Ok(Some(refusal_json(code, &message))),
         Err(other) => Err(crate::value_err(other.to_string())),
     }
 }
 
 /// Internal acceptance carrier; never labels an unmeasured candidate supported.
-#[cfg(feature = "calibration-internal")]
 #[pyclass]
 #[doc(hidden)]
 struct NativeTemporalIntervalCandidate {
     wire: antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire,
 }
 
-#[cfg(feature = "calibration-internal")]
 #[pymethods]
 impl NativeTemporalIntervalCandidate {
     fn payload(&self) -> PyResult<String> {
@@ -433,7 +428,6 @@ impl NativeTemporalIntervalCandidate {
 }
 
 /// Actual public-route preparation, available only in internal acceptance builds.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 #[pyfunction]
 #[pyo3(signature = (snapshot_id, units, sequence, estimand, fixed_state, law, point, replicates, seed, level, method, min_units, max_failed_fraction))]
@@ -471,9 +465,7 @@ fn temporal_dependent_interval_candidate(
         min_units,
         max_failed_fraction,
     )?;
-    let detail = serde_json::from_str::<serde_json::Value>(&refusal)
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    if detail["detail"] != "temporal_interval.route_frozen" {
+    if let Some(refusal) = refusal {
         return Ok((None, Some(refusal)));
     }
     let method = match method {
@@ -556,9 +548,7 @@ fn temporal_dependent_interval_measured(
         min_units,
         max_failed_fraction,
     )?;
-    let detail = serde_json::from_str::<serde_json::Value>(&refusal)
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    if detail["detail"] != "temporal_interval.route_frozen" {
+    if let Some(refusal) = refusal {
         return Ok((None, Some(refusal)));
     }
     let method = match method {
@@ -609,7 +599,6 @@ fn temporal_dependent_interval_measured(
 }
 
 /// Fresh internal consumer reruns the original whole-unit estimator/resampling.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 #[pyfunction]
 fn consume_temporal_interval_candidate(
@@ -646,7 +635,6 @@ fn consume_temporal_interval_candidate(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(temporal_dependent_interval_measured, module)?)?;
-    #[cfg(feature = "calibration-internal")]
     {
         module.add_class::<NativeTemporalIntervalCandidate>()?;
         module.add_function(wrap_pyfunction!(temporal_dependent_interval_candidate, module)?)?;

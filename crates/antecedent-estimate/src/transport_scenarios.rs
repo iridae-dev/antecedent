@@ -13,7 +13,7 @@
 //! the existing ADMG conditional prepared path: the reduced joint's exact plan
 //! at `do(x, w')`, normalized at the requested `w''`. A zero-mass conditioning
 //! event is that scenario's `support_failure`. Counted laws are refused for a
-//! conditional set (`not_supported`, `admg_transport.interval_withheld`),
+//! conditional set (`not_supported`, `admg_transport.counted_laws_unsupported`),
 //! as the standalone route refuses them: it publishes exact-law points only.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -509,7 +509,7 @@ fn refuse_counted_laws(data: &antecedent_expr::ExactTransportData) -> Result<(),
 fn conditional_counts_refusal() -> EstimationError {
     EstimationError::refused_detail(
         antecedent_core::reason_code!("not_supported"),
-        "admg_transport.interval_withheld",
+        "admg_transport.counted_laws_unsupported",
         "counted laws are not supported for a conditional scenario question; the route \
          publishes exact-law points only",
     )

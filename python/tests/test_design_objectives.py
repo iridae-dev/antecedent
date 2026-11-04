@@ -273,7 +273,9 @@ def _supported_study():
     )
 
 
-def test_a_ranking_bound_to_a_study_reports_unsupported_plans_and_keeps_declared_positions() -> None:
+def test_a_ranking_bound_to_a_study_reports_unsupported_plans_and_keeps_declared_positions() -> (
+    None
+):
     study = _supported_study()
     prior = design.StructurePrior((3.0, 1.0), (True, False), (1, 2))
     plans = [

@@ -141,9 +141,12 @@ fn carried_rates_correct_the_target_prevalence_with_a_typed_receipt() {
     assert!(result.assumptions().iter().any(|line| line.contains("not propagated")));
     // The corrected value is bound to the re-bound model, not to the source model.
     assert_ne!(receipt.source_model, result.estimate().model_identity());
-    // No interval, whoever asks.
-    let closed = result.interval().unwrap_err();
-    assert_eq!(closed.code, "not_supported");
+    // The interval is the estimate's: the binary misclassification variance has an executed
+    // independent closed-form check, so the Wald interval is open.
+    let (lo, hi) = result.interval(0.95).unwrap();
+    let half = 1.959_963_984_540_054 * variance.sqrt();
+    close(lo, pi - half, 1e-9);
+    close(hi, pi + half, 1e-9);
 }
 
 #[test]

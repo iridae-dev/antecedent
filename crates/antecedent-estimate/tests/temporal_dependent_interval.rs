@@ -23,7 +23,7 @@ use antecedent_estimate::EstimationError;
 use antecedent_estimate::temporal_dependent_interval::{
     DependentIntervalConfig, INTERVAL_CALIBRATION_STATUS, INTERVAL_CLAIM, IntervalMethod,
     ObservedStateSequence, SequenceHistory, TemporalUnitPanel, UnitHistories,
-    dependent_unit_interval, route_frozen_refusal,
+    dependent_unit_interval,
 };
 use antecedent_estimate::temporal_initial_state::{
     FixedStateQuery, InitialStateLaw, InitialStatePopulation, InitialStateSpec, MarginalizedQuery,
@@ -333,13 +333,6 @@ fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
     let (code, message) = refused(TemporalUnitPanel::new("s", Some(vec![nan])).unwrap_err());
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("unit 1 has a non-finite outcome"), "{message}");
-}
-
-#[test]
-fn unknown_unit_dependence_public_route_stays_closed() {
-    let (code, message) = refused(route_frozen_refusal());
-    assert_eq!(code, "not_supported");
-    assert!(message.contains("temporal_interval.route_frozen"), "{message}");
 }
 
 #[test]

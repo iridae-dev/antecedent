@@ -50,7 +50,7 @@
 //! * The weighted information matrix of the basis design must have full rank: a
 //!   proper prior would otherwise answer a design the data cannot identify.
 //! * Calibration is **unmeasured**; no coverage is claimed and the public interval route
-//!   stays closed ([`route_frozen_refusal`]).
+//!   is reported with its calibration annotation, never refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -311,21 +311,6 @@ fn refuse(
 
 fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
     refuse(antecedent_core::reason_code!("invalid_argument"), detail, "validate", message)
-}
-
-/// The route-level refusal of the public interval route: the learned joint posterior
-/// route lacks calibration evidence, so no interval is published.
-#[must_use]
-pub fn route_frozen_refusal() -> JointTransportRefusal {
-    refuse(
-        antecedent_core::reason_code!("not_supported"),
-        DETAIL_ROUTE_FROZEN,
-        "route",
-        format!(
-            "{LEARNED_JOINT_ROUTE} lacks likelihood, value and calibration evidence; \
-             the learn fit's posterior is not a published interval"
-        ),
-    )
 }
 
 /// The refusal of a graph class other than the fixed DAG.

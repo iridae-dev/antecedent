@@ -534,9 +534,19 @@ class PreparedSmoothedDose(ScientificResult):
 
         return capture_outcome(execute)
 
-    def interval(self) -> Outcome[None]:
-        """Return the registered closed interval route as a scientific refusal."""
-        return capture_outcome(self._execution._call, self._native.interval)
+    def interval(self) -> Outcome[dict[str, Any]]:
+        """The pointwise bootstrap interval per grid dose, annotated with its calibration.
+
+        The mapping holds ``doses``, ``intervals`` (a ``[lower, upper]`` pair per dose, or
+        ``None`` for every dose when a replicate failed), ``reason`` (why none was produced,
+        else ``None``) and ``calibration`` (the slot; calibration annotates and never gates).
+        """
+
+        def read() -> dict[str, Any]:
+            raw = self._execution._call(self._native.interval)
+            return dict(json.loads(raw))
+
+        return capture_outcome(read)
 
     def estimator_menu(self) -> EstimatorMenu:
         """The estimator menu for this prepared graph, query and options."""

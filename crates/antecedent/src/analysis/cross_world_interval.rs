@@ -12,12 +12,15 @@
 //!   probabilities, with the predictive variance `sum v_i / n^2`.
 //!
 //! The calibration key is derived from the executed request and the declared
-//! unit sampling, and the harness binds the same key. A request outside the
-//! measured model class (more than three variables, a variable with more than
-//! four levels, a sampled posterior, a transported population) has no record and
-//! is closed. A sampled posterior and a posterior statement stay closed: with
-//! declared mechanisms the exogenous posterior is exact, so there is no
-//! parameter uncertainty a posterior could describe.
+//! unit sampling, and the harness binds the same key. The interval is always
+//! reported; its calibration slot says whether a current coverage record measured
+//! that model class (`calibrated`), or the request lies outside what was measured
+//! (more variables or levels than the measured designs, a shared exogenous term:
+//! `outside_measured_scope` / `not_measured`). A transported population is a
+//! scientific refusal: no theorem composes the transport identification with a
+//! target-population abduction. A posterior statement stays refused: with declared
+//! mechanisms the exogenous posterior is exact, so there is no parameter
+//! uncertainty a posterior could describe.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -44,10 +47,8 @@ pub const CROSS_WORLD_LEVEL: f64 = 0.95;
 /// Most variables the whole-path coverage records measured.
 ///
 /// This is the measured model class of the records `cov.counterfactual.*.cross_world_interval_*`
-/// (`parity/coverage_records.toml`), not a performance limit: the calibration key carries no
-/// variable-count axis, so this bound is what keeps an interval from being reported for a model
-/// larger than any the coverage was measured on. It lifts only by measuring coverage on a
-/// larger design and recording it.
+/// (`parity/coverage_records.toml`). The calibration key carries no variable-count axis, so a
+/// larger model is reported with the status `outside_measured_scope`, never withheld.
 const MEASURED_VARIABLES: usize = 3;
 /// Most levels per variable the whole-path coverage records measured (see
 /// [`MEASURED_VARIABLES`]).
@@ -81,14 +82,19 @@ super::string_enum! {
     }
 }
 
-fn refused(detail: &str, offending: &str, remedy: &str) -> CrossWorldExecutionRefusalWire {
+fn refused(
+    code: &str,
+    detail: &str,
+    offending: &str,
+    remedy: &str,
+) -> CrossWorldExecutionRefusalWire {
     CrossWorldExecutionRefusalWire {
-        code: antecedent_core::reason_code!("not_supported").to_owned(),
+        code: code.to_owned(),
         stage: "uncertainty".to_owned(),
         detail: detail.to_owned(),
         offending: Some(offending.to_owned()),
         remedy: Some(remedy.to_owned()),
-        missing: vec!["whole_path_calibration_record".to_owned()],
+        missing: Vec::new(),
     }
 }
 
@@ -124,43 +130,48 @@ fn quantity_label(quantity: &FiniteQuantity) -> &'static str {
 /// The calibration key of a whole-path interval.
 ///
 /// # Errors
-/// A request outside the measured model class: a sampled posterior, a
-/// transported population, more than three variables, more than four levels
-/// or an exogenous term shared by several variables.
+/// A scientific refusal for a request with no whole-path derivation: a sampled
+/// posterior (exact enumeration is available, so sampling the abduction only adds
+/// Monte Carlo error to an exactly computable quantity) or a transported
+/// population (no theorem composes the transport identification with a
+/// target-population abduction). A model larger than the measured designs is not
+/// refused: its slot reports the scope.
 #[allow(clippy::result_large_err, reason = "the refusal wire is the shared execution refusal type")]
 pub fn whole_path_interval_basis(
     request: &FiniteExecutionRequest,
     unit_sampling: UnitSampling,
 ) -> Result<CalibrationBasis, CrossWorldExecutionRefusalWire> {
-    let outside = |closure: RouteClosure| {
-        refused(
-            "cross_world_execution.interval_route_closed",
-            closure.as_str(),
-            "only exact enumeration of a declared finite Markovian SCM with at most three variables of two to four levels, in the population the mechanisms were declared for, has a measured whole-path coverage record; use the point value",
-        )
-    };
     if request.exogenous != ExogenousInference::ExactEnumeration {
-        return Err(outside(RouteClosure::Exogenous));
+        return Err(refused(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
+            "cross_world_execution.interval_route_closed",
+            RouteClosure::Exogenous.as_str(),
+            "with declared mechanisms the exogenous posterior is enumerated exactly; a sampled abduction adds Monte Carlo error to an exactly computable quantity, so request exact enumeration",
+        ));
     }
     if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
-        return Err(outside(RouteClosure::TargetPopulation));
+        return Err(refused(
+            antecedent_core::reason_code!("transport_not_certified"),
+            "cross_world_execution.interval_route_closed",
+            RouteClosure::TargetPopulation.as_str(),
+            "no theorem composes the transport identification with a target-population abduction; derive the interval in the population the mechanisms were declared for",
+        ));
     }
-    if request.scm.variables.len() > MEASURED_VARIABLES
-        || request.scm.variables.iter().any(|v| v.levels > MEASURED_LEVELS)
-    {
-        return Err(outside(RouteClosure::Scm));
-    }
-    // The measured design drew one exogenous term per variable; a shared term
-    // is a different model class with no coverage record.
-    let mut users = vec![0usize; request.scm.exogenous.len()];
-    for variable in &request.scm.variables {
-        if let Some(count) = users.get_mut(variable.exogenous) {
-            *count += 1;
-        }
-    }
-    if users.iter().any(|count| *count > 1) {
-        return Err(outside(RouteClosure::SharedExogenous));
-    }
+    // The measured designs drew one exogenous term per variable, at most
+    // `MEASURED_VARIABLES` variables of at most `MEASURED_LEVELS` levels. A larger model
+    // or a shared term is outside that scope: it gets the slot's scope status, and the
+    // key carries the model-class label so no record is matched across classes.
+    let measured_class = request.scm.variables.len() <= MEASURED_VARIABLES
+        && request.scm.variables.iter().all(|v| v.levels <= MEASURED_LEVELS)
+        && {
+            let mut users = vec![0usize; request.scm.exogenous.len()];
+            for variable in &request.scm.variables {
+                if let Some(count) = users.get_mut(variable.exogenous) {
+                    *count += 1;
+                }
+            }
+            users.iter().all(|count| *count <= 1)
+        };
     let a = |text: &str| Arc::<str>::from(text);
     Ok(CalibrationBasis::new(
         [
@@ -174,7 +185,11 @@ pub fn whole_path_interval_basis(
             a(""),
             a(unit_sampling.name()),
             a(""),
-            a(quantity_label(&request.quantity)),
+            a(&if measured_class {
+                quantity_label(&request.quantity).to_owned()
+            } else {
+                format!("{}.unmeasured_model_class", quantity_label(&request.quantity))
+            }),
         ],
         CROSS_WORLD_LEVEL,
         a("point"),
@@ -246,31 +261,27 @@ pub struct CrossWorldInterval {
     pub level: f64,
     /// The declared unit sampling.
     pub unit_sampling: &'static str,
-    /// Identity of the governing coverage record.
-    pub record_id: String,
+    /// Identity of the governing coverage record, when one matched.
+    pub record_id: Option<String>,
+    /// Calibration of this interval: `calibrated` inside a current record's measured scope,
+    /// otherwise the status and reason that name why not.
+    pub calibration: antecedent_io::contract_section::CalibrationSlotWire,
     /// Always `measured_interval_under_the_declared_model`.
     pub label: &'static str,
 }
 
-fn resolve(basis: &CalibrationBasis) -> (Option<String>, bool, Option<String>) {
-    let slot = calibration_slot(&CalibrationBasisWire::from(basis));
-    (slot.record_id, slot.status == "calibrated", slot.reason)
-}
-
 impl CrossWorldExecution {
-    /// The interval of the executed quantity under a declared unit sampling,
-    /// supported only by a currently attesting whole-path coverage record.
+    /// The interval of the executed quantity under a declared unit sampling, with
+    /// the calibration slot of the whole-path coverage records.
     ///
     /// The unqualified [`Self::interval`] stays closed; this reading names the
     /// declared unit sampling and is a statement conditional on the declared
-    /// mechanisms. A posterior reading and a sampled abduction stay closed.
+    /// mechanisms. A posterior reading and a sampled abduction stay refused.
     ///
     /// # Errors
     /// Undeclared unit sampling or any refusal of
-    /// [`Self::whole_path_uncertainty`]; a request outside the measured model
-    /// class; a single unit under independent sampling; or no currently
-    /// attesting record (`not_supported`,
-    /// `cross_world_execution.interval_route_closed`).
+    /// [`Self::whole_path_uncertainty`]; a sampled or transported request; or a
+    /// single unit under independent sampling.
     #[allow(
         clippy::result_large_err,
         reason = "the refusal wire is the shared execution refusal type"
@@ -287,27 +298,23 @@ impl CrossWorldExecution {
             whole_path_interval(account.uncertainty(), CROSS_WORLD_LEVEL)
         else {
             return Err(refused(
+                antecedent_core::reason_code!("uncertainty_representation_insufficient"),
                 "cross_world_execution.interval_route_closed",
                 RouteClosure::UnitSampling.as_str(),
                 "the declared sampling determines no variance for these units (an independent sample needs at least two units); use the point value",
             ));
         };
-        match resolve(&basis) {
-            (Some(record_id), true, _) => Ok(CrossWorldInterval {
-                scalar,
-                point,
-                lower,
-                upper,
-                level: CROSS_WORLD_LEVEL,
-                unit_sampling: unit_sampling.name(),
-                record_id,
-                label: "measured_interval_under_the_declared_model",
-            }),
-            (_, _, reason) => Err(refused(
-                "cross_world_execution.interval_route_closed",
-                reason.as_deref().unwrap_or("no_record"),
-                "no currently attesting whole-path coverage record governs this model class, quantity, unit sampling and unit count; use the point value",
-            )),
-        }
+        let calibration = calibration_slot(&CalibrationBasisWire::from(&basis));
+        Ok(CrossWorldInterval {
+            scalar,
+            point,
+            lower,
+            upper,
+            level: CROSS_WORLD_LEVEL,
+            unit_sampling: unit_sampling.name(),
+            record_id: calibration.record_id.clone(),
+            calibration,
+            label: "measured_interval_under_the_declared_model",
+        })
     }
 }

@@ -644,7 +644,7 @@ class AdaptiveResult(ScientificResult, Generic[PayloadT]):
     procedure: str
     method: str
     payload: PayloadT
-    closed_guarantee: str
+    closed_claim: str | None
     contract_identity: str
     look: int | None
     stopping_rule: dict[str, Any] | None
@@ -766,7 +766,7 @@ def _result(wire: dict[str, Any]) -> AdaptiveResult:
             tuple(float("nan") if v is None else float(v) for v in wire["values"]),
         ),
         _wire_values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
-        closed_guarantee=wire["closed_guarantee"],
+        closed_claim=wire["closed_claim"],
         contract_identity=wire["contract_identity"],
         look=int(wire["look"]),
         stopping_rule=wire.get("stopping_rule"),
@@ -1077,7 +1077,7 @@ class ConsumedAdaptiveResult(ScientificResult):
     method: str
     payload: AdaptivePayload
     _wire_values: tuple[float, ...]
-    closed_guarantee: str
+    closed_claim: str | None
 
 
 @outcome_operation
@@ -1162,7 +1162,7 @@ def consume_adaptive_inference_result_artifact(
             tuple(float("nan") if v is None else float(v) for v in wire["values"]),
         ),
         _wire_values=tuple(float("nan") if v is None else float(v) for v in wire["values"]),
-        closed_guarantee=wire["closed_guarantee"],
+        closed_claim=wire["closed_claim"],
     )
 
 
@@ -2089,7 +2089,9 @@ class RepeatedMeasuresPosterior(ScientificResult):
                         },
                     ),
                     "support": SlotModel(
-                        available=self.supported, reason="unsupported_estimator", summary="unsupported"
+                        available=self.supported,
+                        reason="unsupported_estimator",
+                        summary="unsupported",
                     ),
                     "assumptions": SlotModel(
                         available=True,

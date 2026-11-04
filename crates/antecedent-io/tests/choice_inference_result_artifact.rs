@@ -157,7 +157,7 @@ fn the_posterior_is_the_dirichlet_closed_form_on_the_qualified_prior() {
     close(pbest, 1.0, 1e-9, "probability best sums to one");
     close(result.values[12], 10.0, 1e-12, "borrowed observations");
     close(result.values[13], 0.0, 0.0, "no conflict");
-    assert_eq!(result.closed_guarantee, "choice_inference.posterior_interval_closed");
+    assert_eq!(result.closed_claim, None);
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn a_stopping_decision_is_the_contracts_rule_on_the_posterior() {
     for r in [&at_three, &at_six] {
         assert_eq!(r.values[3] == 1.0, r.values[2] <= 0.2 + 1e-12);
     }
-    assert_eq!(at_six.closed_guarantee, "choice_inference.stopping_reliability_closed");
+    assert_eq!(at_six.closed_claim, Some("choice_inference.stopping_reliability_closed"));
 }
 
 #[test]
@@ -346,7 +346,7 @@ fn the_hierarchical_posterior_carries_the_respondents_dependence() {
     let h = compute_choice_result(&c, &hierarchical(0), &ctx()).unwrap();
     let mean: f64 = (0..3).map(|k| h.values[3 * k]).sum();
     close(mean, 1.0, 1e-8, "population shares sum to one");
-    assert_eq!(h.closed_guarantee, "choice_inference.hierarchical_interval_closed");
+    assert_eq!(h.closed_claim, None);
     // pooled counts (13, 3, 2) of 18 choices: the pooled posterior is more certain `a` is best
     let mut pooled = categorical(false);
     pooled.retained_sources.clear();
@@ -378,6 +378,8 @@ fn uniform_final_only() -> ChoiceDesignDeclaration {
 
 #[test]
 fn a_measured_interval_is_refused_while_no_coverage_record_attests_the_cell() {
+    // Name kept for the capability record that cites it: the interval is no longer refused; it is
+    // reported with a `not_measured` calibration slot.
     let bytes = Artifact::to_bytes(
         &contract(uniform_final_only()),
         &ChoiceResultSpec::Posterior { look: 0 },
@@ -385,16 +387,28 @@ fn a_measured_interval_is_refused_while_no_coverage_record_attests_the_cell() {
         &ctx(),
     )
     .unwrap();
-    let refused = Artifact::measure_interval(&bytes, &ctx()).expect_err("no record");
-    let text = format!("{refused:?}");
-    assert!(
-        text.contains("not_supported") || text.contains("not_measured"),
-        "an unmeasured cell refuses rather than reports an interval: {text}"
-    );
+    // Calibration annotates and never withholds: the interval is reported, and its slot says
+    // that no coverage record measures the estimator grid.
+    let measured = Artifact::measure_interval(&bytes, &ctx()).expect("the interval is reported");
+    let report = measured.report();
+    assert_eq!(report.route, "choice_interval");
+    assert_eq!(report.calibration, "not_measured");
+    assert!(!report.scalars.is_empty());
+    for scalar in &report.scalars {
+        assert!(scalar.lower < scalar.point && scalar.point < scalar.upper, "{}", scalar.name);
+        assert!((scalar.level - 0.95).abs() < 1e-12, "{}", scalar.name);
+        assert_eq!(scalar.calibration.status, "not_measured", "{}", scalar.name);
+        assert_eq!(
+            scalar.calibration.reason.as_deref(),
+            Some("estimator_grid_not_measured"),
+            "{}",
+            scalar.name
+        );
+    }
 }
 
 #[test]
-fn a_study_outside_the_measured_cells_is_refused_before_any_record_is_consulted() {
+fn a_study_outside_the_measured_cells_reports_its_interval_as_not_measured() {
     let looked = Artifact::to_bytes(
         &contract(categorical(true)),
         &ChoiceResultSpec::Posterior { look: 1 },
@@ -402,8 +416,6 @@ fn a_study_outside_the_measured_cells_is_refused_before_any_record_is_consulted(
         &ctx(),
     )
     .unwrap();
-    let text = format!("{:?}", Artifact::measure_interval(&looked, &ctx()).unwrap_err());
-    assert!(text.contains("protocol_not_measured"), "{text}");
     let with_source = Artifact::to_bytes(
         &contract(categorical(false)),
         &ChoiceResultSpec::Posterior { look: 0 },
@@ -411,8 +423,13 @@ fn a_study_outside_the_measured_cells_is_refused_before_any_record_is_consulted(
         &ctx(),
     )
     .unwrap();
-    let text = format!("{:?}", Artifact::measure_interval(&with_source, &ctx()).unwrap_err());
-    assert!(text.contains("protocol_not_measured"), "{text}");
+    for bytes in [looked, with_source] {
+        let measured = Artifact::measure_interval(&bytes, &ctx()).expect("interval is reported");
+        let scalar = &measured.report().scalars[0];
+        assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
+        assert_eq!(scalar.calibration.status, "not_measured", "{:?}", scalar.calibration);
+    }
+    // A stopping decision carries no interval at all.
     let stopping = Artifact::to_bytes(
         &contract(categorical(true)),
         &ChoiceResultSpec::Stopping { look: 1 },
@@ -421,7 +438,7 @@ fn a_study_outside_the_measured_cells_is_refused_before_any_record_is_consulted(
     )
     .unwrap();
     let text = format!("{:?}", Artifact::measure_interval(&stopping, &ctx()).unwrap_err());
-    assert!(text.contains("protocol_not_measured"), "{text}");
+    assert!(text.contains("no_interval_of_this_kind"), "{text}");
 }
 
 #[test]

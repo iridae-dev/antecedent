@@ -97,7 +97,7 @@ def test_the_frequentist_route_matches_the_wald_ratio() -> None:
     assert result.ate == pytest.approx(effect, abs=1e-8)
     assert result.estimate.se_analytic == pytest.approx(se, abs=1e-8)
     assert abs(result.ate - 2.0) < 3 * se
-    assert result.evidence_status != "supported"
+    assert result.evidence_status == "supported"
 
 
 def test_the_bayesian_route_matches_a_numpy_reduced_form_posterior() -> None:

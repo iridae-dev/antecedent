@@ -106,7 +106,7 @@ def test_reusing_the_rows_that_selected_is_refused() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.request_unsplit_interval()
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "not_supported"
+    assert info.value.reason_code == "selection_inference_not_supported"
     assert info.value.detail == "selective_discovery.downstream_interval_not_supported"
 
 

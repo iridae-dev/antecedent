@@ -11,8 +11,7 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
-from antecedent import _native
-from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.errors import CausalValueError
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility
@@ -341,20 +340,7 @@ def joint_request():
     )
 
 
-JOINT_ENABLED = hasattr(_native, "JointBayesianSessionHandle")
-
-
-def assert_joint_route_frozen():
-    # An ordinary build omits the whole calibration-internal candidate family.
-    with pytest.raises(CausalUnsupportedError, match="calibration-internal") as error:
-        JointBayesianSession()
-    assert error.value.reason_code == "route_not_supported"
-
-
 def test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit():
-    if not JOINT_ENABLED:
-        assert_joint_route_frozen()
-        return
     req = joint_request()
     session = JointBayesianSession()
     first = require_success(session.execute(req, execution=Execution(seed=19)))
@@ -388,10 +374,17 @@ def test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained
     )
     assert priced.receipt.totals.total == priced.receipt.totals.decisions == 1
     assert priced.decision.net_benefit == pytest.approx(3.0 * summary.law.mean - 1.0, abs=1e-12)
+    # The session retains the latest decision: the same priced request reuses everything, and
+    # returning to the unpriced one recomputes only that decision.
+    repeated = replace(changed, utility=Utility(3.0, 1.0))
     assert (
-        require_success(session.execute(changed, execution=Execution(seed=19))).receipt.totals.total
+        require_success(
+            session.execute(repeated, execution=Execution(seed=19))
+        ).receipt.totals.total
         == 0
     )
+    unpriced = require_success(session.execute(changed, execution=Execution(seed=19)))
+    assert unpriced.receipt.totals.total == unpriced.receipt.totals.decisions == 1
 
     # A different posterior stream refits the joint model and redraws.
     reseeded = require_success(
@@ -407,9 +400,6 @@ def test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained
 
 
 def test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work():
-    if not JOINT_ENABLED:
-        assert_joint_route_frozen()
-        return
     req = joint_request()
     session = JointBayesianSession()
     require_success(session.execute(req, execution=Execution(seed=19)))

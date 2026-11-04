@@ -884,6 +884,29 @@ pub(crate) struct MeasurementEstimateHandle {
     inner: MeasurementEstimate,
 }
 
+/// A continuous correction bound to its model, kept to report its interval.
+#[pyclass(name = "ContinuousMeasurementEstimateHandle", skip_from_py_object)]
+pub(crate) struct ContinuousMeasurementEstimateHandle {
+    inner: ContinuousMeasurementEstimate,
+}
+
+#[pymethods]
+impl ContinuousMeasurementEstimateHandle {
+    /// The equal-tailed Wald interval of the corrected coefficient at `level` with its
+    /// calibration slot as JSON (`not_measured`), or the route's refusal.
+    fn interval(&self, level: f64) -> (Option<(f64, f64, String)>, Option<String>) {
+        match self.inner.interval(level) {
+            Ok((lower, upper)) => {
+                let slot = antecedent_io::contract_section::CalibrationSlotWire::not_measured(
+                    antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+                );
+                (Some((lower, upper, serde_json::to_string(&slot).unwrap_or_default())), None)
+            }
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    }
+}
+
 /// A consumed artifact: the model, the stored record and the replayed values.
 #[pyclass(name = "ConsumedMeasurementHandle", skip_from_py_object)]
 pub(crate) struct ConsumedMeasurementHandle {
@@ -990,7 +1013,8 @@ impl PreparedMeasurementHandle {
         py: Python<'_>,
         input_json: &str,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<(Option<String>, Option<String>)> {
+    ) -> PyResult<(Option<String>, Option<ContinuousMeasurementEstimateHandle>, Option<String>)>
+    {
         let input = parse_continuous_input(&parse(input_json, "continuous measurement data")?)?;
         let inner = self.inner.clone();
         let outcome = crate::detach_catch(py, move || {
@@ -998,8 +1022,12 @@ impl PreparedMeasurementHandle {
             Ok(inner.estimate_continuous(input, &ctx))
         })?;
         Ok(match outcome {
-            Ok(estimate) => (Some(continuous_json(&estimate).to_string()), None),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+            Ok(estimate) => (
+                Some(continuous_json(&estimate).to_string()),
+                Some(ContinuousMeasurementEstimateHandle { inner: estimate }),
+                None,
+            ),
+            Err(refusal) => (None, None, Some(refusal_json(&refusal))),
         })
     }
 
@@ -1055,11 +1083,18 @@ impl MeasurementEstimateHandle {
         detail_json(&self.inner).to_string()
     }
 
-    /// Always the typed refusal: no coverage record measures the method.
-    fn interval(&self) -> String {
-        match self.inner.interval() {
-            Err(refusal) => refusal_json(&refusal),
-            Ok(never) => match never {},
+    /// The equal-tailed Wald interval of the corrected functional at `level` with its
+    /// calibration slot as JSON (no coverage record measures the method, so the slot is
+    /// `not_measured`), or the route's refusal.
+    fn interval(&self, level: f64) -> (Option<(f64, f64, String)>, Option<String>) {
+        match self.inner.interval(level) {
+            Ok((lower, upper)) => {
+                let slot = antecedent_io::contract_section::CalibrationSlotWire::not_measured(
+                    antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+                );
+                (Some((lower, upper, serde_json::to_string(&slot).unwrap_or_default())), None)
+            }
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
         }
     }
 
@@ -1375,6 +1410,7 @@ fn measurement_model_transport_verify(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedMeasurementHandle>()?;
     module.add_class::<MeasurementEstimateHandle>()?;
+    module.add_class::<ContinuousMeasurementEstimateHandle>()?;
     module.add_class::<ConsumedMeasurementHandle>()?;
     module.add_function(wrap_pyfunction!(measurement_model_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(measurement_model_consume, module)?)?;

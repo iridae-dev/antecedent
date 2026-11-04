@@ -142,8 +142,8 @@ def test_reliability_outcome_preserves_enumerated_probabilities_and_closed_publi
     )
     assert isinstance(assessment, Outcome) and assessment.accepted
     published = require_success(assessment).publish("ranking_probability")
-    assert isinstance(published, Outcome) and not published.accepted
-    assert published.refusal.code == "not_supported"
+    assert isinstance(published, Outcome) and published.accepted
+    assert require_success(published)["status"] != "calibrated"
 
 
 @pytest.mark.parametrize("operation", ["rank", "assess"])

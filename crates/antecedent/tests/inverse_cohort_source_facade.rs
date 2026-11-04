@@ -208,7 +208,7 @@ fn the_cohort_source_is_refused_what_a_point_cannot_answer() {
         error,
         ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::CohortContrast)
     );
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
 }
 
 #[test]

@@ -20,8 +20,8 @@
 //! specification, dataset or result is refused even when the artifact was resealed consistently.
 //!
 //! What this does **not** say: bootstrap standard errors carry no coverage claim
-//! (`calibration = "unmeasured"`), no public interval is produced
-//! (`interval_status = "closed_calibration_unmeasured"`), and the cross-world independence and
+//! (`calibration = "resolved_from_basis"`; each interval carries its own slot), the intervals are
+//! percentile bootstrap intervals (`interval_status = "percentile_bootstrap_interval"`), and the cross-world independence and
 //! sequential ignorability that identify the natural effects are declared, not tested. Unknown
 //! major versions refuse.
 //!
@@ -96,8 +96,8 @@ const STATUS_CHECKED: &str = "checked";
 
 /// Standing caveats attached to every artifact.
 pub const NONLINEAR_MEDIATION_ARTIFACT_CAVEATS: [&str; 2] = [
-    "bootstrap standard errors are calibration unmeasured: no coverage claim is made and no \
-     public interval is produced; the point estimates and diagnostics are the claim",
+    "the percentile bootstrap intervals carry a calibration slot resolved from their basis; \
+     a status other than calibrated means no coverage record covers this execution",
     "natural direct and indirect effects need cross-world independence and sequential \
      ignorability, which are declared and cannot be tested from the data",
 ];
@@ -271,8 +271,22 @@ pub struct MediationBootstrapWire {
     pub failed_replicate_ids: Vec<u64>,
     /// Replicate-id scheme.
     pub id_scheme: String,
-    /// Interval status: `closed_calibration_unmeasured`.
+    /// Interval method: `percentile_bootstrap_interval`.
     pub interval_status: String,
+}
+
+/// One percentile-bootstrap interval with the calibration slot that annotates it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MediationIntervalWire {
+    /// `natural_direct`, `natural_indirect` or `total`.
+    pub effect: String,
+    /// Lower endpoint.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+    /// Calibration status of this interval, resolved from its construction basis.
+    pub calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
 }
 
 /// The stored estimate.
@@ -291,6 +305,13 @@ pub struct MediationResultWire {
     pub natural_indirect_se: Option<f64>,
     /// Bootstrap standard error of the total effect.
     pub total_se: Option<f64>,
+    /// Nominal level of the intervals.
+    pub interval_level: f64,
+    /// Percentile bootstrap intervals (direct, indirect, total) with their calibration slots;
+    /// empty when [`Self::interval_unavailable_reason`] names why.
+    pub intervals: Vec<MediationIntervalWire>,
+    /// Why no interval is reported (too few successful replicates).
+    pub interval_unavailable_reason: Option<String>,
     /// `|total_rowwise - (NDE + NIE)|`.
     pub identity_residual: f64,
     /// `n` versus `2n` node disagreement as a fraction of the outcome standard deviation.
@@ -357,9 +378,9 @@ pub struct NonlinearMediationMeta {
     pub result: MediationResultWire,
     /// Identity digests.
     pub identity: NonlinearMediationIdentity,
-    /// Always `unmeasured`.
+    /// Always `resolved_from_basis`: each interval carries its own calibration slot.
     pub calibration: String,
-    /// Always `closed_calibration_unmeasured`.
+    /// Always `percentile_bootstrap_interval`.
     pub interval_status: String,
     /// Always `point_with_diagnostics`.
     pub inference_claim: String,
@@ -572,6 +593,27 @@ fn result_wire(
         natural_direct_se: estimate.natural_direct_se,
         natural_indirect_se: estimate.natural_indirect_se,
         total_se: estimate.total_se,
+        interval_level: estimate.interval_level,
+        intervals: [
+            ("natural_direct", estimate.natural_direct_interval),
+            ("natural_indirect", estimate.natural_indirect_interval),
+            ("total", estimate.total_interval),
+        ]
+        .into_iter()
+        .filter_map(|(effect, interval)| {
+            interval.map(|(lower, upper)| MediationIntervalWire {
+                effect: effect.to_owned(),
+                lower,
+                upper,
+                calibration: antecedent_io_core::calibration::calibration_slot(
+                    &antecedent_io_core::calibration::CalibrationBasisWire::from(
+                        &estimate.calibration_basis(effect),
+                    ),
+                ),
+            })
+        })
+        .collect(),
+        interval_unavailable_reason: estimate.interval_unavailable_reason.map(str::to_owned),
         identity_residual: estimate.identity_residual,
         integration_error: estimate.integration_error,
         coarse_nodes: count_u32(estimate.quadrature_nodes)?,

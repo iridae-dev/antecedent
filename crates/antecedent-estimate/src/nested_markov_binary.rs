@@ -82,9 +82,9 @@
 //! # Status
 //!
 //! Nonparametric identification, likelihood fit and inferential status are
-//! separate fields ([`PilotStatus`]). Calibration is unmeasured: no posterior
-//! draws are produced and the interval route stays closed
-//! ([`refuse_public_interval_route`]).
+//! separate fields ([`PilotStatus`]). Wald interval candidates from the delta covariance are
+//! reported with a calibration annotation; no posterior draws are produced
+//! (a posterior request is not part of this route).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -112,7 +112,6 @@ pub(crate) const NORMALIZATION_TOLERANCE: f64 = 1e-12;
 /// Detail of the refusal for anything outside the one selected pilot.
 pub(crate) const OUTSIDE_PILOT: &str = "nested_markov.outside_binary_pilot";
 /// Detail of the refusal of the public interval route.
-pub(crate) const ROUTE_FROZEN: &str = "nested_markov.route_frozen";
 
 const FEASIBLE_TOLERANCE: f64 = 1e-12;
 const CONSTRAINT_TOLERANCE: f64 = 1e-9;
@@ -148,18 +147,6 @@ fn numerical(detail: &str, message: &str, fields: RefusalFields) -> EstimationEr
         format!("nested_markov.{detail}"),
         message,
         fields,
-    )
-}
-
-/// The refusal of a numerical or posterior request on the public pilot route:
-/// the exact functional, likelihood and calibration gates have not all passed.
-#[must_use]
-pub fn refuse_public_interval_route() -> EstimationError {
-    EstimationError::refused_detail(
-        antecedent_core::reason_code!("not_supported"),
-        ROUTE_FROZEN,
-        "the binary nested-Markov pilot is a closed research route; calibration is unmeasured \
-         and no interval or posterior is published",
     )
 }
 
@@ -1091,8 +1078,9 @@ pub enum LikelihoodFitStanding {
 /// Inferential standing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InferenceStanding {
-    /// Calibration unmeasured: no interval or posterior is published.
-    IntervalWithheldCalibrationUnmeasured,
+    /// Wald interval candidates are reported; their calibration status is an annotation
+    /// resolved from the coverage records and never withholds them.
+    IntervalCandidatesCalibrationAnnotated,
 }
 
 /// The three statuses, kept as separate fields.
@@ -1179,7 +1167,7 @@ pub fn evaluate_nested_markov_pilot(
         status: PilotStatus {
             identification: IdentificationStanding::NonparametricallyIdentified,
             likelihood_fit,
-            inference: InferenceStanding::IntervalWithheldCalibrationUnmeasured,
+            inference: InferenceStanding::IntervalCandidatesCalibrationAnnotated,
         },
     })
 }

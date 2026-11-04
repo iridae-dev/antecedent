@@ -590,6 +590,7 @@ impl PreparedStudy {
             InferenceMode::Bayesian(_)
         ));
         result.support_status = self.analysis.support_status;
+        result.extras.would_refuse.clone_from(&self.analysis.would_refuse);
         result.structure_source = self.analysis.structure_source;
         let retargeted = result.retarget_population();
         result.executed_contract = Some(self.executed_contract(

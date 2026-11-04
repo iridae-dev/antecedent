@@ -623,8 +623,8 @@ fn cross_world_whole_path_verify(
     })
 }
 
-/// The interval of a sealed execution under a declared unit sampling, supported only by a
-/// currently attesting whole-path coverage record. The artifact is consumed (replayed) first.
+/// The interval of a sealed execution under a declared unit sampling, with the
+/// calibration slot of the whole-path coverage records. The artifact is consumed (replayed) first.
 #[pyfunction]
 #[pyo3(signature = (data, unit_sampling, expected_identity_json=None, cancel=None))]
 fn cross_world_measured_interval(
@@ -654,6 +654,7 @@ fn cross_world_measured_interval(
                     "level": interval.level,
                     "unit_sampling": interval.unit_sampling,
                     "record_id": interval.record_id,
+                    "calibration": interval.calibration,
                     "label": interval.label,
                 })
                 .to_string(),
@@ -678,13 +679,26 @@ fn cross_world_measured_interval(
     })
 }
 
-/// The refusal of an interval or posterior reading (always `not_supported`).
+/// The refusal of an unqualified interval, a posterior or a sampled abduction, with the
+/// scientific code that names why: an interval needs a declared unit sampling
+/// (`sampling_dependence_unknown`), a posterior has no representation here
+/// (`uncertainty_representation_insufficient`) and a sampled abduction only adds Monte Carlo
+/// error to an exactly computable quantity (`estimator_inference_mismatch`).
 #[pyfunction]
 fn cross_world_closed_reading(reading: &str) -> String {
-    let detail = match reading {
-        "interval" => "cross_world_execution.interval_route_closed",
-        "posterior" => "cross_world_execution.posterior_route_closed",
-        "sampled_abduction" => "cross_world_execution.sampled_abduction_not_supported",
+    let (code, detail) = match reading {
+        "interval" => (
+            antecedent_core::reason_code!("sampling_dependence_unknown"),
+            "cross_world_execution.interval_route_closed",
+        ),
+        "posterior" => (
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+            "cross_world_execution.posterior_route_closed",
+        ),
+        "sampled_abduction" => (
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
+            "cross_world_execution.sampled_abduction_not_supported",
+        ),
         _ => {
             return invalid_json(
                 "cross_world_execution.invalid_request",
@@ -693,13 +707,13 @@ fn cross_world_closed_reading(reading: &str) -> String {
         }
     };
     json!({
-        "code": antecedent_core::reason_code!("not_supported"),
+        "code": code,
         "stage": STAGE,
         "detail": detail,
         "message": format!("cross-world reading refused: {detail}"),
         "offending": reading,
-        "remedy": "the whole abduction-action-prediction path has no measured coverage record; the point value from exact enumeration is the result, and the calibration design that would open this reading is recorded in docs/cross-world-execution.md",
-        "missing": ["whole_path_calibration_record"],
+        "remedy": "name a unit sampling and read measured_interval; the posterior and a sampled abduction are not supported readings of an exactly enumerable quantity",
+        "missing": [],
     })
     .to_string()
 }

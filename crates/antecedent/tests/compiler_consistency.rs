@@ -197,6 +197,10 @@ const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.temporal_design.excursion",
     "bayesian.temporal_design.regime_survival",
     "bayesian.iv_bounds.endpoint_bootstrap",
+    "gcm.fit.bayesian",
+    "gcm.attribution.bayesian",
+    "interference.bayesian_gaussian",
+    "interference.cluster_bayesian_bootstrap",
 ];
 
 #[test]

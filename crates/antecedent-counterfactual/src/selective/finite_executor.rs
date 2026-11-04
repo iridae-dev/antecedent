@@ -460,12 +460,12 @@ impl FiniteScmExecutor {
     fn static_checks(request: &FiniteExecutionRequest) -> Result<(), CrossWorldExecutionError> {
         if request.exogenous == ExogenousInference::PosteriorSampling {
             return Err(refuse(
-                antecedent_core::reason_code!("not_supported"),
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "cross_world_execution.sampled_abduction_not_supported",
                 Some("posterior_sampling".to_owned()),
-                "this row enumerates the exogenous posterior exactly; a sampled posterior has \
-                 no measured coverage record for the whole abduction-action-prediction path, \
-                 so request exact enumeration",
+                "this row enumerates the exogenous posterior exactly; a sampled posterior only \
+                 adds Monte Carlo error to an exactly computable quantity, so request exact \
+                 enumeration",
             ));
         }
         if request.reading == RequestedReading::Envelope {

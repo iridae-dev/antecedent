@@ -17,6 +17,8 @@ readme = "README.md"
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-graph/development", "antecedent-contract/development", "antecedent-core/development", "antecedent-data/development", "antecedent-expr/development", "antecedent-identify/development", "antecedent-io-core/development", "antecedent-kernels/development", "antecedent-learn/development", "antecedent-model/development", "antecedent-prob/development", "antecedent-stats/development"]
 default = []
 ml-gbdt = ["antecedent-learn/ml-gbdt"]
 ml-forest = ["antecedent-learn/ml-forest"]
@@ -50,10 +52,6 @@ antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-test-support = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }
-
-[[test]]
-name = "mz_transport_execution"
-required-features = ["calibration-internal"]
 
 [[test]]
 name = "quadratic_dose_calibration"

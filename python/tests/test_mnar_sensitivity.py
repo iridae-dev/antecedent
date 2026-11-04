@@ -80,18 +80,17 @@ def test_mnar_tipping_points_match_the_closed_form() -> None:
 def test_mnar_sampling_interval_is_conditional_and_separate_from_the_range() -> None:
     result = _shift(loading="common")
     point = next(p for p in result.grid if p.parameter == 2.0)
-    assert point.sampling is None
-    assert result.mar.sampling is None
-    assert result.sampling_status == "not_supported"
-    assert all(t.kind != "excludes_null" for t in result.tipping)
-    with pytest.raises(mnar.MnarSensitivityRefusal) as withheld:
-        result.tipping_point("excludes_null")
-    assert withheld.value.code == "not_supported"
-    assert withheld.value.detail == "mnar_sensitivity.sampling_interval_not_supported"
+    assert point.sampling is not None
+    assert point.sampling.lower < point.effect < point.sampling.upper
+    assert result.mar.sampling is not None
+    assert result.sampling_status == "reported"
+    assert result.sampling_detail == "mnar_sensitivity.sampling_interval_conditional"
+    assert any(t.label == "excludes_null" for t in result.tipping)
+    assert result.tipping_point("excludes_null").label == "excludes_null"
     envelope = result.assumption_range
     effects = [p.effect for p in result.grid]
     assert (envelope.effect_lower, envelope.effect_upper) == (min(effects), max(effects))
-    assert all(p.sampling is None for p in result.grid)
+    assert all(p.sampling is not None for p in result.grid)
 
 
 def test_mnar_tilt_selection_matches_the_closed_form() -> None:
@@ -229,7 +228,9 @@ def test_mnar_adjusted_estimators_match_the_stratified_closed_form(estimator: st
     )
     for point in result.grid:
         assert point.effect == pytest.approx(1.5 + 0.25 * point.parameter, abs=1e-9)
-        assert point.sampling is None
+        assert point.sampling is not None
+        assert point.sampling.lower <= point.effect <= point.sampling.upper
+    assert result.sampling_status == "reported"
     assert result.tipping_point("sign").negative.parameter == pytest.approx(-6.0, abs=1e-7)
     assert result.decisions[0].tipping.negative.parameter == pytest.approx(-2.0, abs=1e-7)
 

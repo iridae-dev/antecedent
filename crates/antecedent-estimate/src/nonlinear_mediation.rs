@@ -22,9 +22,11 @@
 //! by mediator interaction, linear in `A` and `X`. The integral over `M | a', x` is computed by
 //! deterministic Gauss-Hermite quadrature with a declared node count `n`; the estimate is
 //! evaluated at `n` and `2n` nodes, the difference is the reported integration error, and an
-//! error above the declared tolerance is refused. Standard errors come from a nonparametric
-//! bootstrap with a fixed seed and replicate ids. Calibration is `unmeasured`: no coverage
-//! claim is made and no public interval is produced.
+//! error above the declared tolerance is refused. Standard errors and equal-tailed percentile
+//! intervals (level [`NONLINEAR_MEDIATION_INTERVAL_LEVEL`]) come from a nonparametric
+//! bootstrap with a fixed seed and replicate ids. The intervals carry a calibration basis
+//! ([`NonlinearMediationEstimate::calibration_basis`]); their calibration status is an
+//! annotation resolved from the coverage records and never withholds them.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::needless_range_loop,
@@ -41,10 +43,13 @@ use crate::util::{count, refuse};
 use crate::vector_treatment::DesignSummary;
 use std::f64::consts::{PI, SQRT_2};
 
-/// Calibration status of the estimator's inference. Coverage is unmeasured.
-pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "unmeasured";
-/// Interval status: standard errors are reported, public intervals are closed.
-pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "closed_calibration_unmeasured";
+/// Calibration slot placeholder of the estimator itself; the reported status of an interval is
+/// resolved from its calibration basis against the coverage records.
+pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "resolved_from_basis";
+/// Interval method: equal-tailed percentile intervals of the row bootstrap.
+pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "percentile_bootstrap_interval";
+/// Nominal level of the percentile intervals.
+pub const NONLINEAR_MEDIATION_INTERVAL_LEVEL: f64 = 0.95;
 /// Replicate-id scheme of the bootstrap.
 pub(crate) const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
 /// Largest outcome polynomial degree; a larger declaration is refused.
@@ -190,6 +195,8 @@ pub struct NonlinearMediationBootstrap {
     pub failed_replicate_ids: Vec<u64>,
     /// Id scheme.
     pub id_scheme: &'static str,
+    /// Successful replicate effects `[direct, indirect, total]`, in replicate order.
+    pub replicate_effects: Vec<[f64; 3]>,
 }
 
 /// Nonlinear mediation estimate.
@@ -207,6 +214,16 @@ pub struct NonlinearMediationEstimate {
     pub natural_indirect_se: Option<f64>,
     /// Bootstrap standard error of the total effect.
     pub total_se: Option<f64>,
+    /// Nominal level of the intervals, [`NONLINEAR_MEDIATION_INTERVAL_LEVEL`].
+    pub interval_level: f64,
+    /// Percentile bootstrap interval of the natural direct effect.
+    pub natural_direct_interval: Option<(f64, f64)>,
+    /// Percentile bootstrap interval of the natural indirect effect.
+    pub natural_indirect_interval: Option<(f64, f64)>,
+    /// Percentile bootstrap interval of the total effect.
+    pub total_interval: Option<(f64, f64)>,
+    /// Why the intervals are absent: too few successful replicates.
+    pub interval_unavailable_reason: Option<&'static str>,
     /// `|total_rowwise - (NDE + NIE)|`, the identity check.
     pub identity_residual: f64,
     /// Largest `n` versus `2n` node disagreement over the three effects, as a fraction of the
@@ -226,7 +243,7 @@ pub struct NonlinearMediationEstimate {
     pub bootstrap: NonlinearMediationBootstrap,
     /// Always [`NONLINEAR_MEDIATION_CALIBRATION`].
     pub calibration: &'static str,
-    /// Always [`NONLINEAR_MEDIATION_INTERVAL_STATUS`]: no public interval is produced.
+    /// Always [`NONLINEAR_MEDIATION_INTERVAL_STATUS`], the interval method.
     pub interval_status: &'static str,
     /// Assumption identifiers the estimate relies on.
     pub assumptions: Vec<&'static str>,
@@ -793,6 +810,7 @@ fn residual_shape(fit: &Fit) -> (f64, f64) {
 struct BootstrapOutcome {
     record: NonlinearMediationBootstrap,
     se: Option<(f64, f64, f64)>,
+    intervals: Option<[(f64, f64); 3]>,
 }
 
 fn cancelled() -> EstimationError {
@@ -852,6 +870,19 @@ fn run_bootstrap(
     } else {
         None
     };
+    let intervals = if enough {
+        match (
+            crate::percentile_interval(&d, NONLINEAR_MEDIATION_INTERVAL_LEVEL),
+            crate::percentile_interval(&i_, NONLINEAR_MEDIATION_INTERVAL_LEVEL),
+            crate::percentile_interval(&t, NONLINEAR_MEDIATION_INTERVAL_LEVEL),
+        ) {
+            (Some(a), Some(b), Some(c)) => Some([a, b, c]),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let replicate_effects = d.iter().zip(&i_).zip(&t).map(|((a, b), c)| [*a, *b, *c]).collect();
     Ok(BootstrapOutcome {
         record: NonlinearMediationBootstrap {
             seed: config.seed,
@@ -859,17 +890,51 @@ fn run_bootstrap(
             replicates_succeeded: ok,
             failed_replicate_ids: failed,
             id_scheme: NONLINEAR_MEDIATION_REPLICATE_SCHEME,
+            replicate_effects,
         },
         se,
+        intervals,
     })
+}
+
+impl NonlinearMediationEstimate {
+    /// Calibration basis of the interval of one effect (`natural_direct`, `natural_indirect`
+    /// or `total`), at the executed row count and successful replicate count.
+    #[must_use]
+    pub fn calibration_basis(&self, effect: &str) -> antecedent_core::CalibrationBasis {
+        use std::sync::Arc;
+        let a = |text: &str| Arc::<str>::from(text);
+        antecedent_core::CalibrationBasis::new(
+            [
+                a("NonlinearMediation"),
+                a("Dag"),
+                a("fixed"),
+                a("iid_rows"),
+                a("Frequentist"),
+                a("nonlinear_mediation_polynomial_gauss_hermite"),
+                a("bootstrap_percentile"),
+                a(""),
+                a("iid_rows"),
+                a(""),
+                a(effect),
+            ],
+            self.interval_level,
+            a("point"),
+            u64::try_from(self.n_rows).unwrap_or(u64::MAX),
+            Some(self.bootstrap.replicates_succeeded),
+            None,
+            0.0,
+        )
+        .with_validation("not_applicable")
+    }
 }
 
 /// Estimate the natural direct, indirect and total effects of a binary treatment through a
 /// continuous mediator with a nonlinear outcome model.
 ///
 /// The returned point estimates use `2n` Gauss-Hermite nodes; `integration_error` is the
-/// disagreement with the `n`-node evaluation. Calibration is `unmeasured` and no public
-/// interval is produced.
+/// disagreement with the `n`-node evaluation. Percentile intervals of the row bootstrap are
+/// reported with a calibration basis.
 ///
 /// # Errors
 /// Refuses with `nonlinear_mediation.confounding`,
@@ -963,6 +1028,15 @@ pub fn estimate_nonlinear_mediation(
         natural_direct_se: boot.se.map(|s| s.0),
         natural_indirect_se: boot.se.map(|s| s.1),
         total_se: boot.se.map(|s| s.2),
+        interval_level: NONLINEAR_MEDIATION_INTERVAL_LEVEL,
+        natural_direct_interval: boot.intervals.map(|i| i[0]),
+        natural_indirect_interval: boot.intervals.map(|i| i[1]),
+        total_interval: boot.intervals.map(|i| i[2]),
+        interval_unavailable_reason: if boot.intervals.is_some() {
+            None
+        } else {
+            Some("insufficient_bootstrap_replicates")
+        },
         identity_residual,
         integration_error,
         quadrature_nodes: nodes,

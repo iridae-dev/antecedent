@@ -443,8 +443,22 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
     assert!(message.contains("search.cancelled"), "{message}");
 }
 
+/// An interval outside the validated protocol is reported with a `not_measured` slot whose
+/// basis names a construction no coverage record measured.
+fn assert_not_measured_outside_protocol(
+    measured: &antecedent_io::measured_inference::MeasuredInference,
+) {
+    let report = measured.report();
+    assert_eq!(report.calibration, "not_measured");
+    let scalar = &report.scalars[0];
+    assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+    assert_eq!(scalar.calibration.status.as_str(), "not_measured");
+    let basis = scalar.calibration.basis.as_ref().expect("the slot carries its basis");
+    assert!(basis.key.estimator.ends_with("+outside_measured_protocol"), "{:?}", basis.key);
+}
+
 #[test]
-fn original_weighted_candidate_remains_replayable_but_cannot_gain_measured_authority() {
+fn original_weighted_candidate_remains_replayable_and_its_interval_is_not_measured() {
     let mut f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::bca(7142));
     Arc::make_mut(&mut f.catalog.bindings)[0].weights =
         Some(antecedent_core::SupportedWeights { snapshot_identity: Arc::from(SNAPSHOT) });
@@ -453,7 +467,7 @@ fn original_weighted_candidate_remains_replayable_but_cannot_gain_measured_autho
     // Original candidate proof, receipt and wire semantics are unchanged.
     let original = consume(&bytes).unwrap();
     assert_eq!(original.wire.export().unwrap(), bytes);
-    let error = SampledRecoveryArtifactWire::measure(
+    let measured = SampledRecoveryArtifactWire::measure(
         &bytes,
         &SampledRecoveryExpectation {
             premises_digest: Some(wire.premises_digest.clone()),
@@ -462,12 +476,12 @@ fn original_weighted_candidate_remains_replayable_but_cannot_gain_measured_autho
         SampledRecoveryConsumeLimits::default(),
         &ctx(),
     )
-    .unwrap_err();
-    assert!(error.to_string().contains("weighted observed rows"));
+    .expect("calibration annotates: the interval is reported");
+    assert_not_measured_outside_protocol(&measured);
 }
 
 #[test]
-fn original_unknown_or_clustered_row_design_cannot_gain_measured_authority() {
+fn original_unknown_or_clustered_row_design_reports_its_interval_as_not_measured() {
     for design in
         [antecedent_core::SamplingDesign::Unknown, antecedent_core::SamplingDesign::Clustered]
     {
@@ -492,7 +506,7 @@ fn original_unknown_or_clustered_row_design_cannot_gain_measured_authority() {
         let wire = wire_of(&f);
         let bytes = wire.export().unwrap();
         assert_eq!(consume(&bytes).unwrap().wire.export().unwrap(), bytes);
-        let error = SampledRecoveryArtifactWire::measure(
+        let measured = SampledRecoveryArtifactWire::measure(
             &bytes,
             &SampledRecoveryExpectation {
                 premises_digest: Some(wire.premises_digest.clone()),
@@ -501,7 +515,7 @@ fn original_unknown_or_clustered_row_design_cannot_gain_measured_authority() {
             SampledRecoveryConsumeLimits::default(),
             &ctx(),
         )
-        .unwrap_err();
-        assert!(error.to_string().contains("explicitly independent observation rows"));
+        .expect("calibration annotates: the interval is reported");
+        assert_not_measured_outside_protocol(&measured);
     }
 }

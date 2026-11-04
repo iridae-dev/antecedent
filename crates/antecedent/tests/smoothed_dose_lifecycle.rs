@@ -1815,13 +1815,21 @@ fn a_target_row_below_the_membership_floor_refuses_even_when_every_source_row_cl
 }
 
 #[test]
-fn the_unmeasured_interval_route_refuses_with_not_supported() {
+fn the_interval_route_reports_the_bootstrap_interval_with_its_calibration() {
     let rows = draw(Design::IndependentSamples, Scenario::Good, 900, 600, 2);
-    let prepared = prepare(query(&GRID, H), rows.clone(), options(), 2).unwrap();
+    let requested = SmoothedDoseOptions { bootstrap: 199, ..options() };
+    let prepared = prepare(query(&GRID, H), rows.clone(), requested, 2).unwrap();
     let ctx = ExecutionContext::for_tests(2);
-    let (code, message) = refused_code(prepared.interval(&ctx).unwrap_err());
-    assert_eq!(code, "not_supported");
-    assert!(message.starts_with("dose_response.interval_withheld"), "{message}");
+    let interval = prepared.interval(&ctx).unwrap();
+    // A pointwise interval about each grid dose, or the stated reason none was produced.
+    if let Some(reason) = interval.uncertainty_reason() {
+        assert!(!reason.is_empty());
+    } else {
+        assert!(interval.intervals().iter().all(|band| band.is_some_and(|(lo, hi)| lo <= hi)));
+    }
+    assert_eq!(interval.point().grid.len(), GRID.len());
+    // The slot annotates; it is never a gate.
+    let _ = interval.calibration().status;
     // The point remains available and reports the interval withheld, never attached.
     let requested = SmoothedDoseOptions { bootstrap: 199, ..options() };
     let result = prepare(query(&GRID, H), rows, requested, 2).unwrap().estimate(&ctx).unwrap();

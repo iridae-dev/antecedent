@@ -71,9 +71,7 @@ CELLS_BY_ID: dict[str, list[Record]] = {}
 for _cell in LEDGER["cell"]:
     CELLS_BY_ID.setdefault(_cell["id"], []).append(_cell)
 #: Records the ledger covers, plus every record carried forward closed.
-A_RECORDS: list[Record] = [
-    r for r in CAPABILITY["record"] if r["id"] in CELLS_BY_ID
-]
+A_RECORDS: list[Record] = [r for r in CAPABILITY["record"] if r["id"] in CELLS_BY_ID]
 
 SUPPORTED = [r for r in A_RECORDS if r["status"] == "supported"]
 INFERENTIAL = [r for r in A_RECORDS if r["inference_claim"] not in NOT_INFERENTIAL]

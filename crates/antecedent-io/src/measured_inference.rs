@@ -76,7 +76,8 @@ pub struct MeasuredInferenceReport {
     pub version: u32,
     /// Native route.
     pub route: String,
-    /// `calibrated` only after every actual basis resolves to attesting evidence.
+    /// `calibrated` only when every scalar's basis resolves to attesting evidence;
+    /// otherwise the most severe scalar status. Annotation only.
     pub calibration: String,
     /// Complete reported scalar list, with individual record bindings.
     pub scalars: Vec<MeasuredScalarReport>,
@@ -233,11 +234,22 @@ pub fn report_seal(report: &MeasuredInferenceReport) -> Result<String, IoError> 
     )
 }
 
+/// Report-level status: `calibrated` only when every scalar is; otherwise the
+/// most severe scalar status. Calibration annotates the interval, never gates it.
+fn aggregate_status(scalars: &[MeasuredScalarReport]) -> &'static str {
+    for status in ["measured_below_nominal", "outside_measured_scope", "not_measured"] {
+        if scalars.iter().any(|s| s.calibration.status == status) {
+            return status;
+        }
+    }
+    "calibrated"
+}
+
 /// Build readable record-bound metadata from supplied declarations. This is
 /// stateless lookup and formatting only: arbitrary caller bases never construct
 /// [`MeasuredInference`] or authenticate an execution/model/sampling design.
 /// # Errors
-/// Invalid/bounded scalar inputs or a basis without current attesting evidence.
+/// Invalid or bounded scalar inputs.
 pub fn build_report(
     route: &str,
     source: &[u8],
@@ -273,17 +285,6 @@ pub fn build_report(
         }
         let basis = basis_wire(&execution.basis);
         let slot = slot_for(&basis);
-        if slot.status != "calibrated" || slot.record_id.is_none() || slot.calibration_sha.is_none()
-        {
-            return Err(refusal(
-                "measured_inference.record_not_attesting",
-                &format!(
-                    "{}: {}",
-                    execution.name,
-                    slot.reason.as_deref().unwrap_or("no attesting record")
-                ),
-            ));
-        }
         scalars.push(MeasuredScalarReport {
             name: execution.name,
             point: execution.point,
@@ -305,7 +306,7 @@ pub fn build_report(
     let mut report = MeasuredInferenceReport {
         version: 1,
         route: route.into(),
-        calibration: "calibrated".into(),
+        calibration: aggregate_status(&scalars).into(),
         scalars,
         validated_scope: scope,
         identity,

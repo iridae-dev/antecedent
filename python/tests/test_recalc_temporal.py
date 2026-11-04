@@ -20,6 +20,7 @@ from antecedent.recalc_capabilities import (
     retained_kind,
 )
 from antecedent.recalc_temporal import (
+    CheckedTemporalIntervalConfig,
     TemporalEffect,
     TemporalHistory,
     TemporalRequest,
@@ -169,13 +170,22 @@ def test_temporal_unmeasured_history_protocol_preserves_source_state():
     session = TemporalSession()
     require_success(session.execute(request(), execution=Execution(seed=41)))
     ids = session.identities
+    # The default studentized interval needs exact balanced unit scores, which this panel does
+    # not have: that is a refusal of the construction, not of its calibration.
     with pytest.raises(RecalcRefusal) as error:
         session.dependent_interval()
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
-        "not_supported",
-        "temporal_interval.route_frozen",
-        "inference",
+        "route_not_supported",
+        "recalc.temporal_history_unsupported",
+        "data_snapshot",
     )
+    assert "temporal_interval.studentized_unbalanced" in str(error.value)
+    assert session.identities == ids
+    # A request outside the measured protocol is reported, annotated `not_measured`.
+    reported = session.dependent_interval(
+        config=CheckedTemporalIntervalConfig(method="percentile", replicates=20)
+    )
+    assert reported.scalars[0].calibration == "not_measured"
     assert session.identities == ids
     assert (
         require_success(

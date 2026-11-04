@@ -254,7 +254,7 @@ fn the_frequentist_contrast_matches_newton_and_the_delta_method() {
     // The contrast is a probability difference, not the link-scale treatment coefficient.
     assert!((estimate.ate - beta[1]).abs() > 0.1);
     assert!(result.posterior.is_none());
-    assert_ne!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
 }
 
 #[test]

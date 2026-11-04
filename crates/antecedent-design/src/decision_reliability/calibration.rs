@@ -3,12 +3,12 @@
 //! A ranking or optimality probability, or an interval for a selected decision, is a
 //! claim about the *whole procedure*: the candidate-set size, the Monte Carlo budget and
 //! the selection rule together. Component Monte Carlo error alone does not cover the
-//! selected decision. A route is supported at a coordinate exactly when a current,
+//! selected decision. Every published route is reported at every coordinate, with its
+//! calibration status as an annotation: `calibrated` exactly when a current,
 //! attesting, non-boundary coverage record measured that construction and the
 //! coordinate lies inside the range it measured ([`support_route_at`] resolves the
-//! record through the shipped coverage table). At any other coordinate the route is
-//! closed with a typed `not_supported` refusal and only point diagnostics are
-//! published.
+//! record through the shipped coverage table), and otherwise `outside_measured_scope`,
+//! `measured_below_nominal` or `not_measured`. Calibration never withholds an interval.
 //!
 //! [`KnownOptimumDesign`] is the data-generating process the measurement uses: a
 //! finite candidate set with known true utilities (so the true optimum, the true value
@@ -19,9 +19,9 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::calibration::{
-    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+    BASIS_MISSING, CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
 };
-use antecedent_io_core::contract_section::CalibrationStatus;
+use antecedent_io_core::contract_section::{CalibrationSlotWire, CalibrationStatus};
 use antecedent_kernels::standard_normal;
 use serde::{Deserialize, Serialize};
 
@@ -279,63 +279,66 @@ fn basis_with_functional(
     })
 }
 
-/// Ask for a published route at a coordinate, at [`DEFAULT_SUPPORT_LEVEL`].
+/// The calibration of a published route at a coordinate, at [`DEFAULT_SUPPORT_LEVEL`].
 ///
 /// # Errors
-/// [`ReliabilityError::NotSupported`] unless a coverage record measured this route
-/// at this coordinate.
+/// None today: calibration annotates the route and never refuses it. The `Result`
+/// is kept so the signature stays stable for callers that handle a refusal.
 pub fn support_route(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
-) -> Result<(), ReliabilityError> {
+) -> Result<CalibrationSlotWire, ReliabilityError> {
     support_route_at(route, coordinate, DEFAULT_SUPPORT_LEVEL)
 }
 
-/// Ask for a published route at a coordinate and nominal level.
+/// The calibration slot of a published route at a coordinate and nominal level.
 ///
-/// The route is supported only when the shipped coverage table holds a current,
+/// The slot is `calibrated` when the shipped coverage table holds a current,
 /// attesting, non-boundary record whose construction equals [`calibration_basis`] (or,
 /// for a record measured at one exact count, that count) and whose measured sample-size
-/// range contains the coordinate's Monte Carlo budget.
-/// Nothing a caller passes can open a route.
+/// range contains the coordinate's Monte Carlo budget. Otherwise it carries the status
+/// and reason of the closest record, or `not_measured` when no basis can describe the
+/// coordinate (undeclared serial dependence, weights, adaptive candidates). Nothing a
+/// caller passes can raise the status.
 ///
 /// # Errors
-/// [`ReliabilityError::NotSupported`] for every other coordinate.
+/// None today; see [`support_route`].
 pub fn support_route_at(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
     level: f64,
-) -> Result<(), ReliabilityError> {
-    let supported =
+) -> Result<CalibrationSlotWire, ReliabilityError> {
+    Ok(route_calibration(route, coordinate, level))
+}
+
+/// The calibration slot of `route` at `coordinate` and `level` (see [`support_route_at`]).
+#[must_use]
+pub fn route_calibration(
+    route: PublishedRoute,
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> CalibrationSlotWire {
+    let mut first = None;
+    for basis in
         [calibration_basis(route, coordinate, level), exact_count_basis(route, coordinate, level)]
             .into_iter()
             .flatten()
-            .any(|basis| calibration_slot(&basis).status == CalibrationStatus::Calibrated);
-    if supported {
-        Ok(())
-    } else {
-        Err(ReliabilityError::NotSupported {
-            route: route.as_str(),
-            coordinate: coordinate.describe(),
-        })
+    {
+        let slot = calibration_slot(&basis);
+        if slot.status == CalibrationStatus::Calibrated {
+            return slot;
+        }
+        first.get_or_insert(slot);
     }
+    first.unwrap_or_else(|| CalibrationSlotWire::not_measured(BASIS_MISSING))
 }
 
-/// Every route that is closed at `coordinate`, with the refusal it would return.
+/// Routes whose calibration is not `calibrated` at `coordinate`, as informational
+/// entries. A route is never refused for that reason, so the list is empty; the type is
+/// kept for artifacts that carry the historical refusal snapshot.
 #[must_use]
-pub fn closed_routes(coordinate: &CalibrationCoordinate) -> Vec<ClosedRoute> {
-    PublishedRoute::ALL
-        .into_iter()
-        .filter(|&route| support_route(route, coordinate).is_err())
-        .map(|route| ClosedRoute {
-            route,
-            coordinate: coordinate.describe(),
-            code: antecedent_core::reason_code!("not_supported").to_owned(),
-            remedy: "point diagnostics only: a coverage record at this candidate-set size, \
-                     Monte Carlo budget and selection rule would be needed"
-                .to_owned(),
-        })
-        .collect()
+pub fn closed_routes(_coordinate: &CalibrationCoordinate) -> Vec<ClosedRoute> {
+    Vec::new()
 }
 
 /// How the simulated candidates' noise is coupled.

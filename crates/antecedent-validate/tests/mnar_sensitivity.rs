@@ -137,13 +137,12 @@ fn mnar_shift_tipping_points_match_the_closed_form() {
     assert!(sign.negative.is_none());
 }
 
-#[cfg(feature = "calibration-internal")]
 #[test]
 fn mnar_sampling_interval_is_the_delta_method_interval_at_each_point() {
     let data = shift_data();
     let mut spec = shift(ArmLoading::common(), -10.0, 10.0);
     spec.level = 0.95;
-    let result = antecedent_validate::mnar_sensitivity::mnar_sensitivity_calibration_candidate(
+    let result = antecedent_validate::mnar_sensitivity::mnar_sensitivity(
         &MnarData::new(&data.0, &data.1),
         &spec,
     )
@@ -159,11 +158,10 @@ fn mnar_sampling_interval_is_the_delta_method_interval_at_each_point() {
     close(result.mar.sampling.unwrap().standard_error, (3.5 / 6.0 + 2.5 / 5.0_f64).sqrt(), 1e-12);
 }
 
-#[cfg(feature = "calibration-internal")]
 #[test]
 fn mnar_excludes_null_tips_between_the_grid_points_where_the_interval_flips() {
     let data = shift_data();
-    let result = antecedent_validate::mnar_sensitivity::mnar_sensitivity_calibration_candidate(
+    let result = antecedent_validate::mnar_sensitivity::mnar_sensitivity(
         &MnarData::new(&data.0, &data.1),
         &shift(ArmLoading::treated_only(), -10.0, 10.0),
     )
@@ -242,11 +240,12 @@ fn mnar_ranges_are_assumption_ranges_never_confidence_intervals() {
     });
     close(result.assumption_range.effect_lower, low, 0.0);
     close(result.assumption_range.effect_upper, high, 0.0);
-    // Sampling endpoints and interval-derived tipping are withheld until calibrated.
-    assert!(result.grid.iter().all(|p| p.sampling.is_none()));
-    assert!(result.mar.sampling.is_none());
-    assert_eq!(result.sampling_status, "not_supported");
-    assert!(!result.tipping.iter().any(|t| t.kind == MnarConclusionKind::ExcludesNull));
+    // Sampling endpoints and the interval-derived tipping are reported, conditional on the
+    // parameter; calibration annotates them in the facade, never withholds them here.
+    assert!(result.grid.iter().all(|p| p.sampling.is_some()));
+    assert!(result.mar.sampling.is_some());
+    assert_eq!(result.sampling_status, "reported");
+    assert!(result.tipping.iter().any(|t| t.kind == MnarConclusionKind::ExcludesNull));
     let departure = result
         .assumptions
         .iter()
@@ -385,13 +384,11 @@ fn mnar_matches_the_independent_reference() {
             .collect();
         let data = (treatment, outcome);
         let result = run(&data, &spec).unwrap();
-        #[cfg(feature = "calibration-internal")]
-        let candidate =
-            antecedent_validate::mnar_sensitivity::mnar_sensitivity_calibration_candidate(
-                &MnarData::new(&data.0, &data.1),
-                &spec,
-            )
-            .unwrap();
+        let candidate = antecedent_validate::mnar_sensitivity::mnar_sensitivity(
+            &MnarData::new(&data.0, &data.1),
+            &spec,
+        )
+        .unwrap();
         for probe in case["probe"].as_array().unwrap() {
             let parameter = probe["parameter"].as_f64().unwrap();
             let point = result
@@ -400,8 +397,7 @@ fn mnar_matches_the_independent_reference() {
                 .find(|p| (p.parameter - parameter).abs() < 1e-9)
                 .unwrap_or_else(|| panic!("{name}: no grid point at {parameter}"));
             close(point.effect, probe["effect"].as_f64().unwrap(), 1e-9);
-            assert!(point.sampling.is_none());
-            #[cfg(feature = "calibration-internal")]
+            assert!(point.sampling.is_some());
             {
                 let candidate_point = candidate
                     .grid
@@ -499,7 +495,8 @@ fn mnar_adjusted_estimators_match_the_stratified_closed_form() {
         close(result.mar.effect, 1.5, 1e-9);
         for point in &result.grid {
             close(point.effect, 1.5 + 0.25 * point.parameter, 1e-9);
-            assert!(point.sampling.is_none());
+            // The bootstrap sampling interval is reported at every parameter.
+            assert!(point.sampling.is_some());
         }
         let sign = result.tipping.iter().find(|t| t.kind == MnarConclusionKind::Sign).unwrap();
         close(sign.negative.unwrap().parameter, -6.0, 1e-7);

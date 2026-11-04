@@ -488,7 +488,7 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
     assert result.report.interval == "not reported"
     expect(
         refused(result.score_interval),
-        "not_supported",
+        "quantity_semantics_mismatch",
         "predictive_assessment.interval_not_supported",
     )
     expect(
@@ -510,7 +510,7 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
             score_interval=(0.95, "stationary bootstrap"),
         )
     )
-    expect(error, "not_supported", "predictive_assessment.interval_not_supported")
+    expect(error, "quantity_semantics_mismatch", "predictive_assessment.interval_not_supported")
 
 
 @pytest.mark.requires_calibration
@@ -537,7 +537,7 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
     # An unscoped request is still the closed route.
     expect(
         refused(result.score_interval),
-        "not_supported",
+        "quantity_semantics_mismatch",
         "predictive_assessment.interval_not_supported",
     )
     # Below the measured number of cases, and at another level: the typed out-of-scope refusal.

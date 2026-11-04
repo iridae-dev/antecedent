@@ -76,3 +76,58 @@ fn natural_effects_and_mediator_fit_match_the_exact_gaussian_integral() {
         }
     }
 }
+
+/// Type-7 quantile from its definition, independent of the interval code.
+fn hand_quantile(values: &[f64], p: f64) -> f64 {
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let h = (sorted.len() as f64 - 1.0) * p;
+    let k = h.floor() as usize;
+    if k + 1 >= sorted.len() {
+        return sorted[sorted.len() - 1];
+    }
+    sorted[k] + (h - h.floor()) * (sorted[k + 1] - sorted[k])
+}
+
+#[test]
+fn bootstrap_intervals_equal_hand_percentiles_of_the_retained_replicate_effects() {
+    let file: Value =
+        serde_json::from_str(include_str!("oracle_data/nonlinear_mediation_reference.json"))
+            .unwrap();
+    let case = &file["cases"].as_array().unwrap()[0];
+    let (a, m, y) = (floats(&case["a"]), floats(&case["m"]), floats(&case["y"]));
+    let x: Vec<Vec<f64>> = case["x"].as_array().unwrap().iter().map(floats).collect();
+    let covariates: Vec<&[f64]> = x.iter().map(Vec::as_slice).collect();
+    let input = NonlinearMediationInput {
+        treatment: &a,
+        mediator: &m,
+        outcome: &y,
+        covariates: &covariates,
+    };
+    let config = NonlinearMediationConfig {
+        outcome_degree: usize::try_from(case["degree"].as_u64().unwrap()).unwrap(),
+        bootstrap_replicates: 200,
+        min_arm_count: 5,
+        max_support_violation: 1.0,
+        ..NonlinearMediationConfig::default()
+    };
+    let got = estimate_nonlinear_mediation(
+        &input,
+        &NonlinearMediationPremises::sequentially_ignorable(),
+        &config,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    assert!((got.interval_level - 0.95).abs() < 1e-15);
+    let effects = &got.bootstrap.replicate_effects;
+    assert_eq!(effects.len() as u32, got.bootstrap.replicates_succeeded);
+    let intervals =
+        [got.natural_direct_interval, got.natural_indirect_interval, got.total_interval];
+    for (k, interval) in intervals.into_iter().enumerate() {
+        let values: Vec<f64> = effects.iter().map(|e| e[k]).collect();
+        let (lo, hi) = interval.expect("enough replicates succeeded");
+        assert!((lo - hand_quantile(&values, 0.025)).abs() < 1e-12, "effect {k} lower");
+        assert!((hi - hand_quantile(&values, 0.975)).abs() < 1e-12, "effect {k} upper");
+    }
+    let _ = got.calibration_basis("natural_direct");
+}

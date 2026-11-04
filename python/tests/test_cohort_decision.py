@@ -564,7 +564,7 @@ def _native_fit(n: int = 400):
     )
 
 
-def test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal() -> None:
+def test_a_native_fit_reports_its_interval_with_calibration_status() -> None:
     x, fit = _native_fit()
     assert (fit.rows, fit.width) == (400, 4)
     binding = cd.CohortBinding(
@@ -574,12 +574,16 @@ def test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal() -> None:
         weights=[1.0 / 80.0] * 80,
     )
     source = cd.decision_source_from_native_fit(fit, cohort=binding, outcome_units="mmHg")
-    # No attesting coverage record exists (calibration is pending): the typed refusal, never an
-    # unmeasured interval.
-    with pytest.raises(cd.CohortDecisionRefusal) as refusal:
-        source.interval(level=0.95)
-    assert refusal.value.reason_code == "not_supported"
-    assert refusal.value.detail == "measured_inference.record_not_attesting"
+    # The interval is always reported; calibration is only an annotation on it.
+    measured = source.interval(level=0.95)
+    scalar = measured.scalars[0]
+    assert scalar.calibration in (
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    )
+    assert scalar.interval[0] < scalar.point < scalar.interval[1]
     # The point route is unchanged and never carries an interval by itself. Oracle: the cohort
     # mean of the interaction model's contrast, from an independent least-squares fit.
     n = len(x)
@@ -593,6 +597,52 @@ def test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal() -> None:
     )
     with pytest.raises(CausalValueError):
         source.interval(level=1.0)
+
+
+def _student_t_quantile(p: float, df: float) -> float:
+    """Cornish-Fisher expansion of the Student-t quantile (error ~1e-9 at df ~ 400)."""
+    from statistics import NormalDist
+
+    z = NormalDist().inv_cdf(p)
+    return (
+        z
+        + (z**3 + z) / (4 * df)
+        + (5 * z**5 + 16 * z**3 + 3 * z) / (96 * df**2)
+        + (3 * z**7 + 19 * z**5 + 17 * z**3 - 15 * z) / (384 * df**3)
+    )
+
+
+def test_the_native_cohort_interval_matches_an_independent_hc3_student_t_construction() -> None:
+    x, fit = _native_fit()
+    n = len(x)
+    cohort_x = x[:80]
+    binding = cd.CohortBinding(
+        snapshot_id="clinic",
+        population="target",
+        columns={"x": [float(v) for v in cohort_x]},
+        weights=[1.0 / 80.0] * 80,
+    )
+    source = cd.decision_source_from_native_fit(fit, cohort=binding, outcome_units="mmHg")
+    # Independent construction: OLS on [1, x, t, t*x], HC3 covariance, Student-t with n - p df.
+    t = (np.arange(n) % 2).astype(float)
+    rng = np.random.default_rng(23)
+    rng.uniform(-2.0, 2.0, n)
+    y = 2.0 + x + t * (1.0 + 0.5 * x) + rng.normal(0.0, 0.5, n)
+    design = np.column_stack([np.ones(n), x, t, t * x])
+    bread = np.linalg.inv(design.T @ design)
+    beta = bread @ design.T @ y
+    resid = y - design @ beta
+    leverage = np.einsum("ij,jk,ik->i", design, bread, design)
+    meat = design.T @ (design * (resid**2 / (1.0 - leverage) ** 2)[:, None])
+    covariance = bread @ meat @ bread
+    direction = np.array([0.0, 0.0, 1.0, float(np.mean(cohort_x))])
+    point = float(direction @ beta)
+    standard_error = float(np.sqrt(direction @ covariance @ direction))
+    radius = _student_t_quantile(0.975, n - 4) * standard_error
+    scalar = source.interval(level=0.95).scalars[0]
+    assert scalar.point == pytest.approx(point, abs=1e-8)
+    assert scalar.interval[0] == pytest.approx(point - radius, abs=1e-6)
+    assert scalar.interval[1] == pytest.approx(point + radius, abs=1e-6)
 
 
 def test_a_declared_compact_export_is_point_only_with_its_own_detail() -> None:

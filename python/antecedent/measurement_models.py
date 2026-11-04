@@ -40,9 +40,9 @@ What is supported, and what is not:
   differs while the analysis assumes it does not, and an operation the route does not support.
 * **Estimate** forms one functional of the corrected quantity. The standard error is an
   *uncalibrated* delta-method estimate that includes the uncertainty of the estimated measurement
-  parameters where the record says it was propagated. No interval is produced:
-  :meth:`MeasurementEstimate.interval` raises ``not_supported`` until the whole
-  measurement-plus-estimation method has a measured coverage record.
+  parameters where the record says it was propagated. :meth:`MeasurementEstimate.interval` returns
+  the Wald interval as a :class:`MeasurementInterval` whose calibration slot is ``not_measured``
+  until the whole measurement-plus-estimation method has a measured coverage record.
 * **Refresh** keeps the model and recomputes the numbers on new outcome-only data of the same
   question; it never changes validation parameters. :meth:`PreparedMeasurementModel
   .with_validation_parameters` is the only way the numbers a model was established with change, and
@@ -55,7 +55,7 @@ Continuous classical error beyond the linear moment correction goes through
 :meth:`PreparedMeasurementModel.estimate_continuous` with a :class:`ContinuousErrorData`: regression
 calibration or SIMEX (Cook and Stefanski 1994) under a linear or logistic outcome model, with the
 error in the treatment, a covariate or the outcome. Logistic calibration and SIMEX report a
-bootstrap standard error over the whole procedure; the result is uncalibrated and has no interval.
+bootstrap standard error over the whole procedure; the interval is reported with a ``not_measured`` calibration slot.
 
 A posterior from an external provider is trusted only as far as it is attested or verified, and
 never as native: :class:`ProviderObject` states an attestation or carries a verification receipt the
@@ -91,7 +91,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NoReturn
 
 import numpy as np
 
@@ -130,6 +130,7 @@ __all__ = [
     "ContinuousMeasurementEstimate",
     "LatentPosteriorData",
     "MeasurementEstimate",
+    "MeasurementInterval",
     "MeasurementIdentities",
     "MeasurementModel",
     "MeasurementModelRefusal",
@@ -1115,6 +1116,28 @@ class VarianceComponent:
 
 
 @dataclass(frozen=True, slots=True)
+class MeasurementInterval:
+    """The Wald interval of a corrected functional with its calibration slot.
+
+    ``calibration`` is the slot annotating the interval; its ``status`` is ``not_measured`` until
+    a coverage record measures the method. The interval is reported regardless of the status.
+    """
+
+    lower: float
+    upper: float
+    level: float
+    calibration: Mapping[str, Any]
+
+
+def _measurement_interval(handle: Any, level: float) -> MeasurementInterval:
+    """The interval of a native estimate handle, or its typed refusal."""
+    bounds, refusal = handle.interval(level)
+    raise_refusal(refusal, MeasurementModelRefusal)
+    lower, upper, slot = bounds
+    return MeasurementInterval(lower, upper, level, json.loads(slot))
+
+
+@dataclass(frozen=True, slots=True)
 class MeasurementIdentities:
     """The separately frozen identities of a model (lowercase hex).
 
@@ -1145,7 +1168,7 @@ class MeasurementEstimate(ScientificResult):
 
     ``standard_error`` is an uncalibrated delta-method estimate (``inference`` says whether one is
     reported); ``parameter_uncertainty`` says whether the measurement parameters' uncertainty is in
-    it. There is no interval: :meth:`interval` raises ``not_supported``.
+    it. :meth:`interval` returns the Wald interval with its calibration slot (``not_measured``).
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -1212,9 +1235,9 @@ class MeasurementEstimate(ScientificResult):
         detail: dict[str, Any] = json.loads(self._handle.detail_json())
         return detail
 
-    def interval(self) -> None:
-        """Always raises ``not_supported``: no coverage record measures the method."""
-        raise_refusal(self._handle.interval(), MeasurementModelRefusal)
+    def interval(self, level: float = 0.95) -> MeasurementInterval:
+        """The Wald interval at ``level`` with its calibration slot (``not_measured``)."""
+        return _measurement_interval(self._handle, level)
 
     @outcome_operation
     def downstream_linear_functional(self, weights: Any) -> tuple[float, float]:
@@ -1275,8 +1298,8 @@ class ContinuousMeasurementEstimate:
     calibration and SIMEX. ``method`` is ``regression_calibration``, ``simex`` or
     ``outcome_error_no_correction`` (error in the outcome under an identity link, which does not
     bias the slope). ``simex_lambdas`` and ``simex_means`` are the SIMEX path (``0`` first), one
-    mean coefficient vector per value. There is no interval: :meth:`interval` raises
-    ``not_supported``.
+    mean coefficient vector per value. :meth:`interval` returns the Wald interval with its
+    calibration slot (``not_measured``).
     """
 
     model_identity: str
@@ -1313,9 +1336,9 @@ class ContinuousMeasurementEstimate:
         """The reported variance (the square of :attr:`standard_error`)."""
         return None if self.standard_error is None else self.standard_error**2
 
-    def interval(self) -> None:
-        """Always raises ``not_supported``: no coverage record measures the method."""
-        raise_refusal(self._handle.interval(), MeasurementModelRefusal)
+    def interval(self, level: float = 0.95) -> MeasurementInterval:
+        """The Wald interval at ``level`` with its calibration slot (``not_measured``)."""
+        return _measurement_interval(self._handle, level)
 
 
 def _continuous(summary: dict[str, Any], handle: Any) -> ContinuousMeasurementEstimate:
@@ -1396,9 +1419,16 @@ class PreparedMeasurementModel:
         _choice(operation, "operation", OPERATIONS)
         raise_refusal(self._handle.check_operation(operation), MeasurementModelRefusal)
 
-    def interval(self) -> None:
-        """Always raises ``not_supported``: no coverage record measures the method."""
+    def interval(self) -> NoReturn:
+        """Always the typed refusal: a prepared model holds no estimate to bound.
+
+        Form the estimate first; its :meth:`MeasurementEstimate.interval` returns the Wald interval
+        with its calibration slot.
+        """
         raise_refusal(self._handle.interval(), MeasurementModelRefusal)
+        raise AssertionError(
+            "the native prepared-model interval always refuses"
+        )  # pragma: no cover
 
     @outcome_operation
     def estimate(self, *, execution: Execution | None = None) -> MeasurementEstimate:
@@ -1428,10 +1458,11 @@ class PreparedMeasurementModel:
         execution = resolve_execution(execution)
         if not isinstance(data, ContinuousErrorData):
             raise CausalTypeError("data must be a ContinuousErrorData")
-        summary = _unwrap(
-            self._handle.estimate_continuous(_dumps(data.to_wire()), cancel=execution.cancel)
+        summary, handle, refusal = self._handle.estimate_continuous(
+            _dumps(data.to_wire()), cancel=execution.cancel
         )
-        return _continuous(json.loads(summary), self._handle)
+        raise_refusal(refusal, MeasurementModelRefusal)
+        return _continuous(json.loads(summary), handle)
 
     def refresh(
         self, data: MeasurementData, *, execution: Execution | None = None
@@ -1768,7 +1799,7 @@ class TransportedMeasurementEstimate(ScientificResult):
     ``estimate`` is the existing :class:`MeasurementEstimate` computed on the re-bound model
     (``estimate.model`` is ``None``: the re-bound model is identified by
     ``estimate.model_identity``). ``receipt`` and ``identity`` say how the model reached the target.
-    The standard error is conditional on the premise and uncalibrated; there is no interval.
+    The standard error is conditional on the premise; the interval carries a ``not_measured`` slot.
     """
 
     identity: str
@@ -1780,9 +1811,9 @@ class TransportedMeasurementEstimate(ScientificResult):
     def point(self) -> float:
         return self.estimate.point
 
-    def interval(self) -> None:
-        """Always raises ``not_supported``."""
-        self.estimate.interval()
+    def interval(self, level: float = 0.95) -> MeasurementInterval:
+        """The re-bound estimate's interval at ``level`` with its calibration slot."""
+        return self.estimate.interval(level)
 
     @artifact_export
     def export(

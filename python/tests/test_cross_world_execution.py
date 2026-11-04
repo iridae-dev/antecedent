@@ -234,26 +234,27 @@ def test_action_only_change_reuses_abduction_and_changed_evidence_rebuilds() -> 
     assert d.value == pytest.approx(0.4, abs=1e-12)
 
 
-@pytest.mark.requires_calibration
-def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record() -> None:
+def test_a_measured_interval_needs_a_declared_sampling_and_reports_its_calibration() -> None:
     execution = require_success(cw.seal(_joint_request()))
     with pytest.raises(CausalValueError):
         require_success(execution.measured_interval("undeclared"))  # type: ignore[arg-type]
-    # One unit under an independent sample has no determined sampling variance, so the interval
-    # is closed whatever the registry holds; the unqualified readings stay closed.
+    # One unit under an independent sample has no determined sampling variance, so no interval
+    # exists; the unqualified readings stay closed with their scientific codes.
     with pytest.raises(R) as error:
         require_success(execution.measured_interval("independent_sample"))
-    assert error.value.reason_code == "not_supported"
+    assert error.value.reason_code == "uncertainty_representation_insufficient"
     assert error.value.detail == "cross_world_execution.interval_route_closed"
     with pytest.raises(R) as error:
         execution.interval()
+    assert error.value.reason_code == "sampling_dependence_unknown"
     assert error.value.detail == "cross_world_execution.interval_route_closed"
     with pytest.raises(R) as error:
         require_success(execution.posterior())
+    assert error.value.reason_code == "uncertainty_representation_insufficient"
     assert error.value.detail == "cross_world_execution.posterior_route_closed"
 
-    # Sixty units under a declared sampling are inside the measured range: the interval is
-    # bound to its attesting record and is conditional on the declared model.
+    # Sixty units under a declared sampling: the interval is conditional on the declared model
+    # and carries its calibration slot.
     evidence = [{"x": 0, "y": 0}, {"x": 1, "y": 1}, {"x": 1, "y": 0}, {"x": 0, "y": 1}]
     units = tuple(cw.FactualUnit(f"u{i}", evidence[i % 4]) for i in range(60))
     request = cw.CrossWorldRequest(
@@ -272,9 +273,16 @@ def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record()
         assert interval.unit_sampling == sampling
         assert interval.lower <= interval.point <= interval.upper
         assert interval.level == 0.95
-        assert interval.record_id.startswith("cov.counterfactual.dag.")
+        assert interval.calibration["status"] in (
+            "calibrated",
+            "outside_measured_scope",
+            "measured_below_nominal",
+            "not_measured",
+        )
+        if interval.calibration["status"] == "calibrated":
+            assert interval.record_id.startswith("cov.counterfactual.dag.")
         assert interval.label == "measured_interval_under_the_declared_model"
-    # Fewer units than the measured range have no attesting record.
+    # Fewer units than the measured range still report the interval, annotated by scope.
     small = require_success(
         cw.seal(
             cw.CrossWorldRequest(
@@ -285,25 +293,27 @@ def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record()
             )
         )
     )
-    with pytest.raises(R) as error:
-        require_success(small.measured_interval("independent_sample"))
-    assert error.value.reason_code == "not_supported"
-    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    interval = require_success(small.measured_interval("independent_sample"))
+    assert interval.lower <= interval.point <= interval.upper
+    assert interval.calibration["status"] != "calibrated"
 
 
-def test_a_whole_path_interval_is_refused_outside_the_measured_cells() -> None:
+def test_a_whole_path_interval_is_annotated_outside_the_measured_cells() -> None:
     execution = require_success(cw.seal(_joint_request()))
     # The unit sampling is a closed choice, rejected before any native work.
     with pytest.raises(CausalValueError):
         require_success(execution.measured_interval("undeclared"))  # type: ignore[arg-type]
-    # One unit has no determined sampling variance under either declared sampling, so the
-    # measured interval is closed whatever the registry holds.
-    for sampling in ("independent_sample", "fixed_units"):
-        with pytest.raises(R) as error:
-            require_success(execution.measured_interval(sampling))
-        assert error.value.reason_code == "not_supported"
-        assert error.value.detail == "cross_world_execution.interval_route_closed"
-    # Fewer units than the measured range are closed too.
+    # One unit has no determined sampling variance under an independent sample, so there is no
+    # interval to report; the fixed unit's predictive variance is a declared model quantity, so
+    # that sampling still reports its interval.
+    with pytest.raises(R) as error:
+        require_success(execution.measured_interval("independent_sample"))
+    assert error.value.reason_code == "uncertainty_representation_insufficient"
+    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    fixed = require_success(execution.measured_interval("fixed_units"))
+    assert fixed.lower <= fixed.point <= fixed.upper
+    assert fixed.unit_sampling == "fixed_units"
+    # Fewer units than the measured range report the interval, annotated by scope.
     evidence = [{"x": 0, "y": 0}, {"x": 1, "y": 1}, {"x": 1, "y": 0}, {"x": 0, "y": 1}]
     units = tuple(cw.FactualUnit(f"u{i}", evidence[i % 4]) for i in range(10))
     small = require_success(
@@ -316,13 +326,12 @@ def test_a_whole_path_interval_is_refused_outside_the_measured_cells() -> None:
             )
         )
     )
-    with pytest.raises(R) as error:
-        require_success(small.measured_interval("independent_sample"))
-    assert error.value.reason_code == "not_supported"
-    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    interval = require_success(small.measured_interval("independent_sample"))
+    assert interval.calibration["status"] != "calibrated"
     # The unqualified interval and posterior readings are closed, never an unmeasured number.
     with pytest.raises(R) as error:
         small.interval()
+    assert error.value.reason_code == "sampling_dependence_unknown"
     assert error.value.detail == "cross_world_execution.interval_route_closed"
     with pytest.raises(R) as error:
         require_success(small.posterior())
@@ -375,7 +384,7 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
                     )
                 )
             )
-        assert error.value.reason_code == "not_supported"
+        assert error.value.reason_code == "uncertainty_representation_insufficient"
     with pytest.raises(R) as error:
         require_success(
             executor.execute(
@@ -388,6 +397,7 @@ def test_unsupported_requests_are_scientific_refusals() -> None:
                 )
             )
         )
+    assert error.value.reason_code == "estimator_inference_mismatch"
     assert error.value.detail == "cross_world_execution.sampled_abduction_not_supported"
     assert executor.retained_len() == 0
     assert executor.counters()["abductions"] == 0
@@ -419,7 +429,7 @@ def test_artifact_round_trip_mutation_resume_and_fresh_process(tmp_path) -> None
     assert sealed.result.label == "point_only"
     with pytest.raises(R) as error:
         sealed.interval()
-    assert error.value.reason_code == "not_supported"
+    assert error.value.reason_code == "sampling_dependence_unknown"
     with pytest.raises(R):
         require_success(sealed.posterior())
     data = sealed.to_bytes()

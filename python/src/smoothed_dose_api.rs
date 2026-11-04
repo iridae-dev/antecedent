@@ -181,12 +181,28 @@ impl PreparedSmoothedDoseNative {
         Ok((payload, PyBytes::new(py, &framed).unbind()))
     }
 
-    /// The closed interval route: always refuses with `not_supported`.
+    /// The bootstrap interval per grid dose with its calibration slot, as JSON.
     #[pyo3(signature=(cancel=None))]
-    fn interval(&self, py: Python<'_>, cancel: Option<crate::PyCancellationToken>) -> PyResult<()> {
+    fn interval(
+        &self,
+        py: Python<'_>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);
         let inner = self.inner.clone();
-        crate::detach_catch(py, move || inner.interval(&ctx).map(|_| ()).map_err(error))
+        crate::detach_catch(py, move || {
+            let run = inner.interval(&ctx).map_err(error)?;
+            let doses: Vec<f64> = run.point().grid.iter().map(|point| point.dose).collect();
+            let bands: Vec<Option<[f64; 2]>> =
+                run.intervals().iter().map(|band| band.map(|(lo, hi)| [lo, hi])).collect();
+            Ok(serde_json::json!({
+                "doses": doses,
+                "intervals": bands,
+                "reason": run.uncertainty_reason(),
+                "calibration": run.calibration(),
+            })
+            .to_string())
+        })
     }
 
     /// Replace the rows with a compatible snapshot; clears the last claim.

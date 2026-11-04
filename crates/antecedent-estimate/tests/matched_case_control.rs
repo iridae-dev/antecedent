@@ -6,7 +6,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
     EstimationError, MATCHED_ESTIMAND, MATCHED_SAMPLING, conditional_odds_ratio,
-    parse_matched_estimand, parse_matched_sampling, refuse_matched_interval,
+    parse_matched_estimand, parse_matched_sampling,
 };
 
 #[path = "common/checks.rs"]
@@ -249,10 +249,25 @@ fn only_the_declared_sampling_design_is_accepted() {
 }
 
 #[test]
-fn the_interval_route_is_closed() {
-    let (code, message) = refused(refuse_matched_interval());
-    assert_eq!(code, "not_supported");
-    assert!(message.contains("matched_case_control.interval_withheld"), "{message}");
+fn the_wald_interval_equals_the_one_to_one_closed_form() {
+    // 1:1 matching with b = 12 pairs whose case is exposed and c = 4 whose control is: the
+    // estimate is theta = b / c and the information is b c / (b + c), so the log-scale
+    // variance is 1/b + 1/c and the 95% interval is ln(b/c) -/+ 1.959963984540054 sqrt(1/b + 1/c).
+    let (b, c) = (12.0_f64, 4.0_f64);
+    let mut sets = repeat(&[(1.0, 1.0), (0.0, 0.0)], 12);
+    sets.extend(repeat(&[(1.0, 0.0), (0.0, 1.0)], 4));
+    let (stratum, case, exposed) = rows(&sets);
+    let fit = conditional_odds_ratio(&stratum, &case, &exposed, &ctx()).unwrap();
+    let z = 1.959_963_984_540_054;
+    let half = z * (1.0 / b + 1.0 / c).sqrt();
+    assert!((fit.information - b * c / (b + c)).abs() < 1e-6, "{}", fit.information);
+    let (lo, hi) = fit.log_odds_ratio_interval(0.95).unwrap();
+    assert!((lo - ((b / c).ln() - half)).abs() < 1e-6, "lower {lo}");
+    assert!((hi - ((b / c).ln() + half)).abs() < 1e-6, "upper {hi}");
+    let (olo, ohi) = fit.odds_ratio_interval(0.95).unwrap();
+    assert!((olo - (b / c) * (-half).exp()).abs() < 1e-5);
+    assert!((ohi - (b / c) * half.exp()).abs() < 1e-5);
+    assert!(fit.odds_ratio_interval(1.0).is_none());
 }
 
 #[test]

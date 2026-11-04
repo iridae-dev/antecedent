@@ -1,0 +1,174 @@
+//! Known-truth check of `bayesian.temporal.lagged_instrument` on every fixed `TemporalDag`
+//! coordinate it can estimate: pulse and one-step sustained effects, explicit and accepted
+//! structure, and every validation suite.
+//!
+//! The design is exactly balanced. The instrument `z` cycles `1, 0, -1, 0`; the confounder `u`
+//! alternates `1, -1`; the treatment and outcome noises are the quarter-period sine shifted onto
+//! the aligned rows. The Wald rows number a whole number of periods, so `z` is exactly
+//! uncorrelated with `u` and both noises, and the Wald ratio of covariances equals the
+//! structural effect `2` to rounding error. The route's posterior is that of the reduced-form
+//! ratio `gamma / pi` under a diffuse independent normal prior on the four reduced-form
+//! coefficients, so its centre is the Wald ratio. The route publishes the mean of 4000 draws, so
+//! the stated Monte Carlo bound is six standard errors of that mean, taking the posterior
+//! standard deviation of the ratio as the closed-form Wald standard error recomputed here from
+//! the raw series, plus the second-order bias of a ratio of Gaussians `2 |beta| (se_pi / pi)^2`
+//! with the first-stage standard error also recomputed here.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(
+    clippy::cast_precision_loss,
+    reason = "deterministic fixture indices are small and exact in f64"
+)]
+
+use antecedent::{
+    AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
+};
+use antecedent_core::{
+    CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+};
+use antecedent_data::TimeSeriesData;
+use antecedent_graph::{TemporalDag, ensure_lagged};
+
+/// Rows: `ROWS` aligned Wald rows (a multiple of the period 4) plus horizon 1 plus lag 1.
+const ROWS: usize = 400;
+const N: usize = ROWS + 2;
+const X: u32 = 0;
+const Y: u32 = 1;
+const Z: u32 = 2;
+const U: u32 = 3;
+const STRUCTURAL: f64 = 2.0;
+const DRAWS: usize = 4000;
+const WIRE_ID: &str = "bayesian.temporal.lagged_instrument";
+
+/// `x_s = 0.9 z_{s-1} + 0.8 u_s + 0.3 w_{s-1}`, `y_t = 2 x_{t-1} + u_{t-1} + 0.3 w_{t-2}`.
+fn columns() -> [Vec<f64>; 4] {
+    let cosine = [1.0, 0.0, -1.0, 0.0];
+    let sine = [0.0, 1.0, 0.0, -1.0];
+    let z: Vec<f64> = (0..N).map(|s| cosine[s % 4]).collect();
+    let u: Vec<f64> = (0..N).map(|s| if s % 2 == 0 { 1.0 } else { -1.0 }).collect();
+    let x: Vec<f64> =
+        (0..N).map(|s| 0.9 * cosine[(s + 3) % 4] + 0.8 * u[s] + 0.3 * sine[(s + 3) % 4]).collect();
+    let y: Vec<f64> = (0..N)
+        .map(|t| if t == 0 { 0.0 } else { 2.0 * x[t - 1] + u[t - 1] + 0.3 * sine[(t + 2) % 4] })
+        .collect();
+    [x, y, z, u]
+}
+
+fn data(columns: &[Vec<f64>; 4]) -> TimeSeriesData {
+    TimeSeriesData::from_f64_columns(
+        [
+            ("x", columns[0].as_slice()),
+            ("y", columns[1].as_slice()),
+            ("z", columns[2].as_slice()),
+            ("u", columns[3].as_slice()),
+        ],
+        1,
+    )
+    .unwrap()
+}
+
+/// `z_{t-2} -> x_{t-1} -> y_t`, `u_{t-1} -> x_{t-1}`, `u_{t-1} -> y_t`.
+fn graph() -> TemporalDag {
+    let mut g = TemporalDag::empty();
+    let mut node = |variable: u32, lag: u32| {
+        ensure_lagged(&mut g, VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap()
+    };
+    let (z2, x1, y0, u1) = (node(Z, 2), node(X, 1), node(Y, 0), node(U, 1));
+    g.insert_directed(z2, x1).unwrap();
+    g.insert_directed(x1, y0).unwrap();
+    g.insert_directed(u1, x1).unwrap();
+    g.insert_directed(u1, y0).unwrap();
+    g
+}
+
+fn query(sustained: bool) -> CausalQuery {
+    let base = TemporalEffectQuery::pulse(VariableId::from_raw(X), VariableId::from_raw(Y), 1.0)
+        .with_horizon_steps(1);
+    CausalQuery::TemporalEffect(if sustained {
+        base.with_policy(TemporalPolicy::sustained(-1, -1))
+    } else {
+        base.with_policy(TemporalPolicy::pulse(-1))
+    })
+}
+
+/// Wald ratio, its homoskedastic standard error, and the relative first-stage standard error
+/// `se_pi / pi`, over rows `k = 0..ROWS` pairing `z_k`, `x_{k+1}` and `y_{k+2}`.
+fn closed_form(columns: &[Vec<f64>; 4]) -> (f64, f64, f64) {
+    let pick =
+        |c: &[f64], offset: usize| -> Vec<f64> { (0..ROWS).map(|k| c[k + offset]).collect() };
+    let (zs, xs, ys) = (pick(&columns[2], 0), pick(&columns[0], 1), pick(&columns[1], 2));
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+    let (zm, xm, ym) = (mean(&zs), mean(&xs), mean(&ys));
+    let szz: f64 = zs.iter().map(|z| (z - zm).powi(2)).sum();
+    let szx: f64 = zs.iter().zip(&xs).map(|(z, x)| (z - zm) * (x - xm)).sum();
+    let szy: f64 = zs.iter().zip(&ys).map(|(z, y)| (z - zm) * (y - ym)).sum();
+    let effect = szy / szx;
+    let df = (ROWS - 2) as f64;
+    let structural_rss: f64 =
+        xs.iter().zip(&ys).map(|(x, y)| (y - (ym - effect * xm) - effect * x).powi(2)).sum();
+    let se = (structural_rss / df * szz / (szx * szx)).sqrt();
+    let pi = szx / szz;
+    let first_stage_rss: f64 =
+        zs.iter().zip(&xs).map(|(z, x)| (x - xm - pi * (z - zm)).powi(2)).sum();
+    let relative_pi_se = (first_stage_rss / df / szz).sqrt() / pi.abs();
+    (effect, se, relative_pi_se)
+}
+
+/// Pulse and one-step sustained, explicit and accepted structure, every validation suite on a
+/// fixed `TemporalDag`: the explicitly selected Bayesian lagged-instrument estimator publishes a
+/// reduced-form ratio posterior centred on the Wald ratio of the balanced design, which is the
+/// structural effect.
+#[test]
+fn bayesian_lagged_instrument_centres_on_the_structural_effect_on_every_fixed_dag_coordinate() {
+    let columns = columns();
+    let (wald, wald_se, relative_pi_se) = closed_form(&columns);
+    assert!((wald - STRUCTURAL).abs() < 1e-9, "the balanced design must be exact: {wald}");
+    assert!(wald_se > 0.0);
+    let tolerance = 6.0 * wald_se / (DRAWS as f64).sqrt()
+        + 2.0 * STRUCTURAL * relative_pi_se * relative_pi_se
+        + 1e-6;
+    let ctx = ExecutionContext::for_tests(2);
+    for accepted in [false, true] {
+        for sustained in [false, true] {
+            for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+                let label = format!("accepted={accepted} sustained={sustained} {suite:?}");
+                let base = Study::series(data(&columns));
+                let base = if accepted {
+                    base.graph(AcceptedGraph::temporal_dag(graph()))
+                } else {
+                    base.graph(graph())
+                };
+                let study = base
+                    .query(query(sustained))
+                    .identifier(IdentifierId::TemporalIvUnfolded)
+                    .estimator(EstimatorId::BayesianTemporalLaggedInstrument)
+                    .inference(InferenceMode::Bayesian(
+                        BayesianConfig::conjugate().prior_scale(1.0e3).n_draws(DRAWS),
+                    ))
+                    .refute(suite)
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap_or_else(|e| panic!("{label}: {e}"));
+                let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
+                drop(study);
+                let result = prepared
+                    .estimate_series(&data(&columns), &ctx)
+                    .unwrap_or_else(|e| panic!("{label}: {e}"));
+                assert_eq!(result.logical_plan.estimator.as_deref(), Some(WIRE_ID), "{label}");
+                let posterior = result.posterior.as_ref().expect("a Bayesian study keeps draws");
+                let column = posterior.effect_column().unwrap();
+                let mean = posterior.summaries.mean[column];
+                assert!(
+                    (mean - STRUCTURAL).abs() < tolerance,
+                    "{label}: mean {mean} vs {STRUCTURAL} (+/- {tolerance})"
+                );
+                assert!(
+                    posterior.summaries.q025[column] < STRUCTURAL
+                        && STRUCTURAL < posterior.summaries.q975[column],
+                    "{label}: the 95% interval must cover the structural effect"
+                );
+                assert_eq!(posterior.draws.n_draws, DRAWS, "{label}");
+            }
+        }
+    }
+}

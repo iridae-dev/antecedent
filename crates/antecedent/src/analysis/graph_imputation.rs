@@ -179,18 +179,18 @@ impl GraphImputationPoint {
         })
     }
 
-    /// The measured, calibrated report of this execution's original source. It is issued by the
-    /// same native replay and exists only when a current attesting record covers it.
+    /// The measured report of this execution's original source, issued by the same native
+    /// replay. The interval is always reported; its calibration slot says whether a current
+    /// attesting record covers this construction and row count.
     ///
     /// # Errors
-    /// [`GraphImputationError::IntervalUnavailable`] when no record covers this construction and
-    /// row count; a typed engine refusal when the replay itself fails.
+    /// A typed engine refusal when the replay itself fails.
     pub fn measured(&self) -> Result<MeasuredInference, GraphImputationError> {
         antecedent_io::measured_inference::graph_candidate::measure_source(&self.bytes, &self.ctx)
             .map_err(replay_error)
     }
 
-    /// The calibrated interval of the measured route.
+    /// The interval of the measured route; read its calibration with [`Self::calibration`].
     ///
     /// # Errors
     /// As [`Self::measured`].
@@ -199,6 +199,22 @@ impl GraphImputationPoint {
         let scalar =
             measured.report().scalars.first().ok_or(GraphImputationError::IntervalUnavailable)?;
         Ok((scalar.lower, scalar.upper))
+    }
+}
+
+impl GraphImputationPoint {
+    /// The calibration slot of the measured interval.
+    ///
+    /// # Errors
+    /// As [`Self::measured`].
+    pub fn calibration(
+        &self,
+    ) -> Result<antecedent_io_core::contract_section::CalibrationSlotWire, GraphImputationError>
+    {
+        let measured = self.measured()?;
+        let scalar =
+            measured.report().scalars.first().ok_or(GraphImputationError::IntervalUnavailable)?;
+        Ok(scalar.calibration.clone())
     }
 }
 
@@ -765,10 +781,14 @@ mod compiled_tests {
     }
 
     #[test]
-    fn interval_is_refused_outside_every_measured_range() {
+    fn interval_is_reported_with_the_slot_of_an_unmeasured_construction() {
         let ctx = ExecutionContext::for_tests(19);
         let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
         let point = plan.execute(&ctx).unwrap();
-        assert!(matches!(point.interval(), Err(GraphImputationError::IntervalUnavailable)));
+        let (lower, upper) = point.interval().expect("the interval is reported");
+        assert!(lower <= point.mean && point.mean <= upper, "{lower} {} {upper}", point.mean);
+        let slot = point.calibration().expect("the calibration slot");
+        assert_eq!(slot.status.as_str(), "not_measured");
+        assert_eq!(slot.reason.as_deref(), Some("estimator_grid_not_measured"));
     }
 }

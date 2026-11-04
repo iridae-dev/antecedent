@@ -152,7 +152,7 @@ fn the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_fro
     // The structural effect is 2; the confounded regression coefficient is not.
     assert!((estimate.ate - 2.0).abs() < 3.0 * se, "{} vs 2", estimate.ate);
     assert!(result.posterior.is_none());
-    assert_ne!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     // Exclusion is a recorded premise of the identification, taken from the graph.
     assert!(
         result.identification.required_assumptions.entries.iter().any(|a| matches!(

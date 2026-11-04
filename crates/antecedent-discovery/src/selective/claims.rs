@@ -1,8 +1,9 @@
 //! Claims discovery reuse does not make, as typed refusals.
 //!
 //! Each function here is a request a user might reasonably make of a discovered graph. Each
-//! is refused with `not_supported` (or `route_not_supported` for a route that does not
-//! exist), and the refusal states the declaration or evidence that would support it and the
+//! is refused scientifically (`discovered_structure_unresolved` for a recovery claim,
+//! `selection_inference_not_supported` for an interval on the rows that selected the graph)
+//! or with `route_not_supported` for a route that does not exist, and the refusal states the declaration or evidence that would support it and the
 //! calibration design that would have to be measured first. None is measured here.
 //!
 //! # What can and cannot be supported
@@ -34,13 +35,13 @@ use super::refusal::SelectiveDiscoveryError;
 ///
 /// # Errors
 ///
-/// Always `not_supported`: matching a full run is an algorithmic fact, not a statement
+/// Always `discovered_structure_unresolved`: matching a full run is an algorithmic fact, not a statement
 /// about the truth.
 pub fn request_recovery_claim(
     _outcome: &DiscoveryOutcome,
 ) -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("discovered_structure_unresolved"),
         "selective_discovery.recovery_claim_not_supported",
         "no recovery, false-discovery or error-control statement can be supported for the graph \
          discovered on one dataset: faithfulness and causal sufficiency are not testable from \
@@ -55,12 +56,12 @@ pub fn request_recovery_claim(
 ///
 /// # Errors
 ///
-/// Always `not_supported`.
+/// Always `selection_inference_not_supported`.
 pub fn request_downstream_interval(
     _outcome: &DiscoveryOutcome,
 ) -> Result<Infallible, SelectiveDiscoveryError> {
     Err(SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("not_supported"),
+        antecedent_core::reason_code!("selection_inference_not_supported"),
         "selective_discovery.downstream_interval_not_supported",
         "an interval for an estimate that rests on a discovered graph cannot be supported on \
          the rows discovery used: selecting the graph and estimating on the same rows is not \

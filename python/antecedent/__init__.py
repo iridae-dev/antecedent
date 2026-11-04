@@ -211,6 +211,7 @@ from ._native import (
     Dag,
     Pag,
     TemporalDag,
+    build_flavor,
 )
 
 if getattr(_native_module, "__build_optimized__", True) is False:
@@ -287,6 +288,7 @@ __all__ = [
     "rebind",
     "reconfigure",
     "load",
+    "build_flavor",
     "identify",
     "estimate",
     "staleness",

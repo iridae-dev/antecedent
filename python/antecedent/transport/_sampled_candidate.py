@@ -45,7 +45,7 @@ class SampledRecoveryIdentity:
 class SampledRecoveryCandidate(ScientificResult):
     """Checked whole-row bootstrap candidate, with no measured coverage support.
 
-    Created through the private candidate hook in a calibration-internal build.
+    Created through the private candidate hook.
     The standard public producer returns native-authorized measured inference.
     Export/load reruns original recovery and every replicate under retained identity.
     """
@@ -66,8 +66,8 @@ class SampledRecoveryCandidate(ScientificResult):
             or consume.__name__ != "consume_sampled_recovery_candidate"
         ):
             raise CausalUnsupportedError(
-                "sampled_recovery.route_frozen: private candidate factory requires "
-                "the original calibration-internal native hook",
+                "sampled_recovery.native_hook_unavailable: private candidate factory requires "
+                "the original native hook",
                 reason_code="not_supported",
             )
         decoded = json.loads(payload)
@@ -149,7 +149,7 @@ class SampledRecoveryCandidate(ScientificResult):
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if consume is None:
             raise CausalUnsupportedError(
-                "sampled_recovery.route_frozen: private candidate replay requires calibration-internal",
+                "sampled_recovery.native_hook_unavailable: private candidate replay requires the native hook",
                 reason_code="not_supported",
             )
         payload = call_native(

@@ -256,17 +256,17 @@ pub fn derive_whole_path_uncertainty(
     }
     if request.exogenous == ExogenousInference::PosteriorSampling {
         return Err(refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "cross_world_uncertainty.sampled_path_not_supported",
             Some("posterior_sampling".to_owned()),
-            "a sampled exogenous posterior adds Monte Carlo and mixing error whose coverage for the \
-             whole path is not measured; use exact enumeration, whose posterior has no estimation \
-             error",
+            "with declared mechanisms the exogenous posterior is enumerated exactly; a sampled \
+             posterior only adds Monte Carlo and mixing error to a quantity that is exactly \
+             computable, so use exact enumeration, whose posterior has no estimation error",
         ));
     }
     if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
         return Err(refuse(
-            antecedent_core::reason_code!("not_supported"),
+            antecedent_core::reason_code!("transport_not_certified"),
             "cross_world_uncertainty.transported_path_closed",
             request.target_population.clone(),
             "the uncertainty of a transported cross-world quantity composes the transport \

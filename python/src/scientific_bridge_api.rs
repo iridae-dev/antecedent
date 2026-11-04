@@ -765,6 +765,7 @@ impl BridgedClaimHandle {
                         "supported_by": interval.supported_by,
                         "coverage_record": interval.coverage_record,
                         "calibration_sha": interval.calibration_sha,
+                        "calibration": serde_json::to_value(&interval.calibration).unwrap_or_default(),
                         "assumptions": interval.assumptions,
                     })
                     .to_string(),
@@ -1109,6 +1110,7 @@ impl BridgedDistributionHandle {
                         "supported_by": interval.supported_by,
                         "coverage_record": interval.coverage_record,
                         "calibration_sha": interval.calibration_sha,
+                        "calibration": serde_json::to_value(&interval.calibration).unwrap_or_default(),
                         "assumptions": interval.assumptions,
                     })
                     .to_string(),

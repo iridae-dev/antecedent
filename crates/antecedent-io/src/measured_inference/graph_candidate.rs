@@ -6,8 +6,8 @@
 //! sealed into its program. The support rule that drops a graph with several minimal back-door
 //! adjustment sets is applied here, from the identifier's own output, and the compiler asks this
 //! module for it, so both sides keep the same graphs. It then executes the single native
-//! pipeline under that program identity. The measured factory is reached only through [`authorize`], so a calibrated
-//! interval exists exactly when a current attesting coverage record covers the execution.
+//! pipeline under that program identity. The measured factory is reached only through [`authorize`], so every interval is
+//! reported, `calibrated` exactly when a current attesting coverage record covers the execution.
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -948,16 +948,16 @@ mod tests {
     }
 
     #[test]
-    fn without_a_matching_record_the_route_refuses() {
+    fn without_a_matching_record_the_interval_is_reported_not_calibrated() {
         let ctx = ExecutionContext::for_tests(7);
         let source = parts(GraphSupport::TreatmentDirectEffect, 3, 60);
         let functional = route_functional(&source);
         let bytes = encoded(source);
-        let (code, message) = super::super::with_test_records(vec![], || {
-            refusal(measure_source(&bytes, &ctx).unwrap_err())
-        });
-        assert_eq!(code, "not_supported");
-        assert!(message.contains("measured_inference.record_not_attesting"));
+        let measured =
+            super::super::with_test_records(vec![], || measure_source(&bytes, &ctx)).unwrap();
+        let scalar = &measured.report().scalars[0];
+        assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+        assert_ne!(scalar.calibration.status, "calibrated");
         // Another graph size, another support or a row range that excludes this run does not cover it.
         let other_size = route_functional(&parts(GraphSupport::TreatmentDirectEffect, 4, 60));
         let other_support =
@@ -968,10 +968,10 @@ mod tests {
             record(functional.clone(), 61, 4096),
             record(functional, 30, 59),
         ] {
-            let (code, _) = super::super::with_test_records(vec![wrong], || {
-                refusal(measure_source(&bytes, &ctx).unwrap_err())
-            });
-            assert_eq!(code, "not_supported");
+            let measured =
+                super::super::with_test_records(vec![wrong], || measure_source(&bytes, &ctx))
+                    .unwrap();
+            assert_ne!(measured.report().scalars[0].calibration.status, "calibrated");
         }
     }
 
@@ -1016,10 +1016,10 @@ mod tests {
             super::super::with_test_records(vec![record(functional.clone(), 30, 59)], || {
                 measure_source(&bytes, &ctx)
             });
-        assert!(outside.is_err());
+        assert_ne!(outside.unwrap().report().scalars[0].calibration.status, "calibrated");
         let inside = super::super::with_test_records(vec![record(functional, 30, 60)], || {
             measure_source(&bytes, &ctx)
         });
-        assert!(inside.is_ok());
+        assert_eq!(inside.unwrap().report().scalars[0].calibration.status, "calibrated");
     }
 }

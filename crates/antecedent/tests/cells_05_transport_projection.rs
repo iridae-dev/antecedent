@@ -165,7 +165,8 @@ fn cells_05_transport_weights_are_read_and_the_probabilities_are_its_design_weig
             |result: &StudyResult| result.estimate().as_effect().unwrap().uncertainty.analytic.se;
         assert!((ate(&constant) - ate(&unweighted)).abs() < 1e-12);
         assert!((se(&constant) - se(&unweighted)).abs() < 1e-12);
-        // Weights declared on an estimator the transport route does not run change nothing.
+        // An estimator the transport route does not run is refused for the quantity, with or
+        // without weights declared on it.
         let declared = SamplingWeights::new(weights()).unwrap();
         let error = refusal(
             go(table(&columns()), |b| {
@@ -173,8 +174,8 @@ fn cells_05_transport_weights_are_read_and_the_probabilities_are_its_design_weig
             }),
             "estimator weights",
         );
-        assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
-        assert!(error.to_string().contains("sampling_weights.route_unsupported"), "{error}");
+        assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
+        assert!(error.to_string().contains("linear.adjustment.ate does not estimate"), "{error}");
         // The route's own weights are the supplied probabilities: halving the selection
         // probability moves the contrast to the hand count.
         let mut skewed = columns();

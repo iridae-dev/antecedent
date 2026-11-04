@@ -7,12 +7,12 @@
 //! is unchanged; evidence under another snapshot, regime or catalog needs a new
 //! decision and a new preparation.
 //!
-//! The multi-source interval route is registered closed (`not_supported`)
-//! until its coverage records are measured: an estimate on counted laws returns
-//! the point and withholds the interval with that reason, never a nominal one.
-//! The internal joint bootstrap the calibration harness measures is
-//! `antecedent_estimate::mz_transport_bootstrap_interval`, which exists only under that
-//! crate's `calibration-internal` feature (dev-dependencies alone; no normal or Python build).
+//! An estimate on counted laws returns the point and the nominal pointwise joint
+//! percentile-bootstrap interval of `antecedent_estimate::mz_transport_bootstrap_interval`
+//! (seeded from the execution, so a consumer recomputes it bit for bit), with the
+//! calibration slot of the multi-source coverage records. Calibration annotates the
+//! interval and never withholds it; an interval is withheld only for a data or
+//! dependence reason (undeclared or unsupported sampling dependence).
 use super::StudyBuilder;
 use super::transport_common::{compile_plans, err, estimate_err, eval_err, evaluate_plans};
 use antecedent_core::{ExecutionContext, SearchLimits, TheoremScope};
@@ -23,8 +23,68 @@ use antecedent_identify::BoundMzTransportFunctional;
 use antecedent_io::IoError;
 use antecedent_io::mz_transport_artifact::{
     MzContrastWire, MzTransportArtifactInput, MzTransportArtifactWire, MzTransportConsumeLimits,
-    MzUncertaintyWire, mz_point_contrasts, refuse_unsupported_interval,
+    MzUncertaintyWire, mz_point_contrasts,
 };
+use antecedent_io_core::calibration::{
+    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, NO_INTERVAL_REPORTED,
+    calibration_slot,
+};
+use antecedent_io_core::contract_section::CalibrationSlotWire;
+
+/// Bootstrap replicates of the multi-source interval (the measured independent-study design).
+pub const MZ_INTERVAL_REPLICATES: u32 = 999;
+/// Nominal level of the multi-source interval.
+pub const MZ_INTERVAL_LEVEL: f64 = 0.95;
+
+/// Calibration slot of the interval of `uncertainty` over `data` under `functional`.
+fn interval_calibration(
+    functional: &BoundMzTransportFunctional,
+    data: &ExactTransportData,
+    uncertainty: &MzUncertaintyWire,
+) -> CalibrationSlotWire {
+    if !uncertainty.available() {
+        return CalibrationSlotWire::not_measured(NO_INTERVAL_REPORTED);
+    }
+    let shared = {
+        let cited = functional.cited_regimes();
+        let catalog = functional.catalog();
+        cited.iter().enumerate().any(|(i, a)| {
+            cited[i + 1..]
+                .iter()
+                .any(|b| catalog.shared_data(*a, *b) == antecedent_core::SharedData::SameDataset)
+        })
+    };
+    let rows = data
+        .laws()
+        .iter()
+        .filter_map(|law| law.empirical_counts().map(|counts| counts.iter().sum::<u64>()))
+        .min()
+        .unwrap_or(0);
+    calibration_slot(&CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: "ClassicalTransport".into(),
+            graph_class: "Admg".into(),
+            structure: "fixed".into(),
+            modality: "tabular".into(),
+            inference: "Frequentist".into(),
+            estimator: "transport.mz_joint_bootstrap".into(),
+            interval_method: "percentile_bootstrap".into(),
+            se_kind: "percentile".into(),
+            dependence: if shared { "shared_units" } else { "iid" }.into(),
+            posterior: String::new(),
+            functional: "target_interventional_mean".into(),
+            level: uncertainty.coverage_target.unwrap_or(MZ_INTERVAL_LEVEL),
+            identification: "point".into(),
+        },
+        scope: CalibrationScopeWire {
+            row_count: rows,
+            replicates_ok: Some(uncertainty.replicates_ok),
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    })
+}
 
 /// A prepared mz formula: frozen proof, bound catalog, laws and compiled plans.
 #[derive(Clone, Debug)]
@@ -48,6 +108,7 @@ pub struct MzTransportResult {
     distributions: Vec<ExactDistribution>,
     contrasts: Vec<MzContrastWire>,
     uncertainty: MzUncertaintyWire,
+    calibration: CalibrationSlotWire,
 }
 
 impl MzTransportResult {
@@ -69,11 +130,19 @@ impl MzTransportResult {
         &self.contrasts
     }
 
-    /// Interval status and reason. Counted laws report `withheld` with
-    /// `not_supported` while the interval route is closed.
+    /// Interval bookkeeping: the nominal pointwise intervals of counted laws, or the
+    /// stable reason one is withheld (a data or dependence reason).
     #[must_use]
     pub const fn uncertainty(&self) -> &MzUncertaintyWire {
         &self.uncertainty
+    }
+
+    /// Calibration of the reported interval: `calibrated` inside a current coverage
+    /// record's measured scope, otherwise the status that names why not
+    /// (`not_measured` when no interval is reported).
+    #[must_use]
+    pub const fn calibration(&self) -> &CalibrationSlotWire {
+        &self.calibration
     }
 
     /// Export this result with its checked proof, bindings, laws and bookkeeping.
@@ -118,23 +187,24 @@ impl MzTransportResult {
 }
 
 /// Independently consume an mz artifact: re-decide, re-bind, recompute every
-/// point and contrast and recheck the bookkeeping, without fetching data or
-/// providers. An artifact that carries an interval is refused with
-/// `not_supported` while the interval route is closed.
+/// point and contrast and recheck the bookkeeping (a carried interval is recomputed
+/// bit for bit from its seed), without fetching data or providers.
 ///
 /// # Errors
-/// Any reconstruction or replay failure, or a carried interval.
+/// Any reconstruction or replay failure.
 pub fn consume_mz_transport_artifact(
     bytes: &[u8],
     limits: MzTransportConsumeLimits,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportResult, IoError> {
     let consumed = MzTransportArtifactWire::consume_with_limits(bytes, limits, ctx)?;
-    refuse_unsupported_interval(&consumed.wire.uncertainty)?;
+    let calibration =
+        interval_calibration(&consumed.functional, &consumed.data, &consumed.wire.uncertainty);
     Ok(MzTransportResult {
         distributions: consumed.distributions,
         contrasts: consumed.contrasts,
         uncertainty: consumed.wire.uncertainty,
+        calibration,
     })
 }
 
@@ -253,10 +323,10 @@ impl PreparedMzTransport {
     }
 
     /// Evaluate every retained plan and the point contrasts. Exact laws are
-    /// point-only. Counted laws return the point with the interval withheld as
-    /// `not_supported` (the interval route is closed until its coverage
-    /// records exist), together with the declared-sampling reason the internal
-    /// joint bootstrap would also withhold for; no interval is ever attached.
+    /// point-only. Counted laws also return the nominal pointwise joint
+    /// percentile-bootstrap interval (seeded by the execution's master seed) with its
+    /// calibration slot; the interval is withheld only for a data or dependence reason,
+    /// which the bookkeeping names.
     ///
     /// # Errors
     /// Cancellation or an evaluation refusal.
@@ -268,12 +338,23 @@ impl PreparedMzTransport {
         let uncertainty = if self.data.laws().iter().any(|law| law.empirical_counts().is_none()) {
             MzUncertaintyWire::point_only()
         } else {
-            let dependence =
-                antecedent_estimate::mz_interval_withheld_reason(&self.functional, &self.data)
-                    .map_err(estimate_err)?;
-            MzUncertaintyWire::not_supported(dependence)
+            let seed = ctx.rng.master_seed();
+            let mut replay = ctx.clone();
+            replay.rng = antecedent_core::RngFactory::from_seed(seed);
+            let run = antecedent_estimate::mz_transport_bootstrap_interval(
+                &self.functional,
+                &self.data,
+                &self.requests,
+                self.limits,
+                MZ_INTERVAL_REPLICATES,
+                MZ_INTERVAL_LEVEL,
+                &replay,
+            )
+            .map_err(estimate_err)?;
+            MzUncertaintyWire::from_bootstrap(&run, MZ_INTERVAL_REPLICATES, MZ_INTERVAL_LEVEL, seed)
         };
-        Ok(MzTransportResult { distributions, contrasts, uncertainty })
+        let calibration = interval_calibration(&self.functional, &self.data, &uncertainty);
+        Ok(MzTransportResult { distributions, contrasts, uncertainty, calibration })
     }
 
     /// Replace the laws for the snapshots the frozen catalog binds and recompile.

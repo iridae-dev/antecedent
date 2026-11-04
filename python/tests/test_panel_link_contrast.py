@@ -96,7 +96,7 @@ def test_the_frequentist_contrast_matches_newton_and_the_delta_method() -> None:
     assert result.ate == pytest.approx(float(contrast(rows, beta)), abs=1e-8)
     assert result.estimate.se_analytic == pytest.approx(delta_se(rows, beta, information), abs=1e-8)
     assert abs(result.ate - beta[1]) > 0.1  # the contrast is not the link-scale coefficient
-    assert result.evidence_status != "supported"
+    assert result.evidence_status == "supported"
 
 
 def test_the_bayesian_contrast_matches_the_mode_and_a_laplace_sample() -> None:

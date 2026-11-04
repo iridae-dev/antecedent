@@ -273,18 +273,20 @@ class MixtureDraws:
 
 @dataclass(repr=False, frozen=True)
 class ComposedInterval(ScientificResult):
-    """An interval supported by a measured coverage record at its composed coordinate.
+    """A composed interval annotated with the calibration of its composed coordinate.
 
     ``lower`` and ``upper`` are present when the construction is built from the claim's own mean
     and variance (``normal_approximation``); otherwise the support names the construction the
-    caller builds from the aligned draws. The record, not this value, carries the coverage
-    evidence; the interval holds at the record's ``nominal_level`` only.
+    caller builds from the aligned draws. ``calibration`` is the slot the registry resolves
+    (``status`` is ``calibrated`` only under a currently attesting record, which ``record_id``
+    names); the interval is reported whatever the status.
     ``declared_evidence_rows`` is the caller's declared evidence size the record was resolved at;
     the sealed claim does not authenticate it, so the support holds only if it is true.
     """
 
     coordinate_id: str
-    record_id: str
+    record_id: str | None
+    calibration: Mapping[str, Any]
     construction: str
     nominal_level: float
     label: str
@@ -441,15 +443,14 @@ class PropagationClaim(ScientificResult):
     def check_composed_interval(
         self, construction: str, *, evidence_rows: int, execution: Execution | None = None
     ) -> ComposedInterval:
-        """The interval reading, supported only by an attesting registry record at this coordinate.
+        """The interval reading, annotated with the registry's calibration at this coordinate.
 
         The sealed artifact is verified and replayed first, then the claim's coordinate,
         ``construction`` and ``evidence_rows`` (the declared number of observations behind the
         least-supported input) are resolved against the shipped coverage records. The caller
-        supplies no record. Without an attesting record the reading is closed
-        (``not_supported``, ``joint_law_propagation.interval_route_closed`` or
-        ``joint_law_propagation.coverage_record_unmeasured``), and a claim whose dependence route
-        supports no spread (an envelope) is refused with its own detail.
+        supplies no record. Without an attesting record the interval is still reported and its
+        ``calibration`` says so (``outside_measured_scope`` or ``not_measured``). A claim whose
+        dependence route supports no spread (an envelope) is refused with its own detail.
         """
         if (
             isinstance(evidence_rows, bool)
@@ -470,6 +471,7 @@ class PropagationClaim(ScientificResult):
         return ComposedInterval(
             coordinate_id=info["coordinate_id"],
             record_id=info["record_id"],
+            calibration=dict(info["calibration"]),
             construction=info["construction"],
             nominal_level=info["nominal_level"],
             label=info["label"],
@@ -479,7 +481,7 @@ class PropagationClaim(ScientificResult):
         )
 
     def posterior(self) -> None:
-        """Always raises ``not_supported``: no composed coordinate has measured calibration."""
+        """Always raises ``uncertainty_representation_insufficient``."""
         _refuse(_native.joint_law_closed_reading("posterior"))
 
 

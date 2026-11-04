@@ -198,7 +198,7 @@ fn the_interval_causal_and_probability_routes_are_closed() {
     )
     .unwrap();
     let interval = prepared.request_score_interval().unwrap_err();
-    assert_eq!(interval.code, "not_supported");
+    assert_eq!(interval.code, "quantity_semantics_mismatch");
     assert_eq!(interval.detail, "predictive_assessment.interval_not_supported");
     let causal = prepared.request_causal_validity().unwrap_err();
     assert_eq!(causal.code, "route_not_supported");
@@ -211,9 +211,9 @@ fn the_interval_causal_and_probability_routes_are_closed() {
     requested.score_interval =
         Some(ScoreIntervalRequest { level: 0.95, method: "stationary bootstrap".into() });
     let refusal = PreparedPredictiveAssessment::assess(&requested, &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "quantity_semantics_mismatch");
     // The refusal is a registered reason with the standard prefix when displayed.
-    assert!(refusal.to_string().contains("reason=not_supported"));
+    assert!(refusal.to_string().contains("reason=quantity_semantics_mismatch"));
 }
 
 #[test]

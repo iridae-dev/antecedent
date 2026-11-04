@@ -76,7 +76,7 @@ class TemporalExtensionRefusal(StructuredRefusal):
 
     ``reason_code`` and ``remedy`` are inherited and the code is registered. ``detail`` is
     the namespaced ``family.slot`` (for example ``initial_state.target_law_missing``,
-    ``temporal_refresh.horizon_changed`` or ``temporal_interval.route_frozen``); it is
+    ``temporal_refresh.horizon_changed`` or ``temporal_interval.too_few_units``); it is
     empty for a plain argument refusal. ``stage`` names the refusing stage.
     """
 
@@ -628,8 +628,8 @@ class TemporalIntervalCandidate(ScientificResult):
                 {
                     "code": "not_supported",
                     "stage": "temporal_extension",
-                    "detail": "temporal_interval.route_frozen",
-                    "message": "the interval consumer remains closed pending calibration",
+                    "detail": "temporal_interval.consumer_unavailable",
+                    "message": "the interval consumer is unavailable in this build",
                 }
             )
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):
@@ -752,7 +752,9 @@ def _temporal_interval_entry(
             else TemporalIntervalCandidate._from_native(native)
         )
     refusal = _dependent_interval_closed(*arguments)
-    raise TemporalExtensionRefusal(json.loads(refusal))
+    if refusal is not None:
+        raise TemporalExtensionRefusal(json.loads(refusal))
+    raise CausalTypeError("the dependent interval native entries are unavailable")
 
 
 @dataclass(frozen=True, slots=True)

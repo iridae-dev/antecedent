@@ -24,15 +24,14 @@
 //!   never filled with zero. The only covariance this module forms itself is the
 //!   independent-groups one of the raw arm means ([`RawContrast::mean_pair`]).
 //!
-//! # Inference claim: point only
+//! # Inference
 //!
-//! The delta-method covariance is exact algebra of a first-order approximation. A Wald
-//! interval built from it would rest on asymptotic normality of the pair and on the
-//! linearization being adequate near the boundary (a risk ratio of a rare event, an
-//! odds ratio near 0 or 1) that no coverage record measures, so an interval is refused
-//! ([`refuse_transform_interval`]); the standard error is reported only as the square
-//! root of the covariance diagonal. The raw-minus-adjusted gap carries no interval
-//! either: the covariance between the raw and the adjusted estimate is not part of what
+//! The delta-method covariance is exact algebra of a first-order approximation. The Wald
+//! interval built from it ([`ReportingTransform::interval`]) rests on asymptotic normality of
+//! the pair and on the linearization being adequate near the boundary (a risk ratio of a
+//! rare event, an odds ratio near 0 or 1); it is reported on the declared scale with a
+//! calibration annotation and is never gated on calibration. The raw-minus-adjusted gap
+//! carries no interval: the covariance between the raw and the adjusted estimate is not part of what
 //! an estimate carries, and neither is it assumed zero.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -316,6 +315,20 @@ impl ReportingTransform {
         let k = self.contrasts.len();
         self.covariance.available().filter(|_| i < k).map(|c| c[i * k + i].max(0.0).sqrt())
     }
+
+    /// Equal-tailed delta-method Wald interval of contrast `i` on its declared scale,
+    /// `value -/+ z * se`; `None` without the pair's joint covariance, for an index out of
+    /// range or a level outside `(0, 1)`.
+    #[must_use]
+    pub fn interval(&self, i: usize, level: f64) -> Option<(f64, f64)> {
+        if !(level > 0.0 && level < 1.0) {
+            return None;
+        }
+        let se = self.se(i)?;
+        let value = self.contrasts.get(i)?.value;
+        let half = antecedent_stats::special::normal_ppf(0.5 + level / 2.0) * se;
+        Some((value - half, value + half))
+    }
 }
 
 /// Put a mean-outcome pair on each declared reporting scale, with the delta-method
@@ -367,19 +380,6 @@ pub fn transform_mean_pair(
         }
     };
     Ok(ReportingTransform { contrasts, covariance })
-}
-
-/// The refusal of the closed interval route: points and covariance are kept.
-#[must_use]
-pub fn refuse_transform_interval() -> EstimationError {
-    refuse(
-        antecedent_core::reason_code!("not_supported"),
-        "descriptive_comparison.interval_withheld",
-        "no interval is reported on a transformed scale: a delta-method Wald interval rests on \
-         asymptotic normality of the arm means and an adequate linearization near the boundary \
-         of the scale, which no coverage record measures; the transformed points and the \
-         first-order covariance are retained",
-    )
 }
 
 /// The refusal of any attribution of the raw-versus-adjusted gap to adjustment columns.

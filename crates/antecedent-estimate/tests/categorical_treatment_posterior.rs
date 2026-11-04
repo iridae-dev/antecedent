@@ -151,3 +151,22 @@ fn weak_prior_posterior_mean_approaches_the_frequentist_group_difference() {
     assert!((posterior.level_contrasts[1].mean - 7.0).abs() < 1e-6);
     assert!((posterior.pairwise[0].mean - 4.0).abs() < 1e-6);
 }
+
+#[test]
+fn reported_contrast_intervals_equal_the_independent_student_t_quantiles() {
+    // The interval each contrast reports is the equal-tailed 90% interval of the
+    // independent scipy.stats.t quantiles pinned above, not a re-evaluation of the posterior.
+    let posterior =
+        posterior_categorical_treatment(&input(), &spec(LevelScale::Unordered), &prior(), 0.9)
+            .unwrap();
+    assert!((posterior.credible_level - 0.9).abs() < 1e-15);
+    let pinned = [
+        (&posterior.level_contrasts[0], -0.805_247_795_790, 3.345_577_036_554, "b - a"),
+        (&posterior.level_contrasts[1], 2.884_143_902_253, 6.861_382_717_798, "c - a"),
+        (&posterior.pairwise[0], 1.590_075_957_383, 5.615_121_421_905, "c - b"),
+    ];
+    for (contrast, lo, hi, what) in pinned {
+        close(contrast.interval[0], lo, &format!("{what} reported lower"));
+        close(contrast.interval[1], hi, &format!("{what} reported upper"));
+    }
+}

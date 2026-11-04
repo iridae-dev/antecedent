@@ -36,7 +36,7 @@ class NestedFisherCandidate(ScientificResult):
     intervals: Intervals3
     nominal_level: float
     calibration: Literal["unmeasured"]
-    inference: Literal["interval_withheld_calibration_unmeasured"]
+    inference: Literal["interval_candidates_calibration_annotated"]
     identification: Literal["nonparametrically_identified"]
     method: str
     identity: str
@@ -99,7 +99,7 @@ class NestedFisherCandidate(ScientificResult):
         consumer = getattr(_native, "consume_nested_markov_fisher_candidate", None)
         if consumer is None:
             raise CausalUnsupportedError(
-                "nested_markov.route_frozen: the interval consumer remains closed pending calibration",
+                "nested_markov.native_hook_unavailable: this build has no interval consumer",
                 reason_code="not_supported",
             )
         return cls._from_native(consumer(artifact, expected_identity))

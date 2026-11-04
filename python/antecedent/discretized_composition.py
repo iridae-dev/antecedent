@@ -17,7 +17,7 @@ What this is, and is not:
 * **A point with a computed mean-error bound.** The bound is a closed computation over the
   declared cells (``sum_k |w_k| bound_k``), not a statistical claim. The result carries no
   interval, no posterior and no calibration (``inference`` is ``point_only``;
-  :meth:`PreparedDiscretizedComposition.uncertainty` always refuses ``not_supported``,
+  :meth:`PreparedDiscretizedComposition.uncertainty` always refuses ``uncertainty_representation_insufficient``,
   ``discretized_scm.point_only``).
 * **Parameter uncertainty is not propagated.** A parameter covariance declared on the source
   composition is not carried into the discretized value
@@ -282,16 +282,16 @@ class PreparedDiscretizedComposition(ScientificResult):
 
     def uncertainty(self, paradigm: Literal["frequentist", "bayesian"] = "frequentist") -> None:
         """An interval, band, posterior or law-valued reading: always refuses
-        ``not_supported`` (``discretized_scm.point_only``)."""
+        ``uncertainty_representation_insufficient`` (``discretized_scm.point_only``)."""
         choice(paradigm, "paradigm", _PARADIGMS)
         raise_refusal(self._handle.uncertainty(paradigm), DiscretizedCompositionRefusal)
 
     def interval(self) -> None:
-        """Always refuses ``not_supported``: a discretized value is a point."""
+        """Always refuses ``uncertainty_representation_insufficient``: a discretized value is a point."""
         self.uncertainty("frequentist")
 
     def posterior(self) -> None:
-        """Always refuses ``not_supported``: a discretized value is a point."""
+        """Always refuses ``uncertainty_representation_insufficient``: a discretized value is a point."""
         self.uncertainty("bayesian")
 
     def refresh(

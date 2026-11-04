@@ -17,6 +17,7 @@ use antecedent_design::decision_reliability::{
     SourceUncertainty, StreamId, StreamPurpose, ValidationKind, ValidationPlan,
     WithinStreamDependence, coverage_design, derive_uncertainty, simulate_selection_draws,
 };
+use antecedent_io_core::CalibrationStatus;
 use antecedent_kernels::{NORMAL_Q975, norm_inv};
 
 fn ctx() -> ExecutionContext {
@@ -466,7 +467,7 @@ fn levels_outside_the_derived_range_and_undeclared_dependence_are_refused() {
 }
 
 #[test]
-fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed() {
+fn a_derivation_is_unmeasured_but_every_route_is_published_and_the_combined_number_stays_closed() {
     let derived = derive_uncertainty(
         &three(100),
         None,
@@ -476,9 +477,8 @@ fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed
     )
     .unwrap();
     for route in PublishedRoute::ALL {
-        let error = derived.publish(route).unwrap_err();
-        assert_eq!(error.reason_code(), "not_supported");
-        assert!(error.to_refusal().offending.unwrap().contains("candidate_set_size=3"));
+        let slot = derived.publish(route).unwrap();
+        assert_ne!(slot.status, CalibrationStatus::Calibrated, "{}", route.as_str());
     }
     assert_eq!(
         derived.combined_uncertainty().unwrap_err().reason_code(),
@@ -488,7 +488,7 @@ fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed
 }
 
 #[test]
-fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
+fn a_derivation_is_annotated_by_the_record_that_covers_its_coordinate() {
     let design = |n_draws: usize| KnownOptimumDesign {
         true_means: vec![0.5, 0.0],
         noise_sd: 1.0,
@@ -500,83 +500,32 @@ fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
         ranking: Some(RankingRequest::default()),
         ..expected_utility_request()
     };
-    // 1000 draws, two candidates, shared stream: inside every measured record.
+    let derive = |draws: &DecisionDraws, interval: IntervalRequest| {
+        derive_uncertainty(draws, None, &request, &interval, &ctx()).unwrap()
+    };
     let draws = simulate_selection_draws(&design(1000), &stream).unwrap();
-    let derived =
-        derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.95), &ctx())
-            .unwrap();
-    for route in PublishedRoute::ALL {
-        derived.publish(route).unwrap_or_else(|error| {
-            panic!("{} is measured at this coordinate: {error:?}", route.as_str())
-        });
-    }
-    // Another level, simultaneous multiplicity and an unmeasured budget are refused.
-    let other_level =
-        derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.9), &ctx())
-            .unwrap();
-    assert_eq!(
-        other_level.publish(PublishedRoute::UtilityInterval).unwrap_err().reason_code(),
-        "not_supported"
-    );
-    let simultaneous = derive_uncertainty(
-        &draws,
-        None,
-        &request,
-        &IntervalRequest { level: 0.95, multiplicity: IntervalMultiplicity::Simultaneous },
-        &ctx(),
-    )
-    .unwrap();
-    assert_eq!(
-        simultaneous.publish(PublishedRoute::RankingProbability).unwrap_err().reason_code(),
-        "not_supported"
-    );
     let small = simulate_selection_draws(&design(100), &stream).unwrap();
-    let small_derived =
-        derive_uncertainty(&small, None, &request, &IntervalRequest::marginal(0.95), &ctx())
-            .unwrap();
-    for route in PublishedRoute::ALL {
-        let error = small_derived.publish(route).unwrap_err();
-        assert_eq!(error.reason_code(), "not_supported");
-        assert!(error.to_refusal().offending.unwrap().contains("mc_budget=100"));
-    }
-}
-
-#[test]
-fn a_derivation_is_refused_publication_at_every_coordinate_while_calibration_is_pending() {
-    // No coverage record is attested while calibration is pending, so no route opens at any
-    // coordinate (a shared stream, two candidates, 1000 or 100 draws, other levels, simultaneous
-    // intervals); each refusal names the coordinate that a record would have to measure.
-    let design = |n_draws: usize| KnownOptimumDesign {
-        true_means: vec![0.5, 0.0],
-        noise_sd: 1.0,
-        n_draws,
-        coupling: NoiseCoupling::SharedStream { correlation: 0.5 },
-    };
-    let stream = StreamId::new(77, StreamPurpose::Selection, 0, "measured");
-    let request = ReliabilityRequest {
-        ranking: Some(RankingRequest::default()),
-        ..expected_utility_request()
-    };
+    // Every request is published; the status never exceeds what a record measured, and a
+    // simultaneous marginal-only route, another level or an unmeasured budget is not calibrated.
     let simultaneous =
         IntervalRequest { level: 0.95, multiplicity: IntervalMultiplicity::Simultaneous };
-    for (n_draws, interval, budget) in [
-        (1000, IntervalRequest::marginal(0.95), "mc_budget=1000"),
-        (1000, IntervalRequest::marginal(0.9), "mc_budget=1000"),
-        (1000, simultaneous, "mc_budget=1000"),
-        (100, IntervalRequest::marginal(0.95), "mc_budget=100"),
+    for (derived, route, may_calibrate) in [
+        (derive(&draws, IntervalRequest::marginal(0.95)), PublishedRoute::UtilityInterval, true),
+        (derive(&draws, IntervalRequest::marginal(0.9)), PublishedRoute::UtilityInterval, false),
+        (derive(&draws, simultaneous), PublishedRoute::RankingProbability, false),
+        (derive(&small, IntervalRequest::marginal(0.95)), PublishedRoute::UtilityInterval, false),
     ] {
-        let draws = simulate_selection_draws(&design(n_draws), &stream).unwrap();
-        let derived = derive_uncertainty(&draws, None, &request, &interval, &ctx()).unwrap();
         assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
-        for route in PublishedRoute::ALL {
-            let error = derived.publish(route).unwrap_err();
-            assert_eq!(error.reason_code(), "not_supported", "{} {budget}", route.as_str());
-            let offending = error.to_refusal().offending.unwrap();
-            assert!(offending.contains("candidate_set_size=2"), "{offending}");
-            assert!(offending.contains(budget), "{offending}");
-            assert!(offending.contains("coupling=shared_simulation"), "{offending}");
+        let slot = derived.publish(route).unwrap();
+        if !may_calibrate {
+            assert_ne!(slot.status, CalibrationStatus::Calibrated, "{}", route.as_str());
         }
     }
+    // The simultaneous marginal-only construction is reported as not measured.
+    assert_eq!(
+        derive(&draws, simultaneous).publish(PublishedRoute::RankingProbability).unwrap().status,
+        CalibrationStatus::NotMeasured
+    );
 }
 
 // ---- fresh consumer -----------------------------------------------------------------

@@ -221,7 +221,7 @@ impl AdaptiveInferenceHandle {
                             "procedure": outcome.procedure.identifier(),
                             "method": outcome.result.method,
                             "values": outcome.result.values,
-                            "closed_guarantee": outcome.result.closed_guarantee,
+                            "closed_claim": outcome.result.closed_claim,
                             "contract_identity": outcome.contract_identity,
                             "look": outcome.request.look(),
                             "stopping_rule": rule_json(outcome.stopping_rule),
@@ -498,7 +498,7 @@ fn adaptive_inference_result_consume(
                 "stopping_rule": rule_json(consumed.stopping_rule()),
                 "method": result.method,
                 "values": result.values,
-                "closed_guarantee": result.closed_guarantee,
+                "closed_claim": result.closed_claim,
             });
             (Some(ConsumedAdaptiveResultHandle { summary: summary.to_string() }), None)
         }

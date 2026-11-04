@@ -225,7 +225,7 @@ impl PreparedDiscretizedComposition {
     /// An interval, band, posterior or law-valued reading of a discretized value.
     ///
     /// # Errors
-    /// Always `not_supported` (`discretized_scm.point_only`): a discretized
+    /// Always `uncertainty_representation_insufficient` (`discretized_scm.point_only`): a discretized
     /// value is a point with a computed mean-error bound.
     pub fn uncertainty(
         &self,

@@ -400,8 +400,8 @@ impl NestedReceiptWire {
             }
         };
         let inference = match report.status.inference {
-            InferenceStanding::IntervalWithheldCalibrationUnmeasured => {
-                "interval_withheld_calibration_unmeasured"
+            InferenceStanding::IntervalCandidatesCalibrationAnnotated => {
+                "interval_candidates_calibration_annotated"
             }
         };
         Self {
@@ -588,8 +588,11 @@ impl NestedMarkovArtifactWire {
         if wire.calibration != NESTED_MARKOV_CALIBRATION {
             return Err(unsupported("calibration is unmeasured").into());
         }
-        if wire.receipt.status.inference != "interval_withheld_calibration_unmeasured" {
-            return Err(unsupported("this pilot publishes no interval").into());
+        if wire.receipt.status.inference != "interval_candidates_calibration_annotated" {
+            return Err(unsupported(
+                "this pilot artifact publishes the fit and point contrast only",
+            )
+            .into());
         }
         Ok(wire)
     }

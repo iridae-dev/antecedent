@@ -250,7 +250,7 @@ fn a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label()
     let refusal = bound
         .evaluate_transported(&point(2.0), TransportedDemand::Interval, &accepting())
         .unwrap_err();
-    assert_eq!(refusal.code, "not_supported");
+    assert_eq!(refusal.code, "uncertainty_representation_insufficient");
     assert_eq!(refusal.detail, DETAIL_INTERVAL_NOT_SUPPORTED);
 
     // The default policy admits only `supported` coordinates: accepting a

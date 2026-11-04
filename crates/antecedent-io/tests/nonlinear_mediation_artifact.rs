@@ -1,8 +1,8 @@
 //! Nonlinear-mediation artifact: the exact-grid closed-form truth of the core tests through
 //! the container, a re-estimating consumer, resealed-mutation refusals against a retained
 //! identity, the premise and bootstrap records, unknown versions, the computation, export and
-//! replay budgets of an estimator with no row ceiling, and the unmeasured calibration coordinate
-//! with the closed interval status.
+//! replay budgets of an estimator with no row ceiling, and the calibration slots
+//! that annotate the percentile bootstrap intervals.
 //!
 //! SCM (identical to `antecedent-estimate/tests/nonlinear_mediation.rs`):
 //! `M = alpha*A + gamma*X + e_M`; `Y = b0 + b1*A + c1*M + c2*M^2 + delta*A*M + bx*X` with no
@@ -125,8 +125,8 @@ fn mediation_artifact_round_trips_the_closed_form_truth() {
     close(meta.result.natural_direct + meta.result.natural_indirect, meta.result.total, "identity");
     assert_eq!(meta.version, NONLINEAR_MEDIATION_ARTIFACT_VERSION);
     assert_eq!(meta.estimand, "natural_effects");
-    assert_eq!(meta.calibration, "unmeasured");
-    assert_eq!(meta.interval_status, "closed_calibration_unmeasured");
+    assert_eq!(meta.calibration, "resolved_from_basis");
+    assert_eq!(meta.interval_status, "percentile_bootstrap_interval");
     assert_eq!(meta.inference_claim, "point_with_diagnostics");
     assert_eq!(meta.n_rows, 40);
     assert_eq!(consumed.meta(), artifact.meta());
@@ -169,14 +169,30 @@ fn mediation_artifact_records_integration_error_and_overlap() {
 }
 
 #[test]
-fn mediation_artifact_bootstrap_record_replays_with_closed_interval_status() {
+fn mediation_artifact_bootstrap_record_replays_with_its_intervals_and_slots() {
     let (artifact, bytes) = seal(12);
     let boot = &artifact.meta().result.bootstrap;
     assert_eq!(boot.seed, 7);
     assert_eq!(boot.replicates_requested, 12);
     assert_eq!(boot.replicate_ids, (0..12).collect::<Vec<u64>>());
     assert_eq!(u64::from(boot.replicates_succeeded) + boot.failed_replicate_ids.len() as u64, 12);
-    assert_eq!(boot.interval_status, "closed_calibration_unmeasured");
+    assert_eq!(boot.interval_status, "percentile_bootstrap_interval");
+    let result = &artifact.meta().result;
+    assert_eq!(result.interval_level.to_bits(), 0.95_f64.to_bits());
+    let effects: Vec<&str> = result.intervals.iter().map(|i| i.effect.as_str()).collect();
+    if result.interval_unavailable_reason.is_none() {
+        assert_eq!(effects, ["natural_direct", "natural_indirect", "total"]);
+    } else {
+        assert!(effects.is_empty());
+    }
+    for interval in &result.intervals {
+        assert!(interval.lower.is_finite() && interval.lower <= interval.upper);
+        // Calibration annotates the interval; it never withholds it.
+        assert!(
+            ["calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"]
+                .contains(&interval.calibration.status.as_str())
+        );
+    }
     assert!(artifact.meta().result.natural_direct_se.is_some_and(|s| s > 0.0 && s.is_finite()));
     let replay = NonlinearMediationArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
     assert_eq!(replay.meta().result, artifact.meta().result, "the seeded bootstrap replays");
@@ -479,7 +495,7 @@ fn exercise_population(rows: usize, seed: u64, runtime_seconds: u64) {
     let standing = artifact.meta();
     let reference = seal(0).0;
     let reference = reference.meta();
-    assert_eq!(standing.calibration, "unmeasured");
+    assert_eq!(standing.calibration, "resolved_from_basis");
     assert_eq!(
         (
             &standing.calibration,

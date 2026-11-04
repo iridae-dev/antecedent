@@ -27,6 +27,8 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-graph/development", "antecedent-kernels/development", "antecedent-learn/development", "antecedent-stats/development"]
 default = []
 # Gaussian-process mechanism family (registry auto-fit path only — a deserialized
 # `MechanismSlot::GaussianProcess` always evaluates/samples regardless of this feature).

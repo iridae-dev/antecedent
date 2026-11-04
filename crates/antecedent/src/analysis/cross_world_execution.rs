@@ -83,21 +83,25 @@ pub struct CrossWorldExecution {
     artifact: CrossWorldExecutionArtifact,
 }
 
-fn closed_reading(reading: &'static str, detail: &'static str) -> CrossWorldExecutionRefusalWire {
+fn closed_reading(
+    code: &'static str,
+    reading: &'static str,
+    detail: &'static str,
+) -> CrossWorldExecutionRefusalWire {
     CrossWorldExecutionRefusalWire {
-        code: antecedent_core::reason_code!("not_supported").to_owned(),
+        code: code.to_owned(),
         stage: "execute".to_owned(),
         detail: detail.to_owned(),
         offending: Some(reading.to_owned()),
         remedy: Some(
-            "an unqualified interval or posterior of a declared model is closed: the \
-             point value from exact enumeration is the result. The interval of a named unit \
-             sampling is read with measured_interval, supported only by a currently attesting \
-             whole-path coverage record; a posterior statement has no parameter uncertainty \
-             to describe and stays closed (docs/cross-world-execution.md)"
+            "an interval needs the declared unit sampling (the fixed units or an independent \
+             sample of a population): read it with measured_interval, which reports the \
+             interval with its calibration status. A posterior statement has no parameter \
+             uncertainty to describe: with declared mechanisms the exogenous posterior is \
+             exact (docs/cross-world-execution.md)"
                 .to_owned(),
         ),
-        missing: vec!["whole_path_calibration_record".to_owned()],
+        missing: Vec::new(),
     }
 }
 
@@ -171,24 +175,35 @@ impl CrossWorldExecution {
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
     )]
-    /// An interval for the quantity. Closed.
+    /// An interval for the quantity without a declared unit sampling.
     ///
     /// # Errors
-    /// Always: `not_supported` (`cross_world_execution.interval_route_closed`).
+    /// Always: `sampling_dependence_unknown`
+    /// (`cross_world_execution.interval_route_closed`); read the interval of a named
+    /// unit sampling with `measured_interval`.
     pub fn interval(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
-        Err(closed_reading("interval", "cross_world_execution.interval_route_closed"))
+        Err(closed_reading(
+            antecedent_core::reason_code!("sampling_dependence_unknown"),
+            "interval",
+            "cross_world_execution.interval_route_closed",
+        ))
     }
 
     #[allow(
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
     )]
-    /// A posterior statement for the quantity. Closed.
+    /// A posterior statement for the quantity. Refused.
     ///
     /// # Errors
-    /// Always: `not_supported` (`cross_world_execution.posterior_route_closed`).
+    /// Always: `uncertainty_representation_insufficient`
+    /// (`cross_world_execution.posterior_route_closed`).
     pub fn posterior(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
-        Err(closed_reading("posterior", "cross_world_execution.posterior_route_closed"))
+        Err(closed_reading(
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+            "posterior",
+            "cross_world_execution.posterior_route_closed",
+        ))
     }
 }
 

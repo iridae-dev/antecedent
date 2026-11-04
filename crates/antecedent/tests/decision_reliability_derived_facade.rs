@@ -136,13 +136,19 @@ fn derived_components_match_the_enumerated_law_and_stay_separate() {
 }
 
 #[test]
-fn derived_uncertainty_is_never_published_or_combined() {
+fn derived_uncertainty_is_published_with_its_calibration_and_never_combined() {
     let prepared = PreparedDecisionReliability::assess(law(10), None, request(), &ctx()).unwrap();
     let derived = prepared.derive_uncertainty(&IntervalRequest::marginal(0.9), &ctx()).unwrap();
     for route in PublishedRoute::ALL {
-        let refusal = publish_derived_route(&derived, route).unwrap_err();
-        assert_eq!(refusal.code, "not_supported");
-        assert_eq!(refusal.detail, "decision_reliability.not_supported");
+        // Ten draws at a 90% level lie outside every measured record: the route is
+        // published and the slot says it is not calibrated here.
+        let slot = publish_derived_route(&derived, route).unwrap();
+        assert_ne!(
+            slot.status,
+            antecedent_io_core::contract_section::CalibrationStatus::Calibrated,
+            "{}",
+            route.as_str()
+        );
     }
     assert_eq!(
         derived.combined_uncertainty().unwrap_err().reason_code(),

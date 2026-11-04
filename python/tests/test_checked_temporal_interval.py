@@ -173,17 +173,11 @@ def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_closed(
         Candidate.load(b"", expected=identity())
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
         "not_supported",
-        "temporal_interval.route_frozen",
+        "temporal_interval.consumer_unavailable",
         "inference",
     )
 
 
-INTERNAL = hasattr(_native, "consume_checked_temporal_interval_candidate")
-
-
-@pytest.mark.skipif(
-    not INTERNAL, reason="original checked lifecycle requires isolated calibration-internal wheel"
-)
 @pytest.mark.parametrize(
     ("functional", "method"),
     [
@@ -237,29 +231,9 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
     else:
         low, high = np.quantile(points, [0.025, 0.975])
         if method == "percentile":
-            # The checked percentile effect interval reports bias-corrected and accelerated
-            # endpoints (Efron 1987): bias from the replicate mass below the point, acceleration
-            # from the delete-one-unit jackknife of the unit-score mean, type-7 quantiles.
-            from statistics import NormalDist
-
-            normal = NormalDist()
-            # Exact ties with the point estimate set the bias constant, and re-summing the draws
-            # in numpy differs from the native sums in the last place. Count against the
-            # native-reported replicate points and the point the candidate reports.
-            reported = np.array([record["point"] for record in records])
-            below = np.sum(reported < candidate.point)
-            ties = np.sum(reported == candidate.point)
-            fraction = (below + 0.5 * ties) / len(points)
-            bias = normal.inv_cdf(fraction)
-            jackknife = (values.sum() - values) / (len(values) - 1)
-            deltas = jackknife.mean() - jackknife
-            acceleration = np.sum(deltas**3) / (6 * np.sum(deltas**2) ** 1.5)
-
-            def adjusted(tail):
-                shifted = bias + normal.inv_cdf(tail)
-                return normal.cdf(bias + shifted / (1 - acceleration * shifted))
-
-            expected = tuple(np.quantile(points, [adjusted(0.025), adjusted(0.975)]))
+            # The checked percentile effect interval is the equal-tailed type-7 percentile of the
+            # replicate points; its calibration slot, not the endpoints, carries the measured scope.
+            expected = (low, high)
         elif method == "basic":
             expected = (2 * values.mean() - high, 2 * values.mean() - low)
         else:
@@ -346,7 +320,7 @@ def test_duck_typed_session_callback_is_refused_before_invocation():
     assert calls == []
 
 
-def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(monkeypatch):
+def test_live_original_source_without_optional_hook_keeps_the_protocol_refusal(monkeypatch):
     import builtins
 
     import antecedent.recalc_temporal as temporal
@@ -364,7 +338,7 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
         session.interval_candidate(config=Config(method="studentized"))
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
         "not_supported",
-        "temporal_interval.route_frozen",
+        "temporal_interval.interval_not_supported",
         "inference",
     )
     assert session.identities == identities
@@ -374,9 +348,6 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
     )
 
 
-@pytest.mark.skipif(
-    not INTERNAL, reason="original checked lifecycle requires isolated calibration-internal wheel"
-)
 def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_path):
     original = request(TemporalEffect((1, 1), (0, 0)))
     req = replace(

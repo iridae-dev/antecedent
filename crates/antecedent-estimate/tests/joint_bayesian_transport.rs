@@ -14,13 +14,12 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::joint_bayesian_transport::{
     DETAIL_CANCELLED, DETAIL_FEATURE_MISMATCH, DETAIL_INVALID_PRIOR, DETAIL_MISSING_LAW,
-    DETAIL_PRIOR_DATA_OVERLAP, DETAIL_PRIOR_DIMENSION, DETAIL_ROUTE_FROZEN, DETAIL_SINGULAR_FIT,
+    DETAIL_PRIOR_DATA_OVERLAP, DETAIL_PRIOR_DIMENSION, DETAIL_SINGULAR_FIT,
     DETAIL_SOURCE_DEPENDENCE, DETAIL_TOO_MANY_DRAWS, DETAIL_TOO_MANY_PARAMETERS,
     DETAIL_UNSUPPORTED_GRAPH, DETAIL_WEAK_OVERLAP, DataIdentity, GaussianPrior, JointDraws,
     JointPriors, JointTransportCalibration, JointTransportFit, JointTransportModel,
     JointTransportOptions, JointTransportRefusal, PriorProvenance, SourceData, SourceDependence,
     SourceSharing, TargetData, TransportGraphClass, VaryingBlock, fit_joint_bayesian_transport,
-    route_frozen_refusal,
 };
 use antecedent_identify::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
@@ -607,10 +606,6 @@ fn prior_data_overlap_unsupported_graph_and_uncertified_derivation_refuse() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "transport_missing_evidence");
-    // The route-level refusal of the closed interval route.
-    let frozen = route_frozen_refusal();
-    assert_eq!(frozen.code, "not_supported");
-    assert_eq!(frozen.detail, DETAIL_ROUTE_FROZEN);
     // Covariates that are not the certified standardizers are refused.
     let mut m = model();
     m.features = vec![FEATURE + 1];

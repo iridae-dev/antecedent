@@ -53,7 +53,8 @@ What this is, and is not:
   pair), or independence by design with its justification. Otherwise the refusal is
   ``joint_law_required``. The variance is a first-order parameter-covariance variance only; it
   omits second-order terms, holds residual scales fixed and carries no coverage claim. The interval
-  route is closed: :meth:`PreparedMechanismComposition.interval` raises ``not_supported``.
+  is :meth:`PreparedMechanismComposition.interval`, a :class:`FirstOrderInterval` whose calibration
+  slot is ``not_measured``.
 * **Refresh** (:meth:`PreparedMechanismComposition.refresh_mechanisms`) takes mechanisms refitted on
   new outcome-only data, keeps the plan, recomputes the numbers and the provenance, and refuses a
   refit that changes a mechanism's parents or family. A dependence declared for the earlier fit is
@@ -108,6 +109,7 @@ __all__ = [
     "Dependence",
     "FiniteDistributionResult",
     "FiniteLaw",
+    "FirstOrderInterval",
     "FunctionalUncertainty",
     "GaussianFunctionalResult",
     "GaussianLawResult",
@@ -790,6 +792,34 @@ class JointGaussianLaw(ScientificResult):
         return float(self.covariance[self._index(first), self._index(second)])
 
 
+@dataclass(frozen=True, slots=True)
+class FirstOrderInterval:
+    """The first-order (delta-method) Wald interval of a contrast with its calibration slot.
+
+    ``calibration`` annotates the interval: its ``status`` is ``not_measured`` until a coverage
+    record measures the construction. The interval is reported regardless of the status.
+    """
+
+    point: float
+    standard_error: float
+    lower: float
+    upper: float
+    level: float
+    calibration: Mapping[str, Any]
+
+
+def _first_order_interval(wire: Mapping[str, Any]) -> FirstOrderInterval:
+    """Decode the native interval wire."""
+    return FirstOrderInterval(
+        point=float(wire["point"]),
+        standard_error=float(wire["standard_error"]),
+        lower=float(wire["lower"]),
+        upper=float(wire["upper"]),
+        level=float(wire["level"]),
+        calibration=dict(wire["calibration"]),
+    )
+
+
 @dataclass(repr=False, frozen=True, slots=True)
 class FunctionalUncertainty(ScientificResult):
     """Parameter-uncertainty propagation for a contrast of interventional means.
@@ -964,9 +994,14 @@ class PreparedMechanismComposition(ScientificResult):
     plan_identity_version: int | None = None
     _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
 
-    def interval(self) -> None:
-        """Always raises ``not_supported``: the variance carries no measured coverage."""
-        raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
+    def interval(self, contrast: MeanContrast, level: float = 0.95) -> FirstOrderInterval:
+        """The first-order interval of a contrast at ``level`` with its calibration slot.
+
+        The slot status is ``not_measured`` until a coverage record measures the delta-method
+        construction. Raises ``joint_law_required`` when the parameter dependence is unknown.
+        """
+        wire = json.loads(_unwrap(self._handle.interval(_dumps(contrast.to_wire()), level)))
+        return _first_order_interval(wire)
 
     @outcome_operation
     def intervention_law(
@@ -1601,9 +1636,14 @@ class TransportedMechanismComposition(ScientificResult):
             scope=str(wire["scope"]),
         )
 
-    def interval(self) -> None:
-        """Always raises ``not_supported``: no coverage includes the transport assumption."""
-        raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
+    def interval(self, contrast: MeanContrast, level: float = 0.95) -> FirstOrderInterval:
+        """The first-order interval of a transported contrast at ``level``.
+
+        Carries its calibration slot (``not_measured`` until a coverage record measures the
+        construction) and is conditional on the declared transport premises.
+        """
+        wire = json.loads(_unwrap(self._handle.interval(_dumps(contrast.to_wire()), level)))
+        return _first_order_interval(wire)
 
     @artifact_export
     def export(

@@ -29,7 +29,6 @@ use antecedent_estimate::temporal_dependent_interval::{
 use antecedent_estimate::temporal_initial_state::{
     FixedStateEffect, FixedStateQuery, INITIAL_STATE_MAX_STATES, InitialStateLaw,
     InitialStatePopulation, InitialStateSpec, MarginalizedEffect, MarginalizedQuery,
-    route_frozen_refusal,
 };
 
 /// `P(l = 1 | s0, a1)` in tenths, indexed `[s0][a1]`.
@@ -302,8 +301,4 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     let error =
         InitialStateLaw::new(InitialStatePopulation::Target, "", vec![(0, 1.0)]).unwrap_err();
     assert!(format!("{error:?}").contains("needs a snapshot id"), "{error:?}");
-
-    let (code, message) = refused(route_frozen_refusal());
-    assert_eq!(code, "not_supported");
-    assert!(message.contains("initial_state.route_frozen"), "{message}");
 }

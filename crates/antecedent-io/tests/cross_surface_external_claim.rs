@@ -228,6 +228,7 @@ fn regenerate_rust_fixtures() {
         Ok("1"),
         "set ANTECEDENT_WRITE_FIXTURES=1 to write fixtures"
     );
+    antecedent_core::support_gate::forbid_fixture_write();
     let dir = fixture_dir();
     std::fs::create_dir_all(&dir).unwrap();
     let artifact = bound_artifact();

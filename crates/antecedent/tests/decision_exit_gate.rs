@@ -195,7 +195,7 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
         let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
         assert_eq!(
             coded(&prepared.refresh(counted, &ctx).unwrap_err()),
-            ("not_supported", "admg_transport.interval_withheld".into())
+            ("not_supported", "admg_transport.counted_laws_unsupported".into())
         );
         let produced: Vec<Vec<u64>> =
             result.distributions().iter().map(|d| bits(&d.probabilities)).collect();
@@ -269,7 +269,7 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
     w.uncertainty = "percentile_bootstrap".into();
     assert_eq!(
         refusal(&conditional_reseal(&mut w)),
-        AdmgConditionalArtifactError::IntervalWithheld
+        AdmgConditionalArtifactError::CountedLawsUnsupported
     );
 
     // A non-transportable diagram (selection on Y): the decision never
@@ -383,10 +383,11 @@ fn story_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() {
             assert!((point.estimate - truth).abs() < 0.12, "a={}: {}", point.dose, point.estimate);
         }
         assert_eq!(plan.estimate().uncertainty.status, "point_only");
-        // The interval route is closed until it is measured.
+        // The interval route is open but strict about its replicates: the default options
+        // request fewer than the floor, so the interval refuses and the point stays.
         assert_eq!(
             coded(&prepared.interval(&ctx).unwrap_err()),
-            ("not_supported", "dose_response.interval_withheld".into())
+            ("estimator_inference_mismatch", "dose_response.bootstrap_below_floor".into())
         );
         let produced = plan.estimate().clone();
         (plan.export().unwrap(), produced)

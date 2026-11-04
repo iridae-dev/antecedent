@@ -112,7 +112,7 @@ class ForwardOrigin(ScientificResult):
     transported claim. ``transport`` is the receipt of a transported claim.
     ``assumed_mechanisms`` are the mechanisms the analyst wrote down rather than estimated;
     every claim of a composition rests on them. ``claim_digest`` identifies the claim handed to
-    the engine. ``interval_region`` is always ``not_supported``.
+    the engine. ``interval_region`` is always ``uncertainty_representation_insufficient``.
     """
 
     version: int
@@ -124,7 +124,7 @@ class ForwardOrigin(ScientificResult):
     assumed_mechanisms: tuple[str, ...]
     provider_id: str
     claim_digest: str
-    interval_region: str = "not_supported"
+    interval_region: str = "uncertainty_representation_insufficient"
 
     @property
     def transported(self) -> bool:

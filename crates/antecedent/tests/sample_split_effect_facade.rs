@@ -251,43 +251,53 @@ fn attestation_is_a_lookup_against_current_records_and_replays_when_it_holds() {
     let data = collider_table_of(4, MEASURED_ROWS);
     let estimate = estimate_effect_on_split(&data, v(2), v(3), SPLIT_SEED, &ctx()).unwrap();
     assert_eq!(estimate.analysis_rows(), (MEASURED_ROWS / 2) as u64);
-    match estimate.measure(&ctx()) {
-        Ok(measured) => {
-            // A current attesting record covers this construction and row count: the report
-            // is calibrated, resolves to that record and a fresh consumer re-derives it.
-            let report = measured.report();
-            assert_eq!(report.calibration, "calibrated");
-            assert_eq!(report.scalars.len(), 1);
-            assert_eq!(report.scalars[0].name, "effect");
-            assert_eq!(report.scalars[0].calibration.status, "calibrated");
-            assert!((report.scalars[0].point - estimate.effect()).abs() < 1e-12);
-            assert_eq!(report.scalars[0].lower.to_bits(), estimate.interval().0.to_bits());
+    // The interval is always reported; the lookup against the current records decides only its
+    // calibration annotation.
+    let measured = match estimate.measure(&ctx()) {
+        Ok(measured) => measured,
+        Err(error) => panic!("the interval is reported with its calibration: {error}"),
+    };
+    let report = measured.report();
+    assert_eq!(report.scalars.len(), 1);
+    assert_eq!(report.scalars[0].name, "effect");
+    assert!((report.scalars[0].point - estimate.effect()).abs() < 1e-12);
+    assert_eq!(report.scalars[0].lower.to_bits(), estimate.interval().0.to_bits());
+    assert_eq!(report.scalars[0].upper.to_bits(), estimate.interval().1.to_bits());
+    assert_eq!(report.scalars[0].calibration.status, report.calibration.as_str());
+    match report.calibration.as_str() {
+        // A current attesting record covers this construction and row count: the report
+        // is calibrated, resolves to that record and a fresh consumer re-derives it.
+        "calibrated" => {
+            assert!(report.scalars[0].calibration.record_id.is_some());
             let again =
                 MeasuredInference::consume(measured.export(), measured.expectation(), &ctx())
                     .unwrap();
             assert_eq!(again.export(), measured.export());
         }
-        Err(error) => {
-            // Until a current attesting record exists the interval is computed, not attested.
-            let text = error.to_string();
-            assert!(text.contains("not_supported"), "{text}");
-            assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
+        // The record covering this construction is not current: the interval is reported
+        // against the nearest record and says that record does not attest.
+        status => {
+            assert_eq!(status, "outside_measured_scope");
+            assert_eq!(
+                report.scalars[0].calibration.reason.as_deref(),
+                Some("coverage_record_not_attesting")
+            );
+            assert!(report.scalars[0].calibration.record_id.is_some());
         }
     }
 }
 
 #[test]
-fn an_interval_outside_the_measured_row_range_is_never_attested() {
+fn an_interval_outside_the_measured_row_range_is_never_calibrated() {
     // 3000 analysis rows lie above the largest measured analysis count (1200), so no record can
-    // cover the execution whatever has been measured: the interval is computed and
-    // `measure` refuses it with not_supported rather than relabelling it.
+    // cover the execution whatever has been measured: `measure` reports the interval and its
+    // status says it is not calibrated, rather than relabelling it.
     let data = collider_table(7);
     let estimate = estimate_effect_on_split(&data, v(2), v(3), SPLIT_SEED, &ctx()).unwrap();
     assert!(estimate.interval().0 < estimate.interval().1);
-    let error = estimate.measure(&ctx()).unwrap_err();
-    let text = error.to_string();
-    assert!(text.contains("not_supported"), "{text}");
-    assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
+    let measured = estimate.measure(&ctx()).unwrap();
+    assert_ne!(measured.report().scalars[0].calibration.status, "calibrated");
+    assert_ne!(measured.report().calibration, "calibrated");
 }
 
 #[test]
@@ -310,8 +320,10 @@ fn a_table_outside_the_measured_variable_count_is_refused() {
         ("c", c.as_slice()),
     ])
     .unwrap();
-    let error = estimate_effect_on_split(&data, v(0), v(1), SPLIT_SEED, &ctx()).unwrap_err();
-    assert!(error.to_string().contains("split_effect.variable_count_not_measured"));
+    // The count is calibration scope, not a gate: a refusal for another reason is allowed.
+    if let Err(error) = estimate_effect_on_split(&data, v(0), v(1), SPLIT_SEED, &ctx()) {
+        assert!(!error.to_string().contains("variable_count_not_measured"), "{error}");
+    }
 }
 
 #[test]

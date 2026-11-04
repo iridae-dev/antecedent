@@ -1,4 +1,4 @@
-"""Measured scalar inference authorized by retained native source and calibration records."""
+"""Measured scalar inference: every interval with its calibration status."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from . import _native
 from ._artifact_protocol import (
@@ -27,6 +27,13 @@ from .errors import (
 from .execution import Execution, native_controls, resolve_execution
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
+
+CalibrationStatus = Literal[
+    "calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"
+]
+_STATUSES = frozenset(
+    ("calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured")
+)
 
 
 def _level(value: float) -> None:
@@ -138,21 +145,31 @@ class MeasuredScalar:
         return float(self._body["level"])
 
     @property
-    def calibration(self) -> Literal["calibrated"]:
-        return "calibrated"
+    def calibration(self) -> CalibrationStatus:
+        """Calibration status annotating this interval; it never withholds the interval."""
+        return cast(CalibrationStatus, self._body["calibration"]["status"])
 
     @property
-    def record_id(self) -> str:
-        return str(self._body["calibration"]["record_id"])
+    def calibration_reason(self) -> str | None:
+        """Reason code when the interval is not ``calibrated``."""
+        reason = self._body["calibration"].get("reason")
+        return None if reason is None else str(reason)
 
     @property
-    def calibration_sha(self) -> str:
+    def record_id(self) -> str | None:
+        """Governing coverage record, when one matches the construction."""
+        value = self._body["calibration"].get("record_id")
+        return None if value is None else str(value)
+
+    @property
+    def calibration_sha(self) -> str | None:
         """Git commit of the governing measurement; this is not a content checksum."""
-        return str(self._body["calibration"]["calibration_sha"])
+        value = self._body["calibration"].get("calibration_sha")
+        return None if value is None else str(value)
 
     @property
     def basis(self) -> dict[str, Any]:
-        return dict(detached(self._body["calibration"]["basis"]))
+        return dict(detached(self._body["calibration"].get("basis") or {}))
 
     def inspect(self) -> dict[str, Any]:
         return dict(detached(self._body))
@@ -176,7 +193,7 @@ class MeasuredInference:
         if kind is None or not isinstance(native, kind):
             raise CausalTypeError("measured inference requires original native authority")
         body = json.loads(native.payload())
-        if body.get("version") != 1 or body.get("calibration") != "calibrated":
+        if body.get("version") != 1 or body.get("calibration") not in _STATUSES:
             raise CausalSerializationError("unsupported measured inference standing")
         identity = MeasuredInferenceIdentity._from_wire(body["identity"])
         rows = body["scalars"]
@@ -188,14 +205,18 @@ class MeasuredInference:
         scalars = []
         for row in rows:
             slot = row["calibration"]
+            status = slot.get("status")
             if (
-                slot.get("status") != "calibrated"
-                or not slot.get("record_id")
-                or not slot.get("calibration_sha")
-                or not slot.get("basis")
+                status not in _STATUSES
                 or row["level"] != identity.level
+                or (
+                    status == "calibrated"
+                    and not (
+                        slot.get("record_id") and slot.get("calibration_sha") and slot.get("basis")
+                    )
+                )
             ):
-                raise CausalSerializationError("measured scalar lacks its governing native record")
+                raise CausalSerializationError("measured scalar lacks its calibration slot")
             scalar = object.__new__(MeasuredScalar)
             coerce_fields(scalar, _authority=native)
             coerce_fields(scalar, _body=freeze(row))
@@ -212,8 +233,9 @@ class MeasuredInference:
         return self._identity.route
 
     @property
-    def calibration(self) -> Literal["calibrated"]:
-        return "calibrated"
+    def calibration(self) -> CalibrationStatus:
+        """``calibrated`` only when every scalar is; otherwise the most severe status."""
+        return cast(CalibrationStatus, self._body["calibration"])
 
     @property
     def expected_identity(self) -> MeasuredInferenceIdentity:

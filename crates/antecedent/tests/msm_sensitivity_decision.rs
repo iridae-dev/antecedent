@@ -125,7 +125,7 @@ fn msm_decision_keeps_sampling_withheld_and_refuses_composition() {
     let SamplingReport::Withheld { reason_code, detail } = &decided.sampling else {
         panic!("the sampling interval must stay withheld");
     };
-    assert_eq!(reason_code, "not_supported");
+    assert_eq!(reason_code, "uncertainty_representation_insufficient");
     assert_eq!(detail, "msm_sensitivity.interval_withheld");
     let contract =
         contract_from_artifact(&built, StructuralPolicy::RequireInvariantBestAction).unwrap();

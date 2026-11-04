@@ -358,25 +358,21 @@ fn correction_intervals_match_the_delta_method_in_both_directions_and_clip_to_th
 }
 
 #[test]
-fn rates_outside_the_measured_range_and_degenerate_lines_are_refused() {
+fn rates_outside_the_measured_range_are_reported_and_degenerate_lines_are_refused() {
     // Youden index 0.25 is below the measured minimum of 0.3.
     let weak =
         derive(&correction(false, 0.6, 0.65, 0.0004, 0.0004), 0.4, "probability", Some(0.02));
-    assert_eq!(
-        construct_bridged_claim_interval(weak.bridged(), Some(0.02), 0.95)
-            .expect_err("refused")
-            .detail,
-        "scientific_bridge.interval_scope_outside_measured"
-    );
+    let weak_built = construct_bridged_claim_interval(weak.bridged(), Some(0.02), 0.95)
+        .expect("reported outside the measured range");
+    assert!(weak_built.basis.key.estimator.contains("rates_outside_measured_range"));
+    assert!(weak_built.interval.lower < weak_built.interval.upper);
     // A declared rate standard error of 0.06 exceeds the measured 0.05.
     let noisy =
         derive(&correction(false, 0.9, 0.8, 0.0036, 0.0004), 0.31, "probability", Some(0.02));
-    assert_eq!(
-        construct_bridged_claim_interval(noisy.bridged(), Some(0.02), 0.95)
-            .expect_err("refused")
-            .detail,
-        "scientific_bridge.interval_scope_outside_measured"
-    );
+    let noisy_built = construct_bridged_claim_interval(noisy.bridged(), Some(0.02), 0.95)
+        .expect("reported outside the measured range");
+    assert!(noisy_built.basis.key.estimator.contains("rates_outside_measured_range"));
+    assert!(noisy_built.interval.lower < noisy_built.interval.upper);
     // A perfect line with no source standard error has no prediction spread.
     let line: Vec<TrialEffectPair> = [(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]
         .into_iter()

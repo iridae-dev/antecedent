@@ -323,7 +323,7 @@ fn reusing_the_rows_that_selected_is_refused_and_the_ledger_sees_the_overlap() {
     let data = table(7);
     let split = discover_on_split(&contract(), &data, rule(9), &ctx()).unwrap();
     let error = split.request_unsplit_interval().unwrap_err();
-    assert_eq!(error.code(), Some("not_supported"));
+    assert_eq!(error.code(), Some("selection_inference_not_supported"));
     assert_eq!(error.detail(), Some("selective_discovery.downstream_interval_not_supported"));
 
     let snapshot = b"split-snapshot-1";

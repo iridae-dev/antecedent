@@ -371,11 +371,17 @@ class ParameterDraws:
 
 @dataclass(frozen=True, slots=True)
 class ParameterInterval:
-    """An interval of one redrawn quantity that a currently attesting coverage record supported."""
+    """An interval of one redrawn quantity, annotated with its calibration.
+
+    ``calibration`` is the calibration slot (its ``status`` is ``calibrated``,
+    ``outside_measured_scope``, ``measured_below_nominal`` or ``not_measured``); ``record_id`` is
+    the governing coverage record when one matched.
+    """
 
     quantity: str
     coordinate_id: str
-    record_id: str
+    record_id: str | None
+    calibration: Mapping[str, Any]
     construction: str
     nominal_level: float
     label: str
@@ -459,16 +465,13 @@ class ObservationClaim(ScientificResult):
     def parameter_interval(
         self, quantity: str, construction: str, *, evidence_rows: int
     ) -> ParameterInterval:
-        """The interval of one redrawn quantity, supported only by a measured coverage record.
+        """The interval of one redrawn quantity, annotated with its calibration slot.
 
         ``evidence_rows`` is declared, not authenticated: the number of observations behind the
-        least-supported retained mechanism. No record is measured for any coordinate yet, so this
-        raises the typed refusal; use :meth:`ParameterDraws.spread` for the labelled
+        least-supported retained mechanism. Without a currently attesting record at this composed
+        coordinate, construction, level and size the interval is still reported and its
+        ``calibration`` says so; :meth:`ParameterDraws.spread` is the labelled
         ``uncalibrated_spread``.
-
-        Raises:
-            ObservationQueryRefusal: ``not_supported`` without a currently attesting record
-                at this composed coordinate, construction, level and size.
         """
         raw = _unwrap(
             _native.observation_query_parameter_interval(
@@ -483,7 +486,8 @@ class ObservationClaim(ScientificResult):
         return ParameterInterval(
             quantity=str(wire["quantity"]),
             coordinate_id=str(wire["coordinate_id"]),
-            record_id=str(wire["record_id"]),
+            record_id=None if wire.get("record_id") is None else str(wire["record_id"]),
+            calibration=dict(wire["calibration"]),
             construction=str(wire["construction"]),
             nominal_level=float(wire["nominal_level"]),
             label=str(wire["label"]),
@@ -616,7 +620,7 @@ class ObservationClaim(ScientificResult):
         """An interval for any observation-conditioned value. Always refused.
 
         Raises:
-            ObservationQueryRefusal: ``not_supported`` with
+            ObservationQueryRefusal: ``uncertainty_representation_insufficient`` with
                 ``observation_query.declared_model_has_no_sampling_interval``.
         """
         raise_refusal(_native.observation_query_closed("interval"), ObservationQueryRefusal)
@@ -625,7 +629,7 @@ class ObservationClaim(ScientificResult):
         """A calibration claim for a posterior or decision probability. Always refused.
 
         Raises:
-            ObservationQueryRefusal: ``not_supported`` with
+            ObservationQueryRefusal: ``uncertainty_representation_insufficient`` with
                 ``observation_query.calibrated_probability_closed``.
         """
         raise_refusal(
@@ -1175,11 +1179,14 @@ class CountFittedObservation(ScientificResult):
     def interval(
         self, *, level: float = 0.95, execution: Execution | None = None
     ) -> MeasuredInference:
-        """The measured posterior interval at ``level`` (0.90 and 0.95 are measured).
+        """The posterior interval at ``level``, annotated with its calibration status.
+
+        A level, draw count or sample size the coverage grid did not measure is computed and
+        reported with ``outside_measured_scope`` or ``not_measured``; calibration never withholds it.
 
         Raises:
-            ObservationQueryRefusal: ``not_supported`` when no currently attesting coverage
-                record governs this construction (level, prior, draws, rows, sample size).
+            ObservationQueryRefusal: when the Monte Carlo error of an endpoint is large against
+                the interval width (use more draws).
         """
         measured, refusal = _native.count_fitted_observation_interval(
             self._source, _number(level, "level"), cancel=_cancel(execution)
@@ -1216,7 +1223,7 @@ def count_fitted_observation(
     first parent varying slowest, columns its levels); ``declared[v]`` is a fixed conditional
     (for example a measured signal with known sensitivity and specificity), flattened the same
     way. Every fitted variable must have been counted from the same ``rows`` complete rows.
-    ``draws`` is the number of posterior draws (default and minimum 2000, at most 100000); the
+    ``draws`` is the number of posterior draws (default 2000, the measured minimum; 1 to 100000 run); the
     interval reports the Monte Carlo error of its endpoints and is refused when it is large
     against the interval width, in which case use more draws.
     """

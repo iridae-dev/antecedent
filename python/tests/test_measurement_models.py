@@ -13,8 +13,9 @@ Every asserted value has an oracle computed here in pure Python or numpy, never 
 * the posterior route: Rubin's pooled point as the mean of per-draw least-squares coefficients.
 
 Tolerances are written in the test: ``1e-12`` for exact algebra, ``4`` reported standard errors
-for simulations with fixed seeds. Calibration of any interval is deliberately not measured: the
-interval route is closed and these tests assert that it refuses.
+for simulations with fixed seeds. Calibration of any interval is deliberately not measured: an
+estimate's interval is reported with a ``not_measured`` calibration slot, and a prepared model
+holds no estimate to bound, so its interval refuses.
 """
 
 from __future__ import annotations
@@ -342,14 +343,13 @@ def test_classical_error_recovers_the_coefficient_and_the_attenuation_is_closed_
     assert estimate.parameter_uncertainty == "declared_exact"
     assert estimate.route == "classical_continuous_error"
     assert estimate.model_identity == prepared.model_identity
-    for target in (estimate, prepared):
-        with pytest.raises(MeasurementModelRefusal) as caught:
-            target.interval()
-        assert caught.value.reason_code == "not_supported"
-        assert isinstance(caught.value, CausalUnsupportedError)
+    interval = estimate.interval(0.95)
+    assert interval.lower < estimate.point < interval.upper and interval.level == 0.95
+    assert interval.calibration["status"] == "not_measured"
     with pytest.raises(MeasurementModelRefusal) as caught:
-        estimate.interval()
-    assert caught.value.detail == "measurement_model.interval_closed"
+        prepared.interval()
+    assert caught.value.reason_code == "uncertainty_representation_insufficient"
+    assert isinstance(caught.value, CausalUnsupportedError)
 
 
 def test_the_measurement_parameter_uncertainty_enters_the_variance_and_the_functional():
@@ -691,9 +691,7 @@ def test_the_route_supports_only_its_own_operations():
     ):
         with pytest.raises(MeasurementModelRefusal) as caught:
             prepared.check_operation(refused)
-        assert_refusal(
-            caught.value, "not_supported", "measurement_model.operation_not_supported"
-        )
+        assert_refusal(caught.value, "not_supported", "measurement_model.operation_not_supported")
         assert caught.value.remedy is not None
     assert prepared.route_card["route"] == "classical_continuous_error"
     assert {item["operation"] for item in prepared.route_card["refused"]} >= {

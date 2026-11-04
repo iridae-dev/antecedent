@@ -259,7 +259,9 @@ pub struct MsmTipping {
     pub tolerance: f64,
 }
 
-/// Withheld sampling status, distinct from the assumption range.
+/// Sampling status, distinct from the assumption range. A scientific refusal: the inputs
+/// are exact population quantities, so there is no estimation whose sampling an interval
+/// could describe (`uncertainty_representation_insufficient`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MsmSensitivityUncertainty {
     /// [`MSM_SAMPLING_STATEMENT`].
@@ -276,7 +278,7 @@ impl MsmSensitivityUncertainty {
     pub const fn withheld() -> Self {
         Self {
             sampling_interval: MSM_SAMPLING_STATEMENT,
-            reason_code: reason_code!("not_supported"),
+            reason_code: reason_code!("uncertainty_representation_insufficient"),
             detail: MSM_INTERVAL_WITHHELD,
         }
     }

@@ -146,9 +146,11 @@ fn the_latent_variable_graph_runs_only_its_own_estimator_and_refuses_both_instru
             .and_then(|study| study.run(&ExecutionContext::for_tests(5)))
             .err()
             .unwrap_or_else(|| panic!("{name}: an instrumental estimate on an ADMG"));
+        // The estimator-target declaration refuses an instrumental estimator on the ADMG
+        // estimand in every build, before the support gate is consulted.
         let text = error.to_string();
-        assert!(text.contains("ADMG ATE requires estimator functional.effect"), "{name}: {text}");
-        assert!(text.contains(&format!("got {name}")), "{name}: {text}");
+        assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{name}: {text}");
+        assert!(text.contains(&format!("estimator {name} cannot consume")), "{name}: {text}");
     }
 }
 

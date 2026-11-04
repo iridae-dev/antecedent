@@ -133,15 +133,28 @@ fn the_plug_in_gradient_level_and_scales_match_the_exact_fits() {
                 else {
                     panic!("{label}: a Jacobian");
                 };
-                assert!(matches!(response.uncertainty, ResponseUncertainty::None), "{label}");
-                assert!(
-                    response
-                        .support
-                        .warnings
-                        .iter()
-                        .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
-                    "{label}: the withheld interval is disclosed"
-                );
+                let withheld = response
+                    .support
+                    .warnings
+                    .iter()
+                    .any(|w| w.code.as_ref() == "response.derivative_interval_withheld");
+                if scale == DerivativeScale::Identity {
+                    // The identity-scale Jacobian reports its coefficient-sandwich band around
+                    // the pinned point.
+                    let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
+                        &response.uncertainty
+                    else {
+                        panic!("{label}: the identity-scale Jacobian reports a band");
+                    };
+                    assert_eq!(lower.len(), values.len(), "{label}");
+                    for ((lo, hi), value) in lower.iter().zip(upper.iter()).zip(values.iter()) {
+                        assert!(lo <= value && value <= hi, "{label}: {lo} <= {value} <= {hi}");
+                    }
+                    assert!(!withheld, "{label}: a reported band is not disclosed as withheld");
+                } else {
+                    assert!(matches!(response.uncertainty, ResponseUncertainty::None), "{label}");
+                    assert!(withheld, "{label}: the withheld interval is disclosed");
+                }
                 for (o, row) in gradient.iter().enumerate() {
                     for (j, g) in row.iter().enumerate() {
                         let factor = match scale {

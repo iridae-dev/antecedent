@@ -24,6 +24,7 @@ fn regenerate_rust_fixtures() {
         Ok("1"),
         "set ANTECEDENT_WRITE_FIXTURES=1 to write fixtures"
     );
+    antecedent_core::support_gate::forbid_fixture_write();
     let ctx = ExecutionContext::for_tests(0xF1A6);
     let base = FlagshipWorkflow::execute(&ctx, FlagshipDependence::Independent).expect("base");
     let decision = base.decision().expect("current decision");

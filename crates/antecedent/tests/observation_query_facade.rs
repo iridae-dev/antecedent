@@ -455,14 +455,14 @@ fn closed_interval_and_calibration_routes_refuse() {
     let prepared = confounded();
     let claim = prepared.condition_on("Y", &[direct("S", "1")], &ctx()).unwrap();
     let interval = claim.interval().unwrap_err();
-    assert_eq!(interval.code(), "not_supported");
+    assert_eq!(interval.code(), "uncertainty_representation_insufficient");
     assert_eq!(
         refusal_details(&interval),
         ["observation_query.declared_model_has_no_sampling_interval"]
     );
     assert!(interval.refusals[0].remedy.is_some());
     let calibrated = claim.calibrated_probability().unwrap_err();
-    assert_eq!(calibrated.code(), "not_supported");
+    assert_eq!(calibrated.code(), "uncertainty_representation_insufficient");
     assert_eq!(refusal_details(&calibrated), ["observation_query.calibrated_probability_closed"]);
 
     // The same posterior read from a fitted model is a labelled point value and
@@ -481,8 +481,11 @@ fn closed_interval_and_calibration_routes_refuse() {
     )
     .unwrap();
     assert_eq!(fitted.inference_basis(), "point_only_sample_fitted");
-    assert_eq!(fitted.interval().unwrap_err().code(), "not_supported");
-    assert_eq!(fitted.calibrated_probability().unwrap_err().code(), "not_supported");
+    assert_eq!(fitted.interval().unwrap_err().code(), "uncertainty_representation_insufficient");
+    assert_eq!(
+        fitted.calibrated_probability().unwrap_err().code(),
+        "uncertainty_representation_insufficient"
+    );
 }
 
 #[test]
@@ -844,13 +847,14 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
     let distribution = claim.distribution().unwrap();
     assert_eq!(distribution.alignment_identity().unwrap(), aligned.alignment_identity);
 
-    // An interval is never produced without a currently attesting coverage record.
+    // The unqualified interval of a declared model stays refused; the parameter interval of
+    // the redrawn quantity is reported with its calibration annotation.
     assert!(claim.interval().is_err());
-    let refusal = claim
+    let interval = claim
         .parameter_interval("probability:1", "aligned_draw_equal_tail_exchangeable_rank", 200)
-        .unwrap_err();
-    assert_eq!(refusal.code(), "not_supported");
-    assert!(!refusal.refusals.is_empty());
+        .unwrap();
+    let (lower, upper) = interval.bounds.expect("the draw construction reports its bounds");
+    assert!(lower <= upper);
 
     // Same seed, same draws; the claim replays from its artifact.
     let again = prepared

@@ -241,5 +241,27 @@ fn posterior_and_effect_moments_match_the_exact_reference() {
             "{name}: draw variance ratio {}",
             var / (sd * sd)
         );
+        // The credible-interval endpoints are quantiles of these iid draws. The posterior is
+        // exactly Gaussian (known variances), so the exact 95% endpoints are
+        // `mean +/- z sd`; the draw quantile must agree within five Monte Carlo standard errors,
+        // `sd sqrt(p (1 - p) / D) / phi(z_p)` (Bahadur), at both tails.
+        {
+            let mut sorted = draws.to_vec();
+            sorted.sort_by(f64::total_cmp);
+            let exact_mean = fit.target_effect_mean;
+            for p in [0.025_f64, 0.975] {
+                let h = (sorted.len() as f64 - 1.0) * p;
+                let k = h.floor() as usize;
+                let quantile = sorted[k] + (h - h.floor()) * (sorted[k + 1] - sorted[k]);
+                let z = antecedent_stats::special::normal_ppf(p);
+                let density = (-0.5 * z * z).exp() / (2.0 * std::f64::consts::PI).sqrt();
+                let bound = 5.0 * sd * (p * (1.0 - p) / n).sqrt() / density;
+                let exact = exact_mean + z * sd;
+                assert!(
+                    (quantile - exact).abs() < bound,
+                    "{name}: draw quantile {quantile} vs exact {exact} (bound {bound})"
+                );
+            }
+        }
     }
 }

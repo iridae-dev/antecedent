@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-estimate/development", "antecedent-expr/development", "antecedent-identify/development", "antecedent-learn/development", "antecedent-io-core/development", "antecedent-discovery/development", "antecedent-graph/development", "antecedent-prob/development", "antecedent-stats/development", "antecedent-kernels/development"]
 default = []
 # Exposes the closed joint-sensitivity endpoint bootstrap
 # (`joint_sensitivity_bootstrap_interval_internal`) to the calibration harness.
@@ -124,7 +126,6 @@ path = "tests/temporal_mediation_refuter_reference.rs"
 [[test]]
 name = "joint_uncertainty_reference"
 path = "tests/joint_uncertainty_reference.rs"
-required-features = ["calibration-internal"]
 
 [[test]]
 name = "functional_reference"

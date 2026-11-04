@@ -340,6 +340,7 @@ class AteAnalysisResult:
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
+    would_refuse: list[tuple[str, str, list[str]]]
 
 class ResponseAnalysisResult:
     def refutation_reports(
@@ -4977,6 +4978,9 @@ def encode_external_estimate_claim(
 def omitted_defaults() -> dict[str, Any]:
     """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
 
+def build_flavor() -> str:
+    """`"release"` or `"development"` (a development build runs `not_supported` routes)."""
+
 def default_user_threads() -> int:
     """Default product `threads` (`available_parallelism`, capped)."""
 
@@ -5786,9 +5790,9 @@ def temporal_dependent_interval_closed(
     method: Literal["studentized"],
     min_units: int,
     max_failed_fraction: float,
-) -> str: ...
+) -> str | None: ...
 
-# Available only in calibration-internal acceptance builds; no released support.
+# Interval candidate; its calibration status is an annotation.
 class NativeTemporalIntervalCandidate:
     def payload(self) -> str: ...
     def export(self) -> bytes: ...
@@ -6194,9 +6198,9 @@ def matched_case_control_odds_ratio(
     *,
     sampling: str,
     estimand: str,
-    interval: bool = False,
+    level: float | None = None,
     cancel: CancellationToken | None = None,
-) -> tuple[float, float, int, int, int, int, int]: ...
+) -> tuple[float, float, int, int, int, int, int, tuple[float, float, str] | None]: ...
 def derived_treatment_check_json(
     names: list[str],
     columns: list[Any],
@@ -6267,19 +6271,31 @@ def transform_mean_pair(
     scales: list[str],
     *,
     covariance: tuple[float, float, float] | None = None,
-    interval: bool = False,
-) -> tuple[list[float], list[tuple[float, float]], list[float] | None]: ...
+    level: float | None = None,
+) -> tuple[
+    list[float],
+    list[tuple[float, float]],
+    list[float] | None,
+    list[tuple[float, float] | None],
+    str | None,
+]: ...
 def transform_raw_arms(
     outcome: list[float],
     treatment: list[float],
     scales: list[str],
     *,
-    interval: bool = False,
+    level: float | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[
     tuple[int, float, float],
     tuple[int, float, float],
-    tuple[list[float], list[tuple[float, float]], list[float] | None],
+    tuple[
+        list[float],
+        list[tuple[float, float]],
+        list[float] | None,
+        list[tuple[float, float] | None],
+        str | None,
+    ],
 ]: ...
 def adaptive_policy_search(
     config_json: str,
@@ -6433,7 +6449,7 @@ class ObservationRecoveryStage:
         memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> NativeMeasuredInference: ...
-    # Optional: calibration-internal acceptance builds only.
+    # Interval candidate; calibration is an annotation.
     def sampled_candidate(
         self,
         population: str,
@@ -7136,7 +7152,7 @@ class PreparedSmoothedDoseNative:
         self, data: Any, cancel: CancellationToken | None = None
     ) -> PreparedSmoothedDoseNative: ...
     def estimate(self, cancel: CancellationToken | None = None) -> str: ...
-    def interval(self, cancel: CancellationToken | None = None) -> None: ...
+    def interval(self, cancel: CancellationToken | None = None) -> str: ...
     def export(self) -> bytes: ...
     def estimator_menu(self) -> str: ...
     def last_result(self) -> str: ...
@@ -8276,6 +8292,7 @@ class JointBayesianSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class TemporalSessionHandle:
@@ -8323,7 +8340,7 @@ class TemporalSessionHandle:
     def consume(
         artifact: bytes, *, seed: int = 1, threads: int | None = None
     ) -> tuple[TemporalSessionHandle | None, str | None, bytes | None, str | None]: ...
-    # Optional calibration-internal checked-source lifecycle only.
+    # Checked-source lifecycle.
     def interval_candidate(
         self,
         config_json: str,
@@ -8528,7 +8545,7 @@ def consume_nested_markov_posterior_candidate(
     expected_identity: str,
 ) -> NativeNestedMarkovPosteriorCandidate: ...
 
-# Optional: calibration-internal acceptance builds only.
+# Interval candidate; calibration is an annotation.
 def consume_sampled_recovery_candidate(
     artifact: bytes,
     premises_digest: str,
@@ -8540,7 +8557,7 @@ def consume_sampled_recovery_candidate(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
-# Optional calibration-internal original checked TemporalSession source/proof route.
+# Original checked TemporalSession source/proof route.
 class NativeCheckedTemporalIntervalCandidate:
     def payload(self) -> str: ...
     def export(self) -> bytes: ...
@@ -8636,7 +8653,7 @@ class PreparedMeasurementHandle:
     ) -> tuple[MeasurementEstimateHandle | None, str | None]: ...
     def estimate_continuous(
         self, input_json: str, *, cancel: CancellationToken | None = None
-    ) -> tuple[str | None, str | None]: ...
+    ) -> tuple[str | None, ContinuousMeasurementEstimateHandle | None, str | None]: ...
     def refresh(
         self, data_json: str, *, cancel: CancellationToken | None = None
     ) -> tuple[PreparedMeasurementHandle | None, MeasurementEstimateHandle | None, str | None]: ...
@@ -8651,11 +8668,14 @@ class PreparedMeasurementHandle:
 class MeasurementEstimateHandle:
     def summary_json(self) -> str: ...
     def detail_json(self) -> str: ...
-    def interval(self) -> str: ...
+    def interval(self, level: float) -> tuple[tuple[float, float, str] | None, str | None]: ...
     def downstream_linear_functional(
         self, weights: list[float]
     ) -> tuple[tuple[float, float] | None, str | None]: ...
     def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+class ContinuousMeasurementEstimateHandle:
+    def interval(self, level: float) -> tuple[tuple[float, float, str] | None, str | None]: ...
 
 class ConsumedMeasurementHandle:
     def summary_json(self) -> str: ...
@@ -8964,7 +8984,7 @@ class PreparedCompositionHandle:
     def family(self) -> str: ...
     def variables(self) -> list[str]: ...
     def declared_mechanisms(self) -> list[str]: ...
-    def interval(self) -> str: ...
+    def interval(self, contrast_json: str, level: float) -> tuple[str | None, str | None]: ...
     def intervention_law(self, interventions_json: str) -> tuple[str | None, str | None]: ...
     def mean_contrast(self, contrast_json: str) -> tuple[float | None, str | None]: ...
     def mean_contrast_uncertainty(self, contrast_json: str) -> tuple[str | None, str | None]: ...
@@ -9005,7 +9025,7 @@ class TransportedCompositionHandle:
     def receipt_json(self) -> str: ...
     def mean_contrast(self, contrast_json: str) -> tuple[float | None, str | None]: ...
     def mean_contrast_uncertainty(self, contrast_json: str) -> tuple[str | None, str | None]: ...
-    def interval(self) -> str: ...
+    def interval(self, contrast_json: str, level: float) -> tuple[str | None, str | None]: ...
     def export(
         self, query_json: str, *, cancel: CancellationToken | None = None
     ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
@@ -9047,7 +9067,15 @@ class TypedTransportedHandle:
         *,
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, str | None]: ...
-    def interval(self) -> str: ...
+    def interval(
+        self,
+        contrast_json: str,
+        draws: int,
+        seed: int,
+        level: float = 0.95,
+        *,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
 
 def typed_mechanism_fit(
     spec_json: str,
@@ -9448,7 +9476,9 @@ def decision_reliability_rank(
 def decision_reliability_digests(
     draws_json: str,
 ) -> tuple[tuple[str, str] | None, str | None]: ...
-def decision_reliability_publish(route: str, coordinate_json: str) -> str | None: ...
+def decision_reliability_publish(
+    route: str, coordinate_json: str
+) -> tuple[str | None, str | None]: ...
 def decision_reliability_derive(
     draws_json: str,
     validation_json: str | None,
@@ -9471,7 +9501,9 @@ def decision_reliability_verify_derived(
     seed: int = 0,
     cancel: CancellationToken | None = None,
 ) -> str | None: ...
-def decision_reliability_publish_derived(route: str, derived_json: str) -> str | None: ...
+def decision_reliability_publish_derived(
+    route: str, derived_json: str
+) -> tuple[str | None, str | None]: ...
 def decision_reliability_coverage_design_json() -> tuple[str | None, str | None]: ...
 def decision_reliability_reach_carrier(output_json: str) -> tuple[str | None, str | None]: ...
 def decision_reliability_assess_producer(

@@ -5,8 +5,10 @@
 //! procedure cells whose whole-procedure coverage was measured, builds the
 //! measured interval with the construction the record describes, and resolves
 //! it against the current coverage records. Any other procedure, prior,
-//! threshold, exploration mass or outcome structure is refused: a record for
-//! one cell never covers another.
+//! threshold, exploration mass or outcome structure still reports its interval;
+//! the calibration slot then says `not_measured` or `outside_measured_scope`,
+//! because a record for one cell never covers another. Calibration annotates the
+//! interval and never gates it.
 //!
 //! Supported cells:
 //!
@@ -35,15 +37,68 @@ use antecedent_contract::adaptive_design::{
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::adaptive_measured_interval as built;
 
+/// A replayed result that carries no interval of the asked kind. A procedure outside the
+/// measured cells is never refused: its interval is reported with `outside_measured_scope` or
+/// `not_measured`.
 fn refusal(message: &str) -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("not_supported"),
-        message: format!("measured_interval.protocol_not_measured: {message}"),
+        message: format!("measured_interval.no_interval_of_this_kind: {message}"),
     }
+}
+
+/// The planned horizon when the interim analyses determine it, otherwise the units analysed.
+fn horizon(contract: &AdaptiveDesignContract, look: usize) -> Result<u64, IoError> {
+    if let Ok(planned) = planned_horizon(contract, look) {
+        return Ok(planned);
+    }
+    let units = contract.analysis_units(look).map_err(|r| IoError::Refused {
+        code: r.code,
+        message: format!("{}: {}", r.detail, r.remedy.unwrap_or("")),
+    })?;
+    Ok(units.len() as u64)
 }
 
 fn bits(a: f64, b: f64) -> bool {
     a.to_bits() == b.to_bits()
+}
+
+/// Tag a basis whose procedure is not the measured one. The estimator then names a construction no
+/// record measured, so the calibration slot reports `not_measured`; the interval is still reported.
+fn outside_protocol(
+    mut basis: antecedent_core::CalibrationBasis,
+) -> antecedent_core::CalibrationBasis {
+    basis.estimator = format!("{}+outside_measured_protocol", basis.estimator).into();
+    basis
+}
+
+fn prefix_fractions_measured(contract: &AdaptiveDesignContract, expected: &[f64]) -> bool {
+    contract.declaration().interim_analyses.as_ref().is_some_and(|looks| {
+        !looks.is_empty()
+            && looks.len() <= expected.len()
+            && looks.iter().zip(expected).all(|(l, e)| bits(l.information_fraction, *e))
+    })
+}
+
+fn immediate(contract: &AdaptiveDesignContract) -> bool {
+    contract
+        .declaration()
+        .availability
+        .as_ref()
+        .is_some_and(|a| a.delay == DelayMechanism::Immediate)
+}
+
+fn min_probability_at_least(contract: &AdaptiveDesignContract, floor: f64) -> bool {
+    contract.declaration().assignment_probabilities.as_ref().is_some_and(|rows| {
+        rows.iter().flatten().copied().fold(f64::INFINITY, f64::min) + 1e-12 >= floor
+    })
+}
+
+fn tagged(
+    measured_protocol: bool,
+    basis: antecedent_core::CalibrationBasis,
+) -> antecedent_core::CalibrationBasis {
+    if measured_protocol { basis } else { outside_protocol(basis) }
 }
 
 /// What the replayed contract and request resolve to.
@@ -54,26 +109,6 @@ struct Reading {
     interval: (f64, f64),
     basis: antecedent_core::CalibrationBasis,
     scope: serde_json::Value,
-}
-
-fn declaration_prefix_fractions(
-    contract: &AdaptiveDesignContract,
-    expected: &[f64],
-) -> Result<(), IoError> {
-    let looks = contract
-        .declaration()
-        .interim_analyses
-        .as_ref()
-        .ok_or_else(|| refusal("the contract keeps no interim analyses"))?;
-    if looks.is_empty()
-        || looks.len() > expected.len()
-        || looks.iter().zip(expected).any(|(l, e)| !bits(l.information_fraction, *e))
-    {
-        return Err(refusal(
-            "only the measured look schedule of this procedure cell has coverage evidence",
-        ));
-    }
-    Ok(())
 }
 
 fn planned_horizon(contract: &AdaptiveDesignContract, look: usize) -> Result<u64, IoError> {
@@ -94,28 +129,6 @@ fn planned_horizon(contract: &AdaptiveDesignContract, look: usize) -> Result<u64
     )]
     let planned = planned as u64;
     Ok(planned)
-}
-
-fn immediate(contract: &AdaptiveDesignContract) -> Result<(), IoError> {
-    match contract.declaration().availability.as_ref() {
-        Some(a) if a.delay == DelayMechanism::Immediate => Ok(()),
-        _ => Err(refusal("only outcomes available at enrollment were measured")),
-    }
-}
-
-fn min_probability_at_least(contract: &AdaptiveDesignContract, floor: f64) -> Result<(), IoError> {
-    let rows = contract
-        .declaration()
-        .assignment_probabilities
-        .as_ref()
-        .ok_or_else(|| refusal("the contract keeps no assignment probabilities"))?;
-    let minimum = rows.iter().flatten().copied().fold(f64::INFINITY, f64::min);
-    if minimum + 1e-12 < floor {
-        return Err(refusal(
-            "an arm was assigned with less exploration mass than the measured procedure (every arm at least 0.15)",
-        ));
-    }
-    Ok(())
 }
 
 fn unit_mean(contract: &AdaptiveDesignContract, unit: usize) -> f64 {
@@ -151,28 +164,26 @@ fn thompson(
     let AdaptiveResultSpec::BayesianPosterior { prior_alpha, prior_beta, .. } = spec else {
         return Err(refusal("not a posterior request"));
     };
-    let Some(StoppingSpec::PosteriorProbabilityBest { threshold }) =
-        contract.declaration().stopping_rule.map(|r| r.spec)
-    else {
-        return Err(refusal("the measured stopping rule is a posterior probability rule"));
+    let threshold = match contract.declaration().stopping_rule.map(|r| r.spec) {
+        Some(StoppingSpec::PosteriorProbabilityBest { threshold }) => Some(threshold),
+        _ => None,
     };
-    if cell.assignment != AssignmentFamily::ThompsonBetaBernoulli
-        || cell.outcome != OutcomeStructure::SingleOutcome
-        || cell.monitoring != MonitoringStrategy::FixedInterimLooks
-        || cell.stopping != StoppingRuleKind::Efficacy
-        || contract.arms() != 2
-        || !bits(*prior_alpha, 1.0)
-        || !bits(*prior_beta, 1.0)
-        || !built::THOMPSON_STOP_THRESHOLDS.iter().any(|t| bits(*t, threshold))
-        || look + 1 != contract.looks()
-    {
+    if contract.arms() != 2 {
         return Err(refusal(
-            "only two-arm Thompson sampling with a uniform Beta prior and a posterior-probability rule at 0.90, 0.95 or 0.99 read at its last look was measured",
+            "the replayed posterior holds the second arm's Beta parameters only for a two-arm trial",
         ));
     }
-    declaration_prefix_fractions(contract, &[0.5, 1.0])?;
-    immediate(contract)?;
-    let planned = planned_horizon(contract, look)?;
+    let measured_protocol = cell.assignment == AssignmentFamily::ThompsonBetaBernoulli
+        && cell.outcome == OutcomeStructure::SingleOutcome
+        && cell.monitoring == MonitoringStrategy::FixedInterimLooks
+        && cell.stopping == StoppingRuleKind::Efficacy
+        && bits(*prior_alpha, 1.0)
+        && bits(*prior_beta, 1.0)
+        && threshold.is_some_and(|t| built::THOMPSON_STOP_THRESHOLDS.iter().any(|m| bits(*m, t)))
+        && look + 1 == contract.looks()
+        && prefix_fractions_measured(contract, &[0.5, 1.0])
+        && immediate(contract);
+    let planned = horizon(contract, look)?;
     let (alpha, beta, mean) = (values[6], values[7], values[8]);
     let interval = built::beta_credible_interval(alpha, beta, built::MEASURED_LEVEL)
         .ok_or_else(|| refusal("the posterior interval is not defined"))?;
@@ -181,13 +192,16 @@ fn thompson(
         scalar: "treatment_success_probability",
         point: mean,
         interval,
-        basis: built::calibration_basis(
-            built::THOMPSON_ESTIMATOR,
-            "posterior_quantile",
-            "Bayesian",
-            built::THOMPSON_FUNCTIONAL,
-            built::STOPPED_DEPENDENCE,
-            planned,
+        basis: tagged(
+            measured_protocol,
+            built::calibration_basis(
+                built::THOMPSON_ESTIMATOR,
+                "posterior_quantile",
+                "Bayesian",
+                built::THOMPSON_FUNCTIONAL,
+                built::STOPPED_DEPENDENCE,
+                planned,
+            ),
         ),
         scope: serde_json::json!({
             "validation_design":"two_bernoulli_arms_truth_drawn_from_the_uniform_prior_thompson_posterior_probability_stop",
@@ -218,32 +232,29 @@ fn weighted(
     else {
         return Err(refusal("not a weighting request"));
     };
+    if contract.arms() != 2 || *plus_arm != 1 || *minus_arm != Some(0) {
+        return Err(refusal(
+            "the replayed weighted result reports the second arm against the first of a two-arm trial",
+        ));
+    }
     let declaration = contract.declaration();
     let no_rule =
         declaration.stopping_rule.is_none_or(|r| matches!(r.spec, StoppingSpec::NoStopping));
-    if cell.assignment != AssignmentFamily::EpsilonGreedy
-        || cell.outcome != OutcomeStructure::RepeatedMeasures
-        || cell.monitoring != MonitoringStrategy::FinalAnalysisOnly
-        || cell.stopping != StoppingRuleKind::NoStopping
-        || !no_rule
-        || contract.arms() != 2
-        || contract.looks() != 1
-        || look != 0
-        || *plus_arm != 1
-        || *minus_arm != Some(0)
-        || scheme != "variance_stabilizing"
-        || !bits(*prior_mean, 0.5)
-        || !bits(*prior_strength, 1.0)
-        || *size_weighted
-        || !bits(declaration.probability_floor, built::WEIGHTED_PROBABILITY_FLOOR)
-        || declaration.outcomes.iter().any(|m| m.len() != 3)
-    {
-        return Err(refusal(
-            "only the final analysis of a two-arm epsilon-greedy trial with three measurements per subject, variance-stabilizing weights, prior mean 0.5 with strength 1 and probability floor 0.01 was measured",
-        ));
-    }
-    immediate(contract)?;
-    min_probability_at_least(contract, built::MEASURED_EXPLORATION / 2.0)?;
+    let measured_protocol = cell.assignment == AssignmentFamily::EpsilonGreedy
+        && cell.outcome == OutcomeStructure::RepeatedMeasures
+        && cell.monitoring == MonitoringStrategy::FinalAnalysisOnly
+        && cell.stopping == StoppingRuleKind::NoStopping
+        && no_rule
+        && contract.looks() == 1
+        && look == 0
+        && scheme == "variance_stabilizing"
+        && bits(*prior_mean, 0.5)
+        && bits(*prior_strength, 1.0)
+        && !*size_weighted
+        && bits(declaration.probability_floor, built::WEIGHTED_PROBABILITY_FLOOR)
+        && declaration.outcomes.iter().all(|m| m.len() == 3)
+        && immediate(contract)
+        && min_probability_at_least(contract, built::MEASURED_EXPLORATION / 2.0);
     let units = contract
         .analysis_units(look)
         .map_err(|r| IoError::Refused {
@@ -259,13 +270,16 @@ fn weighted(
         scalar: "treatment_minus_control",
         point: estimate,
         interval,
-        basis: built::calibration_basis(
-            built::WEIGHTED_ESTIMATOR,
-            "analytic_se",
-            "Frequentist",
-            built::CONTRAST_FUNCTIONAL,
-            built::FINAL_DEPENDENCE,
-            units,
+        basis: tagged(
+            measured_protocol,
+            built::calibration_basis(
+                built::WEIGHTED_ESTIMATOR,
+                "analytic_se",
+                "Frequentist",
+                built::CONTRAST_FUNCTIONAL,
+                built::FINAL_DEPENDENCE,
+                units,
+            ),
         ),
         scope: serde_json::json!({
             "validation_design":"three_measurements_per_subject_random_intercept_epsilon_greedy_0.3",
@@ -292,25 +306,24 @@ fn sequence(
         Some((1, 0)) => true,
         None => false,
         Some(_) => {
-            return Err(refusal("only the second arm against the first was measured"));
+            return Err(refusal(
+                "the replayed sequence reports the second arm's mean or its contrast with the first",
+            ));
         }
     };
-    if cell.assignment != AssignmentFamily::EpsilonGreedy
-        || cell.outcome != OutcomeStructure::SingleOutcome
-        || cell.monitoring != MonitoringStrategy::FixedInterimLooks
-        || cell.stopping != StoppingRuleKind::Efficacy
-        || contract.arms() != 2
-        || !bits(*alpha, built::SEQUENCE_ALPHA)
-        || !bits(*tuning_samples, built::SEQUENCE_TUNING_SAMPLES)
-        || look + 1 != contract.looks()
-    {
-        return Err(refusal(
-            "only a two-arm epsilon-greedy trial with a 0.05 mixture confidence sequence tuned for 100 samples read at its last look was measured",
-        ));
+    if contract.arms() != 2 {
+        return Err(refusal("the replayed sequence holds two arms"));
     }
-    immediate(contract)?;
-    min_probability_at_least(contract, built::MEASURED_EXPLORATION / 2.0)?;
-    let planned = planned_horizon(contract, look)?;
+    let measured_protocol = cell.assignment == AssignmentFamily::EpsilonGreedy
+        && cell.outcome == OutcomeStructure::SingleOutcome
+        && cell.monitoring == MonitoringStrategy::FixedInterimLooks
+        && cell.stopping == StoppingRuleKind::Efficacy
+        && bits(*alpha, built::SEQUENCE_ALPHA)
+        && bits(*tuning_samples, built::SEQUENCE_TUNING_SAMPLES)
+        && look + 1 == contract.looks()
+        && immediate(contract)
+        && min_probability_at_least(contract, built::MEASURED_EXPLORATION / 2.0);
+    let planned = horizon(contract, look)?;
     let (scalar, functional, point, interval) = if contrast_asked {
         (
             "treatment_minus_control",
@@ -329,14 +342,21 @@ fn sequence(
         scalar,
         point,
         interval,
-        basis: built::calibration_basis(
-            built::SEQUENCE_ESTIMATOR,
-            "confidence_sequence",
-            "Frequentist",
-            functional,
-            built::TIME_UNIFORM_DEPENDENCE,
-            planned,
-        ),
+        basis: {
+            let mut basis = tagged(
+                measured_protocol,
+                built::calibration_basis(
+                    built::SEQUENCE_ESTIMATOR,
+                    "confidence_sequence",
+                    "Frequentist",
+                    functional,
+                    built::TIME_UNIFORM_DEPENDENCE,
+                    planned,
+                ),
+            );
+            basis.level = 1.0 - *alpha;
+            basis
+        },
         scope: serde_json::json!({
             "validation_design":"two_bernoulli_arms_0.4_0.6_epsilon_greedy_0.3_ten_looks",
             "evidence_interpretation":"one-sided floor: the sequence is conservative and held at least nominal coverage at every measured look; it is valid at a data-dependent stopping look",
@@ -356,6 +376,11 @@ fn group_sequential(
     let AdaptiveResultSpec::GroupSequential { control_arm, treatment_arm, .. } = spec else {
         return Err(refusal("not a group-sequential request"));
     };
+    if contract.arms() != 2 || *control_arm != 0 || *treatment_arm != 1 {
+        return Err(refusal(
+            "the repeated interval is built for the second arm against the first of a two-arm trial",
+        ));
+    }
     let declaration = contract.declaration();
     let rule_ok = matches!(
         declaration.stopping_rule.map(|r| r.spec),
@@ -365,30 +390,20 @@ fn group_sequential(
             sidedness: BoundarySidedness::TwoSidedSymmetric,
         }) if bits(total_alpha, 0.05)
     );
-    if cell.assignment != AssignmentFamily::FixedRandomization
-        || cell.outcome != OutcomeStructure::SingleOutcome
-        || cell.monitoring != MonitoringStrategy::GroupSequential
-        || cell.stopping != StoppingRuleKind::Efficacy
-        || !rule_ok
-        || contract.arms() != 2
-        || *control_arm != 0
-        || *treatment_arm != 1
-        || look + 1 != contract.looks()
-    {
-        return Err(refusal(
-            "only two-arm fixed 1:1 randomization with three O'Brien-Fleming-type two-sided looks at total alpha 0.05 was measured",
-        ));
-    }
-    declaration_prefix_fractions(contract, &[1.0 / 3.0, 2.0 / 3.0, 1.0])?;
-    immediate(contract)?;
-    let rows = declaration
+    let one_to_one = declaration
         .assignment_probabilities
         .as_ref()
-        .ok_or_else(|| refusal("the contract keeps no assignment probabilities"))?;
-    if rows.iter().flatten().any(|p| (p - 0.5).abs() > 1e-12) {
-        return Err(refusal("only 1:1 randomization was measured"));
-    }
-    let planned = planned_horizon(contract, look)?;
+        .is_some_and(|rows| rows.iter().flatten().all(|p| (p - 0.5).abs() <= 1e-12));
+    let measured_protocol = cell.assignment == AssignmentFamily::FixedRandomization
+        && cell.outcome == OutcomeStructure::SingleOutcome
+        && cell.monitoring == MonitoringStrategy::GroupSequential
+        && cell.stopping == StoppingRuleKind::Efficacy
+        && rule_ok
+        && look + 1 == contract.looks()
+        && prefix_fractions_measured(contract, &[1.0 / 3.0, 2.0 / 3.0, 1.0])
+        && immediate(contract)
+        && one_to_one;
+    let planned = horizon(contract, look)?;
     let (estimate, se) = built::welch_difference(
         &arm_outcomes(contract, look, 0)?,
         &arm_outcomes(contract, look, 1)?,
@@ -404,13 +419,16 @@ fn group_sequential(
         scalar: "treatment_minus_control",
         point: estimate,
         interval,
-        basis: built::calibration_basis(
-            built::REPEATED_INTERVAL_ESTIMATOR,
-            "repeated_confidence_interval",
-            "Frequentist",
-            built::CONTRAST_FUNCTIONAL,
-            built::GROUP_SEQUENTIAL_DEPENDENCE,
-            planned,
+        basis: tagged(
+            measured_protocol,
+            built::calibration_basis(
+                built::REPEATED_INTERVAL_ESTIMATOR,
+                "repeated_confidence_interval",
+                "Frequentist",
+                built::CONTRAST_FUNCTIONAL,
+                built::GROUP_SEQUENTIAL_DEPENDENCE,
+                planned,
+            ),
         ),
         scope: serde_json::json!({
             "validation_design":"fixed_randomization_three_looks_obrien_fleming_two_sided_normal_outcomes",

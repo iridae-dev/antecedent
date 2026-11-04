@@ -189,7 +189,7 @@ def test_msm_keeps_the_sampling_interval_withheld_and_the_range_an_assumption_ra
     result = msm.msm_ate_sensitivity(_two_strata(), 2.0, decision_threshold=0.0)
     assert result.inference_claim == "assumption_range"
     assert result.uncertainty.sampling_interval == "sampling interval: not reported"
-    assert result.uncertainty.reason_code == "not_supported"
+    assert result.uncertainty.reason_code == "uncertainty_representation_insufficient"
     assert result.uncertainty.detail == "msm_sensitivity.interval_withheld"
     assert "not a confidence interval" in result.interpretation
     assert "not a sampling interval" in result.interpretation
@@ -348,7 +348,7 @@ def test_msm_artifact_is_a_lambda_surface_with_withheld_sampling():
     assert surface.lower[-1] == pytest.approx(0.04375, abs=1e-12)
     assert surface.upper[-1] == pytest.approx(0.4875, abs=1e-12)
     assert isinstance(artifact.uncertainty.sampling, sd.SamplingWithheld)
-    assert artifact.uncertainty.sampling.reason_code == "not_supported"
+    assert artifact.uncertainty.sampling.reason_code == "uncertainty_representation_insufficient"
     assert artifact.uncertainty.sampling.detail == "msm_sensitivity.interval_withheld"
     assert artifact.uncertainty.identified_bound is None
     assert "not a confidence interval" in artifact.uncertainty.assumption_range
@@ -404,7 +404,7 @@ def test_msm_decision_keeps_sampling_withheld_and_refuses_composition():
     artifact = _treat_vs(2.0, 3, 0.0)
     decided = require_success(sd.decide(artifact.contract(), artifact))
     assert decided.sampling.status == "withheld"
-    assert decided.sampling.reason_code == "not_supported"
+    assert decided.sampling.reason_code == "uncertainty_representation_insufficient"
     assert decided.sampling.detail == "msm_sensitivity.interval_withheld"
     with pytest.raises(sd.SensitivityRefusal) as caught:
         require_success(

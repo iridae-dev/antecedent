@@ -178,7 +178,6 @@ mod recalc_design_api;
 mod recalc_dr_api;
 mod recalc_external_api;
 mod recalc_family_api;
-#[cfg(feature = "calibration-internal")]
 mod recalc_joint_bayesian_api;
 mod recalc_standing_api;
 mod recalc_static_api;
@@ -898,6 +897,10 @@ pub(crate) struct AteAnalysisResult {
     /// Support-matrix evidence contract (`supported` or `not_supported`).
     #[pyo3(get)]
     evidence_status: Option<String>,
+    /// What a development build ran although a release build would have refused it, as
+    /// `(code, detail, missing)`; always empty in a release build.
+    #[pyo3(get)]
+    would_refuse: Vec<(String, String, Vec<String>)>,
 }
 
 /// One refuter's record: which check ran, its comparison statistic, and pass/fail.
@@ -1999,6 +2002,13 @@ pub(crate) fn resolve_user_threads(threads: Option<u32>) -> u32 {
     }
 }
 
+/// `"release"` or `"development"`: whether this build runs `not_supported` routes and lists
+/// what a release build would have refused.
+#[pyfunction]
+fn build_flavor() -> &'static str {
+    antecedent_core::BUILD_FLAVOR
+}
+
 #[pyfunction]
 fn default_user_threads() -> u32 {
     antecedent_core::default_user_threads()
@@ -2080,6 +2090,7 @@ impl PyCancellationToken {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(build_flavor, m)?)?;
     data_diagnostics_api::register(m)?;
     data_snapshot::register(m)?;
     execution_api::register(m)?;

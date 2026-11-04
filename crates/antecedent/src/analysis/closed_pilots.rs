@@ -1,11 +1,12 @@
-//! Candidate preflight refusals for bounded interval implementations.
+//! Scope preflight for the joint Bayesian, nested-Markov and sampled-recovery interval
+//! routes.
 //!
-//! These helpers validate the original joint Bayesian, nested-Markov and sampled
-//! recovery requests before internal candidate execution. Their frozen marker does
-//! not describe the separate public measured producers: those require actual native
-//! source replay and current record-backed authority. Candidate reports and artifacts
-//! retain unmeasured standing. Invalid model, sampling or support declarations produce
-//! their specific scope refusal before any candidate execution.
+//! These helpers validate a request before the fit or the resampling runs. They return the
+//! specific scope refusal for an invalid model, sampling or support declaration, and `None`
+//! when the request is inside the route's scope: the interval then comes from the route's
+//! own producer (`antecedent_estimate::joint_bayesian_transport`, the nested-Markov
+//! measured adapter, the sampled-recovery BCa), reported with its calibration slot.
+//! Calibration annotates those intervals; it never makes this preflight refuse.
 //!
 //! These functions return the refusal as plain data; a binding raises it. They read the
 //! engines' own bounds, details and refusals, and never run a fit.
@@ -15,9 +16,8 @@
 use antecedent_estimate::joint_bayesian_transport as joint;
 use antecedent_estimate::nested_markov_binary as nested;
 use antecedent_estimate::{
-    EstimationError, SAMPLED_RECOVERY_MAX_BINARY_VARIABLES, SAMPLED_RECOVERY_MAX_REPLICATES,
-    SAMPLED_RECOVERY_MAX_ROWS, SAMPLED_RECOVERY_MIN_REPLICATES, SampledRecoveryDetail,
-    sampled_recovery_route_frozen,
+    EstimationError, SAMPLED_RECOVERY_MAX_BINARY_VARIABLES, SAMPLED_RECOVERY_MAX_ROWS,
+    SampledRecoveryDetail,
 };
 use std::collections::BTreeSet;
 
@@ -152,12 +152,13 @@ fn joint_scope_refusal(request: &JointBayesianRequest<'_>) -> Option<ClosedPilot
     None
 }
 
-/// The refusal of a request to the closed joint Bayesian transport route: the pilot's
-/// scope refusal when the request is outside it, otherwise
-/// `not_supported` / `bayesian_transport.route_frozen`.
+/// The scope refusal of a request to the joint Bayesian transport route, or `None` when the
+/// request is inside the route's scope and the fit may run.
 #[must_use]
-pub fn joint_bayesian_transport_refusal(request: &JointBayesianRequest<'_>) -> ClosedPilotRefusal {
-    joint_scope_refusal(request).unwrap_or_else(|| from_joint(&joint::route_frozen_refusal()))
+pub fn joint_bayesian_transport_scope_refusal(
+    request: &JointBayesianRequest<'_>,
+) -> Option<ClosedPilotRefusal> {
+    joint_scope_refusal(request)
 }
 
 /// One regime-specific count table of a nested-Markov request.
@@ -200,12 +201,12 @@ fn from_estimation(error: &EstimationError) -> ClosedPilotRefusal {
     }
 }
 
-/// The refusal of a request to the closed binary nested-Markov route: the pilot's scope
-/// refusal (`route_not_supported` / `nested_markov.outside_binary_pilot`, or a count
-/// refusal) when the graph, regime or domain is outside the one selected pilot, otherwise
-/// `not_supported` / `nested_markov.route_frozen`. Never a nonidentification claim.
+/// The scope refusal of a request to the binary nested-Markov route
+/// (`route_not_supported` / `nested_markov.outside_binary_pilot`, or a count refusal) when the
+/// graph, regime or domain is outside the one selected pilot, or `None` when the request is
+/// inside it. Never a nonidentification claim.
 #[must_use]
-pub fn nested_markov_refusal(request: &NestedMarkovRequest) -> ClosedPilotRefusal {
+pub fn nested_markov_scope_refusal(request: &NestedMarkovRequest) -> Option<ClosedPilotRefusal> {
     let input = nested::NestedMarkovInput {
         graph: nested::AdmgDeclaration {
             variables: request.variables.clone(),
@@ -225,10 +226,7 @@ pub fn nested_markov_refusal(request: &NestedMarkovRequest) -> ClosedPilotRefusa
             })
             .collect(),
     };
-    match nested::binary_cells(&input) {
-        Err(error) => from_estimation(&error),
-        Ok(_) => from_estimation(&nested::refuse_public_interval_route()),
-    }
+    nested::binary_cells(&input).err().map(|error| from_estimation(&error))
 }
 
 /// A request to the closed sampled observation-recovery route.
@@ -329,13 +327,7 @@ fn sampled_scope_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedP
             ),
         ));
     }
-    if request.replicates > SAMPLED_RECOVERY_MAX_REPLICATES {
-        return Some(sampled(
-            SampledRecoveryDetail::BoundsExceeded,
-            format!("{} replicates; at most {SAMPLED_RECOVERY_MAX_REPLICATES}", request.replicates),
-        ));
-    }
-    if request.replicates < SAMPLED_RECOVERY_MIN_REPLICATES {
+    if request.replicates < 2 {
         return Some(sampled(
             SampledRecoveryDetail::InvalidInput,
             "too few replicates to form the BCa interval",
@@ -344,17 +336,15 @@ fn sampled_scope_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedP
     sampled_row_refusal(request)
 }
 
-/// The preflight refusal of an internal sampled-recovery candidate request: the
-/// pilot's scope refusal (`route_not_supported` /
-/// `sampled_recovery.unrecoverable_pattern` or `bounds_exceeded`, or an invalid-input
-/// detail) when the m-graph, bounds or observation patterns violate the exact recovery
-/// formula, otherwise `not_supported` / `sampled_recovery.route_frozen`.
+/// The scope refusal of a sampled-recovery request (`route_not_supported` /
+/// `sampled_recovery.unrecoverable_pattern` or `bounds_exceeded`, or an invalid-input detail)
+/// when the m-graph, bounds or observation patterns violate the exact recovery formula, or
+/// `None` when the BCa interval may be built.
 #[must_use]
-pub fn sampled_recovery_refusal(request: &SampledRecoveryRequest<'_>) -> ClosedPilotRefusal {
-    sampled_scope_refusal(request).unwrap_or_else(|| {
-        let frozen = sampled_recovery_route_frozen();
-        ClosedPilotRefusal::new(frozen.reason_code(), frozen.detail.detail(), frozen.message)
-    })
+pub fn sampled_recovery_scope_refusal(
+    request: &SampledRecoveryRequest<'_>,
+) -> Option<ClosedPilotRefusal> {
+    sampled_scope_refusal(request)
 }
 
 #[cfg(test)]
@@ -375,20 +365,19 @@ mod tests {
     }
 
     #[test]
-    fn joint_route_is_frozen_and_scope_refusals_come_first() {
-        let frozen = joint_bayesian_transport_refusal(&joint_request());
-        assert_eq!(frozen.code, "not_supported");
-        assert_eq!(frozen.detail, joint::DETAIL_ROUTE_FROZEN);
-        let admg = joint_bayesian_transport_refusal(&JointBayesianRequest {
+    fn a_joint_request_inside_the_scope_has_no_refusal() {
+        assert!(joint_bayesian_transport_scope_refusal(&joint_request()).is_none());
+        let admg = joint_bayesian_transport_scope_refusal(&JointBayesianRequest {
             graph_class: "admg",
             ..joint_request()
-        });
+        })
+        .expect("outside the scope");
         assert_eq!(admg.code, "route_not_supported");
         assert_eq!(admg.detail, joint::DETAIL_UNSUPPORTED_GRAPH);
     }
 
     #[test]
-    fn sampled_route_is_frozen_and_a_zero_cell_is_unrecoverable() {
+    fn a_sampled_request_inside_the_scope_has_no_refusal_and_a_zero_cell_is_unrecoverable() {
         let rows: Vec<(u64, u8, u8, u8)> = (0..4_u8).map(|i| (u64::from(i), 1, i & 1, 0)).collect();
         let request = SampledRecoveryRequest {
             graph_recoverable: true,
@@ -397,11 +386,11 @@ mod tests {
             replicates: 2000,
             rows: &rows,
         };
-        let frozen = sampled_recovery_refusal(&request);
-        assert_eq!(frozen.code, "not_supported");
-        assert_eq!(frozen.detail, "sampled_recovery.route_frozen");
+        assert!(sampled_recovery_scope_refusal(&request).is_none());
         let missing = [(0_u64, 1_u8, 0_u8, 0_u8), (1, 1, 0, 0)];
-        let zero = sampled_recovery_refusal(&SampledRecoveryRequest { rows: &missing, ..request });
+        let zero =
+            sampled_recovery_scope_refusal(&SampledRecoveryRequest { rows: &missing, ..request })
+                .expect("a zero cell");
         assert_eq!(zero.code, "route_not_supported");
         assert_eq!(zero.detail, "sampled_recovery.unrecoverable_pattern");
     }

@@ -743,7 +743,7 @@ impl LearnedJointArtifactWire {
             || target.covariates[0].len() != 4
             || !identity_ok(&target.identity)
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.protocol_not_measured: source/model/identity shape exceeds the frozen bounded protocol".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.input_bounds_exceeded: source/model/identity shape exceeds the declared input bounds".into() });
         }
         Ok(())
     }
@@ -774,9 +774,12 @@ impl LearnedJointArtifactWire {
             != antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER
             || fit.diagnostics.draw_count != fit.draws.n_draws
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.protocol_not_measured: actual native posterior differs from measured sampler".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("not_supported"),message:"measured_transport.sampler_mismatch: actual native posterior differs from the sampler the replay expects".into() });
         }
-        let basis = fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?;
+        let basis = crate::measured_inference::transport::tag_outside(
+            &scope,
+            fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?,
+        );
         let column = fit
             .draws
             .column("effect.target")

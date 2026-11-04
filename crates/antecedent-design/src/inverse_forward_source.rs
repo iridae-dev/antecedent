@@ -32,10 +32,12 @@
 //! transported mean) is refused a quantile, a probability, a nonlinear utility
 //! and an outcome-law input ([`ForwardSourceRefusal::PointOnlyLawRequested`]).
 //! No source supplies an interval region: it is refused for every source
-//! ([`ForwardSourceRefusal::IntervalNotSupported`]), because the composition
-//! variance, the cohort model's standard error and the transport step have no
-//! measured coverage. A source's own variance is retained as a diagnostic and
-//! never becomes a feasibility statement.
+//! ([`ForwardSourceRefusal::IntervalNotSupported`],
+//! `uncertainty_representation_insufficient`), because the forward source is a point
+//! or a declared law, not the sampling uncertainty of producing it: a composition
+//! variance, a cohort model's standard error and a transport step are not carried
+//! as an interval representation here. A source's own variance is retained as a
+//! diagnostic and never becomes a feasibility statement.
 //!
 //! # Identity
 //!
@@ -408,8 +410,9 @@ impl ForwardSourceRefusal {
     pub fn code(&self) -> &'static str {
         match self {
             Self::Transported(error) => error.code(),
-            Self::TransportedNotAccepted | Self::IntervalNotSupported(_) => {
-                antecedent_core::reason_code!("not_supported")
+            Self::TransportedNotAccepted => antecedent_core::reason_code!("not_supported"),
+            Self::IntervalNotSupported(_) => {
+                antecedent_core::reason_code!("uncertainty_representation_insufficient")
             }
             Self::ComposedInvalid(_)
             | Self::ComposedFamilyMismatch(_)

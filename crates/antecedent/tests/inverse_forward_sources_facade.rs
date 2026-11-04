@@ -318,7 +318,7 @@ fn a_linear_gaussian_composition_supplies_a_replayed_point_per_action() {
     let inspection = inspect_origin(&sourced.origin);
     assert_eq!(inspection.kind, "composed_mechanism");
     assert_eq!(inspection.representation, "point_only");
-    assert_eq!(inspection.interval_region, "not_supported");
+    assert_eq!(inspection.interval_region, "uncertainty_representation_insufficient");
     assert!(!inspection.transported);
 }
 
@@ -367,7 +367,7 @@ fn a_point_composition_refuses_laws_intervals_and_the_wrong_family() {
         error,
         ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::ComposedMechanism)
     );
-    assert_eq!(error.code(), "not_supported");
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
 
     // A finite-distribution query of a linear-Gaussian composition is refused by the
     // composition itself and keeps its registered code.

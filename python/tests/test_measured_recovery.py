@@ -112,8 +112,11 @@ print(json.dumps(r.inspect(),sort_keys=True))
 
 def test_normal_recovery_legacy_scope_fake_authority_and_resource_refusals():
     opts = options()
+    # Another replicate count is not a refusal: the interval is reported and its calibration
+    # slot says that no record measured this construction.
+    other = tr.sampled_observation_recovery(**(opts | {"replicates": 500}))
+    assert other.scalar("recovered_effect").calibration == "not_measured"
     for change in (
-        {"replicates": 500},
         {"interval_method": "bootstrap_percentile"},
         {"execution": Execution(limits=ResourceLimits(memory_bytes=0))},
         {"rows": opts["rows"][:500]},
@@ -135,8 +138,10 @@ def test_normal_recovery_legacy_scope_fake_authority_and_resource_refusals():
         effect_outcomes=["y"],
         effect_treatments=["t"],
     )
-    with pytest.raises(CausalError, match="weighted"):
-        tr.sampled_observation_recovery(**(opts | {"stage": weighted_stage}))
+    # Weighted rows were not part of the measured construction: the interval is reported and its
+    # calibration slot says so.
+    weighted_run = tr.sampled_observation_recovery(**(opts | {"stage": weighted_stage}))
+    assert weighted_run.scalar("recovered_effect").calibration == "not_measured"
     for design in ("unknown", "clustered"):
         provider = catalog()
         changed = replace(
@@ -150,8 +155,8 @@ def test_normal_recovery_legacy_scope_fake_authority_and_resource_refusals():
             effect_outcomes=["y"],
             effect_treatments=["t"],
         )
-        with pytest.raises(CausalError):
-            tr.sampled_observation_recovery(**(opts | {"stage": declared_stage}))
+        declared_run = tr.sampled_observation_recovery(**(opts | {"stage": declared_stage}))
+        assert declared_run.scalar("recovered_effect").calibration == "not_measured"
     calls = []
     fake = SimpleNamespace(outcome="recovered", sampled_measured=lambda *a, **k: calls.append(1))
     with pytest.raises(CausalTypeError):
@@ -190,13 +195,10 @@ print(json.dumps(r.source_report(),sort_keys=True))
             MeasuredInference.load(artifact, expected=identity)
 
 
-def test_normal_raw_recovery_candidate_factory_requires_original_internal_hook(monkeypatch):
-    assert not hasattr(_native, "consume_sampled_recovery_candidate")
+def test_raw_recovery_candidate_factory_requires_original_native_hook(monkeypatch):
     payload = json.dumps(
         {"calibration": "unmeasured", "result": {"interval": {"lower": -1, "upper": 1}}}
     )
-    with pytest.raises(CausalError, match="calibration-internal"):
-        tr.SampledRecoveryCandidate._from_native(payload, b"fabricated")
     calls = []
     monkeypatch.setattr(
         _native,
@@ -204,6 +206,6 @@ def test_normal_raw_recovery_candidate_factory_requires_original_internal_hook(m
         lambda *args: calls.append(args),
         raising=False,
     )
-    with pytest.raises(CausalError, match="original calibration-internal native hook"):
+    with pytest.raises(CausalError, match="original native hook"):
         tr.SampledRecoveryCandidate._from_native(payload, b"fabricated")
     assert calls == []

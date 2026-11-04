@@ -12,8 +12,7 @@
 //! responses. The test asserts that the product's sampler reproduces the recorded draws and that
 //! the published interval, the baseline interval and the replicate bookkeeping equal the
 //! reference for a balanced 200-row table, a 16-row table whose draws sometimes lose a row, a zero
-//! box, and an outcome offset of 1e6. It runs only with the `calibration-internal` feature that
-//! compiles the closed bootstrap. The sampler's resampling stream and the closed-form range are
+//! box, and an outcome offset of 1e6. The sampler's resampling stream and the closed-form range are
 //! reviewed in their own records.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

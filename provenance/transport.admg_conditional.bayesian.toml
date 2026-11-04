@@ -9,6 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not TemporalAdmg support. No interval.",
+  "Scope, not a withheld interval: the conditional question is answered on supplied exact laws, so the point has no sampling uncertainty to report. Counted laws on the conditional route are refused (not_supported, admg_transport.counted_laws_unsupported) because no conditional-formula sampling construction (delta or bootstrap of the checked conditional formula over counted tables) is implemented; an interval there would need that construction and its own independent check, so the route reports exact-law points only.",
   "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
 ]
 

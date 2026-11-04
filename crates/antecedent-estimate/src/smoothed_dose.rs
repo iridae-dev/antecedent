@@ -87,9 +87,8 @@
 //! # Inference
 //!
 //! One interval method: the pointwise joint outer refit percentile bootstrap of the whole
-//! cross-fitted composed estimator (`smoothed_dose_interval_internal`, compiled only under
-//! the `calibration-internal` feature). The public route is closed (`not_supported`)
-//! until its coverage records are measured.
+//! cross-fitted composed estimator ([`smoothed_dose_interval_internal`]). The interval is
+//! reported with a calibration annotation resolved from its basis; calibration never gates it.
 //!
 //! # Bounded computation
 //!
@@ -608,19 +607,6 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     } else {
         Ok(())
     }
-}
-
-/// The refusal of the closed interval route: the point is retained, the interval is
-/// withheld until this cell's coverage records are measured.
-#[must_use]
-#[doc(hidden)]
-pub fn refuse_smoothed_dose_interval() -> EstimationError {
-    refuse(
-        antecedent_core::reason_code!("not_supported"),
-        "dose_response.interval_withheld",
-        "the joint outer bootstrap interval route is closed until its coverage records are \
-         measured; the point estimate is retained",
-    )
 }
 
 /// Refuse a sampling design other than the two declared IID designs.
@@ -2143,7 +2129,6 @@ pub fn smoothed_dose_estimator_menu(
 /// `rows[j]` and keeps that row's fold label from the point run, so a row drawn twice
 /// sits in one fold twice (never on both sides of a cross-fit split). The labels are not
 /// recomputed from the draw.
-#[cfg(feature = "calibration-internal")]
 #[must_use]
 #[doc(hidden)]
 pub fn smoothed_dose_replicate(
@@ -2168,7 +2153,6 @@ pub fn smoothed_dose_replicate(
 }
 
 /// The internal interval run the calibration harness measures.
-#[cfg(feature = "calibration-internal")]
 #[derive(Clone, Debug)]
 #[doc(hidden)]
 pub struct SmoothedDoseIntervalRun {
@@ -2190,14 +2174,10 @@ pub struct SmoothedDoseIntervalRun {
 /// runs the whole fit, integration and every refusal; any failed replicate withholds
 /// every interval (strict replicate policy).
 ///
-/// The public route never calls this; it stays closed until the coverage records exist.
-/// It is compiled only with the `calibration-internal` feature, which only
-/// dev-dependencies enable.
 ///
 /// # Errors
 /// As [`estimate_smoothed_dose`]; and `estimator_inference_mismatch`
 /// (`dose_response.bootstrap_below_floor`) below the replicate floor.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn smoothed_dose_interval_internal(
     id: &TransportIdentification,

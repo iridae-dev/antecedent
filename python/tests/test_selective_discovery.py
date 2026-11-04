@@ -320,16 +320,21 @@ def test_a_second_population_and_a_kind_mismatch_are_refused() -> None:
 
 def test_closed_claims_and_score_search_are_refused() -> None:
     adapter, _, _ = run_full(contract(), DATA)
-    for request, detail in (
-        (adapter.request_recovery_claim, "selective_discovery.recovery_claim_not_supported"),
+    for request, code, detail in (
+        (
+            adapter.request_recovery_claim,
+            "discovered_structure_unresolved",
+            "selective_discovery.recovery_claim_not_supported",
+        ),
         (
             adapter.request_downstream_interval,
+            "selection_inference_not_supported",
             "selective_discovery.downstream_interval_not_supported",
         ),
     ):
         with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
             request()
-        assert refused.value.reason_code == "not_supported"
+        assert refused.value.reason_code == code
         assert refused.value.detail == detail
         assert_registered_refusal(refused.value)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:

@@ -670,7 +670,7 @@ class ConsumedChoiceResult(ScientificResult):
     contract_identity: str
     method: str
     result: ChoiceResult
-    closed_guarantee: str
+    closed_claim: str | None
     calibration: str = field(default=CALIBRATION)
 
 
@@ -682,7 +682,7 @@ def _consumed_result(handle: Any) -> ConsumedChoiceResult:
         contract_identity=wire["contract_identity"],
         method=wire["method"],
         result=_result(wire["method"], wire["values"]),
-        closed_guarantee=wire["closed_guarantee"],
+        closed_claim=wire["closed_claim"],
     )
 
 

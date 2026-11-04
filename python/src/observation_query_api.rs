@@ -571,6 +571,8 @@ fn observation_query_parameter_interval(
                     "quantity": interval.quantity,
                     "coordinate_id": interval.coordinate_id,
                     "record_id": interval.record_id,
+                    "calibration": serde_json::to_value(&interval.calibration)
+                        .unwrap_or(serde_json::Value::Null),
                     "construction": interval.construction,
                     "nominal_level": interval.nominal_level,
                     "label": interval.label,

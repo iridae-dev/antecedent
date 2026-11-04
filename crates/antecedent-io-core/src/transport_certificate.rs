@@ -352,6 +352,7 @@ pub fn read_bounded_transport_artifact(
         return Err(err("transport manifest size"));
     }
     let manifest: crate::container::ArtifactManifest = crate::from_cbor(&bytes[16..end])?;
+    manifest.refuse_development()?;
     if manifest.format_version.major != 1
         || manifest.minimum_reader_version.major > 1
         || manifest.minimum_reader_version.minor > 0

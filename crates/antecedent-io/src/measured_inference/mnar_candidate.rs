@@ -1,5 +1,5 @@
-//! Source-bound measured adapter for the declared-shift MNAR contrast. An interval is
-//! released only when an attesting coverage record covers the execution's scope.
+//! Source-bound measured adapter for the declared-shift MNAR contrast. The interval is
+//! always reported, with the calibration status its scope resolves to.
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
@@ -102,11 +102,10 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoErr
 
 /// Source-bound, independently replayed declared-shift measurement.
 ///
-/// The interval is released only when [`authorize`] finds an attesting coverage
-/// record whose construction, shift and missingness band and row range cover this
-/// execution; otherwise it refuses with the record resolver's reason.
+/// The interval is reported with the calibration status [`authorize`] resolves for
+/// this execution's construction, shift and missingness band and row range.
 /// # Errors
-/// No attesting record covers the execution, the source is invalid or its interval
+/// The source is invalid or its interval
 /// degenerate, or execution is cancelled or exceeds resource limits.
 pub fn measure_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
     let reading = execute_source(bytes, ctx)?;
@@ -134,7 +133,7 @@ pub fn measure_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
         "population": source.population(),
         "compiled_program": program.to_hex(),
         "calibration_scope": source.scope_functional(),
-        "coverage": "released only under an attesting record covering this shift band, missingness band and row count",
+        "coverage": "annotated calibrated only under an attesting record covering this shift band, missingness band and row count",
     });
     authorize(
         "mnar_fixed_shift_interval",
@@ -359,12 +358,13 @@ mod tests {
     }
 
     #[test]
-    fn without_a_record_the_route_refuses_through_the_resolver() {
+    fn without_a_record_the_interval_is_reported_not_calibrated() {
         let ctx = ExecutionContext::for_tests(7);
         let bytes = encoded(&at_sd(0.8, rows((30, 24), (40, 28))), &ctx);
-        let refusal = with_test_records(Vec::new(), || measure_source(&bytes, &ctx)).unwrap_err();
-        assert!(matches!(&refusal, IoError::Refused { code: "not_supported", message }
-            if message.contains("record_not_attesting")));
+        let measured = with_test_records(Vec::new(), || measure_source(&bytes, &ctx)).unwrap();
+        let scalar = &measured.report().scalars[0];
+        assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+        assert_ne!(scalar.calibration.status, "calibrated");
         assert!(matches!(
             with_test_records(Vec::new(), || measure_source(b"untrusted", &ctx)),
             Err(IoError::Refused { .. })
@@ -398,10 +398,10 @@ mod tests {
         let source = at_sd(0.8, rows((30, 24), (40, 28)));
         let bytes = encoded(&source, &ctx);
         let refuses = |records: Vec<CoverageRecord>| {
-            matches!(
-                with_test_records(records, || measure_source(&bytes, &ctx)),
-                Err(IoError::Refused { code: "not_supported", .. })
-            )
+            with_test_records(records, || measure_source(&bytes, &ctx)).unwrap().report().scalars[0]
+                .calibration
+                .status
+                != "calibrated"
         };
         let own = source.scope_functional();
         let other_shift = at_sd(1.7, rows((30, 24), (40, 28))).scope_functional();

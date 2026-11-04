@@ -306,7 +306,7 @@ fn a_changed_number_at_an_unchanged_shape_moves_the_identity_and_a_consumer_rede
 }
 
 #[test]
-fn the_variance_is_parameter_only_scoped_and_the_interval_is_closed() {
+fn the_variance_is_parameter_only_scoped_and_the_interval_is_its_first_order_wald_band() {
     let source = prepare(uncertain_chain(), DependenceInput::Unknown, false);
     let mut declaration = transport(&["M"], vec![refit_m(1.5, Some(m_law()))]);
     declaration.dependence = DependenceInput::IndependentByDesign {
@@ -320,9 +320,11 @@ fn the_variance_is_parameter_only_scoped_and_the_interval_is_closed() {
     assert_eq!(value.scope, UNCERTAINTY_SCOPE);
     assert_eq!(value.functional.method, "first_order_delta_method");
 
-    let closed = transported.interval().unwrap_err();
-    assert_eq!(closed.code(), "not_supported");
-    assert_eq!(details(&closed), vec!["mechanism_transport.interval_route_closed"]);
+    // Independent closed form: 7.5 -/+ z(0.975) * sqrt(0.505625).
+    let band = transported.interval(&at_x(2.0), 0.95).unwrap();
+    let half = 1.959_963_984_540_054 * 0.505_625_f64.sqrt();
+    near(band.lower, 7.5 - half);
+    near(band.upper, 7.5 + half);
 
     // An unknown dependence refuses the variance, never the point.
     let unknown =

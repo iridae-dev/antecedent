@@ -20,9 +20,13 @@
 //! - **Law.** A transported law (aligned draws under a declared transport
 //!   model) answers every functional the shared engine answers. Its support
 //!   label is the receipt's, never the artifact's own mask alone.
-//! - **Interval.** Neither representation carries an interval: the transport
-//!   step and the support check have no measured coverage. An interval request
-//!   is refused with [`TransportedRefusal::IntervalNotSupported`].
+//! - **Interval.** Neither representation carries a sampling or posterior
+//!   representation of the transport step: the carrier holds a value (or aligned
+//!   draws of a declared model), not the uncertainty of carrying it, so an interval
+//!   of the carried value is a scientific refusal
+//!   ([`TransportedRefusal::IntervalNotSupported`], `uncertainty_representation_insufficient`).
+//!   The transport route that produced the value reports its own interval with its
+//!   calibration status.
 //!
 //! # Acceptance
 //!
@@ -1027,7 +1031,9 @@ impl TransportedRefusal {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
             Self::MixedTransports => antecedent_core::reason_code!("transport_not_certified"),
-            Self::IntervalNotSupported => antecedent_core::reason_code!("not_supported"),
+            Self::IntervalNotSupported => {
+                antecedent_core::reason_code!("uncertainty_representation_insufficient")
+            }
             // The same code every consumer uses to say it does not accept a
             // transported input (inverse queries, cohort forward claims).
             Self::SupportBelowPolicy { .. } => antecedent_core::reason_code!("not_supported"),

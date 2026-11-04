@@ -73,7 +73,7 @@ def test_seal_binds_a_coupled_joint_event_to_its_declarations() -> None:
     assert len(sealed.to_bytes()) > 0
     with pytest.raises(R) as error:
         sealed.interval()
-    assert error.value.reason_code == "not_supported"
+    assert error.value.reason_code == "sampling_dependence_unknown"
 
 
 def test_consume_replays_with_a_fresh_executor_and_enforces_the_retained_identity() -> None:

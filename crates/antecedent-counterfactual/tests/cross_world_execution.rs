@@ -228,7 +228,7 @@ fn marginal_contrasts_need_no_coupling_and_interval_readings_are_closed() {
     for reading in [RequestedReading::Interval, RequestedReading::Posterior] {
         let asked = FiniteExecutionRequest { reading, ..base.clone() };
         let (code, detail) = refusal_of(exec.execute(&asked, &ctx()));
-        assert_eq!(code, "not_supported");
+        assert_eq!(code, "uncertainty_representation_insufficient");
         assert!(detail.starts_with("joint_law_propagation."), "{detail}");
     }
 }
@@ -576,13 +576,13 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
         ("route_not_supported", "cross_world_execution.incompatible_history")
     );
 
-    // A sampled posterior has no measured coverage record.
+    // A sampled posterior of an exactly enumerable model is refused as a scientific mismatch.
     let sampled =
         FiniteExecutionRequest { exogenous: ExogenousInference::PosteriorSampling, ..base.clone() };
     let (code, detail) = refusal_of(exec.execute(&sampled, &ctx()));
     assert_eq!(
         (code.as_str(), detail.as_str()),
-        ("not_supported", "cross_world_execution.sampled_abduction_not_supported")
+        ("estimator_inference_mismatch", "cross_world_execution.sampled_abduction_not_supported")
     );
 
     // Refuted evidence: the complier-only model cannot produce X=1, Y=0.

@@ -20,6 +20,9 @@ workspace = true
 [features]
 # Test hooks (for example `CancellationToken::cancel_after_checks`) for dependants' tests.
 test-support = []
+# Development build: a `not_supported` route runs and the result lists what would have refused.
+# Never default, never enabled by a published crate or the wheel.
+development = []
 
 [dependencies]
 blake3 = { workspace = true }

@@ -49,13 +49,13 @@ def test_declared_shifts_and_unbalanced_arms_prepare(shift: float) -> None:
 @pytest.mark.parametrize("shift", [float("nan"), float("inf")])
 def test_non_finite_shift_is_refused(shift: float) -> None:
     ids, arm, outcome = _design()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite number"):
         mnar_fixed_shift.prepare_fixed_shift(ids, arm, outcome, **KWARGS, treated_shift=shift)
 
 
 def test_boolean_shift_is_not_a_number() -> None:
     ids, arm, outcome = _design()
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="must be a number"):
         mnar_fixed_shift.prepare_fixed_shift(ids, arm, outcome, **KWARGS, treated_shift=True)
 
 
@@ -85,7 +85,7 @@ def test_duplicate_subjects_are_refused_across_arms() -> None:
 
 def test_declared_design_is_required() -> None:
     ids, arm, outcome = _design()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="independent_randomized_arms"):
         mnar_fixed_shift.prepare_fixed_shift(
             ids, arm, outcome, population="target", design="observational", treated_shift=0.0
         )

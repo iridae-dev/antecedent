@@ -207,12 +207,11 @@ impl PreparedCategoricalPosteriorCandidate {
 
     /// Replay the retained original source through measured-inference authorization.
     ///
-    /// The result exists only when a current attesting coverage record covers this
-    /// construction, level count and row count; otherwise authorization refuses and no
-    /// interval is returned.
+    /// The interval is always reported; each scalar's calibration slot says whether a current
+    /// attesting coverage record covers this construction, level count and row count.
     ///
     /// # Errors
-    /// Refuses when no covering record exists; source replay and execution can also refuse.
+    /// Source replay and execution can refuse.
     pub fn measured_interval(
         &self,
         ctx: &ExecutionContext,
@@ -223,8 +222,8 @@ impl PreparedCategoricalPosteriorCandidate {
         )
     }
 
-    /// The calibrated credible interval of every level against the reference; the same
-    /// supported route as [`Self::measured_interval`].
+    /// The credible interval of every level against the reference, with its calibration; the
+    /// same route as [`Self::measured_interval`].
     ///
     /// # Errors
     /// As [`Self::measured_interval`].
@@ -508,15 +507,10 @@ mod tests {
             candidate.program().claim().uncertainty(),
             crate::planner::lowered::UncertaintyReading::Posterior
         );
-        // Support is decided by a covering coverage record at measurement, never by
-        // compilation: the route either refuses for want of a record or returns a result.
-        match candidate.measured_interval(&ctx) {
-            Ok(_) => {}
-            Err(antecedent_io::IoError::Refused { code, .. }) => {
-                assert_eq!(code, "not_supported")
-            }
-            Err(other) => panic!("unexpected failure: {other}"),
-        }
+        // Calibration is decided by a covering coverage record at measurement and annotates
+        // the interval: the route returns the interval whether or not a record covers it.
+        let measured = candidate.measured_interval(&ctx).unwrap();
+        assert!(!measured.report().scalars.is_empty());
         let expected = candidate.receipt();
         let expectation =
             CategoricalPosteriorCompileReceipt::from_bytes(&expected.to_bytes()).unwrap();

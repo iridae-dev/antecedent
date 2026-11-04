@@ -33,10 +33,9 @@
 //!
 //! The original joint outer refit percentile bootstrap, resampled per design with
 //! a floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`], failed its sample-size coverage
-//! grid. It remains available only to calibration-internal code and to the older
-//! learned-trial route. A design-specific analytic influence interval is now
-//! measured by the calibration harness and exposed through the public interval
-//! route for the two declared IID designs. It is a pointwise Wald interval;
+//! grid; its calibration annotation reports `measured_below_nominal`, and the interval is still
+//! reported. A design-specific analytic influence interval is the second interval route for
+//! the two declared IID designs. It is a pointwise Wald interval;
 //! nuisance convergence at the cross-fitting product rate remains an assumption.
 //!
 //! Two replicate behaviors are documented rather than changed (their effect on coverage is
@@ -388,18 +387,14 @@ pub fn estimate_learned_continuous(
     })
 }
 
-/// The internal estimator the calibration harness measures: the joint outer refit
-/// percentile bootstrap of the whole cross-fitted estimator, grouped per design.
-///
-/// The public route never calls this because its percentile intervals failed coverage.
-/// It is compiled only with the `calibration-internal` feature, which only the facade's
-/// dev-dependencies enable (calibration harness and lifecycle tests): an ordinary
-/// dependent cannot reach the interval around the `not_supported` refusal.
+/// The joint outer refit percentile bootstrap of the whole cross-fitted estimator, grouped per
+/// design. Its percentile intervals measured below nominal in the coverage grid; that is
+/// reported by the interval's calibration annotation (`measured_below_nominal`), never by
+/// withholding the interval.
 ///
 /// # Errors
 /// As [`estimate_learned_continuous`]; and `estimator_inference_mismatch`
 /// (`learned_transport.bootstrap_below_floor`) below the replicate floor.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn learned_continuous_interval_internal(
     id: &TransportIdentification,
@@ -508,7 +503,6 @@ pub fn learned_continuous_analytic_interval(
     Ok((variance.sqrt(), (run.estimate - width, run.estimate + width)))
 }
 
-#[cfg(feature = "calibration-internal")]
 impl LearnedContinuousOptions {
     /// Internal candidate for coverage measurement; no public interval is supported.
     #[doc(hidden)]

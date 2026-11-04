@@ -104,8 +104,10 @@ def test_carried_rates_correct_the_target_prevalence_with_a_typed_receipt() -> N
     # The source model's own identity is bound, and differs from the re-bound model's.
     assert receipt.source_model != estimate.model_identity
 
-    # There is no interval, whoever asks.
-    refused(result.interval, "not_supported", "measurement_model.interval_closed")
+    # The interval is reported with its calibration status.
+    interval = result.interval(0.95)
+    assert interval.lower < result.point < interval.upper
+    assert interval.calibration["status"] == "not_measured"
 
 
 def test_the_transported_artifact_is_the_existing_one_and_replays() -> None:

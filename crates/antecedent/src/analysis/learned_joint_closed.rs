@@ -1,14 +1,13 @@
-//! Route-level refusal of the closed learned joint source-target transport row
+//! Scope check of the learned joint source-target transport row
 //! (`learned_joint_transport`, `antecedent.transport.learned_joint`).
 //!
 //! The Rust core ([`antecedent_estimate::learned_joint_transport`]) fits the outcome
-//! mechanism through `antecedent-learn` and replays through an independent io artifact, but
-//! its posterior claims a *calibrated* interval whose coverage is unmeasured. The
-//! public producer is therefore closed: it validates its request against
-//! the row's scope with the core's own bounds and details and otherwise refuses with the live
-//! typed `not_supported` refusal `learned_joint_transport.route_frozen`. A request outside
-//! the row refuses first with the row's own scope refusal, so a caller learns the real
-//! obstruction before the closed route.
+//! mechanism through `antecedent-learn` and replays through an independent io artifact. Its
+//! posterior interval is reported with its calibration slot (`calibrated`, or the status that
+//! names why not); calibration annotates it and never withholds it. This module validates a
+//! request against the row's scope with the core's own bounds and details and returns the
+//! scope refusal as plain data, so a caller learns the real obstruction (an unsupported graph,
+//! unknown dependence, a missing source or target law, a bound) before any fit runs.
 //!
 //! The function returns the refusal as plain data; a binding raises it. It never runs a fit.
 //!
@@ -161,12 +160,14 @@ fn scope_refusal(request: &LearnedJointRequest<'_>) -> Option<LearnedJointRefusa
     None
 }
 
-/// The refusal of a request to the closed learned joint transport route: the row's scope
-/// refusal when the request is outside it, otherwise
-/// `not_supported` / `learned_joint_transport.route_frozen`.
+/// The scope refusal of a request to the learned joint transport route, or `None` when the
+/// request is inside the route's scope and the fit may run; its interval is reported with its
+/// calibration slot.
 #[must_use]
-pub fn learned_joint_transport_refusal(request: &LearnedJointRequest<'_>) -> LearnedJointRefusal {
-    scope_refusal(request).unwrap_or_else(|| from_core(&learned::route_frozen_refusal()))
+pub fn learned_joint_transport_scope_refusal(
+    request: &LearnedJointRequest<'_>,
+) -> Option<LearnedJointRefusal> {
+    scope_refusal(request)
 }
 
 #[cfg(test)]
@@ -188,18 +189,20 @@ mod tests {
     }
 
     #[test]
-    fn learned_joint_route_is_frozen_and_scope_refusals_come_first() {
-        let frozen = learned_joint_transport_refusal(&request());
-        assert_eq!(frozen.code, "not_supported");
-        assert_eq!(frozen.detail, learned::DETAIL_ROUTE_FROZEN);
-        let admg = learned_joint_transport_refusal(&LearnedJointRequest {
+    fn a_learned_joint_request_inside_the_scope_has_no_refusal() {
+        assert!(learned_joint_transport_scope_refusal(&request()).is_none());
+        let admg = learned_joint_transport_scope_refusal(&LearnedJointRequest {
             graph_class: "admg",
             ..request()
-        });
+        })
+        .expect("outside the scope");
         assert_eq!(admg.code, "route_not_supported");
         assert_eq!(admg.detail, learned::DETAIL_UNSUPPORTED_GRAPH);
-        let basis =
-            learned_joint_transport_refusal(&LearnedJointRequest { basis_degree: 9, ..request() });
+        let basis = learned_joint_transport_scope_refusal(&LearnedJointRequest {
+            basis_degree: 9,
+            ..request()
+        })
+        .expect("outside the scope");
         assert_eq!(basis.detail, learned::DETAIL_INVALID_BASIS);
     }
 }

@@ -31,24 +31,12 @@ pub(crate) const INITIAL_STATE_MASS_TOLERANCE: f64 = 1e-9;
 /// The only inference claim of this route.
 pub const INITIAL_STATE_INFERENCE_CLAIM: &str = "point_only";
 
-/// Detail: the initial-state route is closed.
-pub(crate) const INITIAL_STATE_ROUTE_FROZEN: &str = "initial_state.route_frozen";
 /// Detail: only a source law or a point state was supplied for a target-marginal query.
 pub(crate) const INITIAL_STATE_TARGET_LAW_MISSING: &str = "initial_state.target_law_missing";
 /// Detail: more support points than [`INITIAL_STATE_MAX_STATES`].
 pub(crate) const INITIAL_STATE_TOO_MANY_STATES: &str = "initial_state.too_many_states";
 /// Detail: a state with positive target mass has no history support.
 pub(crate) const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
-
-/// The refusal of the public initial-state route until its evidence passes.
-#[must_use]
-pub fn route_frozen_refusal() -> EstimationError {
-    EstimationError::refused_detail(
-        reason_code!("not_supported"),
-        INITIAL_STATE_ROUTE_FROZEN,
-        "the target initial-state distribution route has not passed truth and artifact evidence",
-    )
-}
 
 fn target_law_missing(message: &str) -> EstimationError {
     EstimationError::refused_detail(

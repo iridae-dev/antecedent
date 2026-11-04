@@ -1656,8 +1656,8 @@ pub struct StudyResult {
     pub(crate) predictive_replicates: Option<Arc<crate::analysis::RetainedPredictiveReplicates>>,
     /// Support-matrix evidence contract that produced this result.
     ///
-    /// A `not_supported` cell refuses the build, so a successful study carries
-    /// `supported`. Downstream consumers must not treat a number as supported unless this is
+    /// A `not_supported` cell refuses the build in a release build; a development build
+    /// runs it, carries `not_supported` and lists it in [`Self::would_refuse`]. Downstream consumers must not treat a number as supported unless this is
     /// [`crate::support::CellStatus::Supported`]. `None` when the query is not on
     /// the public axis.
     pub(crate) support_status: Option<crate::support::CellStatus>,
@@ -1687,9 +1687,33 @@ pub(crate) struct ResultExtras {
     pub(crate) missing_data: Option<MissingDataReport>,
     /// Names of caller-supplied custom validators that ran on this execution.
     pub(crate) custom_validator_names: Vec<std::sync::Arc<str>>,
+    /// What a development build ran although a release build would have refused it. Always
+    /// empty in a release build.
+    pub(crate) would_refuse: Vec<antecedent_core::WouldRefuse>,
 }
 
 impl StudyResult {
+    /// What a development build ran although a release build would have refused it, as
+    /// `{code, detail, missing}` entries; empty when the route is supported and always empty in
+    /// a release build.
+    #[must_use]
+    pub fn would_refuse(&self) -> &[antecedent_core::WouldRefuse] {
+        &self.extras.would_refuse
+    }
+
+    /// Record the entries the build and this execution collected (development builds only).
+    pub(crate) fn stamp_would_refuse(
+        &mut self,
+        build: &[antecedent_core::WouldRefuse],
+        ctx: &antecedent_core::ExecutionContext,
+    ) {
+        for entry in build.iter().cloned().chain(ctx.would_refuse()) {
+            if !self.extras.would_refuse.contains(&entry) {
+                self.extras.would_refuse.push(entry);
+            }
+        }
+    }
+
     /// The execution contract attached by the engine, when present.
     ///
     /// The stamp is read-only: callers cannot replace an execution's validation suite.

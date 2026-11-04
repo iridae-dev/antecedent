@@ -401,14 +401,25 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
         advanced.consume_smoothed_dose(relabelled)
 
 
-def test_the_unmeasured_interval_route_refuses_with_not_supported():
+def test_the_interval_route_reports_the_bootstrap_interval_with_its_calibration():
     query, data = fixture()
     study = advanced.prepare_smoothed_dose(
         query, data, options=options(bootstrap=199), execution=ac.Execution(seed=4)
     )
-    with pytest.raises(CausalUnsupportedError, match="dose_response.interval_withheld") as info:
-        require_success(study.interval())
-    assert info.value.reason_code == "not_supported"
+    interval = require_success(study.interval())
+    # A pointwise interval about each grid dose, or the stated reason none was produced.
+    if interval["reason"] is not None:
+        assert interval["reason"]
+    else:
+        assert all(lo <= hi for lo, hi in interval["intervals"])
+    assert len(interval["doses"]) == len(interval["intervals"])
+    assert interval["calibration"]["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
+    # The point remains available and reports the interval withheld, never attached.
     result = require_success(study.estimate())
     assert result.uncertainty["status"] == "withheld"
     assert result.uncertainty["reason"] == "not_supported"

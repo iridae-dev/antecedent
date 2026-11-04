@@ -102,9 +102,9 @@ pub fn governing_topologies(max_degree: u32) -> &'static [&'static str] {
 ///
 /// With [`MAX_VARIABLES`] and [`SUPPORTED_MAX_DEGREE`] this is the support boundary of the
 /// calibration records, not a limit of the engine: the procedure runs on any table, but its
-/// coverage was measured only for these sizes and degrees, so any other is refused as
-/// `not_supported` (`parent_set_effect.variable_count_not_measured`,
-/// `parent_set_effect.degree_above_supported`) until a record measures it.
+/// coverage was measured only for these sizes and degrees; any other is computed and reported,
+/// and the calibration slot says `not_measured` because the basis names the variable count and
+/// degree.
 pub const MIN_VARIABLES: usize = 10;
 /// Most searched variables measured. See [`MIN_VARIABLES`].
 pub const MAX_VARIABLES: usize = 20;
@@ -318,26 +318,16 @@ impl ParentSetEffectSource {
                 "unknown format version or names and columns of different counts",
             ));
         }
-        if !(MIN_VARIABLES..=MAX_VARIABLES).contains(&k) {
-            return Err(refused(
-                "parent_set_effect.variable_count_not_measured",
-                "only tables of ten to twenty searched variables were measured",
+        if k < 3 {
+            return Err(malformed(
+                "parent_set_effect.source_invalid",
+                "a treatment, an outcome and at least one more searched variable are needed",
             ));
         }
         if self.max_degree == 0 {
             return Err(malformed(
                 "parent_set_effect.source_invalid",
                 "the declared maximum graph degree must be at least one",
-            ));
-        }
-        if self.max_degree > SUPPORTED_MAX_DEGREE {
-            return Err(refused(
-                "parent_set_effect.degree_above_supported",
-                &format!(
-                    "the declared maximum graph degree is {} and the supported maximum is \
-                     {SUPPORTED_MAX_DEGREE}",
-                    self.max_degree
-                ),
             ));
         }
         let rows = self.columns[0].len();

@@ -94,32 +94,28 @@ def test_the_target_has_no_default_and_full_population_needs_its_levels() -> Non
         )
 
 
-def test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction() -> None:
+def test_the_interval_is_reported_with_its_calibration_status() -> None:
     data = _draw(2000, seed=9)
     common = {"active": 2.0, "control": 0.0, "adjust": {"z": data["z"]}}
     pair = multi_level_treatment.multi_level_effect(
         data["y"], data["t"], target="pairwise_subpopulation", **common
     )
-    # The pairwise subpopulation target has no coverage measurement: always withheld.
-    assert pair.interval is None
+    # The pairwise subpopulation target has no coverage measurement: the interval is reported
+    # and its calibration status says so.
+    assert pair.interval is not None and pair.interval.lower < pair.interval.upper
+    assert pair.interval.coverage_record is None
     assert pair.interval_status == "not_measured"
-    assert pair.interval_reason is not None
-    assert pair.calibration == "unmeasured"
-    assert pair.to_dict()["interval"] is None
+    assert pair.interval_reason == "estimator_grid_not_measured"
+    assert pair.calibration != "calibrated"
+    assert pair.to_dict()["interval"] is not None
 
     full = multi_level_treatment.multi_level_effect(
         data["y"], data["t"], target="full_population", levels=[0.0, 1.0, 2.0], **common
     )
     z = 1.959963984540054
-    if full.interval is None:
-        assert full.interval_status in {"outside_measured_scope", "measured_below_nominal", "not_measured"}
-        assert full.interval_reason is not None
-        assert full.calibration == "unmeasured"
-    else:
-        # Once a current record covers the construction the interval is the published normal one.
-        assert full.interval_status == "calibrated"
-        assert full.calibration == "calibrated"
-        assert full.interval.level == 0.95
-        assert full.interval.lower == pytest.approx(full.effect - z * full.se_analytic)
-        assert full.interval.upper == pytest.approx(full.effect + z * full.se_analytic)
-        assert full.interval.coverage_record
+    # The interval is the published normal one; the calibration status annotates it.
+    assert full.interval_status == "outside_measured_scope"
+    assert full.calibration != "calibrated"
+    assert full.interval.level == 0.95
+    assert full.interval.lower == pytest.approx(full.effect - z * full.se_analytic)
+    assert full.interval.upper == pytest.approx(full.effect + z * full.se_analytic)

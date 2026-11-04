@@ -553,7 +553,7 @@ fn joint_law_consume(
 }
 
 /// The refusal of an interval or posterior reading of a composed quantity (always
-/// `not_supported`).
+/// `uncertainty_representation_insufficient`).
 #[pyfunction]
 fn joint_law_closed_reading(reading: &str) -> String {
     let Some(parsed) = RequestedReading::from_name(reading) else {
@@ -799,6 +799,8 @@ fn joint_law_check_composed_interval(
                 json!({
                     "coordinate_id": support.coordinate_id(),
                     "record_id": support.record_id(),
+                    "calibration": serde_json::to_value(support.calibration())
+                        .unwrap_or(serde_json::Value::Null),
                     "construction": support.construction(),
                     "nominal_level": support.nominal_level(),
                     "label": support.label(),

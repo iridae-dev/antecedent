@@ -784,28 +784,24 @@ fn the_three_components_are_separate_fields_and_a_combined_number_is_refused() {
 }
 
 #[test]
-fn every_published_ranking_or_interval_route_is_closed_at_its_coordinate() {
+fn every_published_ranking_or_interval_route_is_reported_uncalibrated_outside_its_range() {
     // 100 draws per candidate is below the measured range (500 to 2000): no current
-    // coverage record covers it, so every route refuses with the typed reason.
+    // coverage record covers it, so every route is reported and not calibrated.
     let draws = gaussian_pair(0.5, 100, false);
     let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
     let coordinate: &CalibrationCoordinate = &report.coordinate;
     assert_eq!(coordinate.candidate_set_size, 2);
     assert_eq!(coordinate.mc_budget, 100);
     assert_eq!(coordinate.selection_rule, "maximize_expected_utility");
-    assert_eq!(report.closed_routes.len(), PublishedRoute::ALL.len());
+    assert!(report.closed_routes.is_empty());
     for route in PublishedRoute::ALL {
-        let err = support_route(route, coordinate).unwrap_err();
-        assert_eq!(err.reason_code(), "not_supported");
-        let refusal = err.to_refusal();
-        assert!(refusal.detail.starts_with("decision_reliability."));
-        assert!(refusal.offending.unwrap().contains("candidate_set_size=2"));
+        let slot = support_route(route, coordinate).unwrap();
+        assert_ne!(slot.status, antecedent_io_core::CalibrationStatus::Calibrated);
     }
-    assert!(report.closed_routes.iter().all(|r| r.code == "not_supported"));
 }
 
 #[test]
-fn measured_routes_respect_current_attestation_and_report_their_closures() {
+fn measured_routes_respect_current_attestation_in_their_calibration_status() {
     use antecedent_design::decision_reliability::{calibration_basis, record_functional};
     use antecedent_io_core::CalibrationStatus;
     use antecedent_io_core::calibration::{
@@ -838,27 +834,30 @@ fn measured_routes_respect_current_attestation_and_report_their_closures() {
             }
         }
         let should_open = slots.iter().any(|slot| slot.status == CalibrationStatus::Calibrated);
-        let result = support_route(route, &report.coordinate);
-        assert_eq!(result.is_ok(), should_open, "{} attestation decision", route.as_str());
-        assert_eq!(report.closed_routes.iter().any(|closed| closed.route == route), !should_open);
-        if let Err(error) = result {
-            assert_eq!(error.reason_code(), "not_supported");
-        }
+        let slot = support_route(route, &report.coordinate).unwrap();
+        assert_eq!(
+            slot.status == CalibrationStatus::Calibrated,
+            should_open,
+            "{} attestation decision",
+            route.as_str()
+        );
+        assert!(report.closed_routes.is_empty());
     }
-    // A different nominal level and serial dependence remain outside the records.
+    // A different nominal level and serial dependence remain outside the records: the route
+    // is still reported, annotated as not calibrated.
     let at_ninety = antecedent_design::decision_reliability::support_route_at(
         PublishedRoute::RankingProbability,
         &report.coordinate,
         0.9,
     )
-    .unwrap_err();
-    assert_eq!(at_ninety.reason_code(), "not_supported");
+    .unwrap();
+    assert_ne!(at_ninety.status, CalibrationStatus::Calibrated);
     let mut dependent = report.coordinate.clone();
     dependent.within_stream =
         antecedent_design::decision_reliability::WithinStreamDependence::Autocorrelated;
-    assert_eq!(
-        support_route(PublishedRoute::UtilityInterval, &dependent).unwrap_err().reason_code(),
-        "not_supported"
+    assert_ne!(
+        support_route(PublishedRoute::UtilityInterval, &dependent).unwrap().status,
+        CalibrationStatus::Calibrated
     );
 }
 

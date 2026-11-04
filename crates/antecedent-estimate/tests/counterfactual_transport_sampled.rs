@@ -732,6 +732,17 @@ fn an_interval_is_never_published_and_the_standard_error_is_labelled_uncalibrate
     assert_eq!(interval.reason, "estimator_grid_not_measured");
     assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_WITHHELD);
     let se = result.inference.standard_error.as_ref().unwrap();
+    // The interval is reported from the same standard error: estimate +/- z * se, clamped.
+    let reported =
+        antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval(
+            &derivation,
+            &result,
+            0.95,
+        )
+        .unwrap();
+    let z = 1.959_963_984_540_054;
+    assert!((reported.lower - (point(&result) - z * se.value).max(0.0)).abs() < 1e-9);
+    assert!((reported.upper - (point(&result) + z * se.value).min(1.0)).abs() < 1e-9);
     assert_eq!(se.label, UNCALIBRATED_STANDARD_ERROR);
     assert_eq!(se.method, SAMPLED_TRANSPORT_UNCERTAINTY_METHOD);
     assert_eq!(se.gradient_relative_step, 1e-5);
@@ -1159,11 +1170,14 @@ fn delta_standard_error_and_clamped_wald_interval_equal_the_multiprecision_refer
         assert!(interval.lower >= 0.0 && interval.upper <= 1.0);
         clamped.0 |= reference["lower_clamped"].as_bool().unwrap() && interval.lower == 0.0;
         clamped.1 |= reference["upper_clamped"].as_bool().unwrap() && interval.upper == 1.0;
-        // Only the measured level is reported.
-        assert_eq!(
-            sampled_transport_interval(&derivation, &result, 0.9).unwrap_err(),
-            "level_not_measured"
-        );
+        // Another level is reported too: calibration annotates and never gates. The half-width
+        // is the standard normal 90% quantile times the reference standard error.
+        let wide = sampled_transport_interval(&derivation, &result, 0.9).unwrap();
+        let z90 = 1.644_853_626_951_472_2;
+        let want_lower = (want_point - z90 * want_se).max(0.0);
+        let want_upper = (want_point + z90 * want_se).min(1.0);
+        assert!((wide.lower - want_lower).abs() <= 1e-6 * want_se.max(1e-3), "{name} 90% lower");
+        assert!((wide.upper - want_upper).abs() <= 1e-6 * want_se.max(1e-3), "{name} 90% upper");
     }
     assert_eq!(clamped, (true, true), "both clamps are exercised");
 }

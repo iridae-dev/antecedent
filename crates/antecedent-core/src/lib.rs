@@ -84,6 +84,7 @@ pub use search::{
     DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
 };
 pub mod search_budget;
+pub mod support_gate;
 pub mod temporal;
 pub mod text;
 pub mod tolerance;
@@ -249,6 +250,7 @@ pub use scientific_target::{
     StructuralAction, TargetForm, TimeFrame, WorldAction, WorldBinding, WorldCollection,
 };
 pub use scratch_admission::{ScratchLease, ScratchRefusal};
+pub use support_gate::{BUILD_FLAVOR, NotSupported, WouldRefuse, require_supported};
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use text::is_blank;
 pub use tolerance::ToleranceClass;

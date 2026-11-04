@@ -162,10 +162,10 @@ impl SplitEffectSource {
                 "unknown format version or names and columns of different counts",
             ));
         }
-        if !(MIN_VARIABLES..=MAX_VARIABLES).contains(&k) {
-            return Err(refused(
-                "split_effect.variable_count_not_measured",
-                "only tables of five to seven searched variables were measured",
+        if k < 3 {
+            return Err(malformed(
+                "split_effect.source_invalid",
+                "a treatment, an outcome and at least one more searched variable are needed",
             ));
         }
         let rows = self.columns[0].len();
@@ -472,13 +472,20 @@ pub struct SplitEffectRun {
     pub structure_identity: [u8; 32],
     /// Identity of the discovery result.
     pub result_identity: [u8; 32],
+    /// Searched variables. A count outside [`MIN_VARIABLES`]..=[`MAX_VARIABLES`] is computed and
+    /// reported; its calibration is `not_measured`.
+    pub variables: usize,
 }
 
 impl SplitEffectRun {
     /// Calibration basis of the sample-split construction.
     #[must_use]
     pub fn keyed_basis(&self) -> CalibrationBasis {
-        self.effect.keyed_basis(SPLIT_STRUCTURE, SPLIT_DEPENDENCE)
+        let mut basis = self.effect.keyed_basis(SPLIT_STRUCTURE, SPLIT_DEPENDENCE);
+        if !(MIN_VARIABLES..=MAX_VARIABLES).contains(&self.variables) {
+            basis.estimator = format!("{}+variable_count_not_measured", basis.estimator).into();
+        }
+        basis
     }
 }
 
@@ -542,6 +549,7 @@ pub fn run(source: &SplitEffectSource, ctx: &ExecutionContext) -> Result<SplitEf
         receipt_identity: split.receipt.identity,
         structure_identity: outcome.structure_identity,
         result_identity: outcome.result_identity,
+        variables: k,
     })
 }
 

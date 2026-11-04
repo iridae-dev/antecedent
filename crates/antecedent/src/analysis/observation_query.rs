@@ -347,8 +347,10 @@ pub struct ParameterInterval {
     pub quantity: String,
     /// The composed coordinate the record was matched against.
     pub coordinate_id: String,
-    /// The record that supported the interval.
-    pub record_id: String,
+    /// The governing coverage record, when one matched.
+    pub record_id: Option<String>,
+    /// Calibration of this interval.
+    pub calibration: antecedent_io::contract_section::CalibrationSlotWire,
     /// The construction the interval was built with.
     pub construction: String,
     /// The nominal level.
@@ -435,7 +437,8 @@ impl ObservationClaim {
     /// An interval for any observation-conditioned value.
     ///
     /// # Errors
-    /// Always `not_supported` with `observation_query.declared_model_has_no_sampling_interval`.
+    /// Always `uncertainty_representation_insufficient` with
+    /// `observation_query.declared_model_has_no_sampling_interval`: the value is exact.
     pub fn interval(&self) -> Result<std::convert::Infallible, ObservationQueryRefusal> {
         Err(ObservationQueryRefusal::one(interval_refusal()))
     }
@@ -443,7 +446,7 @@ impl ObservationClaim {
     /// A calibration claim for a posterior or decision probability.
     ///
     /// # Errors
-    /// Always `not_supported` with
+    /// Always `uncertainty_representation_insufficient` with
     /// `observation_query.calibrated_probability_closed`: no measured
     /// whole-method record exists at any query's coordinate.
     pub fn calibrated_probability(
@@ -639,6 +642,7 @@ impl ObservationClaim {
             quantity: quantity.to_owned(),
             coordinate_id: plan.coordinate.id(),
             record_id: plan.record_id,
+            calibration: super::joint_law_composed_basis::slot(&basis),
             construction: plan.construction,
             nominal_level: plan.nominal_level,
             label: plan.label,

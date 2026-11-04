@@ -334,13 +334,13 @@ impl TransportedMeasurementEstimate {
         self.estimate.provider_trust()
     }
 
-    /// An interval for the corrected functional.
+    /// The interval of the corrected functional at `level`, as the estimate reports it.
+    /// The transport receipt is bound to the result; the interval is the estimate's.
     ///
     /// # Errors
-    /// Always `not_supported`: no coverage record measures the whole
-    /// measurement-plus-transport-plus-estimation method.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        self.estimate.interval()
+    /// As [`MeasurementEstimate::interval`].
+    pub fn interval(&self, level: f64) -> Result<(f64, f64), MeasurementModelRefusal> {
+        self.estimate.interval(level)
     }
 
     /// Write the re-bound model and the result as the measurement-model artifact. The

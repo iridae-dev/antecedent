@@ -227,9 +227,9 @@ def s1_producer():
     assert (interval["available"], interval["status"], interval["reason"]) == (
         False,
         "withheld",
-        "not_supported",
+        "sampling_dependence_unknown",
     )
-    assert interval["mean_intervals"] == [] and interval["seed"] is None
+    assert interval["mean_intervals"] == [] and interval["seed"] == 3
     return before, after, (bytes(counted.export()), counted_live)
 
 

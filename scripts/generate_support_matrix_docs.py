@@ -863,7 +863,6 @@ def rust_escape(s: str) -> str:
 CALIBRATION_ESTIMATOR_TOKENS: list[tuple[str, str]] = [
     ("matching_homoskedastic", "propensity.matching"),
     ("frontdoor_stacked", "frontdoor.linear_two_stage"),
-    ("codetermined_aipw", "cell.aipw"),
     ("cell_aipw", "cell.aipw"),
     ("ipw_hajek", "propensity.weighting"),
     ("glm_adjustment", "glm.adjustment"),

@@ -312,7 +312,7 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     assert v[4] + v[10] == pytest.approx(1.0, abs=1e-8)
     assert v[11] == pytest.approx(expected_loss(shapes[1], shapes[0]), abs=1e-7)
     assert v[5] == pytest.approx(expected_loss(shapes[0], shapes[1]), abs=1e-7)
-    assert result.closed_guarantee == "adaptive_inference.posterior_interval_closed"
+    assert result.closed_claim is None
     # The first look saw half the data.
     early = require_success(session.analyse(ai.BayesianPosterior(look=0)))
     first = counts_of(
@@ -413,17 +413,19 @@ def test_fixed_sample_inference_of_adaptive_data_is_refused_but_the_posterior_ru
 def test_no_interval_is_supported_for_any_route():
     session = prepare(thompson_design())
     error = refused(session.interval)
-    assert error.reason_code == "not_supported"
+    assert error.reason_code == "quantity_semantics_mismatch"
     assert error.detail == "adaptive_inference.interval_closed"
 
 
 def test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells():
-    # The fixture's look schedule, prior and stopping threshold are not a measured cell.
+    # The fixture's look schedule, prior and stopping threshold are not a measured cell: the
+    # interval is reported and calibration annotates it.
     session = prepare(thompson_design())
     request = ai.BayesianPosterior(look=1, prior_alpha=2.0, prior_beta=3.0)
-    error = refused(lambda: require_success(session.measured_interval(request)))
-    assert error.reason_code == "not_supported"
-    assert error.detail == "measured_interval.protocol_not_measured"
+    measured = require_success(session.measured_interval(request))
+    scalar = measured.scalars[0]
+    assert scalar.interval[0] < scalar.point < scalar.interval[1]
+    assert scalar.calibration == "not_measured"
 
 
 def test_a_paradigm_the_cell_is_not_supported_for_is_refused():
@@ -494,7 +496,7 @@ def test_adaptive_weighting_matches_an_independent_calculation(scheme):
     assert result._wire_values[0] == pytest.approx(estimate, abs=1e-10)
     assert result._wire_values[1] == pytest.approx(variance, abs=1e-10)
     assert result._wire_values[2] == len(y)
-    assert result.closed_guarantee == "adaptive_inference.interval_closed"
+    assert result.closed_claim is None
 
 
 def test_a_probability_below_the_floor_is_refused_not_clipped():
@@ -762,7 +764,7 @@ def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_exp
     assert consumed.paradigm == "bayesian_posterior"
     assert consumed.procedure == produced.procedure
     assert consumed.stopping_rule["spec"] == "posterior_probability_best"
-    assert consumed.closed_guarantee == "adaptive_inference.posterior_interval_closed"
+    assert consumed.closed_claim is None
     for a, b in zip(consumed._wire_values, produced._wire_values, strict=True):
         assert a == pytest.approx(b, abs=1e-9)
     # A different experiment (one outcome changed) is another identity: the consumer that

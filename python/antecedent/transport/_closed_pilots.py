@@ -51,11 +51,20 @@ _GRAPH_CLASSES = ("fixed_dag", "admg", "graph_posterior")
 _MAX_BYTE = 255
 
 
-def _frozen(route: str, detail: str) -> CausalUnsupportedError:
-    """The fallback refusal; the native call always raises before it is reached."""
+def _unavailable(route: str, detail: str) -> CausalUnsupportedError:
+    """A build without the route's native producer; a request in scope reaches it."""
     return CausalUnsupportedError(
-        f"{detail}: {route} is a closed route; calibration is unmeasured",
+        f"{detail}: {route} has no native producer in this build",
         reason_code="not_supported",
+    )
+
+
+def _identification_required(route: str, detail: str) -> CausalUnsupportedError:
+    """A request inside the route's scope that names no identification to produce from."""
+    return CausalUnsupportedError(
+        f"{detail}: {route} produces its interval from an original identification and complete "
+        "priors; supply identification= and priors=",
+        reason_code="transport_missing_evidence",
     )
 
 
@@ -165,7 +174,9 @@ def joint_bayesian_transport(
         target is not None and (isinstance(target, JointTransportTarget) or len(target) > 0),
         draws,
     )
-    raise _frozen("antecedent.transport.joint_bayesian", "bayesian_transport.route_frozen")
+    raise _identification_required(
+        "antecedent.transport.joint_bayesian", "bayesian_transport.identification_required"
+    )
 
 
 def _regime_table(
@@ -364,7 +375,9 @@ def _nested_posterior_entry(
             else NestedMarkovPosteriorCandidate._from_native(native)
         )
     _binary_nested_markov_closed(*arguments)
-    raise _frozen("antecedent.transport.binary_nested_markov", "nested_markov.route_frozen")
+    raise _unavailable(
+        "antecedent.transport.binary_nested_markov", "nested_markov.producer_missing"
+    )
 
 
 def _row(row: Sequence[int]) -> tuple[int, int, int, int]:
@@ -468,8 +481,9 @@ def _nested_fisher_entry(
             else NestedFisherCandidate._from_native(native)
         )
     _binary_nested_markov_closed(*arguments)
-    raise _frozen(
-        "antecedent.transport.binary_nested_markov_fisher_interval", "nested_markov.route_frozen"
+    raise _unavailable(
+        "antecedent.transport.binary_nested_markov_fisher_interval",
+        "nested_markov.producer_missing",
     )
 
 
@@ -486,7 +500,8 @@ def sampled_observation_recovery(
     """Measured recovered-effect scalar with original native recovery proof.
 
     The measured finite IID missingness design supports BCa whole-row intervals at
-    .95 with exactly 2000 bootstrap replicates and 1000..4000 original rows. Native
+    .95 with 2000 bootstrap replicates and 1000..4000 original rows; other counts and rows outside that range are
+    reported with a calibration annotation, never refused. Native
     execution and fresh replay retain the original query, proof, data, configuration
     and complete attempted-work receipt. The original recovery artifact and numerical
     diagnostics stay unmeasured.
@@ -546,47 +561,40 @@ def _sampled_recovery_entry(
             reason_code="invalid_argument",
         )
     _non_negative("replicates", replicates)
-    if interval_method == "bootstrap_bca" and replicates != 2000:
-        raise CausalValueError("BCa requires exactly 2000 whole-row bootstrap replicates")
+    if replicates < 2:
+        raise CausalValueError("BCa requires at least 2 whole-row bootstrap replicates")
     _non_negative("seed", seed)
     if seed > 2**64 - 1 or replicates > 2**64 - 1:
         raise CausalValueError("seed and replicates must fit unsigned 64-bit integers")
     checked = [_row(row) for row in rows]
-    try:
-        _sampled_observation_recovery_closed(
-            outcome == "recovered",
-            len(query.partially_observed),
-            len(query.fully_observed),
-            replicates,
-            checked,
-        )
-    except CausalUnsupportedError as error:
-        candidate = getattr(stage, "sampled_measured" if measured else "sampled_candidate", None)
-        if (
-            error.reason_code != "not_supported"
-            or "sampled_recovery.route_frozen" not in str(error)
-            or candidate is None
-        ):
-            raise
-        produced = call_native(
-            execution,
-            candidate,
-            query.population,
-            query.observed_regime,
-            [(p.variable, p.response, p.proxy) for p in query.partially_observed],
-            list(query.fully_observed),
-            checked,
-            snapshot,
-            replicates,
-            seed,
-            interval_method,
-            cancel="cancel" if measured else None,
-            memory="memory_limit_bytes" if measured else None,
-        )
-        if measured:
-            return MeasuredInference._from_native(produced)
-        payload, artifact = produced
-        return SampledRecoveryCandidate._from_native(payload, bytes(artifact))
-    raise _frozen(
-        "antecedent.transport.sampled_observation_recovery", "sampled_recovery.route_frozen"
+    _sampled_observation_recovery_closed(
+        outcome == "recovered",
+        len(query.partially_observed),
+        len(query.fully_observed),
+        replicates,
+        checked,
     )
+    candidate = getattr(stage, "sampled_measured" if measured else "sampled_candidate", None)
+    if candidate is None:
+        raise _unavailable(
+            "antecedent.transport.sampled_observation_recovery", "sampled_recovery.producer_missing"
+        )
+    produced = call_native(
+        execution,
+        candidate,
+        query.population,
+        query.observed_regime,
+        [(p.variable, p.response, p.proxy) for p in query.partially_observed],
+        list(query.fully_observed),
+        checked,
+        snapshot,
+        replicates,
+        seed,
+        interval_method,
+        cancel="cancel" if measured else None,
+        memory="memory_limit_bytes" if measured else None,
+    )
+    if measured:
+        return MeasuredInference._from_native(produced)
+    payload, artifact = produced
+    return SampledRecoveryCandidate._from_native(payload, bytes(artifact))

@@ -410,7 +410,7 @@ fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract(
     let bytes = session.export_result(&ctx).unwrap();
     let wire =
         antecedent_io::mz_transport_artifact::MzTransportArtifactWire::decode(&bytes).unwrap();
-    assert_eq!(wire.uncertainty.status, antecedent_io::mz_transport_artifact::MZ_WITHHELD);
+    assert_eq!(wire.uncertainty.status, antecedent_io::mz_transport_artifact::MZ_NOMINAL_INTERVAL);
     consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx).unwrap();
 }
 #[test]

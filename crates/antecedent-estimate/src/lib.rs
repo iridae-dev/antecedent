@@ -232,7 +232,6 @@ pub use estimator_menu::{
     EstimatorMenu, EstimatorMenuEntry, MenuContext, MenuRefusal, transport_estimator_menu,
     transport_estimator_menu_with,
 };
-#[cfg(feature = "calibration-internal")]
 pub use learned_continuous::learned_continuous_interval_internal;
 pub use learned_continuous::{
     FoldProvenance, LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousEstimate, LearnedContinuousOptions,
@@ -249,7 +248,6 @@ pub use smoothed_dose::{
     SmoothedDoseUncertainty, estimate_smoothed_dose, smoothed_dose_estimator_menu,
     validate_smoothed_dose,
 };
-#[cfg(feature = "calibration-internal")]
 pub use smoothed_dose::{SmoothedDoseIntervalRun, smoothed_dose_interval_internal};
 
 pub use admg_conditional_transport::{
@@ -307,7 +305,7 @@ pub use crossfit_cache::{CrossfitCacheStats, CrossfitNuisanceCache, NuisanceScop
 pub use descriptive_comparison::{
     AdjustedEstimate, ArmSummary, Availability, DescriptiveComparison, MeanPair, RawContrast,
     ReportingContrast, ReportingScale, ReportingTransform, Unavailable, compare_raw_adjusted,
-    raw_contrast, refuse_column_attribution, refuse_transform_interval, transform_mean_pair,
+    raw_contrast, refuse_column_attribution, transform_mean_pair,
 };
 pub use dml::{DmlAte, DmlScore};
 pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};
@@ -378,7 +376,6 @@ pub use joint_if::{
 pub use matched_case_control::{
     ConditionalOddsRatio, MATCHED_ESTIMAND, MATCHED_SAMPLING, MatchedSetCounts,
     conditional_odds_ratio, parse_matched_estimand, parse_matched_sampling,
-    refuse_matched_interval,
 };
 pub use mixed_source::{evaluate_exact_mixed_source, prepare_exact_mixed_source};
 pub use observation::{
@@ -413,7 +410,7 @@ pub use recovery_sampled::{
     SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail,
     SampledRecoveryDiagnostics, SampledRecoveryError, SampledRecoveryReceipt,
     SampledRecoveryResult, derive_sampled_recovery, estimate_sampled_recovery,
-    refuse_component_variance_only, replay_sampled_recovery, sampled_recovery_route_frozen,
+    refuse_component_variance_only, replay_sampled_recovery,
 };
 pub use response::{
     ContinuousResponseEstimator, ContinuousResponseOptions, FrontDoorDerivativeInference,
@@ -446,7 +443,6 @@ pub use statistical_transport::{
     mz_interval_withheld_reason, mz_sampling_dependence, nominal_z_transport_interval,
     percentile_interval, z_transport_bootstrap_law_draws,
 };
-#[cfg(feature = "calibration-internal")]
 pub use statistical_transport::{
     MzRequestInterval, MzTransportIntervals, mz_transport_bootstrap_interval,
     mz_transport_bootstrap_law_draws,

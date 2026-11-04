@@ -17,7 +17,12 @@ from antecedent.descriptive import (
     replay_descriptive_comparison,
     transform_mean_pair,
 )
-from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
+from antecedent.errors import (
+    CausalSerializationError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 
 from _refusal import assert_registered_refusal
 
@@ -193,16 +198,28 @@ def test_a_missing_joint_covariance_gives_points_and_a_typed_reason_never_a_zero
     )
 
 
-def test_an_interval_on_a_transformed_scale_is_a_typed_refusal():
-    error = refusal(lambda: transform_mean_pair(0.4, 0.2, level=0.95))
-    assert error.reason_code == "not_supported"
-    assert "descriptive_comparison.interval_withheld" in str(error)
-    error = refusal(
-        lambda: raw_reporting_transform(
-            outcome=BINARY_OUTCOME, treatment=BINARY_TREATMENT, level=0.95
-        )
+def test_a_transformed_scale_interval_matches_the_hand_derived_delta_method():
+    # Risk difference g = mu1 - mu0 has gradient (1, -1): var = 0.01 - 2 * 0.002 + 0.02 = 0.026.
+    z = 1.959963984540054
+    result = transform_mean_pair(
+        0.4, 0.2, scales=["risk_difference"], covariance=[[0.01, 0.002], [0.002, 0.02]], level=0.95
     )
-    assert error.reason_code == "not_supported"
+    half = z * math.sqrt(0.026)
+    assert result.intervals[0] == pytest.approx((0.2 - half, 0.2 + half), abs=1e-12)
+    # Calibration annotates the interval; it never withholds it.
+    assert result.interval_calibration["status"] in (
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    )
+    # Without a joint covariance there is no standard error, so no interval for that scale.
+    bare = transform_mean_pair(0.4, 0.2, scales=["risk_difference"], level=0.95)
+    assert bare.intervals == (None,)
+    arms = raw_reporting_transform(outcome=BINARY_OUTCOME, treatment=BINARY_TREATMENT, level=0.95)
+    assert arms.intervals[0] is not None and arms.intervals[0][0] < arms.intervals[0][1]
+    with pytest.raises(CausalValueError):
+        transform_mean_pair(0.4, 0.2, scales=["risk_difference"], level=1.5)
 
 
 def test_a_mean_pair_outside_a_scales_domain_or_a_bad_covariance_is_refused():

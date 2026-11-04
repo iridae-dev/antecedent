@@ -12,8 +12,8 @@ use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
     BatchPlan, CandidateCoupling, CandidateDraws, CandidateOrigin, ConfidenceSetBasis,
     DecisionDraws, DrawSegment, Functional, IntervalMultiplicity, IntervalRequest, PairCoupling,
-    ProbabilityQuantity, PublishedRoute, RankingRequest, ReliabilityError, ReliabilityRequest,
-    RiskTail, SourceParadigm, StreamId, StreamPurpose, ThresholdSide, WithinStreamDependence,
+    ProbabilityQuantity, PublishedRoute, RankingRequest, ReliabilityRequest, RiskTail,
+    SourceParadigm, StreamId, StreamPurpose, ThresholdSide, WithinStreamDependence,
     derive_uncertainty, estimate, estimate_difference,
 };
 use serde_json::Value;
@@ -277,12 +277,11 @@ fn derived_uncertainty_matches_the_definition_level_reference() {
             assert!(probability.interval.lower >= 0.0 && probability.interval.upper <= 1.0);
         }
         if interval.multiplicity == IntervalMultiplicity::Simultaneous {
-            // A simultaneous request is a construction no coverage record measured.
-            assert!(
-                matches!(
-                    got.publish(PublishedRoute::RankingProbability),
-                    Err(ReliabilityError::NotSupported { .. })
-                ),
+            // A simultaneous request is a construction no coverage record measured: the
+            // interval is reported and its calibration says so.
+            assert_eq!(
+                got.publish(PublishedRoute::RankingProbability).unwrap().status,
+                antecedent_io_core::CalibrationStatus::NotMeasured,
                 "{name}"
             );
         }

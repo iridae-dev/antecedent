@@ -36,13 +36,11 @@ compiled, non-ignored test functions; executing them stays with the evidence run
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 import tomllib
 from collections import Counter
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path

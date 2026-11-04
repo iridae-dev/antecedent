@@ -3,7 +3,6 @@
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, InferenceStanding, NestedMarkovInput, Regime, RegimeCounts,
-    refuse_public_interval_route,
 };
 use antecedent_estimate::nested_markov_uncertainty::nested_markov_fisher_internal;
 
@@ -81,9 +80,8 @@ fn nested_fisher_delta_covariance_matches_independent_stratified_variance() {
     assert!((estimate.interval_candidates[2][1] - (0.2 + radius)).abs() < 1e-10);
     assert_eq!(
         estimate.pilot.status.inference,
-        InferenceStanding::IntervalWithheldCalibrationUnmeasured
+        InferenceStanding::IntervalCandidatesCalibrationAnnotated
     );
-    assert!(format!("{}", refuse_public_interval_route()).contains("not_supported"));
 }
 
 #[test]

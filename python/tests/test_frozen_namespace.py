@@ -33,6 +33,7 @@ _EXPECTED_ALL = {
     "analyze",
     "prepare",
     "load",
+    "build_flavor",
     "identify",
     "estimate",
     "diagnose_data",

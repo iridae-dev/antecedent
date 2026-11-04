@@ -153,6 +153,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "interval",
         "level",
         "calibration",
+        "calibration_reason",
         "record_id",
         "calibration_sha",
         "basis",
@@ -284,6 +285,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "weight",
     },
     "antecedent": {
+        "build_flavor",
         "propagation_chain",
         "data_diagnostics",
         # Verbs
@@ -490,6 +492,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "prepared",
     },
     "AnalysisResult": {
+        "would_refuse",
         "counterfactual_contrasts",
         "interval_bindings",
         "structural_aggregation_policy",

@@ -269,7 +269,7 @@ fn an_exact_map_publishes_its_interval_as_an_exact_transform_and_a_line_of_few_t
     assert!((interval.upper - interval.lower - 2.0 * half).abs() < 1e-9);
     assert!((interval.source_standard_error - sd).abs() < 1e-12);
 
-    // Five validation trials are outside every measured design.
+    // Five validation trials are outside every measured design: reported, annotated.
     let trials = [(0.0, 0.1), (1.0, 1.1), (2.0, 1.9), (3.0, 3.2), (4.0, 3.9)]
         .iter()
         .map(|(s, t)| TrialEffectPair { surrogate_effect: *s, terminal_effect: *t })
@@ -289,8 +289,11 @@ fn an_exact_map_publishes_its_interval_as_an_exact_transform_and_a_line_of_few_t
         .unwrap()
         .derive(&near_two, None, 3)
         .unwrap();
-    let refusal = bridged.bridged_interval(0.95).unwrap_err();
-    assert_eq!(refusal.detail, "scientific_bridge.interval_scope_outside_measured");
+    let reported = bridged.bridged_interval(0.95).expect("reported without a measured design");
+    assert_ne!(
+        reported.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
+    );
 }
 
 #[test]

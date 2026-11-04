@@ -80,7 +80,7 @@ use antecedent_estimate::measurement::{
     DataBinding, LinearMeasuredData, MeasurementError, PosteriorCombination, PosteriorLinearData,
     RiskDifferenceInput, correct_binary_prevalence, correct_binary_risk_difference,
     correct_categorical, correct_classical_linear_effect, correct_latent_posterior_linear_effect,
-    correct_repeated_linear_effect, interval_not_supported,
+    correct_repeated_linear_effect,
 };
 use antecedent_io::IoError;
 use antecedent_io::measurement_model_wire::{
@@ -613,13 +613,18 @@ impl PreparedMeasurementModel {
         check_request(&self.model, &self.binding, operation)
     }
 
-    /// An interval for the corrected functional.
+    /// An interval for the corrected functional of a prepared model, before any data.
     ///
     /// # Errors
-    /// Always `not_supported`: no coverage record measures the whole
-    /// measurement-plus-estimation method.
+    /// Always `uncertainty_representation_insufficient`: a prepared model holds no
+    /// corrected value to put an interval around; ask the estimate for its interval.
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(MeasurementModelRefusal::from_estimate(&interval_not_supported()))
+        Err(MeasurementModelRefusal {
+            code: antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+            detail: "measurement_model.interval_closed".to_owned(),
+            message: "a prepared measurement model carries no corrected functional; request the interval from the estimate".to_owned(),
+            remedy: None,
+        })
     }
 
     /// Form the corrected functional from the retained data.
@@ -971,12 +976,15 @@ impl MeasurementEstimate {
         self.binding.representation_mapping.as_ref().map(|m| m.mapping_id.as_str())
     }
 
-    /// An interval for the corrected functional.
+    /// The equal-tailed Wald interval of the corrected functional at `level`
+    /// (`antecedent_estimate::corrected_functional_interval`).
     ///
     /// # Errors
-    /// Always `not_supported` with `measurement_model.interval_closed`.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(MeasurementModelRefusal::from_estimate(&interval_not_supported()))
+    /// The estimate's refusal: a route whose variance has no executed independent check
+    /// (`measurement_model.interval_closed`), or a level outside `(0, 1)`.
+    pub fn interval(&self, level: f64) -> Result<(f64, f64), MeasurementModelRefusal> {
+        antecedent_estimate::measurement::corrected_functional_interval(&self.record, level)
+            .map_err(|error| MeasurementModelRefusal::from_estimate(&error))
     }
 
     /// Value and variance of a linear functional of the corrected coefficient
