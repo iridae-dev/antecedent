@@ -808,18 +808,14 @@ pub struct MappedTransferSpec<'a> {
 /// residual variance equals the target's known variance.
 const RESIDUAL_VARIANCE_TOLERANCE: f64 = 1e-12;
 
-fn transfer_refusal(code: &'static str, scope: &str, message: &str) -> CausalError {
-    antecedent_io::IoError::Refused {
-        code,
-        message: format!("mapped_posterior_transfer.{scope}: {message}"),
-    }
-    .into()
+fn transfer_refusal(code: &'static str, detail: &str, message: &str) -> CausalError {
+    antecedent_io::IoError::Refused { code, message: format!("{detail}: {message}") }.into()
 }
 
 fn map_refuse(message: &str) -> CausalError {
     transfer_refusal(
         antecedent_core::reason_code!("quantity_semantics_mismatch"),
-        "coefficient_map",
+        "mapped_posterior_transfer.coefficient_map",
         message,
     )
 }
@@ -827,7 +823,7 @@ fn map_refuse(message: &str) -> CausalError {
 fn meaning_refuse(message: &str) -> CausalError {
     transfer_refusal(
         antecedent_core::reason_code!("distribution_meaning_mismatch"),
-        "parameter_posterior",
+        "mapped_posterior_transfer.parameter_posterior",
         message,
     )
 }
@@ -835,7 +831,7 @@ fn meaning_refuse(message: &str) -> CausalError {
 fn variance_refuse(message: &str) -> CausalError {
     transfer_refusal(
         antecedent_core::reason_code!("prior_transfer_not_hydrated"),
-        "residual_variance",
+        "mapped_posterior_transfer.residual_variance",
         message,
     )
 }

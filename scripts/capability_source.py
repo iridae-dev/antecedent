@@ -1405,8 +1405,8 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
             and item.name in {"reason_code_in_message", "attach_reason_from_message"}
         }
         if reason_helpers != {
-            "reason_code_in_message": '{antecedent_core::reason_code::split_prefix(message).or_else(||{message.split_once(": ").and_then(|(_,rest)|antecedent_core::reason_code::split_prefix(rest))}).map(|(code,_)|code)}',
-            "attach_reason_from_message": "{matchreason_code_in_message(message).filter(|code|antecedent_core::reason_code::is_registered(code)){Some(code)=>with_reason_code(err,code),None=>err,}}",
+            "reason_code_in_message": '{antecedent::reason::reason_code::split_prefix(message).or_else(||{message.split_once(": ").and_then(|(_,rest)|antecedent::reason::reason_code::split_prefix(rest))}).map(|(code,_)|code)}',
+            "attach_reason_from_message": "{matchreason_code_in_message(message).filter(|code|antecedent::reason::reason_code::is_registered(code)){Some(code)=>with_reason_code(err,code),None=>err,}}",
         }:
             return [
                 "value_err reason propagation no longer proves class-only literal messages remain uncoded"
